@@ -769,12 +769,67 @@ function SettingsTab({ biz, onUpd }) {
   </div>;
 }
 
+/* ═══ PERSISTENCE HELPERS ═════════════════════════════ */
+const STORAGE_KEY = "jobprofit-app-data";
+
+async function loadSavedData() {
+  try {
+    if (window.storage) {
+      const result = await window.storage.get(STORAGE_KEY);
+      if (result && result.value) {
+        return JSON.parse(result.value);
+      }
+    }
+  } catch (e) {
+    console.error("Storage load error:", e);
+  }
+  return null;
+}
+
+async function saveData(data) {
+  try {
+    if (window.storage) {
+      await window.storage.set(STORAGE_KEY, JSON.stringify(data));
+    }
+  } catch (e) {
+    console.error("Storage save error:", e);
+  }
+}
+
 /* ═══ MAIN APP ═══════════════════════════════════════ */
 export default function App() {
-  const [tab, setTab] = useState("Overview"); const [jobs, setJobs] = useState(seedJobs); const [expenses, setExpenses] = useState(seedExp);
-  const [invoices, setInvoices] = useState(seedInvoices); const [biz, setBiz] = useState(defBiz); const [note, setNote] = useState(""); const [navJobId, setNavJobId] = useState(null);
+  const [tab, setTab] = useState("Overview");
+  const [jobs, setJobs] = useState(seedJobs);
+  const [expenses, setExpenses] = useState(seedExp);
+  const [invoices, setInvoices] = useState(seedInvoices);
+  const [biz, setBiz] = useState(defBiz);
+  const [note, setNote] = useState("");
+  const [navJobId, setNavJobId] = useState(null);
+  const [dataLoaded, setDataLoaded] = useState(false);
   const stickyReceiptRef = useRef(null);
   const showVat = biz.vatRegistered; const unassigned = expenses.filter(e => !e.jobId).length;
+
+  // Load saved data on mount
+  useEffect(() => {
+    loadSavedData().then(saved => {
+      if (saved) {
+        if (saved.jobs) setJobs(saved.jobs);
+        if (saved.expenses) setExpenses(saved.expenses);
+        if (saved.invoices) setInvoices(saved.invoices);
+        if (saved.biz) setBiz(saved.biz);
+      }
+      setDataLoaded(true);
+    });
+  }, []);
+
+  // Auto-save whenever data changes (after initial load)
+  useEffect(() => {
+    if (!dataLoaded) return;
+    const timer = setTimeout(() => {
+      saveData({ jobs, expenses, invoices, biz });
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [jobs, expenses, invoices, biz, dataLoaded]);
 
   // PWA homescreen icon & manifest injection
   useEffect(() => {
