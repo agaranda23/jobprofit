@@ -1,5 +1,5 @@
-const { useState, useRef, useCallback, useEffect } = React;
-// XLSX loaded via CDN in index.html
+import { useState, useRef, useCallback, useEffect } from "react";
+import * as XLSX from "xlsx";
 
 const TABS = ["Overview", "Add Job", "Jobs", "Schedule", "Materials", "Settings"];
 const defBiz = { name: "Your Business Name", phone: "07XXX XXXXXX", email: "you@email.com", address: "Your Business Address", trade: "General Builder", vatRegistered: false, vatNumber: "", hourlyRate: 45, bankDetails: "", logoUrl: "" };
@@ -912,7 +912,7 @@ function saveData(data) {
 }
 
 /* ═══ MAIN APP ═══════════════════════════════════════ */
-function App() {
+export default function App() {
   const [tab, setTab] = useState("Overview");
   const [jobs, setJobs] = useState(seedJobs);
   const [expenses, setExpenses] = useState(seedExp);
@@ -988,7 +988,7 @@ function App() {
   const goTo = (t, jobId) => { setTab(t); if (jobId) setNavJobId(jobId); };
   const tabIcons = { Overview: "📊", "Add Job": "🔨", Jobs: "📋", Schedule: "📅", Materials: "🧾", Settings: "⚙️" };
   return <div style={{ fontFamily: T.font, maxWidth: 640, margin: "0 auto", padding: "14px 16px", minHeight: "100vh", background: T.bg, color: T.text, WebkitFontSmoothing: "antialiased" }}>
-    {/* Font loaded in index.html */}
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
     <style>{`@keyframes fadeIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}@keyframes spin{to{transform:rotate(360deg)}}@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.04)}}`}</style>
     <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 16px", margin: 0 }}><img src={LOGO} alt="JobProfit" style={{ height: 72, width: "auto", display: "block", objectFit: "contain" }} /><div style={{ display: "flex", flexDirection: "column", gap: 2 }}><div style={{ fontSize: 26, fontWeight: 800, lineHeight: 1 }}>Job<span style={{ color: "#F59E0B" }}>Profit</span></div><div style={{ fontSize: 12, fontWeight: 500, color: "#9CA3AF", marginTop: 2, letterSpacing: 0.2 }}>Build wealth, not just jobs</div></div></div>
     {note && <div style={{ background: T.accentLight, border: "1px solid #BBF7D0", borderRadius: T.rSm, padding: "10px 16px", marginBottom: 14, color: "#166534", fontSize: 14, fontWeight: 600, animation: "fadeIn .3s" }}>{note}</div>}
@@ -1011,8 +1011,3 @@ function App() {
     <input ref={stickyReceiptRef} type="file" accept="image/*" capture="environment" onChange={async e => { const f = e.target.files?.[0]; if (!f) return; flash("📷 Scanning..."); try { const raw = await fileToB64(f); const c = await compress(raw); const d = await aiReceipt(c); if (d) { onAddExp({ id: mkId("E"), jobId: "", merchant: d.merchant || "Unknown", date: d.date || td(), amount: Number(d.amount || 0), vat: Number(d.vat || 0), desc: d.desc || "", photo: c }); } else { onAddExp({ id: mkId("E"), jobId: "", merchant: "Unknown", date: td(), amount: 0, vat: 0, desc: "Scan failed — edit manually", photo: c }); } } catch { flash("Scan failed"); } if (stickyReceiptRef.current) stickyReceiptRef.current.value = ""; }} style={{ display: "none" }} />
   </div>;
 }
-
-
-// Mount the app
-const root = ReactDOM.createRoot(document.getElementById("root"));
-root.render(React.createElement(App));
