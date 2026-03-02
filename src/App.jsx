@@ -897,29 +897,65 @@ export default function App() {
     });
 
     // Web app manifest (Android homescreen + PWA install)
-    const manifest = {
-      name: 'JobProfit',
-      short_name: 'JobProfit',
-      description: 'Build wealth, not just jobs',
-      start_url: '.',
-      display: 'standalone',
-      background_color: '#FFFFFF',
-      theme_color: '#1DBA63',
-      icons: [
-        { src: LOGO, sizes: '512x512', type: 'image/png', purpose: 'any maskable' }
-      ]
-    };
-    const blob = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
-    const manifestURL = URL.createObjectURL(blob);
-    const manifestLink = document.createElement('link');
-    manifestLink.setAttribute('data-jp-pwa', '1');
-    manifestLink.rel = 'manifest';
-    manifestLink.href = manifestURL;
-    document.head.appendChild(manifestLink);
+    // Convert base64 logo to a blob URL — Android handles blob URLs much better than inline data URIs in manifests
+    const b64 = LOGO.split(',')[1];
+    const byteStr = atob(b64);
+    const ab = new ArrayBuffer(byteStr.length);
+    const ia = new Uint8Array(ab);
+    for (let i = 0; i < byteStr.length; i++) ia[i] = byteStr.charCodeAt(i);
+    const iconBlob = new Blob([ab], { type: 'image/png' });
+    const iconURL = URL.createObjectURL(iconBlob);
+
+    // Generate a maskable version with padding (Android adaptive icon safe zone)
+    const maskableCanvas = document.createElement('canvas');
+    maskableCanvas.width = 512;
+    maskableCanvas.height = 512;
+    const mCtx = maskableCanvas.getContext('2d');
+    // Fill background for maskable (visible area is inner ~80%)
+    mCtx.fillStyle = '#111827';
+    mCtx.fillRect(0, 0, 512, 512);
+    const mImg = new Image();
+    mImg.src = LOGO;
+    const maskableReady = new Promise(res => {
+      mImg.onload = () => {
+        const pad = 80; // safe zone padding
+        mCtx.drawImage(mImg, pad, pad, 512 - pad * 2, 512 - pad * 2);
+        maskableCanvas.toBlob(blob => {
+          res(blob ? URL.createObjectURL(blob) : iconURL);
+        }, 'image/png');
+      };
+      mImg.onerror = () => res(iconURL);
+    });
+
+    maskableReady.then(maskableURL => {
+      const manifest = {
+        name: 'JobProfit',
+        short_name: 'JobProfit',
+        description: 'Build wealth, not just jobs',
+        start_url: '.',
+        display: 'standalone',
+        background_color: '#111827',
+        theme_color: '#1DBA63',
+        icons: [
+          { src: iconURL, sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: maskableURL, sizes: '512x512', type: 'image/png', purpose: 'maskable' }
+        ]
+      };
+      const blob = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
+      const manifestBlobURL = URL.createObjectURL(blob);
+      const manifestLink = document.createElement('link');
+      manifestLink.setAttribute('data-jp-pwa', '1');
+      manifestLink.rel = 'manifest';
+      manifestLink.href = manifestBlobURL;
+      document.head.appendChild(manifestLink);
+    });
 
     return () => {
-      document.querySelectorAll('[data-jp-pwa]').forEach(el => el.remove());
-      URL.revokeObjectURL(manifestURL);
+      document.querySelectorAll('[data-jp-pwa]').forEach(el => {
+        if (el.href) URL.revokeObjectURL(el.href);
+        el.remove();
+      });
+      URL.revokeObjectURL(iconURL);
     };
   }, []);
 
