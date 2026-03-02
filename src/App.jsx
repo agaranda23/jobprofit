@@ -772,28 +772,46 @@ function SettingsTab({ biz, onUpd }) {
 /* ═══ PERSISTENCE HELPERS ═════════════════════════════ */
 const STORAGE_KEY = "jobprofit-app-data";
 
-async function loadSavedData() {
+function loadSavedData() {
+  // Try localStorage first (works on Android home screen PWA)
   try {
-    if (window.storage) {
-      const result = await window.storage.get(STORAGE_KEY);
-      if (result && result.value) {
-        return JSON.parse(result.value);
-      }
-    }
-  } catch (e) {
-    console.error("Storage load error:", e);
-  }
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch (e) { /* localStorage may be blocked in artifact sandbox */ }
   return null;
 }
 
-async function saveData(data) {
+function saveToLocalStorage(data) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    return true;
+  } catch (e) { return false; }
+}
+
+async function loadFromWindowStorage() {
+  try {
+    if (window.storage) {
+      const result = await window.storage.get(STORAGE_KEY);
+      if (result && result.value) return JSON.parse(result.value);
+    }
+  } catch (e) { /* window.storage may not exist outside artifact */ }
+  return null;
+}
+
+async function saveToWindowStorage(data) {
   try {
     if (window.storage) {
       await window.storage.set(STORAGE_KEY, JSON.stringify(data));
+      return true;
     }
-  } catch (e) {
-    console.error("Storage save error:", e);
-  }
+  } catch (e) { /* ignore */ }
+  return false;
+}
+
+function saveData(data) {
+  // Save to both — whichever is available will work
+  saveToLocalStorage(data);
+  saveToWindowStorage(data);
 }
 
 /* ═══ MAIN APP ═══════════════════════════════════════ */
@@ -811,7 +829,18 @@ export default function App() {
 
   // Load saved data on mount
   useEffect(() => {
-    loadSavedData().then(saved => {
+    // Try localStorage first (instant, works on Android home screen)
+    const localData = loadSavedData();
+    if (localData) {
+      if (localData.jobs) setJobs(localData.jobs);
+      if (localData.expenses) setExpenses(localData.expenses);
+      if (localData.invoices) setInvoices(localData.invoices);
+      if (localData.biz) setBiz(localData.biz);
+      setDataLoaded(true);
+      return;
+    }
+    // Fallback: try window.storage (artifact sandbox)
+    loadFromWindowStorage().then(saved => {
       if (saved) {
         if (saved.jobs) setJobs(saved.jobs);
         if (saved.expenses) setExpenses(saved.expenses);
