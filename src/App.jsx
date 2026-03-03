@@ -1,5 +1,5 @@
-import { useState, useRef, useCallback, useEffect } from "react";
-import * as XLSX from "xlsx";
+const { useState, useRef, useCallback, useEffect } = React;
+// XLSX loaded via CDN in index.html
 
 const TABS = ["Overview", "Add Job", "Jobs", "Schedule", "Materials", "Settings"];
 const defBiz = { name: "Your Business Name", phone: "07XXX XXXXXX", email: "you@email.com", address: "Your Business Address", trade: "General Builder", vatRegistered: false, vatNumber: "", hourlyRate: 45, bankDetails: "", logoUrl: "" };
@@ -163,22 +163,21 @@ function ProfitBar({ quote, materials, profit, margin }) {
 
 function QuickStats({ todayProfit, outstanding, paidThisMonth, profitThisMonth, unpaidCount, onChase, jobs, expenses, biz }) {
   const [animProfit, setAnimProfit] = useState(0);
-  useEffect(() => { let start = 0; const end = todayProfit; const dur = 500; const t0 = performance.now(); const step = ts => { const p = Math.min((ts - t0) / dur, 1); const ease = 1 - Math.pow(1 - p, 3); setAnimProfit(start + (end - start) * ease); if (p < 1) requestAnimationFrame(step); }; requestAnimationFrame(step); }, [todayProfit]);
+  useEffect(() => { let start = 0; const end = todayProfit; const dur = 600; const t0 = performance.now(); const step = ts => { const p = Math.min((ts - t0) / dur, 1); const ease = 1 - Math.pow(1 - p, 3); setAnimProfit(start + (end - start) * ease); if (p < 1) requestAnimationFrame(step); }; requestAnimationFrame(step); }, [todayProfit]);
 
   // --- Momentum calculations ---
-  const today = td(); const mo = thisMonth();
+  const today = td();
   const now = new Date();
   const dayOfMonth = now.getDate();
   const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-  const currentMonthProfit = profitThisMonth;
-  const projectedMonthProfit = dayOfMonth > 0 ? Math.round((currentMonthProfit / dayOfMonth) * daysInMonth) : 0;
+  const projectedMonthProfit = dayOfMonth > 0 ? Math.round((profitThisMonth / dayOfMonth) * daysInMonth) : 0;
 
   // Last month profit
   const lastMo = (() => { const d = new Date(); d.setMonth(d.getMonth() - 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; })();
   const lastMoPaid = jobs.filter(j => j.paymentDate?.startsWith(lastMo)).reduce((s, j) => s + j.total, 0);
   const lastMoMat = expenses.filter(e => e.date?.startsWith(lastMo)).reduce((s, e) => s + e.amount, 0);
   const lastMonthProfit = lastMoPaid - lastMoMat;
-  const vsLastMonth = lastMonthProfit > 0 ? Math.round(((currentMonthProfit - lastMonthProfit) / lastMonthProfit) * 100) : 0;
+  const vsLastMonth = lastMonthProfit > 0 ? Math.round(((profitThisMonth - lastMonthProfit) / lastMonthProfit) * 100) : 0;
   const vsColor = vsLastMonth > 3 ? T.accent : vsLastMonth < -3 ? T.danger : T.hiVis;
 
   // Profit per hour today (est)
@@ -190,7 +189,7 @@ function QuickStats({ todayProfit, outstanding, paidThisMonth, profitThisMonth, 
   // Profit streak
   const streakCount = (() => { let streak = 0; const d = new Date(); for (let i = 0; i < 30; i++) { const ds = d.toISOString().slice(0, 10); const dayPaid = jobs.filter(j => j.paymentDate === ds).reduce((s, j) => s + j.total, 0); const dayMat = expenses.filter(e => e.date === ds).reduce((s, e) => s + e.amount, 0); if (dayPaid - dayMat > 0) streak++; else break; d.setDate(d.getDate() - 1); } return streak; })();
 
-  // True Hourly Rate (weekly)
+  // True Hourly Rate (weekly) — used for Next Move logic only
   const d7ago = (() => { const d = new Date(); d.setDate(d.getDate() - 7); return d.toISOString().slice(0, 10); })();
   const weekPaidJobs = jobs.filter(j => j.paymentStatus === "paid" && j.paymentDate >= d7ago);
   const weekGross = weekPaidJobs.reduce((s, j) => s + j.total, 0);
@@ -199,107 +198,84 @@ function QuickStats({ todayProfit, outstanding, paidThisMonth, profitThisMonth, 
   const weekEstHours = weekGross > 0 ? Math.max(Math.round(weekGross / rate), 1) : 0;
   const trueHourly = weekEstHours > 0 ? Math.round(weekNet / weekEstHours) : 0;
   const targetHourly = biz?.targetHourlyRate || 100;
-  const vsTarget = targetHourly > 0 ? Math.round(((trueHourly - targetHourly) / targetHourly) * 100) : 0;
 
-  // Dynamic guidance sentence
+  // Tomorrow check for Next Move
+  const tomorrowDate = (() => { const d = new Date(); d.setDate(d.getDate() + 1); return d.toISOString().slice(0, 10); })();
+  const hasTomorrowJobs = jobs.some(j => j.scheduledDate === tomorrowDate);
+
+  // Smart guidance line (max ~40 chars, calm tone)
   const guidance = (() => {
-    if (projectedMonthProfit > lastMonthProfit * 1.1 && lastMonthProfit > 0) return "On track for a strong month.";
-    if (outstanding > 0 && outstanding > profitThisMonth * 0.5) return "One invoice away from target.";
-    if (vsLastMonth > 3) return "Momentum building this week.";
-    if (vsLastMonth < -3 && lastMonthProfit > 0) return "Below pace — tighten pricing.";
-    if (streakCount >= 3) return "Consistent work paying off.";
+    if (todayProfit === 0) return "First job sets the pace.";
+    if (projectedMonthProfit >= lastMonthProfit && lastMonthProfit > 0) return "Momentum building.";
+    if (lastMonthProfit > 0 && projectedMonthProfit < lastMonthProfit) return "Below pace — tighten pricing.";
     return "Keep pushing.";
   })();
 
-  // Next action micro prompt
-  const nextAction = (() => {
-    if (outstanding > 0) return { text: `Chase ${GBP(outstanding)} unpaid`, action: onChase };
-    if (trueHourly > 0 && trueHourly < targetHourly) return { text: "Raise pricing on low-margin jobs", action: null };
-    if (projectedMonthProfit < lastMonthProfit && lastMonthProfit > 0) return { text: "Push for one more job this week", action: null };
+  // Next Move coach — priority order
+  const nextMove = (() => {
+    if (outstanding > 0) return { text: `Next move: Chase ${GBP(outstanding)}.`, action: onChase };
+    if (trueHourly > 0 && trueHourly < targetHourly) return { text: "Next move: Raise pricing.", action: null };
+    if (!hasTomorrowJobs) return { text: "Next move: Fill tomorrow.", action: null };
     return { text: "Strong week. Keep momentum.", action: null };
   })();
 
   // Unpaid progress bar
   const unpaidPct = outstanding > 0 ? Math.min(outstanding / (paidThisMonth + outstanding) * 100, 100) : 0;
 
-  const [showTrueHourlyModal, setShowTrueHourlyModal] = useState(false);
-
-  return <div style={{ marginBottom: 20 }}>
+  return <div style={{ marginBottom: 24 }}>
     {/* Hero — TODAY PROFIT */}
-    <div style={{ background: "linear-gradient(180deg, #1f9d55, #178a4a)", borderRadius: T.r, padding: "24px 20px 20px", color: "#fff", boxShadow: "0 10px 25px rgba(22,120,60,0.18)", marginBottom: 8, textAlign: "center", position: "relative", overflow: "hidden" }}>
-      <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(255,255,255,0.05), rgba(0,0,0,0.06))", pointerEvents: "none" }} />
-      <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: 1.5, textTransform: "uppercase", opacity: .8, marginBottom: 6, position: "relative" }}>Today You Made</div>
-      <div style={{ fontSize: 44, fontWeight: 800, lineHeight: 1, letterSpacing: -1, position: "relative" }}>{GBP(animProfit)}</div>
-      <div style={{ fontSize: 12, opacity: .7, marginTop: 6, fontWeight: 500, position: "relative" }}>profit after materials</div>
-      <div style={{ fontSize: 12, opacity: .55, marginTop: 8, fontWeight: 500, position: "relative", fontStyle: "italic" }}>{guidance}</div>
+    <div style={{ background: "linear-gradient(160deg, #1a3a7a 0%, #1e3a8a 55%, #15306e 100%)", borderRadius: T.r, padding: "26px 20px 22px", color: "#fff", boxShadow: "0 12px 28px rgba(26,58,122,0.22)", marginBottom: 10, textAlign: "center", position: "relative", overflow: "hidden" }}>
+      <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(255,255,255,0.04), rgba(0,0,0,0.08))", pointerEvents: "none" }} />
+      <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: 2, textTransform: "uppercase", opacity: .65, marginBottom: 8, position: "relative" }}>Today You Made</div>
+      <div style={{ fontSize: 46, fontWeight: 800, lineHeight: 1, letterSpacing: -1.5, position: "relative" }}>{GBP(animProfit)}</div>
+      <div style={{ fontSize: 12, opacity: .6, marginTop: 6, fontWeight: 400, position: "relative" }}>profit after materials</div>
+      <div style={{ fontSize: 11, opacity: .45, marginTop: 8, fontWeight: 400, position: "relative", letterSpacing: .2 }}>{guidance}</div>
     </div>
 
-    {/* Two compact tiles: Cash collected + Unpaid */}
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 8 }}>
-      <div style={{ background: T.primary, borderRadius: T.r, padding: "14px 16px", color: "#fff", boxShadow: T.cardShadow }}>
-        <div style={{ fontSize: 10, opacity: .55, fontWeight: 500, textTransform: "uppercase", letterSpacing: .5 }}>Cash Collected</div>
-        <div style={{ fontSize: 22, fontWeight: 800 }}>{GBP(paidThisMonth)}</div>
-        <div style={{ fontSize: 11, opacity: .6 }}>this month</div>
+    {/* Cash Collected + Unpaid */}
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
+      {/* Cash Collected — white card, navy text */}
+      <div style={{ background: T.surface, borderRadius: T.r, padding: "16px 16px 14px", boxShadow: T.cardShadow, border: `1px solid ${T.border}` }}>
+        <div style={{ fontSize: 10, color: T.textMuted, fontWeight: 500, textTransform: "uppercase", letterSpacing: .8, marginBottom: 4 }}>Cash In</div>
+        <div style={{ fontSize: 24, fontWeight: 800, color: "#1e3a8a", lineHeight: 1 }}>{GBP(paidThisMonth)}</div>
+        <div style={{ fontSize: 11, color: T.textMuted, fontWeight: 400, marginTop: 4 }}>this month</div>
       </div>
-      <button onClick={outstanding > 0 ? onChase : undefined} style={{ background: outstanding > 0 ? T.hiVis : T.surfaceAlt, borderRadius: T.r, padding: "14px 16px", color: outstanding > 0 ? "#fff" : T.textMed, boxShadow: T.cardShadow, border: outstanding > 0 ? "none" : `1px solid ${T.border}`, cursor: outstanding > 0 ? "pointer" : "default", fontFamily: T.font, textAlign: "left" }}>
-        <div style={{ fontSize: 10, opacity: outstanding > 0 ? .7 : .55, fontWeight: 500, textTransform: "uppercase", letterSpacing: .5 }}>Unpaid</div>
-        <div style={{ fontSize: 22, fontWeight: 800 }}>{GBP(outstanding)}</div>
-        <div style={{ fontSize: 11, opacity: .6 }}>{outstanding > 0 ? `${unpaidCount} waiting to be collected` : "All clear"}</div>
-        {outstanding > 0 && <div style={{ height: 3, borderRadius: 2, background: "rgba(255,255,255,.3)", marginTop: 6, overflow: "hidden" }}><div style={{ height: "100%", borderRadius: 2, background: "#fff", width: unpaidPct + "%" }} /></div>}
+      {/* Unpaid */}
+      <button onClick={outstanding > 0 ? onChase : undefined} style={{ background: outstanding > 0 ? "#FEF3C7" : T.surfaceAlt, borderRadius: T.r, padding: "16px 16px 14px", color: outstanding > 0 ? "#92400E" : T.textMuted, boxShadow: T.cardShadow, border: outstanding > 0 ? "1px solid #FDE68A" : `1px solid ${T.border}`, cursor: outstanding > 0 ? "pointer" : "default", fontFamily: T.font, textAlign: "left" }}>
+        <div style={{ fontSize: 10, fontWeight: 500, textTransform: "uppercase", letterSpacing: .8, marginBottom: 4, opacity: .7 }}>Unpaid</div>
+        <div style={{ fontSize: 24, fontWeight: 800, lineHeight: 1 }}>{GBP(outstanding)}</div>
+        <div style={{ fontSize: 11, fontWeight: 400, marginTop: 4, opacity: .7 }}>{outstanding > 0 ? `${unpaidCount} invoice${unpaidCount !== 1 ? "s" : ""}` : "All clear"}</div>
+        {outstanding > 0 && <div style={{ height: 2, borderRadius: 2, background: "#FDE68A", marginTop: 8, overflow: "hidden" }}><div style={{ height: "100%", borderRadius: 2, background: "#F59E0B", width: unpaidPct + "%" }} /></div>}
       </button>
     </div>
 
     {/* Performance Momentum */}
-    <div style={{ background: T.surface, borderRadius: T.r, padding: 16, border: `1px solid ${T.border}`, boxShadow: T.cardShadow, marginBottom: 8 }}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: T.textLight, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Performance Momentum</div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 14 }}>⚡</span>
-          <span style={{ fontSize: 14, fontWeight: 600, color: T.text }}>{GBP(profitPerHour)}/hour today</span>
+    <div style={{ background: T.surface, borderRadius: T.r, padding: "16px 16px 14px", border: `1px solid ${T.border}`, boxShadow: T.cardShadow, marginBottom: 0 }}>
+      <div style={{ fontSize: 10, fontWeight: 600, color: T.textMuted, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 12 }}>Performance Momentum</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+          <span style={{ fontSize: 13, opacity: .5 }}>⚡</span>
+          <span style={{ fontSize: 18, fontWeight: 800, color: T.text }}>{GBP(profitPerHour)}</span>
+          <span style={{ fontSize: 12, color: T.textMuted, fontWeight: 400 }}>/hr today</span>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 14 }}>📈</span>
-          <span style={{ fontSize: 14, fontWeight: 600, color: T.text }}>On track for {GBP(projectedMonthProfit)} this month</span>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+          <span style={{ fontSize: 13, opacity: .5 }}>📈</span>
+          <span style={{ fontSize: 18, fontWeight: 800, color: T.text }}>On track for {GBP(projectedMonthProfit)}</span>
+          <span style={{ fontSize: 12, color: T.textMuted, fontWeight: 400 }}>this month</span>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <span style={{ fontSize: 14 }}>🔥</span>
-          <span style={{ fontSize: 14, fontWeight: 600, color: vsColor }}>{vsLastMonth >= 0 ? "+" : ""}{vsLastMonth}% vs last month</span>
+        <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
+          <span style={{ fontSize: 13, opacity: .5 }}>🔥</span>
+          <span style={{ fontSize: 18, fontWeight: 800, color: vsColor }}>{vsLastMonth >= 0 ? "+" : ""}{vsLastMonth}%</span>
+          <span style={{ fontSize: 12, color: T.textMuted, fontWeight: 400 }}>vs last month</span>
         </div>
+        {streakCount >= 2 && <div style={{ fontSize: 12, color: T.textMuted, fontWeight: 400, paddingLeft: 20 }}>{streakCount}-day profit streak</div>}
       </div>
-      {/* Profit streak */}
-      <div style={{ marginTop: 10, fontSize: 12, color: T.textMuted, fontWeight: 500 }}>
-        {streakCount >= 2 ? `🔥 ${streakCount}-day profit streak` : streakCount === 1 ? "1 profitable day" : "No streak yet — book your next win"}
-      </div>
+      {/* Next Move coach pill */}
+      <button onClick={nextMove.action || undefined} style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 14, padding: "7px 12px", background: "#EEF2FF", border: "1px solid #C7D2FE", borderRadius: 20, cursor: nextMove.action ? "pointer" : "default", fontFamily: T.font }}>
+        <span style={{ fontSize: 12, fontWeight: 600, color: "#4338CA", flex: 1 }}>{nextMove.text}</span>
+        {nextMove.action && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#4338CA" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>}
+      </button>
     </div>
-
-    {/* True Hourly Rate */}
-    <button onClick={() => setShowTrueHourlyModal(true)} style={{ width: "100%", background: T.surface, borderRadius: T.r, padding: 16, border: `2px solid ${T.primary}30`, boxShadow: T.cardShadow, marginBottom: 8, cursor: "pointer", fontFamily: T.font, textAlign: "left", borderTop: `3px solid ${T.primary}` }}>
-      <div style={{ fontSize: 11, fontWeight: 700, color: T.textLight, textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>True Hourly Rate</div>
-      <div style={{ display: "flex", alignItems: "baseline", gap: 8 }}>
-        <span style={{ fontSize: 28, fontWeight: 800, color: T.primary }}>{GBP(trueHourly)}/hr</span>
-      </div>
-      <div style={{ fontSize: 12, color: T.textMuted, marginTop: 4 }}>
-        Target {GBP(targetHourly)} · <span style={{ color: vsTarget >= 0 ? T.accent : T.danger, fontWeight: 600 }}>{vsTarget >= 0 ? "+" : ""}{vsTarget}% vs target</span>
-      </div>
-      {weekEstHours === 0 && <div style={{ fontSize: 11, color: T.textMuted, marginTop: 4, fontStyle: "italic" }}>Based on logged hours.</div>}
-    </button>
-
-    {/* True Hourly Rate Modal */}
-    {showTrueHourlyModal && <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 1000 }} onClick={e => { if (e.target === e.currentTarget) setShowTrueHourlyModal(false); }}>
-      <div style={{ background: T.surface, borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 500, padding: 24, animation: "slideUp .25s ease-out" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}><h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>True Hourly Breakdown</h3><button onClick={() => setShowTrueHourlyModal(false)} style={{ width: 36, height: 36, borderRadius: "50%", border: "none", background: T.surfaceAlt, cursor: "pointer", fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button></div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {[["Gross Revenue", GBP(weekGross)], ["Materials", "−" + GBP(weekMat)], ["Net", GBP(weekNet)], ["Est. Hours", weekEstHours + "h"], ["True Hourly", GBP(trueHourly) + "/hr"]].map(([l, v], i) => <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: i < 4 ? `1px solid ${T.borderLight}` : "none" }}><span style={{ fontSize: 14, color: T.textMed }}>{l}</span><span style={{ fontSize: 14, fontWeight: i === 4 ? 800 : 600, color: i === 4 ? T.primary : T.text }}>{v}</span></div>)}
-        </div>
-        <div style={{ fontSize: 12, color: T.textMuted, marginTop: 12, fontStyle: "italic" }}>Based on last 7 days of paid work.</div>
-      </div>
-    </div>}
-
-    {/* Next Action micro prompt */}
-    <button onClick={nextAction.action || undefined} style={{ width: "100%", display: "flex", alignItems: "center", gap: 8, padding: "10px 16px", background: T.primaryLight, border: `1px solid ${T.primary}20`, borderRadius: 20, cursor: nextAction.action ? "pointer" : "default", fontFamily: T.font }}>
-      <span style={{ fontSize: 12, fontWeight: 600, color: T.primary, flex: 1 }}>{nextAction.text}</span>
-      {nextAction.action && <ChvIc />}
-    </button>
   </div>;
 }
 
@@ -396,15 +372,10 @@ function InsightsCard({ jobs, expenses, invoices, biz, onGo }) {
 
   return <div style={{ animation: "fadeIn .4s ease-out" }}>
     <style>{`@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`}</style>
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: alerts.length > 0 ? 12 : 0 }}>
-      <div><div style={{ fontSize: 10, color: T.textMuted, fontWeight: 600, textTransform: "uppercase", letterSpacing: .5 }}>Avg Profit/Job</div><div style={{ fontSize: 20, fontWeight: 800, color: T.accent, marginTop: 2 }}>{GBP(avgProfit)}</div></div>
-      <div><div style={{ fontSize: 10, color: T.textMuted, fontWeight: 600, textTransform: "uppercase", letterSpacing: .5 }}>Profit/Hour</div><div style={{ fontSize: 20, fontWeight: 800, color: T.primary, marginTop: 2 }}>{GBP(profitPerHr)}</div></div>
-      <div><div style={{ fontSize: 10, color: T.textMuted, fontWeight: 600, textTransform: "uppercase", letterSpacing: .5 }}>Materials %</div><div style={{ fontSize: 20, fontWeight: 800, color: matPct > 50 ? T.danger : T.textMed, marginTop: 2 }}>{matPct}%</div></div>
-    </div>
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginTop: 8, marginBottom: alerts.length > 0 ? 12 : 0 }}>
-      <div><div style={{ fontSize: 10, color: T.textMuted, fontWeight: 600, textTransform: "uppercase", letterSpacing: .5 }}>Unpaid</div><div style={{ fontSize: 20, fontWeight: 800, color: unpaidTotal > 0 ? T.hiVis : T.accent, marginTop: 2 }}>{GBP(unpaidTotal)}</div><div style={{ fontSize: 11, color: T.textMuted, fontWeight: 400 }}>{unpaidJobs.length} job{unpaidJobs.length !== 1 ? "s" : ""}</div></div>
-      <div><div style={{ fontSize: 10, color: T.textMuted, fontWeight: 600, textTransform: "uppercase", letterSpacing: .5 }}>This Week</div><div style={{ fontSize: 20, fontWeight: 800, color: T.primary, marginTop: 2 }}>{GBP(twRevenue)}</div><div style={{ fontSize: 11, color: T.textMuted, fontWeight: 400 }}>{paidThisWeek.length} paid</div></div>
-      {bestSrc ? <div><div style={{ fontSize: 10, color: T.textMuted, fontWeight: 600, textTransform: "uppercase", letterSpacing: .5 }}>Best Source</div><div style={{ fontSize: 16, fontWeight: 800, color: T.accent, marginTop: 2 }}>{bestSrc[0]}</div><div style={{ fontSize: 11, color: T.textMuted, fontWeight: 400 }}>{GBP(bestSrc[1].profit)} profit</div></div> : <div><div style={{ fontSize: 10, color: T.textMuted, fontWeight: 600, textTransform: "uppercase", letterSpacing: .5 }}>Margin</div><div style={{ fontSize: 20, fontWeight: 800, color: twMargin >= 30 ? T.accent : twMargin >= 15 ? T.hiVis : T.danger, marginTop: 2 }}>{twMargin}%</div></div>}
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: alerts.length > 0 ? 14 : 0 }}>
+      <div><div style={{ fontSize: 10, color: T.textMuted, fontWeight: 500, textTransform: "uppercase", letterSpacing: .5, marginBottom: 3 }}>Avg Profit</div><div style={{ fontSize: 20, fontWeight: 800, color: T.accent }}>{GBP(avgProfit)}</div><div style={{ fontSize: 11, color: T.textMuted, fontWeight: 400 }}>per job</div></div>
+      <div><div style={{ fontSize: 10, color: T.textMuted, fontWeight: 500, textTransform: "uppercase", letterSpacing: .5, marginBottom: 3 }}>Profit/Hour</div><div style={{ fontSize: 20, fontWeight: 800, color: T.primary }}>{GBP(profitPerHr)}</div><div style={{ fontSize: 11, color: T.textMuted, fontWeight: 400 }}>this week</div></div>
+      <div><div style={{ fontSize: 10, color: T.textMuted, fontWeight: 500, textTransform: "uppercase", letterSpacing: .5, marginBottom: 3 }}>Materials</div><div style={{ fontSize: 20, fontWeight: 800, color: matPct > 50 ? T.danger : T.textMed }}>{matPct}%</div><div style={{ fontSize: 11, color: T.textMuted, fontWeight: 400 }}>of revenue</div></div>
     </div>
     {alerts.length > 0 && <div style={{ borderTop: `1px solid ${T.borderLight}`, paddingTop: 12 }}>
       {alerts.map((a, i) => <button key={i} onClick={a.action || undefined} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", marginBottom: i < alerts.length - 1 ? 6 : 0, background: a.color + "10", border: `1px solid ${a.color}25`, borderRadius: T.rSm, cursor: a.action ? "pointer" : "default", fontFamily: T.font, textAlign: "left" }}><span style={{ fontSize: 16, flexShrink: 0 }}>{a.icon}</span><div style={{ fontSize: 13, fontWeight: 600, color: T.text, flex: 1 }}>{a.text}</div>{a.action && <ChvIc />}</button>)}
@@ -438,17 +409,30 @@ function OverviewTab({ jobs, expenses, invoices, onGo, biz, showVat }) {
     <QuickStats todayProfit={todayProfit} outstanding={totUnpaid} paidThisMonth={moPaid} profitThisMonth={moProfit} unpaidCount={unpaid.length} onChase={scrollToChase} jobs={jobs} expenses={expenses} biz={biz} />
 
     {/* Collapsible Insights */}
-    <button onClick={() => setInsightsOpen(!insightsOpen)} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", marginBottom: insightsOpen ? 0 : 16, background: T.surface, border: `1px solid ${T.border}`, borderRadius: insightsOpen ? `${T.r}px ${T.r}px 0 0` : T.r, cursor: "pointer", fontFamily: T.font, boxShadow: T.cardShadow }}>
-      <span style={{ fontSize: 11, fontWeight: 700, color: T.textLight, textTransform: "uppercase", letterSpacing: 1.2 }}>Insights</span>
+    <button onClick={() => setInsightsOpen(!insightsOpen)} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", marginBottom: insightsOpen ? 0 : 20, background: T.surface, border: `1px solid ${T.border}`, borderRadius: insightsOpen ? `${T.r}px ${T.r}px 0 0` : T.r, cursor: "pointer", fontFamily: T.font, boxShadow: T.cardShadow }}>
+      <span style={{ fontSize: 11, fontWeight: 600, color: T.textMuted, textTransform: "uppercase", letterSpacing: 1.2 }}>Insights</span>
       <span style={{ fontSize: 14, color: T.textMuted, transform: insightsOpen ? "rotate(180deg)" : "none", transition: "transform .2s" }}>▼</span>
     </button>
-    {insightsOpen && <div style={{ background: T.surface, borderRadius: `0 0 ${T.r}px ${T.r}px`, border: `1px solid ${T.border}`, borderTop: "none", padding: 16, marginBottom: 16, boxShadow: T.cardShadow }}>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}><Stat label="Active Jobs" value={activeJobs} color={T.primary} icon="🔨" sub={`You're running ${activeJobs} active job${activeJobs !== 1 ? "s" : ""}`} /><Stat label="Materials" value={GBP(moMat)} color={T.danger} icon="🧾" sub="this month" /></div>
+    {insightsOpen && <div style={{ background: T.surface, borderRadius: `0 0 ${T.r}px ${T.r}px`, border: `1px solid ${T.border}`, borderTop: "none", padding: 16, marginBottom: 20, boxShadow: T.cardShadow }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 14 }}>
+        <div><div style={{ fontSize: 10, color: T.textMuted, fontWeight: 500, textTransform: "uppercase", letterSpacing: .5, marginBottom: 3 }}>Month Profit</div><div style={{ fontSize: 20, fontWeight: 800, color: T.accent }}>{GBP(moProfit)}</div></div>
+        <Stat label="Active Jobs" value={activeJobs} color={T.primary} icon="🔨" sub={`${activeJobs} running`} />
+        <Stat label="Materials" value={GBP(moMat)} color={T.danger} icon="🧾" sub="this month" />
+      </div>
       <InsightsCard jobs={jobs} expenses={expenses} invoices={invoices} biz={biz} onGo={onGo} />
     </div>}
 
     {unassigned > 0 && <button onClick={() => onGo("Materials")} style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", marginBottom: 14, background: T.surface, border: `1.5px solid ${T.hiVis}`, borderRadius: T.r, cursor: "pointer", fontFamily: T.font, textAlign: "left" }}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={T.hiVis} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><div style={{ flex: 1 }}><div style={{ fontWeight: 700, fontSize: 14, color: T.text }}>{unassigned} receipt{unassigned !== 1 ? "s" : ""} need a job</div></div><ChvIc /></button>}
-    {unpaid.length > 0 && <div id="chase-section" style={{ marginBottom: 22 }}><span style={S.lbl}>💰 Chase These Payments</span>{[...unpaid].sort((a, b) => { const aInv = invoices.find(i => i.jobId === a.id); const bInv = invoices.find(i => i.jobId === b.id); const aDays = aInv ? daysSince(aInv.created) : daysSince(a.date); const bDays = bInv ? daysSince(bInv.created) : daysSince(b.date); return bDays - aDays || b.total - a.total; }).slice(0, 5).map(j => { const jInv = invoices.find(i => i.jobId === j.id); const days = jInv ? daysSince(jInv.created) : daysSince(j.date); const level = chaseLevel(j, jInv); const li = chaseLevelInfo(level); const lastR = (j.reminders || []).length > 0 ? j.reminders[j.reminders.length - 1] : null; const chaseCount = (j.reminders || []).length; const nextChase = !lastR ? "Chase now" : daysSince(lastR.date) >= 3 ? "Chase again" : "Chased " + daysSince(lastR.date) + "d ago"; return <div key={j.id} style={{ ...S.card, marginBottom: 10, borderLeft: `4px solid ${li.color}` }}>
+    {unpaid.length > 0 && <div id="chase-section" style={{ marginBottom: 24 }}>
+      {/* Single authority chase card */}
+      <div style={{ background: "#FEF3C7", border: "1px solid #FDE68A", borderRadius: T.r, padding: "14px 16px", marginBottom: 12, display: "flex", alignItems: "center", gap: 12 }}>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 14, fontWeight: 700, color: "#92400E" }}>⚠️ {GBP(totUnpaid)} unpaid · {unpaid.length} invoice{unpaid.length !== 1 ? "s" : ""}</div>
+          <div style={{ fontSize: 12, color: "#B45309", fontWeight: 400, marginTop: 2 }}>{unpaid.map(j => j.customer.split(" ").slice(-1)[0]).join(", ")}</div>
+        </div>
+        <button onClick={scrollToChase} style={{ background: "#D97706", color: "#fff", border: "none", borderRadius: 10, padding: "8px 16px", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: T.font, flexShrink: 0 }}>Chase now</button>
+      </div>
+      {[...unpaid].sort((a, b) => { const aInv = invoices.find(i => i.jobId === a.id); const bInv = invoices.find(i => i.jobId === b.id); const aDays = aInv ? daysSince(aInv.created) : daysSince(a.date); const bDays = bInv ? daysSince(bInv.created) : daysSince(b.date); return bDays - aDays || b.total - a.total; }).slice(0, 5).map(j => { const jInv = invoices.find(i => i.jobId === j.id); const days = jInv ? daysSince(jInv.created) : daysSince(j.date); const level = chaseLevel(j, jInv); const li = chaseLevelInfo(level); const lastR = (j.reminders || []).length > 0 ? j.reminders[j.reminders.length - 1] : null; const chaseCount = (j.reminders || []).length; const nextChase = !lastR ? "Chase now" : daysSince(lastR.date) >= 3 ? "Chase again" : "Chased " + daysSince(lastR.date) + "d ago"; return <div key={j.id} style={{ ...S.card, marginBottom: 10, borderLeft: `4px solid ${li.color}` }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <div onClick={() => onGo("Jobs", j.id)} style={{ flex: 1, cursor: "pointer" }}><div style={{ fontWeight: 700, fontSize: 15 }}>{j.customer}</div><div style={{ fontSize: 13, color: T.textMed, marginTop: 2 }}>{j.summary.slice(0, 45)}…</div><div style={{ display: "flex", gap: 6, marginTop: 6, alignItems: "center", flexWrap: "wrap" }}><span style={{ fontSize: 11, color: li.color, fontWeight: 700, background: li.bg, padding: "2px 8px", borderRadius: 10 }}>{li.icon} {days}d overdue</span>{chaseCount > 0 && <span style={{ fontSize: 11, color: T.textMuted, background: T.surfaceAlt, padding: "2px 8px", borderRadius: 10 }}>Chased {chaseCount}x</span>}<span style={{ fontSize: 11, color: daysSince(lastR?.date) >= 3 || !lastR ? T.warn : T.textMuted, fontWeight: 600 }}>{nextChase}</span></div></div>
         <div style={{ textAlign: "right", flexShrink: 0 }}><div style={{ fontWeight: 800, fontSize: 18, color: li.color }}>{GBP(j.total)}</div></div>
@@ -912,7 +896,7 @@ function saveData(data) {
 }
 
 /* ═══ MAIN APP ═══════════════════════════════════════ */
-export default function App() {
+function App() {
   const [tab, setTab] = useState("Overview");
   const [jobs, setJobs] = useState(seedJobs);
   const [expenses, setExpenses] = useState(seedExp);
@@ -988,7 +972,7 @@ export default function App() {
   const goTo = (t, jobId) => { setTab(t); if (jobId) setNavJobId(jobId); };
   const tabIcons = { Overview: "📊", "Add Job": "🔨", Jobs: "📋", Schedule: "📅", Materials: "🧾", Settings: "⚙️" };
   return <div style={{ fontFamily: T.font, maxWidth: 640, margin: "0 auto", padding: "14px 16px", minHeight: "100vh", background: T.bg, color: T.text, WebkitFontSmoothing: "antialiased" }}>
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
+    {/* Font loaded in index.html */}
     <style>{`@keyframes fadeIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}@keyframes spin{to{transform:rotate(360deg)}}@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.04)}}`}</style>
     <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 16px", margin: 0 }}><img src={LOGO} alt="JobProfit" style={{ height: 72, width: "auto", display: "block", objectFit: "contain" }} /><div style={{ display: "flex", flexDirection: "column", gap: 2 }}><div style={{ fontSize: 26, fontWeight: 800, lineHeight: 1 }}>Job<span style={{ color: "#F59E0B" }}>Profit</span></div><div style={{ fontSize: 12, fontWeight: 500, color: "#9CA3AF", marginTop: 2, letterSpacing: 0.2 }}>Build wealth, not just jobs</div></div></div>
     {note && <div style={{ background: T.accentLight, border: "1px solid #BBF7D0", borderRadius: T.rSm, padding: "10px 16px", marginBottom: 14, color: "#166534", fontSize: 14, fontWeight: 600, animation: "fadeIn .3s" }}>{note}</div>}
@@ -1011,3 +995,8 @@ export default function App() {
     <input ref={stickyReceiptRef} type="file" accept="image/*" capture="environment" onChange={async e => { const f = e.target.files?.[0]; if (!f) return; flash("📷 Scanning..."); try { const raw = await fileToB64(f); const c = await compress(raw); const d = await aiReceipt(c); if (d) { onAddExp({ id: mkId("E"), jobId: "", merchant: d.merchant || "Unknown", date: d.date || td(), amount: Number(d.amount || 0), vat: Number(d.vat || 0), desc: d.desc || "", photo: c }); } else { onAddExp({ id: mkId("E"), jobId: "", merchant: "Unknown", date: td(), amount: 0, vat: 0, desc: "Scan failed — edit manually", photo: c }); } } catch { flash("Scan failed"); } if (stickyReceiptRef.current) stickyReceiptRef.current.value = ""; }} style={{ display: "none" }} />
   </div>;
 }
+
+
+// Mount the app
+const root = ReactDOM.createRoot(document.getElementById("root"));
+root.render(React.createElement(App));
