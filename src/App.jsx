@@ -41,6 +41,28 @@ const pCol = s => s === "paid" ? "#16A34A" : "#F59E0B";
 const pLbl = s => s === "paid" ? "Paid" : "Unpaid";
 const jCol = s => s === "complete" ? "#16A34A" : s === "active" ? "#2563EB" : "#6b7280";
 const jLbl = s => s === "complete" ? "Complete" : s === "active" ? "Active" : "Quote";
+
+function calcProfitFull(job, expenses) {
+  const price = job.total || 0;
+  const discountType = job.discountType || "fixed";
+  const discountValue = Number(job.discountValue) || 0;
+  const discountAmount = discountType === "percent" ? price * (discountValue / 100) : discountValue;
+  const priceAfterDiscount = Math.max(0, price - discountAmount);
+  const vatEnabled = job.vatEnabled || false;
+  const vatAmount = vatEnabled ? priceAfterDiscount * 0.2 : 0;
+  const totalWithVAT = priceAfterDiscount + vatAmount;
+  const depositPercent = Number(job.depositPercent) || 0;
+  const depositAmount = priceAfterDiscount * (depositPercent / 100);
+  const remainingBalance = priceAfterDiscount - depositAmount;
+  const labourCost = Number(job.labourCost) || 0;
+  const matCost = expenses.filter(e => e.jobId === job.id).reduce((s, e) => s + e.amount, 0);
+  const profit = priceAfterDiscount - matCost - labourCost;
+  const margin = priceAfterDiscount > 0 ? Math.round((profit / priceAfterDiscount) * 100) : 0;
+  const marginColor = margin >= 40 ? "#16A34A" : margin >= 20 ? "#EA580C" : "#DC2626";
+  const marginLabel = margin >= 40 ? "Strong profit" : margin >= 20 ? "Tight margin" : "Risky job";
+  return { price, discountAmount, priceAfterDiscount, vatAmount, totalWithVAT, depositAmount, remainingBalance, labourCost, matCost, profit, margin, marginColor, marginLabel, vatEnabled, depositPercent };
+}
+
 function calcProfit(job, expenses) { const mat = expenses.filter(e => e.jobId === job.id).reduce((s, e) => s + e.amount, 0); return { materials: mat, profit: job.total - mat, margin: job.total > 0 ? Math.round((job.total - mat) / job.total * 100) : 0 }; }
 function fileToB64(f) { return new Promise((r, e) => { const x = new FileReader(); x.onload = () => r(x.result); x.onerror = e; x.readAsDataURL(f); }); }
 function compress(d, mw = 800, q = 0.7) { return new Promise(r => { const i = new Image(); i.onload = () => { const c = document.createElement("canvas"); let w = i.width, h = i.height; if (w > mw) { h = Math.round(h * mw / w); w = mw; } c.width = w; c.height = h; c.getContext("2d").drawImage(i, 0, 0, w, h); r(c.toDataURL("image/jpeg", q)); }; i.src = d; }); }
@@ -223,6 +245,114 @@ function MaterialForm({ jobs, presetJobId, showVat, onSave, onCancel }) {
       <div style={{ display: "flex", gap: 8 }}><button onClick={save} disabled={!form.amount} style={{ ...grn, flex: 1, opacity: !form.amount ? .5 : 1 }}>Save</button><button onClick={() => { setManual(false); setPhoto(null); onCancel?.(); }} style={sec}>Cancel</button></div>
     </div>}
   </div>;
+}
+
+
+/* --- Quote Financials Panel --- */
+function QuoteFinancials({ job, onChange }) {
+  const price = job.total || 0;
+  const discountType = job.discountType || "fixed";
+  const discountValue = Number(job.discountValue) || 0;
+  const discountAmount = discountType === "percent" ? price * (discountValue / 100) : discountValue;
+  const priceAfterDiscount = Math.max(0, price - discountAmount);
+  const vatEnabled = job.vatEnabled || false;
+  const vatAmount = vatEnabled ? priceAfterDiscount * 0.2 : 0;
+  const totalWithVAT = priceAfterDiscount + vatAmount;
+  const depositPercent = Number(job.depositPercent) || 0;
+  const depositAmount = priceAfterDiscount * (depositPercent / 100);
+  const remainingBalance = priceAfterDiscount - depositAmount;
+  const [labourMode, setLabourMode] = useState("manual");
+  const [labourHours, setLabourHours] = useState("");
+  const [labourRate, setLabourRate] = useState(String(job.hourlyRate || 45));
+  const handleLabourCalc = () => { const hrs = Number(labourHours); const rate = Number(labourRate); if (hrs > 0 && rate > 0) onChange("labourCost", String(hrs * rate)); };
+  const btnS = (active) => ({ ...S.btn, padding: "4px 10px", fontSize: 11, minHeight: 28, background: active ? T.primary : T.surface, color: active ? "#fff" : T.textMed, border: "1px solid " + T.border });
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      <div style={{ background: T.surfaceAlt, borderRadius: T.rSm, padding: 14 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+          <label style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, textTransform: "uppercase", letterSpacing: .5 }}>Labour Cost</label>
+          <div style={{ display: "flex", gap: 4 }}>
+            <button onClick={() => setLabourMode("manual")} style={btnS(labourMode === "manual")}>Manual</button>
+            <button onClick={() => setLabourMode("calc")} style={btnS(labourMode === "calc")}>Calculate</button>
+          </div>
+        </div>
+        {labourMode === "manual" ? (
+          <input type="number" value={job.labourCost || ""} onChange={e => onChange("labourCost", e.target.value)} placeholder="e.g. 1200" style={S.inp} />
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <div style={{ display: "flex", gap: 8 }}>
+              <input type="number" value={labourHours} onChange={e => setLabourHours(e.target.value)} placeholder="Hours" style={{ ...S.inp, flex: 1 }} />
+              <input type="number" value={labourRate} onChange={e => setLabourRate(e.target.value)} placeholder="per hr" style={{ ...S.inp, width: 80 }} />
+              <button onClick={handleLabourCalc} style={{ ...pri, padding: "12px 14px", fontSize: 13, minHeight: 46 }}>Calc</button>
+            </div>
+            {Number(job.labourCost) > 0 && <div style={{ fontSize: 13, color: T.accent, fontWeight: 700 }}>Labour: {GBP(Number(job.labourCost))}</div>}
+          </div>
+        )}
+      </div>
+      <div style={{ background: T.surfaceAlt, borderRadius: T.rSm, padding: 14 }}>
+        <label style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, textTransform: "uppercase", letterSpacing: .5, marginBottom: 10, display: "block" }}>Discount</label>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <div style={{ display: "flex", gap: 4 }}>
+            <button onClick={() => onChange("discountType", "fixed")} style={btnS(discountType === "fixed")}>£</button>
+            <button onClick={() => onChange("discountType", "percent")} style={btnS(discountType === "percent")}>%</button>
+          </div>
+          <input type="number" value={job.discountValue || ""} onChange={e => onChange("discountValue", e.target.value)} placeholder={discountType === "percent" ? "e.g. 10" : "e.g. 150"} style={{ ...S.inp, flex: 1 }} />
+        </div>
+        {discountAmount > 0 && <div style={{ fontSize: 13, color: T.warn, fontWeight: 600, marginTop: 8 }}>Discount: -{GBP(discountAmount)} then {GBP(priceAfterDiscount)}</div>}
+      </div>
+      <div style={{ background: T.surfaceAlt, borderRadius: T.rSm, padding: 14 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: vatEnabled ? 10 : 0 }}>
+          <input type="checkbox" id="qf-vat" checked={vatEnabled} onChange={e => onChange("vatEnabled", e.target.checked)} style={{ width: 18, height: 18, accentColor: T.primary }} />
+          <label htmlFor="qf-vat" style={{ fontSize: 14, fontWeight: 700, cursor: "pointer" }}>Add VAT (20%)</label>
+        </div>
+        {vatEnabled && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 4, paddingTop: 8, borderTop: "1px solid " + T.border }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: T.textMed }}><span>Subtotal (ex VAT)</span><span style={{ fontWeight: 600 }}>{GBP(priceAfterDiscount)}</span></div>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: T.warn }}><span>VAT (20%)</span><span style={{ fontWeight: 600 }}>+{GBP(vatAmount)}</span></div>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 15, fontWeight: 800, color: T.text, borderTop: "1px solid " + T.border, paddingTop: 6, marginTop: 2 }}><span>Total (inc VAT)</span><span>{GBP(totalWithVAT)}</span></div>
+          </div>
+        )}
+      </div>
+      <div style={{ background: T.surfaceAlt, borderRadius: T.rSm, padding: 14 }}>
+        <label style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, textTransform: "uppercase", letterSpacing: .5, marginBottom: 10, display: "block" }}>Deposit %</label>
+        <input type="number" value={job.depositPercent || ""} onChange={e => onChange("depositPercent", e.target.value)} placeholder="e.g. 30" style={S.inp} min="0" max="100" />
+        {depositPercent > 0 && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 10 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: T.textMed }}><span>Deposit due ({depositPercent}%)</span><span style={{ fontWeight: 700, color: T.accent }}>{GBP(depositAmount)}</span></div>
+            <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: T.textMed }}><span>Remaining balance</span><span style={{ fontWeight: 600 }}>{GBP(remainingBalance)}</span></div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* --- Profit Summary Card --- */
+function ProfitSummaryCard({ job, expenses }) {
+  const r = calcProfitFull(job, expenses);
+  if (r.priceAfterDiscount === 0) return null;
+  return (
+    <div style={{ background: T.surface, borderRadius: T.r, padding: 16, border: "1px solid " + T.border, boxShadow: T.cardShadow }}>
+      <span style={{ ...S.lbl, marginBottom: 12 }}>Job Profit Summary</span>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 12 }}>
+        <div><div style={{ fontSize: 10, color: T.textMuted, fontWeight: 600, textTransform: "uppercase" }}>Price</div><div style={{ fontSize: 18, fontWeight: 800, color: T.primary }}>{GBP(r.priceAfterDiscount)}</div>{r.discountAmount > 0 && <div style={{ fontSize: 11, color: T.warn }}>-{GBP(r.discountAmount)} discount</div>}</div>
+        <div><div style={{ fontSize: 10, color: T.textMuted, fontWeight: 600, textTransform: "uppercase" }}>Materials</div><div style={{ fontSize: 18, fontWeight: 800, color: T.danger }}>{GBP(r.matCost)}</div></div>
+        <div><div style={{ fontSize: 10, color: T.textMuted, fontWeight: 600, textTransform: "uppercase" }}>Labour</div><div style={{ fontSize: 18, fontWeight: 800, color: T.warn }}>{GBP(r.labourCost)}</div></div>
+        <div><div style={{ fontSize: 10, color: T.textMuted, fontWeight: 600, textTransform: "uppercase" }}>Margin</div><div style={{ fontSize: 18, fontWeight: 800, color: r.marginColor }}>{r.margin}%</div></div>
+      </div>
+      <div style={{ background: r.profit >= 0 ? "linear-gradient(135deg,#1f9d55,#178a4a)" : "linear-gradient(135deg,#dc2626,#b91c1c)", borderRadius: T.rSm, padding: "14px 16px", color: "#fff", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div><div style={{ fontSize: 11, opacity: .75, fontWeight: 600, textTransform: "uppercase", letterSpacing: .5 }}>Profit</div><div style={{ fontSize: 28, fontWeight: 800 }}>{GBP(r.profit)}</div></div>
+        <div style={{ textAlign: "right" }}><div style={{ fontSize: 22, fontWeight: 800 }}>{r.margin}%</div><div style={{ fontSize: 12, opacity: .8, marginTop: 2 }}>{r.marginLabel}</div></div>
+      </div>
+      {r.vatEnabled && <div style={{ marginTop: 10, padding: "10px 12px", background: T.warnLight, borderRadius: T.rSm, fontSize: 13, color: T.warn, fontWeight: 600 }}>Total inc VAT: {GBP(r.totalWithVAT)}</div>}
+      {r.depositPercent > 0 && (
+        <div style={{ marginTop: 8, padding: "10px 12px", background: T.accentLight, borderRadius: T.rSm, display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+          <span style={{ color: T.accent, fontWeight: 700 }}>Deposit due: {GBP(r.depositAmount)}</span>
+          <span style={{ color: T.textMed }}>Balance: {GBP(r.remainingBalance)}</span>
+        </div>
+      )}
+    </div>
+  );
 }
 
 /* ═══ INSIGHTS CARD ═════════════════════════════════ */
@@ -496,6 +626,8 @@ function JobDetail({ job, expenses, invoices, onBack, onUpdate, onDelExp, onAddE
     {/* Profit */}
     <ProfitBar quote={job.total} materials={totExp} profit={profit} margin={margin} />
     {showVat && totVat > 0 && <div style={{ marginTop: 8, padding: "10px 14px", background: T.warnLight, borderRadius: T.rSm }}><span style={{ fontSize: 13, color: T.warn, fontWeight: 700 }}>VAT reclaim: {GBP(totVat)}</span></div>}
+    <div style={{ marginTop: 16 }}><ProfitSummaryCard job={job} expenses={expenses} /></div>
+    <div style={{ marginTop: 16, marginBottom: 4 }}><span style={{ ...S.lbl }}>Discount / VAT / Deposit</span><QuoteFinancials job={job} onChange={(field, val) => onUpdate({ ...job, [field]: val })} /></div>
     {/* Pipeline buttons */}
     <div style={{ marginTop: 16, marginBottom: 16 }}>
       {job.quoteStatus === "draft" && <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}><button onClick={() => onUpdate({ ...job, quoteStatus: "sent" })} style={{ ...warnBtn, width: "100%" }}><SendIc /> Mark Sent</button><a href={waQuoteLink(job)} target="_blank" rel="noopener noreferrer" style={{ ...waS, width: "100%", textDecoration: "none", boxSizing: "border-box" }}><WaIc /> WhatsApp</a></div>}
@@ -720,7 +852,9 @@ function AddJobTab({ onGen, biz }) {
   const [tmr, setTmr] = useState(0); const [manual, setManual] = useState(false); const [err, setErr] = useState(""); const [showTpl, setShowTpl] = useState(false);
   const [source, setSource] = useState("");
   const sr = useRef(null); const ti = useRef(null); const lk = useRef(false);
-  const proc = async raw => { const s = raw || txt; if (!s.trim() || lk.current) return; lk.current = true; setBusy(true); const r = await aiQuote(s, biz); setBusy(false); lk.current = false; if (r) { onGen({ id: mkId("J"), date: td(), quoteStatus: "draft", jobStatus: "quote", invoiceStatus: "none", paymentStatus: "unpaid", paymentDate: "", paymentMethod: "", source: source || "", jobNotes: [], photos: [], invoiceId: "", phone: r.phone || "", email: r.email || "", ...r }); setTxt(""); setTmr(0); setSource(""); } else setErr("Couldn't generate quote."); };
+  const [pendingJob, setPendingJob] = useState(null);
+  const updatePending = (field, val) => setPendingJob(p => p ? { ...p, [field]: val } : p);
+  const proc = async raw => { const s = raw || txt; if (!s.trim() || lk.current) return; lk.current = true; setBusy(true); const r = await aiQuote(s, biz); setBusy(false); lk.current = false; if (r) { const nj = { id: mkId("J"), date: td(), quoteStatus: "draft", jobStatus: "quote", invoiceStatus: "none", paymentStatus: "unpaid", paymentDate: "", paymentMethod: "", source: source || "", jobNotes: [], photos: [], invoiceId: "", phone: r.phone || "", email: r.email || "", discountType: "fixed", discountValue: 0, vatEnabled: false, vatRate: 0.2, depositPercent: 0, labourCost: 0, ...r }; setPendingJob(nj); setTxt(""); setTmr(0); setSource(""); } else setErr("Couldn't generate quote."); };
   const startR = useCallback(() => { setErr(""); const SR = window.SpeechRecognition || window.webkitSpeechRecognition; if (!SR) { setErr("Speech not supported."); setManual(true); return; } const s = new SR(); s.continuous = true; s.interimResults = true; s.lang = "en-GB"; let fin = ""; s.onresult = ev => { let im = ""; for (let i = ev.resultIndex; i < ev.results.length; i++) { if (ev.results[i].isFinal) fin += ev.results[i][0].transcript + " "; else im += ev.results[i][0].transcript; } setTxt(fin + im); }; s.onerror = ev => { if (ev.error === "not-allowed") { setErr("Mic denied."); setManual(true); } }; s.onend = () => { if (rec) try { s.start(); } catch {} }; sr.current = s; s.start(); setRec(true); setTmr(0); ti.current = setInterval(() => setTmr(t => t + 1), 1000); }, [rec]);
   const stopR = useCallback(() => { if (sr.current) { sr.current.onend = null; sr.current.stop(); } setRec(false); clearInterval(ti.current); }, []);
   const fT = s => Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
@@ -735,7 +869,23 @@ function AddJobTab({ onGen, biz }) {
     <div style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", maxWidth: 500, marginBottom: 24 }}><div style={{ flex: 1, height: 1, background: T.border }} /><span style={{ fontSize: 13, color: T.textMuted, fontWeight: 600 }}>or describe the job</span><div style={{ flex: 1, height: 1, background: T.border }} /></div>
     <div style={{ textAlign: "center", marginBottom: 24 }}><button onClick={rec ? stopR : startR} style={{ width: 100, height: 100, borderRadius: "50%", border: "none", background: rec ? T.dangerLight : T.primaryLight, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: rec ? "0 0 0 4px #FECACA" : "0 0 0 4px #BFDBFE", animation: rec ? "pulse 1.5s ease-in-out infinite" : "none" }}><MicIc on={rec} /></button><div style={{ marginTop: 14 }}>{rec ? <><Waves on /><div style={{ fontFamily: T.mono, fontSize: 22, fontWeight: 800, color: T.danger, marginTop: 8 }}>{fT(tmr)}</div><div style={{ color: T.textMuted, fontSize: 14, marginTop: 4 }}>Recording…</div></> : <div style={{ color: T.textMed, fontSize: 14 }}>{txt ? "Ready to generate" : "Tap to describe the job"}</div>}</div></div>
     {err && <div style={{ background: T.dangerLight, border: "1px solid #FECACA", borderRadius: T.rSm, padding: 14, marginBottom: 16, color: "#991B1B", fontSize: 14, width: "100%", maxWidth: 500 }}>{err}</div>}
-    <div style={{ width: "100%", maxWidth: 500 }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}><span style={S.lbl}>{manual ? "Job Description" : "Transcript"}</span><button onClick={() => setManual(!manual)} style={{ ...S.ghost, fontSize: 13 }}>{manual ? "🎙️ Use mic" : "⌨️ Type"}</button></div><textarea value={txt} onChange={e => setTxt(e.target.value)} placeholder={manual ? "Kitchen reno for Mrs Smith at 14 Elm Road…" : "Voice appears here…"} style={{ ...S.inp, minHeight: 110, resize: "vertical", lineHeight: 1.6 }} /><button onClick={() => proc()} disabled={!txt.trim() || busy} style={{ ...pri, width: "100%", marginTop: 16, opacity: !txt.trim() || busy ? .5 : 1 }}>{busy ? <><Spinner /> Generating…</> : <>🔨 Generate Quote</>}</button></div>
+{!pendingJob &&     <div style={{ width: "100%", maxWidth: 500 }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}><span style={S.lbl}>{manual ? "Job Description" : "Transcript"}</span><button onClick={() => setManual(!manual)} style={{ ...S.ghost, fontSize: 13 }}>{manual ? "🎙️ Use mic" : "⌨️ Type"}</button></div><textarea value={txt} onChange={e => setTxt(e.target.value)} placeholder={manual ? "Kitchen reno for Mrs Smith at 14 Elm Road…" : "Voice appears here…"} style={{ ...S.inp, minHeight: 110, resize: "vertical", lineHeight: 1.6 }} /><button onClick={() => proc()} disabled={!txt.trim() || busy} style={{ ...pri, width: "100%", marginTop: 16, opacity: !txt.trim() || busy ? .5 : 1 }}>{busy ? <><Spinner /> Generating…</> : <>🔨 Generate Quote</>}</button></div>}
+    {pendingJob && (
+      <div style={{ width: "100%", maxWidth: 500 }}>
+        <div style={{ background: T.accentLight, borderRadius: T.rSm, padding: "12px 16px", marginBottom: 16, border: "1px solid #BBF7D0" }}>
+          <div style={{ fontWeight: 700, fontSize: 15 }}>{pendingJob.customer}</div>
+          <div style={{ fontSize: 13, color: T.textMed, marginTop: 2 }}>{pendingJob.summary}</div>
+          <div style={{ fontSize: 20, fontWeight: 800, color: T.primary, marginTop: 6 }}>{GBP(pendingJob.total)}</div>
+        </div>
+        <span style={{ ...S.lbl, marginBottom: 12 }}>Discount / VAT / Deposit</span>
+        <QuoteFinancials job={pendingJob} onChange={updatePending} />
+        <div style={{ marginTop: 16 }}><ProfitSummaryCard job={pendingJob} expenses={[]} /></div>
+        <div style={{ display: "flex", gap: 10, marginTop: 16 }}>
+          <button onClick={() => { onGen(pendingJob); setPendingJob(null); }} style={{ ...grn, flex: 2 }}>Save Quote</button>
+          <button onClick={() => setPendingJob(null)} style={{ ...sec, flex: 1 }}>Discard</button>
+        </div>
+      </div>
+    )}
   </div>;
 }
 
