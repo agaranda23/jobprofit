@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import * as XLSX from "xlsx";
 
-const TABS = ["Overview", "Add Job", "Jobs", "Schedule", "Materials", "Settings"];
+const TABS = ["Overview", "Add Job", "Jobs", "Schedule", "Materials", "Calculator", "Settings"];
 const defBiz = { name: "Your Business Name", phone: "07XXX XXXXXX", email: "you@email.com", address: "Your Business Address", trade: "General Builder", vatRegistered: false, vatNumber: "", hourlyRate: 45, bankDetails: "", logoUrl: "" };
 
 const LEAD_SOURCES = ["Checkatrade", "Rated People", "MyBuilder", "TrustATrader", "Bark", "Facebook", "Instagram", "Google", "Word of mouth", "Direct call", "Other"];
@@ -739,6 +739,94 @@ function AddJobTab({ onGen, biz }) {
   </div>;
 }
 
+
+/* ═══ JOB OVERRUN CALCULATOR ════════════════════════ */
+function JobOverrunCalculator({ biz }) {
+  const [form, setForm] = useState({ jobName: "", durationWeeks: "", workers: "1", costPerWorkerPerWeek: String(biz.hourlyRate ? biz.hourlyRate * 40 : 1800), materialCost: "", jobPrice: "" });
+  const [overrunWeeks, setOverrunWeeks] = useState(0);
+  const ch = (f, v) => setForm(p => ({ ...p, [f]: v }));
+  const dur = Number(form.durationWeeks) || 0;
+  const workers = Number(form.workers) || 1;
+  const cpww = Number(form.costPerWorkerPerWeek) || 0;
+  const mats = Number(form.materialCost) || 0;
+  const price = Number(form.jobPrice) || 0;
+  const labourCost = dur * workers * cpww;
+  const totalCost = labourCost + mats;
+  const profit = price - totalCost;
+  const profitMargin = price > 0 ? Math.round((profit / price) * 100) : 0;
+  const weeklyLabour = workers * cpww;
+  const weeksUntilZero = weeklyLabour > 0 && profit > 0 ? Math.floor(profit / weeklyLabour) : profit <= 0 ? 0 : 999;
+  const overrunLabour = overrunWeeks * workers * cpww;
+  const newProfit = profit - overrunLabour;
+  const newMargin = price > 0 ? Math.round((newProfit / price) * 100) : 0;
+  const ready = dur > 0 && price > 0 && cpww > 0;
+  const mc = (m) => m >= 30 ? T.accent : m >= 15 ? T.hiVis : T.danger;
+  return <div style={{ maxWidth: 500 }}>
+    <div style={{ marginBottom: 20 }}><h2 style={{ fontSize: 20, fontWeight: 800, margin: "0 0 4px" }}>Job Overrun Calculator</h2><p style={{ fontSize: 13, color: T.textMuted, margin: 0 }}>See exactly when your profit disappears if a job runs long.</p></div>
+    <div style={{ background: T.surface, borderRadius: T.r, padding: 18, border: `1px solid ${T.border}`, boxShadow: T.cardShadow, marginBottom: 16 }}>
+      <span style={{ ...S.lbl, marginBottom: 14 }}>Job Details</span>
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <div><label style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 4, display: "block" }}>Job name (optional)</label><input value={form.jobName} onChange={e => ch("jobName", e.target.value)} placeholder="e.g. Kitchen extension" style={S.inp} /></div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+          <div><label style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 4, display: "block" }}>Job price (£)</label><input type="number" value={form.jobPrice} onChange={e => ch("jobPrice", e.target.value)} placeholder="e.g. 8000" style={S.inp} /></div>
+          <div><label style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 4, display: "block" }}>Materials (£)</label><input type="number" value={form.materialCost} onChange={e => ch("materialCost", e.target.value)} placeholder="e.g. 2000" style={S.inp} /></div>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10 }}>
+          <div><label style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 4, display: "block" }}>Weeks</label><input type="number" value={form.durationWeeks} onChange={e => ch("durationWeeks", e.target.value)} placeholder="3" style={S.inp} /></div>
+          <div><label style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 4, display: "block" }}>Workers</label><input type="number" value={form.workers} onChange={e => ch("workers", e.target.value)} placeholder="1" style={S.inp} /></div>
+          <div><label style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 4, display: "block" }}>Cost/worker/wk</label><input type="number" value={form.costPerWorkerPerWeek} onChange={e => ch("costPerWorkerPerWeek", e.target.value)} placeholder="1800" style={S.inp} /></div>
+        </div>
+      </div>
+    </div>
+    {ready && <div>
+      <div style={{ background: T.surface, borderRadius: T.r, padding: 18, border: `1px solid ${T.border}`, boxShadow: T.cardShadow, marginBottom: 16 }}>
+        <span style={{ ...S.lbl, marginBottom: 14 }}>Expected Result</span>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
+          <div style={{ background: T.surfaceAlt, borderRadius: T.rSm, padding: "12px 14px" }}><div style={{ fontSize: 10, color: T.textMuted, fontWeight: 600, textTransform: "uppercase" }}>Labour Cost</div><div style={{ fontSize: 22, fontWeight: 800, color: T.danger, marginTop: 4 }}>{GBP(labourCost)}</div><div style={{ fontSize: 11, color: T.textMuted, marginTop: 2 }}>{dur}w x {workers} x {GBP(cpww)}</div></div>
+          <div style={{ background: T.surfaceAlt, borderRadius: T.rSm, padding: "12px 14px" }}><div style={{ fontSize: 10, color: T.textMuted, fontWeight: 600, textTransform: "uppercase" }}>Total Cost</div><div style={{ fontSize: 22, fontWeight: 800, color: T.warn, marginTop: 4 }}>{GBP(totalCost)}</div><div style={{ fontSize: 11, color: T.textMuted, marginTop: 2 }}>Labour + materials</div></div>
+        </div>
+        <div style={{ background: profit >= 0 ? "linear-gradient(135deg,#1f9d55,#178a4a)" : "linear-gradient(135deg,#dc2626,#b91c1c)", borderRadius: T.rSm, padding: "16px 18px", color: "#fff", textAlign: "center" }}>
+          <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: 1.2, textTransform: "uppercase", opacity: .8, marginBottom: 4 }}>Expected Profit</div>
+          <div style={{ fontSize: 40, fontWeight: 800, lineHeight: 1 }}>{GBP(profit)}</div>
+          <div style={{ fontSize: 13, opacity: .75, marginTop: 4 }}>{profitMargin}% margin</div>
+        </div>
+        <div style={{ marginTop: 14 }}>
+          <div style={{ height: 10, borderRadius: 5, background: T.surfaceAlt, overflow: "hidden" }}><div style={{ height: "100%", borderRadius: 5, background: `linear-gradient(90deg,${T.danger} ${Math.min((totalCost/price)*100,100)}%,${T.accent} ${Math.min((totalCost/price)*100,100)}%)`, transition: "all .4s" }} /></div>
+          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 5 }}><span style={{ fontSize: 11, color: T.danger, fontWeight: 600 }}>Costs {Math.round((totalCost/price)*100)}%</span><span style={{ fontSize: 11, color: T.accent, fontWeight: 600 }}>Profit {Math.max(0,Math.round((profit/price)*100))}%</span></div>
+        </div>
+      </div>
+      {weeksUntilZero < 999 && <div style={{ background: weeksUntilZero <= 1 ? T.dangerLight : weeksUntilZero <= 2 ? T.warnLight : T.hiVisLight, border: `2px solid ${weeksUntilZero <= 1 ? T.danger : weeksUntilZero <= 2 ? T.warn : T.hiVis}40`, borderRadius: T.r, padding: "14px 16px", marginBottom: 16 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{ fontSize: 24 }}>{weeksUntilZero === 0 ? "ZERO" : weeksUntilZero <= 1 ? "WARN" : "TIP"}</span>
+          <div><div style={{ fontWeight: 800, fontSize: 15, color: weeksUntilZero <= 1 ? T.danger : weeksUntilZero <= 2 ? T.warn : T.text }}>{weeksUntilZero === 0 ? "Already at zero profit" : `Profit gone after ${weeksUntilZero} extra week${weeksUntilZero !== 1 ? "s" : ""}`}</div><div style={{ fontSize: 13, color: T.textMed, marginTop: 2 }}>{weeksUntilZero === 0 ? "Any delay eats into your materials budget." : `Overrun by more than ${weeksUntilZero} week${weeksUntilZero !== 1 ? "s" : ""} and you start losing money.`}</div></div>
+        </div>
+      </div>}
+      <div style={{ background: T.surface, borderRadius: T.r, padding: 18, border: `1px solid ${T.border}`, boxShadow: T.cardShadow, marginBottom: 16 }}>
+        <span style={{ ...S.lbl, marginBottom: 14 }}>What If It Overruns?</span>
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}><label style={{ fontSize: 14, fontWeight: 600, color: T.textMed }}>Overruns by</label><span style={{ fontSize: 18, fontWeight: 800, color: T.primary }}>{overrunWeeks} week{overrunWeeks !== 1 ? "s" : ""}</span></div>
+          <input type="range" min={0} max={Math.max(10, weeksUntilZero < 999 ? weeksUntilZero + 3 : 10)} value={overrunWeeks} onChange={e => setOverrunWeeks(Number(e.target.value))} style={{ width: "100%", accentColor: T.primary, cursor: "pointer" }} />
+          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 2 }}><span style={{ fontSize: 11, color: T.textMuted }}>No delay</span><span style={{ fontSize: 11, color: T.textMuted }}>{Math.max(10, weeksUntilZero < 999 ? weeksUntilZero + 3 : 10)}w late</span></div>
+        </div>
+        <div style={{ background: newProfit >= 0 ? T.accentLight : T.dangerLight, borderRadius: T.rSm, padding: "14px 16px", border: `1.5px solid ${newProfit >= 0 ? T.accent : T.danger}30` }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <div><div style={{ fontSize: 11, color: T.textMuted, fontWeight: 600, textTransform: "uppercase" }}>Profit after {overrunWeeks}w delay</div><div style={{ fontSize: 28, fontWeight: 800, color: newProfit >= 0 ? T.accent : T.danger, marginTop: 4 }}>{GBP(newProfit)}</div></div>
+            <div style={{ textAlign: "right" }}><div style={{ fontSize: 11, color: T.textMuted, fontWeight: 600, textTransform: "uppercase" }}>Margin</div><div style={{ fontSize: 22, fontWeight: 800, color: mc(newMargin), marginTop: 4 }}>{newMargin}%</div></div>
+          </div>
+          {overrunWeeks > 0 && <div style={{ marginTop: 10, fontSize: 13, color: T.textMed, borderTop: `1px solid ${newProfit >= 0 ? T.accent : T.danger}20`, paddingTop: 10 }}>{newProfit < 0 ? `Losing ${GBP(Math.abs(newProfit))} on this job` : `Extra labour: ${GBP(overrunLabour)} — still profitable`}</div>}
+        </div>
+      </div>
+      <div style={{ background: T.primaryLight, borderRadius: T.r, padding: 16, border: "1px solid #93C5FD" }}>
+        <div style={{ fontWeight: 700, fontSize: 14, color: T.primary, marginBottom: 8 }}>Protect your margin</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+          {[weeksUntilZero <= 2 && "Build a contingency clause into your quote for jobs this tight.", workers > 1 && `With ${workers} workers, each extra week costs ${GBP(weeklyLabour)} — negotiate stage payments.`, profitMargin < 25 && "Add a 10-15% contingency to your quoted price.", mats > labourCost && "Materials are your biggest cost — get fixed-price quotes before starting.", profitMargin >= 30 && weeksUntilZero > 3 && "Good margin — healthy buffer for small delays."].filter(Boolean).map((tip, i) => <div key={i} style={{ fontSize: 13, color: T.primary, display: "flex", gap: 8 }}><span>-</span><span>{tip}</span></div>)}
+        </div>
+      </div>
+    </div>}
+    {!ready && <div style={{ textAlign: "center", padding: 32, color: T.textMuted }}><div style={{ fontSize: 36, marginBottom: 10 }}>🧮</div><div style={{ fontSize: 15, fontWeight: 600, color: T.textMed }}>Fill in job price, duration and worker cost</div><div style={{ fontSize: 13, marginTop: 4 }}>to see your profit and overrun risk instantly</div></div>}
+  </div>;
+}
+
 /* ═══ SETTINGS ═══════════════════════════════════════ */
 function SettingsTab({ biz, onUpd }) {
   const ch = (f, v) => onUpd({ ...biz, [f]: v }); const logoRef = useRef(null);
@@ -993,7 +1081,7 @@ export default function App() {
   const onAddInv = inv => { setInvoices(p => [...p, inv]); flash("📄 Invoice " + inv.number + " created"); };
   const onUpdInv = u => setInvoices(p => p.map(i => i.id === u.id ? u : i));
   const goTo = (t, jobId) => { setTab(t); if (jobId) setNavJobId(jobId); };
-  const tabIcons = { Overview: "📊", "Add Job": "🔨", Jobs: "📋", Schedule: "📅", Materials: "🧾", Settings: "⚙️" };
+  const tabIcons = { Overview: "📊", "Add Job": "🔨", Jobs: "📋", Schedule: "📅", Materials: "🧾", Settings: "⚙️", Calculator: "🧮" };
   return <div style={{ fontFamily: T.font, maxWidth: 640, margin: "0 auto", padding: "14px 16px", minHeight: "100vh", background: T.bg, color: T.text, WebkitFontSmoothing: "antialiased" }}>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
     <style>{`@keyframes fadeIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}@keyframes spin{to{transform:rotate(360deg)}}@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.04)}}`}</style>
@@ -1006,6 +1094,7 @@ export default function App() {
       {tab === "Jobs" && <JobsTab jobs={jobs} expenses={expenses} invoices={invoices} onUpdate={onUpdJob} onDelExp={onDelExp} onAddExp={onAddExp} onAddInvoice={onAddInv} onUpdateInvoice={onUpdInv} biz={biz} showVat={showVat} onXLSX={() => doExportXLSX(jobs, expenses, invoices, showVat)} unassigned={unassigned} onGoMaterials={() => setTab("Materials")} initialJobId={navJobId} clearInitialJob={() => setNavJobId(null)} flash={flash} />}
       {tab === "Schedule" && <ScheduleTab jobs={jobs} expenses={expenses} biz={biz} onUpdate={onUpdJob} onGo={goTo} flash={flash} />}
       {tab === "Materials" && <MaterialsTab jobs={jobs} expenses={expenses} onAddExp={onAddExp} onDelExp={onDelExp} onAssign={onAssign} showVat={showVat} onXLSX={() => doExportXLSX(jobs, expenses, invoices, showVat)} />}
+      {tab === "Calculator" && <JobOverrunCalculator biz={biz} />}
       {tab === "Settings" && <SettingsTab biz={biz} onUpd={setBiz} />}
     </div>
     {/* Sticky bottom bar — always visible */}
