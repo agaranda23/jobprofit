@@ -301,7 +301,7 @@ function InsightsCard({ jobs, expenses, invoices, biz, onGo }) {
 function OverviewTab({ jobs, expenses, invoices, onGo, biz, showVat }) {
   const mo = thisMonth(); const today = td(); const paid = jobs.filter(j => j.paymentStatus === "paid"); const unpaid = jobs.filter(j => j.paymentStatus === "unpaid" && j.quoteStatus === "accepted");
   const totUnpaid = unpaid.reduce((s, j) => s + j.total, 0); const moPaid = jobs.filter(j => j.paymentDate?.startsWith(mo)).reduce((s, j) => s + j.total, 0);
-  const moMat = expenses.filter(e => e.date?.startsWith(mo)).reduce((s, e) => s + e.amount, 0); const moProfit = moPaid - moMat;
+  const moMat = expenses.filter(e => e.date?.startsWith(mo)).reduce((s, e) => s + e.amount, 0); const moProfit = jobs.filter(j => j.paymentDate?.startsWith(mo)).reduce((sum, j) => { const r = calcProfitFull(j, expenses); return sum + r.profit; }, 0);
   const todayPaid = jobs.filter(j => j.paymentDate === today).reduce((s, j) => s + j.total, 0);
   const todayMat = expenses.filter(e => e.date === today).reduce((s, e) => s + e.amount, 0);
   const todayProfit = todayPaid - todayMat;
