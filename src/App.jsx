@@ -1,1002 +1,2088 @@
-const { useState, useRef, useCallback, useEffect } = React;
-// XLSX loaded via CDN in index.html
+import React, { useState, useEffect, useMemo, useRef } from "react";
+import { createClient } from "@supabase/supabase-js";
+import { FALLBACK_LISTINGS } from "./fallbackListings.jsx";
+import { typeColors } from "./typeColors.jsx";
+import { getDistanceMiles } from "./utils.jsx";
+import { BrandBear, SceneBg, isOnToday, isOnDay, isOnWeekend, isOnThisWeek, isAlwaysAvailable, isExpiredEvent, getNextSession, getSessionSummary, shareWhatsApp, MapView, ListingCard, DetailView } from "./components.jsx";
 
-const TABS = ["Overview", "Add Job", "Jobs", "Schedule", "Materials", "Settings"];
-const defBiz = { name: "Your Business Name", phone: "07XXX XXXXXX", email: "you@email.com", address: "Your Business Address", trade: "General Builder", vatRegistered: false, vatNumber: "", hourlyRate: 45, bankDetails: "", logoUrl: "" };
+// ── SEO Landing Page ──────────────────────────────────────────────────────────
+function EalingSEOPage({ listings, onActivityClick }) {
+  const TYPE_BG = { Music:"#FEE2E2", Sensory:"#E0E7FF", "Messy Play":"#FCE7F3", Dance:"#FEF3C7", Yoga:"#D1FAE5", Outdoor:"#D1FAE5", Park:"#D1FAE5", Animals:"#D1FAE5", "Soft Play":"#EDE9FE", Play:"#EDE9FE", "Toddler Group":"#FFF7ED", Chess:"#E0E7FF", Football:"#D1FAE5", default:"#F3F4F6" };
+  const TYPE_COL = { Music:"#991B1B", Sensory:"#3730A3", "Messy Play":"#9D174D", Dance:"#92400E", Yoga:"#065F46", Outdoor:"#065F46", Park:"#065F46", Animals:"#065F46", "Soft Play":"#5B21B6", Play:"#5B21B6", "Toddler Group":"#9A3412", Chess:"#3730A3", Football:"#065F46", default:"#374151" };
 
-const LEAD_SOURCES = ["Checkatrade", "Rated People", "MyBuilder", "TrustATrader", "Bark", "Facebook", "Instagram", "Google", "Word of mouth", "Direct call", "Other"];
-const srcIcon = s => s === "Checkatrade" ? "✅" : s === "Rated People" ? "⭐" : s === "MyBuilder" ? "🏗️" : s === "TrustATrader" ? "🤝" : s === "Bark" ? "🐕" : s === "Facebook" ? "📘" : s === "Instagram" ? "📸" : s === "Google" ? "🔍" : s === "Word of mouth" ? "🗣️" : s === "Direct call" ? "📞" : "📋";
-const srcCol = s => s === "Checkatrade" ? "#00B67A" : s === "Rated People" ? "#FF6B00" : s === "MyBuilder" ? "#1A73E8" : s === "TrustATrader" ? "#FFB800" : s === "Bark" ? "#00C4B4" : s === "Facebook" ? "#1877F2" : s === "Instagram" ? "#E4405F" : s === "Google" ? "#4285F4" : "#6b7280";
-const _today = new Date().toISOString().slice(0, 10);
-const _tomorrow = (() => { const d = new Date(); d.setDate(d.getDate() + 1); return d.toISOString().slice(0, 10); })();
-const _now = new Date().toISOString();
-const td = () => new Date().toISOString().slice(0, 10);
-const seedJobs = [
-  { id:"J-0001", customer:"Mrs. Sarah Mitchell", address:"14 Elm Road, Manchester", phone:"07700 900123", email:"sarah.m@email.com", date:"2026-02-10", summary:"Kitchen renovation — strip old units, replaster two walls, fit new kitchen units, vinyl flooring ~20sqm.", lineItems:[{desc:"Strip existing kitchen units",cost:350},{desc:"Replaster two walls",cost:480},{desc:"Fit kitchen units (customer supplied)",cost:650},{desc:"Vinyl flooring (~20sqm)",cost:400},{desc:"Electrician — sockets & cooker point",cost:380},{desc:"Materials",cost:320}], total:2580, quoteStatus:"accepted", jobStatus:"active", invoiceStatus:"invoiced", paymentStatus:"unpaid", paymentDate:"", paymentMethod:"", source:"Checkatrade", jobNotes:[{id:"N-0001",subject:"Access info",body:"Customer supplying all kitchen units. Access via side gate.",date:"2026-02-10T09:30:00"},{id:"N-0002",subject:"Schedule plan",body:"Day 1: Strip and dispose. Day 2-3: Plaster and dry. Day 4: Fit units and flooring.",date:"2026-02-10T10:00:00"}], photos:[], invoiceId:"INV-0002", reminders:[{id:"R-0001",date:"2026-02-24T10:00:00",level:"friendly"}], scheduledDate:_today, scheduledStart:"08:30", scheduledEnd:"16:00", reminderSentAt:null },
-  { id:"J-0002", customer:"Mr. James Turner", address:"7 Oak Avenue, Stockport", phone:"07700 900456", email:"", date:"2026-02-13", summary:"Bathroom refit — remove old suite, tile walls and floor, fit new suite and shower.", lineItems:[{desc:"Remove existing suite and tiles",cost:280},{desc:"Plumbing — fit new suite, reroute pipes",cost:750},{desc:"Tile walls and floor (~18sqm)",cost:620},{desc:"New bathroom suite (supply & fit)",cost:890},{desc:"Materials",cost:410}], total:2950, quoteStatus:"accepted", jobStatus:"complete", invoiceStatus:"invoiced", paymentStatus:"paid", paymentDate:"2026-02-28", paymentMethod:"bank transfer", source:"MyBuilder", jobNotes:[{id:"N-0003",subject:"Access",body:"En-suite. Tight access through bedroom.",date:"2026-02-13T14:00:00"}], photos:[], invoiceId:"INV-0001" },
-  { id:"J-0003", customer:"Mrs. Lisa Patel", address:"22 Birch Lane, Didsbury", phone:"07700 900789", email:"lisa.p@email.com", date:"2026-02-25", summary:"Plaster and paint two bedrooms, repair ceiling crack in hallway.", lineItems:[{desc:"Plaster bedroom 1",cost:320},{desc:"Plaster bedroom 2",cost:320},{desc:"Ceiling crack repair",cost:180},{desc:"Paint — 2 coats all walls & ceilings",cost:480},{desc:"Materials",cost:150}], total:1450, quoteStatus:"accepted", jobStatus:"complete", invoiceStatus:"invoiced", paymentStatus:"paid", paymentDate:_today, paymentMethod:"bank transfer", source:"Rated People", jobNotes:[{id:"N-0004",subject:"Completed",body:"All done. Customer happy. Left touch-up paint under stairs.",date:_now}], photos:[], invoiceId:"INV-0003" },
-  { id:"J-0004", customer:"Mr. Dave Thornton", address:"9 Chapel St, Sale", phone:"07700 900321", email:"dave.t@email.com", date:"2026-02-20", summary:"Fit new consumer unit and add 4 double sockets in garage conversion.", lineItems:[{desc:"Consumer unit supply & fit",cost:650},{desc:"4x double sockets",cost:320},{desc:"Testing & certification",cost:180},{desc:"Materials",cost:200}], total:1350, quoteStatus:"accepted", jobStatus:"complete", invoiceStatus:"invoiced", paymentStatus:"paid", paymentDate:_today, paymentMethod:"cash", source:"Word of mouth", jobNotes:[], photos:[], invoiceId:"INV-0004", scheduledDate:_tomorrow, scheduledStart:"09:00", scheduledEnd:"13:00", reminderSentAt:null },
-];
-const seedExp = [
-  { id:"E-0001", jobId:"J-0001", merchant:"Screwfix", date:"2026-02-11", amount:124.50, vat:24.90, desc:"Plasterboard, adhesive, fixings", photo:null },
-  { id:"E-0002", jobId:"J-0001", merchant:"Toolstation", date:"2026-02-12", amount:86.20, vat:17.24, desc:"Vinyl underlay and adhesive", photo:null },
-  { id:"E-0003", jobId:"J-0002", merchant:"Tile Giant", date:"2026-02-14", amount:312.00, vat:62.40, desc:"Wall and floor tiles", photo:null },
-  { id:"E-0004", jobId:"J-0003", merchant:"Wickes", date:"2026-02-26", amount:95.40, vat:19.08, desc:"Plaster, filler, paint x6 tins", photo:null },
-  { id:"E-0005", jobId:"J-0003", merchant:"Screwfix", date:_today, amount:38.50, vat:7.70, desc:"Dust sheets, masking tape, rollers", photo:null },
-  { id:"E-0006", jobId:"J-0004", merchant:"CEF", date:"2026-02-21", amount:186.00, vat:37.20, desc:"Consumer unit, MCBs, cable", photo:null },
-];
-const seedInvoices = [
-  { id:"INV-0001", jobId:"J-0002", number:"INV-0001", status:"paid", created:"2026-02-20", dueDate:"2026-03-06", paidDate:"2026-02-28" },
-  { id:"INV-0002", jobId:"J-0001", number:"INV-0002", status:"unpaid", created:"2026-02-15", dueDate:"2026-03-01", paidDate:"" },
-  { id:"INV-0003", jobId:"J-0003", number:"INV-0003", status:"paid", created:"2026-02-28", dueDate:"2026-03-14", paidDate:_today },
-  { id:"INV-0004", jobId:"J-0004", number:"INV-0004", status:"paid", created:"2026-02-25", dueDate:"2026-03-11", paidDate:"2026-03-01" },
-];
-
-const GBP = n => "£" + Number(n).toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-const mkId = p => `${p}-${String(Date.now()).slice(-4)}`;
-const thisMonth = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; };
-const qCol = s => s === "accepted" ? "#16A34A" : s === "sent" ? "#F59E0B" : "#6b7280";
-const qLbl = s => s === "accepted" ? "Accepted" : s === "sent" ? "Sent" : "Draft";
-const pCol = s => s === "paid" ? "#16A34A" : "#F59E0B";
-const pLbl = s => s === "paid" ? "Paid" : "Unpaid";
-const jCol = s => s === "complete" ? "#16A34A" : s === "active" ? "#2563EB" : "#6b7280";
-const jLbl = s => s === "complete" ? "Complete" : s === "active" ? "Active" : "Quote";
-function calcProfit(job, expenses) { const mat = expenses.filter(e => e.jobId === job.id).reduce((s, e) => s + e.amount, 0); return { materials: mat, profit: job.total - mat, margin: job.total > 0 ? Math.round((job.total - mat) / job.total * 100) : 0 }; }
-function fileToB64(f) { return new Promise((r, e) => { const x = new FileReader(); x.onload = () => r(x.result); x.onerror = e; x.readAsDataURL(f); }); }
-function compress(d, mw = 800, q = 0.7) { return new Promise(r => { const i = new Image(); i.onload = () => { const c = document.createElement("canvas"); let w = i.width, h = i.height; if (w > mw) { h = Math.round(h * mw / w); w = mw; } c.width = w; c.height = h; c.getContext("2d").drawImage(i, 0, 0, w, h); r(c.toDataURL("image/jpeg", q)); }; i.src = d; }); }
-function getCustomers(jobs, expenses) { const map = {}; jobs.forEach(j => { const key = j.customer.toLowerCase().trim(); if (!map[key]) map[key] = { name: j.customer, address: j.address, phone: j.phone || "", email: j.email || "", jobs: [], totalRevenue: 0, totalExpenses: 0 }; const jE = expenses.filter(e => e.jobId === j.id).reduce((s, e) => s + e.amount, 0); map[key].jobs.push(j); map[key].totalRevenue += j.total; map[key].totalExpenses += jE; if (j.address && !map[key].address) map[key].address = j.address; if (j.phone && !map[key].phone) map[key].phone = j.phone; if (j.email && !map[key].email) map[key].email = j.email; }); return Object.values(map); }
-function nextInvNum(invoices) { const nums = invoices.map(i => parseInt(i.number.replace("INV-", "")) || 0); return `INV-${String(Math.max(0, ...nums) + 1).padStart(4, "0")}`; }
-
-async function aiQuote(text, biz) {
-  const sys = `You are a quoting assistant for UK tradespeople (${biz.trade}). Output ONLY valid JSON (no markdown): {"customer":"name or TBC","address":"address or TBC","phone":"phone or empty","email":"email or empty","summary":"1-2 sentence","lineItems":[{"desc":"","cost":number}],"notes":"","total":number}. UK rates, hourly £${biz.hourlyRate}. Materials separate.${biz.vatRegistered ? " Add 20% VAT line." : ""}`;
-  try { const r = await fetch("https://api.anthropic.com/v1/messages", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 1000, system: sys, messages: [{ role: "user", content: `Voice note:\n"${text}"` }] }) }); const d = await r.json(); return JSON.parse((d.content || []).map(i => i.text || "").join("").replace(/```json|```/g, "").trim()); } catch { return null; }
-}
-async function aiReceipt(b64raw) {
-  const b64 = b64raw.includes(",") ? b64raw.split(",")[1] : b64raw;
-  try { const r = await fetch("https://api.anthropic.com/v1/messages", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 500, messages: [{ role: "user", content: [{ type: "image", source: { type: "base64", media_type: "image/jpeg", data: b64 } }, { type: "text", text: 'Extract from receipt. ONLY valid JSON: {"merchant":"","date":"YYYY-MM-DD","amount":number,"vat":number or 0,"desc":"brief items"}' }] }] }) }); const d = await r.json(); return JSON.parse((d.content || []).map(i => i.text || "").join("").replace(/```json|```/g, "").trim()); } catch { return null; }
-}
-function generateInvoiceText(job, biz, inv, showVat) { const vatAmt = showVat ? Math.round(job.total * 0.2 * 100) / 100 : 0; const gross = job.total + vatAmt; let t = `INVOICE ${inv.number}\nDate: ${inv.created}\nDue: ${inv.dueDate}\n\nFrom:\n${biz.name}\n${biz.address}\n${biz.phone}\n${biz.email}\n`; if (showVat && biz.vatNumber) t += `VAT: ${biz.vatNumber}\n`; t += `\nTo:\n${job.customer}\n${job.address}\n\nJob: ${job.summary}\n\nBreakdown:\n`; job.lineItems.forEach(i => { t += `  ${i.desc}: ${GBP(i.cost)}\n`; }); t += `\nSubtotal: ${GBP(job.total)}\n`; if (showVat) t += `VAT (20%): ${GBP(vatAmt)}\n`; t += `TOTAL: ${GBP(gross)}\n`; if (biz.bankDetails) t += `\nBank Details:\n${biz.bankDetails}\n`; t += `\nRef: ${inv.number}`; return t; }
-
-async function generateInvoicePDF(job, biz, inv, showVat) {
-  if (!window.jspdf) { await new Promise((res, rej) => { const s = document.createElement("script"); s.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"; s.onload = res; s.onerror = rej; document.head.appendChild(s); }); }
-  const { jsPDF } = window.jspdf; const doc = new jsPDF();
-  const vatAmt = showVat ? Math.round(job.total * 0.2 * 100) / 100 : 0; const gross = job.total + vatAmt;
-  const w = doc.internal.pageSize.getWidth(); let y = 20;
-  if (biz.logoUrl) { try { doc.addImage(biz.logoUrl, "JPEG", 14, y, 30, 30); } catch {} }
-  doc.setFontSize(24); doc.setFont("helvetica", "bold"); doc.setTextColor(30, 58, 138); doc.text("INVOICE", w - 14, y + 8, { align: "right" });
-  doc.setFontSize(11); doc.setFont("helvetica", "normal"); doc.setTextColor(100); doc.text(inv.number, w - 14, y + 16, { align: "right" }); doc.text("Date: " + inv.created, w - 14, y + 22, { align: "right" }); doc.text("Due: " + inv.dueDate, w - 14, y + 28, { align: "right" });
-  y = 55; doc.setFontSize(9); doc.setTextColor(150); doc.text("FROM", 14, y); doc.setFontSize(12); doc.setFont("helvetica", "bold"); doc.setTextColor(30); doc.text(biz.name, 14, y + 7); doc.setFontSize(10); doc.setFont("helvetica", "normal"); doc.setTextColor(80); doc.text(biz.address, 14, y + 13); doc.text(biz.phone + "  •  " + biz.email, 14, y + 19); if (showVat && biz.vatNumber) doc.text("VAT: " + biz.vatNumber, 14, y + 25);
-  const toX = w / 2 + 10; doc.setFontSize(9); doc.setTextColor(150); doc.text("TO", toX, y); doc.setFontSize(12); doc.setFont("helvetica", "bold"); doc.setTextColor(30); doc.text(job.customer, toX, y + 7); doc.setFontSize(10); doc.setFont("helvetica", "normal"); doc.setTextColor(80); doc.text(job.address || "", toX, y + 13); if (job.phone) doc.text(job.phone, toX, y + 19);
-  y = 90; doc.setDrawColor(220); doc.setLineWidth(0.5); doc.line(14, y, w - 14, y);
-  y += 8; doc.setFontSize(9); doc.setTextColor(150); doc.text("JOB DESCRIPTION", 14, y); y += 6; doc.setFontSize(10); doc.setTextColor(60); const sl = doc.splitTextToSize(job.summary, w - 28); doc.text(sl, 14, y); y += sl.length * 5 + 6;
-  doc.setFillColor(30, 58, 138); doc.rect(14, y, w - 28, 8, "F"); doc.setFontSize(9); doc.setFont("helvetica", "bold"); doc.setTextColor(255); doc.text("Description", 18, y + 5.5); doc.text("Amount", w - 18, y + 5.5, { align: "right" }); y += 12;
-  doc.setFont("helvetica", "normal"); doc.setTextColor(60); job.lineItems.forEach((it, i) => { if (i % 2 === 0) { doc.setFillColor(248, 249, 250); doc.rect(14, y - 3.5, w - 28, 7, "F"); } doc.setFontSize(10); doc.text(it.desc, 18, y); doc.text(GBP(it.cost), w - 18, y, { align: "right" }); y += 8; });
-  y += 4; doc.setDrawColor(220); doc.line(w - 80, y, w - 14, y); y += 8; doc.setFontSize(10); doc.setTextColor(80); doc.text("Subtotal:", w - 80, y); doc.text(GBP(job.total), w - 18, y, { align: "right" }); if (showVat) { y += 7; doc.text("VAT (20%):", w - 80, y); doc.text(GBP(vatAmt), w - 18, y, { align: "right" }); }
-  y += 3; doc.setDrawColor(30, 58, 138); doc.setLineWidth(1); doc.line(w - 80, y, w - 14, y); y += 9; doc.setFontSize(14); doc.setFont("helvetica", "bold"); doc.setTextColor(30, 58, 138); doc.text("TOTAL DUE:", w - 80, y); doc.text(GBP(gross), w - 18, y, { align: "right" });
-  if (biz.bankDetails) { y += 18; doc.setFontSize(9); doc.setTextColor(150); doc.text("PAYMENT DETAILS", 14, y); y += 6; doc.setFontSize(10); doc.setTextColor(60); doc.setFont("helvetica", "normal"); biz.bankDetails.split("\n").forEach(line => { doc.text(line, 14, y); y += 5; }); y += 2; doc.setFont("helvetica", "bold"); doc.text("Reference: " + inv.number, 14, y); }
-  const fy = doc.internal.pageSize.getHeight() - 15; doc.setFontSize(8); doc.setTextColor(170); doc.setFont("helvetica", "normal"); doc.text(biz.name + "  •  Generated by JobProfit", w / 2, fy, { align: "center" });
-  return doc;
-}
-
-function waInvoiceLink(job, biz, inv, showVat) { const vatAmt = showVat ? Math.round(job.total * 0.2 * 100) / 100 : 0; const gross = job.total + vatAmt; let m = "Hi " + job.customer.split(" ").pop() + ",\n\nHere's your invoice:\n\n📄 " + inv.number + "\n📅 " + inv.created + "\n⏰ Due: " + inv.dueDate + "\n\n🔨 " + job.summary + "\n\nTotal: " + GBP(job.total) + "\n"; if (showVat) m += "VAT: " + GBP(vatAmt) + "\nTotal inc VAT: " + GBP(gross) + "\n"; if (biz.bankDetails) m += "\nBank details:\n" + biz.bankDetails + "\n"; m += "\nRef: " + inv.number + "\n\nCheers,\n" + biz.name; const phone = (job.phone || "").replace(/\s/g, "").replace(/^0/, "44"); return "https://wa.me/" + phone + "?text=" + encodeURIComponent(m); }
-function smsInvoiceLink(job, biz, inv, showVat) { const vatAmt = showVat ? Math.round(job.total * 0.2 * 100) / 100 : 0; const gross = job.total + vatAmt; const m = "Hi, invoice " + inv.number + " for " + job.summary.slice(0, 40) + ". Total: " + GBP(showVat ? gross : job.total) + ". Due: " + inv.dueDate + ". Ref: " + inv.number + ". " + biz.name; return "sms:" + (job.phone || "") + "?body=" + encodeURIComponent(m); }
-function emailInvoiceLink(job, biz, inv, showVat) { return "mailto:" + (job.email || "") + "?subject=Invoice " + inv.number + " from " + biz.name + "&body=" + encodeURIComponent(generateInvoiceText(job, biz, inv, showVat)); }
-function waQuoteLink(j) { const phone = (j.phone || "").replace(/\s/g, "").replace(/^0/, "44"); return "https://wa.me/" + phone + "?text=" + encodeURIComponent("Hi " + j.customer.split(" ").pop() + ",\n\nQuote for:\n🔨 " + j.summary + "\n\n💷 Total: " + GBP(j.total) + "\n\nLet me know if you'd like to go ahead.\n\nCheers"); }
-
-/* ─── Payment Chasing System ──────────────────────── */
-function daysSince(dateStr) { if (!dateStr) return 0; const d = new Date(dateStr); const now = new Date(); return Math.floor((now - d) / 86400000); }
-function chaseLevel(job, inv) { const days = inv ? daysSince(inv.created) : daysSince(job.date); if (days >= 28) return "final"; if (days >= 14) return "firm"; return "friendly"; }
-function chaseLevelInfo(level) { return level === "final" ? { label: "Final Notice", color: "#DC2626", bg: "#FEE2E2", icon: "🚨", desc: "28+ days overdue" } : level === "firm" ? { label: "Firm Reminder", color: "#EA580C", bg: "#FFF7ED", icon: "⏰", desc: "14+ days overdue" } : { label: "Friendly Nudge", color: "#2563EB", bg: "#DBEAFE", icon: "💬", desc: "First reminder" }; }
-
-function getReminderMsg(job, biz, inv, level, showVat) {
-  const firstName = job.customer.split(" ").pop();
-  const vatAmt = showVat ? Math.round(job.total * 0.2 * 100) / 100 : 0;
-  const gross = job.total + (showVat ? vatAmt : 0);
-  const ref = inv ? inv.number : job.id;
-  if (level === "friendly") return {
-    subject: "Payment reminder — " + ref,
-    wa: "Hi " + firstName + ", hope you're well! Just a quick reminder that invoice " + ref + " for " + GBP(gross) + " is still outstanding. No rush if it's already on its way.\n\nRef: " + ref + (biz.bankDetails ? "\n\nBank details:\n" + biz.bankDetails : "") + "\n\nCheers,\n" + biz.name,
-    sms: "Hi " + firstName + ", friendly reminder that " + ref + " (" + GBP(gross) + ") is outstanding. Ref: " + ref + ". " + biz.name,
-    email: "Hi " + firstName + ",\n\nJust a friendly reminder that invoice " + ref + " for " + GBP(gross) + " remains outstanding.\n\nIf payment is already on its way, please ignore this message.\n\nJob: " + job.summary + "\nAmount: " + GBP(gross) + "\nRef: " + ref + (biz.bankDetails ? "\n\nBank details:\n" + biz.bankDetails : "") + "\n\nKind regards,\n" + biz.name
+  const score = (l) => {
+    let s = 0;
+    if ((l.images && l.images.length > 0) || l.logo || l.imageUrl) s += 10;
+    if (l.description && l.description.length > 30) s += 2;
+    if (l.website || l.trialLink) s += 1;
+    if (l.popular) s += 2;
+    return s;
   };
-  if (level === "firm") return {
-    subject: "Payment overdue — " + ref,
-    wa: "Hi " + firstName + ", I wanted to follow up on invoice " + ref + " for " + GBP(gross) + " which is now overdue. Could you let me know when I can expect payment?\n\nRef: " + ref + (biz.bankDetails ? "\n\nBank details:\n" + biz.bankDetails : "") + "\n\nThanks,\n" + biz.name,
-    sms: "Hi " + firstName + ", invoice " + ref + " (" + GBP(gross) + ") is now overdue. Please arrange payment or get in touch. Ref: " + ref + ". " + biz.name,
-    email: "Hi " + firstName + ",\n\nI'm following up regarding invoice " + ref + " for " + GBP(gross) + " which is now overdue.\n\nCould you please arrange payment at your earliest convenience, or let me know if there are any issues?\n\nJob: " + job.summary + "\nAmount: " + GBP(gross) + "\nRef: " + ref + (biz.bankDetails ? "\n\nBank details:\n" + biz.bankDetails : "") + "\n\nMany thanks,\n" + biz.name
+
+  const ealingListings = useMemo(() => {
+    const ealingAreas = ["Ealing","Hanwell","West Ealing","North Ealing","South Ealing","Acton","Chiswick","Northfields"];
+    return listings
+      .filter(l => ealingAreas.some(a => (l.location || "").includes(a)))
+      .sort((a, b) => score(b) - score(a));
+  }, [listings]);
+
+  const outdoor = ealingListings.filter(l => {
+    const t = (l.type || "").toLowerCase(), n = (l.name || "").toLowerCase();
+    return !l.indoor || ["outdoor","park","playground","nature","animal","zoo","garden"].some(k => t.includes(k) || n.includes(k));
+  }).slice(0, 4);
+
+  const classes = ealingListings.filter(l => {
+    const t = (l.type || "").toLowerCase(), n = (l.name || "").toLowerCase(), ages = (l.ages || "").toLowerCase();
+    return ["music","sensory","messy play","dance","yoga","signing","baby","toddler","rhyme"].some(k => t.includes(k) || n.includes(k) || ages.includes(k));
+  }).slice(0, 4);
+
+  const free = ealingListings.filter(l => l.free || (l.price || "").toLowerCase().includes("free")).slice(0, 4);
+  const popular = ealingListings.filter(l => l.popular || l.verified || l.featuredProvider).slice(0, 4);
+  const popularFallback = popular.length >= 2 ? popular : ealingListings.slice(0, 4);
+
+  const Card = ({ item }) => {
+    const bg = TYPE_BG[item.type] || TYPE_BG.default;
+    const col = TYPE_COL[item.type] || TYPE_COL.default;
+    const img = item.logo || item.imageUrl || (item.images && item.images[0]);
+    const isFree = item.free || (item.price || "").toLowerCase().includes("free");
+    return (
+      <div onClick={() => onActivityClick(item)} style={{ background:"white", borderRadius:14, border:"1px solid #E5E7EB", padding:16, marginBottom:12, display:"flex", gap:14, cursor:"pointer", boxShadow:"0 1px 4px rgba(0,0,0,0.05)" }}>
+        <div style={{ width:64, height:64, borderRadius:12, background:`linear-gradient(135deg,${bg},${bg}dd)`, flexShrink:0, position:"relative", overflow:"hidden", display:"flex", alignItems:"center", justifyContent:"center" }}>
+          {img && <img src={img} alt="" style={{ width:"78%", height:"78%", objectFit:"cover", position:"absolute", top:"11%", left:"11%", borderRadius:"50%" }} onError={e => e.target.style.display="none"} />}
+          <span style={{ fontSize:22, fontWeight:800, color:col, position:"relative", zIndex:2 }}>{(item.type||"A").charAt(0)}</span>
+        </div>
+        <div style={{ flex:1, minWidth:0 }}>
+          <div style={{ fontSize:15, fontWeight:700, color:"#111827", marginBottom:3 }}>{item.name}</div>
+          <div style={{ fontSize:12, color:"#4B5563", marginBottom:3 }}>{item.type}{item.ages ? " · " + item.ages : ""}{item.day ? " · " + item.day : ""}</div>
+          <div style={{ fontSize:12, color:"#6B7280" }}>{item.venue ? item.venue.split(",")[0] + ", " : ""}{item.location}</div>
+          {(item.freeTrial || item.popular) && (
+            <div style={{ display:"flex", gap:6, marginTop:6 }}>
+              {item.freeTrial && <span style={{ fontSize:10, fontWeight:700, padding:"2px 7px", borderRadius:6, background:"#DCFCE7", color:"#166534" }}>Free trial</span>}
+              {item.popular && <span style={{ fontSize:10, fontWeight:700, padding:"2px 7px", borderRadius:6, background:"#FEF3C7", color:"#92400E" }}>⭐ Popular</span>}
+            </div>
+          )}
+        </div>
+        <div style={{ flexShrink:0, alignSelf:"flex-start" }}>
+          {item.price && <div style={{ fontSize:12, fontWeight:700, padding:"5px 10px", borderRadius:8, background: isFree ? "#DCFCE7" : "#FFF7ED", color: isFree ? "#166534" : "#9A3412", whiteSpace:"nowrap" }}>{item.price}</div>}
+        </div>
+      </div>
+    );
   };
-  return {
-    subject: "URGENT: Final payment notice — " + ref,
-    wa: "Hi " + firstName + ", this is a final reminder for invoice " + ref + " (" + GBP(gross) + ") which is now significantly overdue. I need to receive payment within 7 days to avoid further action.\n\nRef: " + ref + (biz.bankDetails ? "\n\nBank details:\n" + biz.bankDetails : "") + "\n\n" + biz.name,
-    sms: "URGENT: Final notice for " + ref + " (" + GBP(gross) + "). Payment required within 7 days. Ref: " + ref + ". " + biz.name,
-    email: "Hi " + firstName + ",\n\nThis is a final reminder regarding invoice " + ref + " for " + GBP(gross) + " which is now significantly overdue.\n\nI must receive payment within 7 days. If I do not hear from you, I will need to consider further options to recover this debt.\n\nJob: " + job.summary + "\nAmount: " + GBP(gross) + "\nRef: " + ref + (biz.bankDetails ? "\n\nBank details:\n" + biz.bankDetails : "") + "\n\nRegards,\n" + biz.name
+
+  const Section = ({ id, eyebrow, title, desc, items }) => (
+    <section id={id} style={{ padding:"28px 20px 8px" }}>
+      <div style={{ fontSize:11, fontWeight:700, textTransform:"uppercase", letterSpacing:"0.8px", color:"#F97316", marginBottom:4 }}>{eyebrow}</div>
+      <h2 style={{ fontFamily:"Georgia,serif", fontSize:22, fontWeight:800, color:"#111827", marginBottom:6, lineHeight:1.25 }}>{title}</h2>
+      <p style={{ fontSize:14, color:"#4B5563", marginBottom:16, lineHeight:1.55 }}>{desc}</p>
+      {items.length > 0 ? items.map(item => <Card key={item.id} item={item} />) : <p style={{ fontSize:13, color:"#9CA3AF" }}>Loading activities…</p>}
+      <div onClick={() => window.location.href = "/"} style={{ textAlign:"center", padding:"8px 0 4px", fontSize:13, fontWeight:600, color:"#F97316", cursor:"pointer" }}>Browse all {eyebrow.toLowerCase()} →</div>
+    </section>
+  );
+
+  const faqItems = [
+    { q:"What are the best free things to do with kids in Ealing?", a:"Pitzhanger Park Play Centre in Walpole Park has a great free playground for under 5s. Gunnersbury Park has a nature play area, lake and miniature railway. Many local churches run free toddler groups — LITTLElocals lists all free activities with a Free filter." },
+    { q:"What baby classes are available in Ealing?", a:"Ealing has Hartbeeps (baby sensory and music), Sing and Sign (baby signing), Baby Sensory, and various toddler yoga and movement classes. Most run weekly and many offer free trial classes." },
+    { q:"Are there activities for toddlers in Ealing on weekdays?", a:"Yes — most baby and toddler classes run Monday to Friday. There are also daily soft play centres, parks with playgrounds, and toddler groups throughout the week. LITTLElocals has a Today filter so you instantly see what's on right now." },
+    { q:"Is Hanwell Zoo good for toddlers?", a:"Brent Lodge Park (Hanwell Zoo) is excellent for toddlers. Entry is £5 per person with a small zoo, miniature train, and large parkland. Open daily — one of the most popular family spots in the Ealing borough." },
+    { q:"How do I find what's on today for kids in Ealing?", a:"LITTLElocals shows Top things to do today based on your day of the week. Filter by area, age, price and type. Free to use, updated weekly by local parents." },
+  ];
+  const [openFaq, setOpenFaq] = useState(null);
+
+  return (
+    <div style={{ maxWidth:640, margin:"0 auto", background:"#FAFAF8", minHeight:"100vh", fontFamily:"'DM Sans',system-ui,sans-serif", color:"#1F2937" }}>
+      {/* Nav */}
+      <nav style={{ background:"white", borderBottom:"1px solid #E5E7EB", padding:"14px 20px", display:"flex", alignItems:"center", justifyContent:"space-between", position:"sticky", top:0, zIndex:100 }}>
+        <div onClick={() => window.location.href="/"} style={{ display:"flex", alignItems:"center", gap:8, cursor:"pointer" }}>
+          <img src="/bear-logo.png" alt="LITTLElocals" style={{ width:28, height:28, borderRadius:6 }} />
+          <span style={{ fontFamily:"Georgia,serif", fontSize:18, fontWeight:900 }}>LITTLE<span style={{ color:"#F97316" }}>locals</span></span>
+        </div>
+        <div onClick={() => window.location.href="/"} style={{ background:"#F97316", color:"white", padding:"8px 16px", borderRadius:20, fontSize:13, fontWeight:700, cursor:"pointer" }}>Browse all →</div>
+      </nav>
+
+      {/* Breadcrumb */}
+      <div style={{ padding:"10px 20px", fontSize:12, color:"#9CA3AF" }}>
+        <span onClick={() => window.location.href="/"} style={{ color:"#F97316", cursor:"pointer" }}>Home</span> › Things to do with kids in Ealing
+      </div>
+
+      {/* Hero */}
+      <header style={{ background:"linear-gradient(135deg,#FFF7ED,#FFFBF5,#F0FDF4)", padding:"32px 20px 28px", borderBottom:"1px solid #E5E7EB" }}>
+        <div style={{ display:"inline-flex", alignItems:"center", gap:6, fontSize:12, fontWeight:700, color:"#F97316", background:"#FFF7ED", border:"1px solid #FED7AA", padding:"4px 12px", borderRadius:20, marginBottom:14 }}>📍 Ealing, West London</div>
+        <h1 style={{ fontFamily:"Georgia,serif", fontSize:"clamp(26px,6vw,34px)", fontWeight:900, color:"#111827", lineHeight:1.2, marginBottom:14 }}>
+          Best Things To Do<br/>With Kids In <span style={{ color:"#F97316", fontStyle:"italic" }}>Ealing</span>
+        </h1>
+        <p style={{ fontSize:15, color:"#4B5563", lineHeight:1.65, marginBottom:12 }}>
+          LITTLElocals is built by Ealing parents, for Ealing parents. Every activity here has been found, verified, or recommended by local families — from baby sensory classes to free parks, toddler groups to weekend adventures.
+        </p>
+        <p style={{ fontSize:13, color:"#6B7280", marginBottom:16 }}>
+          70+ activities across <strong>Ealing</strong>, <strong>Hanwell</strong>, <strong>Acton</strong>, <strong>Northfields</strong> and <strong>West Ealing</strong>.
+        </p>
+        <div style={{ display:"flex", gap:16, flexWrap:"wrap" }}>
+          {[["#F97316", `${ealingListings.length || "70"}+ activities in Ealing`], ["#166534","Updated weekly"], ["#6050F0","Free to use"]].map(([col, label]) => (
+            <div key={label} style={{ display:"flex", alignItems:"center", gap:6, fontSize:13, fontWeight:600 }}>
+              <div style={{ width:8, height:8, borderRadius:"50%", background:col }}></div><span>{label}</span>
+            </div>
+          ))}
+        </div>
+      </header>
+
+      {/* Jump nav */}
+      <nav style={{ background:"white", borderBottom:"1px solid #E5E7EB", display:"flex", overflowX:"auto", padding:"0 20px", scrollbarWidth:"none" }}>
+        {[["#outdoor","☀️ Outdoor"],["#classes","🎶 Baby classes"],["#free","💰 Free things"],["#popular","⭐ Popular"],["#faq","❓ FAQ"]].map(([href, label]) => (
+          <a key={href} href={href} style={{ display:"inline-flex", alignItems:"center", gap:4, padding:"12px 14px", fontSize:13, fontWeight:600, color:"#4B5563", textDecoration:"none", whiteSpace:"nowrap", borderBottom:"2px solid transparent" }}>{label}</a>
+        ))}
+      </nav>
+
+      {/* Intro */}
+      <div style={{ background:"white", borderRadius:14, border:"1px solid #E5E7EB", padding:20, margin:"20px 20px 0" }}>
+        <h3 style={{ fontFamily:"Georgia,serif", fontSize:17, fontWeight:800, marginBottom:8 }}>Finding things to do with kids in Ealing</h3>
+        <p style={{ fontSize:14, color:"#4B5563", lineHeight:1.65, marginBottom:10 }}>Whether you have a newborn, a toddler, or a school-age child, Ealing has a huge range of family-friendly activities year-round. From Walpole Park and Pitzhanger Manor to award-winning baby sensory classes near Ealing Broadway, there's something for every age and budget.</p>
+        <p style={{ fontSize:14, color:"#4B5563", lineHeight:1.65 }}>LITTLElocals brings together all family activities in Ealing in one place — classes, parks, soft play, toddler groups, museums and more — so you spend less time searching and more time doing.</p>
+      </div>
+
+      <Section id="outdoor" eyebrow="Parks & outdoor fun" title="Best outdoor activities for kids in Ealing ☀️" desc="From nature play to farm animals, Ealing has some of West London's best outdoor spaces for families." items={outdoor} />
+      <div style={{ background:"white", borderRadius:14, border:"1px solid #E5E7EB", padding:20, margin:"0 20px 8px" }}>
+        <h3 style={{ fontFamily:"Georgia,serif", fontSize:16, fontWeight:800, marginBottom:8 }}>Outdoor activities for toddlers in Ealing</h3>
+        <p style={{ fontSize:14, color:"#4B5563", lineHeight:1.65 }}>Pitzhanger Park Play Centre offers free play for under 5s on weekdays. Brent Lodge Park (Hanwell Zoo) is a great low-cost outing with animals and open space. Gunnersbury Park Nature Play gives children of all ages the chance to explore natural outdoor environments.</p>
+      </div>
+
+      <Section id="classes" eyebrow="Baby & toddler classes" title="Best baby & toddler classes in Ealing 🎶" desc="Structured classes for babies and toddlers — music, sensory play, signing, movement and more." items={classes} />
+      <div style={{ background:"white", borderRadius:14, border:"1px solid #E5E7EB", padding:20, margin:"0 20px 8px" }}>
+        <h3 style={{ fontFamily:"Georgia,serif", fontSize:16, fontWeight:800, marginBottom:8 }}>Baby classes in Ealing for 0–12 months</h3>
+        <p style={{ fontSize:14, color:"#4B5563", lineHeight:1.65 }}>Hartbeeps runs award-winning baby sensory and music classes from Haven Green Church near Ealing Broadway. Sing and Sign Ealing offers baby signing classes at two venues on Thursdays and Fridays for babies aged 0–24 months. Many classes offer free taster sessions.</p>
+      </div>
+
+      <Section id="free" eyebrow="No budget needed" title="Free things to do with kids in Ealing 💰" desc="Great family activities that won't cost a penny — parks, play centres, toddler groups and more." items={free} />
+
+      <Section id="popular" eyebrow="Saved by local parents" title="Popular with Ealing parents ⭐" desc="Activities that Ealing parents keep coming back to — saved, reviewed and recommended by the community." items={popularFallback} />
+
+      {/* FAQ */}
+      <section id="faq" style={{ padding:"24px 20px" }}>
+        <h2 style={{ fontFamily:"Georgia,serif", fontSize:22, fontWeight:800, color:"#111827", marginBottom:16 }}>Frequently asked questions</h2>
+        {faqItems.map((item, i) => (
+          <div key={i} style={{ background:"white", border:"1px solid #E5E7EB", borderRadius:14, marginBottom:10, overflow:"hidden" }}>
+            <div onClick={() => setOpenFaq(openFaq === i ? null : i)} style={{ padding:"14px 16px", fontSize:14, fontWeight:700, color:"#111827", cursor:"pointer", display:"flex", justifyContent:"space-between", alignItems:"center", gap:12 }}>
+              {item.q}
+              <span style={{ fontSize:18, color:"#F97316", transform: openFaq===i ? "rotate(45deg)" : "none", transition:"transform 0.2s", flexShrink:0 }}>+</span>
+            </div>
+            {openFaq === i && <div style={{ padding:"0 16px 14px", fontSize:14, color:"#4B5563", lineHeight:1.65 }}>{item.a}</div>}
+          </div>
+        ))}
+      </section>
+
+      {/* CTA */}
+      <div style={{ margin:"0 20px 32px", background:"linear-gradient(135deg,#1F2937,#374151)", borderRadius:18, padding:"24px 20px", textAlign:"center" }}>
+        <h3 style={{ fontFamily:"Georgia,serif", fontSize:20, fontWeight:900, color:"white", marginBottom:8 }}>See everything happening in Ealing today</h3>
+        <p style={{ fontSize:13, color:"rgba(255,255,255,0.7)", marginBottom:16, lineHeight:1.55 }}>Browse all kids activities in Ealing — baby classes, toddler groups, soft play, parks and more. Free to use, updated weekly by local parents.</p>
+        <div onClick={() => window.location.href="/"} style={{ display:"inline-block", background:"#F97316", color:"white", fontSize:14, fontWeight:800, padding:"12px 28px", borderRadius:28, cursor:"pointer", boxShadow:"0 4px 14px rgba(249,115,22,0.4)" }}>👉 Browse all kids activities in Ealing →</div>
+      </div>
+
+      <footer style={{ background:"white", borderTop:"1px solid #E5E7EB", padding:20, textAlign:"center", fontSize:12, color:"#9CA3AF" }}>
+        <p>© 2025 LITTLElocals. Built by parents, for parents.</p>
+        <p style={{ marginTop:6 }}><span onClick={() => window.location.href="/"} style={{ color:"#F97316", cursor:"pointer" }}>Home</span> · <span style={{ color:"#F97316", cursor:"pointer" }}>Privacy</span> · <span style={{ color:"#F97316", cursor:"pointer" }}>Contact</span></p>
+      </footer>
+    </div>
+  );
+}
+
+let supabase = null;
+try {
+  supabase = createClient(
+    "https://xjifxwvziwoepiioyitm.supabase.co",
+    "sb_publishable__wfpTD3AcZhvRHcS_4LbXg_6E2QkGXv"
+  );
+} catch(e) {
+  console.log("Supabase init failed:", e);
+}
+
+function WestLondonListings() {
+  const [listings, setListings] = useState(FALLBACK_LISTINGS);
+  const [selected, setSelected] = useState(null);
+  const [showInstallBanner, setShowInstallBanner] = useState(() => {
+    try {
+      if (window.matchMedia("(display-mode: standalone)").matches) return false;
+      if (window.navigator.standalone === true) return false;
+      const visits = parseInt(localStorage.getItem("ll_visit_count") || "0"); localStorage.setItem("ll_visit_count", String(visits + 1)); if (visits < 1) return false; return false;
+    } catch(e) { return false; }
+  });
+  useEffect(() => {
+    try {
+      const visits = parseInt(localStorage.getItem("ll_visit_count") || "0");
+      if (visits < 2 || localStorage.getItem("ll_install_dismissed")) return;
+      if (window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone) return;
+      const t = setTimeout(() => setShowInstallBanner(true), 60000);
+      return () => clearTimeout(t);
+    } catch(e) {}
+  }, []);
+  const [isLoading, setIsLoading] = useState(true);
+  const [showScrollTop, setShowScrollTop] = useState(false);
+  const [pullRefreshing, setPullRefreshing] = useState(false);
+  const shownIdsRef = useRef(new Set());
+  const [installPrompt, setInstallPrompt] = useState(null);
+
+  // Capture Chrome's install prompt
+  useEffect(() => {
+    const handler = (e) => { e.preventDefault(); setInstallPrompt(e); };
+    window.addEventListener("beforeinstallprompt", handler);
+    return () => window.removeEventListener("beforeinstallprompt", handler);
+  }, []);
+  const [typeFilter, setTypeFilter] = useState("All Types");
+  const [areaFilter, setAreaFilter] = useState(() => {
+    try {
+      const areaChips = ["Ealing", "Acton", "Chiswick", "Hanwell", "Northfields", "Ruislip", "Eastcote", "Uxbridge"];
+      const norm = s => s.trim().toLowerCase().replace(/['']/g, "").replace(/\s+/g, " ");
+      const areaMap = {};
+      areaChips.forEach(a => { areaMap[norm(a)] = a; });
+      const raw = new URLSearchParams(window.location.search).get("area");
+      if (!raw) return "Ealing";
+      const match = areaMap[norm(raw)];
+      if (match) return match;
+      // No match — clean the bad param
+      const url = new URL(window.location); url.searchParams.delete("area"); window.history.replaceState({}, "", url);
+      return "Ealing";
+    } catch(e) { return "Ealing"; }
+  });
+  const [freeOnly, setFreeOnly] = useState(false);
+  const [search, setSearch] = useState("");
+  const [userLoc, setUserLoc] = useState(null);
+  const [locStatus, setLocStatus] = useState("idle");
+  const [isSunny, setIsSunny] = useState(true);
+  const [dayFilter, setDayFilter] = useState("today");
+  const [weatherMode, setWeatherMode] = useState("all");
+  const [napFilter, setNapFilter] = useState("all");
+  const [ageFilter, setAgeFilter] = useState("all");
+  const [page, setPage] = useState(1);
+  const [showAllToday, setShowAllToday] = useState(false);
+  const [tips, setTips] = useState({});
+  const [mapView, setMapView] = useState(false);
+  const [sortBy, setSortBy] = useState("mixed");
+  const [eventsOnly, setEventsOnly] = useState(false);
+  const [worthJourney, setWorthJourney] = useState(false);
+  const ITEMS_PER_PAGE = 6;
+  const [cityFilter, setCityFilter] = useState(() => {
+    try { return localStorage.getItem("ll_city") || "All"; } catch(e) { return "All"; }
+  });
+  const [reviews, setReviews] = useState([]);
+  const [favourites, setFavourites] = useState(() => {
+    try { const s = localStorage.getItem("ll_favs"); return s ? JSON.parse(s) : []; } catch(e) { return []; }
+  });
+  const [passport, setPassport] = useState(() => {
+    try { const s = localStorage.getItem("ll_passport"); return s ? JSON.parse(s) : []; } catch(e) { return []; }
+  });
+  const [clickCounts, setClickCounts] = useState(() => {
+    try { return JSON.parse(localStorage.getItem("ll_clicks") || "{}"); } catch(e) { return {}; }
+  });
+  const trackClick = (id) => {
+    setClickCounts(prev => {
+      const next = { ...prev, [id]: (prev[id] || 0) + 1 };
+      try { localStorage.setItem("ll_clicks", JSON.stringify(next)); } catch(e) {}
+      return next;
+    });
   };
-}
+  const [showFavourites, setShowFavourites] = useState(false);
+  const [showCalendar, setShowCalendar] = useState(false);
+  const [showMoreFilters, setShowMoreFilters] = useState(false);
+  const [calMonth, setCalMonth] = useState(new Date().getMonth());
+  const [calYear, setCalYear] = useState(new Date().getFullYear());
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split("T")[0]);
+  const [calendarPlan, setCalendarPlan] = useState(() => {
+    try { const s = localStorage.getItem("ll_calendar_v2"); return s ? JSON.parse(s) : {}; } catch(e) { return {}; }
+  });
+  const [showSuggest, setShowSuggest] = useState(false);
+  const [suggestForm, setSuggestForm] = useState({ name: "", type: "Soft Play", city: "London", location: "", venue: "", ages: "", day: "", time: "", price: "", description: "", submitterName: "", submitterEmail: "" });
+  const [suggestedActivities, setSuggestedActivities] = useState([]);
+  const [suggestSubmitted, setSuggestSubmitted] = useState(false);
+  const [shareCopied, setShareCopied] = useState(false);
+  const [cookieConsent, setCookieConsent] = useState(() => { try { return localStorage.getItem("ll_cookieConsent"); } catch(e) { return null; } });
+  const [legalPage, setLegalPage] = useState(null);
 
-function waChaseLink(job, msg) { const phone = (job.phone || "").replace(/\s/g, "").replace(/^0/, "44"); return "https://wa.me/" + phone + "?text=" + encodeURIComponent(msg); }
-function smsChaseLink(job, msg) { return "sms:" + (job.phone || "") + "?body=" + encodeURIComponent(msg); }
-function emailChaseLink(job, msg, subject) { return "mailto:" + (job.email || "") + "?subject=" + encodeURIComponent(subject) + "&body=" + encodeURIComponent(msg); }
-function doExportXLSX(jobs, expenses, invoices, showVat) { const wb = XLSX.utils.book_new(); const sH = ["Job ID", "Customer", "Date", "Quoted", "Materials"]; if (showVat) sH.push("VAT Reclaim"); sH.push("Profit", "Margin %", "Status", "Payment", "Invoice"); const sD = [sH]; jobs.forEach(j => { const { materials: ex, profit: pr, margin } = calcProfit(j, expenses); const vt = expenses.filter(e => e.jobId === j.id).reduce((s, e) => s + e.vat, 0); const row = [j.id, j.customer, j.date, j.total, ex]; if (showVat) row.push(vt); row.push(pr, margin, j.jobStatus || "quote", j.paymentStatus, j.invoiceId || "—"); sD.push(row); }); const ws1 = XLSX.utils.aoa_to_sheet(sD); ws1["!cols"] = sH.map(() => ({ wch: 16 })); XLSX.utils.book_append_sheet(wb, ws1, "Jobs"); const eH = ["ID", "Job", "Customer", "Merchant", "Date", "Amount"]; if (showVat) eH.push("VAT"); eH.push("Description", "Receipt"); const eD = [eH]; expenses.forEach(e => { const j = jobs.find(x => x.id === e.jobId); const row = [e.id, e.jobId, j ? j.customer : "Unassigned", e.merchant, e.date, e.amount]; if (showVat) row.push(e.vat); row.push(e.desc, e.photo ? "Yes" : "No"); eD.push(row); }); const ws2 = XLSX.utils.aoa_to_sheet(eD); ws2["!cols"] = eH.map(() => ({ wch: 16 })); XLSX.utils.book_append_sheet(wb, ws2, "Materials"); XLSX.writeFile(wb, "jobprofit-" + td() + ".xlsx"); }
+  // Load Google Analytics if consent given
+  useEffect(() => {
+    if (cookieConsent === "accepted" && !window.gtag) {
+      const s = document.createElement("script");
+      s.src = "https://www.googletagmanager.com/gtag/js?id=G-XXXXXXXXXX";
+      s.async = true;
+      document.head.appendChild(s);
+      window.dataLayer = window.dataLayer || [];
+      window.gtag = function() { window.dataLayer.push(arguments); };
+      window.gtag("js", new Date());
+      window.gtag("config", "G-XXXXXXXXXX");
+    }
+  }, [cookieConsent]);
 
-/* ─── Design Tokens ───────────────────────────────── */
-const T = { font: '"DM Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif', mono: '"JetBrains Mono", "SF Mono", Consolas, monospace', bg: "#EDEEF0", surface: "#FFFFFF", surfaceAlt: "#F3F4F6", border: "#E5E7EB", borderLight: "#F3F4F6", text: "#111827", textMed: "#4B5563", textLight: "#6B7280", textMuted: "#9CA3AF", primary: "#1E3A8A", primaryLight: "#E0E7F5", accent: "#16A34A", accentLight: "#E2F5EA", hiVis: "#F59E0B", hiVisLight: "#FEF3C7", danger: "#DC2626", dangerLight: "#FEE2E2", warn: "#EA580C", warnLight: "#FFF7ED", purple: "#7C3AED", cyan: "#0891B2", r: 12, rSm: 8, shadow: "0 2px 8px rgba(0,0,0,0.05), 0 4px 16px rgba(0,0,0,0.04)", cardShadow: "0 6px 18px rgba(0,0,0,0.05)", heroShadow: "0 10px 25px rgba(0,0,0,0.08)", tapScale: "scale(0.98)" };
+  const acceptCookies = () => { try { localStorage.setItem("ll_cookieConsent", "accepted"); } catch(e) {} setCookieConsent("accepted"); };
+  const declineCookies = () => { try { localStorage.setItem("ll_cookieConsent", "rejected"); } catch(e) {} setCookieConsent("rejected"); };
 
-const LOGO = "data:image/png;base64,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";
-const S = { btn: { display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "12px 22px", border: "none", borderRadius: T.rSm, fontSize: 15, fontWeight: 700, cursor: "pointer", fontFamily: T.font, lineHeight: 1.3, transition: "all .15s", minHeight: 46, WebkitTapHighlightColor: "transparent" }, inp: { width: "100%", padding: "12px 14px", borderRadius: T.rSm, border: `1.5px solid ${T.border}`, fontSize: 15, fontFamily: T.font, color: T.text, background: T.surface, outline: "none", boxSizing: "border-box", lineHeight: 1.4, fontWeight: 500 }, inpSm: { width: "100%", padding: "10px 12px", borderRadius: 8, border: `1.5px solid ${T.border}`, fontSize: 14, fontFamily: T.font, color: T.text, outline: "none", boxSizing: "border-box", fontWeight: 500 }, card: { background: T.surface, borderRadius: T.r, padding: 16, border: `1px solid ${T.border}`, cursor: "pointer", transition: "all .2s", boxShadow: T.cardShadow }, lbl: { fontSize: 11, fontWeight: 700, color: T.textLight, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 10, display: "block" }, ghost: { display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 14px", background: "transparent", color: T.primary, border: `1.5px solid ${T.border}`, fontSize: 13, fontWeight: 600, cursor: "pointer", fontFamily: T.font, borderRadius: T.rSm }, iconBtn: { display: "flex", alignItems: "center", justifyContent: "center", width: 40, height: 40, background: "none", border: "none", cursor: "pointer", borderRadius: 8 } };
-const pri = { ...S.btn, background: T.primary, color: "#fff" };
-const sec = { ...S.btn, background: T.surface, color: T.text, border: `1.5px solid ${T.border}` };
-const grn = { ...S.btn, background: T.accent, color: "#fff" };
-const waS = { ...S.btn, background: "#25D366", color: "#fff", textDecoration: "none" };
-const warnBtn = { ...S.btn, background: T.warn, color: "#fff" };
+  // Habit tracking: last visit + first seen
+  const [lastVisit] = useState(() => { try { return Number(localStorage.getItem("ll_lastVisit") || 0); } catch(e) { return 0; } });
+  const [seenMap] = useState(() => { try { return JSON.parse(localStorage.getItem("ll_seenActivityIds") || "{}"); } catch(e) { return {}; } });
+  useEffect(() => { try { localStorage.setItem("ll_lastVisit", String(Date.now())); } catch(e) {} }, []);
+  const getFirstSeenAt = (id) => { if (!seenMap[id]) { seenMap[id] = Date.now(); try { localStorage.setItem("ll_seenActivityIds", JSON.stringify(seenMap)); } catch(e) {} } return seenMap[id]; };
+  const isNewActivity = (a) => a.createdAt ? (Date.now() - new Date(a.createdAt).getTime()) < 30 * 24 * 60 * 60 * 1000 : false;
 
-/* ─── Icons ───────────────────────────────────────── */
-const MicIc = ({ on }) => <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={on ? "#dc2626" : "currentColor"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" /><path d="M19 10v2a7 7 0 0 1-14 0v-2" /><line x1="12" y1="19" x2="12" y2="23" /><line x1="8" y1="23" x2="16" y2="23" /></svg>;
-const DocIc = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /></svg>;
-const SendIc = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" /></svg>;
-const PlusIc = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>;
-const BinIc = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>;
-const ChvIc = ({ d = "right" }) => <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: d === "down" ? "rotate(90deg)" : d === "left" ? "rotate(180deg)" : "none" }}><polyline points="9 18 15 12 9 6" /></svg>;
-const CamIc = () => <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" /><circle cx="12" cy="13" r="4" /></svg>;
-const DlIc = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" y1="15" x2="12" y2="3" /></svg>;
-const WaIc = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413z" /></svg>;
-const UserIc = () => <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>;
+  // Load from Supabase on mount (localStorage fallback)
+  useEffect(() => {
+    // Fetch weather for Ealing (Open-Meteo, no API key needed)
+    fetch("https://api.open-meteo.com/v1/forecast?latitude=51.513&longitude=-0.309&current=weather_code&timezone=Europe/London")
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (d && d.current && d.current.weather_code !== undefined) {
+          // WMO codes: 0-3 = clear/partly cloudy, 45-48 = fog, 51+ = rain/snow
+          var sunny = d.current.weather_code <= 3;
+          setIsSunny(sunny);
+          console.log("Weather code:", d.current.weather_code, "Sunny:", sunny);
+        }
+      })
+      .catch(function(e) { console.log("Weather fetch failed, defaulting to sunny"); });
+    (async () => {
+      if (!supabase) { console.log("No Supabase client, using fallback"); return; }
+      try {
+        // Load listings from Supabase
+        const { data: ld, error: listErr } = await supabase.from("listings").select("*").order("id", { ascending: true }).limit(500);
+        console.log("Listings loaded:", ld ? ld.length : 0, "error:", listErr);
+        if (ld && ld.length > 0) {
+          setListings(ld.map(l => {
+            const slug = (l.name || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") + "-" + (l.location || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+            return {
+            id: l.id, name: l.name, type: l.type, emoji: l.emoji, slug,
+            location: l.location, venue: l.venue, lat: l.lat, lng: l.lng,
+            ages: l.ages, day: l.day, time: l.time, price: l.price,
+            free: l.free, indoor: l.indoor, description: l.description,
+            bring: l.bring || [], sen: l.sen,
+            cta: { type: l.cta_type, label: l.cta_label, url: l.cta_url },
+            photos: l.photos, verified: l.verified, parking: l.parking,
+            timeSlot: l.time_slot, createdAt: l.created_at, popular: l.popular, featuredProvider: l.featured_provider, freeTrial: l.free_trial, trialLink: l.trial_link, website: l.website, imageUrl: l.image_url, suggestedBy: l.suggested_by,
+            logo: l.logo || null, images: l.images || [],
+            // Structured schedule fields (v2)
+            daysOfWeek: l.days_of_week || null,          // e.g. ["mon","wed","fri"]
+            isDaily: l.is_daily || false,                 // true = runs every day
+            eventDates: l.event_dates || null,            // e.g. ["2026-03-14"]
+            termTimeOnly: l.term_time_only || false,      // exclude during school holidays
+            needsScheduleUpdate: l.needs_schedule_update || false, // Various — exclude from Today
+            // Sessions schema (v3)
+            sessions: l.sessions || null,                 // [{day:"Mon",startTime:"10:00",endTime:"11:00"}]
+            listingType: l.listing_type || "activity",   // "activity" | "event"
+            isEvent: (l.listing_type === "event"),
+            eventStartDate: l.event_start_date || null,  // "2026-04-01"
+            eventEndDate: l.event_end_date || null,       // "2026-04-14"
+            recurrence: l.recurrence || "weekly",         // "weekly"|"one-off"|"multi-day"
+            isTemporary: l.is_temporary || false,
+          };}));
 
-function Spinner({ sz = 18 }) { return <span style={{ display: "inline-block", width: sz, height: sz, border: "2.5px solid rgba(255,255,255,.3)", borderTopColor: "#fff", borderRadius: "50%", animation: "spin .6s linear infinite" }} />; }
-function Waves({ on }) { if (!on) return null; return <div style={{ display: "flex", alignItems: "center", gap: 3, height: 32, justifyContent: "center" }}>{[...Array(12)].map((_, i) => <div key={i} style={{ width: 3, borderRadius: 2, background: "#dc2626", animation: `wv${i} .7s ease-in-out infinite alternate` }} />)}<style>{[...Array(12)].map((_, i) => `@keyframes wv${i}{0%{height:4px}100%{height:${8 + Math.floor(Math.random() * 18)}px}}`).join("")}</style></div>; }
-function Stat({ label, value, color = T.text, sub, icon, bg }) { return <div style={{ background: bg || T.surface, borderRadius: T.r, padding: "14px 16px", border: `1px solid ${T.border}`, flex: "1 1 140px", minWidth: 130, boxShadow: T.cardShadow }}><div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>{icon && <span style={{ fontSize: 14 }}>{icon}</span>}<div style={{ fontSize: 10, fontWeight: 600, color: T.textMuted, letterSpacing: .5, textTransform: "uppercase" }}>{label}</div></div><div style={{ fontSize: 22, fontWeight: 800, color, lineHeight: 1.2 }}>{value}</div>{sub && <div style={{ fontSize: 12, color: T.textMuted, fontWeight: 400, marginTop: 3 }}>{sub}</div>}</div>; }
-function Badge({ text, bg }) { return <span style={{ display: "inline-block", padding: "4px 12px", borderRadius: 20, fontSize: 11, fontWeight: 700, color: "#fff", background: bg, lineHeight: 1.4 }}>{text}</span>; }
-function PhotoModal({ src, onClose }) { if (!src) return null; return <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.9)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 2000, padding: 20, cursor: "pointer" }}><img src={src} alt="" style={{ maxWidth: "94vw", maxHeight: "90vh", borderRadius: T.r, objectFit: "contain" }} /></div>; }
+        // Fetch listing_images and attach to listings
+        const { data: imgData } = await supabase.from("listing_images").select("*").order("sort_order", { ascending: true });
+        if (imgData && imgData.length > 0) {
+          const imgMap = {};
+          imgData.forEach(img => {
+            if (!imgMap[img.listing_id]) imgMap[img.listing_id] = [];
+            imgMap[img.listing_id].push(img.url);
+          });
+          setListings(prev => prev.map(l => ({ ...l, images: imgMap[l.id] || l.images || [] })));
+        }
+          try { localStorage.setItem("ll_listings_cache", JSON.stringify(ld)); } catch(e) {}
+        }
+        // Load reviews
+        const { data: rd } = await supabase.from("reviews").select("*").order("created_at", { ascending: false });
+        if (rd) {
+          setReviews(rd.map(r => ({ id: r.id, listingId: r.listing_id, name: r.reviewer_name, rating: r.rating, text: r.review_text, photos: r.photos || [], date: new Date(r.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) })));
+          try { localStorage.setItem("ll_reviews", JSON.stringify(rd)); } catch(e) {}
+        }
+        // Load suggestions
+        const { data: sd } = await supabase.from("suggestions").select("*").order("created_at", { ascending: false });
+        if (sd) setSuggestedActivities(sd.map(s => ({ ...s, submitterName: s.submitter_name, submittedAt: new Date(s.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) })));
+        const { data: tipsData } = await supabase.from("parent_tips").select("*").order("created_at", { ascending: true });
+        if (tipsData) {
+          const tipsMap = {};
+          tipsData.forEach(t => { if (!tipsMap[t.activity_id]) tipsMap[t.activity_id] = []; tipsMap[t.activity_id].push(t); });
+          setTips(tipsMap);
+        }
+      } catch(e) {
+        console.log("Supabase unavailable, trying local cache");
+        try {
+          const cachedListings = localStorage.getItem("ll_listings_cache");
+          if (cachedListings) {
+            const ld = JSON.parse(cachedListings);
+            setListings(ld.map(l => {
+              const slug = (l.name || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") + "-" + (l.location || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+              return {
+              id: l.id, name: l.name, type: l.type, emoji: l.emoji, slug,
+              location: l.location, venue: l.venue, lat: l.lat, lng: l.lng,
+              ages: l.ages, day: l.day, time: l.time, price: l.price,
+              free: l.free, indoor: l.indoor, description: l.description,
+              bring: l.bring || [], sen: l.sen,
+              cta: { type: l.cta_type, label: l.cta_label, url: l.cta_url },
+              photos: l.photos, verified: l.verified, parking: l.parking,
+              timeSlot: l.time_slot, createdAt: l.created_at, popular: l.popular, featuredProvider: l.featured_provider, freeTrial: l.free_trial, trialLink: l.trial_link, website: l.website, imageUrl: l.image_url, suggestedBy: l.suggested_by,
+              logo: l.logo || null, images: l.images || [],
+            };}));
+          }
+        } catch(e2) {}
+        try { const sr = localStorage.getItem("ll_reviews"); if (sr) { const rd = JSON.parse(sr); setReviews(rd.map(r => ({ id: r.id, listingId: r.listing_id || r.listingId, name: r.reviewer_name || r.name, rating: r.rating, text: r.review_text || r.text, photos: r.photos || [], date: r.date || new Date(r.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) }))); } } catch(e2) {}
+        try { const ss = localStorage.getItem("ll_suggestions"); if (ss) setSuggestedActivities(JSON.parse(ss)); } catch(e2) {}
+      }
+      setIsLoading(false);
+    })();
+  }, []);
 
-function ProfitBar({ quote, materials, profit, margin }) {
-  const matPct = quote > 0 ? Math.min((materials / quote) * 100, 100) : 0;
-  return <div style={{ background: T.surface, borderRadius: T.r, padding: 18, border: `1px solid ${T.border}`, boxShadow: T.cardShadow }}>
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8, marginBottom: 14 }}>
-      <div><div style={{ fontSize: 10, color: T.textMuted, fontWeight: 600, letterSpacing: .5, textTransform: "uppercase" }}>Quote</div><div style={{ fontSize: 20, fontWeight: 800, color: T.primary }}>{GBP(quote)}</div></div>
-      <div><div style={{ fontSize: 10, color: T.textMuted, fontWeight: 600, letterSpacing: .5, textTransform: "uppercase" }}>Materials</div><div style={{ fontSize: 20, fontWeight: 800, color: T.danger }}>{GBP(materials)}</div></div>
-      <div><div style={{ fontSize: 10, color: T.textMuted, fontWeight: 600, letterSpacing: .5, textTransform: "uppercase" }}>Profit</div><div style={{ fontSize: 20, fontWeight: 800, color: T.accent }}>{GBP(profit)}</div></div>
-      <div><div style={{ fontSize: 10, color: T.textMuted, fontWeight: 600, letterSpacing: .5, textTransform: "uppercase" }}>Margin</div><div style={{ fontSize: 20, fontWeight: 800, color: margin >= 30 ? T.accent : margin >= 15 ? T.warn : T.danger }}>{margin}%</div></div>
-    </div>
-    <div style={{ height: 10, borderRadius: 5, background: T.surfaceAlt, overflow: "hidden" }}><div style={{ height: "100%", borderRadius: 5, background: `linear-gradient(90deg, ${T.danger} ${matPct}%, ${T.accent} ${matPct}%)`, transition: "all .4s" }} /></div>
-    <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6 }}><span style={{ fontSize: 11, color: T.danger, fontWeight: 600 }}>Materials {Math.round(matPct)}%</span><span style={{ fontSize: 11, color: T.accent, fontWeight: 600 }}>Profit {Math.round(100 - matPct)}%</span></div>
-  </div>;
-}
+  // Browser back button support + deep link URL handling
+  useEffect(() => {
+    const handlePop = () => {
+      const path = window.location.pathname;
+      if (path.startsWith("/activity/")) {
+        const slug = path.replace("/activity/", "");
+        const match = listings.find(a => a.slug === slug);
+        if (match) { setSelected(match); window.scrollTo(0, 0); return; }
+      }
+      if (selected) { setSelected(null); window.history.replaceState({}, "", "/"); return; }
+      if (showCalendar) { setShowCalendar(false); return; }
+      if (showSuggest) { setShowSuggest(false); return; }
+    };
+    window.addEventListener("popstate", handlePop);
+    return () => window.removeEventListener("popstate", handlePop);
+  }, [selected, showCalendar, showSuggest, listings]);
 
-function QuickStats({ todayProfit, outstanding, paidThisMonth, profitThisMonth, unpaidCount, onChase, jobs, expenses, biz }) {
-  const [animProfit, setAnimProfit] = useState(0);
-  useEffect(() => { let start = 0; const end = todayProfit; const dur = 600; const t0 = performance.now(); const step = ts => { const p = Math.min((ts - t0) / dur, 1); const ease = 1 - Math.pow(1 - p, 3); setAnimProfit(start + (end - start) * ease); if (p < 1) requestAnimationFrame(step); }; requestAnimationFrame(step); }, [todayProfit]);
+  // Deep link: open activity from URL on load
+  useEffect(() => {
+    if (listings.length === 0) return;
+    const path = window.location.pathname;
+    if (path.startsWith("/activity/")) {
+      const slug = path.replace("/activity/", "");
+      const match = listings.find(a => a.slug === slug);
+      if (match) { setSelected(match); window.scrollTo(0, 0); }
+    }
+  }, [listings]);
 
-  // --- Momentum calculations ---
-  const today = td();
-  const now = new Date();
-  const dayOfMonth = now.getDate();
-  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-  const projectedMonthProfit = dayOfMonth > 0 ? Math.round((profitThisMonth / dayOfMonth) * daysInMonth) : 0;
+  // Push history state when opening views
+  const openDetail = (item) => { window.history.pushState({ view: "detail" }, "", "/activity/" + (item.slug || item.id)); setSelected(item); window.scrollTo(0, 0); };
+  const openCalendar = () => { const now = new Date(); setCalMonth(now.getMonth()); setCalYear(now.getFullYear()); setSelectedDate(now.toISOString().split("T")[0]); window.history.pushState({ view: "calendar" }, ""); setShowCalendar(true); };
+  const openSuggest = () => { window.history.pushState({ view: "suggest" }, ""); setShowSuggest(true); };
 
-  // Last month profit
-  const lastMo = (() => { const d = new Date(); d.setMonth(d.getMonth() - 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; })();
-  const lastMoPaid = jobs.filter(j => j.paymentDate?.startsWith(lastMo)).reduce((s, j) => s + j.total, 0);
-  const lastMoMat = expenses.filter(e => e.date?.startsWith(lastMo)).reduce((s, e) => s + e.amount, 0);
-  const lastMonthProfit = lastMoPaid - lastMoMat;
-  const vsLastMonth = lastMonthProfit > 0 ? Math.round(((profitThisMonth - lastMonthProfit) / lastMonthProfit) * 100) : 0;
-  const vsColor = vsLastMonth > 3 ? T.accent : vsLastMonth < -3 ? T.danger : T.hiVis;
+  const closeDetail = () => { window.history.pushState({}, "", "/"); setSelected(null); };
+  const closeCalendar = () => { if (window.history.state?.view) window.history.back(); else setShowCalendar(false); };
+  const closeSuggest = () => { if (window.history.state?.view) window.history.back(); else setShowSuggest(false); };
 
-  // Profit per hour today (est)
-  const rate = biz?.hourlyRate || 45;
-  const todayPaidJobs = jobs.filter(j => j.paymentDate === today);
-  const estHoursToday = todayPaidJobs.length > 0 ? Math.max(todayPaidJobs.reduce((s, j) => s + (j.total / rate), 0), 1) : 0;
-  const profitPerHour = estHoursToday > 0 ? Math.round(todayProfit / estHoursToday) : 0;
+  // Scroll to top button visibility
+  useEffect(() => {
+    const onScroll = () => setShowScrollTop(window.scrollY > 400);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
 
-  // Profit streak
-  const streakCount = (() => { let streak = 0; const d = new Date(); for (let i = 0; i < 30; i++) { const ds = d.toISOString().slice(0, 10); const dayPaid = jobs.filter(j => j.paymentDate === ds).reduce((s, j) => s + j.total, 0); const dayMat = expenses.filter(e => e.date === ds).reduce((s, e) => s + e.amount, 0); if (dayPaid - dayMat > 0) streak++; else break; d.setDate(d.getDate() - 1); } return streak; })();
+  // Pull to refresh
+  const refreshData = async () => {
+    if (!supabase || pullRefreshing) return;
+    setPullRefreshing(true);
+    try {
+      const { data: ld } = await supabase.from("listings").select("*").order("id", { ascending: true }).limit(500);
+      if (ld && ld.length > 0) {
+        setListings(ld.map(l => {
+          const slug = (l.name || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") + "-" + (l.location || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+          return {
+          id: l.id, name: l.name, type: l.type, emoji: l.emoji, slug,
+          location: l.location, venue: l.venue, lat: l.lat, lng: l.lng,
+          ages: l.ages, day: l.day, time: l.time, price: l.price,
+          free: l.free, indoor: l.indoor, description: l.description,
+          bring: l.bring || [], sen: l.sen,
+          cta: { type: l.cta_type, label: l.cta_label, url: l.cta_url },
+          photos: l.photos, verified: l.verified, parking: l.parking,
+          timeSlot: l.time_slot, createdAt: l.created_at, popular: l.popular, featuredProvider: l.featured_provider, freeTrial: l.free_trial, trialLink: l.trial_link, website: l.website, imageUrl: l.image_url, suggestedBy: l.suggested_by,
+          logo: l.logo || null, images: l.images || [],
+        };}));
+      }
+      // Refresh listing_images
+      const { data: imgData2 } = await supabase.from("listing_images").select("*").order("sort_order", { ascending: true });
+      if (imgData2 && imgData2.length > 0) {
+        const imgMap2 = {};
+        imgData2.forEach(img => {
+          if (!imgMap2[img.listing_id]) imgMap2[img.listing_id] = [];
+          imgMap2[img.listing_id].push(img.url);
+        });
+        setListings(prev => prev.map(l => ({ ...l, images: imgMap2[l.id] || l.images || [] })));
+      }
+            const { data: rd } = await supabase.from("reviews").select("*").order("created_at", { ascending: false });
+      if (rd) setReviews(rd.map(r => ({ id: r.id, listingId: r.listing_id, name: r.reviewer_name, rating: r.rating, text: r.review_text, photos: r.photos || [], date: new Date(r.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) })));
+    } catch(e) {}
+    setPullRefreshing(false);
+  };
 
-  // True Hourly Rate (weekly) — used for Next Move logic only
-  const d7ago = (() => { const d = new Date(); d.setDate(d.getDate() - 7); return d.toISOString().slice(0, 10); })();
-  const weekPaidJobs = jobs.filter(j => j.paymentStatus === "paid" && j.paymentDate >= d7ago);
-  const weekGross = weekPaidJobs.reduce((s, j) => s + j.total, 0);
-  const weekMat = weekPaidJobs.reduce((s, j) => s + expenses.filter(e => e.jobId === j.id).reduce((a, e) => a + e.amount, 0), 0);
-  const weekNet = weekGross - weekMat;
-  const weekEstHours = weekGross > 0 ? Math.max(Math.round(weekGross / rate), 1) : 0;
-  const trueHourly = weekEstHours > 0 ? Math.round(weekNet / weekEstHours) : 0;
-  const targetHourly = biz?.targetHourlyRate || 100;
+  // Backup to localStorage
+  useEffect(() => { try { localStorage.setItem("ll_city", cityFilter); } catch(e) {} }, [cityFilter]);
+  useEffect(() => { try { localStorage.setItem("ll_reviews", JSON.stringify(reviews)); } catch(e) {} }, [reviews]);
+  useEffect(() => { try { localStorage.setItem("ll_suggestions", JSON.stringify(suggestedActivities)); } catch(e) {} }, [suggestedActivities]);
 
-  // Tomorrow check for Next Move
-  const tomorrowDate = (() => { const d = new Date(); d.setDate(d.getDate() + 1); return d.toISOString().slice(0, 10); })();
-  const hasTomorrowJobs = jobs.some(j => j.scheduledDate === tomorrowDate);
+  // Sync area filter to URL
+  useEffect(() => {
+    try {
+      const url = new URL(window.location);
+      if (!window.location.pathname.startsWith("/admin")) {
+        if (areaFilter !== "All Areas") { url.searchParams.set("area", areaFilter); } else { url.searchParams.delete("area"); }
+        window.history.replaceState({}, "", url);
+      }
+    } catch(e) {}
+  }, [areaFilter]);
 
-  // Smart guidance line (max ~40 chars, calm tone)
-  const guidance = (() => {
-    if (todayProfit === 0) return "First job sets the pace.";
-    if (projectedMonthProfit >= lastMonthProfit && lastMonthProfit > 0) return "Momentum building.";
-    if (lastMonthProfit > 0 && projectedMonthProfit < lastMonthProfit) return "Below pace — tighten pricing.";
-    return "Keep pushing.";
-  })();
+  // Reset to page 1 when any filter changes
+  useEffect(() => { setPage(1); }, [cityFilter, typeFilter, areaFilter, freeOnly, search, dayFilter, weatherMode, napFilter, ageFilter, eventsOnly, worthJourney]);
 
-  // Next Move coach — priority order
-  const nextMove = (() => {
-    if (outstanding > 0) return { text: `Next move: Chase ${GBP(outstanding)}.`, action: onChase };
-    if (trueHourly > 0 && trueHourly < targetHourly) return { text: "Next move: Raise pricing.", action: null };
-    if (!hasTomorrowJobs) return { text: "Next move: Fill tomorrow.", action: null };
-    return { text: "Strong week. Keep momentum.", action: null };
-  })();
+  // Persist favourites
+  useEffect(() => { try { localStorage.setItem("ll_favs", JSON.stringify(favourites)); } catch(e) {} }, [favourites]);
+  useEffect(() => { try { localStorage.setItem("ll_passport", JSON.stringify(passport)); } catch(e) {} }, [passport]);
+  useEffect(() => { try { localStorage.setItem("ll_calendar_v2", JSON.stringify(calendarPlan)); } catch(e) {} }, [calendarPlan]);
 
-  // Unpaid progress bar
-  const unpaidPct = outstanding > 0 ? Math.min(outstanding / (paidThisMonth + outstanding) * 100, 100) : 0;
+  const addToCalendar = (activityId, dateKey) => {
+    if (navigator.vibrate) navigator.vibrate(10);
+    setCalendarPlan(prev => {
+      const day = prev[dateKey] || [];
+      if (day.includes(activityId)) return prev;
+      return { ...prev, [dateKey]: [...day, activityId] };
+    });
+  };
 
-  return <div style={{ marginBottom: 24 }}>
-    {/* Hero — TODAY PROFIT */}
-    <div style={{ background: "linear-gradient(160deg, #1a3a7a 0%, #1e3a8a 55%, #15306e 100%)", borderRadius: T.r, padding: "26px 20px 22px", color: "#fff", boxShadow: "0 12px 28px rgba(26,58,122,0.22)", marginBottom: 10, textAlign: "center", position: "relative", overflow: "hidden" }}>
-      <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(255,255,255,0.04), rgba(0,0,0,0.08))", pointerEvents: "none" }} />
-      <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: 2, textTransform: "uppercase", opacity: .65, marginBottom: 8, position: "relative" }}>Today You Made</div>
-      <div style={{ fontSize: 46, fontWeight: 800, lineHeight: 1, letterSpacing: -1.5, position: "relative" }}>{GBP(animProfit)}</div>
-      <div style={{ fontSize: 12, opacity: .6, marginTop: 6, fontWeight: 400, position: "relative" }}>profit after materials</div>
-      <div style={{ fontSize: 11, opacity: .45, marginTop: 8, fontWeight: 400, position: "relative", letterSpacing: .2 }}>{guidance}</div>
-    </div>
+  const removeFromCalendar = (activityId, dateKey) => {
+    setCalendarPlan(prev => {
+      const updated = (prev[dateKey] || []).filter(id => id !== activityId);
+      const newPlan = { ...prev, [dateKey]: updated };
+      if (updated.length === 0) delete newPlan[dateKey];
+      return newPlan;
+    });
+  };
 
-    {/* Cash Collected + Unpaid */}
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
-      {/* Cash Collected — white card, navy text */}
-      <div style={{ background: T.surface, borderRadius: T.r, padding: "16px 16px 14px", boxShadow: T.cardShadow, border: `1px solid ${T.border}` }}>
-        <div style={{ fontSize: 10, color: T.textMuted, fontWeight: 500, textTransform: "uppercase", letterSpacing: .8, marginBottom: 4 }}>Cash In</div>
-        <div style={{ fontSize: 24, fontWeight: 800, color: "#1e3a8a", lineHeight: 1 }}>{GBP(paidThisMonth)}</div>
-        <div style={{ fontSize: 11, color: T.textMuted, fontWeight: 400, marginTop: 4 }}>this month</div>
-      </div>
-      {/* Unpaid */}
-      <button onClick={outstanding > 0 ? onChase : undefined} style={{ background: outstanding > 0 ? "#FEF3C7" : T.surfaceAlt, borderRadius: T.r, padding: "16px 16px 14px", color: outstanding > 0 ? "#92400E" : T.textMuted, boxShadow: T.cardShadow, border: outstanding > 0 ? "1px solid #FDE68A" : `1px solid ${T.border}`, cursor: outstanding > 0 ? "pointer" : "default", fontFamily: T.font, textAlign: "left" }}>
-        <div style={{ fontSize: 10, fontWeight: 500, textTransform: "uppercase", letterSpacing: .8, marginBottom: 4, opacity: .7 }}>Unpaid</div>
-        <div style={{ fontSize: 24, fontWeight: 800, lineHeight: 1 }}>{GBP(outstanding)}</div>
-        <div style={{ fontSize: 11, fontWeight: 400, marginTop: 4, opacity: .7 }}>{outstanding > 0 ? `${unpaidCount} invoice${unpaidCount !== 1 ? "s" : ""}` : "All clear"}</div>
-        {outstanding > 0 && <div style={{ height: 2, borderRadius: 2, background: "#FDE68A", marginTop: 8, overflow: "hidden" }}><div style={{ height: "100%", borderRadius: 2, background: "#F59E0B", width: unpaidPct + "%" }} /></div>}
-      </button>
-    </div>
+  const calendarTotal = Object.values(calendarPlan).reduce((sum, arr) => sum + arr.length, 0);
 
-    {/* Performance Momentum */}
-    <div style={{ background: T.surface, borderRadius: T.r, padding: "16px 16px 14px", border: `1px solid ${T.border}`, boxShadow: T.cardShadow, marginBottom: 0 }}>
-      <div style={{ fontSize: 10, fontWeight: 600, color: T.textMuted, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 12 }}>Performance Momentum</div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
-        <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-          <span style={{ fontSize: 13, opacity: .5 }}>⚡</span>
-          <span style={{ fontSize: 18, fontWeight: 800, color: T.text }}>{GBP(profitPerHour)}</span>
-          <span style={{ fontSize: 12, color: T.textMuted, fontWeight: 400 }}>/hr today</span>
-        </div>
-        <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-          <span style={{ fontSize: 13, opacity: .5 }}>📈</span>
-          <span style={{ fontSize: 18, fontWeight: 800, color: T.text }}>On track for {GBP(projectedMonthProfit)}</span>
-          <span style={{ fontSize: 12, color: T.textMuted, fontWeight: 400 }}>this month</span>
-        </div>
-        <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-          <span style={{ fontSize: 13, opacity: .5 }}>🔥</span>
-          <span style={{ fontSize: 18, fontWeight: 800, color: vsColor }}>{vsLastMonth >= 0 ? "+" : ""}{vsLastMonth}%</span>
-          <span style={{ fontSize: 12, color: T.textMuted, fontWeight: 400 }}>vs last month</span>
-        </div>
-        {streakCount >= 2 && <div style={{ fontSize: 12, color: T.textMuted, fontWeight: 400, paddingLeft: 20 }}>{streakCount}-day profit streak</div>}
-      </div>
-      {/* Next Move coach pill */}
-      <button onClick={nextMove.action || undefined} style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 14, padding: "7px 12px", background: "#EEF2FF", border: "1px solid #C7D2FE", borderRadius: 20, cursor: nextMove.action ? "pointer" : "default", fontFamily: T.font }}>
-        <span style={{ fontSize: 12, fontWeight: 600, color: "#4338CA", flex: 1 }}>{nextMove.text}</span>
-        {nextMove.action && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#4338CA" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>}
-      </button>
-    </div>
-  </div>;
-}
+  const toggleFavourite = (id) => {
+    if (navigator.vibrate) navigator.vibrate(10);
+    setFavourites(prev => prev.includes(id) ? prev.filter(f => f !== id) : [...prev, id]);
+  };
 
-function SendInvoiceModal({ job, biz, inv, showVat, onClose, flash }) {
-  const [pdfBusy, setPdfBusy] = useState(false);
-  const downloadPDF = async () => { setPdfBusy(true); try { const doc = await generateInvoicePDF(job, biz, inv, showVat); doc.save(inv.number + "-" + job.customer.replace(/\s/g, "-") + ".pdf"); flash("📄 PDF downloaded"); } catch { flash("PDF failed"); } setPdfBusy(false); };
-  return <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 1000 }} onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
-    <div style={{ background: T.surface, borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 500, padding: 24, animation: "slideUp .25s ease-out" }}>
-      <style>{`@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}`}</style>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}><h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>Send Invoice {inv.number}</h3><button onClick={onClose} style={{ width: 36, height: 36, borderRadius: "50%", border: "none", background: T.surfaceAlt, cursor: "pointer", fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button></div>
-      <div style={{ padding: "14px 16px", background: T.surfaceAlt, borderRadius: T.rSm, marginBottom: 20 }}><div style={{ fontSize: 14, fontWeight: 700 }}>{job.customer}</div><div style={{ fontSize: 13, color: T.textMed }}>{job.summary.slice(0, 60)}</div><div style={{ fontSize: 18, fontWeight: 800, color: T.primary, marginTop: 4 }}>{GBP(job.total)}</div></div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        <a href={waInvoiceLink(job, biz, inv, showVat)} target="_blank" rel="noopener noreferrer" onClick={onClose} style={{ ...waS, width: "100%", textDecoration: "none", boxSizing: "border-box", justifyContent: "center" }}><WaIc /> Send via WhatsApp</a>
-        <a href={smsInvoiceLink(job, biz, inv, showVat)} onClick={onClose} style={{ ...S.btn, background: "#2563EB", color: "#fff", width: "100%", textDecoration: "none", boxSizing: "border-box", justifyContent: "center" }}>💬 Send via SMS</a>
-        <a href={emailInvoiceLink(job, biz, inv, showVat)} onClick={onClose} style={{ ...pri, width: "100%", textDecoration: "none", boxSizing: "border-box", justifyContent: "center" }}>📧 Send via Email</a>
-        <button onClick={downloadPDF} disabled={pdfBusy} style={{ ...sec, width: "100%", opacity: pdfBusy ? .5 : 1 }}>{pdfBusy ? <><Spinner /> Generating...</> : <>📄 Download PDF</>}</button>
-      </div>
-    </div>
-  </div>;
-}
+  const togglePassport = (id) => {
+    if (navigator.vibrate) navigator.vibrate(15);
+    setPassport(prev => prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]);
+  };
 
-function MaterialForm({ jobs, presetJobId, showVat, onSave, onCancel }) {
-  const [busy, setBusy] = useState(false); const [manual, setManual] = useState(false);
-  const [form, setForm] = useState({ jobId: presetJobId || "", merchant: "", date: td(), amount: "", vat: "", desc: "" });
-  const [photo, setPhoto] = useState(null); const fileRef = useRef(null);
-  const handlePhoto = async e => { const f = e.target.files?.[0]; if (!f) return; setBusy(true); try { const raw = await fileToB64(f); const c = await compress(raw); setPhoto(c); const d = await aiReceipt(c); if (d) setForm(p => ({ ...p, merchant: d.merchant || "", date: d.date || p.date, amount: String(d.amount || ""), vat: String(d.vat || "0"), desc: d.desc || "" })); setManual(true); } catch { setManual(true); } setBusy(false); if (fileRef.current) fileRef.current.value = ""; };
-  const save = () => { if (!form.amount) return; onSave({ id: mkId("E"), jobId: form.jobId || "", merchant: form.merchant || "Unknown", date: form.date, amount: Number(form.amount), vat: Number(form.vat || 0), desc: form.desc || "", photo: photo || null }); setForm({ jobId: presetJobId || "", merchant: "", date: td(), amount: "", vat: "", desc: "" }); setPhoto(null); setManual(false); };
-  return <div>
-    {!presetJobId && <div style={{ marginBottom: 12 }}><select value={form.jobId} onChange={e => setForm({ ...form, jobId: e.target.value })} style={{ ...S.inp, appearance: "auto" }}><option value="">No job (assign later)</option>{jobs.map(j => <option key={j.id} value={j.id}>{j.id} — {j.customer}</option>)}</select></div>}
-    {!manual ? <div style={{ display: "flex", gap: 10 }}><button onClick={() => fileRef.current?.click()} disabled={busy} style={{ ...pri, flex: 1, opacity: busy ? .5 : 1 }}>{busy ? <><Spinner /> Scanning...</> : <><CamIc /> Snap Receipt</>}</button><button onClick={() => setManual(true)} style={sec}>Manual</button><input ref={fileRef} type="file" accept="image/*" capture="environment" onChange={handlePhoto} style={{ display: "none" }} /></div>
-    : <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-      {photo && <div style={{ display: "flex", alignItems: "center", gap: 12, padding: 12, background: T.accentLight, borderRadius: T.rSm }}><img src={photo} alt="" style={{ width: 52, height: 52, borderRadius: 8, objectFit: "cover" }} /><div style={{ flex: 1, fontSize: 14, fontWeight: 600, color: "#166534" }}>📷 Receipt attached</div><button onClick={() => setPhoto(null)} style={S.iconBtn}>✕</button></div>}
-      {!photo && <button onClick={() => fileRef.current?.click()} disabled={busy} style={{ ...sec, width: "100%" }}><CamIc /> Add photo</button>}
-      <input placeholder="Merchant" value={form.merchant} onChange={e => setForm({ ...form, merchant: e.target.value })} style={S.inp} />
-      <div style={{ display: "flex", gap: 8 }}><input type="date" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} style={{ ...S.inp, flex: 1 }} /><input type="number" placeholder="Total (£)" value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })} style={{ ...S.inp, flex: 1 }} />{showVat && <input type="number" placeholder="VAT" value={form.vat} onChange={e => setForm({ ...form, vat: e.target.value })} style={{ ...S.inp, width: 80 }} />}</div>
-      <input placeholder="What did you buy?" value={form.desc} onChange={e => setForm({ ...form, desc: e.target.value })} style={S.inp} />
-      <div style={{ display: "flex", gap: 8 }}><button onClick={save} disabled={!form.amount} style={{ ...grn, flex: 1, opacity: !form.amount ? .5 : 1 }}>Save</button><button onClick={() => { setManual(false); setPhoto(null); onCancel?.(); }} style={sec}>Cancel</button></div>
-    </div>}
-  </div>;
-}
+  const addReview = async (review) => {
+    const temp = { ...review, id: Date.now(), date: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) };
+    setReviews(prev => [temp, ...prev]);
+    try {
+      const { data } = await supabase.from("reviews").insert({ listing_id: review.listingId, reviewer_name: review.name, rating: review.rating, review_text: review.text, photos: review.images || review.photos || [] }).select().single();
+      if (data) setReviews(prev => prev.map(r => r.id === temp.id ? { id: data.id, listingId: data.listing_id, name: data.reviewer_name, rating: data.rating, text: data.review_text, photos: data.photos || [], date: new Date(data.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) } : r));
+    } catch(e) {}
+  };
 
-/* ═══ INSIGHTS CARD ═════════════════════════════════ */
-function InsightsCard({ jobs, expenses, invoices, biz, onGo }) {
-  const today = new Date(); const todayStr = td();
-  const d7ago = (() => { const d = new Date(); d.setDate(d.getDate() - 7); return d.toISOString().slice(0, 10); })();
-  const d14ago = (() => { const d = new Date(); d.setDate(d.getDate() - 14); return d.toISOString().slice(0, 10); })();
+  const addTip = async (activityId, tipText) => {
+    const trimmed = tipText.trim().slice(0, 120);
+    if (!trimmed) return;
+    const temp = { id: "tmp-" + Date.now(), activity_id: activityId, tip_text: trimmed, created_at: new Date().toISOString() };
+    setTips(prev => ({ ...prev, [activityId]: [...(prev[activityId] || []), temp] }));
+    try {
+      const { data } = await supabase.from("parent_tips").insert({ activity_id: activityId, tip_text: trimmed }).select().single();
+      if (data) setTips(prev => ({ ...prev, [activityId]: (prev[activityId] || []).map(t => t.id === temp.id ? data : t) }));
+    } catch(e) {}
+  };
 
-  // Jobs in ranges
-  const thisWeekJobs = jobs.filter(j => (j.paymentDate || j.date) >= d7ago && (j.paymentDate || j.date) <= todayStr);
-  const lastWeekJobs = jobs.filter(j => (j.paymentDate || j.date) >= d14ago && (j.paymentDate || j.date) < d7ago);
-  const paidThisWeek = thisWeekJobs.filter(j => j.paymentStatus === "paid");
-  const paidLastWeek = lastWeekJobs.filter(j => j.paymentStatus === "paid");
+  const submitSuggestion = async () => {
+    if (!suggestForm.name.trim() || !suggestForm.venue.trim() || !suggestForm.submitterName.trim() || !suggestForm.location) return;
+    const temp = { ...suggestForm, id: Date.now(), status: "pending", submittedAt: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }) };
+    setSuggestedActivities(prev => [...prev, temp]);
+    try {
+      await supabase.from("suggestions").insert({ name: suggestForm.name, type: suggestForm.type, city: suggestForm.city, location: suggestForm.location, venue: suggestForm.venue, ages: suggestForm.ages, day: suggestForm.day + (suggestForm.time ? " " + suggestForm.time : ""), price: suggestForm.price, description: suggestForm.description, submitter_name: suggestForm.submitterName, submitter_email: suggestForm.submitterEmail });
+    } catch(e) {}
+    setSuggestForm({ name: "", type: "Soft Play", city: "London", location: "", venue: "", ages: "", day: "", time: "", price: "", description: "", submitterName: "", submitterEmail: "" });
+    setShowSuggest(false);
+    setSuggestSubmitted(true);
+    setTimeout(() => setSuggestSubmitted(false), 5000);
+  };
 
-  // KPIs
-  const twRevenue = paidThisWeek.reduce((s, j) => s + j.total, 0);
-  const twMat = paidThisWeek.reduce((s, j) => s + expenses.filter(e => e.jobId === j.id).reduce((a, e) => a + e.amount, 0), 0);
-  const twProfit = twRevenue - twMat;
-  const avgProfit = paidThisWeek.length > 0 ? Math.round(twProfit / paidThisWeek.length) : 0;
-  const matPct = twRevenue > 0 ? Math.round((twMat / twRevenue) * 100) : 0;
-  const rate = biz.hourlyRate || 45;
-  const estHours = twRevenue > 0 ? Math.min(Math.round(twRevenue / rate), paidThisWeek.length * 10) : 0;
-  const profitPerHr = estHours > 0 ? Math.round(twProfit / estHours) : 0;
-  const unpaidJobs = jobs.filter(j => j.paymentStatus === "unpaid" && j.quoteStatus === "accepted");
-  const unpaidTotal = unpaidJobs.reduce((s, j) => s + j.total, 0);
+  const requestLocation = () => {
+    if (!navigator.geolocation) { setLocStatus("denied"); return; }
+    setLocStatus("requesting");
+    navigator.geolocation.getCurrentPosition(
+      (pos) => { setUserLoc({ lat: pos.coords.latitude, lng: pos.coords.longitude }); setLocStatus("granted"); setSortBy("nearest"); setAreaFilter("All Areas"); setPage(1); },
+      (err) => { console.log("Location error:", err.message); setLocStatus("denied"); },
+      { enableHighAccuracy: false, timeout: 15000, maximumAge: 300000 }
+    );
+  };
 
-  // Best lead source
-  const srcMap = {};
-  paidThisWeek.forEach(j => { if (j.source) { if (!srcMap[j.source]) srcMap[j.source] = { profit: 0, count: 0 }; const mat = expenses.filter(e => e.jobId === j.id).reduce((a, e) => a + e.amount, 0); srcMap[j.source].profit += j.total - mat; srcMap[j.source].count++; } });
-  const bestSrc = Object.entries(srcMap).sort((a, b) => b[1].profit - a[1].profit)[0];
+// Smart search keywords — maps common search terms to activity types and specific listings
+const searchKeywords = {
+  // Dance & movement
+  "dance": ["Music", "Performing Arts", "Sport"],
+  "ballet": ["Performing Arts"],
+  "street dance": ["Performing Arts"],
+  "tap": ["Performing Arts"],
+  "movement": ["Music", "Performing Arts"],
+  "disco": ["Music", "Performing Arts"],
+  // Arts & making
+  "pottery": ["Arts & Crafts", "Baking"],
+  "painting": ["Arts & Crafts", "Messy Play"],
+  "ceramics": ["Arts & Crafts"],
+  "drawing": ["Arts & Crafts"],
+  "creative": ["Arts & Crafts", "Messy Play", "Baking"],
+  "craft": ["Arts & Crafts", "Messy Play"],
+  "art": ["Arts & Crafts", "Messy Play"],
+  "make": ["Arts & Crafts", "Baking"],
+  // Physical
+  "trampoline": ["Sport"],
+  "gymnastics": ["Sport"],
+  "circus": ["Sport"],
+  "climbing": ["Sport", "Outdoor"],
+  "football": ["Sport"],
+  "tennis": ["Sport", "Outdoor"],
+  "jump": ["Sport"],
+  "bounce": ["Soft Play", "Sport"],
+  "active": ["Sport", "Soft Play", "Outdoor"],
+  "exercise": ["Sport", "Swimming"],
+  // Water
+  "swim": ["Swimming"],
+  "pool": ["Swimming"],
+  "water": ["Swimming", "Messy Play", "Outdoor"],
+  "splash": ["Swimming", "Outdoor"],
+  // Nature & outdoors
+  "park": ["Outdoor"],
+  "garden": ["Outdoor"],
+  "nature": ["Outdoor"],
+  "walk": ["Outdoor"],
+  "forest": ["Outdoor"],
+  "woods": ["Outdoor"],
+  "playground": ["Outdoor"],
+  "picnic": ["Outdoor"],
+  "animals": ["Outdoor"],
+  "ducks": ["Outdoor"],
+  "beach": ["Outdoor"],
+  // Learning & development
+  "sing": ["Music", "Story Time"],
+  "song": ["Music", "Story Time"],
+  "rhyme": ["Story Time", "Music"],
+  "reading": ["Story Time"],
+  "books": ["Story Time"],
+  "library": ["Story Time"],
+  "learn": ["Messy Play", "Story Time", "Performing Arts"],
+  "educational": ["Messy Play", "Story Time"],
+  // Social
+  "baby group": ["Playgroup", "Music"],
+  "toddler group": ["Playgroup"],
+  "mum": ["Playgroup"],
+  "parent": ["Playgroup"],
+  "social": ["Playgroup", "Soft Play"],
+  "friends": ["Playgroup", "Soft Play"],
+  "drop in": ["Playgroup"],
+  "free": ["Playgroup", "Outdoor"],
+  // Sensory & messy
+  "sensory": ["Messy Play", "Music", "Soft Play"],
+  "messy": ["Messy Play"],
+  "slime": ["Messy Play"],
+  "paint": ["Messy Play", "Arts & Crafts"],
+  "sand": ["Messy Play", "Outdoor"],
+  "play dough": ["Messy Play", "Arts & Crafts"],
+  // Food
+  "cook": ["Baking"],
+  "bake": ["Baking"],
+  "cake": ["Baking"],
+  "food": ["Baking"],
+  // Needs
+  "sen": ["Playgroup", "Swimming"],
+  "disability": ["Playgroup", "Swimming"],
+  "additional needs": ["Playgroup", "Swimming"],
+  "accessible": ["Outdoor", "Playgroup"],
+  // Entertainment
+  "theatre": ["Performing Arts"],
+  "drama": ["Performing Arts"],
+  "acting": ["Performing Arts"],
+  "show": ["Performing Arts", "Music"],
+  "perform": ["Performing Arts"],
+  "stage": ["Performing Arts"],
+  // Play
+  "soft play": ["Soft Play"],
+  "ball pit": ["Soft Play"],
+  "slide": ["Soft Play", "Outdoor"],
+  "indoor play": ["Soft Play"],
+  // Transport themed
+  "train": ["Outdoor"],
+  "railway": ["Outdoor"],
+  "miniature": ["Outdoor"],
+};
 
-  // Alerts
-  const alerts = [];
-  // A- Oldest unchased
-  if (unpaidJobs.length > 0) {
-    const oldest = [...unpaidJobs].sort((a, b) => { const aD = (a.reminders || []).length > 0 ? a.reminders[a.reminders.length - 1].date : (invoices.find(i => i.jobId === a.id)?.created || a.date); const bD = (b.reminders || []).length > 0 ? b.reminders[b.reminders.length - 1].date : (invoices.find(i => i.jobId === b.id)?.created || b.date); return aD < bD ? -1 : 1; })[0];
-    const lastAct = (oldest.reminders || []).length > 0 ? oldest.reminders[oldest.reminders.length - 1].date : (invoices.find(i => i.jobId === oldest.id)?.created || oldest.date);
-    const daysSinceChase = daysSince(lastAct);
-    if (daysSinceChase >= 5) alerts.push({ icon: "💰", text: `You haven't chased ${GBP(unpaidTotal)} in ${daysSinceChase} days`, color: T.warn, action: () => { const el = document.getElementById("chase-section"); if (el) el.scrollIntoView({ behavior: "smooth" }); } });
+// City groupings for the city picker
+const cityGroups = {
+  "London": ["Acton", "Barnet", "Battersea", "Bethnal Green", "Brentford", "Brixton", "Camden", "Canary Wharf", "Chiswick", "Clapham", "Covent Garden", "Croydon", "Crystal Palace", "Dulwich", "Ealing", "Eastcote", "Edgware", "Feltham", "Finchley", "Forest Hill", "Greenford", "Greenwich", "Hackney", "Hammersmith", "Hampstead", "Hanwell", "Harrow", "Hayes", "Highgate", "Hillingdon", "Hounslow", "Ickenham", "Isleworth", "Islington", "Kensington", "Kew", "Lea Bridge", "Lewisham", "London Bridge", "Northfields", "Northolt", "Northwood", "Peckham", "Pinner", "Pitshanger", "Regent's Park", "Richmond", "Romford", "Ruislip", "Shepherd's Bush", "Silvertown", "South Ealing", "South Kensington", "South Ruislip", "Southall", "Southwark", "Stanmore", "Stratford", "Twickenham", "Uxbridge", "Walthamstow", "Wembley", "Westminster", "Wimbledon", "Acton / Chiswick", "Acton / Ealing", "Hillingdon-wide"],
+  "Birmingham": ["Birmingham"],
+  "Manchester": ["Manchester"],
+  "Leeds": ["Leeds"],
+  "Liverpool": ["Liverpool"],
+  "Hertfordshire": ["Hemel Hempstead", "Watford", "St Albans", "Stevenage", "Hatfield", "Hertford", "Welwyn Garden City"],
+  "Buckinghamshire": ["Amersham", "Aylesbury", "Beaconsfield", "Bourne End", "Burnham", "Chesham", "Denham", "Flackwell Heath", "Gerrards Cross", "Great Missenden", "Hazlemere", "High Wycombe", "Iver", "Loudwater", "Maidenhead", "Marlow", "Princes Risborough", "Rickmansworth", "Slough", "Taplow", "Wendover", "Windsor", "Wooburn"],
+  "Essex": ["Chelmsford", "Southend", "Colchester", "Basildon", "Brentwood", "Epping", "Harlow", "Braintree", "Maldon", "Thurrock", "Billericay", "Rayleigh", "Wickford", "Benfleet", "Grays", "Loughton", "Chigwell", "Romford"],
+};
+
+function getSearchScore(item, query) {
+  const q = query.toLowerCase().trim();
+  if (!q) return 1;
+  
+  let score = 0;
+  const name = item.name.toLowerCase();
+  const type = item.type.toLowerCase();
+  const loc = item.location.toLowerCase();
+  const desc = item.description.toLowerCase();
+  const venue = item.venue.toLowerCase();
+  
+  // Exact name match — highest priority
+  if (name.includes(q)) score += 100;
+  // Type match
+  if (type.includes(q)) score += 80;
+  // Location match
+  if (loc.includes(q)) score += 70;
+  // Venue match
+  if (venue.includes(q)) score += 60;
+  // Description match
+  if (desc.includes(q)) score += 40;
+  
+  // Keyword matching — check each keyword
+  for (const [keyword, types] of Object.entries(searchKeywords)) {
+    if (q.includes(keyword) || keyword.includes(q)) {
+      if (types.includes(item.type)) score += 50;
+      // Bonus if keyword appears in description too
+      if (desc.includes(keyword)) score += 20;
+    }
   }
-  // B- Margin drop
-  const lwRevenue = paidLastWeek.reduce((s, j) => s + j.total, 0);
-  const lwMat = paidLastWeek.reduce((s, j) => s + expenses.filter(e => e.jobId === j.id).reduce((a, e) => a + e.amount, 0), 0);
-  const twMargin = twRevenue > 0 ? Math.round(((twRevenue - twMat) / twRevenue) * 100) : 0;
-  const lwMargin = lwRevenue > 0 ? Math.round(((lwRevenue - lwMat) / lwRevenue) * 100) : 0;
-  if (lwMargin > 0 && twMargin < lwMargin - 5) alerts.push({ icon: "📉", text: `Profit margin dropped ${lwMargin}% → ${twMargin}% vs last week`, color: T.danger, action: null });
-  // C- Underperforming lead source
-  const allSrcMap = {};
-  jobs.filter(j => j.paymentStatus === "paid" && j.source).forEach(j => { if (!allSrcMap[j.source]) allSrcMap[j.source] = { revenue: 0, mat: 0, count: 0 }; allSrcMap[j.source].revenue += j.total; allSrcMap[j.source].mat += expenses.filter(e => e.jobId === j.id).reduce((a, e) => a + e.amount, 0); allSrcMap[j.source].count++; });
-  const allEntries = Object.entries(allSrcMap).filter(([, d]) => d.count >= 2);
-  const overallMargin = allEntries.reduce((s, [, d]) => s + d.revenue, 0) > 0 ? (allEntries.reduce((s, [, d]) => s + d.revenue - d.mat, 0) / allEntries.reduce((s, [, d]) => s + d.revenue, 0)) * 100 : 0;
-  allEntries.forEach(([name, data]) => { const m = data.revenue > 0 ? ((data.revenue - data.mat) / data.revenue) * 100 : 0; if (m < overallMargin - 20) alerts.push({ icon: "⚠️", text: `${name} margin is ${Math.round(m)}% vs ${Math.round(overallMargin)}% avg`, color: T.hiVis, action: null }); });
-
-  if (jobs.length < 2) return <div style={{ background: T.surface, borderRadius: T.r, padding: 20, border: `1px solid ${T.border}`, boxShadow: T.cardShadow, marginBottom: 16, textAlign: "center" }}><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: 8 }}><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg><div style={{ fontWeight: 700, fontSize: 14, color: T.textMed }}>Add a few jobs to unlock insights</div></div>;
-
-  return <div style={{ animation: "fadeIn .4s ease-out" }}>
-    <style>{`@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`}</style>
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: alerts.length > 0 ? 14 : 0 }}>
-      <div><div style={{ fontSize: 10, color: T.textMuted, fontWeight: 500, textTransform: "uppercase", letterSpacing: .5, marginBottom: 3 }}>Avg Profit</div><div style={{ fontSize: 20, fontWeight: 800, color: T.accent }}>{GBP(avgProfit)}</div><div style={{ fontSize: 11, color: T.textMuted, fontWeight: 400 }}>per job</div></div>
-      <div><div style={{ fontSize: 10, color: T.textMuted, fontWeight: 500, textTransform: "uppercase", letterSpacing: .5, marginBottom: 3 }}>Profit/Hour</div><div style={{ fontSize: 20, fontWeight: 800, color: T.primary }}>{GBP(profitPerHr)}</div><div style={{ fontSize: 11, color: T.textMuted, fontWeight: 400 }}>this week</div></div>
-      <div><div style={{ fontSize: 10, color: T.textMuted, fontWeight: 500, textTransform: "uppercase", letterSpacing: .5, marginBottom: 3 }}>Materials</div><div style={{ fontSize: 20, fontWeight: 800, color: matPct > 50 ? T.danger : T.textMed }}>{matPct}%</div><div style={{ fontSize: 11, color: T.textMuted, fontWeight: 400 }}>of revenue</div></div>
-    </div>
-    {alerts.length > 0 && <div style={{ borderTop: `1px solid ${T.borderLight}`, paddingTop: 12 }}>
-      {alerts.map((a, i) => <button key={i} onClick={a.action || undefined} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", marginBottom: i < alerts.length - 1 ? 6 : 0, background: a.color + "10", border: `1px solid ${a.color}25`, borderRadius: T.rSm, cursor: a.action ? "pointer" : "default", fontFamily: T.font, textAlign: "left" }}><span style={{ fontSize: 16, flexShrink: 0 }}>{a.icon}</span><div style={{ fontSize: 13, fontWeight: 600, color: T.text, flex: 1 }}>{a.text}</div>{a.action && <ChvIc />}</button>)}
-    </div>}
-  </div>;
+  
+  // Multi-word search — check each word
+  const words = q.split(/\s+/);
+  if (words.length > 1) {
+    words.forEach(word => {
+      if (word.length < 2) return;
+      if (name.includes(word)) score += 30;
+      if (type.includes(word)) score += 25;
+      if (desc.includes(word)) score += 15;
+      if (loc.includes(word)) score += 15;
+    });
+  }
+  
+  return score;
 }
 
-/* ═══ OVERVIEW ═══════════════════════════════════════ */
-function OverviewTab({ jobs, expenses, invoices, onGo, biz, showVat }) {
-  const mo = thisMonth(); const today = td(); const paid = jobs.filter(j => j.paymentStatus === "paid"); const unpaid = jobs.filter(j => j.paymentStatus === "unpaid" && j.quoteStatus === "accepted");
-  const totUnpaid = unpaid.reduce((s, j) => s + j.total, 0); const moPaid = jobs.filter(j => j.paymentDate?.startsWith(mo)).reduce((s, j) => s + j.total, 0);
-  const moMat = expenses.filter(e => e.date?.startsWith(mo)).reduce((s, e) => s + e.amount, 0); const moProfit = moPaid - moMat;
-  const todayPaid = jobs.filter(j => j.paymentDate === today).reduce((s, j) => s + j.total, 0);
-  const todayMat = expenses.filter(e => e.date === today).reduce((s, e) => s + e.amount, 0);
-  const todayProfit = todayPaid - todayMat;
-  const activeJobs = jobs.filter(j => j.jobStatus === "active" || (j.quoteStatus === "accepted" && j.paymentStatus !== "paid")).length;
-  const unassigned = expenses.filter(e => !e.jobId).length;
-  const hr = new Date().getHours(); const greeting = hr < 12 ? "Morning" : hr < 18 ? "Afternoon" : "Evening";
-  const scrollToChase = () => { const el = document.getElementById("chase-section"); if (el) el.scrollIntoView({ behavior: "smooth" }); };
-  const tomorrowDate = (() => { const d = new Date(); d.setDate(d.getDate() + 1); return d.toISOString().slice(0, 10); })();
-  const tmrwJobs = jobs.filter(j => j.scheduledDate === tomorrowDate);
-  const tmrwVal = tmrwJobs.reduce((s, j) => s + j.total, 0);
-  const todayJobs = jobs.filter(j => j.scheduledDate === today);
-  const [insightsOpen, setInsightsOpen] = useState(false);
-  return <div>
-    <div style={{ marginTop: 6, marginBottom: 10 }}><h2 style={{ fontSize: 21, fontWeight: 800, margin: 0, letterSpacing: -0.3 }}>Good {greeting}</h2><p style={{ fontSize: 12, color: T.textMuted, margin: "2px 0 0", fontWeight: 400 }}>Your scoreboard</p></div>
-    {/* Schedule Preview */}
-    {todayJobs.length > 0 && <button onClick={() => onGo("Schedule")} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", marginBottom: 6, background: T.primary, border: "none", borderRadius: T.r, cursor: "pointer", fontFamily: T.font, textAlign: "left", color: "#fff", boxShadow: T.cardShadow, transition: "transform .1s" }} onPointerDown={e => e.currentTarget.style.transform = T.tapScale} onPointerUp={e => e.currentTarget.style.transform = "none"}><div style={{ width: 30, height: 30, borderRadius: 7, background: "rgba(255,255,255,.12)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div><div style={{ flex: 1 }}><div style={{ fontWeight: 700, fontSize: 14 }}>{todayJobs.length} job{todayJobs.length !== 1 ? "s" : ""} today</div><div style={{ fontSize: 12, opacity: .75, fontWeight: 400 }}>{GBP(todayJobs.reduce((s, j) => s + j.total, 0))} scheduled</div></div><ChvIc /></button>}
-    {/* Tomorrow */}
-    <button onClick={() => onGo("Schedule")} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", marginBottom: 18, background: tmrwJobs.length > 0 ? T.hiVis : T.surfaceAlt, border: tmrwJobs.length > 0 ? "none" : `1.5px solid ${T.border}`, borderRadius: T.r, cursor: "pointer", fontFamily: T.font, textAlign: "left", color: tmrwJobs.length > 0 ? "#fff" : T.textMuted, boxShadow: T.cardShadow, transition: "transform .1s" }} onPointerDown={e => e.currentTarget.style.transform = T.tapScale} onPointerUp={e => e.currentTarget.style.transform = "none"}><div style={{ width: 30, height: 30, borderRadius: 7, background: tmrwJobs.length > 0 ? "rgba(255,255,255,.12)" : T.border, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={tmrwJobs.length > 0 ? "#fff" : T.textMuted} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div><div style={{ flex: 1 }}>{tmrwJobs.length > 0 ? <><div style={{ fontWeight: 700, fontSize: 14 }}>Tomorrow's booked</div><div style={{ fontSize: 12, opacity: .75, fontWeight: 400 }}>{GBP(tmrwVal)} lined up</div></> : <div style={{ fontWeight: 600, fontSize: 13 }}>No jobs tomorrow</div>}</div><ChvIc /></button>
-    <QuickStats todayProfit={todayProfit} outstanding={totUnpaid} paidThisMonth={moPaid} profitThisMonth={moProfit} unpaidCount={unpaid.length} onChase={scrollToChase} jobs={jobs} expenses={expenses} biz={biz} />
+  const dayNames = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+  const dayNamesShort = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+  const todayName = dayNames[new Date().getDay()];
+  const todayNameShort = dayNamesShort[new Date().getDay()];
 
-    {/* Collapsible Insights */}
-    <button onClick={() => setInsightsOpen(!insightsOpen)} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", marginBottom: insightsOpen ? 0 : 20, background: T.surface, border: `1px solid ${T.border}`, borderRadius: insightsOpen ? `${T.r}px ${T.r}px 0 0` : T.r, cursor: "pointer", fontFamily: T.font, boxShadow: T.cardShadow }}>
-      <span style={{ fontSize: 11, fontWeight: 600, color: T.textMuted, textTransform: "uppercase", letterSpacing: 1.2 }}>Insights</span>
-      <span style={{ fontSize: 14, color: T.textMuted, transform: insightsOpen ? "rotate(180deg)" : "none", transition: "transform .2s" }}>▼</span>
-    </button>
-    {insightsOpen && <div style={{ background: T.surface, borderRadius: `0 0 ${T.r}px ${T.r}px`, border: `1px solid ${T.border}`, borderTop: "none", padding: 16, marginBottom: 20, boxShadow: T.cardShadow }}>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 14 }}>
-        <div><div style={{ fontSize: 10, color: T.textMuted, fontWeight: 500, textTransform: "uppercase", letterSpacing: .5, marginBottom: 3 }}>Month Profit</div><div style={{ fontSize: 20, fontWeight: 800, color: T.accent }}>{GBP(moProfit)}</div></div>
-        <Stat label="Active Jobs" value={activeJobs} color={T.primary} icon="🔨" sub={`${activeJobs} running`} />
-        <Stat label="Materials" value={GBP(moMat)} color={T.danger} icon="🧾" sub="this month" />
-      </div>
-      <InsightsCard jobs={jobs} expenses={expenses} invoices={invoices} biz={biz} onGo={onGo} />
-    </div>}
+  const filtered = useMemo(() => {
+    let results = listings.filter(l => {
+      if (isExpiredEvent(l)) return false; // auto-hide expired temporary events
+      if (showFavourites && !favourites.includes(l.id)) return false;
+      if (cityFilter !== "All" && !cityGroups[cityFilter]?.some(a => l.location.includes(a))) return false;
+      if (typeFilter !== "All Types" && l.type !== typeFilter) return false;
+      if (areaFilter !== "All Areas") {
+        const ealingBorough = ["Ealing", "Hanwell", "West Ealing", "North Ealing", "South Ealing"];
+        if (areaFilter === "Ealing") {
+          if (!ealingBorough.some(a => l.location.includes(a))) return false;
+        } else {
+          if (!l.location.includes(areaFilter)) return false;
+        }
+      }
+      if (!search && freeOnly && !l.free) return false;
+      if (!search && eventsOnly && !l.isEvent) return false;
+      if (!search && eventsOnly) return true; // show all events bypassing other filters
+      if (!search && worthJourney && !l.worthJourney) return false;
+      if (!search && dayFilter === "today" && !isOnToday(l)) return false;
+      if (!search && dayFilter === "weekend" && !isOnWeekend(l)) return false;
+      if (!search && dayFilter === "week" && !isOnThisWeek(l)) return false;
+      if (!search && dayFilter !== "all" && dayFilter !== "today" && dayFilter !== "weekend" && dayFilter !== "week" && !isOnDay(l, parseInt(dayFilter))) return false;
+      if (!search && weatherMode === "rainy" && !l.indoor) return false;
+      if (!search && weatherMode === "sunny" && l.indoor) return false;
+      if (napFilter === "morning" && l.timeSlot !== "morning" && l.timeSlot !== "all-day") return false;
+      if (napFilter === "afternoon" && l.timeSlot !== "afternoon" && l.timeSlot !== "all-day") return false;
+      if (ageFilter !== "all") {
+        const a = (l.ages || "").toLowerCase();
+        if (a.includes("all ages")) { /* passes */ }
+        else {
+          const nums = a.match(/\d+/g);
+          if (!nums) return false;
+          const lo = parseInt(nums[0]);
+          const hi = nums.length > 1 ? parseInt(nums[nums.length - 1]) : lo;
+          const loYrs = a.includes("mo") && lo < 24 ? lo / 12 : lo;
+          const hiYrs = a.includes("mo") && hi < 24 && nums.length === 1 ? hi / 12 : hi;
+          if (ageFilter === "0-1" && hiYrs < 0 ) return false;
+          if (ageFilter === "0-1" && loYrs > 1) return false;
+          if (ageFilter === "1-2" && loYrs > 2) return false;
+          if (ageFilter === "1-2" && hiYrs < 1) return false;
+          if (ageFilter === "2-4" && loYrs > 4) return false;
+          if (ageFilter === "2-4" && hiYrs < 2) return false;
+          if (ageFilter === "4-7" && loYrs > 7) return false;
+          if (ageFilter === "4-7" && hiYrs < 4) return false;
+          if (ageFilter === "7+" && hiYrs < 7) return false;
+        }
+      }
+      if (search) {
+        const score = getSearchScore(l, search);
+        if (score === 0) return false;
+      }
+      return true;
+    });
+    if (search) {
+      results.sort((a, b) => getSearchScore(b, search) - getSearchScore(a, search));
+    } else if (sortBy === "nearest" && userLoc) {
+      results.sort((a, b) => getDistanceMiles(userLoc.lat, userLoc.lng, a.lat, a.lng) - getDistanceMiles(userLoc.lat, userLoc.lng, b.lat, b.lng));
+    } else if (sortBy === "price-low") {
+      results.sort((a, b) => {
+        const pa = a.free ? 0 : parseFloat((a.price.match(/[\d.]+/) || [999])[0]);
+        const pb = b.free ? 0 : parseFloat((b.price.match(/[\d.]+/) || [999])[0]);
+        return pa - pb;
+      });
+    } else if (sortBy === "price-high") {
+      results.sort((a, b) => {
+        const pa = a.free ? 0 : parseFloat((a.price.match(/[\d.]+/) || [0])[0]);
+        const pb = b.free ? 0 : parseFloat((b.price.match(/[\d.]+/) || [0])[0]);
+        return pb - pa;
+      });
+    } else if (sortBy === "free-first") {
+      results.sort((a, b) => (b.free ? 1 : 0) - (a.free ? 1 : 0));
+    } else if (sortBy === "indoor") {
+      results.sort((a, b) => (b.indoor ? 1 : 0) - (a.indoor ? 1 : 0));
+    } else if (sortBy === "outdoor") {
+      results.sort((a, b) => (a.indoor ? 1 : 0) - (b.indoor ? 1 : 0));
+    } else if (sortBy === "popular") {
+      results.sort((a, b) => {
+        const pa = (b.popular ? 3 : 0) + (b.verified ? 2 : 0) + (clickCounts[b.id] || 0);
+        const pb = (a.popular ? 3 : 0) + (a.verified ? 2 : 0) + (clickCounts[a.id] || 0);
+        return pa - pb;
+      });
+    } else {
+      // Priority score — quality listings surface first
+      const BOOSTED = ["sing and sign", "hartbeeps", "little gym", "tumble tots"];
+      const FAVS = ["gunnersbury", "pitzhanger", "walpole", "hanwell zoo", "acton park", "nature play"];
+      const score = (l) => {
+        let s = 0;
+        if ((l.images && l.images.length > 0) || l.logo || l.imageUrl) s += 10;
+        if (l.description && l.description.length > 30) s += 2;
+        if (l.time && l.time.length > 3) s += 1;
+        if (l.website || l.trialLink) s += 1;
+        const n = (l.name || "").toLowerCase();
+        if (FAVS.some(f => n.includes(f))) s += 1;
+        if (BOOSTED.some(p => n.includes(p))) s += 1;
+        return s;
+      };
+      results.sort((a, b) => score(b) - score(a));
 
-    {unassigned > 0 && <button onClick={() => onGo("Materials")} style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", marginBottom: 14, background: T.surface, border: `1.5px solid ${T.hiVis}`, borderRadius: T.r, cursor: "pointer", fontFamily: T.font, textAlign: "left" }}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={T.hiVis} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><div style={{ flex: 1 }}><div style={{ fontWeight: 700, fontSize: 14, color: T.text }}>{unassigned} receipt{unassigned !== 1 ? "s" : ""} need a job</div></div><ChvIc /></button>}
-    {unpaid.length > 0 && <div id="chase-section" style={{ marginBottom: 24 }}>
-      {/* Single authority chase card */}
-      <div style={{ background: "#FEF3C7", border: "1px solid #FDE68A", borderRadius: T.r, padding: "14px 16px", marginBottom: 12, display: "flex", alignItems: "center", gap: 12 }}>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: "#92400E" }}>⚠️ {GBP(totUnpaid)} unpaid · {unpaid.length} invoice{unpaid.length !== 1 ? "s" : ""}</div>
-          <div style={{ fontSize: 12, color: "#B45309", fontWeight: 400, marginTop: 2 }}>{unpaid.map(j => j.customer.split(" ").slice(-1)[0]).join(", ")}</div>
-        </div>
-        <button onClick={scrollToChase} style={{ background: "#D97706", color: "#fff", border: "none", borderRadius: 10, padding: "8px 16px", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: T.font, flexShrink: 0 }}>Chase now</button>
-      </div>
-      {[...unpaid].sort((a, b) => { const aInv = invoices.find(i => i.jobId === a.id); const bInv = invoices.find(i => i.jobId === b.id); const aDays = aInv ? daysSince(aInv.created) : daysSince(a.date); const bDays = bInv ? daysSince(bInv.created) : daysSince(b.date); return bDays - aDays || b.total - a.total; }).slice(0, 5).map(j => { const jInv = invoices.find(i => i.jobId === j.id); const days = jInv ? daysSince(jInv.created) : daysSince(j.date); const level = chaseLevel(j, jInv); const li = chaseLevelInfo(level); const lastR = (j.reminders || []).length > 0 ? j.reminders[j.reminders.length - 1] : null; const chaseCount = (j.reminders || []).length; const nextChase = !lastR ? "Chase now" : daysSince(lastR.date) >= 3 ? "Chase again" : "Chased " + daysSince(lastR.date) + "d ago"; return <div key={j.id} style={{ ...S.card, marginBottom: 10, borderLeft: `4px solid ${li.color}` }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-        <div onClick={() => onGo("Jobs", j.id)} style={{ flex: 1, cursor: "pointer" }}><div style={{ fontWeight: 700, fontSize: 15 }}>{j.customer}</div><div style={{ fontSize: 13, color: T.textMed, marginTop: 2 }}>{j.summary.slice(0, 45)}…</div><div style={{ display: "flex", gap: 6, marginTop: 6, alignItems: "center", flexWrap: "wrap" }}><span style={{ fontSize: 11, color: li.color, fontWeight: 700, background: li.bg, padding: "2px 8px", borderRadius: 10 }}>{li.icon} {days}d overdue</span>{chaseCount > 0 && <span style={{ fontSize: 11, color: T.textMuted, background: T.surfaceAlt, padding: "2px 8px", borderRadius: 10 }}>Chased {chaseCount}x</span>}<span style={{ fontSize: 11, color: daysSince(lastR?.date) >= 3 || !lastR ? T.warn : T.textMuted, fontWeight: 600 }}>{nextChase}</span></div></div>
-        <div style={{ textAlign: "right", flexShrink: 0 }}><div style={{ fontWeight: 800, fontSize: 18, color: li.color }}>{GBP(j.total)}</div></div>
-      </div>
-      <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
-        {j.phone && <a href={waChaseLink(j, getReminderMsg(j, biz, jInv, level, showVat).wa)} target="_blank" rel="noopener noreferrer" style={{ ...S.btn, background: "#25D366", color: "#fff", padding: "8px 14px", fontSize: 12, minHeight: 36, textDecoration: "none", flex: 1, justifyContent: "center" }}><WaIc /> Chase</a>}
-        {jInv && <a href={"https://calendar.google.com/calendar/render?action=TEMPLATE&text=" + encodeURIComponent("Chase " + (jInv.number || "") + " – " + j.customer) + "&details=" + encodeURIComponent("Amount: " + GBP(j.total) + "\n" + getReminderMsg(j, biz, jInv, level, showVat).sms)} target="_blank" rel="noopener noreferrer" style={{ ...S.ghost, flex: 1, justifyContent: "center", textDecoration: "none", color: T.hiVis, borderColor: T.hiVis + "40", fontSize: 12 }}>📅 Schedule</a>}
-        <button onClick={() => onGo("Jobs", j.id)} style={{ ...S.ghost, flex: 1, justifyContent: "center", fontSize: 12 }}>View →</button>
-      </div>
-    </div>; })}</div>}
-    {jobs.length > 0 && <div style={{ marginBottom: 22 }}><span style={S.lbl}>Recent Jobs</span>{jobs.slice(0, 4).map(j => { const { profit } = calcProfit(j, expenses); return <div key={j.id} onClick={() => onGo("Jobs", j.id)} style={{ ...S.card, marginBottom: 10 }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}><div style={{ flex: 1 }}><div style={{ fontWeight: 600, fontSize: 14, color: T.text }}>{j.customer}</div><div style={{ fontSize: 13, color: T.textMuted, marginTop: 2, fontWeight: 400 }}>{j.summary.slice(0, 55)}</div></div><div style={{ textAlign: "right", flexShrink: 0 }}><div style={{ fontWeight: 800, fontSize: 18, color: T.accent }}>{GBP(profit)}</div><div style={{ fontSize: 12, color: T.textMuted, fontWeight: 400 }}>of {GBP(j.total)}</div></div></div><div style={{ display: "flex", gap: 6, marginTop: 8 }}><Badge text={jLbl(j.jobStatus || "quote")} bg={jCol(j.jobStatus || "quote")} /><Badge text={pLbl(j.paymentStatus)} bg={pCol(j.paymentStatus)} /></div></div>; })}</div>}
-    <span style={S.lbl}>Quick Actions</span>
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 20 }}><button onClick={() => onGo("Add Job")} style={{ ...pri, width: "100%" }}>🔨 New Job</button><button onClick={() => onGo("Materials")} style={{ ...sec, width: "100%" }}>🧾 Add Receipt</button></div>
-    {/* Lead Source Breakdown */}
-    {jobs.length > 0 && (() => { const srcMap = {}; jobs.forEach(j => { if (j.source) { if (!srcMap[j.source]) srcMap[j.source] = { count: 0, revenue: 0 }; srcMap[j.source].count++; srcMap[j.source].revenue += j.total; } }); const entries = Object.entries(srcMap).sort((a, b) => b[1].revenue - a[1].revenue); if (entries.length === 0) return null; return <div style={{ marginBottom: 16 }}><span style={S.lbl}>Where Your Leads Come From</span><div style={{ background: T.surface, borderRadius: T.r, padding: 14, border: `1px solid ${T.border}`, boxShadow: T.cardShadow }}>{entries.map(([name, data]) => <div key={name} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 0", borderBottom: `1px solid ${T.borderLight}` }}><span style={{ fontSize: 16 }}>{srcIcon(name)}</span><div style={{ flex: 1 }}><div style={{ fontWeight: 600, fontSize: 14 }}>{name}</div><div style={{ fontSize: 12, color: T.textMuted, fontWeight: 400 }}>{data.count} job{data.count !== 1 ? "s" : ""}</div></div><div style={{ fontWeight: 800, fontSize: 15, color: T.accent }}>{GBP(data.revenue)}</div></div>)}</div></div>; })()}
-    {/* 30-Day Forecast */}
-    {(() => { const now = new Date(); const weeks = [0,1,2,3].map(w => { const start = new Date(now); start.setDate(start.getDate() + w * 7); const end = new Date(start); end.setDate(end.getDate() + 6); const sStr = start.toISOString().slice(0,10); const eStr = end.toISOString().slice(0,10); const sched = jobs.filter(j => j.scheduledDate && j.scheduledDate >= sStr && j.scheduledDate <= eStr); const schedVal = sched.reduce((s,j) => s + j.total, 0); const schedProfit = sched.reduce((s,j) => { const {profit:p} = calcProfit(j, expenses); return s + p; }, 0); return { label: w === 0 ? "This week" : w === 1 ? "Next week" : "Week " + (w+1), val: schedVal, profit: schedProfit, count: sched.length }; }); const maxVal = Math.max(...weeks.map(w => w.val), 1); const totSched = weeks.reduce((s,w) => s + w.val, 0); const totProfit = weeks.reduce((s,w) => s + w.profit, 0); const forecastMargin = totSched > 0 ? Math.round((totProfit / totSched) * 100) : 0; return <div style={{ marginBottom: 16 }}><span style={S.lbl}>Next 30 Days Forecast</span><div style={{ background: T.surface, borderRadius: T.r, padding: 16, border: `1px solid ${T.border}`, boxShadow: T.cardShadow }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 14, alignItems: "flex-end" }}><div><div style={{ fontSize: 10, color: T.textMuted, fontWeight: 600, textTransform: "uppercase" }}>Scheduled</div><div style={{ fontSize: 22, fontWeight: 800, color: T.primary }}>{GBP(totSched)}</div></div><div style={{ textAlign: "center" }}><div style={{ fontSize: 10, color: T.textMuted, fontWeight: 600, textTransform: "uppercase" }}>Margin</div><div style={{ fontSize: 18, fontWeight: 800, color: forecastMargin >= 30 ? T.accent : forecastMargin >= 15 ? T.hiVis : T.danger }}>{forecastMargin}%</div></div><div style={{ textAlign: "right" }}><div style={{ fontSize: 10, color: T.textMuted, fontWeight: 600, textTransform: "uppercase" }}>Est. Profit</div><div style={{ fontSize: 22, fontWeight: 800, color: T.accent }}>{GBP(totProfit)}</div></div></div>
-      {weeks.map((w,i) => <div key={i} style={{ marginBottom: 8 }}><div style={{ display: "flex", justifyContent: "space-between", marginBottom: 3 }}><span style={{ fontSize: 13, fontWeight: 600, color: T.text }}>{w.label}</span><span style={{ fontSize: 13, fontWeight: 700, color: T.primary }}>{w.count > 0 ? w.count + " job" + (w.count !== 1 ? "s" : "") + " · " + GBP(w.val) : "—"}</span></div><div style={{ height: 10, borderRadius: 5, background: T.surfaceAlt, overflow: "hidden" }}><div style={{ height: "100%", borderRadius: 5, background: T.primary, width: (w.val / maxVal * 100) + "%", transition: "width .4s" }} /></div></div>)}
-    </div></div>; })()}
-  </div>;
-}
-
-/* ═══ CUSTOMER DETAIL ════════════════════════════════ */
-function CustomerDetail({ customer, expenses, onBack, onGoJob }) {
-  const tp = customer.totalRevenue - customer.totalExpenses;
-  return <div><button onClick={onBack} style={{ ...S.ghost, marginBottom: 16 }}><ChvIc d="left" /> Back</button>
-    <div style={{ background: T.surface, borderRadius: T.r, padding: 22, border: `1px solid ${T.border}`, marginBottom: 20, boxShadow: T.cardShadow }}><div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 18 }}><div style={{ width: 52, height: 52, borderRadius: "50%", background: T.primaryLight, display: "flex", alignItems: "center", justifyContent: "center" }}><UserIc /></div><div><h2 style={{ fontSize: 20, fontWeight: 800, margin: 0 }}>{customer.name}</h2>{customer.address && <a href={"https://maps.google.com/?q=" + encodeURIComponent(customer.address)} target="_blank" rel="noopener noreferrer" style={{ display: "block", fontSize: 13, color: T.textMed, marginTop: 2, textDecoration: "none" }}>📍 {customer.address}</a>}{customer.phone && <a href={"tel:" + customer.phone} style={{ display: "block", fontSize: 13, color: T.primary, marginTop: 2, textDecoration: "none" }}>📞 {customer.phone}</a>}{customer.email && <a href={"mailto:" + customer.email} style={{ display: "block", fontSize: 13, color: T.primary, marginTop: 2, textDecoration: "none" }}>📧 {customer.email}</a>}</div></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}><Stat label="Jobs" value={customer.jobs.length} color={T.primary} /><Stat label="Revenue" value={GBP(customer.totalRevenue)} /><Stat label="Profit" value={GBP(tp)} color={tp >= 0 ? T.accent : T.danger} /></div></div>
-    <span style={S.lbl}>Job History</span>
-    {customer.jobs.map(j => <div key={j.id} onClick={() => onGoJob(j.id)} style={{ ...S.card, marginBottom: 10 }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 8 }}><div><div style={{ fontWeight: 700, fontSize: 14 }}>{j.summary.slice(0, 80)}</div><div style={{ fontSize: 12, color: T.textMuted, marginTop: 3 }}>{j.date} · {j.id}</div></div><div style={{ textAlign: "right" }}><div style={{ fontWeight: 800, fontSize: 17 }}>{GBP(j.total)}</div></div></div><div style={{ display: "flex", gap: 6 }}><Badge text={jLbl(j.jobStatus || "quote")} bg={jCol(j.jobStatus || "quote")} /><Badge text={pLbl(j.paymentStatus)} bg={pCol(j.paymentStatus)} /></div></div>)}
-  </div>;
-}
-
-/* ─── Chase Payment Panel ─────────────────────────── */
-function ChasePaymentPanel({ job, biz, inv, showVat, onUpdate, flash }) {
-  const [showChaseModal, setShowChaseModal] = useState(false);
-  const [selectedLevel, setSelectedLevel] = useState(null);
-  const level = chaseLevel(job, inv);
-  const info = chaseLevelInfo(level);
-  const days = inv ? daysSince(inv.created) : daysSince(job.date);
-  const reminders = job.reminders || [];
-  const lastReminder = reminders.length > 0 ? reminders[reminders.length - 1] : null;
-  const daysSinceLastReminder = lastReminder ? daysSince(lastReminder.date) : null;
-
-  // Suggested schedule
-  const suggestChase = !lastReminder || daysSinceLastReminder >= 7;
-  const nextSuggestion = !lastReminder ? "Send first reminder now" : daysSinceLastReminder < 3 ? "Wait a couple more days" : daysSinceLastReminder < 7 ? "Follow up in " + (7 - daysSinceLastReminder) + " days" : level === "final" ? "Send final notice now" : "Time to follow up";
-
-  const recordReminder = (lvl) => {
-    const r = { id: mkId("R"), date: new Date().toISOString(), level: lvl };
-    onUpdate({ ...job, reminders: [...(job.reminders || []), r] });
-    flash("📨 " + chaseLevelInfo(lvl).label + " sent & logged");
-  };
-
-  const openChase = (lvl) => { setSelectedLevel(lvl); setShowChaseModal(true); };
-
-  return <div style={{ background: info.bg, border: `2px solid ${info.color}30`, borderRadius: T.r, padding: 18, marginBottom: 16 }}>
-    {/* Chase modal */}
-    {showChaseModal && selectedLevel && (() => {
-      const li = chaseLevelInfo(selectedLevel);
-      const msg = getReminderMsg(job, biz, inv, selectedLevel, showVat);
-      return <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 1000 }} onClick={e => { if (e.target === e.currentTarget) setShowChaseModal(false); }}>
-        <div style={{ background: T.surface, borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 500, padding: 24, animation: "slideUp .25s ease-out" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-            <div><h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>{li.icon} {li.label}</h3><div style={{ fontSize: 13, color: T.textMed, marginTop: 2 }}>{li.desc}</div></div>
-            <button onClick={() => setShowChaseModal(false)} style={{ width: 36, height: 36, borderRadius: "50%", border: "none", background: T.surfaceAlt, cursor: "pointer", fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
-          </div>
-          {/* Preview */}
-          <div style={{ background: T.surfaceAlt, borderRadius: T.rSm, padding: 14, marginBottom: 16, maxHeight: 160, overflow: "auto" }}>
-            <div style={{ fontSize: 13, color: T.textMed, whiteSpace: "pre-wrap", lineHeight: 1.5 }}>{msg.wa}</div>
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <a href={waChaseLink(job, msg.wa)} target="_blank" rel="noopener noreferrer" onClick={() => { recordReminder(selectedLevel); setShowChaseModal(false); }} style={{ ...waS, width: "100%", textDecoration: "none", boxSizing: "border-box", justifyContent: "center" }}><WaIc /> WhatsApp</a>
-            <a href={smsChaseLink(job, msg.sms)} onClick={() => { recordReminder(selectedLevel); setShowChaseModal(false); }} style={{ ...S.btn, background: "#2563EB", color: "#fff", width: "100%", textDecoration: "none", boxSizing: "border-box", justifyContent: "center" }}>💬 SMS</a>
-            <a href={emailChaseLink(job, msg.email, msg.subject)} onClick={() => { recordReminder(selectedLevel); setShowChaseModal(false); }} style={{ ...pri, width: "100%", textDecoration: "none", boxSizing: "border-box", justifyContent: "center" }}>📧 Email</a>
-          </div>
-        </div>
-      </div>;
-    })()}
-
-    <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-      <span style={{ fontSize: 22 }}>{info.icon}</span>
-      <div style={{ flex: 1 }}>
-        <div style={{ fontWeight: 800, fontSize: 16, color: info.color }}>{GBP(job.total)} overdue</div>
-        <div style={{ fontSize: 13, color: T.textMed }}>{days} days since invoice · {nextSuggestion}</div>
-      </div>
-    </div>
-
-    {/* Escalation buttons */}
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 12 }}>
-      {[["friendly", "💬", "Nudge", "#2563EB"], ["firm", "⏰", "Firm", "#EA580C"], ["final", "🚨", "Final", "#DC2626"]].map(([lvl, ic, lbl, col]) =>
-        <button key={lvl} onClick={() => openChase(lvl)} style={{ ...S.btn, background: level === lvl ? col : T.surface, color: level === lvl ? "#fff" : col, border: `2px solid ${col}40`, width: "100%", fontSize: 13, padding: "12px 8px", fontWeight: 700 }}>{ic} {lbl}</button>
-      )}
-    </div>
-
-    {/* Reminder history */}
-    {reminders.length > 0 && <div>
-      <div style={{ fontSize: 11, fontWeight: 700, color: T.textLight, textTransform: "uppercase", letterSpacing: .5, marginBottom: 8 }}>Chase History</div>
-      {reminders.map(r => {
-        const ri = chaseLevelInfo(r.level);
-        return <div key={r.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderBottom: `1px solid ${info.color}15` }}>
-          <span style={{ fontSize: 12 }}>{ri.icon}</span>
-          <div style={{ flex: 1, fontSize: 13, color: T.textMed }}>{ri.label}</div>
-          <div style={{ fontSize: 12, color: T.textMuted }}>{new Date(r.date).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}</div>
-        </div>;
-      })}
-    </div>}
-
-    {/* Schedule suggestion */}
-    {suggestChase && <div style={{ marginTop: 10, padding: "10px 14px", background: T.surface, borderRadius: T.rSm, display: "flex", alignItems: "center", gap: 8 }}>
-      <span style={{ fontSize: 14 }}>💡</span>
-      <div style={{ fontSize: 13, color: T.textMed, flex: 1 }}>
-        {!lastReminder ? "Suggested: Send a friendly nudge first, then follow up every 7 days." : level === "final" ? "It's been a while. Consider sending a final notice." : "Next chase due in " + Math.max(0, 7 - (daysSinceLastReminder || 0)) + " days. Escalate if no response."}
-      </div>
-    </div>}
-  </div>;
-}
-
-/* ═══ JOB DETAIL — Full Pipeline ═════════════════════ */
-function JobDetail({ job, expenses, invoices, onBack, onUpdate, onDelExp, onAddExp, onAddInvoice, onUpdateInvoice, biz, showVat, onViewCustomer, flash }) {
-  const [ed, setEd] = useState(false); const [d, setD] = useState({ ...job }); const [viewPhoto, setViewPhoto] = useState(null);
-  const [addingExp, setAddingExp] = useState(false);
-  const [noteSubject, setNoteSubject] = useState(""); const [noteBody, setNoteBody] = useState("");
-  const [showSendModal, setShowSendModal] = useState(false); const photoRef = useRef(null);
-  const [showSchModal, setShowSchModal] = useState(false);
-  const [schDate, setSchDate] = useState(job.scheduledDate || ""); const [schStart, setSchStart] = useState(job.scheduledStart || ""); const [schEnd, setSchEnd] = useState(job.scheduledEnd || "");
-  const saveSchedule = () => { onUpdate({ ...job, scheduledDate: schDate || null, scheduledStart: schStart || null, scheduledEnd: schEnd || null }); setShowSchModal(false); flash("📅 Schedule updated"); };
-  const clearSchedule = () => { onUpdate({ ...job, scheduledDate: null, scheduledStart: null, scheduledEnd: null }); setShowSchModal(false); flash("📅 Unscheduled"); };
-  const { materials: totExp, profit, margin } = calcProfit(job, expenses);
-  const totVat = expenses.filter(e => e.jobId === job.id).reduce((s, e) => s + e.vat, 0);
-  const jExp = expenses.filter(e => e.jobId === job.id); const inv = invoices.find(i => i.jobId === job.id);
-  const jobNotes = job.jobNotes || [];
-  const save = () => { onUpdate({ ...d, total: d.lineItems.reduce((s, i) => s + Number(i.cost), 0) }); setEd(false); };
-  const addLI = () => setD({ ...d, lineItems: [...d.lineItems, { desc: "", cost: 0 }] });
-  const rmLI = i => setD({ ...d, lineItems: d.lineItems.filter((_, x) => x !== i) });
-  const upLI = (i, f, v) => { const li = [...d.lineItems]; li[i] = { ...li[i], [f]: f === "cost" ? Number(v) : v }; setD({ ...d, lineItems: li }); };
-  const q = ed ? d : job;
-  const saveNotes = () => {}; /* legacy stub */
-  const submitNote = () => { if (!noteBody.trim()) return; const n = { id: mkId("N"), subject: noteSubject.trim() || "Note", body: noteBody.trim(), date: new Date().toISOString() }; onUpdate({ ...job, jobNotes: [...(job.jobNotes || []), n] }); setNoteSubject(""); setNoteBody(""); flash("📝 Note saved"); };
-  const deleteNote = (nid) => { onUpdate({ ...job, jobNotes: (job.jobNotes || []).filter(n => n.id !== nid) }); };
-  const handleJobPhoto = async e => { const files = Array.from(e.target.files || []); const photos = []; for (const f of files) { try { const raw = await fileToB64(f); const c = await compress(raw); photos.push(c); } catch {} } if (photos.length) onUpdate({ ...job, photos: [...(job.photos || []), ...photos] }); if (photoRef.current) photoRef.current.value = ""; };
-  const rmPhoto = i => { const p = [...(job.photos || [])]; p.splice(i, 1); onUpdate({ ...job, photos: p }); };
-  const convertToJob = () => { onUpdate({ ...job, quoteStatus: "accepted", jobStatus: "active" }); flash("🔨 Converted to active job"); };
-  const markComplete = () => { onUpdate({ ...job, jobStatus: "complete" }); flash("✅ Job complete"); };
-  const createInvoice = () => { const num = nextInvNum(invoices); const due = new Date(); due.setDate(due.getDate() + 14); const ni = { id: mkId("INV"), jobId: job.id, number: num, status: "unpaid", created: td(), dueDate: due.toISOString().slice(0, 10), paidDate: "" }; onAddInvoice(ni); onUpdate({ ...job, invoiceId: ni.id, invoiceStatus: "invoiced" }); };
-  const markPaid = (method) => { onUpdate({ ...job, paymentStatus: "paid", paymentDate: td(), paymentMethod: method, jobStatus: "complete" }); if (inv) onUpdateInvoice({ ...inv, status: "paid", paidDate: td() }); flash("💷 Paid via " + method); };
-  const markUnpaid = () => { onUpdate({ ...job, paymentStatus: "unpaid", paymentDate: "", paymentMethod: "" }); if (inv) onUpdateInvoice({ ...inv, status: "unpaid", paidDate: "" }); };
-  const steps = [{ label: "Quote", done: true }, { label: "Accepted", done: job.quoteStatus === "accepted" }, { label: "Active", done: job.jobStatus === "active" || job.jobStatus === "complete" }, { label: "Invoiced", done: !!inv }, { label: "Paid", done: job.paymentStatus === "paid" }];
-
-  return <div>
-    <PhotoModal src={viewPhoto} onClose={() => setViewPhoto(null)} />
-    {showSendModal && inv && <SendInvoiceModal job={job} biz={biz} inv={inv} showVat={showVat} onClose={() => setShowSendModal(false)} flash={flash} />}
-    <button onClick={onBack} style={{ ...S.ghost, marginBottom: 16 }}><ChvIc d="left" /> All Jobs</button>
-    {/* Pipeline */}
-    <div style={{ display: "flex", gap: 2, marginBottom: 16 }}>{steps.map((s, i) => <div key={i} style={{ flex: 1, textAlign: "center" }}><div style={{ height: 4, borderRadius: 2, background: s.done ? T.accent : T.border, marginBottom: 4 }} /><div style={{ fontSize: 9, fontWeight: 700, color: s.done ? T.accent : T.textMuted, textTransform: "uppercase" }}>{s.label}</div></div>)}</div>
-    {/* Customer */}
-    <div style={{ background: T.surface, borderRadius: T.r, padding: 20, border: `1px solid ${T.border}`, boxShadow: T.cardShadow, marginBottom: 16 }}>
-      <button onClick={onViewCustomer} style={{ ...S.ghost, padding: 0, fontSize: 20, fontWeight: 800, color: T.text, marginBottom: 4 }}>{q.customer}</button>
-      {q.address && <a href={"https://maps.google.com/?q=" + encodeURIComponent(q.address)} target="_blank" rel="noopener noreferrer" style={{ display: "block", color: T.textMed, fontSize: 13, textDecoration: "none" }}>📍 {q.address}</a>}
-      {q.phone && <a href={"tel:" + q.phone} style={{ display: "block", color: T.primary, fontSize: 13, textDecoration: "none", marginTop: 2 }}>📞 {q.phone}</a>}
-      {q.email && <a href={"mailto:" + q.email} style={{ display: "block", color: T.primary, fontSize: 13, textDecoration: "none", marginTop: 2 }}>📧 {q.email}</a>}
-      {/* Quick contact buttons */}
-      {(q.phone || q.email) && <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-        {q.phone && <a href={"tel:" + q.phone} style={{ ...S.btn, flex: 1, background: T.primary, color: "#fff", padding: "10px 12px", fontSize: 13, textDecoration: "none", justifyContent: "center", minHeight: 36 }}>📞 Call</a>}
-        {q.phone && <a href={"https://wa.me/" + (q.phone || "").replace(/\s/g, "").replace(/^0/, "44")} target="_blank" rel="noopener noreferrer" style={{ ...S.btn, flex: 1, background: "#25D366", color: "#fff", padding: "10px 12px", fontSize: 13, textDecoration: "none", justifyContent: "center", minHeight: 36 }}>💬 WhatsApp</a>}
-        {q.phone && <a href={"sms:" + q.phone} style={{ ...S.btn, flex: 1, background: "#2563EB", color: "#fff", padding: "10px 12px", fontSize: 13, textDecoration: "none", justifyContent: "center", minHeight: 36 }}>✉️ Text</a>}
-      </div>}
-      <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}><Badge text={qLbl(q.quoteStatus)} bg={qCol(q.quoteStatus)} /><Badge text={jLbl(job.jobStatus || "quote")} bg={jCol(job.jobStatus || "quote")} /><Badge text={pLbl(job.paymentStatus)} bg={pCol(job.paymentStatus)} />{inv && <Badge text={inv.number} bg={T.purple} />}{job.source && <Badge text={srcIcon(job.source) + " " + job.source} bg={srcCol(job.source)} />}</div>
-    </div>
-    {/* Profit */}
-    <ProfitBar quote={job.total} materials={totExp} profit={profit} margin={margin} />
-    {showVat && totVat > 0 && <div style={{ marginTop: 8, padding: "10px 14px", background: T.warnLight, borderRadius: T.rSm }}><span style={{ fontSize: 13, color: T.warn, fontWeight: 700 }}>VAT reclaim: {GBP(totVat)}</span></div>}
-    {/* Pipeline buttons */}
-    <div style={{ marginTop: 16, marginBottom: 16 }}>
-      {job.quoteStatus === "draft" && <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}><button onClick={() => onUpdate({ ...job, quoteStatus: "sent" })} style={{ ...warnBtn, width: "100%" }}><SendIc /> Mark Sent</button><a href={waQuoteLink(job)} target="_blank" rel="noopener noreferrer" style={{ ...waS, width: "100%", textDecoration: "none", boxSizing: "border-box" }}><WaIc /> WhatsApp</a></div>}
-      {job.quoteStatus === "sent" && <button onClick={convertToJob} style={{ ...grn, width: "100%" }}>✅ Accept & Convert to Job</button>}
-      {job.quoteStatus === "accepted" && (!job.jobStatus || job.jobStatus === "quote") && <button onClick={convertToJob} style={{ ...pri, width: "100%" }}>🔨 Convert to Active Job</button>}
-      {job.jobStatus === "active" && !inv && <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}><button onClick={createInvoice} style={{ ...pri, width: "100%" }}><DocIc /> Create Invoice</button><button onClick={markComplete} style={{ ...grn, width: "100%" }}>✅ Complete</button></div>}
-      {inv && job.paymentStatus !== "paid" && <div style={{ display: "flex", flexDirection: "column", gap: 10 }}><button onClick={() => setShowSendModal(true)} style={{ ...pri, width: "100%" }}><SendIc /> Send Invoice</button><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}><button onClick={() => markPaid("bank transfer")} style={{ ...grn, width: "100%", fontSize: 13, padding: "12px 8px" }}>💳 Bank</button><button onClick={() => markPaid("cash")} style={{ ...S.btn, background: T.cyan, color: "#fff", width: "100%", fontSize: 13, padding: "12px 8px" }}>💵 Cash</button><button onClick={() => markPaid("card")} style={{ ...S.btn, background: T.purple, color: "#fff", width: "100%", fontSize: 13, padding: "12px 8px" }}>💳 Card</button></div></div>}
-      {job.paymentStatus === "paid" && <div style={{ padding: "14px 16px", background: T.accentLight, borderRadius: T.rSm, textAlign: "center" }}><div style={{ fontWeight: 800, fontSize: 16, color: T.accent }}>✅ Paid {job.paymentDate} via {job.paymentMethod}</div><button onClick={markUnpaid} style={{ ...S.ghost, color: T.textMuted, fontSize: 12, marginTop: 4 }}>Undo</button></div>}
-    </div>
-    {/* Chase Payment Panel — shows when unpaid */}
-    {inv && job.paymentStatus !== "paid" && <ChasePaymentPanel job={job} biz={biz} inv={inv} showVat={showVat} onUpdate={onUpdate} flash={flash} />}
-    {/* Schedule card */}
-    <div style={{ background: T.surface, borderRadius: T.r, padding: 18, border: `1px solid ${T.border}`, boxShadow: T.cardShadow, marginBottom: 16 }}>
-      <span style={{ ...S.lbl, marginBottom: 10 }}>📅 Schedule</span>
-      {job.scheduledDate ? <div>
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-          <div style={{ flex: 1 }}><div style={{ fontWeight: 700, fontSize: 15 }}>{new Date(job.scheduledDate + "T00:00:00").toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}</div><div style={{ fontSize: 13, color: T.textMed, marginTop: 2 }}>{job.scheduledStart && job.scheduledEnd ? job.scheduledStart + " – " + job.scheduledEnd : job.scheduledStart ? job.scheduledStart : "No time set"}</div></div>
-          <button onClick={() => setShowSchModal(true)} style={{ ...S.btn, background: T.primaryLight, color: T.primary, fontSize: 13, padding: "8px 14px", minHeight: 36, border: "none" }}>✏️ Edit</button>
-        </div>
-      </div> : <button onClick={() => setShowSchModal(true)} style={{ ...pri, width: "100%" }}>📅 Schedule Job</button>}
-    </div>
-    {/* Schedule modal */}
-    {showSchModal && <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 1000 }} onClick={e => { if (e.target === e.currentTarget) setShowSchModal(false); }}>
-      <div style={{ background: T.surface, borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 500, padding: 24 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}><h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>📅 Schedule Job</h3><button onClick={() => setShowSchModal(false)} style={{ width: 36, height: 36, borderRadius: "50%", border: "none", background: T.surfaceAlt, cursor: "pointer", fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button></div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <div><label style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 4, display: "block" }}>Date</label><input type="date" value={schDate} onChange={e => setSchDate(e.target.value)} style={S.inp} /></div>
-          <div style={{ display: "flex", gap: 10 }}><div style={{ flex: 1 }}><label style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 4, display: "block" }}>Start</label><input type="time" value={schStart} onChange={e => setSchStart(e.target.value)} style={S.inp} /></div><div style={{ flex: 1 }}><label style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 4, display: "block" }}>End</label><input type="time" value={schEnd} onChange={e => setSchEnd(e.target.value)} style={S.inp} /></div></div>
-          <button onClick={saveSchedule} style={{ ...pri, width: "100%", marginTop: 4 }}>💾 Save Schedule</button>
-          {job.scheduledDate && <button onClick={clearSchedule} style={{ ...S.ghost, width: "100%", color: T.danger, justifyContent: "center" }}>Remove from schedule</button>}
-        </div>
-      </div>
-    </div>}
-    {/* Quick actions */}
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 16 }}><button onClick={() => setAddingExp(true)} style={{ ...sec, width: "100%", fontSize: 12, padding: "10px 6px" }}>🧾 Material</button><button onClick={() => photoRef.current?.click()} style={{ ...sec, width: "100%", fontSize: 12, padding: "10px 6px" }}>📷 Photo</button><button onClick={() => { setEd(true); setD({ ...job }); }} style={{ ...sec, width: "100%", fontSize: 12, padding: "10px 6px" }}>✏️ Edit</button><input ref={photoRef} type="file" accept="image/*" capture="environment" multiple onChange={handleJobPhoto} style={{ display: "none" }} /></div>
-    {/* Quote breakdown */}
-    <div style={{ background: T.surface, borderRadius: T.r, padding: 20, border: `1px solid ${T.border}`, boxShadow: T.cardShadow, marginBottom: 16 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 14 }}><span style={S.lbl}>Quote Breakdown</span><span style={{ fontSize: 12, color: T.textMuted }}>{q.id} · {q.date}</span></div>
-      <p style={{ color: T.textMed, lineHeight: 1.6, margin: "0 0 14px", fontSize: 14 }}>{q.summary}</p>
-      <div style={{ borderTop: `2px solid ${T.border}` }}>{q.lineItems.map((it, i) => <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 0", borderBottom: `1px solid ${T.borderLight}`, gap: 8 }}>{ed ? <><input style={{ ...S.inpSm, flex: 1 }} value={it.desc} onChange={e => upLI(i, "desc", e.target.value)} /><input style={{ ...S.inpSm, width: 80, textAlign: "right" }} type="number" value={it.cost} onChange={e => upLI(i, "cost", e.target.value)} /><button onClick={() => rmLI(i)} style={{ ...S.iconBtn, color: T.danger }}><BinIc /></button></> : <><span style={{ color: T.textMed, flex: 1, fontSize: 14 }}>{it.desc}</span><span onClick={() => { setEd(true); setD({ ...job }); }} style={{ fontWeight: 700, fontFamily: T.mono, fontSize: 14, cursor: "pointer", padding: "4px 8px", borderRadius: 6, background: T.surfaceAlt }}>{GBP(it.cost)}</span></>}</div>)}</div>
-      {ed && <><button onClick={addLI} style={{ ...S.ghost, marginTop: 8 }}><PlusIc /> Add line</button><div style={{ display: "flex", gap: 8, marginTop: 12 }}><button onClick={save} style={grn}>Save</button><button onClick={() => { setEd(false); setD({ ...job }); }} style={sec}>Cancel</button></div></>}
-      <div style={{ display: "flex", justifyContent: "flex-end", borderTop: `2px solid ${T.text}`, paddingTop: 14, marginTop: 8 }}><div style={{ textAlign: "right" }}><div style={{ fontSize: 11, color: T.textMuted }}>TOTAL</div><div onClick={() => { if (!ed) { setEd(true); setD({ ...job }); } }} style={{ fontSize: 28, fontWeight: 800, cursor: ed ? "default" : "pointer" }}>{GBP(ed ? d.lineItems.reduce((s, i) => s + Number(i.cost), 0) : q.total)}{!ed && <span style={{ fontSize: 12, color: T.textMuted, marginLeft: 6 }}>✏️</span>}</div></div></div>
-    </div>
-    {/* Materials */}
-    <div style={{ background: T.surface, borderRadius: T.r, padding: 18, border: `1px solid ${T.border}`, boxShadow: T.cardShadow, marginBottom: 16 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}><span style={{ ...S.lbl, marginBottom: 0 }}>🧾 Materials ({jExp.length})</span>{!addingExp && <button onClick={() => setAddingExp(true)} style={{ ...S.ghost, fontSize: 13, color: T.accent }}><PlusIc /> Add</button>}</div>
-      {addingExp && <div style={{ padding: 16, border: `2px solid ${T.accent}40`, borderRadius: T.rSm, marginBottom: 12 }}><MaterialForm jobs={[]} presetJobId={job.id} showVat={showVat} onSave={e => { onAddExp(e); setAddingExp(false); }} onCancel={() => setAddingExp(false)} /></div>}
-      {jExp.length === 0 && !addingExp ? <div style={{ textAlign: "center", padding: 24, color: T.textMuted, background: T.surfaceAlt, borderRadius: T.rSm }}><button onClick={() => setAddingExp(true)} style={{ ...S.ghost, color: T.accent }}><CamIc /> Snap a receipt</button></div>
-        : jExp.map(e => <div key={e.id} style={{ background: T.surface, borderRadius: T.rSm, padding: 12, border: `1px solid ${T.borderLight}`, marginBottom: 8, display: "flex", gap: 10, alignItems: "center" }}>{e.photo ? <img src={e.photo} alt="" onClick={() => setViewPhoto(e.photo)} style={{ width: 48, height: 48, borderRadius: 8, objectFit: "cover", cursor: "pointer" }} /> : <div style={{ width: 48, height: 48, borderRadius: 8, background: T.surfaceAlt, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>🧾</div>}<div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 600, fontSize: 14 }}>{e.merchant}</div><div style={{ fontSize: 12, color: T.textMed, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.desc}</div><div style={{ fontSize: 11, color: T.textMuted }}>{e.date}</div></div><div style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ textAlign: "right" }}><div style={{ fontWeight: 700, color: T.danger, fontSize: 14 }}>{GBP(e.amount)}</div>{showVat && e.vat > 0 && <div style={{ fontSize: 11, color: T.warn }}>VAT {GBP(e.vat)}</div>}</div><button onClick={() => onDelExp(e.id)} style={{ ...S.iconBtn, color: T.textMuted }}><BinIc /></button></div></div>)}
-    </div>
-    {/* Photos */}
-    <div style={{ background: T.surface, borderRadius: T.r, padding: 18, border: `1px solid ${T.border}`, boxShadow: T.cardShadow, marginBottom: 16 }}>
-      <span style={{ ...S.lbl, marginBottom: 12 }}>📷 Photos</span>
-      {(job.photos || []).length > 0 && <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(72px, 1fr))", gap: 8, marginBottom: 14 }}>{job.photos.map((p, i) => <div key={i} style={{ position: "relative" }}><img src={p} alt="" onClick={() => setViewPhoto(p)} style={{ width: "100%", aspectRatio: "1", borderRadius: 8, objectFit: "cover", cursor: "pointer", border: `1px solid ${T.border}` }} /><button onClick={() => rmPhoto(i)} style={{ position: "absolute", top: -6, right: -6, width: 22, height: 22, borderRadius: "50%", background: T.danger, color: "#fff", border: "none", fontSize: 11, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button></div>)}</div>}
-      {(job.photos || []).length === 0 && <button onClick={() => photoRef.current?.click()} style={{ ...S.ghost, color: T.primary }}><CamIc /> Add photos</button>}
-    </div>
-    {/* Job Notes — multiple submitted notes */}
-    <div style={{ background: T.surface, borderRadius: T.r, padding: 18, border: `1px solid ${T.border}`, boxShadow: T.cardShadow }}>
-      <span style={{ ...S.lbl, marginBottom: 12 }}>📝 Job Notes ({jobNotes.length})</span>
-      {/* New note form */}
-      <div style={{ border: `2px solid ${T.primaryLight}`, borderRadius: T.rSm, padding: 14, marginBottom: 16, background: "#FAFBFF" }}>
-        <input value={noteSubject} onChange={e => setNoteSubject(e.target.value)} placeholder="Subject (e.g. Site visit, Customer request)" style={{ ...S.inpSm, marginBottom: 8, fontWeight: 600 }} />
-        <textarea value={noteBody} onChange={e => setNoteBody(e.target.value)} placeholder="Write your note…" style={{ ...S.inp, minHeight: 70, resize: "vertical", fontSize: 14 }} />
-        <button onClick={submitNote} disabled={!noteBody.trim()} style={{ ...pri, width: "100%", marginTop: 10, opacity: !noteBody.trim() ? .5 : 1 }}>📝 Save Note</button>
-      </div>
-      {/* Saved notes list */}
-      {jobNotes.length === 0 ? <div style={{ textAlign: "center", padding: 16, color: T.textMuted, fontSize: 14 }}>No notes yet. Add your first note above.</div>
-      : <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>{[...jobNotes].reverse().map(n => <div key={n.id} style={{ background: T.surfaceAlt, borderRadius: T.rSm, padding: 14, border: `1px solid ${T.borderLight}` }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6 }}>
-          <div><div style={{ fontWeight: 700, fontSize: 14, color: T.text }}>{n.subject || "Note"}</div><div style={{ fontSize: 11, color: T.textMuted }}>{new Date(n.date).toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}</div></div>
-          <button onClick={() => deleteNote(n.id)} style={{ ...S.iconBtn, color: T.textMuted, width: 28, height: 28 }}><BinIc /></button>
-        </div>
-        <div style={{ fontSize: 14, color: T.textMed, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{n.body}</div>
-      </div>)}</div>}
-    </div>
-  </div>;
-}
-
-/* ═══ JOBS TAB ═══════════════════════════════════════ */
-function JobsTab({ jobs, expenses, invoices, onUpdate, onDelExp, onAddExp, onAddInvoice, onUpdateInvoice, biz, showVat, onXLSX, unassigned, onGoMaterials, initialJobId, clearInitialJob, flash }) {
-  const [selId, setSelId] = useState(initialJobId || null);
-  const [custView, setCustView] = useState(null);
-  const [filter, setFilter] = useState("all");
-  useEffect(() => { if (initialJobId) { setSelId(initialJobId); clearInitialJob(); } }, [initialJobId]);
-  const sel = jobs.find(j => j.id === selId);
-  if (custView) { const cs = getCustomers(jobs, expenses); const c = cs.find(x => x.name.toLowerCase() === custView.toLowerCase()); if (c) return <CustomerDetail customer={c} expenses={expenses} onBack={() => setCustView(null)} onGoJob={id => { setCustView(null); setSelId(id); }} />; setCustView(null); }
-  if (sel) return <JobDetail job={sel} expenses={expenses} invoices={invoices} onBack={() => setSelId(null)} onUpdate={onUpdate} onDelExp={onDelExp} onAddExp={onAddExp} onAddInvoice={onAddInvoice} onUpdateInvoice={onUpdateInvoice} biz={biz} showVat={showVat} onViewCustomer={() => setCustView(sel.customer)} flash={flash} />;
-  const paid = jobs.filter(j => j.paymentStatus === "paid"); const unpaid = jobs.filter(j => j.paymentStatus === "unpaid" && j.quoteStatus === "accepted");
-  const filtered = filter === "all" ? jobs : filter === "paid" ? paid : filter === "unpaid" ? unpaid : filter === "active" ? jobs.filter(j => j.jobStatus === "active") : jobs.filter(j => j.quoteStatus === "draft");
-  return <div>
-    {unassigned > 0 && <button onClick={onGoMaterials} style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "14px 18px", marginBottom: 14, background: T.hiVisLight, border: `2px solid ${T.hiVis}40`, borderRadius: T.r, cursor: "pointer", fontFamily: T.font, textAlign: "left" }}><span style={{ fontSize: 18 }}>🧾</span><div style={{ flex: 1, fontWeight: 700, fontSize: 14 }}>{unassigned} receipt{unassigned !== 1 ? "s" : ""} need a job</div><ChvIc /></button>}
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}><Stat label="Earned" value={GBP(paid.reduce((s, j) => s + j.total, 0))} color={T.accent} icon="✅" sub={paid.length + " paid"} /><Stat label="Outstanding" value={GBP(unpaid.reduce((s, j) => s + j.total, 0))} color={T.warn} icon="⏰" sub={unpaid.length + " unpaid"} /></div>
-    <div style={{ display: "flex", gap: 6, marginBottom: 16, overflowX: "auto" }}>{[["all","All"],["active","Active"],["unpaid","Unpaid"],["paid","Paid"],["draft","Quotes"]].map(([k,l]) => <button key={k} onClick={() => setFilter(k)} style={{ ...S.btn, padding: "8px 16px", fontSize: 13, minHeight: 36, background: filter === k ? T.primary : T.surfaceAlt, color: filter === k ? "#fff" : T.textMed, border: "none" }}>{l}</button>)}{jobs.length > 0 && <button onClick={onXLSX} style={{ ...S.btn, padding: "8px 14px", fontSize: 13, minHeight: 36, background: T.surfaceAlt, color: T.textMed, border: "none", marginLeft: "auto" }}><DlIc /></button>}</div>
-    {filtered.length === 0 ? <div style={{ textAlign: "center", padding: 44, color: T.textMuted }}><div style={{ fontSize: 44, marginBottom: 12 }}>🔨</div><div style={{ fontSize: 16, fontWeight: 600, color: T.textMed }}>No jobs yet</div></div>
-    : <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>{filtered.map(j => { const { materials: jE, profit: pr } = calcProfit(j, expenses); const jInv = invoices.find(i => i.jobId === j.id); const overdueDays = j.paymentStatus === "unpaid" && jInv ? daysSince(jInv.created) : j.paymentStatus === "unpaid" ? daysSince(j.date) : 0; return <div key={j.id} onClick={() => setSelId(j.id)} style={S.card}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 6, gap: 8 }}><div style={{ flex: 1 }}><div style={{ fontWeight: 700, fontSize: 15 }}>{j.customer}</div><div style={{ color: T.textMed, fontSize: 13, marginTop: 2 }}>{j.address}</div></div><div style={{ display: "flex", gap: 5, flexShrink: 0, flexWrap: "wrap", justifyContent: "flex-end" }}><Badge text={jLbl(j.jobStatus || "quote")} bg={jCol(j.jobStatus || "quote")} /><Badge text={pLbl(j.paymentStatus)} bg={pCol(j.paymentStatus)} />{j.source && <Badge text={srcIcon(j.source) + " " + j.source} bg={srcCol(j.source)} />}{j.paymentStatus === "unpaid" && j.quoteStatus === "accepted" && overdueDays > 0 && <Badge text={"⚠️ " + overdueDays + "d overdue"} bg={overdueDays > 14 ? T.danger : T.warn} />}</div></div><div style={{ color: T.textMed, fontSize: 13, lineHeight: 1.4, marginBottom: 10 }}>{j.summary}</div><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: `1px solid ${T.borderLight}`, paddingTop: 10 }}><span style={{ color: T.textMuted, fontSize: 12 }}>{j.id} · {j.date}{j.scheduledDate && <span> · 📅 {j.scheduledDate}</span>}</span><div style={{ display: "flex", alignItems: "baseline", gap: 10 }}>{jE > 0 && <span style={{ fontSize: 12, color: T.danger, fontWeight: 600 }}>−{GBP(jE)}</span>}<span style={{ fontWeight: 800, fontSize: 18 }}>{GBP(j.total)}</span>{jE > 0 && <span style={{ fontSize: 12, color: pr >= 0 ? T.accent : T.danger, fontWeight: 800 }}>{GBP(pr)}</span>}</div></div></div>; })}</div>}
-  </div>;
-}
-
-/* ═══ SCHEDULE TAB ══════════════════════════════════ */
-function ScheduleTab({ jobs, expenses, biz, onUpdate, onGo, flash }) {
-  const [selDate, setSelDate] = useState(td());
-  const [showRemindModal, setShowRemindModal] = useState(null);
-  const [showScheduleModal, setShowScheduleModal] = useState(null);
-  const [schDate, setSchDate] = useState(""); const [schStart, setSchStart] = useState(""); const [schEnd, setSchEnd] = useState("");
-  const [showProfit, setShowProfit] = useState(true);
-  const today = td();
-  const tomorrow = (() => { const d = new Date(); d.setDate(d.getDate() + 1); return d.toISOString().slice(0, 10); })();
-  const dayLabel = d => d === today ? "Today" : d === tomorrow ? "Tomorrow" : new Date(d + "T00:00:00").toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
-  const scheduled = jobs.filter(j => j.scheduledDate === selDate).sort((a, b) => (a.scheduledStart || "99:99").localeCompare(b.scheduledStart || "99:99"));
-  const totalVal = scheduled.reduce((s, j) => s + j.total, 0);
-  const totalProfit = scheduled.reduce((s, j) => { const { profit: p } = calcProfit(j, expenses); return s + p; }, 0);
-  const displayTotal = showProfit ? totalProfit : totalVal;
-  const timeLabel = j => j.scheduledStart && j.scheduledEnd ? j.scheduledStart + "–" + j.scheduledEnd : j.scheduledStart ? j.scheduledStart : "Anytime";
-  const openSchedule = j => { setSchDate(j.scheduledDate || ""); setSchStart(j.scheduledStart || ""); setSchEnd(j.scheduledEnd || ""); setShowScheduleModal(j); };
-  const saveSchedule = () => { if (!showScheduleModal) return; onUpdate({ ...showScheduleModal, scheduledDate: schDate || null, scheduledStart: schStart || null, scheduledEnd: schEnd || null }); setShowScheduleModal(null); flash("📅 Schedule updated"); };
-  const getReminderText = j => { const fn = j.customer.split(" ")[0]; const dt = j.scheduledDate ? new Date(j.scheduledDate + "T00:00:00").toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" }) : "your scheduled date"; const tm = j.scheduledStart || "the agreed time"; return `Hi ${fn}, just a reminder I'm booked in for ${dt} at ${tm}. See you then — ${biz.name}`; };
-  const sendReminder = (j, channel) => { const msg = encodeURIComponent(getReminderText(j)); const ph = (j.phone || "").replace(/\s/g, ""); if (channel === "wa") window.open("https://wa.me/" + ph.replace(/^0/, "44") + "?text=" + msg, "_blank"); else if (channel === "sms") window.open("sms:" + ph + "?body=" + msg); else if (channel === "email") window.open("mailto:" + (j.email || "") + "?subject=" + encodeURIComponent("Appointment reminder") + "&body=" + msg); onUpdate({ ...j, reminderSentAt: new Date().toISOString() }); setShowRemindModal(null); flash("📨 Reminder sent"); };
-
-  return <div>
-    {/* Day picker */}
-    <div style={{ display: "flex", gap: 8, marginBottom: 14, alignItems: "center" }}>
-      <button onClick={() => setSelDate(today)} style={{ ...S.btn, padding: "10px 16px", fontSize: 13, minHeight: 36, background: selDate === today ? T.primary : T.surfaceAlt, color: selDate === today ? "#fff" : T.textMed, border: "none", fontWeight: 700 }}>Today</button>
-      <button onClick={() => setSelDate(tomorrow)} style={{ ...S.btn, padding: "10px 16px", fontSize: 13, minHeight: 36, background: selDate === tomorrow ? T.primary : T.surfaceAlt, color: selDate === tomorrow ? "#fff" : T.textMed, border: "none", fontWeight: 700 }}>Tomorrow</button>
-      <input type="date" value={selDate} onChange={e => setSelDate(e.target.value)} style={{ ...S.inpSm, flex: 1, padding: "8px 10px" }} />
-    </div>
-
-    {/* Summary — SOLID BLUE */}
-    <div style={{ background: T.primary, borderRadius: T.r, padding: "14px 16px", color: "#fff", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center", boxShadow: T.heroShadow }}>
-      <div><div style={{ fontSize: 18, fontWeight: 800 }}>{dayLabel(selDate)}</div><div style={{ fontSize: 13, opacity: .7, marginTop: 2, fontWeight: 400 }}>{scheduled.length} job{scheduled.length !== 1 ? "s" : ""} scheduled</div></div>
-      <div style={{ textAlign: "right" }}><div style={{ fontSize: 24, fontWeight: 800 }}>{GBP(displayTotal)}</div><button onClick={() => setShowProfit(!showProfit)} style={{ background: "rgba(255,255,255,.15)", border: "none", borderRadius: 6, padding: "2px 10px", fontSize: 11, color: "#fff", fontWeight: 600, cursor: "pointer", fontFamily: T.font, marginTop: 3 }}>{showProfit ? "Profit" : "Value"} ↻</button></div>
-    </div>
-
-    {/* Job list */}
-    {scheduled.length === 0 ? <div style={{ textAlign: "center", padding: 40, color: T.textMuted }}><div style={{ fontSize: 40, marginBottom: 10 }}>📅</div><div style={{ fontSize: 16, fontWeight: 600, color: T.textMed }}>Nothing scheduled for {dayLabel(selDate)}</div><div style={{ fontSize: 14, color: T.textMuted, marginTop: 4 }}>Open a job and tap "Schedule" to add it</div></div>
-    : scheduled.map(j => { const { profit: pr } = calcProfit(j, expenses); const reminderToday = j.reminderSentAt && j.reminderSentAt.startsWith(today); return <div key={j.id} style={{ ...S.card, marginBottom: 10 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}>
-        <div style={{ flex: 1 }} onClick={() => onGo("Jobs", j.id)}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}><span style={{ fontSize: 12, fontWeight: 700, color: T.primary, background: T.primaryLight, padding: "2px 8px", borderRadius: 6 }}>{timeLabel(j)}</span><Badge text={jLbl(j.jobStatus || "quote")} bg={jCol(j.jobStatus || "quote")} />{j.paymentStatus === "unpaid" && j.quoteStatus === "accepted" && <Badge text="Unpaid" bg={T.hiVis} />}</div>
-          <div style={{ fontWeight: 700, fontSize: 14, color: T.text }}>{j.customer}</div>
-          <div style={{ fontSize: 13, color: T.textMuted, marginTop: 2, fontWeight: 400 }}>{j.summary.slice(0, 60)}</div>
-          <div style={{ fontSize: 12, color: T.textMuted, marginTop: 3, fontWeight: 400 }}>{j.address}</div>
-          {reminderToday && <div style={{ fontSize: 11, color: T.accent, fontWeight: 600, marginTop: 4 }}>Reminder sent today</div>}
-        </div>
-        <div style={{ textAlign: "right", flexShrink: 0 }}><div style={{ fontWeight: 800, fontSize: 24, color: T.accent, lineHeight: 1.1 }}>{GBP(pr)}</div><div style={{ fontSize: 10, color: T.textMuted, fontWeight: 500, marginTop: 2, textTransform: "uppercase" }}>profit</div><div style={{ fontSize: 13, color: T.textMed, fontWeight: 600, marginTop: 2 }}>{GBP(j.total)} value</div></div>
-      </div>
-      <div style={{ display: "flex", gap: 8, marginTop: 10, borderTop: `1px solid ${T.borderLight}`, paddingTop: 10 }}>
-        <a href={"https://maps.google.com/?q=" + encodeURIComponent(j.address)} target="_blank" rel="noopener noreferrer" style={{ ...S.ghost, flex: 1, justifyContent: "center", textDecoration: "none", fontSize: 12, minHeight: 34 }}>Maps</a>
-        <button onClick={() => setShowRemindModal(j)} style={{ ...S.btn, flex: 1, background: T.hiVis, color: "#fff", fontSize: 12, padding: "8px 10px", minHeight: 34, border: "none" }}>Remind</button>
-        <button onClick={() => openSchedule(j)} style={{ ...S.ghost, flex: 1, justifyContent: "center", fontSize: 12, minHeight: 34 }}>Edit</button>
-      </div>
-    </div>; })}
-
-    {/* Remind modal */}
-    {showRemindModal && <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 1000 }} onClick={e => { if (e.target === e.currentTarget) setShowRemindModal(null); }}>
-      <div style={{ background: T.surface, borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 500, padding: 24 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}><h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>📨 Send Reminder</h3><button onClick={() => setShowRemindModal(null)} style={{ width: 36, height: 36, borderRadius: "50%", border: "none", background: T.surfaceAlt, cursor: "pointer", fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button></div>
-        <div style={{ background: T.surfaceAlt, borderRadius: T.rSm, padding: 14, marginBottom: 16, fontSize: 14, color: T.textMed, lineHeight: 1.6, whiteSpace: "pre-wrap" }}>{getReminderText(showRemindModal)}</div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {showRemindModal.phone && <button onClick={() => sendReminder(showRemindModal, "wa")} style={{ ...S.btn, background: "#25D366", color: "#fff", width: "100%", justifyContent: "center" }}>💬 WhatsApp</button>}
-          {showRemindModal.phone && <button onClick={() => sendReminder(showRemindModal, "sms")} style={{ ...S.btn, background: "#2563EB", color: "#fff", width: "100%", justifyContent: "center" }}>✉️ SMS</button>}
-          {showRemindModal.email && <button onClick={() => sendReminder(showRemindModal, "email")} style={{ ...S.btn, background: T.primary, color: "#fff", width: "100%", justifyContent: "center" }}>📧 Email</button>}
-        </div>
-      </div>
-    </div>}
-
-    {/* Schedule edit modal */}
-    {showScheduleModal && <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 1000 }} onClick={e => { if (e.target === e.currentTarget) setShowScheduleModal(null); }}>
-      <div style={{ background: T.surface, borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 500, padding: 24 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}><h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>📅 Schedule Job</h3><button onClick={() => setShowScheduleModal(null)} style={{ width: 36, height: 36, borderRadius: "50%", border: "none", background: T.surfaceAlt, cursor: "pointer", fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button></div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <div><label style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 4, display: "block" }}>Date</label><input type="date" value={schDate} onChange={e => setSchDate(e.target.value)} style={S.inp} /></div>
-          <div style={{ display: "flex", gap: 10 }}><div style={{ flex: 1 }}><label style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 4, display: "block" }}>Start</label><input type="time" value={schStart} onChange={e => setSchStart(e.target.value)} style={S.inp} /></div><div style={{ flex: 1 }}><label style={{ fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 4, display: "block" }}>End</label><input type="time" value={schEnd} onChange={e => setSchEnd(e.target.value)} style={S.inp} /></div></div>
-          <button onClick={saveSchedule} style={{ ...pri, width: "100%", marginTop: 4 }}>💾 Save Schedule</button>
-          {showScheduleModal.scheduledDate && <button onClick={() => { onUpdate({ ...showScheduleModal, scheduledDate: null, scheduledStart: null, scheduledEnd: null }); setShowScheduleModal(null); flash("📅 Unscheduled"); }} style={{ ...S.ghost, width: "100%", color: T.danger, justifyContent: "center" }}>Remove from schedule</button>}
-        </div>
-      </div>
-    </div>}
-  </div>;
-}
-
-/* ═══ MATERIALS TAB ══════════════════════════════════ */
-function MaterialsTab({ jobs, expenses, onAddExp, onDelExp, onAssign, showVat, onXLSX }) {
-  const [viewPhoto, setViewPhoto] = useState(null);
-  const unassigned = expenses.filter(e => !e.jobId); const assigned = expenses.filter(e => e.jobId);
-  const totE = expenses.reduce((s, e) => s + e.amount, 0); const totV = expenses.reduce((s, e) => s + e.vat, 0);
-  return <div>
-    <PhotoModal src={viewPhoto} onClose={() => setViewPhoto(null)} />
-    <div style={{ display: "grid", gridTemplateColumns: showVat ? "1fr 1fr 1fr" : "1fr 1fr", gap: 10, marginBottom: 18 }}><Stat label="Total Materials" value={GBP(totE)} color={T.danger} icon="🧾" />{showVat && <Stat label="VAT Reclaim" value={GBP(totV)} color={T.warn} icon="💷" />}<Stat label="Receipts" value={expenses.length} color={T.primary} icon="📋" /></div>
-    {expenses.length > 0 && <div style={{ marginBottom: 16, display: "flex", justifyContent: "flex-end" }}><button onClick={onXLSX} style={{ ...sec, fontSize: 13, padding: "10px 16px" }}><DlIc /> Export</button></div>}
-    <div style={{ background: T.surface, borderRadius: T.r, padding: 18, border: `1px solid ${T.border}`, boxShadow: T.cardShadow, marginBottom: 22 }}><span style={S.lbl}>📷 Quick Scan</span><MaterialForm jobs={jobs} showVat={showVat} onSave={onAddExp} /></div>
-    {unassigned.length > 0 && <div style={{ marginBottom: 22 }}><div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}><span style={{ fontSize: 18 }}>⚠️</span><span style={{ fontWeight: 700, fontSize: 15, color: T.warn }}>{unassigned.length} unassigned</span></div>{unassigned.map(e => <div key={e.id} style={{ background: T.warnLight, borderRadius: T.r, padding: 16, border: "1px solid #FDE68A", marginBottom: 10 }}><div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 10 }}>{e.photo ? <img src={e.photo} alt="" onClick={() => setViewPhoto(e.photo)} style={{ width: 48, height: 48, borderRadius: 8, objectFit: "cover", cursor: "pointer" }} /> : <div style={{ width: 48, height: 48, borderRadius: 8, background: "#FEF3C7", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>🧾</div>}<div style={{ flex: 1 }}><div style={{ fontWeight: 700, fontSize: 14 }}>{e.merchant} · {GBP(e.amount)}</div><div style={{ fontSize: 12, color: T.textMed }}>{e.desc} · {e.date}</div></div><button onClick={() => onDelExp(e.id)} style={{ ...S.iconBtn, color: T.textMuted }}><BinIc /></button></div><select onChange={ev => { if (ev.target.value) onAssign(e.id, ev.target.value); }} defaultValue="" style={{ ...S.inp, fontSize: 14 }}><option value="">Assign to job…</option>{jobs.map(j => <option key={j.id} value={j.id}>{j.id} — {j.customer}</option>)}</select></div>)}</div>}
-    {assigned.length > 0 && <div><span style={S.lbl}>Assigned ({assigned.length})</span>{assigned.map(e => { const j = jobs.find(x => x.id === e.jobId); return <div key={e.id} style={{ background: T.surface, borderRadius: T.rSm, padding: 14, border: `1px solid ${T.borderLight}`, marginBottom: 8, display: "flex", gap: 10, alignItems: "center" }}>{e.photo ? <img src={e.photo} alt="" onClick={() => setViewPhoto(e.photo)} style={{ width: 48, height: 48, borderRadius: 8, objectFit: "cover", cursor: "pointer" }} /> : <div style={{ width: 48, height: 48, borderRadius: 8, background: T.surfaceAlt, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>🧾</div>}<div style={{ flex: 1, minWidth: 0 }}><div style={{ fontWeight: 600, fontSize: 14 }}>{e.merchant}</div><div style={{ fontSize: 12, color: T.textMed, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{e.desc}</div><div style={{ fontSize: 11, color: T.textMuted }}>{e.date} · {j?.customer || e.jobId}</div></div><div style={{ display: "flex", alignItems: "center", gap: 6 }}><div style={{ textAlign: "right" }}><div style={{ fontWeight: 700, color: T.danger, fontSize: 14 }}>{GBP(e.amount)}</div>{showVat && e.vat > 0 && <div style={{ fontSize: 11, color: T.warn }}>VAT {GBP(e.vat)}</div>}</div><button onClick={() => onDelExp(e.id)} style={{ ...S.iconBtn, color: T.textMuted }}><BinIc /></button></div></div>; })}</div>}
-    {expenses.length === 0 && <div style={{ textAlign: "center", padding: 40, color: T.textMuted }}><div style={{ fontSize: 40, marginBottom: 10 }}>🧾</div><div style={{ fontSize: 16, fontWeight: 600 }}>No materials yet</div></div>}
-  </div>;
-}
-
-/* ═══ ADD JOB TAB ════════════════════════════════════ */
-const tplCats = [
-  { cat: "Plumbing", icon: "🔧", c: "#2563EB", tpls: [{ name: "Boiler Service", desc: "Annual boiler service and safety check.", price: "£80–£120" }, { name: "Bathroom Refit", desc: "Full bathroom refit. 5 days.", price: "£3k–£5k" }, { name: "Radiator Install", desc: "Supply and fit radiator. Half day.", price: "£250–£400" }, { name: "Leak Repair", desc: "Diagnose and fix leak. Call-out.", price: "£100–£250" }] },
-  { cat: "Electrical", icon: "⚡", c: "#D97706", tpls: [{ name: "Full Rewire", desc: "3-bed rewire. 5–7 days.", price: "£3.5k–£5.5k" }, { name: "Consumer Unit", desc: "Replace fuse board. 1 day.", price: "£500–£800" }, { name: "EV Charger", desc: "7kW charger install.", price: "£800–£1.2k" }] },
-  { cat: "Building", icon: "🧱", c: "#DC2626", tpls: [{ name: "Kitchen Reno", desc: "Strip, replaster, fit units. 4–5 days.", price: "£3k–£6k" }, { name: "Plastering", desc: "Plaster 1 room. 1–2 days.", price: "£400–£700" }, { name: "Extension", desc: "Single storey rear extension. 8–12 weeks.", price: "£25k–£45k" }] },
-  { cat: "Roofing", icon: "🏠", c: "#7C3AED", tpls: [{ name: "Tile Repair", desc: "Fix slipped tiles.", price: "£200–£500" }, { name: "Full Re-roof", desc: "Semi-detached re-roof. 5–7 days.", price: "£5k–£10k" }] },
-  { cat: "Decorating", icon: "🎨", c: "#0891B2", tpls: [{ name: "Room Paint", desc: "Single room walls & ceiling.", price: "£250–£450" }, { name: "Full House", desc: "3-bed interior. 5–7 days.", price: "£2k–£4k" }] },
-];
-
-function TplPicker({ onSelect, onClose }) {
-  const [expCat, setExpCat] = useState(null); const [cN, setCN] = useState(""); const [cA, setCA] = useState(""); const [sel, setSel] = useState(null); const [nts, setNts] = useState("");
-  const go = () => { if (!sel) return; let t = sel.desc; if (cN) t = "Job for " + cN + (cA ? " at " + cA + ". " : ". ") + t; if (nts) t += " " + nts; onSelect(t); };
-  return <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 1000 }}>
-    <div style={{ background: T.surface, borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 640, maxHeight: "88vh", overflow: "hidden", display: "flex", flexDirection: "column", animation: "slideUp .25s ease-out" }}>
-      <div style={{ padding: "18px 20px 14px", borderBottom: `1px solid ${T.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}><h2 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>⚡ Templates</h2><button onClick={onClose} style={{ width: 36, height: 36, borderRadius: "50%", border: "none", background: T.surfaceAlt, cursor: "pointer", fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button></div>
-      <div style={{ flex: 1, overflow: "auto", padding: 18 }}>
-        {!sel ? <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>{tplCats.map(cat => <div key={cat.cat}><button onClick={() => setExpCat(expCat === cat.cat ? null : cat.cat)} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 16px", background: expCat === cat.cat ? T.primaryLight : T.surfaceAlt, border: `2px solid ${expCat === cat.cat ? cat.c + "40" : T.border}`, borderRadius: T.rSm, cursor: "pointer", fontFamily: T.font }}><div style={{ display: "flex", alignItems: "center", gap: 10 }}><span style={{ fontSize: 20 }}>{cat.icon}</span><span style={{ fontWeight: 700, fontSize: 15 }}>{cat.cat}</span></div><ChvIc d={expCat === cat.cat ? "down" : "right"} /></button>{expCat === cat.cat && <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, padding: "10px 0" }}>{cat.tpls.map(t => <button key={t.name} onClick={() => setSel({ ...t, c: cat.c, icon: cat.icon })} style={{ padding: 14, background: T.surface, border: `1.5px solid ${T.border}`, borderRadius: T.rSm, cursor: "pointer", textAlign: "left", fontFamily: T.font }}><div style={{ fontWeight: 700, fontSize: 14, marginBottom: 4 }}>{t.name}</div><div style={{ fontSize: 12, color: cat.c, fontWeight: 700 }}>{t.price}</div></button>)}</div>}</div>)}</div>
-        : <div><button onClick={() => setSel(null)} style={S.ghost}><ChvIc d="left" /> Back</button><div style={{ background: T.surfaceAlt, border: `1.5px solid ${T.border}`, borderRadius: T.rSm, padding: 18, margin: "12px 0 20px" }}><div style={{ fontWeight: 800, fontSize: 17, marginBottom: 6 }}>{sel.icon} {sel.name}</div><p style={{ color: T.textMed, fontSize: 14, margin: "0 0 8px" }}>{sel.desc}</p><div style={{ fontSize: 15, fontWeight: 800, color: sel.c }}>{sel.price}</div></div><span style={S.lbl}>Customer (optional)</span><div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 16 }}><input placeholder="Name" value={cN} onChange={e => setCN(e.target.value)} style={S.inp} /><input placeholder="Address" value={cA} onChange={e => setCA(e.target.value)} style={S.inp} /><textarea placeholder="Extra details…" value={nts} onChange={e => setNts(e.target.value)} style={{ ...S.inp, minHeight: 60, resize: "vertical" }} /></div><button onClick={go} style={{ ...pri, width: "100%" }}>🔨 Generate Quote</button></div>}
-      </div>
-    </div>
-  </div>;
-}
-
-function AddJobTab({ onGen, biz }) {
-  const [rec, setRec] = useState(false); const [txt, setTxt] = useState(""); const [busy, setBusy] = useState(false);
-  const [tmr, setTmr] = useState(0); const [manual, setManual] = useState(false); const [err, setErr] = useState(""); const [showTpl, setShowTpl] = useState(false);
-  const [source, setSource] = useState("");
-  const sr = useRef(null); const ti = useRef(null); const lk = useRef(false);
-  const proc = async raw => { const s = raw || txt; if (!s.trim() || lk.current) return; lk.current = true; setBusy(true); const r = await aiQuote(s, biz); setBusy(false); lk.current = false; if (r) { onGen({ id: mkId("J"), date: td(), quoteStatus: "draft", jobStatus: "quote", invoiceStatus: "none", paymentStatus: "unpaid", paymentDate: "", paymentMethod: "", source: source || "", jobNotes: [], photos: [], invoiceId: "", phone: r.phone || "", email: r.email || "", ...r }); setTxt(""); setTmr(0); setSource(""); } else setErr("Couldn't generate quote."); };
-  const startR = useCallback(() => { setErr(""); const SR = window.SpeechRecognition || window.webkitSpeechRecognition; if (!SR) { setErr("Speech not supported."); setManual(true); return; } const s = new SR(); s.continuous = true; s.interimResults = true; s.lang = "en-GB"; let fin = ""; s.onresult = ev => { let im = ""; for (let i = ev.resultIndex; i < ev.results.length; i++) { if (ev.results[i].isFinal) fin += ev.results[i][0].transcript + " "; else im += ev.results[i][0].transcript; } setTxt(fin + im); }; s.onerror = ev => { if (ev.error === "not-allowed") { setErr("Mic denied."); setManual(true); } }; s.onend = () => { if (rec) try { s.start(); } catch {} }; sr.current = s; s.start(); setRec(true); setTmr(0); ti.current = setInterval(() => setTmr(t => t + 1), 1000); }, [rec]);
-  const stopR = useCallback(() => { if (sr.current) { sr.current.onend = null; sr.current.stop(); } setRec(false); clearInterval(ti.current); }, []);
-  const fT = s => Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0");
-  return <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-    {/* Lead source picker */}
-    <div style={{ width: "100%", maxWidth: 500, marginBottom: 20 }}>
-      <span style={S.lbl}>Where did this lead come from?</span>
-      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>{LEAD_SOURCES.map(s => <button key={s} onClick={() => setSource(source === s ? "" : s)} style={{ display: "flex", alignItems: "center", gap: 5, padding: "8px 14px", borderRadius: 20, border: source === s ? `2px solid ${srcCol(s)}` : `1.5px solid ${T.border}`, background: source === s ? srcCol(s) + "18" : T.surface, cursor: "pointer", fontFamily: T.font, fontSize: 12, fontWeight: source === s ? 700 : 500, color: source === s ? srcCol(s) : T.textMed, transition: "all .15s" }}><span style={{ fontSize: 13 }}>{srcIcon(s)}</span>{s}</button>)}</div>
-    </div>
-    <button onClick={() => setShowTpl(true)} style={{ width: "100%", maxWidth: 500, padding: "16px 20px", marginBottom: 24, background: T.primaryLight, border: "2px solid #93C5FD", borderRadius: T.r, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", fontFamily: T.font, boxShadow: T.cardShadow }}><div style={{ display: "flex", alignItems: "center", gap: 10 }}><span style={{ fontSize: 24 }}>⚡</span><div style={{ textAlign: "left" }}><div style={{ fontWeight: 700, fontSize: 15 }}>Quick Quote Templates</div><div style={{ fontSize: 13, color: T.primary }}>30+ UK trade jobs</div></div></div><ChvIc /></button>
-    {showTpl && <TplPicker onSelect={t => { setShowTpl(false); setTxt(t); setManual(true); setTimeout(() => proc(t), 300); }} onClose={() => setShowTpl(false)} />}
-    <div style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", maxWidth: 500, marginBottom: 24 }}><div style={{ flex: 1, height: 1, background: T.border }} /><span style={{ fontSize: 13, color: T.textMuted, fontWeight: 600 }}>or describe the job</span><div style={{ flex: 1, height: 1, background: T.border }} /></div>
-    <div style={{ textAlign: "center", marginBottom: 24 }}><button onClick={rec ? stopR : startR} style={{ width: 100, height: 100, borderRadius: "50%", border: "none", background: rec ? T.dangerLight : T.primaryLight, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: rec ? "0 0 0 4px #FECACA" : "0 0 0 4px #BFDBFE", animation: rec ? "pulse 1.5s ease-in-out infinite" : "none" }}><MicIc on={rec} /></button><div style={{ marginTop: 14 }}>{rec ? <><Waves on /><div style={{ fontFamily: T.mono, fontSize: 22, fontWeight: 800, color: T.danger, marginTop: 8 }}>{fT(tmr)}</div><div style={{ color: T.textMuted, fontSize: 14, marginTop: 4 }}>Recording…</div></> : <div style={{ color: T.textMed, fontSize: 14 }}>{txt ? "Ready to generate" : "Tap to describe the job"}</div>}</div></div>
-    {err && <div style={{ background: T.dangerLight, border: "1px solid #FECACA", borderRadius: T.rSm, padding: 14, marginBottom: 16, color: "#991B1B", fontSize: 14, width: "100%", maxWidth: 500 }}>{err}</div>}
-    <div style={{ width: "100%", maxWidth: 500 }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}><span style={S.lbl}>{manual ? "Job Description" : "Transcript"}</span><button onClick={() => setManual(!manual)} style={{ ...S.ghost, fontSize: 13 }}>{manual ? "🎙️ Use mic" : "⌨️ Type"}</button></div><textarea value={txt} onChange={e => setTxt(e.target.value)} placeholder={manual ? "Kitchen reno for Mrs Smith at 14 Elm Road…" : "Voice appears here…"} style={{ ...S.inp, minHeight: 110, resize: "vertical", lineHeight: 1.6 }} /><button onClick={() => proc()} disabled={!txt.trim() || busy} style={{ ...pri, width: "100%", marginTop: 16, opacity: !txt.trim() || busy ? .5 : 1 }}>{busy ? <><Spinner /> Generating…</> : <>🔨 Generate Quote</>}</button></div>
-  </div>;
-}
-
-/* ═══ SETTINGS ═══════════════════════════════════════ */
-function SettingsTab({ biz, onUpd }) {
-  const ch = (f, v) => onUpd({ ...biz, [f]: v }); const logoRef = useRef(null);
-  const handleLogo = async e => { const f = e.target.files?.[0]; if (!f) return; try { const raw = await fileToB64(f); const c = await compress(raw, 200, 0.8); ch("logoUrl", c); } catch {} };
-  const [notifPerm, setNotifPerm] = useState(typeof Notification !== "undefined" ? Notification.permission : "denied");
-  const requestNotif = async () => { if (typeof Notification === "undefined") return; const p = await Notification.requestPermission(); setNotifPerm(p); if (p === "granted") new Notification("JobProfit", { body: "Notifications enabled! You'll get daily check-ins and overdue alerts.", icon: "📊" }); };
-  return <div style={{ maxWidth: 500 }}>
-    <span style={S.lbl}>Your Business</span>
-    <div style={{ marginBottom: 18, display: "flex", alignItems: "center", gap: 14 }}><div onClick={() => logoRef.current?.click()} style={{ width: 64, height: 64, borderRadius: T.rSm, background: biz.logoUrl ? "none" : T.surfaceAlt, border: `2px dashed ${T.border}`, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", overflow: "hidden" }}>{biz.logoUrl ? <img src={biz.logoUrl} alt="Logo" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: 24 }}>📷</span>}</div><div><div style={{ fontWeight: 600, fontSize: 14 }}>Business Logo</div><div style={{ fontSize: 12, color: T.textMuted }}>Shown on PDF invoices</div><button onClick={() => logoRef.current?.click()} style={{ ...S.ghost, padding: "4px 0", fontSize: 13 }}>Upload</button></div><input ref={logoRef} type="file" accept="image/*" onChange={handleLogo} style={{ display: "none" }} /></div>
-    {[{ l: "Business Name", f: "name" }, { l: "Trade", f: "trade" }, { l: "Phone", f: "phone" }, { l: "Email", f: "email" }, { l: "Address", f: "address" }, { l: "Hourly Rate (£)", f: "hourlyRate", t: "number" }].map(({ l, f, t }) => <div key={f} style={{ marginBottom: 14 }}><label style={{ display: "block", fontSize: 14, fontWeight: 600, color: T.textMed, marginBottom: 6 }}>{l}</label><input type={t || "text"} value={biz[f]} onChange={e => ch(f, t === "number" ? Number(e.target.value) : e.target.value)} style={S.inp} /></div>)}
-    <div style={{ marginBottom: 14 }}><label style={{ display: "block", fontSize: 14, fontWeight: 600, color: T.textMed, marginBottom: 6 }}>Bank Details (on invoices)</label><textarea value={biz.bankDetails || ""} onChange={e => ch("bankDetails", e.target.value)} placeholder={"Sort code: 12-34-56\nAccount: 12345678\nName: Smith Plumbing Ltd"} style={{ ...S.inp, minHeight: 70, resize: "vertical" }} /></div>
-    <div style={{ marginTop: 12, padding: 18, background: T.surfaceAlt, borderRadius: T.r, border: `1px solid ${T.border}` }}><div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: biz.vatRegistered ? 14 : 0 }}><input type="checkbox" id="vat" checked={biz.vatRegistered} onChange={e => ch("vatRegistered", e.target.checked)} style={{ width: 22, height: 22, accentColor: T.primary }} /><label htmlFor="vat" style={{ fontSize: 15, fontWeight: 700, cursor: "pointer" }}>VAT Registered</label></div>{biz.vatRegistered ? <><div style={{ marginBottom: 12 }}><label style={{ display: "block", fontSize: 14, fontWeight: 600, color: T.textMed, marginBottom: 6 }}>VAT Number</label><input value={biz.vatNumber} onChange={e => ch("vatNumber", e.target.value)} style={S.inp} placeholder="GB 123 4567 89" /></div><div style={{ fontSize: 13, color: T.accent, fontWeight: 600 }}>✅ VAT tracked</div></> : <div style={{ fontSize: 13, color: T.textMuted, marginTop: 8 }}>Turn on for VAT tracking</div>}</div>
-    {/* Reminders & Notifications */}
-    <div style={{ marginTop: 20 }}><span style={S.lbl}>🔔 Reminders</span>
-      <div style={{ background: T.surface, borderRadius: T.r, padding: 18, border: `1px solid ${T.border}`, boxShadow: T.cardShadow }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-          <div><div style={{ fontWeight: 700, fontSize: 15 }}>Push Notifications</div><div style={{ fontSize: 13, color: T.textMuted, marginTop: 2 }}>{notifPerm === "granted" ? "Enabled — you'll get daily check-ins" : notifPerm === "denied" ? "Blocked — enable in browser settings" : "Get daily profit check-ins and overdue alerts"}</div></div>
-          {notifPerm !== "granted" && <button onClick={requestNotif} style={{ ...S.btn, background: T.primary, color: "#fff", padding: "10px 16px", fontSize: 13, minHeight: 36, border: "none" }}>Enable</button>}
-          {notifPerm === "granted" && <span style={{ fontSize: 22 }}>✅</span>}
-        </div>
-        <div style={{ borderTop: `1px solid ${T.borderLight}`, paddingTop: 14 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}><input type="checkbox" id="dailyCheckin" checked={biz.dailyCheckin !== false} onChange={e => ch("dailyCheckin", e.target.checked)} style={{ width: 20, height: 20, accentColor: T.primary }} /><label htmlFor="dailyCheckin" style={{ fontSize: 14, fontWeight: 600, cursor: "pointer" }}>Daily check-in reminder</label></div>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}><input type="checkbox" id="overdueAlert" checked={biz.overdueAlert !== false} onChange={e => ch("overdueAlert", e.target.checked)} style={{ width: 20, height: 20, accentColor: T.primary }} /><label htmlFor="overdueAlert" style={{ fontSize: 14, fontWeight: 600, cursor: "pointer" }}>Overdue invoice alerts</label></div>
-          {biz.dailyCheckin !== false && <div style={{ marginTop: 12 }}><label style={{ display: "block", fontSize: 12, fontWeight: 600, color: T.textMuted, marginBottom: 4 }}>Check-in time</label><input type="time" value={biz.checkinTime || "07:30"} onChange={e => ch("checkinTime", e.target.value)} style={{ ...S.inpSm, width: 140 }} /></div>}
-        </div>
-      </div>
-    </div>
-  </div>;
-}
-
-/* ═══ PERSISTENCE HELPERS ═════════════════════════════ */
-const STORAGE_KEY = "jobprofit-app-data";
-
-function loadSavedData() {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) return JSON.parse(raw);
-  } catch (e) { }
-  return null;
-}
-
-function saveData(data) {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-  } catch (e) { }
-}
-
-/* ═══ MAIN APP ═══════════════════════════════════════ */
-function App() {
-  const [tab, setTab] = useState("Overview");
-  const [jobs, setJobs] = useState(seedJobs);
-  const [expenses, setExpenses] = useState(seedExp);
-  const [invoices, setInvoices] = useState(seedInvoices);
-  const [biz, setBiz] = useState(defBiz);
-  const [note, setNote] = useState("");
-  const [navJobId, setNavJobId] = useState(null);
-  const [dataLoaded, setDataLoaded] = useState(false);
-  const stickyReceiptRef = useRef(null);
-  const showVat = biz.vatRegistered; const unassigned = expenses.filter(e => !e.jobId).length;
-
-  // Load saved data on mount
-  useEffect(() => {
-    const saved = loadSavedData();
-    if (saved) {
-      if (saved.jobs) setJobs(saved.jobs);
-      if (saved.expenses) setExpenses(saved.expenses);
-      if (saved.invoices) setInvoices(saved.invoices);
-      if (saved.biz) setBiz(saved.biz);
+      // Mix by type for variety
+      const types = [...new Set(results.map(r => r.type))];
+      const buckets = {};
+      types.forEach(t => { buckets[t] = results.filter(r => r.type === t); });
+      const mixed = [];
+      let safety = results.length + 10;
+      while (mixed.length < results.length && safety-- > 0) {
+        for (const t of types) {
+          if (buckets[t].length > 0) mixed.push(buckets[t].shift());
+        }
+      }
+      results = mixed;
     }
-    setDataLoaded(true);
-  }, []);
 
-  // Auto-save whenever data changes (after initial load)
-  useEffect(() => {
-    if (!dataLoaded) return;
-    const timer = setTimeout(() => {
-      saveData({ jobs, expenses, invoices, biz });
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [jobs, expenses, invoices, biz, dataLoaded]);
-
-  // Register service worker for PWA (manifest is now a static file)
-  useEffect(() => {
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js').catch(() => {});
+    // Deduplicate by exact name on first page — same name = same provider
+    if (!search) {
+      const seenNames = new Set();
+      const firstPage = [];
+      const rest = [];
+      for (const r of results) {
+        const name = (r.name || "").toLowerCase().trim();
+        if (firstPage.length < 12 && !seenNames.has(name)) {
+          seenNames.add(name);
+          firstPage.push(r);
+        } else {
+          rest.push(r);
+        }
+      }
+      results = [...firstPage, ...rest];
     }
-  }, []);
 
-  // Auto-notification scheduling on app open
-  useEffect(() => {
-    if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
-    if (biz.dailyCheckin === false && biz.overdueAlert === false) return;
-    const today = td();
-    const todayJobs = jobs.filter(j => j.scheduledDate === today);
-    const todayVal = todayJobs.reduce((s, j) => s + j.total, 0);
-    const unpaidJobs = jobs.filter(j => j.paymentStatus === "unpaid" && j.quoteStatus === "accepted");
-    // Daily check-in
-    if (biz.dailyCheckin !== false) {
-      const checkinTime = biz.checkinTime || "07:30";
-      const [h, m] = checkinTime.split(":").map(Number);
-      const target = new Date(); target.setHours(h, m, 0, 0);
-      const delay = target.getTime() - Date.now();
-      if (delay > 0 && delay < 86400000) {
-        const t = setTimeout(() => { try { new Notification("JobProfit — Daily Check-in", { body: `Today: ${todayJobs.length} jobs, ${GBP(todayVal)} potential` }); } catch {} }, delay);
-        return () => clearTimeout(t);
+    // Place Sing and Sign in positions 3–5
+    if (!search) {
+      const singIdx = results.findIndex(r => r.name && r.name.toLowerCase().includes("sing and sign"));
+      if (singIdx > 4) {
+        const [singItem] = results.splice(singIdx, 1);
+        results.splice(3, 0, singItem);
       }
     }
-    // Overdue alerts (fire once on open if overdue exists)
-    if (biz.overdueAlert !== false && unpaidJobs.length > 0) {
-      const worst = unpaidJobs.sort((a, b) => b.total - a.total)[0];
-      setTimeout(() => { try { new Notification("JobProfit — Overdue Invoice", { body: `${GBP(worst.total)} overdue from ${worst.customer} — tap to chase` }); } catch {} }, 5000);
+    // If events mode: sort by date, expired last
+    if (eventsOnly) {
+      const today = new Date(); today.setHours(0,0,0,0);
+      results.sort((x, y) => {
+        const xd = x.eventStartDate ? new Date(x.eventStartDate) : null;
+        const yd = y.eventStartDate ? new Date(y.eventStartDate) : null;
+        const xe = xd && xd < today;
+        const ye = yd && yd < today;
+        if (xe && !ye) return 1;
+        if (!xe && ye) return -1;
+        if (!xd && !yd) return 0;
+        if (!xd) return 1;
+        if (!yd) return -1;
+        return xd - yd;
+      });
     }
-  }, [jobs, biz]);
-  const flash = m => { setNote(m); setTimeout(() => setNote(""), 3500); };
-  const onGen = j => { setJobs(p => [j, ...p]); setTab("Jobs"); flash("✅ Quote created"); };
-  const onUpdJob = u => setJobs(p => p.map(j => j.id === u.id ? u : j));
-  const onAddExp = e => { setExpenses(p => [e, ...p]); flash(e.photo ? "📷 Receipt scanned" : "🧾 Material added"); };
-  const onDelExp = id => setExpenses(p => p.filter(e => e.id !== id));
-  const onAssign = (eid, jid) => { setExpenses(p => p.map(e => e.id === eid ? { ...e, jobId: jid } : e)); flash("✅ Assigned"); };
-  const onAddInv = inv => { setInvoices(p => [...p, inv]); flash("📄 Invoice " + inv.number + " created"); };
-  const onUpdInv = u => setInvoices(p => p.map(i => i.id === u.id ? u : i));
-  const goTo = (t, jobId) => { setTab(t); if (jobId) setNavJobId(jobId); };
-  const tabIcons = { Overview: "📊", "Add Job": "🔨", Jobs: "📋", Schedule: "📅", Materials: "🧾", Settings: "⚙️" };
-  return <div style={{ fontFamily: T.font, maxWidth: 640, margin: "0 auto", padding: "14px 16px", minHeight: "100vh", background: T.bg, color: T.text, WebkitFontSmoothing: "antialiased" }}>
-    {/* Font loaded in index.html */}
-    <style>{`@keyframes fadeIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}@keyframes spin{to{transform:rotate(360deg)}}@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.04)}}`}</style>
-    <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 16px", margin: 0 }}><img src={LOGO} alt="JobProfit" style={{ height: 72, width: "auto", display: "block", objectFit: "contain" }} /><div style={{ display: "flex", flexDirection: "column", gap: 2 }}><div style={{ fontSize: 26, fontWeight: 800, lineHeight: 1 }}>Job<span style={{ color: "#F59E0B" }}>Profit</span></div><div style={{ fontSize: 12, fontWeight: 500, color: "#9CA3AF", marginTop: 2, letterSpacing: 0.2 }}>Build wealth, not just jobs</div></div></div>
-    {note && <div style={{ background: T.accentLight, border: "1px solid #BBF7D0", borderRadius: T.rSm, padding: "10px 16px", marginBottom: 14, color: "#166534", fontSize: 14, fontWeight: 600, animation: "fadeIn .3s" }}>{note}</div>}
-    <div style={{ display: "flex", gap: 0, marginTop: 0, paddingTop: 0, marginBottom: 8, borderBottom: `1px solid ${T.border}`, overflowX: "auto" }}>{TABS.map(t => { const cnt = t === "Jobs" ? jobs.length : t === "Materials" ? expenses.length : t === "Schedule" ? jobs.filter(j => j.scheduledDate === td()).length : 0; const alert = (t === "Materials" && unassigned > 0) || (t === "Jobs" && jobs.some(j => j.paymentStatus === "unpaid" && j.quoteStatus === "accepted")); return <button key={t} onClick={() => setTab(t)} style={{ flex: 1, padding: "8px 4px", border: "none", background: "none", cursor: "pointer", fontSize: 11, fontFamily: T.font, whiteSpace: "nowrap", display: "flex", alignItems: "center", justifyContent: "center", gap: 4, color: tab === t ? T.primary : T.textMuted, borderBottom: tab === t ? `3px solid ${T.primary}` : "3px solid transparent", fontWeight: tab === t ? 800 : 600, position: "relative", transition: "all .15s" }}>{tabIcons[t]} {t}{cnt > 0 && t !== "Overview" && <span style={{ background: T.primary, color: "#fff", borderRadius: 8, padding: "1px 7px", fontSize: 10, fontWeight: 700 }}>{cnt}</span>}{alert && <span style={{ position: "absolute", top: 4, right: 4, width: 8, height: 8, borderRadius: "50%", background: T.hiVis, border: `2px solid ${T.bg}` }} />}</button>; })}</div>
-    <div style={{ paddingBottom: 90 }}>
-      {tab === "Overview" && <OverviewTab jobs={jobs} expenses={expenses} invoices={invoices} onGo={goTo} biz={biz} showVat={showVat} />}
-      {tab === "Add Job" && <AddJobTab onGen={onGen} biz={biz} />}
-      {tab === "Jobs" && <JobsTab jobs={jobs} expenses={expenses} invoices={invoices} onUpdate={onUpdJob} onDelExp={onDelExp} onAddExp={onAddExp} onAddInvoice={onAddInv} onUpdateInvoice={onUpdInv} biz={biz} showVat={showVat} onXLSX={() => doExportXLSX(jobs, expenses, invoices, showVat)} unassigned={unassigned} onGoMaterials={() => setTab("Materials")} initialJobId={navJobId} clearInitialJob={() => setNavJobId(null)} flash={flash} />}
-      {tab === "Schedule" && <ScheduleTab jobs={jobs} expenses={expenses} biz={biz} onUpdate={onUpdJob} onGo={goTo} flash={flash} />}
-      {tab === "Materials" && <MaterialsTab jobs={jobs} expenses={expenses} onAddExp={onAddExp} onDelExp={onDelExp} onAssign={onAssign} showVat={showVat} onXLSX={() => doExportXLSX(jobs, expenses, invoices, showVat)} />}
-      {tab === "Settings" && <SettingsTab biz={biz} onUpd={setBiz} />}
-    </div>
-    {/* Sticky bottom bar — always visible */}
-    <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 900, background: T.surface, borderTop: `1px solid ${T.border}`, padding: "10px 16px", paddingBottom: "max(10px, env(safe-area-inset-bottom))", boxShadow: "0 -2px 12px rgba(0,0,0,.08)" }}>
-      <div style={{ maxWidth: 640, margin: "0 auto", display: "flex", gap: 10 }}>
-        <button onClick={() => setTab("Add Job")} style={{ ...S.btn, flex: 2, background: `linear-gradient(135deg, ${T.hiVis}, #D97706)`, color: "#fff", fontSize: 16, fontWeight: 800, padding: "14px 20px", borderRadius: 12, boxShadow: "0 4px 12px rgba(245,158,11,.35)", border: "none" }}>+ Add Job</button>
-        <button onClick={() => { stickyReceiptRef.current?.click(); }} style={{ ...S.btn, flex: 1, background: T.surfaceAlt, color: T.textMed, fontSize: 14, fontWeight: 700, padding: "14px 16px", borderRadius: 12, border: `1.5px solid ${T.border}` }}>📷 Receipt</button>
+    return results;
+  }, [listings, showFavourites, favourites, cityFilter, typeFilter, areaFilter, freeOnly, search, userLoc, dayFilter, weatherMode, napFilter, sortBy, eventsOnly, worthJourney]);
+
+  const areaPreviewCounts = useMemo(() => {
+    const counts = {};
+    ["Ealing", "Acton", "Chiswick", "Hanwell", "Northfields", "Ruislip", "Eastcote", "Uxbridge"].forEach(area => {
+      counts[area] = listings.filter(l => {
+        if (isExpiredEvent(l)) return false;
+        if (!l.location.includes(area)) return false;
+        if (showFavourites && !favourites.includes(l.id)) return false;
+        if (cityFilter !== "All" && !cityGroups[cityFilter]?.some(a => l.location.includes(a))) return false;
+        if (typeFilter !== "All Types" && l.type !== typeFilter) return false;
+        if (freeOnly && !l.free) return false;
+        if (dayFilter === "today" && !isOnToday(l)) return false;
+        if (dayFilter === "weekend" && !isOnWeekend(l)) return false;
+        if (dayFilter === "week" && !isOnThisWeek(l)) return false;
+        if (dayFilter !== "all" && dayFilter !== "today" && dayFilter !== "weekend" && dayFilter !== "week" && !isOnDay(l, parseInt(dayFilter))) return false;
+        if (weatherMode === "rainy" && !l.indoor) return false;
+        if (weatherMode === "sunny" && l.indoor) return false;
+        if (napFilter === "morning" && l.timeSlot !== "morning" && l.timeSlot !== "all-day") return false;
+        if (napFilter === "afternoon" && l.timeSlot !== "afternoon" && l.timeSlot !== "all-day") return false;
+        if (ageFilter !== "all") {
+          const a = (l.ages || "").toLowerCase();
+          if (!a.includes("all ages")) {
+            const nums = a.match(/\d+/g);
+            if (!nums) return false;
+            const lo = parseInt(nums[0]);
+            const hi = nums.length > 1 ? parseInt(nums[nums.length - 1]) : lo;
+            const loYrs = a.includes("mo") && lo < 24 ? lo / 12 : lo;
+            const hiYrs = a.includes("mo") && hi < 24 && nums.length === 1 ? hi / 12 : hi;
+            if (ageFilter === "0-1" && loYrs > 1) return false;
+            if (ageFilter === "1-2" && (loYrs > 2 || hiYrs < 1)) return false;
+            if (ageFilter === "2-4" && (loYrs > 4 || hiYrs < 2)) return false;
+            if (ageFilter === "4-7" && (loYrs > 7 || hiYrs < 4)) return false;
+            if (ageFilter === "7+" && hiYrs < 7) return false;
+          }
+        }
+        if (search && getSearchScore(l, search) === 0) return false;
+        return true;
+      }).length;
+    });
+    return counts;
+  }, [listings, showFavourites, favourites, cityFilter, typeFilter, freeOnly, search, dayFilter, weatherMode, napFilter, ageFilter]);
+
+  const sortedAreas = useMemo(() => {
+    const allAreas = ["All Areas", "Chiswick", "Ealing", "Acton", "Hammersmith", "Shepherd's Bush", "Kew", "Ruislip", "Uxbridge", "Eastcote", "Hillingdon", "Ickenham", "Northwood", "Northolt", "South Ruislip", "Camden", "Islington", "Finchley", "Barnet", "Highgate", "Hampstead", "Brixton", "Clapham", "Dulwich", "Greenwich", "Peckham", "Wimbledon", "Crystal Palace", "Forest Hill", "Battersea", "Croydon", "Lewisham", "Stratford", "Hackney", "Canary Wharf", "Romford", "Bethnal Green", "Walthamstow", "Lea Bridge", "Silvertown", "Kensington", "Westminster", "South Kensington", "Southwark", "Covent Garden", "London Bridge", "Regent's Park", "Pinner", "Harrow", "Hayes", "Southall", "Hounslow", "Feltham", "Greenford", "Stanmore", "Edgware", "Wembley", "Hanwell", "Brentford", "Twickenham", "Richmond", "Isleworth", "Hemel Hempstead", "Watford", "St Albans", "Stevenage", "Hatfield", "Hertford", "Welwyn Garden City", "High Wycombe", "Amersham", "Aylesbury", "Marlow", "Beaconsfield", "Chesham", "Princes Risborough", "Slough", "Iver", "Gerrards Cross", "Burnham", "Taplow", "Wendover", "Great Missenden", "Maidenhead", "Windsor", "Denham", "Rickmansworth", "Chelmsford", "Southend", "Colchester", "Basildon", "Brentwood", "Epping", "Harlow", "Braintree", "Maldon", "Thurrock", "Birmingham", "Manchester", "Leeds", "Liverpool"];
+    if (!userLoc) return allAreas;
+    const areaAvgDist = {};
+    allAreas.forEach(area => {
+      if (area === "All Areas") { areaAvgDist[area] = -1; return; }
+      const al = listings.filter(l => l.location.includes(area));
+      if (al.length === 0) { areaAvgDist[area] = 999; return; }
+      areaAvgDist[area] = al.reduce((s, l) => s + getDistanceMiles(userLoc.lat, userLoc.lng, l.lat, l.lng), 0) / al.length;
+    });
+    return allAreas.sort((a, b) => areaAvgDist[a] - areaAvgDist[b]);
+  }, [userLoc]);
+
+  const todayCount = useMemo(() => listings.filter(l => isOnToday(l)).length, [listings]);
+  const weekendCount = useMemo(() => listings.filter(l => !isExpiredEvent(l) && isOnWeekend(l)).length, [listings]);
+  const weekCount = useMemo(() => listings.filter(l => !isExpiredEvent(l) && isOnThisWeek(l)).length, [listings]);
+
+  if (showCalendar) {
+    const today = new Date();
+
+    const monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+    const dayLabels = ["Mo","Tu","We","Th","Fr","Sa","Su"];
+    const todayKey = today.toISOString().split("T")[0];
+
+    // Build calendar grid
+    const firstDay = new Date(calYear, calMonth, 1);
+    const lastDay = new Date(calYear, calMonth + 1, 0);
+    let startDow = firstDay.getDay(); // 0=Sun
+    startDow = startDow === 0 ? 6 : startDow - 1; // convert to 0=Mon
+    const daysInMonth = lastDay.getDate();
+    const cells = [];
+    for (let i = 0; i < startDow; i++) cells.push(null);
+    for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+
+    const prevMonth = () => { if (calMonth === 0) { setCalMonth(11); setCalYear(calYear - 1); } else setCalMonth(calMonth - 1); };
+    const nextMonth = () => { if (calMonth === 11) { setCalMonth(0); setCalYear(calYear + 1); } else setCalMonth(calMonth + 1); };
+
+    const selectedActivities = (calendarPlan[selectedDate] || []).map(id => listings.find(l => l.id === id)).filter(Boolean);
+
+    return (
+      <div style={{ maxWidth: 480, margin: "0 auto", background: "#F9FAFB", minHeight: "100vh", fontFamily: "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif", color: "#1F2937", overflowX: "hidden" }}>
+        <div style={{ padding: "12px 20px 6px", position: "sticky", top: 0, zIndex: 100, background: "#F9FAFB", borderBottom: "1px solid #E5E7EB" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div onClick={closeCalendar} style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+              <div style={{ width: 60, height: 60, overflow: "hidden", flexShrink: 0, borderRadius: 14, border: "2px solid #E5E7EB" }}><BrandBear size={60} /></div>
+              <div>
+                <div style={{ fontSize: 22, fontWeight: 800, color: "#6050F0", letterSpacing: -0.3 }}>LITTLE<span style={{ color: "#F97316" }}>locals</span></div>
+              </div>
+            </div>
+            <div onClick={closeCalendar} style={{ padding: "6px 12px", background: "white", borderRadius: 10, border: "1px solid #E5E7EB", cursor: "pointer", fontSize: 12, fontWeight: 600, color: "#1F2937" }}>← Back</div>
+          </div>
+        </div>
+
+        <div style={{ padding: "16px 20px 8px" }}>
+          <div style={{ fontSize: 18, fontWeight: 800, color: "#1F2937", marginBottom: 4 }}>📅 My Plans</div>
+          <div style={{ fontSize: 12, color: "#6B7280", marginBottom: 12 }}>Tap a date to view or add activities</div>
+
+          {/* Month nav */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+            <div onClick={prevMonth} style={{ padding: "6px 12px", background: "white", borderRadius: 8, border: "1px solid #E5E7EB", cursor: "pointer", fontSize: 14, fontWeight: 700 }}>‹</div>
+            <div style={{ fontSize: 15, fontWeight: 800, color: "#1F2937" }}>{monthNames[calMonth]} {calYear}</div>
+            <div onClick={nextMonth} style={{ padding: "6px 12px", background: "white", borderRadius: 8, border: "1px solid #E5E7EB", cursor: "pointer", fontSize: 14, fontWeight: 700 }}>›</div>
+          </div>
+
+          {/* Day labels */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2, marginBottom: 4 }}>
+            {dayLabels.map(d => <div key={d} style={{ textAlign: "center", fontSize: 10, fontWeight: 700, color: "#6B7280", padding: 4 }}>{d}</div>)}
+          </div>
+
+          {/* Calendar grid */}
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 2, marginBottom: 12 }}>
+            {cells.map((d, i) => {
+              if (d === null) return <div key={`e${i}`} />;
+              const dateKey = `${calYear}-${String(calMonth + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+              const hasPlans = (calendarPlan[dateKey] || []).length > 0;
+              const isToday = dateKey === todayKey;
+              const isSelected = dateKey === selectedDate;
+              const isPast = dateKey < todayKey;
+              return (
+                <div key={dateKey} onClick={() => setSelectedDate(dateKey)} style={{
+                  textAlign: "center", padding: "8px 0", borderRadius: 10, cursor: "pointer", position: "relative",
+                  background: isSelected ? "linear-gradient(135deg, #F97316, #FB923C)" : isToday ? "#FFF0EB" : "white",
+                  color: isSelected ? "white" : isPast ? "#9CA3AF" : "#1F2937",
+                  border: isToday && !isSelected ? "2px solid #F97316" : "1px solid #E5E7EB",
+                  fontWeight: isToday || isSelected ? 800 : 600, fontSize: 13
+                }}>
+                  {d}
+                  {hasPlans && <div style={{ position: "absolute", bottom: 3, left: "50%", transform: "translateX(-50%)", width: 5, height: 5, borderRadius: "50%", background: isSelected ? "white" : "#F97316" }} />}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Selected date detail */}
+        <div style={{ padding: "0 20px 12px" }}>
+          <div style={{ fontSize: 14, fontWeight: 800, color: "#1F2937", marginBottom: 8 }}>
+            {selectedDate === todayKey ? "Today" : new Date(selectedDate + "T12:00:00").toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}
+            <span style={{ fontSize: 12, fontWeight: 600, color: "#6B7280", marginLeft: 8 }}>{selectedActivities.length} {selectedActivities.length === 1 ? "activity" : "activities"}</span>
+          </div>
+
+          {selectedActivities.length === 0 ? (
+            <div style={{ padding: "20px", textAlign: "center", background: "white", borderRadius: 14, border: "1px solid #E5E7EB" }}>
+              <div style={{ fontSize: 28, marginBottom: 6 }}>📅</div>
+              <div style={{ fontSize: 12, color: "#6B7280" }}>Nothing planned yet</div>
+              <div onClick={closeCalendar} style={{ display: "inline-block", marginTop: 8, padding: "6px 16px", background: "linear-gradient(135deg, #F97316, #FB923C)", color: "white", borderRadius: 10, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>Browse Activities</div>
+            </div>
+          ) : (
+            selectedActivities.map(item => (
+              <div key={item.id} style={{ padding: "10px 14px", background: "white", borderRadius: 14, border: "1px solid #E5E7EB", marginBottom: 6, display: "flex", alignItems: "center", gap: 10 }}>
+                
+                <div style={{ flex: 1 }} onClick={() => { closeCalendar(); setTimeout(() => openDetail(item), 50); }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "#1F2937", cursor: "pointer" }}>{item.name}</div>
+                  <div style={{ fontSize: 11, color: "#6B7280" }}>{item.time || item.day} · {item.location}</div>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                  <span style={{ fontSize: 11, fontWeight: 700, color: item.free ? "#166534" : "#F97316" }}>{item.price}</span>
+                  <div onClick={() => removeFromCalendar(item.id, selectedDate)} style={{ width: 26, height: 26, borderRadius: "50%", background: "#FFF0EB", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontSize: 12 }}>✕</div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* Activity Passport */}
+        <div style={{ padding: "0 20px 16px" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+            <div style={{ fontSize: 16, fontWeight: 800, color: "#1F2937" }}>🏆 Activity Passport</div>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "#166534" }}>{passport.length} visited</div>
+          </div>
+
+          {passport.length === 0 ? (
+            <div style={{ padding: "20px", textAlign: "center", background: "white", borderRadius: 14, border: "1px solid #E5E7EB" }}>
+              <div style={{ fontSize: 28, marginBottom: 6 }}>🏆</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: "#1F2937", marginBottom: 4 }}>Start collecting!</div>
+              <div style={{ fontSize: 11, color: "#6B7280" }}>Tap "Been here?" on activities your family has tried</div>
+            </div>
+          ) : (
+            <>
+              {/* Progress by type */}
+              {(() => {
+                const visitedItems = passport.map(id => listings.find(l => l.id === id)).filter(Boolean);
+                const typeCounts = {};
+                visitedItems.forEach(v => { typeCounts[v.type] = (typeCounts[v.type] || 0) + 1; });
+                const typeTotal = {};
+                listings.forEach(l => { typeTotal[l.type] = (typeTotal[l.type] || 0) + 1; });
+                return (
+                  <div style={{ marginBottom: 10 }}>
+                    {Object.entries(typeCounts).sort((a, b) => b[1] - a[1]).map(([type, count]) => (
+                      <div key={type} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: "#1F2937", width: 90, flexShrink: 0 }}>{type}</div>
+                        <div style={{ flex: 1, height: 8, background: "#E5E7EB", borderRadius: 4, overflow: "hidden" }}>
+                          <div style={{ width: `${Math.min(100, (count / (typeTotal[type] || 1)) * 100)}%`, height: "100%", background: "linear-gradient(90deg, #166534, #86EFAC)", borderRadius: 4 }} />
+                        </div>
+                        <div style={{ fontSize: 10, fontWeight: 700, color: "#166534", width: 36, textAlign: "right" }}>{count}/{typeTotal[type] || 0}</div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
+
+              {/* Sticker collection */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6 }}>
+                {passport.map(id => {
+                  const item = listings.find(l => l.id === id);
+                  if (!item) return null;
+                  return (
+                    <div key={id} onClick={() => { closeCalendar(); setTimeout(() => openDetail(item), 50); }} style={{ textAlign: "center", padding: "8px 4px", background: "white", borderRadius: 12, border: "1px solid #E5E7EB", cursor: "pointer" }}>
+                      
+                      <div style={{ fontSize: 8, fontWeight: 700, color: "#1F2937", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}</div>
+                      <div style={{ fontSize: 7, color: "#166534", fontWeight: 600 }}>✓ Visited</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </div>
+
+        <div style={{ padding: "8px 20px 24px", textAlign: "center" }}>
+          <div onClick={closeCalendar} style={{ display: "inline-block", padding: "10px 24px", background: "linear-gradient(135deg, #F97316, #FB923C)", color: "white", borderRadius: 12, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Browse Activities to Add More</div>
+        </div>
       </div>
+    );
+  }
+
+  if (selected) {
+    return (
+      <div style={{ maxWidth: 480, margin: "0 auto", background: "#F9FAFB", minHeight: "100vh", fontFamily: "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif", color: "#1F2937", overflowX: "hidden" }}>
+        <DetailView item={selected} onBack={closeDetail} userLoc={userLoc} reviews={reviews} onAddReview={addReview} isFav={favourites.includes(selected.id)} onToggleFav={toggleFavourite} onAddToCalendar={addToCalendar} onRemoveFromCalendar={removeFromCalendar} calendarPlan={calendarPlan} isVisited={passport.includes(selected.id)} onToggleVisited={togglePassport} tips={tips[selected.id] || []} onAddTip={addTip} allListings={listings} onSelectListing={openDetail} />
+      </div>
+    );
+  }
+
+  const Chip = ({ active, onClick, children, color = "#374151", activeBg = "#6050F0" }) => (
+    <div onClick={() => { if (navigator.vibrate) navigator.vibrate(8); onClick(); }} style={{ flexShrink: 0, padding: "8px 14px", borderRadius: 20, fontSize: 13, fontWeight: 600, background: active ? activeBg : "#F3F4F6", color: active ? "white" : color, border: `1px solid ${active ? activeBg : "#E5E7EB"}`, cursor: "pointer", whiteSpace: "nowrap", minHeight: 40, display: "flex", alignItems: "center", transition: "all 0.18s ease" }}>{children}</div>
+  );
+
+  // SEO landing page route
+  if (window.location.pathname === "/things-to-do-with-kids-in-ealing") {
+    return <EalingSEOPage listings={listings} onActivityClick={(item) => { window.history.pushState({}, "", "/"); openDetail(item); }} />;
+  }
+
+  return (
+    <div style={{ maxWidth: 480, margin: "0 auto", background: "#F9FAFB", minHeight: "100vh", fontFamily: "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif", color: "#1F2937", overflowX: "hidden" }}>
+      {/* HEADER */}
+      <div style={{ padding: showScrollTop ? "8px 20px 4px" : "12px 20px 6px", position: "sticky", top: 0, zIndex: 100, background: "#F9FAFB", borderBottom: "1px solid #E5E7EB", transition: "padding 0.2s" }}>
+        {!showScrollTop ? (
+          <>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div onClick={() => { window.scrollTo({ top: 0, behavior: "smooth" }); setShowSuggest(false); setSelected(null); }} style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
+                <div style={{ width: 48, height: 48, overflow: "hidden", flexShrink: 0, borderRadius: 12, border: "2px solid #E5E7EB" }}><BrandBear size={48} /></div>
+                <div>
+                  <div style={{ fontSize: 20, fontWeight: 800, letterSpacing: -0.3 }}><span style={{ color: "#6050F0" }}>LITTLE</span><span style={{ color: "#F97316" }}>locals</span></div>
+                </div>
+              </div>
+            </div>
+            <div style={{ marginTop: 6, marginLeft: 58 }}>
+              {(() => {
+                const hr = new Date().getHours();
+                const greeting = hr < 12 ? "Good morning, Ealing parents" : hr < 17 ? "Afternoon ideas for Ealing families" : "Planning tomorrow in Ealing?";
+                return <div style={{ fontSize: 13, fontWeight: 600, color: "#6050F0", marginBottom: 6, letterSpacing: 0.1 }}>{greeting}</div>;
+              })()}
+              <div style={{ fontSize: 26, fontWeight: 800, color: "#1F2937", lineHeight: 1.2, marginBottom: 6, letterSpacing: -0.5 }}>What should we do today?</div>
+              <div style={{ fontSize: 15, color: "#4B5563", marginBottom: 10, fontWeight: 400 }}>Discover the best kids activities near you in {areaFilter !== "All Areas" ? areaFilter : "Ealing"}.</div>
+              {(() => {
+                const seed = Math.floor(Date.now() / (1000 * 60 * 60 * 24));
+                const n = 7 + (seed % 6);
+                return <div style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: 13, color: "#374151", background: "#FFF7ED", border: "1px solid #FED7AA", padding: "5px 12px", borderRadius: 999, marginBottom: 16, fontWeight: 600 }}>🔥 {n} parents exploring today</div>;
+              })()}
+            </div>
+          </>
+        ) : (
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} style={{ width: 32, height: 32, overflow: "hidden", flexShrink: 0, borderRadius: 8, border: "1.5px solid #E5E7EB", cursor: "pointer" }}><BrandBear size={32} /></div>
+            <div style={{ flex: 1, minWidth: 0, background: "white", borderRadius: 10, padding: "6px 12px", display: "flex", alignItems: "center", gap: 6, border: "1px solid #E5E7EB" }}>
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2.5" strokeLinecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search activities..." style={{ border: "none", outline: "none", fontSize: 12, flex: 1, minWidth: 0, background: "transparent", fontFamily: "inherit" }} />
+            </div>
+            <div onClick={() => setShowMoreFilters(!showMoreFilters)} style={{ width: 32, height: 32, borderRadius: 8, border: "1px solid #E5E7EB", background: showMoreFilters ? "#1F2937" : "white", display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={showMoreFilters ? "white" : "#374151"} strokeWidth="2.5" strokeLinecap="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="16" y2="12"/><line x1="4" y1="18" x2="12" y2="18"/></svg>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Pull to refresh indicator */}
+      {pullRefreshing && (
+        <div style={{ textAlign: "center", padding: "8px 0" }}>
+          <div style={{ display: "inline-block", width: 20, height: 20, border: "2px solid #E5E7EB", borderTopColor: "#F97316", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+        </div>
+      )}
+
+      {/* Loading spinner on first load */}
+      {isLoading && (
+        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "60px 20px", gap: 12 }}>
+          <div style={{ width: 36, height: 36, border: "3px solid #E5E7EB", borderTopColor: "#F97316", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+          <div style={{ fontSize: 13, color: "#6B7280", fontWeight: 600 }}>Loading activities...</div>
+          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+        </div>
+      )}
+
+      {!isLoading && <>
+
+      {/* Suggest Submitted Confirmation */}
+      {suggestSubmitted && (
+        <div style={{ margin: "6px 20px 8px", padding: "12px 16px", background: "#F0F7F0", borderRadius: 14, textAlign: "center" }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "#166534" }}>Activity submitted!</div>
+          <div style={{ fontSize: 11, color: "#6B7280", marginTop: 2 }}>We'll review it and add it to LITTLElocals soon</div>
+        </div>
+      )}
+
+      {/* Suggest Activity Form — inline when open */}
+      {showSuggest && (
+        <div style={{ margin: "6px 20px 10px" }}>
+          <div style={{ background: "white", borderRadius: 16, padding: 18, border: "1px solid #E5E7EB", boxShadow: "0 4px 16px rgba(92,75,107,0.06)" }}>
+            <div style={{ fontSize: 16, fontWeight: 800, marginBottom: 2, color: "#1F2937" }}>Know a great activity we missed?</div>
+            <div style={{ fontSize: 11, color: "#6B7280", marginBottom: 14 }}>Help other Ealing parents discover it. Free to add — built by local parents.</div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: "#4B5563", marginBottom: 4 }}>Activity Name *</div>
+            <input value={suggestForm.name} onChange={e => setSuggestForm(p => ({...p, name: e.target.value}))} placeholder="e.g. Tiny Tots Music Class" style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: "1px solid #E5E7EB", fontSize: 13, fontFamily: "inherit", marginBottom: 10, boxSizing: "border-box", outline: "none" }} />
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 10 }}>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 600, color: "#4B5563", marginBottom: 4 }}>Type *</div>
+                <select value={suggestForm.type} onChange={e => setSuggestForm(p => ({...p, type: e.target.value}))} style={{ width: "100%", padding: "10px 8px", borderRadius: 10, border: "1px solid #E5E7EB", fontSize: 12, fontFamily: "inherit", background: "white", boxSizing: "border-box" }}>
+                  {Object.keys(typeColors).map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+              <div>
+                <div style={{ fontSize: 11, fontWeight: 600, color: "#4B5563", marginBottom: 4 }}>City *</div>
+                <select value={suggestForm.city} onChange={e => setSuggestForm(p => ({...p, city: e.target.value, location: ""}))} style={{ width: "100%", padding: "10px 8px", borderRadius: 10, border: "1px solid #E5E7EB", fontSize: 12, fontFamily: "inherit", background: "white", boxSizing: "border-box" }}>
+                  {Object.keys(cityGroups).map(c => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </div>
+              <div style={{ position: "relative" }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: "#4B5563", marginBottom: 4 }}>Area *</div>
+                <input value={suggestForm.location} onChange={e => setSuggestForm(p => ({...p, location: e.target.value}))} placeholder="Type area name..." style={{ width: "100%", padding: "10px 8px", borderRadius: 10, border: "1px solid #E5E7EB", fontSize: 12, fontFamily: "inherit", background: "white", boxSizing: "border-box", outline: "none" }} onFocus={e => e.target.setAttribute("data-open","1")} onBlur={e => setTimeout(() => e.target.removeAttribute("data-open"), 200)} />
+                {suggestForm.location && suggestForm.location.length > 0 && (() => {
+                  const areas = (cityGroups[suggestForm.city] || []).filter(a => !a.includes("/") && a !== "Hillingdon-wide" && a.toLowerCase().includes(suggestForm.location.toLowerCase()));
+                  const exactMatch = (cityGroups[suggestForm.city] || []).some(a => a.toLowerCase() === suggestForm.location.toLowerCase());
+                  if (exactMatch || areas.length === 0) return null;
+                  return <div style={{ position: "absolute", top: "100%", left: 0, right: 0, background: "white", border: "1px solid #E5E7EB", borderRadius: 10, marginTop: 2, maxHeight: 150, overflowY: "auto", zIndex: 10, boxShadow: "0 4px 12px rgba(0,0,0,0.1)" }}>
+                    {areas.slice(0, 8).map(a => <div key={a} onMouseDown={() => setSuggestForm(p => ({...p, location: a}))} style={{ padding: "8px 10px", fontSize: 12, cursor: "pointer", borderBottom: "1px solid #E5E7EB" }}>{a}</div>)}
+                  </div>;
+                })()}
+              </div>
+            </div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: "#4B5563", marginBottom: 4 }}>Venue / Address *</div>
+            <input value={suggestForm.venue} onChange={e => setSuggestForm(p => ({...p, venue: e.target.value}))} placeholder="e.g. St Mary's Church Hall, High St, HA4 7AY" style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: "1px solid #E5E7EB", fontSize: 13, fontFamily: "inherit", marginBottom: 10, boxSizing: "border-box", outline: "none" }} />
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8, marginBottom: 10 }}>
+              <div><div style={{ fontSize: 11, fontWeight: 600, color: "#4B5563", marginBottom: 4 }}>Ages</div><input value={suggestForm.ages} onChange={e => setSuggestForm(p => ({...p, ages: e.target.value}))} placeholder="0–5yrs" style={{ width: "100%", padding: "10px 8px", borderRadius: 10, border: "1px solid #E5E7EB", fontSize: 12, fontFamily: "inherit", boxSizing: "border-box", outline: "none" }} /></div>
+              <div><div style={{ fontSize: 11, fontWeight: 600, color: "#4B5563", marginBottom: 4 }}>Day(s)</div><input value={suggestForm.day} onChange={e => setSuggestForm(p => ({...p, day: e.target.value}))} placeholder="Mondays" style={{ width: "100%", padding: "10px 8px", borderRadius: 10, border: "1px solid #E5E7EB", fontSize: 12, fontFamily: "inherit", boxSizing: "border-box", outline: "none" }} /></div>
+              <div><div style={{ fontSize: 11, fontWeight: 600, color: "#4B5563", marginBottom: 4 }}>Time</div><input value={suggestForm.time} onChange={e => setSuggestForm(p => ({...p, time: e.target.value}))} placeholder="10:00 AM" style={{ width: "100%", padding: "10px 8px", borderRadius: 10, border: "1px solid #E5E7EB", fontSize: 12, fontFamily: "inherit", boxSizing: "border-box", outline: "none" }} /></div>
+              <div><div style={{ fontSize: 11, fontWeight: 600, color: "#4B5563", marginBottom: 4 }}>Price</div><input value={suggestForm.price} onChange={e => setSuggestForm(p => ({...p, price: e.target.value}))} placeholder="£8" style={{ width: "100%", padding: "10px 8px", borderRadius: 10, border: "1px solid #E5E7EB", fontSize: 12, fontFamily: "inherit", boxSizing: "border-box", outline: "none" }} /></div>
+            </div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: "#4B5563", marginBottom: 4 }}>Description</div>
+            <textarea value={suggestForm.description} onChange={e => setSuggestForm(p => ({...p, description: e.target.value}))} placeholder="Tell us what makes this activity great..." rows={3} style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: "1px solid #E5E7EB", fontSize: 13, fontFamily: "inherit", marginBottom: 10, boxSizing: "border-box", resize: "vertical", outline: "none" }} />
+            <div style={{ borderTop: "1px solid #E5E7EB", paddingTop: 12, marginBottom: 10 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>Your Details</div>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                <input value={suggestForm.submitterName} onChange={e => setSuggestForm(p => ({...p, submitterName: e.target.value}))} placeholder="Your name *" style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: "1px solid #E5E7EB", fontSize: 12, fontFamily: "inherit", boxSizing: "border-box", outline: "none" }} />
+                <input value={suggestForm.submitterEmail} onChange={e => setSuggestForm(p => ({...p, submitterEmail: e.target.value}))} placeholder="Email (optional)" style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: "1px solid #E5E7EB", fontSize: 12, fontFamily: "inherit", boxSizing: "border-box", outline: "none" }} />
+              </div>
+            </div>
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={closeSuggest} style={{ flex: 1, padding: 12, borderRadius: 10, border: "1px solid #E5E7EB", background: "white", fontSize: 12, fontWeight: 600, cursor: "pointer", fontFamily: "inherit", color: "#4B5563" }}>Cancel</button>
+              <button onClick={submitSuggestion} disabled={!suggestForm.name.trim() || !suggestForm.venue.trim() || !suggestForm.submitterName.trim() || !suggestForm.location} style={{ flex: 1.5, padding: 12, borderRadius: 10, border: "none", background: suggestForm.name.trim() && suggestForm.venue.trim() && suggestForm.submitterName.trim() && suggestForm.location ? "linear-gradient(135deg, #F97316, #FB923C)" : "#E5E7EB", color: "white", fontSize: 13, fontWeight: 700, cursor: suggestForm.name.trim() && suggestForm.venue.trim() && suggestForm.submitterName.trim() && suggestForm.location ? "pointer" : "default", fontFamily: "inherit" }}>Submit for Review</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Location modal — first visit only */}
+      {locStatus === "idle" && (() => { try { return !localStorage.getItem("ll_loc_asked"); } catch(e) { return false; } })() && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.4)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+          <div style={{ background: "white", borderRadius: 20, padding: "28px 24px", maxWidth: 320, width: "100%", textAlign: "center" }}>
+            <div style={{ fontSize: 18, fontWeight: 800, color: "#1F2937", marginBottom: 6 }}>Enable location?</div>
+            <div style={{ fontSize: 13, color: "#6B7280", marginBottom: 20, lineHeight: 1.5 }}>Allow location access to show activities closest to you.</div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <button onClick={() => { localStorage.setItem("ll_loc_asked", "1"); setLocStatus("dismissed"); }} style={{ flex: 1, padding: "12px 0", borderRadius: 12, border: "1px solid #E5E7EB", background: "white", fontSize: 13, fontWeight: 600, color: "#6B7280", cursor: "pointer", fontFamily: "inherit" }}>Not now</button>
+              <button onClick={() => { localStorage.setItem("ll_loc_asked", "1"); requestLocation(); }} style={{ flex: 1, padding: "12px 0", borderRadius: 12, border: "none", background: "#F97316", fontSize: 13, fontWeight: 700, color: "white", cursor: "pointer", fontFamily: "inherit" }}>Allow</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Search + Filters bar */}
+      <div style={{ margin: "8px 20px 6px", display: "flex", gap: 8, alignItems: "center" }}>
+        <div style={{ flex: 1, background: "white", borderRadius: 12, padding: "10px 14px", display: "flex", alignItems: "center", gap: 8, border: "1px solid #E5E7EB" }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9CA3AF" strokeWidth="2.5" strokeLinecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search activities..." style={{ border: "none", outline: "none", fontSize: 13, flex: 1, background: "transparent", fontFamily: "inherit", minWidth: 0 }} />
+        </div>
+        <div onClick={() => setShowMoreFilters(!showMoreFilters)} style={{ padding: "10px 14px", background: showMoreFilters ? "#1F2937" : "#FFFFFF", borderRadius: 12, border: showMoreFilters ? "none" : "1px solid #E5E7EB", cursor: "pointer", display: "flex", alignItems: "center", gap: 6, flexShrink: 0, minHeight: 44, transition: "all 0.18s ease" }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={showMoreFilters ? "white" : "#374151"} strokeWidth="2.5" strokeLinecap="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="16" y2="12"/><line x1="4" y1="18" x2="12" y2="18"/></svg>
+          <span style={{ fontSize: 12, fontWeight: 600, color: showMoreFilters ? "white" : "#374151" }}>Filters</span>
+        </div>
+      </div>
+
+      {/* Time filter pills */}
+      {!search && (
+        <div style={{ padding: "0 20px 8px", display: "flex", gap: 6 }}>
+          {[
+            { label: "Today", value: "today", count: todayCount },
+            { label: "This weekend", value: "weekend", count: weekendCount },
+            { label: "This week", value: "week", count: weekCount },
+          ].map(({ label, value, count }) => {
+            const active = dayFilter === value;
+            const zero = count === 0;
+            return (
+              <span
+                key={value}
+                onClick={() => { setDayFilter(value); setPage(1); }}
+                style={{
+                  display: "inline-flex", alignItems: "center", gap: 5,
+                  fontSize: 12, fontWeight: active ? 700 : 500,
+                  padding: "5px 14px", borderRadius: 20, cursor: "pointer",
+                  background: active ? "#6050F0" : "transparent",
+                  color: active ? "white" : zero ? "#C0C0C0" : "#6B7280",
+                  border: active ? "none" : "1px solid #E5E7EB",
+                  transition: "all 0.15s ease",
+                  whiteSpace: "nowrap",
+                  opacity: zero && !active ? 0.6 : 1,
+                }}
+              >
+                {label}
+                <span style={{
+                  fontSize: 10, fontWeight: 600,
+                  color: active ? "rgba(255,255,255,0.7)" : "#B0B0B0",
+                  background: active ? "rgba(255,255,255,0.15)" : "#F3F4F6",
+                  padding: "1px 5px", borderRadius: 8, lineHeight: 1.4
+                }}>{count}</span>
+              </span>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Expandable filter panel */}
+      {showMoreFilters && (
+        <div style={{ margin: "0 20px 10px", background: "white", borderRadius: 16, padding: 16, border: "1px solid #E5E7EB" }}>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>Area</div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
+            <Chip active={areaFilter === "All Areas"} onClick={() => { setAreaFilter("All Areas"); setPage(1); }} activeBg="#6050F0">All</Chip>
+            {["Ealing", "Acton", "Chiswick", "Hanwell", "Northfields", "Ruislip", "Eastcote", "Uxbridge"].map(area => (
+              <Chip key={area} active={areaFilter === area} onClick={() => { setAreaFilter(areaFilter === area ? "All Areas" : area); setPage(1); }} activeBg="#6050F0">{area}</Chip>
+            ))}
+          </div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>Day</div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
+            <Chip active={dayFilter === "today"} onClick={() => { setDayFilter("today"); setPage(1); }} activeBg="#6050F0">Today</Chip>
+            {["Mon","Tue","Wed","Thu","Fri","Sat","Sun"].map((d, i) => (
+              <Chip key={d} active={dayFilter === String(i === 6 ? 0 : i + 1)} onClick={() => { setDayFilter(String(i === 6 ? 0 : i + 1)); setPage(1); }} activeBg="#6050F0">{d}</Chip>
+            ))}
+            <Chip active={dayFilter === "all"} onClick={() => { setDayFilter("all"); setPage(1); }} activeBg="#6050F0">All</Chip>
+          </div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>Type</div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
+            <Chip active={weatherMode === "rainy"} onClick={() => setWeatherMode(weatherMode === "rainy" ? "all" : "rainy")} activeBg="#6050F0">🌧️ Indoor</Chip>
+            <Chip active={weatherMode === "sunny"} onClick={() => setWeatherMode(weatherMode === "sunny" ? "all" : "sunny")} activeBg="#6050F0">☀️ Outdoor</Chip>
+            <Chip active={freeOnly} onClick={() => setFreeOnly(!freeOnly)} activeBg="#6050F0">Free</Chip>
+            <Chip active={napFilter === "morning"} onClick={() => setNapFilter(napFilter === "morning" ? "all" : "morning")} activeBg="#6050F0">Morning</Chip>
+            <Chip active={napFilter === "afternoon"} onClick={() => setNapFilter(napFilter === "afternoon" ? "all" : "afternoon")} activeBg="#6050F0">Afternoon</Chip>
+          </div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>Category</div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
+            {Object.keys(typeColors).map(t => (
+              <Chip key={t} active={typeFilter === t} onClick={() => setTypeFilter(typeFilter === t ? "All Types" : t)} activeBg="#6050F0">{t}</Chip>
+            ))}
+          </div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>Age</div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
+            {[{v:"all",l:"All"},{v:"0-1",l:"0–1"},{v:"1-2",l:"1–2"},{v:"2-4",l:"2–4"},{v:"4-7",l:"4–7"},{v:"7+",l:"7+"}].map(a => (
+              <Chip key={a.v} active={ageFilter === a.v} onClick={() => setAgeFilter(a.v)} activeBg="#6050F0">{a.l}</Chip>
+            ))}
+          </div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>Region</div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
+            {[{v:"All",l:"All UK"},{v:"London",l:"London"},{v:"Hertfordshire",l:"Hertfordshire"},{v:"Buckinghamshire",l:"Buckinghamshire"},{v:"Essex",l:"Essex"},{v:"Birmingham",l:"Birmingham"},{v:"Manchester",l:"Manchester"},{v:"Leeds",l:"Leeds"},{v:"Liverpool",l:"Liverpool"}].map(c => (
+              <Chip key={c.v} active={cityFilter === c.v} onClick={() => { setCityFilter(c.v); setAreaFilter("All Areas"); setPage(1); }} activeBg="#6050F0">{c.l}</Chip>
+            ))}
+          </div>
+          <div style={{ fontSize: 11, fontWeight: 700, color: "#6B7280", textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>Sort</div>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
+            <Chip active={sortBy === "mixed"} onClick={() => setSortBy("mixed")} activeBg="#6050F0">Mixed</Chip>
+            <Chip active={sortBy === "nearest"} onClick={() => { setSortBy("nearest"); if (locStatus === "idle" || locStatus === "dismissed") requestLocation(); }} activeBg="#6050F0">Nearest</Chip>
+            <Chip active={sortBy === "price-low"} onClick={() => setSortBy("price-low")} activeBg="#6050F0">Price: Low</Chip>
+            <Chip active={sortBy === "free-first"} onClick={() => setSortBy("free-first")} activeBg="#6050F0">Free first</Chip>
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            {favourites.length > 0 && <Chip active={showFavourites} onClick={() => { setShowFavourites(!showFavourites); setPage(1); }} activeBg="#F97316">Saved ({favourites.length})</Chip>}
+            <Chip active={false} onClick={openCalendar}>My Plans {calendarTotal > 0 ? `(${calendarTotal})` : ""}</Chip>
+            <Chip active={mapView} onClick={() => { setMapView(!mapView); if (!mapView && locStatus === "idle") requestLocation(); if (!mapView) setAreaFilter("All Areas"); }} activeBg="#6050F0">Map</Chip>
+          </div>
+        </div>
+      )}
+
+      {/* Quick filters + count row */}
+      <div style={{ padding: "0 20px 4px", borderTop: "1px solid #F3F4F6", paddingTop: 10 }}>
+        <div style={{ display: "flex", gap: 7, marginBottom: 8 }}>
+          {[
+            { label: "☀️ Outdoor", action: () => { setWeatherMode(weatherMode === "sunny" ? "all" : "sunny"); setPage(1); }, active: weatherMode === "sunny", count: (filtered||[]).filter(l=>!l.indoor).length },
+            { label: "🌧️ Indoor",  action: () => { setWeatherMode(weatherMode === "rainy" ? "all" : "rainy"); setPage(1); }, active: weatherMode === "rainy", count: (filtered||[]).filter(l=>l.indoor).length },
+            { label: "💰 Free",    action: () => { setFreeOnly(!freeOnly); setPage(1); }, active: freeOnly, count: (filtered||[]).filter(l=>l.free).length },
+            { label: "📅 Events",  action: () => { setEventsOnly(!eventsOnly); setPage(1); }, active: eventsOnly, count: (listings||[]).filter(l=>l.isEvent && (!l.eventDate || new Date(l.eventDate) >= new Date())).length },
+            { label: "✨ Popular", action: () => { setSortBy(sortBy === "popular" ? "mixed" : "popular"); setPage(1); }, active: sortBy === "popular", count: (filtered||[]).filter(l=>l.popular).length },
+            { label: "🚗 Journey", action: () => { setWorthJourney(!worthJourney); setPage(1); }, active: worthJourney, count: (listings||[]).filter(l=>l.worthJourney).length },
+          ].map(({ label, action, active }) => (
+            <span
+              key={label}
+              onClick={action}
+              style={{
+                flex: 1, textAlign: "center",
+                fontSize: 12, fontWeight: active ? 700 : 500,
+                padding: "6px 0", borderRadius: 20, cursor: "pointer",
+                background: active ? "#F97316" : "white",
+                color: active ? "white" : "#6B7280",
+                border: active ? "none" : "1px solid #EBEBEB",
+                whiteSpace: "nowrap",
+              }}
+            >{label}</span>
+          ))}
+        </div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <div>
+            <span style={{ fontSize: 11, color: "#B0B0B0", fontWeight: 400 }}>{filtered.length} {dayFilter === "today" ? "things to do today" : dayFilter === "weekend" ? "activities this weekend" : "activities"} in {areaFilter !== "All Areas" ? areaFilter : "Ealing"}</span>
+            {dayFilter === "today" && (() => {
+              const LOCAL_AREAS = ["Ealing","Hanwell","West Ealing","North Ealing","South Ealing","Acton","Northfields","Chiswick","Brentford","Greenford","Northolt","Southall","Ruislip","Eastcote","Uxbridge","Pitshanger","Wembley","Hounslow","Isleworth","Twickenham","Richmond","Hayes"];
+              const localCount = listings.filter(l => LOCAL_AREAS.some(a => (l.location || "").includes(a))).length;
+              return <div style={{ fontSize: 10, color: "#C8C8C8", fontWeight: 400, marginTop: 1 }}>{localCount} things to do around Ealing</div>;
+            })()}
+          </div>
+          {(cityFilter !== "All" || dayFilter !== "today" || weatherMode !== "all" || napFilter !== "all" || freeOnly || ageFilter !== "all" || typeFilter !== "All Types" || areaFilter !== "All Areas" || showFavourites) && (
+            <span onClick={() => { setCityFilter("All"); setDayFilter("today"); setWeatherMode("all"); setNapFilter("all"); setFreeOnly(false); setEventsOnly(false); setWorthJourney(false); setAgeFilter("all"); setTypeFilter("All Types"); setAreaFilter("All Areas"); setSearch(""); setSortBy("mixed"); setPage(1); setShowFavourites(false); }} style={{ fontSize: 11, color: "#F97316", fontWeight: 600, cursor: "pointer" }}>Clear all</span>
+          )}
+        </div>
+      </div>
+
+      {/* Map View */}
+      {mapView && (
+        <div style={{ margin: "0 20px 4px" }}>
+          <div style={{ fontSize: 10, color: "#6B7280", marginBottom: 4, textAlign: "right" }}>{filtered.filter(i => i.lat && i.lng).length} activities on map</div>
+          <MapView filtered={filtered} userLoc={userLoc} onSelect={openDetail} areaFilter={areaFilter} />
+        </div>
+      )}
+
+      {/* Listings — paginated */}
+      {!mapView && <>
+
+      {/* === Continue where you left off (slim banner, outside feed limit) === */}
+      {page === 1 && !search && !showFavourites && dayFilter === "today" && (() => {
+        try {
+          const lv = JSON.parse(localStorage.getItem("ll_lastViewedActivity") || "null");
+          if (!lv || !lv.id || (Date.now() - lv.timestamp) > 7 * 24 * 60 * 60 * 1000) return null;
+          const lvItem = listings.find(a => a.id === lv.id);
+          if (!lvItem) return null;
+          const tc = typeColors[lvItem.type] || { bg: "#eee", color: "#333" };
+          return (
+            <div style={{ padding: "8px 20px 0" }}>
+              <div onClick={() => openDetail(lvItem)} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: "#FAFAFA", borderRadius: 10, border: "1px solid #F0F0F0", cursor: "pointer" }}>
+                <div style={{ width: 34, height: 34, borderRadius: 9, background: `linear-gradient(135deg, ${tc.bg}, ${tc.bg}cc)`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 13, fontWeight: 800, color: tc.color || "#666" }}>{(lvItem.type || "A").charAt(0)}</div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 10, color: "#B0B0B0", marginBottom: 1 }}>Continue exploring · You recently viewed:</div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "#374151", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{lvItem.name}</div>
+                </div>
+                <span style={{ fontSize: 11, color: "#C0C0C0", flexShrink: 0 }}>→</span>
+              </div>
+              {(() => {
+                const visited = passport.length;
+                if (visited === 0) return null;
+                const area = areaFilter !== "All Areas" ? areaFilter : "Ealing";
+                const msg = visited >= 10
+                  ? `🎉 Local Explorer – you've tried ${visited} places in ${area}`
+                  : `You've explored ${visited} place${visited !== 1 ? "s" : ""} in ${area}`;
+                return <div style={{ fontSize: 11, color: "#9CA3AF", marginTop: 6, paddingLeft: 2 }}>{msg}</div>;
+              })()}
+            </div>
+          );
+        } catch { return null; }
+      })()}
+
+      {/* === CURATED HOMEPAGE SECTIONS (page 1, default view only) === */}
+      {page === 1 && !search && !showFavourites && dayFilter === "today" && (() => {
+        const area = areaFilter !== "All Areas" ? areaFilter : "Ealing";
+        const shownIds = new Set();
+
+        // Also add featured providers and continue-where-left-off to shown
+        const fp = listings.find(a => a.featuredProvider);
+        if (fp) shownIds.add(fp.id);
+        const hb = listings.find(a => a.name && a.name.toLowerCase().includes("hartbeeps"));
+        if (hb) shownIds.add(hb.id);
+
+        // Helper: distance sort
+        const areaCenters = { "Ealing": { lat: 51.5139, lng: -0.3048 }, "Ruislip": { lat: 51.5714, lng: -0.4213 }, "Eastcote": { lat: 51.5762, lng: -0.3962 }, "Uxbridge": { lat: 51.5461, lng: -0.4761 }, "Ickenham": { lat: 51.5653, lng: -0.4457 }, "Hillingdon": { lat: 51.5341, lng: -0.4494 } };
+        const locRef = userLoc || areaCenters[areaFilter] || areaCenters["Ealing"];
+        const getDist = (a) => a.lat && locRef ? Math.sqrt(Math.pow((a.lat - locRef.lat) * 111, 2) + Math.pow((a.lng - locRef.lng) * 111 * Math.cos(locRef.lat * Math.PI / 180), 2)) : 999;
+
+        // --- SECTION 1: Today in {Area} ---
+        const todayCandidates = filtered.filter(a => isOnToday(a));
+
+        // Sort today candidates by quality score for curated feel
+        const getTodayScore = (a) => {
+          let s = 0;
+          if ((a.images && a.images.length > 0) || a.logo || a.imageUrl) s += 10;
+          if (a.description && a.description.length > 30) s += 2;
+          if (a.time && a.time.length > 3) s += 1;
+          if (a.website || a.trialLink) s += 1;
+          if (a.popular || a.featuredProvider) s += 1;
+          return s;
+        };
+        const sortedTodayCandidates = [...todayCandidates].sort((a, b) => getTodayScore(b) - getTodayScore(a));
+
+        // Mix by category (max 1 per type in first 6-8 slots)
+        const todayTypes = [...new Set(sortedTodayCandidates.map(a => a.type))];
+        const todayBuckets = {};
+        todayTypes.forEach(t => { todayBuckets[t] = sortedTodayCandidates.filter(a => a.type === t); });
+        const todayMixed = [];
+        let ts = sortedTodayCandidates.length + 10;
+        while (todayMixed.length < sortedTodayCandidates.length && ts-- > 0) {
+          for (const t of todayTypes) {
+            if (todayBuckets[t].length > 0) todayMixed.push(todayBuckets[t].shift());
+          }
+        }
+        const TODAY_LIMIT = 4;
+        const todayRaw = todayMixed.length > 0 ? todayMixed : sortedTodayCandidates;
+        // Deduplicate by exact name
+        const todaySeenNames = new Set();
+        const todayListFull = todayRaw.filter(a => {
+          const name = (a.name || "").toLowerCase().trim();
+          if (todaySeenNames.has(name)) return false;
+          todaySeenNames.add(name);
+          return true;
+        });
+        const todayList = todayListFull.slice(0, TODAY_LIMIT);
+        todayListFull.forEach(a => shownIds.add(a.id));
+
+        // Human-relevant signals — standardised 3 variants only
+        const getTodaySignal = (item, idx, clicks) => {
+          if (item.popular || item.featuredProvider || clicks >= 8) return "⭐ Popular with parents";
+          if (clicks >= 3) return "🔥 Trending today";
+          if (item.verified) return "❤️ Saved by parents";
+          return null;
+        };
+
+        // --- SECTION 2: From your saved ---
+        const savedList = favourites.length > 0
+          ? listings.filter(a => favourites.includes(a.id) && !shownIds.has(a.id)).slice(0, 1)
+          : [];
+        savedList.forEach(a => shownIds.add(a.id));
+
+        // --- SECTION 3: This weekend ---
+        const halfDay = Math.floor(Date.now() / (12 * 60 * 60 * 1000));
+        const sRand = (i) => { let x = Math.sin(halfDay * 9301 + i * 49297) * 49297; return x - Math.floor(x); };
+        const popularList = listings.filter(a => !shownIds.has(a.id) && isOnWeekend(a))
+          .sort((a, b) => {
+            const score = x => (x.popular ? 3 : 0) + (x.verified ? 2 : 0) + (clickCounts[x.id] || 0);
+            return score(b) - score(a);
+          }).slice(0, 3);
+        popularList.forEach(a => shownIds.add(a.id));
+
+        // --- SECTION 4: Loved by Ealing parents ---
+        const lovedList = filtered.filter(a => (a.verified || a.popular) && !shownIds.has(a.id))
+          .sort((a, b) => (clickCounts[b.id] || 0) - (clickCounts[a.id] || 0))
+          .slice(0, 3);
+        lovedList.forEach(a => shownIds.add(a.id));
+
+        shownIdsRef.current = shownIds;
+
+        return (<>
+          {/* Today near you — closest 1-2 activities */}
+          {userLoc && (() => {
+            const nearbyToday = [...todayCandidates]
+              .filter(a => a.lat && a.lng)
+              .sort((a, b) => getDist(a) - getDist(b))
+              .slice(0, 2);
+            if (nearbyToday.length === 0) return null;
+            return (
+              <div style={{ padding: "12px 20px 0" }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: 8 }}>📍 Near you today</div>
+                <div style={{ display: "flex", gap: 8, overflowX: "auto", scrollbarWidth: "none", paddingBottom: 4 }}>
+                  {nearbyToday.map(item => {
+                    const dist = getDist(item);
+                    const walkMin = dist < 50 ? Math.round(dist * 1.60934 * 12) : null;
+                    const tc = typeColors[item.type] || { bg: "#F3F4F6", color: "#374151" };
+                    return (
+                      <div key={"nearby-" + item.id} onClick={() => openDetail(item)} style={{ flexShrink: 0, width: 160, background: "white", borderRadius: 12, border: "1px solid #E5E7EB", padding: "10px 12px", cursor: "pointer", boxShadow: "0 1px 4px rgba(0,0,0,0.05)" }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: "#1F2937", marginBottom: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}</div>
+                        <div style={{ fontSize: 10, color: "#6B7280", marginBottom: 4 }}>{item.type}</div>
+                        <div style={{ display: "flex", gap: 4, flexWrap: "wrap" }}>
+                          {walkMin !== null && <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 5, background: "#FFF7ED", color: "#F97316" }}>{walkMin < 2 ? "Nearby" : walkMin + " min walk"}</span>}
+                          <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 5, background: "#ECFDF5", color: "#166534" }}>Open today</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Quick ideas for today — always 3: popular, nearby, free */}
+          {(() => {
+            const locRef2 = userLoc || areaCenters[areaFilter] || areaCenters["Ealing"];
+            const getDist2 = (a) => a.lat && locRef2 ? Math.sqrt(Math.pow((a.lat-locRef2.lat)*111,2)+Math.pow((a.lng-locRef2.lng)*111*Math.cos(locRef2.lat*Math.PI/180),2)) : 999;
+            const popular = sortedTodayCandidates.find(a => a.popular || (clickCounts[a.id]||0) >= 5);
+            const nearby = [...sortedTodayCandidates].sort((a,b) => getDist2(a)-getDist2(b)).find(a => a.id !== popular?.id);
+            const free = sortedTodayCandidates.find(a => a.free && a.id !== popular?.id && a.id !== nearby?.id);
+            const ideas = [
+              popular && { item: popular, label: "⭐ Popular today" },
+              nearby && { item: nearby, label: "📍 Nearby" },
+              free   && { item: free,   label: "💰 Free" },
+            ].filter(Boolean).slice(0, 3);
+            if (ideas.length === 0) return null;
+            return (
+              <div style={{ marginTop: 16, padding: "0 20px" }}>
+                {(() => {
+                  const h = new Date().getHours();
+                  const area = areaFilter !== "All Areas" ? areaFilter : "Ealing";
+                  if (h >= 5 && h < 12)  return (<><div style={{ fontSize: 14, fontWeight: 800, color: "#111827", marginBottom: 2, letterSpacing: -0.2 }}>🌤 Good morning {area} parents</div><div style={{ fontSize: 11, color: "#9CA3AF", marginBottom: 10 }}>Here are a few ideas for today.</div></>);
+                  if (h >= 12 && h < 18) return (<><div style={{ fontSize: 14, fontWeight: 800, color: "#111827", marginBottom: 2, letterSpacing: -0.2 }}>☀️ Afternoon ideas for {area} families</div><div style={{ fontSize: 11, color: "#9CA3AF", marginBottom: 10 }}>Still looking for something to do today?</div></>);
+                  if (h >= 18)           return (<><div style={{ fontSize: 14, fontWeight: 800, color: "#111827", marginBottom: 2, letterSpacing: -0.2 }}>🌙 Planning tomorrow with the kids?</div><div style={{ fontSize: 11, color: "#9CA3AF", marginBottom: 10 }}>Here are some ideas around {area}.</div></>);
+                  return (<><div style={{ fontSize: 14, fontWeight: 800, color: "#111827", marginBottom: 2, letterSpacing: -0.2 }}>🌙 Late night planning?</div><div style={{ fontSize: 11, color: "#9CA3AF", marginBottom: 10 }}>Save some ideas for tomorrow.</div></>);
+                })()}
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                  {ideas.map(({ item, label }) => {
+                    const tc2 = typeColors[item.type] || { bg: "#F3F4F6", color: "#374151" };
+                    const d = getDist(item);
+                    const wm = d < 50 ? Math.round(d * 1.60934 * 12) : null;
+                    return (
+                      <div key={"qi-" + item.id} onClick={() => openDetail(item)}
+                        style={{ display: "flex", alignItems: "center", gap: 13, padding: "13px 15px", background: "white", borderRadius: 16, border: "1px solid #EBEBEB", cursor: "pointer", boxShadow: "0 2px 8px rgba(0,0,0,0.06)", transition: "box-shadow 0.15s" }}
+                        onTouchStart={e => e.currentTarget.style.boxShadow="0 1px 2px rgba(0,0,0,0.04)"}
+                        onTouchEnd={e => e.currentTarget.style.boxShadow="0 2px 8px rgba(0,0,0,0.06)"}
+                      >
+                        <div style={{ width: 46, height: 46, borderRadius: 13, background: `linear-gradient(135deg, ${tc2.bg}, ${tc2.bg}cc)`, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 16, fontWeight: 800, color: tc2.color || "#333", position: "relative", overflow: "hidden" }}>
+                          {(item.logo || (item.images && item.images[0])) && <img src={item.logo || item.images[0]} alt="" style={{ width: "80%", height: "80%", objectFit: "contain", position: "absolute", top: "10%", left: "10%", borderRadius: "50%" }} onError={e => e.target.style.display="none"} />}
+                          {!(item.logo || (item.images && item.images[0])) && (item.type || "A").charAt(0)}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontSize: 10, color: "#F97316", fontWeight: 700, marginBottom: 2, letterSpacing: 0.3, textTransform: "uppercase" }}>{label}</div>
+                          <div style={{ fontSize: 14, fontWeight: 700, color: "#111827", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.name}</div>
+                          <div style={{ fontSize: 12, color: "#9CA3AF", marginTop: 1 }}>{item.type}{wm !== null && wm < 60 ? ` · ${wm < 5 ? "Nearby" : wm + " min walk"}` : ""}{item.free ? " · Free" : ""}</div>
+                        </div>
+                        <span style={{ fontSize: 18, color: "#D1D5DB", flexShrink: 0 }}>›</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* Ealing parents are loving these */}
+          {(() => {
+            const loved = listings
+              .filter(l => !l.isEvent && !shownIds.has(l.id) && (l.popular || l.featuredProvider || (clickCounts[l.id]||0) >= 3 || l.verified) && ((l.images && l.images.length > 0) || l.logo || l.imageUrl))
+              .sort((a, b) => {
+                const sa = (a.popular?3:0)+(a.featuredProvider?2:0)+(clickCounts[a.id]||0)+(a.verified?1:0);
+                const sb = (b.popular?3:0)+(b.featuredProvider?2:0)+(clickCounts[b.id]||0)+(b.verified?1:0);
+                return sb - sa;
+              })
+              .slice(0, 3);
+            if (loved.length < 2) return null;
+            loved.forEach(l => shownIds.add(l.id));
+            return (
+              <div style={{ marginTop: 28, padding: "0 20px" }}>
+                <div style={{ fontSize: 20, fontWeight: 800, color: "#111827", letterSpacing: "-0.3px", marginBottom: 2 }}>🔥 Ealing parents are loving these</div>
+                <div style={{ fontSize: 12, color: "#B0B0B0", marginTop: 3, marginBottom: 14 }}>Popular with local families right now</div>
+                {loved.map(item => (
+                  <ListingCard key={"loved-"+item.id} item={item} onSelect={openDetail} userLoc={userLoc} isFav={favourites.includes(item.id)} onToggleFav={toggleFavourite} isNew={false} reviews={reviews} areaFilter={areaFilter} isSunny={isSunny} onTrackClick={trackClick} clickCount={clickCounts[item.id]||0} />
+                ))}
+              </div>
+            );
+          })()}
+
+          {/* 1. Top things to do today */}
+          <div style={{ marginTop: 28, padding: "0 20px" }}>
+            <div style={{ fontSize: 20, fontWeight: 800, color: "#111827", letterSpacing: "-0.3px", marginBottom: 2 }}>Top things to do today in {area}</div>
+            {(() => {
+              const totalViews = todayList.reduce((sum, a) => sum + (clickCounts[a.id] || 0), 0);
+              if (totalViews >= 5) return <div style={{ fontSize: 12, color: "#B0B0B0", marginTop: 3, marginBottom: 14 }}>🔥 {totalViews} Ealing parents viewed this today</div>;
+              return <div style={{ fontSize: 12, color: "#B0B0B0", marginTop: 3, marginBottom: 14 }}>Quick ideas parents are choosing today</div>;
+            })()}
+            {todayList.length === 0 ? (
+              <div style={{ padding: "16px 0", textAlign: "center" }}>
+                <div style={{ fontSize: 14, color: "#6B7280", marginBottom: 6 }}>Nothing confirmed for today in {area}</div>
+                <div onClick={() => { setDayFilter("all"); setPage(1); }} style={{ fontSize: 13, fontWeight: 600, color: "#F97316", cursor: "pointer", marginBottom: 10 }}>Browse all activities →</div>
+                {(() => { const upcoming = (listings||[]).filter(l => l.isEvent && l.eventDate && new Date(l.eventDate) > new Date()).sort((a,b) => new Date(a.eventDate)-new Date(b.eventDate)).slice(0,3); return upcoming.length > 0 ? (<div><div style={{ fontSize: 13, fontWeight: 700, color: "#111827", marginBottom: 8 }}>📅 Upcoming events</div>{upcoming.map(item => <ListingCard key={item.id} item={item} onSelect={openDetail} userLoc={userLoc} isFav={favourites.includes(item.id)} onToggleFav={toggleFavourite} isNew={false} reviews={reviews} areaFilter={areaFilter} isSunny={isSunny} onTrackClick={trackClick} clickCount={clickCounts[item.id]||0} />)}</div>) : null; })()}
+              </div>
+            ) : todayList.map((item, idx) => {
+              const signal = getTodaySignal(item, idx, clickCounts[item.id] || 0);
+              return (
+                <div key={"today-" + item.id}>
+                  <ListingCard item={item} onSelect={openDetail} userLoc={userLoc} isFav={favourites.includes(item.id)} onToggleFav={toggleFavourite} isNew={isNewActivity(item)} reviews={reviews} areaFilter={areaFilter} isSunny={isSunny} onTrackClick={trackClick} clickCount={clickCounts[item.id] || 0} todaySignal={signal} />
+                </div>
+              );
+            })}
+            {todayListFull.length > TODAY_LIMIT && (
+              <div onClick={() => document.getElementById("all-activities")?.scrollIntoView({ behavior: "smooth", block: "start" })} style={{ textAlign: "center", padding: "10px 0 4px", fontSize: 13, fontWeight: 600, color: "#F97316", cursor: "pointer" }}>
+                Browse all activities →
+              </div>
+            )}
+          </div>
+
+
+          {/* Featured Providers — Hartbeeps (primary) + LGD (secondary) */}
+          {(() => {
+            const hartbeeps = listings.find(a => a.name && a.name.toLowerCase().includes("hartbeeps"));
+            const lgd = listings.find(a => a.featuredProvider);
+            const hDist = hartbeeps ? getDist(hartbeeps) : null;
+            const hWalk = hDist && hDist < 50 ? Math.round(hDist * 1.60934 * 12) : null;
+            const lDist = lgd ? getDist(lgd) : null;
+            const lWalk = lDist && lDist < 50 ? Math.round(lDist * 1.60934 * 12) : null;
+            return (<>
+              {/* Hartbeeps — Premium Featured */}
+              {hartbeeps && (
+              <div style={{ marginTop: 32, padding: "0 20px" }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: "0.6px", marginBottom: 10 }}>Featured provider</div>
+                <div onClick={() => openDetail(hartbeeps)} style={{ background: "white", borderRadius: 16, padding: 0, cursor: "pointer", border: "1px solid rgba(124, 77, 255, 0.25)", overflow: "hidden", boxShadow: "0 4px 14px rgba(0,0,0,0.04)" }}>
+                  <div style={{ position: "relative" }}>
+                    <div style={{ display: "flex", overflowX: "auto", scrollSnapType: "x mandatory", WebkitOverflowScrolling: "touch" }}>
+                      {[{src:"/hartbeeps-hero.png",focalY:22},{src:"/hartbeeps-bells.jpg",focalY:50},{src:"/hartbeeps-happy.png",focalY:45}].map((img, i) => (
+                        <img key={i} src={img.src} alt="Hartbeeps class" style={{ width: "100%", height: 180, objectFit: "cover", objectPosition: `center ${img.focalY}%`, flexShrink: 0, scrollSnapAlign: "start" }} />
+                      ))}
+                    </div>
+                    <span style={{ position: "absolute", top: 10, left: 10, fontSize: 10, fontWeight: 700, padding: "4px 12px", borderRadius: 8, background: "#6050F0", color: "white", letterSpacing: 0.3, boxShadow: "0 2px 8px rgba(107,78,255,0.3)" }}>Featured baby classes</span>
+                    <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 50, background: "linear-gradient(transparent, rgba(0,0,0,0.25))", pointerEvents: "none" }} />
+                    <div style={{ position: "absolute", bottom: 8, left: "50%", transform: "translateX(-50%)", display: "flex", gap: 4 }}>
+                      {[0,1,2].map(i => <div key={i} style={{ width: 6, height: 6, borderRadius: "50%", background: "rgba(255,255,255,0.85)" }} />)}
+                    </div>
+                  </div>
+                  <div style={{ padding: "14px 16px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
+                      <span style={{ fontSize: 17, fontWeight: 800, color: "#222" }}>Hartbeeps West & SW London</span>
+                    </div>
+                    <div style={{ fontSize: 12, color: "#6B7280", marginBottom: 6 }}>Award-winning baby sensory and music classes loved by local parents.</div>
+                    <div style={{ fontSize: 13, color: "#4B5563", marginBottom: 3 }}>Baby Sensory · 0–4 yrs · Various days</div>
+                    <div style={{ fontSize: 13, color: "#4B5563", display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap", marginBottom: 6 }}>
+                      Haven Green Church, Ealing Broadway
+                      {hWalk !== null && hWalk < 60 && <span style={{ color: "#F97316", fontWeight: 600 }}>· {hWalk < 2 ? "Nearby" : hWalk + " min walk"}</span>}
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 6 }}>
+                      <span style={{ fontSize: 11, fontWeight: 600, color: "#15803D", padding: "2px 8px", background: "#ECFDF5", borderRadius: 6 }}>Free trial available</span>
+                      
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, padding: "5px 10px", borderRadius: 8, background: "#FDF6EE", color: "#92400E" }}>From £8/class</span>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: "#6050F0" }}>View details →</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              )}
+
+              {/* LGD — Secondary Featured */}
+              {lgd && (
+              <div style={{ marginTop: 20, padding: "0 20px" }}>
+                <div onClick={() => openDetail(lgd)} style={{ background: "white", borderRadius: 16, padding: 0, cursor: "pointer", border: "1px solid rgba(124, 77, 255, 0.25)", overflow: "hidden", boxShadow: "0 4px 14px rgba(0,0,0,0.04)" }}>
+                  <div style={{ width: "100%", height: 140, overflow: "hidden", position: "relative" }}>
+                    <img src="/lgd-dance.png" alt={lgd.name} style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                    <span style={{ position: "absolute", top: 10, left: 10, fontSize: 10, fontWeight: 700, padding: "3px 10px", borderRadius: 6, background: "#6050F0", color: "white", letterSpacing: 0.3 }}>Featured local provider</span>
+                  </div>
+                  <div style={{ padding: "14px 16px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
+                      <span style={{ fontSize: 16, fontWeight: 700, color: "#222" }}>{lgd.name}</span>
+                      <span style={{ fontSize: 9, fontWeight: 700, padding: "2px 6px", borderRadius: 4, background: "#F97316", color: "white", letterSpacing: 0.3 }}>NEW</span>
+                    </div>
+                    <div style={{ fontSize: 12, color: "#6B7280", marginBottom: 4 }}>Fun, friendly dance classes in West Ealing</div>
+                    <div style={{ fontSize: 13, color: "#4B5563", marginBottom: 3 }}>{lgd.type} · {lgd.ages} · {lgd.day}</div>
+                    <div style={{ fontSize: 13, color: "#4B5563", display: "flex", alignItems: "center", gap: 4, flexWrap: "wrap", marginBottom: 4 }}>
+                      {lgd.venue.split(",")[0]}, {lgd.location}
+                      {lWalk !== null && lWalk < 60 && <span style={{ color: "#F97316", fontWeight: 600 }}>· {lWalk < 2 ? "Nearby" : lWalk + " min walk"}</span>}
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginBottom: 4 }}>
+                      {lgd.freeTrial && <span style={{ fontSize: 11, fontWeight: 600, color: "#15803D", padding: "2px 8px", background: "#ECFDF5", borderRadius: 6 }}>Free trial available</span>}
+                      
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, padding: "5px 10px", borderRadius: 8, background: "#FDF6EE", color: "#92400E" }}>{lgd.price}</span>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: "#6050F0" }}>View details →</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              )}
+            </>);
+          })()}
+
+          {/* 2. From your saved */}
+          {savedList.length > 0 && (
+            <div style={{ marginTop: 36, padding: "0 20px" }}>
+              <div style={{ height: 1, background: "linear-gradient(to right, #F3F4F6, transparent)", marginBottom: 20 }} />
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: "0.7px", marginBottom: 6 }}>❤️ From your saved</div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: "#111827", letterSpacing: "-0.3px", marginBottom: 3 }}>Ready when you are</div>
+              <div style={{ fontSize: 12, color: "#B0B0B0", marginBottom: 14 }}>Activities you've saved for later</div>
+              {savedList.map(item => (
+                <ListingCard key={"fromsaved-" + item.id} item={item} onSelect={openDetail} userLoc={userLoc} isFav={true} onToggleFav={toggleFavourite} isNew={isNewActivity(item)} reviews={reviews} areaFilter={areaFilter} isSunny={isSunny} onTrackClick={trackClick} clickCount={clickCounts[item.id] || 0} />
+              ))}
+            </div>
+          )}
+
+          {/* 3. This weekend */}
+          {popularList.length > 0 && (
+            <div style={{ marginTop: 36, padding: "0 20px" }}>
+              <div style={{ height: 1, background: "linear-gradient(to right, #F3F4F6, transparent)", marginBottom: 20 }} />
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: "0.7px", marginBottom: 6 }}>📅 Coming up</div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: "#111827", letterSpacing: "-0.3px", marginBottom: 3 }}>This weekend in {area}</div>
+              <div style={{ fontSize: 12, color: "#B0B0B0", marginBottom: 14 }}>Best things to do with your kids this weekend</div>
+              {popularList.map(item => (
+                <ListingCard key={"pop-" + item.id} item={item} onSelect={openDetail} userLoc={userLoc} isFav={favourites.includes(item.id)} onToggleFav={toggleFavourite} isNew={isNewActivity(item)} reviews={reviews} areaFilter={areaFilter} isSunny={isSunny} onTrackClick={trackClick} clickCount={clickCounts[item.id] || 0} />
+              ))}
+            </div>
+          )}
+
+          {/* 4. Loved by Ealing parents */}
+          {lovedList.length > 0 && (
+            <div style={{ marginTop: 36, padding: "0 20px" }}>
+              <div style={{ height: 1, background: "linear-gradient(to right, #F3F4F6, transparent)", marginBottom: 20 }} />
+              <div style={{ fontSize: 11, fontWeight: 700, color: "#9CA3AF", textTransform: "uppercase", letterSpacing: "0.7px", marginBottom: 6 }}>⭐ Parent picks</div>
+              <div style={{ fontSize: 20, fontWeight: 800, color: "#111827", letterSpacing: "-0.3px", marginBottom: 3 }}>Loved by {area} parents</div>
+              <div style={{ fontSize: 12, color: "#B0B0B0", marginBottom: 14 }}>Saved and recommended by families like yours</div>
+              {lovedList.map(item => (
+                <ListingCard key={"loved-" + item.id} item={item} onSelect={openDetail} userLoc={userLoc} isFav={favourites.includes(item.id)} onToggleFav={toggleFavourite} isNew={isNewActivity(item)} reviews={reviews} areaFilter={areaFilter} isSunny={isSunny} onTrackClick={trackClick} clickCount={clickCounts[item.id] || 0} />
+              ))}
+            </div>
+          )}
+        </>);
+      })()}
+
+      {/* === MAIN LISTING GRID === */}
+      {(() => {
+        const mainFiltered = (page === 1 && !search && !showFavourites && dayFilter === "today") ? filtered.filter(a => !shownIdsRef.current.has(a.id)) : filtered;
+        const pageSize = 6;
+        const pagedList = mainFiltered.slice((page - 1) * pageSize, page * pageSize);
+        const displayList = (page === 1 && !search && !showFavourites && dayFilter === "today") ? pagedList.slice(0, 3) : pagedList;
+        return (
+      <div id="all-activities" style={{ padding: "0 20px 20px" }}>
+        {filtered.length === 0 ? (
+          <div style={{ textAlign: "center", padding: "40px 20px", color: "#4B5563" }}>
+            <div style={{ fontSize: 16, fontWeight: 600, color: "#6B7280", marginBottom: 10 }}>{weatherMode === "rainy" ? "No indoor results found" : weatherMode === "sunny" ? "No outdoor results found" : "No results found"}</div>
+            <div style={{ fontSize: 15, fontWeight: 700, color: "#1F2937", marginBottom: 4 }}>{areaFilter !== "All Areas" ? `Nothing found in ${areaFilter}` : dayFilter === "today" ? `Nothing found for ${todayName}` : "No activities match your filters"}</div>
+            <div style={{ fontSize: 12, color: "#6B7280", marginBottom: 16, lineHeight: 1.5 }}>{areaFilter !== "All Areas" ? "Try a different area or broaden your filters" : "Try fewer filters or search for something else"}</div>
+            <div onClick={() => { setCityFilter("All"); setAreaFilter("All Areas"); setDayFilter("today"); setWeatherMode("all"); setNapFilter("all"); setFreeOnly(false); setAgeFilter("all"); setTypeFilter("All Types"); setSearch(""); setSortBy("mixed"); setPage(1); setShowFavourites(false); }} style={{ display: "inline-block", padding: "10px 24px", background: "linear-gradient(135deg, #F97316, #FB923C)", color: "white", borderRadius: 12, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>Reset all filters</div>
+          </div>
+        ) : (
+          <>
+          {page === 1 && <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "16px 0 12px" }}>
+            <div style={{ flex: 1, height: 1, background: "#E5E7EB" }} />
+            <span style={{ fontSize: 11, color: "#C0C0C0", fontWeight: 400 }}>Trusted by {areaFilter !== "All Areas" ? areaFilter : "Ealing"} parents</span>
+            <div style={{ flex: 1, height: 1, background: "#E5E7EB" }} />
+          </div>}
+          {displayList.map((item, idx) => {
+            const isNew = item.createdAt ? (Date.now() - new Date(item.createdAt).getTime()) < 14 * 24 * 60 * 60 * 1000 : false;
+            return <React.Fragment key={item.id}>
+              <ListingCard item={item} onSelect={openDetail} userLoc={userLoc} isFav={favourites.includes(item.id)} onToggleFav={toggleFavourite} isNew={isNew} reviews={reviews} areaFilter={areaFilter} isSunny={isSunny} onTrackClick={trackClick} clickCount={clickCounts[item.id] || 0} />
+              {false && (
+                <div onClick={openSuggest} style={{ margin: "6px 0 8px", padding: "12px 16px", background: "linear-gradient(135deg, #F9FAFB, #FDDDE6)", borderRadius: 14, display: "flex", alignItems: "center", gap: 10, cursor: "pointer", border: "1.5px dashed #F97316" }}>
+                  <span style={{ fontSize: 22 }}>✨</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 14, fontWeight: 800, color: "#1F2937" }}>Know a great activity we missed?</div>
+                    <div style={{ fontSize: 11, color: "#6B7280" }}>Help other parents discover it.</div>
+                  </div>
+                  <span style={{ fontSize: 12, fontWeight: 800, color: "white", padding: "6px 14px", background: "linear-gradient(135deg, #F97316, #FB923C)", borderRadius: 10 }}>Add</span>
+                </div>
+              )}
+            </React.Fragment>;
+          })}
+          {page === 1 && !showSuggest && (
+            <div onClick={openSuggest} style={{ margin: "6px 0 8px", padding: "12px 16px", background: "linear-gradient(135deg, #F9FAFB, #FDDDE6)", borderRadius: 14, display: "flex", alignItems: "center", gap: 10, cursor: "pointer", border: "1.5px dashed #F97316" }}>
+              <span style={{ fontSize: 22 }}>✨</span>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 14, fontWeight: 800, color: "#1F2937" }}>Know a great activity we missed?</div>
+                <div style={{ fontSize: 11, color: "#6B7280" }}>Help other parents discover it.</div>
+              </div>
+              <span style={{ fontSize: 12, fontWeight: 800, color: "white", padding: "6px 14px", background: "linear-gradient(135deg, #F97316, #FB923C)", borderRadius: 10 }}>Add</span>
+            </div>
+          )}
+          </>
+        )}
+      </div>
+        );
+      })()}
+
+      {/* Suggested Activities — horizontal scroll, clickable to listing */}
+      {(() => {
+        // Show suggested activities from Supabase suggestions table, plus recent Ealing listings as "parent picks"
+        const parentPicks = listings.filter(l => l.location === "Ealing" && l.verified).slice(-8).reverse();
+        const suggestedChips = suggestedActivities.length > 0 ? suggestedActivities : [];
+        const norm = (s) => (s || "").toLowerCase().replace(/[^a-z0-9 ]/g, "").replace(/\s+/g, " ").trim();
+        const allChips = [...suggestedChips.map(s => ({ id: "s-" + s.id, name: s.name, type: s.type, match: listings.find(l => norm(l.name) === norm(s.name)) || listings.find(l => norm(l.name).includes(norm(s.name)) || norm(s.name).includes(norm(l.name))) })), ...parentPicks.filter(p => !suggestedChips.some(s => norm(s.name) === norm(p.name))).map(p => ({ id: "p-" + p.id, name: p.name, type: p.type, match: p }))];
+        if (allChips.length === 0) return null;
+        return (
+        <div style={{ padding: "0 0 6px" }}>
+          <div style={{ fontSize: 10, fontWeight: 600, marginBottom: 4, color: "#9CA3AF", paddingLeft: 20 }}>✨ Suggested & added by parents</div>
+          <div style={{ display: "flex", gap: 6, overflowX: "auto", paddingLeft: 20, paddingRight: 20 }}>
+            {allChips.slice(0, 10).map(c => (
+              <div key={c.id} onClick={() => { if (c.match) openDetail(c.match); }} style={{ flexShrink: 0, padding: "5px 10px", background: "white", borderRadius: 8, border: "1px dashed #E5E7EB", cursor: c.match ? "pointer" : "default", maxWidth: 140 }}>
+                <div style={{ fontSize: 9, fontWeight: 700, color: c.match ? "#F97316" : "#1F2937", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{c.name}</div>
+                <div style={{ fontSize: 8, color: "#9CA3AF" }}>{c.type}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+        );
+      })()}
+
+      {/* Pagination controls */}
+      {(() => {
+        const totalPages = Math.ceil(filtered.length / 6);
+        if (totalPages <= 1) return null;
+        return (
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, padding: "0 20px 16px" }}>
+            <button onClick={() => { setPage(p => Math.max(1, p - 1)); window.scrollTo({ top: 0, behavior: "smooth" }); }} disabled={page === 1} style={{ padding: "8px 14px", borderRadius: 10, border: "1px solid #E5E7EB", background: page === 1 ? "#F3F4F6" : "white", color: page === 1 ? "#9CA3AF" : "#1F2937", fontSize: 12, fontWeight: 600, cursor: page === 1 ? "default" : "pointer", fontFamily: "inherit" }}>← Prev</button>
+            <div style={{ display: "flex", gap: 4 }}>
+              {Array.from({ length: totalPages }, (_, i) => i + 1).filter(p => p === 1 || p === totalPages || Math.abs(p - page) <= 1).map((p, idx, arr) => (
+                <React.Fragment key={p}>
+                  {idx > 0 && arr[idx - 1] < p - 1 && <span style={{ color: "#9CA3AF", fontSize: 12, padding: "0 2px" }}>...</span>}
+                  <button onClick={() => { setPage(p); window.scrollTo({ top: 0, behavior: "smooth" }); }} style={{ width: 32, height: 32, borderRadius: 8, border: page === p ? "none" : "1px solid #E5E7EB", background: page === p ? "linear-gradient(135deg, #F97316, #FB923C)" : "white", color: page === p ? "white" : "#6B7394", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>{p}</button>
+                </React.Fragment>
+              ))}
+            </div>
+            <button onClick={() => { setPage(p => Math.min(totalPages, p + 1)); window.scrollTo({ top: 0, behavior: "smooth" }); }} disabled={page === totalPages} style={{ padding: "8px 14px", borderRadius: 10, border: "1px solid #E5E7EB", background: page === totalPages ? "#F3F4F6" : "white", color: page === totalPages ? "#9CA3AF" : "#1F2937", fontSize: 12, fontWeight: 600, cursor: page === totalPages ? "default" : "pointer", fontFamily: "inherit" }}>Next →</button>
+          </div>
+        );
+      })()}
+      </>}
+
+      <div style={{ textAlign: "center", padding: "20px 20px 8px", fontSize: 11, color: "#C4C4C4" }}>
+        community-powered kids activity discovery
+      </div>
+
+      <div style={{ textAlign: "center", padding: "32px 20px 28px" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 6, marginBottom: 6 }}>
+          <div style={{ width: 34, height: 34, borderRadius: 10, overflow: "hidden" }}><BrandBear size={34} /></div>
+          <span style={{ fontSize: 16, fontWeight: 800, color: "#1F2937" }}>LITTLE<span style={{ color: "#F97316" }}>locals</span></span>
+        </div>
+        <div style={{ fontSize: 10, color: "#9CA3AF", marginBottom: 8, lineHeight: 1.4 }}>Built by parents, for parents.</div>
+        <div style={{ display: "flex", justifyContent: "center", gap: 12, flexWrap: "wrap", marginBottom: 6 }}>
+          <span onClick={() => setLegalPage("privacy")} style={{ fontSize: 10, color: "#6B7280", cursor: "pointer", textDecoration: "underline" }}>Privacy Policy</span>
+          <span onClick={() => setLegalPage("cookies")} style={{ fontSize: 10, color: "#6B7280", cursor: "pointer", textDecoration: "underline" }}>Cookie Policy</span>
+          <span onClick={() => setLegalPage("terms")} style={{ fontSize: 10, color: "#6B7280", cursor: "pointer", textDecoration: "underline" }}>Terms of Service</span>
+          <a href="mailto:littlelocalsuk@gmail.com" style={{ fontSize: 10, color: "#6B7280", textDecoration: "underline" }}>Contact</a>
+        </div>
+        <div style={{ fontSize: 9, color: "#9CA3AF" }}>© 2026 LITTLElocals. All rights reserved.</div>
+        {showInstallBanner && <div style={{ height: 44 }} />}
+      </div>
+
+      </>}
+
+      {/* Floating "Top" button */}
+      {showScrollTop && (
+        <div onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} style={{ position: "fixed", bottom: showInstallBanner ? 60 : 20, right: 16, padding: "8px 12px", background: "white", borderRadius: 12, border: "1px solid #E5E7EB", boxShadow: "0 4px 12px rgba(0,0,0,0.08)", cursor: "pointer", fontSize: 12, fontWeight: 700, color: "#1F2937", zIndex: 998, transition: "bottom 0.2s" }}>↑ Top</div>
+      )}
+
+      {/* Add to Home Screen Banner */}
+      {showInstallBanner && (
+        <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: "white", zIndex: 999, borderTop: "1px solid #E5E7EB" }}>
+          {/iPhone|iPad|iPod/.test(navigator.userAgent) ? (
+            <div style={{ padding: "12px 16px" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <img src="/bear-logo.png" alt="LITTLElocals" style={{ width: 28, height: 28, borderRadius: 6 }} />
+                  <span style={{ fontSize: 12, fontWeight: 800, color: "#1F2937" }}>Save as an app!</span>
+                </div>
+                <div onClick={() => { setShowInstallBanner(false); try { localStorage.setItem("ll_install_dismissed", "1"); } catch(e) {} }} style={{ fontSize: 11, color: "#6B7280", cursor: "pointer", padding: "4px 8px" }}>✕</div>
+              </div>
+              <div style={{ fontSize: 11, color: "#4B5563", lineHeight: 1.5 }}>
+                {/CriOS|FxiOS/.test(navigator.userAgent) ? (
+                  <span>Open this page in <span style={{ fontWeight: 700 }}>Safari</span>, then tap <span style={{ display: "inline-block", padding: "1px 6px", background: "#E5E7EB", borderRadius: 4, fontWeight: 700 }}>⬆ Share</span> → <span style={{ display: "inline-block", padding: "1px 6px", background: "#E5E7EB", borderRadius: 4, fontWeight: 700 }}>Add to Home Screen</span></span>
+                ) : (
+                  <span>Tap <span style={{ display: "inline-block", padding: "1px 6px", background: "#E5E7EB", borderRadius: 4, fontWeight: 700 }}>⬆ Share</span> in the Safari toolbar below, then scroll down and tap <span style={{ display: "inline-block", padding: "1px 6px", background: "#E5E7EB", borderRadius: 4, fontWeight: 700 }}>Add to Home Screen</span></span>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div style={{ padding: "10px 16px", display: "flex", alignItems: "center", gap: 10 }}>
+              <img src="/bear-logo.png" alt="LITTLElocals" style={{ width: 28, height: 28, borderRadius: 6 }} />
+              <div onClick={async () => { if (installPrompt) { installPrompt.prompt(); const result = await installPrompt.userChoice; if (result.outcome === "accepted") { setShowInstallBanner(false); try { localStorage.setItem("ll_install_dismissed", "1"); } catch(e) {} } setInstallPrompt(null); } }} style={{ flex: 1, fontSize: 11, color: "#1F2937", cursor: "pointer" }}>
+                <span style={{ fontWeight: 700 }}>{installPrompt ? "Tap to install app" : "Add to home screen"}</span> for quick access
+              </div>
+              <div onClick={() => { setShowInstallBanner(false); try { localStorage.setItem("ll_install_dismissed", "1"); } catch(e) {} }} style={{ fontSize: 11, color: "#6B7280", cursor: "pointer", padding: "4px 8px" }}>✕</div>
+            </div>
+          )}
+        </div>
+      )}
+      {/* Cookie Consent Banner */}
+      {cookieConsent === null && (
+        <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, background: "white", borderTop: "1px solid #E5E5E5", padding: "12px 20px", zIndex: 9999, maxWidth: 480, margin: "0 auto" }}>
+          <div style={{ fontSize: 12, color: "#4B5563", lineHeight: 1.5, marginBottom: 10 }}>
+            We use simple analytics to understand how LITTLElocals is used and improve it for parents. No ads. No tracking across other sites.
+          </div>
+          <div style={{ display: "flex", gap: 8 }}>
+            <div onClick={acceptCookies} style={{ flex: 1, padding: "8px 0", textAlign: "center", background: "#6050F0", color: "white", borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Accept</div>
+            <div onClick={declineCookies} style={{ flex: 1, padding: "8px 0", textAlign: "center", background: "#F3F4F6", color: "#4B5563", borderRadius: 10, fontSize: 12, fontWeight: 700, cursor: "pointer" }}>Decline</div>
+          </div>
+        </div>
+      )}
+
+      {/* Legal Pages Overlay */}
+      {legalPage && (
+        <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, background: "#F9FAFB", zIndex: 10000, overflowY: "auto", maxWidth: 480, margin: "0 auto" }}>
+          <div style={{ padding: "16px 20px", position: "sticky", top: 0, background: "#F9FAFB", borderBottom: "1px solid #E5E7EB", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div style={{ fontSize: 16, fontWeight: 800, color: "#1F2937" }}>
+              {legalPage === "privacy" && "Privacy Policy"}
+              {legalPage === "cookies" && "Cookie Policy"}
+              {legalPage === "terms" && "Terms of Service"}
+            </div>
+            <div onClick={() => setLegalPage(null)} style={{ padding: "6px 12px", background: "white", borderRadius: 10, border: "1px solid #E5E7EB", cursor: "pointer", fontSize: 12, fontWeight: 600, color: "#1F2937" }}>← Back</div>
+          </div>
+          <div style={{ padding: "20px", fontSize: 13, color: "#4B5563", lineHeight: 1.7 }}>
+            {legalPage === "privacy" && (<>
+              <p style={{ fontWeight: 700, color: "#1F2937", fontSize: 18, marginBottom: 16 }}>Privacy Policy for LITTLElocals</p>
+              <p style={{ color: "#6B7280", marginBottom: 16 }}>Last updated: 28 February 2026</p>
+              <p style={{ marginBottom: 12 }}>LITTLElocals is a community-powered directory of kids' activities. We take your privacy seriously and are committed to protecting your personal data.</p>
+              <p style={{ fontWeight: 700, color: "#1F2937", marginBottom: 6, marginTop: 16 }}>What we collect</p>
+              <p style={{ marginBottom: 12 }}>When you suggest an activity, you may optionally provide your name and email address. This information is stored securely and used only to follow up on your suggestion if needed.</p>
+              <p style={{ fontWeight: 700, color: "#1F2937", marginBottom: 6, marginTop: 16 }}>Local storage</p>
+              <p style={{ marginBottom: 12 }}>We use your browser's local storage to save your preferences such as favourites, calendar plans, and cookie consent. This data stays on your device and is not sent to our servers.</p>
+              <p style={{ fontWeight: 700, color: "#1F2937", marginBottom: 6, marginTop: 16 }}>Cookies & Analytics</p>
+              <p style={{ marginBottom: 12 }}>We use privacy-friendly analytics to understand how LITTLElocals is used and improve the service. This data is anonymous and not used for advertising. Analytics cookies are only loaded if you accept them via our cookie consent banner.</p>
+              <p style={{ fontWeight: 700, color: "#1F2937", marginBottom: 6, marginTop: 16 }}>Your rights</p>
+              <p style={{ marginBottom: 12 }}>Under UK GDPR, you have the right to access, correct, or delete your personal data. You can also withdraw consent for analytics cookies at any time by clearing your browser's local storage.</p>
+              <p style={{ fontWeight: 700, color: "#1F2937", marginBottom: 6, marginTop: 16 }}>Data sharing</p>
+              <p style={{ marginBottom: 12 }}>We do not sell, trade, or share your personal data with third parties. We do not use your data for advertising purposes.</p>
+              <p style={{ fontWeight: 700, color: "#1F2937", marginBottom: 6, marginTop: 16 }}>Contact</p>
+              <p>If you have any questions about this privacy policy, please contact us at <a href="mailto:littlelocalsuk@gmail.com" style={{ color: "#6050F0" }}>littlelocalsuk@gmail.com</a></p>
+            </>)}
+
+            {legalPage === "cookies" && (<>
+              <p style={{ fontWeight: 700, color: "#1F2937", fontSize: 18, marginBottom: 16 }}>Cookie Policy for LITTLElocals</p>
+              <p style={{ color: "#6B7280", marginBottom: 16 }}>Last updated: 28 February 2026</p>
+              <p style={{ marginBottom: 12 }}>LITTLElocals uses analytics cookies to understand how the site is used and improve the experience for parents.</p>
+              <p style={{ marginBottom: 12 }}>These cookies collect anonymous information such as pages visited and interactions.</p>
+              <p style={{ marginBottom: 12 }}>We do not use cookies for advertising.</p>
+              <p style={{ marginBottom: 12 }}>We do not sell your data.</p>
+              <p style={{ marginBottom: 12 }}>You can accept or decline analytics cookies when you first visit the site. Your choice is saved in your browser and you can change it at any time by clearing your browser data.</p>
+              <p style={{ fontWeight: 700, color: "#1F2937", marginBottom: 6, marginTop: 16 }}>Types of cookies we use</p>
+              <p style={{ marginBottom: 12 }}><span style={{ fontWeight: 600 }}>Analytics cookies (optional):</span> Google Analytics — helps us understand how parents use LITTLElocals so we can improve it. Only loaded if you accept.</p>
+              <p style={{ marginBottom: 12 }}><span style={{ fontWeight: 600 }}>Essential storage:</span> We use localStorage (not cookies) to save your preferences like favourites and calendar plans. These are essential for the app to work and stay on your device.</p>
+              <p style={{ fontWeight: 700, color: "#1F2937", marginBottom: 6, marginTop: 16 }}>Contact</p>
+              <p>If you have questions, contact us at <a href="mailto:littlelocalsuk@gmail.com" style={{ color: "#6050F0" }}>littlelocalsuk@gmail.com</a></p>
+            </>)}
+
+            {legalPage === "terms" && (<>
+              <p style={{ fontWeight: 700, color: "#1F2937", fontSize: 18, marginBottom: 16 }}>Terms of Service for LITTLElocals</p>
+              <p style={{ color: "#6B7280", marginBottom: 16 }}>Last updated: 28 February 2026</p>
+              <p style={{ marginBottom: 12 }}>Welcome to LITTLElocals. By using our website you agree to the following terms.</p>
+              <p style={{ fontWeight: 700, color: "#1F2937", marginBottom: 6, marginTop: 16 }}>About the service</p>
+              <p style={{ marginBottom: 12 }}>LITTLElocals is a free community directory of kids' activities in the Ealing area and surrounding boroughs. We aim to provide accurate and up-to-date information but cannot guarantee the accuracy of all listings.</p>
+              <p style={{ fontWeight: 700, color: "#1F2937", marginBottom: 6, marginTop: 16 }}>User contributions</p>
+              <p style={{ marginBottom: 12 }}>When you suggest an activity or leave a review, you grant LITTLElocals permission to display that content on the site. You agree that your contributions are accurate and not misleading.</p>
+              <p style={{ fontWeight: 700, color: "#1F2937", marginBottom: 6, marginTop: 16 }}>Disclaimer</p>
+              <p style={{ marginBottom: 12 }}>LITTLElocals is provided "as is". We are not responsible for the quality, safety, or availability of activities listed on the platform. Always check directly with activity providers for the most current information.</p>
+              <p style={{ fontWeight: 700, color: "#1F2937", marginBottom: 6, marginTop: 16 }}>Intellectual property</p>
+              <p style={{ marginBottom: 12 }}>All content, design, and branding on LITTLElocals is owned by LITTLElocals and may not be reproduced without permission.</p>
+              <p style={{ fontWeight: 700, color: "#1F2937", marginBottom: 6, marginTop: 16 }}>Contact</p>
+              <p>If you have any questions about these terms, please contact us at <a href="mailto:littlelocalsuk@gmail.com" style={{ color: "#6050F0" }}>littlelocalsuk@gmail.com</a></p>
+            </>)}
+          </div>
+        </div>
+      )}
     </div>
-    <input ref={stickyReceiptRef} type="file" accept="image/*" capture="environment" onChange={async e => { const f = e.target.files?.[0]; if (!f) return; flash("📷 Scanning..."); try { const raw = await fileToB64(f); const c = await compress(raw); const d = await aiReceipt(c); if (d) { onAddExp({ id: mkId("E"), jobId: "", merchant: d.merchant || "Unknown", date: d.date || td(), amount: Number(d.amount || 0), vat: Number(d.vat || 0), desc: d.desc || "", photo: c }); } else { onAddExp({ id: mkId("E"), jobId: "", merchant: "Unknown", date: td(), amount: 0, vat: 0, desc: "Scan failed — edit manually", photo: c }); } } catch { flash("Scan failed"); } if (stickyReceiptRef.current) stickyReceiptRef.current.value = ""; }} style={{ display: "none" }} />
-  </div>;
+  );
 }
 
 
-// Mount the app
-const root = ReactDOM.createRoot(document.getElementById("root"));
-root.render(React.createElement(App));
+export default WestLondonListings;
