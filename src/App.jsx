@@ -66,6 +66,107 @@ async function aiReceipt(b64raw) {
 }
 function generateInvoiceText(job, biz, inv, showVat) { const vatAmt = showVat ? Math.round(job.total * 0.2 * 100) / 100 : 0; const gross = job.total + vatAmt; let t = `INVOICE ${inv.number}\nDate: ${inv.created}\nDue: ${inv.dueDate}\n\nFrom:\n${biz.name}\n${biz.address}\n${biz.phone}\n${biz.email}\n`; if (showVat && biz.vatNumber) t += `VAT: ${biz.vatNumber}\n`; t += `\nTo:\n${job.customer}\n${job.address}\n\nJob: ${job.summary}\n\nBreakdown:\n`; job.lineItems.forEach(i => { t += `  ${i.desc}: ${GBP(i.cost)}\n`; }); t += `\nSubtotal: ${GBP(job.total)}\n`; if (showVat) t += `VAT (20%): ${GBP(vatAmt)}\n`; t += `TOTAL: ${GBP(gross)}\n`; if (biz.bankDetails) t += `\nBank Details:\n${biz.bankDetails}\n`; t += `\nRef: ${inv.number}`; return t; }
 
+
+async function generateJobReportPDF(job, expenses, biz) {
+  if (!window.jspdf) { await new Promise((res, rej) => { const sc = document.createElement("script"); sc.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"; sc.onload = res; sc.onerror = rej; document.head.appendChild(sc); }); }
+  const { jsPDF } = window.jspdf; const doc = new jsPDF();
+  const w = doc.internal.pageSize.getWidth(); let y = 20;
+  const jExp = expenses.filter(e => e.jobId === job.id);
+  const totMat = jExp.reduce((s, e) => s + e.amount, 0);
+  const profit = job.total - totMat;
+  const margin = job.total > 0 ? Math.round((profit / job.total) * 100) : 0;
+
+  // Header
+  if (biz.logoUrl) { try { doc.addImage(biz.logoUrl, "JPEG", 14, y, 30, 30); } catch {} }
+  doc.setFontSize(22); doc.setFont("helvetica", "bold"); doc.setTextColor(30, 58, 138);
+  doc.text("JOB REPORT", w - 14, y + 8, { align: "right" });
+  doc.setFontSize(10); doc.setFont("helvetica", "normal"); doc.setTextColor(100);
+  doc.text(job.id, w - 14, y + 16, { align: "right" });
+  doc.text("Date: " + job.date, w - 14, y + 22, { align: "right" });
+
+  // Business info
+  y = 55; doc.setFontSize(9); doc.setTextColor(150); doc.text("FROM", 14, y);
+  doc.setFontSize(11); doc.setFont("helvetica", "bold"); doc.setTextColor(30); doc.text(biz.name, 14, y + 6);
+  doc.setFontSize(9); doc.setFont("helvetica", "normal"); doc.setTextColor(80);
+  doc.text(biz.phone + "  •  " + biz.email, 14, y + 12);
+
+  // Customer
+  const toX = w / 2 + 10; doc.setFontSize(9); doc.setTextColor(150); doc.text("JOB FOR", toX, y);
+  doc.setFontSize(11); doc.setFont("helvetica", "bold"); doc.setTextColor(30); doc.text(job.customer, toX, y + 6);
+  doc.setFontSize(9); doc.setFont("helvetica", "normal"); doc.setTextColor(80);
+  if (job.address) doc.text(job.address, toX, y + 12);
+  if (job.phone) doc.text(job.phone, toX, y + 18);
+
+  // Divider
+  y = 85; doc.setDrawColor(220); doc.setLineWidth(0.5); doc.line(14, y, w - 14, y);
+
+  // Summary
+  y += 8; doc.setFontSize(9); doc.setTextColor(150); doc.text("JOB DESCRIPTION", 14, y);
+  y += 5; doc.setFontSize(10); doc.setTextColor(60);
+  const sl = doc.splitTextToSize(job.summary, w - 28); doc.text(sl, 14, y); y += sl.length * 5 + 8;
+
+  // Profit summary box
+  doc.setFillColor(30, 58, 138); doc.rect(14, y, w - 28, 10, "F");
+  doc.setFontSize(9); doc.setFont("helvetica", "bold"); doc.setTextColor(255);
+  doc.text("FINANCIAL SUMMARY", 18, y + 7);
+  y += 14;
+  const cols = [["Quote Value", GBP(job.total)], ["Materials Cost", GBP(totMat)], ["Gross Profit", GBP(profit)], ["Margin", margin + "%"]];
+  const colW = (w - 28) / 4;
+  cols.forEach(([label, val], i) => {
+    const x = 14 + i * colW;
+    doc.setFillColor(i % 2 === 0 ? 248 : 240, 249, 250);
+    doc.rect(x, y - 2, colW, 16, "F");
+    doc.setFontSize(8); doc.setFont("helvetica", "normal"); doc.setTextColor(120); doc.text(label, x + 3, y + 4);
+    doc.setFontSize(12); doc.setFont("helvetica", "bold");
+    doc.setTextColor(label === "Gross Profit" ? (profit >= 0 ? 22 : 220) : 30, label === "Gross Profit" ? (profit >= 0 ? 163 : 38) : 58, label === "Gross Profit" ? (profit >= 0 ? 74 : 46) : 138);
+    doc.text(val, x + 3, y + 12);
+  });
+  y += 22;
+
+  // Line items
+  doc.setFillColor(30, 58, 138); doc.rect(14, y, w - 28, 8, "F");
+  doc.setFontSize(9); doc.setFont("helvetica", "bold"); doc.setTextColor(255);
+  doc.text("Quote Breakdown", 18, y + 5.5); doc.text("Amount", w - 18, y + 5.5, { align: "right" });
+  y += 12; doc.setFont("helvetica", "normal"); doc.setTextColor(60);
+  job.lineItems.forEach((it, i) => {
+    if (i % 2 === 0) { doc.setFillColor(248, 249, 250); doc.rect(14, y - 3.5, w - 28, 7, "F"); }
+    doc.setFontSize(10); doc.text(it.desc, 18, y); doc.text(GBP(it.cost), w - 18, y, { align: "right" }); y += 8;
+  });
+
+  // Materials
+  if (jExp.length > 0) {
+    y += 6; doc.setFillColor(220, 38, 38); doc.rect(14, y, w - 28, 8, "F");
+    doc.setFontSize(9); doc.setFont("helvetica", "bold"); doc.setTextColor(255);
+    doc.text("Materials / Expenses", 18, y + 5.5); doc.text("Cost", w - 18, y + 5.5, { align: "right" });
+    y += 12; doc.setFont("helvetica", "normal"); doc.setTextColor(60);
+    jExp.forEach((e, i) => {
+      if (i % 2 === 0) { doc.setFillColor(254, 242, 242); doc.rect(14, y - 3.5, w - 28, 7, "F"); }
+      doc.setFontSize(10); doc.text((e.merchant || "Unknown") + " — " + (e.desc || ""), 18, y);
+      doc.text(GBP(e.amount), w - 18, y, { align: "right" }); y += 8;
+    });
+  }
+
+  // Notes
+  const notes = job.jobNotes || [];
+  if (notes.length > 0) {
+    y += 6; doc.setFillColor(100, 100, 100); doc.rect(14, y, w - 28, 8, "F");
+    doc.setFontSize(9); doc.setFont("helvetica", "bold"); doc.setTextColor(255); doc.text("Job Notes", 18, y + 5.5);
+    y += 12; doc.setFont("helvetica", "normal"); doc.setTextColor(60);
+    notes.forEach(n => {
+      doc.setFontSize(10); doc.setFont("helvetica", "bold"); doc.text(n.subject || "Note", 14, y); y += 5;
+      doc.setFont("helvetica", "normal"); doc.setFontSize(9);
+      const nl = doc.splitTextToSize(n.body, w - 28); doc.text(nl, 14, y); y += nl.length * 4 + 5;
+    });
+  }
+
+  // Footer
+  const fy = doc.internal.pageSize.getHeight() - 15;
+  doc.setFontSize(8); doc.setTextColor(170); doc.setFont("helvetica", "normal");
+  doc.text(biz.name + "  •  Generated by JobProfit  •  " + job.id, w / 2, fy, { align: "center" });
+
+  return doc;
+}
+
 async function generateInvoicePDF(job, biz, inv, showVat) {
   if (!window.jspdf) { await new Promise((res, rej) => { const s = document.createElement("script"); s.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"; s.onload = res; s.onerror = rej; document.head.appendChild(s); }); }
   const { jsPDF } = window.jspdf; const doc = new jsPDF();
@@ -699,7 +800,13 @@ function JobDetail({ job, expenses, invoices, onBack, onUpdate, onDelExp, onAddE
       </div>
     </div>}
     {/* Quick actions */}
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 16 }}><button onClick={() => setAddingExp(true)} style={{ ...sec, width: "100%", fontSize: 12, padding: "10px 6px" }}>🧾 Material</button><button onClick={() => photoRef.current?.click()} style={{ ...sec, width: "100%", fontSize: 12, padding: "10px 6px" }}>📷 Photo</button><button onClick={() => { setEd(true); setD({ ...job }); }} style={{ ...sec, width: "100%", fontSize: 12, padding: "10px 6px" }}>✏️ Edit</button><input ref={photoRef} type="file" accept="image/*" capture="environment" multiple onChange={handleJobPhoto} style={{ display: "none" }} /></div>
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8, marginBottom: 16 }}>
+      <button onClick={() => setAddingExp(true)} style={{ ...sec, width: "100%", fontSize: 12, padding: "10px 6px" }}>🧾 Material</button>
+      <button onClick={() => photoRef.current?.click()} style={{ ...sec, width: "100%", fontSize: 12, padding: "10px 6px" }}>📷 Photo</button>
+      <button onClick={() => { setEd(true); setD({ ...job }); }} style={{ ...sec, width: "100%", fontSize: 12, padding: "10px 6px" }}>✏️ Edit</button>
+      <button onClick={async () => { flash("📄 Generating..."); try { const doc = await generateJobReportPDF(job, expenses, biz); doc.save("job-report-" + job.id + ".pdf"); flash("📄 Report downloaded"); } catch { flash("PDF failed"); } }} style={{ ...S.btn, background: T.purple, color: "#fff", width: "100%", fontSize: 12, padding: "10px 6px", border: "none" }}>📄 Report</button>
+      <input ref={photoRef} type="file" accept="image/*" capture="environment" multiple onChange={handleJobPhoto} style={{ display: "none" }} />
+    </div>
     {/* Quote breakdown */}
     <div style={{ background: T.surface, borderRadius: T.r, padding: 20, border: `1px solid ${T.border}`, boxShadow: T.cardShadow, marginBottom: 16 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 14 }}><span style={S.lbl}>Quote Breakdown</span><span style={{ fontSize: 12, color: T.textMuted }}>{q.id} · {q.date}</span></div>
