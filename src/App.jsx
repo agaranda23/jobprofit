@@ -260,7 +260,7 @@ function PhotoModal({ src, onClose }) { if (!src) return null; return <div onCli
 function ProfitBar({ quote, materials, profit, margin }) {
   const matPct = quote > 0 ? Math.min((materials / quote) * 100, 100) : 0;
   return <div style={{ background: T.surface, borderRadius: T.r, padding: 18, border: `1px solid ${T.border}`, boxShadow: T.cardShadow }}>
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8, marginBottom: 14 }}>
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr", gap: 8, marginBottom: 14 }}>
       <div><div style={{ fontSize: 10, color: T.textMuted, fontWeight: 600, letterSpacing: .5, textTransform: "uppercase" }}>Quote</div><div style={{ fontSize: 20, fontWeight: 800, color: T.primary }}>{GBP(quote)}</div></div>
       <div><div style={{ fontSize: 10, color: T.textMuted, fontWeight: 600, letterSpacing: .5, textTransform: "uppercase" }}>Materials</div><div style={{ fontSize: 20, fontWeight: 800, color: T.danger }}>{GBP(materials)}</div></div>
       <div><div style={{ fontSize: 10, color: T.textMuted, fontWeight: 600, letterSpacing: .5, textTransform: "uppercase" }}>Profit</div><div style={{ fontSize: 20, fontWeight: 800, color: T.accent }}>{GBP(profit)}</div></div>
@@ -713,12 +713,100 @@ function ChasePaymentPanel({ job, biz, inv, showVat, onUpdate, flash }) {
 }
 
 /* ═══ JOB DETAIL — Full Pipeline ═════════════════════ */
+
+function StickToPlan({ job, expenses }) {
+  const jExp = expenses.filter(e => e.jobId === job.id);
+  const actualMaterials = jExp.reduce((s, e) => s + e.amount, 0);
+  const quotedProfit = job.total - (job.quotedMaterialsCost || 0) - (job.quotedLabourCost || 0);
+  const currentProfit = job.total - actualMaterials - (job.actualLabourCost || 0);
+  const hasQuotedCosts = job.quotedMaterialsCost || job.quotedLabourCost;
+
+  // If no plan costs set, show setup prompt
+  if (!hasQuotedCosts) return (
+    <div style={{ background: T.surfaceAlt, border: `1.5px dashed ${T.border}`, borderRadius: T.r, padding: "12px 16px", marginBottom: 16, display: "flex", alignItems: "center", gap: 10 }}>
+      <span style={{ fontSize: 18 }}>📋</span>
+      <div style={{ flex: 1 }}>
+        <div style={{ fontWeight: 700, fontSize: 13, color: T.textMed }}>Stick to plan</div>
+        <div style={{ fontSize: 12, color: T.textMuted, marginTop: 1 }}>Add planned costs to track profit drift</div>
+      </div>
+    </div>
+  );
+
+  const diff = currentProfit - quotedProfit;
+  const diffPct = quotedProfit !== 0 ? Math.abs(Math.round((diff / quotedProfit) * 100)) : 0;
+  const isDown = diff < 0;
+  const badge = diffPct <= 5 ? { label: "✅ On plan", color: T.accent, bg: T.accentLight }
+    : diffPct <= 20 ? { label: "⚠ Slight drift", color: T.warn, bg: T.warnLight }
+    : { label: "❌ Off plan", color: T.danger, bg: T.dangerLight };
+  const profitColor = diffPct > 20 ? T.danger : diffPct > 5 ? T.warn : T.accent;
+
+  return (
+    <div style={{ background: T.surface, borderRadius: T.r, padding: "16px 16px 14px", border: `1px solid ${T.border}`, boxShadow: T.cardShadow, marginBottom: 16 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+        <span style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: "uppercase", letterSpacing: 1 }}>Stick to plan</span>
+        <span style={{ fontSize: 12, fontWeight: 700, color: badge.color, background: badge.bg, padding: "3px 10px", borderRadius: 12 }}>{badge.label}</span>
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+          <span style={{ color: T.textMuted }}>Quoted profit</span>
+          <span style={{ fontWeight: 700 }}>{GBP(quotedProfit)}</span>
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+          <span style={{ color: T.textMuted }}>Current estimate</span>
+          <span style={{ fontWeight: 800, color: profitColor }}>{GBP(currentProfit)}</span>
+        </div>
+        {isDown && <div style={{ fontSize: 12, color: profitColor, fontWeight: 700, marginTop: 2 }}>
+          {diffPct > 20 ? "⚠ Profit drifting from original plan" : `Down ${GBP(Math.abs(diff))} vs plan`}
+        </div>}
+        {!isDown && diff !== 0 && <div style={{ fontSize: 12, color: T.accent, fontWeight: 700, marginTop: 2 }}>Up {GBP(diff)} vs plan 🎉</div>}
+      </div>
+    </div>
+  );
+}
+
+function PlannedCostsForm({ job, onUpdate, onClose }) {
+  const [qm, setQm] = React.useState(String(job.quotedMaterialsCost || ""));
+  const [ql, setQl] = React.useState(String(job.quotedLabourCost || ""));
+  const [al, setAl] = React.useState(String(job.actualLabourCost || ""));
+  const save = () => {
+    onUpdate({ ...job, quotedMaterialsCost: Number(qm) || 0, quotedLabourCost: Number(ql) || 0, actualLabourCost: Number(al) || 0 });
+    onClose();
+  };
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 1000 }} onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div style={{ background: T.surface, borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 500, padding: 24 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+          <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>📋 Plan vs Actual</h3>
+          <button onClick={onClose} style={{ width: 36, height: 36, borderRadius: "50%", border: "none", background: T.surfaceAlt, cursor: "pointer", fontSize: 16 }}>✕</button>
+        </div>
+        <div style={{ fontSize: 13, color: T.textMuted, marginBottom: 16 }}>Set your planned costs to track profit drift as the job progresses.</div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <div>
+            <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 4 }}>Quoted materials cost (£)</label>
+            <input type="number" placeholder="e.g. 400" value={qm} onChange={e => setQm(e.target.value)} style={S.inp} />
+          </div>
+          <div>
+            <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 4 }}>Quoted labour cost (£)</label>
+            <input type="number" placeholder="e.g. 800" value={ql} onChange={e => setQl(e.target.value)} style={S.inp} />
+          </div>
+          <div>
+            <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 4 }}>Actual labour cost so far (£)</label>
+            <input type="number" placeholder="e.g. 950" value={al} onChange={e => setAl(e.target.value)} style={S.inp} />
+          </div>
+          <button onClick={save} style={{ ...grn, width: "100%", marginTop: 4 }}>💾 Save Plan</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function JobDetail({ job, expenses, invoices, onBack, onUpdate, onDelExp, onAddExp, onAddInvoice, onUpdateInvoice, biz, showVat, onViewCustomer, flash }) {
   const [ed, setEd] = useState(false); const [d, setD] = useState({ ...job }); const [viewPhoto, setViewPhoto] = useState(null);
   const [addingExp, setAddingExp] = useState(false);
   const [noteSubject, setNoteSubject] = useState(""); const [noteBody, setNoteBody] = useState("");
   const [showSendModal, setShowSendModal] = useState(false); const photoRef = useRef(null);
   const [showSchModal, setShowSchModal] = useState(false);
+  const [showPlanModal, setShowPlanModal] = useState(false);
   const [schDate, setSchDate] = useState(job.scheduledDate || ""); const [schStart, setSchStart] = useState(job.scheduledStart || ""); const [schEnd, setSchEnd] = useState(job.scheduledEnd || "");
   const saveSchedule = () => { onUpdate({ ...job, scheduledDate: schDate || null, scheduledStart: schStart || null, scheduledEnd: schEnd || null }); setShowSchModal(false); flash("📅 Schedule updated"); };
   const clearSchedule = () => { onUpdate({ ...job, scheduledDate: null, scheduledStart: null, scheduledEnd: null }); setShowSchModal(false); flash("📅 Unscheduled"); };
@@ -745,6 +833,7 @@ function JobDetail({ job, expenses, invoices, onBack, onUpdate, onDelExp, onAddE
 
   return <div>
     <PhotoModal src={viewPhoto} onClose={() => setViewPhoto(null)} />
+    {showPlanModal && <PlannedCostsForm job={job} onUpdate={onUpdate} onClose={() => setShowPlanModal(false)} />}
     {showSendModal && inv && <SendInvoiceModal job={job} biz={biz} inv={inv} showVat={showVat} onClose={() => setShowSendModal(false)} flash={flash} />}
     <button onClick={onBack} style={{ ...S.ghost, marginBottom: 16 }}><ChvIc d="left" /> All Jobs</button>
     {/* Pipeline */}
@@ -765,6 +854,7 @@ function JobDetail({ job, expenses, invoices, onBack, onUpdate, onDelExp, onAddE
     </div>
     {/* Profit */}
     <ProfitBar quote={job.total} materials={totExp} profit={profit} margin={margin} />
+    <StickToPlan job={job} expenses={expenses} />
     {showVat && totVat > 0 && <div style={{ marginTop: 8, padding: "10px 14px", background: T.warnLight, borderRadius: T.rSm }}><span style={{ fontSize: 13, color: T.warn, fontWeight: 700 }}>VAT reclaim: {GBP(totVat)}</span></div>}
     {/* Pipeline buttons */}
     <div style={{ marginTop: 16, marginBottom: 16 }}>
@@ -800,10 +890,11 @@ function JobDetail({ job, expenses, invoices, onBack, onUpdate, onDelExp, onAddE
       </div>
     </div>}
     {/* Quick actions */}
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8, marginBottom: 16 }}>
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr", gap: 8, marginBottom: 16 }}>
       <button onClick={() => setAddingExp(true)} style={{ ...sec, width: "100%", fontSize: 12, padding: "10px 6px" }}>🧾 Material</button>
       <button onClick={() => photoRef.current?.click()} style={{ ...sec, width: "100%", fontSize: 12, padding: "10px 6px" }}>📷 Photo</button>
       <button onClick={() => { setEd(true); setD({ ...job }); }} style={{ ...sec, width: "100%", fontSize: 12, padding: "10px 6px" }}>✏️ Edit</button>
+      <button onClick={() => setShowPlanModal(true)} style={{ ...S.btn, background: T.cyan, color: "#fff", width: "100%", fontSize: 12, padding: "10px 6px", border: "none" }}>📋 Plan</button>
       <button onClick={async () => { flash("📄 Generating..."); try { const doc = await generateJobReportPDF(job, expenses, biz); doc.save("job-report-" + job.id + ".pdf"); flash("📄 Report downloaded"); } catch { flash("PDF failed"); } }} style={{ ...S.btn, background: T.purple, color: "#fff", width: "100%", fontSize: 12, padding: "10px 6px", border: "none" }}>📄 Report</button>
       <input ref={photoRef} type="file" accept="image/*" capture="environment" multiple onChange={handleJobPhoto} style={{ display: "none" }} />
     </div>
