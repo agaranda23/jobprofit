@@ -895,7 +895,7 @@ function JobDetail({ job, expenses, invoices, onBack, onUpdate, onDelExp, onAddE
       <button onClick={() => photoRef.current?.click()} style={{ ...sec, width: "100%", fontSize: 12, padding: "10px 6px" }}>📷 Photo</button>
       <button onClick={() => { setEd(true); setD({ ...job }); }} style={{ ...sec, width: "100%", fontSize: 12, padding: "10px 6px" }}>✏️ Edit</button>
       <button onClick={() => setShowPlanModal(true)} style={{ ...S.btn, background: T.cyan, color: "#fff", width: "100%", fontSize: 12, padding: "10px 6px", border: "none" }}>📋 Plan</button>
-      <button onClick={async () => { flash("📄 Generating..."); try { const doc = await generateJobReportPDF(job, expenses, biz); doc.save("job-report-" + job.id + ".pdf"); flash("📄 Report downloaded"); } catch { flash("PDF failed"); } }} style={{ ...S.btn, background: T.purple, color: "#fff", width: "100%", fontSize: 12, padding: "10px 6px", border: "none" }}>📄 Report</button>
+      <button onClick={async () => { flash("📄 Generating..."); try { const doc = await generateJobReportPDF(job, expenses, biz); const slug = (job.customer || job.id).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""); const dateStr = td(); doc.save("job-report-" + slug + "-" + dateStr + ".pdf"); flash("📄 Report downloaded"); } catch { flash("PDF failed"); } }} style={{ ...S.btn, background: T.purple, color: "#fff", width: "100%", fontSize: 12, padding: "10px 6px", border: "none" }}>📄 Report</button>
       <input ref={photoRef} type="file" accept="image/*" capture="environment" multiple onChange={handleJobPhoto} style={{ display: "none" }} />
     </div>
     {/* Quote breakdown */}
