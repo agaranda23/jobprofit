@@ -32,6 +32,15 @@ const seedInvoices = [
   { id:"INV-0004", jobId:"J-0004", number:"INV-0004", status:"paid", created:"2026-02-25", dueDate:"2026-03-11", paidDate:"2026-03-01" },
 ];
 
+
+const OVERHEAD_CATEGORIES = ["Van/fuel", "Insurance", "Phone/broadband", "Tools/equipment", "Accountant", "Marketing", "Premises", "Other"];
+const seedOverheads = [
+  { id: "OH-0001", name: "Van & fuel", category: "Van/fuel", amount: 400, is_active: true },
+  { id: "OH-0002", name: "Public liability insurance", category: "Insurance", amount: 80, is_active: true },
+  { id: "OH-0003", name: "Phone & broadband", category: "Phone/broadband", amount: 60, is_active: true },
+  { id: "OH-0004", name: "Tools & equipment", category: "Tools/equipment", amount: 100, is_active: true },
+];
+
 const GBP = n => "£" + Number(n).toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const mkId = p => `${p}-${String(Date.now()).slice(-4)}`;
 const thisMonth = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; };
@@ -161,7 +170,7 @@ function ProfitBar({ quote, materials, profit, margin }) {
   </div>;
 }
 
-function QuickStats({ todayProfit, outstanding, paidThisMonth, profitThisMonth, unpaidCount, onChase, jobs, expenses, biz }) {
+function QuickStats({ todayProfit, outstanding, paidThisMonth, profitThisMonth, unpaidCount, onChase, jobs, expenses, biz, overheads }) {
   const [animProfit, setAnimProfit] = useState(0);
   useEffect(() => { let start = 0; const end = todayProfit; const dur = 600; const t0 = performance.now(); const step = ts => { const p = Math.min((ts - t0) / dur, 1); const ease = 1 - Math.pow(1 - p, 3); setAnimProfit(start + (end - start) * ease); if (p < 1) requestAnimationFrame(step); }; requestAnimationFrame(step); }, [todayProfit]);
 
@@ -279,6 +288,57 @@ function QuickStats({ todayProfit, outstanding, paidThisMonth, profitThisMonth, 
   </div>;
 }
 
+
+function MonthlyOverheadsSettings({ overheads, onUpdate }) {
+  const [adding, setAdding] = React.useState(false);
+  const [form, setForm] = React.useState({ name: "", category: OVERHEAD_CATEGORIES[0], amount: "" });
+  const save = () => {
+    if (!form.name || !form.amount) return;
+    onUpdate([...overheads, { id: "OH-" + String(Date.now()).slice(-4), name: form.name, category: form.category, amount: Number(form.amount), is_active: true }]);
+    setForm({ name: "", category: OVERHEAD_CATEGORIES[0], amount: "" });
+    setAdding(false);
+  };
+  const toggle = id => onUpdate(overheads.map(o => o.id === id ? { ...o, is_active: !o.is_active } : o));
+  const remove = id => onUpdate(overheads.filter(o => o.id !== id));
+  const total = overheads.filter(o => o.is_active).reduce((s, o) => s + Number(o.amount), 0);
+  return (
+    <div style={{ marginTop: 24 }}>
+      <span style={S.lbl}>📊 Monthly Fixed Costs</span>
+      <div style={{ background: T.surface, borderRadius: T.r, padding: 16, border: `1px solid ${T.border}`, boxShadow: T.cardShadow, marginBottom: 10 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: T.textMed }}>Total: <span style={{ color: T.danger, fontWeight: 800 }}>{GBP(total)}</span>/mo</div>
+          <button onClick={() => setAdding(true)} style={{ ...S.ghost, fontSize: 13 }}><PlusIc /> Add cost</button>
+        </div>
+        {overheads.map(o => (
+          <div key={o.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: `1px solid ${T.borderLight}` }}>
+            <input type="checkbox" checked={o.is_active} onChange={() => toggle(o.id)} style={{ width: 18, height: 18, accentColor: T.primary }} />
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 600, fontSize: 14 }}>{o.name}</div>
+              <div style={{ fontSize: 11, color: T.textMuted }}>{o.category}</div>
+            </div>
+            <div style={{ fontWeight: 700, fontSize: 14, color: o.is_active ? T.danger : T.textMuted }}>{GBP(o.amount)}/mo</div>
+            <button onClick={() => remove(o.id)} style={{ ...S.iconBtn, color: T.textMuted }}><BinIc /></button>
+          </div>
+        ))}
+        {overheads.length === 0 && <div style={{ textAlign: "center", padding: 16, color: T.textMuted, fontSize: 14 }}>No fixed costs yet. Add insurance, van, fuel etc.</div>}
+        {adding && (
+          <div style={{ marginTop: 14, padding: 14, background: T.surfaceAlt, borderRadius: T.rSm, display: "flex", flexDirection: "column", gap: 10 }}>
+            <input placeholder="Name (e.g. Van insurance)" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} style={S.inp} />
+            <select value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} style={{ ...S.inp, appearance: "auto" }}>
+              {OVERHEAD_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+            </select>
+            <input type="number" placeholder="Monthly amount (£)" value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })} style={S.inp} />
+            <div style={{ display: "flex", gap: 8 }}>
+              <button onClick={save} style={{ ...grn, flex: 1 }}>Save</button>
+              <button onClick={() => setAdding(false)} style={sec}>Cancel</button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function SendInvoiceModal({ job, biz, inv, showVat, onClose, flash }) {
   const [pdfBusy, setPdfBusy] = useState(false);
   const downloadPDF = async () => { setPdfBusy(true); try { const doc = await generateInvoicePDF(job, biz, inv, showVat); doc.save(inv.number + "-" + job.customer.replace(/\s/g, "-") + ".pdf"); flash("📄 PDF downloaded"); } catch { flash("PDF failed"); } setPdfBusy(false); };
@@ -384,7 +444,7 @@ function InsightsCard({ jobs, expenses, invoices, biz, onGo }) {
 }
 
 /* ═══ OVERVIEW ═══════════════════════════════════════ */
-function OverviewTab({ jobs, expenses, invoices, onGo, biz, showVat }) {
+function OverviewTab({ jobs, expenses, invoices, onGo, biz, showVat, overheads }) {
   const mo = thisMonth(); const today = td(); const paid = jobs.filter(j => j.paymentStatus === "paid"); const unpaid = jobs.filter(j => j.paymentStatus === "unpaid" && j.quoteStatus === "accepted");
   const totUnpaid = unpaid.reduce((s, j) => s + j.total, 0); const moPaid = jobs.filter(j => j.paymentDate?.startsWith(mo)).reduce((s, j) => s + j.total, 0);
   const moMat = expenses.filter(e => e.date?.startsWith(mo)).reduce((s, e) => s + e.amount, 0); const moProfit = moPaid - moMat;
@@ -406,7 +466,7 @@ function OverviewTab({ jobs, expenses, invoices, onGo, biz, showVat }) {
     {todayJobs.length > 0 && <button onClick={() => onGo("Schedule")} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", marginBottom: 6, background: T.primary, border: "none", borderRadius: T.r, cursor: "pointer", fontFamily: T.font, textAlign: "left", color: "#fff", boxShadow: T.cardShadow, transition: "transform .1s" }} onPointerDown={e => e.currentTarget.style.transform = T.tapScale} onPointerUp={e => e.currentTarget.style.transform = "none"}><div style={{ width: 30, height: 30, borderRadius: 7, background: "rgba(255,255,255,.12)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div><div style={{ flex: 1 }}><div style={{ fontWeight: 700, fontSize: 14 }}>{todayJobs.length} job{todayJobs.length !== 1 ? "s" : ""} today</div><div style={{ fontSize: 12, opacity: .75, fontWeight: 400 }}>{GBP(todayJobs.reduce((s, j) => s + j.total, 0))} scheduled</div></div><ChvIc /></button>}
     {/* Tomorrow */}
     <button onClick={() => onGo("Schedule")} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", marginBottom: 18, background: tmrwJobs.length > 0 ? T.hiVis : T.surfaceAlt, border: tmrwJobs.length > 0 ? "none" : `1.5px solid ${T.border}`, borderRadius: T.r, cursor: "pointer", fontFamily: T.font, textAlign: "left", color: tmrwJobs.length > 0 ? "#fff" : T.textMuted, boxShadow: T.cardShadow, transition: "transform .1s" }} onPointerDown={e => e.currentTarget.style.transform = T.tapScale} onPointerUp={e => e.currentTarget.style.transform = "none"}><div style={{ width: 30, height: 30, borderRadius: 7, background: tmrwJobs.length > 0 ? "rgba(255,255,255,.12)" : T.border, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={tmrwJobs.length > 0 ? "#fff" : T.textMuted} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div><div style={{ flex: 1 }}>{tmrwJobs.length > 0 ? <><div style={{ fontWeight: 700, fontSize: 14 }}>Tomorrow's booked</div><div style={{ fontSize: 12, opacity: .75, fontWeight: 400 }}>{GBP(tmrwVal)} lined up</div></> : <div style={{ fontWeight: 600, fontSize: 13 }}>No jobs tomorrow</div>}</div><ChvIc /></button>
-    <QuickStats todayProfit={todayProfit} outstanding={totUnpaid} paidThisMonth={moPaid} profitThisMonth={moProfit} unpaidCount={unpaid.length} onChase={scrollToChase} jobs={jobs} expenses={expenses} biz={biz} />
+    <QuickStats todayProfit={todayProfit} outstanding={totUnpaid} paidThisMonth={moPaid} profitThisMonth={moProfit} unpaidCount={unpaid.length} onChase={scrollToChase} jobs={jobs} expenses={expenses} biz={biz} overheads={overheads} />
 
     {/* Collapsible Insights */}
     <button onClick={() => setInsightsOpen(!insightsOpen)} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", marginBottom: insightsOpen ? 0 : 20, background: T.surface, border: `1px solid ${T.border}`, borderRadius: insightsOpen ? `${T.r}px ${T.r}px 0 0` : T.r, cursor: "pointer", fontFamily: T.font, boxShadow: T.cardShadow }}>
@@ -849,7 +909,7 @@ function AddJobTab({ onGen, biz }) {
 }
 
 /* ═══ SETTINGS ═══════════════════════════════════════ */
-function SettingsTab({ biz, onUpd }) {
+function SettingsTab({ biz, onUpd, overheads, onUpdateOverheads }) {
   const ch = (f, v) => onUpd({ ...biz, [f]: v }); const logoRef = useRef(null);
   const handleLogo = async e => { const f = e.target.files?.[0]; if (!f) return; try { const raw = await fileToB64(f); const c = await compress(raw, 200, 0.8); ch("logoUrl", c); } catch {} };
   const [notifPerm, setNotifPerm] = useState(typeof Notification !== "undefined" ? Notification.permission : "denied");
@@ -860,6 +920,7 @@ function SettingsTab({ biz, onUpd }) {
     {[{ l: "Business Name", f: "name" }, { l: "Trade", f: "trade" }, { l: "Phone", f: "phone" }, { l: "Email", f: "email" }, { l: "Address", f: "address" }, { l: "Hourly Rate (£)", f: "hourlyRate", t: "number" }].map(({ l, f, t }) => <div key={f} style={{ marginBottom: 14 }}><label style={{ display: "block", fontSize: 14, fontWeight: 600, color: T.textMed, marginBottom: 6 }}>{l}</label><input type={t || "text"} value={biz[f]} onChange={e => ch(f, t === "number" ? Number(e.target.value) : e.target.value)} style={S.inp} /></div>)}
     <div style={{ marginBottom: 14 }}><label style={{ display: "block", fontSize: 14, fontWeight: 600, color: T.textMed, marginBottom: 6 }}>Bank Details (on invoices)</label><textarea value={biz.bankDetails || ""} onChange={e => ch("bankDetails", e.target.value)} placeholder={"Sort code: 12-34-56\nAccount: 12345678\nName: Smith Plumbing Ltd"} style={{ ...S.inp, minHeight: 70, resize: "vertical" }} /></div>
     <div style={{ marginTop: 12, padding: 18, background: T.surfaceAlt, borderRadius: T.r, border: `1px solid ${T.border}` }}><div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: biz.vatRegistered ? 14 : 0 }}><input type="checkbox" id="vat" checked={biz.vatRegistered} onChange={e => ch("vatRegistered", e.target.checked)} style={{ width: 22, height: 22, accentColor: T.primary }} /><label htmlFor="vat" style={{ fontSize: 15, fontWeight: 700, cursor: "pointer" }}>VAT Registered</label></div>{biz.vatRegistered ? <><div style={{ marginBottom: 12 }}><label style={{ display: "block", fontSize: 14, fontWeight: 600, color: T.textMed, marginBottom: 6 }}>VAT Number</label><input value={biz.vatNumber} onChange={e => ch("vatNumber", e.target.value)} style={S.inp} placeholder="GB 123 4567 89" /></div><div style={{ fontSize: 13, color: T.accent, fontWeight: 600 }}>✅ VAT tracked</div></> : <div style={{ fontSize: 13, color: T.textMuted, marginTop: 8 }}>Turn on for VAT tracking</div>}</div>
+    <MonthlyOverheadsSettings overheads={overheads} onUpdate={onUpdateOverheads} />
     {/* Reminders & Notifications */}
     <div style={{ marginTop: 20 }}><span style={S.lbl}>🔔 Reminders</span>
       <div style={{ background: T.surface, borderRadius: T.r, padding: 18, border: `1px solid ${T.border}`, boxShadow: T.cardShadow }}>
@@ -904,6 +965,7 @@ function App() {
   const [biz, setBiz] = useState(defBiz);
   const [note, setNote] = useState("");
   const [navJobId, setNavJobId] = useState(null);
+  const [overheads, setOverheads] = useState(seedOverheads);
   const [dataLoaded, setDataLoaded] = useState(false);
   const stickyReceiptRef = useRef(null);
   const showVat = biz.vatRegistered; const unassigned = expenses.filter(e => !e.jobId).length;
@@ -916,6 +978,7 @@ function App() {
       if (saved.expenses) setExpenses(saved.expenses);
       if (saved.invoices) setInvoices(saved.invoices);
       if (saved.biz) setBiz(saved.biz);
+      if (saved.overheads) setOverheads(saved.overheads);
     }
     setDataLoaded(true);
   }, []);
@@ -924,10 +987,10 @@ function App() {
   useEffect(() => {
     if (!dataLoaded) return;
     const timer = setTimeout(() => {
-      saveData({ jobs, expenses, invoices, biz });
+      saveData({ jobs, expenses, invoices, biz, overheads });
     }, 300);
     return () => clearTimeout(timer);
-  }, [jobs, expenses, invoices, biz, dataLoaded]);
+  }, [jobs, expenses, invoices, biz, overheads, dataLoaded]);
 
   // Register service worker for PWA (manifest is now a static file)
   useEffect(() => {
@@ -978,12 +1041,12 @@ function App() {
     {note && <div style={{ background: T.accentLight, border: "1px solid #BBF7D0", borderRadius: T.rSm, padding: "10px 16px", marginBottom: 14, color: "#166534", fontSize: 14, fontWeight: 600, animation: "fadeIn .3s" }}>{note}</div>}
     <div style={{ display: "flex", gap: 0, marginTop: 0, paddingTop: 0, marginBottom: 8, borderBottom: `1px solid ${T.border}`, overflowX: "auto" }}>{TABS.map(t => { const cnt = t === "Jobs" ? jobs.length : t === "Materials" ? expenses.length : t === "Schedule" ? jobs.filter(j => j.scheduledDate === td()).length : 0; const alert = (t === "Materials" && unassigned > 0) || (t === "Jobs" && jobs.some(j => j.paymentStatus === "unpaid" && j.quoteStatus === "accepted")); return <button key={t} onClick={() => setTab(t)} style={{ flex: 1, padding: "8px 4px", border: "none", background: "none", cursor: "pointer", fontSize: 11, fontFamily: T.font, whiteSpace: "nowrap", display: "flex", alignItems: "center", justifyContent: "center", gap: 4, color: tab === t ? T.primary : T.textMuted, borderBottom: tab === t ? `3px solid ${T.primary}` : "3px solid transparent", fontWeight: tab === t ? 800 : 600, position: "relative", transition: "all .15s" }}>{tabIcons[t]} {t}{cnt > 0 && t !== "Overview" && <span style={{ background: T.primary, color: "#fff", borderRadius: 8, padding: "1px 7px", fontSize: 10, fontWeight: 700 }}>{cnt}</span>}{alert && <span style={{ position: "absolute", top: 4, right: 4, width: 8, height: 8, borderRadius: "50%", background: T.hiVis, border: `2px solid ${T.bg}` }} />}</button>; })}</div>
     <div style={{ paddingBottom: 90 }}>
-      {tab === "Overview" && <OverviewTab jobs={jobs} expenses={expenses} invoices={invoices} onGo={goTo} biz={biz} showVat={showVat} />}
+      {tab === "Overview" && <OverviewTab jobs={jobs} expenses={expenses} invoices={invoices} onGo={goTo} biz={biz} showVat={showVat} overheads={overheads} />}
       {tab === "Add Job" && <AddJobTab onGen={onGen} biz={biz} />}
       {tab === "Jobs" && <JobsTab jobs={jobs} expenses={expenses} invoices={invoices} onUpdate={onUpdJob} onDelExp={onDelExp} onAddExp={onAddExp} onAddInvoice={onAddInv} onUpdateInvoice={onUpdInv} biz={biz} showVat={showVat} onXLSX={() => doExportXLSX(jobs, expenses, invoices, showVat)} unassigned={unassigned} onGoMaterials={() => setTab("Materials")} initialJobId={navJobId} clearInitialJob={() => setNavJobId(null)} flash={flash} />}
       {tab === "Schedule" && <ScheduleTab jobs={jobs} expenses={expenses} biz={biz} onUpdate={onUpdJob} onGo={goTo} flash={flash} />}
       {tab === "Materials" && <MaterialsTab jobs={jobs} expenses={expenses} onAddExp={onAddExp} onDelExp={onDelExp} onAssign={onAssign} showVat={showVat} onXLSX={() => doExportXLSX(jobs, expenses, invoices, showVat)} />}
-      {tab === "Settings" && <SettingsTab biz={biz} onUpd={setBiz} />}
+      {tab === "Settings" && <SettingsTab biz={biz} onUpd={setBiz} overheads={overheads} onUpdateOverheads={setOverheads} />}
     </div>
     {/* Sticky bottom bar — always visible */}
     <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 900, background: T.surface, borderTop: `1px solid ${T.border}`, padding: "10px 16px", paddingBottom: "max(10px, env(safe-area-inset-bottom))", boxShadow: "0 -2px 12px rgba(0,0,0,.08)" }}>
