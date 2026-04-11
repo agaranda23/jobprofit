@@ -1,4 +1,4 @@
-const { useState, useRef, useCallback, useEffect } = React;
+import React, { useState, useRef, useCallback, useEffect } from "react";
 // XLSX loaded via CDN in index.html
 
 const TABS = ["Overview", "Add Job", "Jobs", "Schedule", "Materials", "Settings"];
