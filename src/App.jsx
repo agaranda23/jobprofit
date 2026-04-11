@@ -997,7 +997,5 @@ function App() {
 }
 
 
-// Mount the app
-// removed CDN mount(document.getElementById("root"));
 
 export default App;
