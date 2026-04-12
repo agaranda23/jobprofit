@@ -545,6 +545,74 @@ function InsightsCard({ jobs, expenses, invoices, biz, onGo }) {
 }
 
 /* ═══ OVERVIEW ═══════════════════════════════════════ */
+
+function WeeklyScoreboard({ jobs, expenses, invoices, overheads }) {
+  const now = new Date();
+  const d7ago = (() => { const d = new Date(); d.setDate(d.getDate() - 7); return d.toISOString().slice(0, 10); })();
+  const d14ago = (() => { const d = new Date(); d.setDate(d.getDate() - 14); return d.toISOString().slice(0, 10); })();
+  const today = now.toISOString().slice(0, 10);
+
+  // This week
+  const weekJobs = jobs.filter(j => j.jobStatus === "complete" && j.paymentDate >= d7ago && j.paymentDate <= today);
+  const weekEarned = weekJobs.reduce((s, j) => s + j.total, 0);
+  const weekMat = expenses.filter(e => e.date >= d7ago && e.date <= today).reduce((s, e) => s + e.amount, 0);
+  const ohTotal = (overheads || []).filter(o => o.is_active).reduce((s, o) => s + Number(o.amount), 0);
+  const dailyOH = ohTotal / 30;
+  const weekOH = Math.round(dailyOH * 7);
+  const weekProfit = weekEarned - weekMat - weekOH;
+  const weekOwed = jobs.filter(j => j.paymentStatus === "unpaid" && j.quoteStatus === "accepted" && (j.date >= d7ago || j.scheduledDate >= d7ago)).reduce((s, j) => s + j.total, 0);
+
+  // Last week for comparison
+  const lastWeekJobs = jobs.filter(j => j.jobStatus === "complete" && j.paymentDate >= d14ago && j.paymentDate < d7ago);
+  const lastWeekEarned = lastWeekJobs.reduce((s, j) => s + j.total, 0);
+  const lastWeekMat = expenses.filter(e => e.date >= d14ago && e.date < d7ago).reduce((s, e) => s + e.amount, 0);
+  const lastWeekProfit = lastWeekEarned - lastWeekMat - weekOH;
+  const vsLastWeek = lastWeekProfit > 0 ? (weekProfit > lastWeekProfit ? "up" : weekProfit < lastWeekProfit ? "down" : "same") : null;
+
+  if (weekJobs.length === 0 && weekEarned === 0) return (
+    <div style={{ background: T.surface, borderRadius: T.r, padding: "14px 16px", border: `1px solid ${T.border}`, boxShadow: T.cardShadow, marginBottom: 10 }}>
+      <div style={{ fontSize: 10, fontWeight: 700, color: T.textMuted, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 6 }}>This week</div>
+      <div style={{ fontSize: 13, color: T.textMuted }}>No completed jobs this week yet</div>
+    </div>
+  );
+
+  return (
+    <div style={{ background: T.surface, borderRadius: T.r, padding: "14px 16px", border: `1px solid ${T.border}`, boxShadow: T.cardShadow, marginBottom: 10 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+        <div style={{ fontSize: 10, fontWeight: 700, color: T.textMuted, textTransform: "uppercase", letterSpacing: 1.2 }}>This week</div>
+        {vsLastWeek && vsLastWeek !== "same" && (
+          <span style={{ fontSize: 12, fontWeight: 700, color: vsLastWeek === "up" ? T.accent : T.danger }}>
+            {vsLastWeek === "up" ? "▲ Up from last week" : "▼ Down from last week"}
+          </span>
+        )}
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+        <div>
+          <div style={{ fontSize: 10, color: T.textMuted, fontWeight: 500, textTransform: "uppercase", letterSpacing: .5, marginBottom: 2 }}>Jobs done</div>
+          <div style={{ fontSize: 20, fontWeight: 800, color: T.primary }}>{weekJobs.length}</div>
+        </div>
+        <div>
+          <div style={{ fontSize: 10, color: T.textMuted, fontWeight: 500, textTransform: "uppercase", letterSpacing: .5, marginBottom: 2 }}>Earned</div>
+          <div style={{ fontSize: 20, fontWeight: 800, color: T.text }}>{GBP(weekEarned)}</div>
+        </div>
+        <div>
+          <div style={{ fontSize: 10, color: T.textMuted, fontWeight: 500, textTransform: "uppercase", letterSpacing: .5, marginBottom: 2 }}>Materials</div>
+          <div style={{ fontSize: 20, fontWeight: 800, color: T.danger }}>{GBP(weekMat)}</div>
+        </div>
+        <div>
+          <div style={{ fontSize: 10, color: T.textMuted, fontWeight: 500, textTransform: "uppercase", letterSpacing: .5, marginBottom: 2 }}>Real profit</div>
+          <div style={{ fontSize: 20, fontWeight: 800, color: weekProfit >= 0 ? T.accent : T.danger }}>{GBP(weekProfit)}</div>
+        </div>
+      </div>
+      {weekOwed > 0 && (
+        <div style={{ marginTop: 8, padding: "6px 10px", background: T.hiVisLight, borderRadius: T.rSm, fontSize: 12, fontWeight: 700, color: T.warn }}>
+          Still owed this week: {GBP(weekOwed)}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function OverviewTab({ jobs, expenses, invoices, onGo, biz, showVat, overheads }) {
   const mo = thisMonth(); const today = td(); const paid = jobs.filter(j => j.paymentStatus === "paid"); const unpaid = jobs.filter(j => j.paymentStatus === "unpaid" && j.quoteStatus === "accepted");
   const totUnpaid = unpaid.reduce((s, j) => s + j.total, 0); const moPaid = jobs.filter(j => j.paymentDate?.startsWith(mo)).reduce((s, j) => s + j.total, 0);
@@ -567,6 +635,7 @@ function OverviewTab({ jobs, expenses, invoices, onGo, biz, showVat, overheads }
     {todayJobs.length > 0 && <button onClick={() => onGo("Schedule")} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", marginBottom: 6, background: T.primary, border: "none", borderRadius: T.r, cursor: "pointer", fontFamily: T.font, textAlign: "left", color: "#fff", boxShadow: T.cardShadow, transition: "transform .1s" }} onPointerDown={e => e.currentTarget.style.transform = T.tapScale} onPointerUp={e => e.currentTarget.style.transform = "none"}><div style={{ width: 30, height: 30, borderRadius: 7, background: "rgba(255,255,255,.12)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div><div style={{ flex: 1 }}><div style={{ fontWeight: 700, fontSize: 14 }}>{todayJobs.length} job{todayJobs.length !== 1 ? "s" : ""} today</div><div style={{ fontSize: 12, opacity: .75, fontWeight: 400 }}>{GBP(todayJobs.reduce((s, j) => s + j.total, 0))} scheduled</div></div><ChvIc /></button>}
     {/* Tomorrow */}
     <button onClick={() => onGo("Schedule")} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", marginBottom: 18, background: tmrwJobs.length > 0 ? T.hiVis : T.surfaceAlt, border: tmrwJobs.length > 0 ? "none" : `1.5px solid ${T.border}`, borderRadius: T.r, cursor: "pointer", fontFamily: T.font, textAlign: "left", color: tmrwJobs.length > 0 ? "#fff" : T.textMuted, boxShadow: T.cardShadow, transition: "transform .1s" }} onPointerDown={e => e.currentTarget.style.transform = T.tapScale} onPointerUp={e => e.currentTarget.style.transform = "none"}><div style={{ width: 30, height: 30, borderRadius: 7, background: tmrwJobs.length > 0 ? "rgba(255,255,255,.12)" : T.border, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={tmrwJobs.length > 0 ? "#fff" : T.textMuted} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div><div style={{ flex: 1 }}>{tmrwJobs.length > 0 ? <><div style={{ fontWeight: 700, fontSize: 14 }}>Tomorrow's booked</div><div style={{ fontSize: 12, opacity: .75, fontWeight: 400 }}>{GBP(tmrwVal)} lined up</div></> : <div style={{ fontWeight: 600, fontSize: 13 }}>No jobs tomorrow</div>}</div><ChvIc /></button>
+    <WeeklyScoreboard jobs={jobs} expenses={expenses} invoices={invoices} overheads={overheads} />
     <QuickStats todayProfit={todayProfit} outstanding={totUnpaid} paidThisMonth={moPaid} profitThisMonth={moProfit} unpaidCount={unpaid.length} onChase={scrollToChase} jobs={jobs} expenses={expenses} biz={biz} overheads={overheads} />
 
     {/* Collapsible Insights */}
