@@ -1,5 +1,3 @@
-const fetch = (...args) => import('node-fetch').then(({default: f}) => f(...args));
-
 exports.handler = async function(event, context) {
   const headers = {
     "Access-Control-Allow-Origin": "*",
