@@ -421,3 +421,14 @@ body { padding-bottom: 72px; }
 .totals, .actions, .recent, .unpaid, .timeline { width: 100%; }
 .totals { box-sizing: border-box; }
 .action-btn { width: 100%; box-sizing: border-box; }
+
+/* Kill Vite default body flex — it's squishing the app to a column */
+body {
+  display: block !important;
+  place-items: initial !important;
+  min-width: 0 !important;
+}
+#root {
+  width: 100%;
+  min-height: 100vh;
+}
