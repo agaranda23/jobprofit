@@ -4,6 +4,7 @@ import TodayScreen from './screens/TodayScreen';
 import HistoryScreen from './screens/HistoryScreen';
 import BottomNav from './components/BottomNav';
 import { startHidingLegacyDupes, stopHidingLegacyDupes } from './lib/hideLegacyDupes';
+import { clickCreateDetailedJobTab } from './lib/manageDeepLink';
 import {
   getTodayJobs,
   getTodayReceipts,
@@ -38,6 +39,7 @@ function migrateLegacyTodayData() {
 export default function AppShell() {
   const [view, setView] = useState('today');
   const [moreKey, setMoreKey] = useState(0);
+  const [pendingDeepLink, setPendingDeepLink] = useState(null);
   const [jobs, setJobs] = useState([]);
   const [receipts, setReceipts] = useState([]);
 
@@ -58,6 +60,10 @@ export default function AppShell() {
     if (view === 'today' || view === 'history') refresh();
     if (view === 'manage' && manageRootRef.current) {
       startHidingLegacyDupes(manageRootRef.current);
+      if (pendingDeepLink === 'create-detailed-job') {
+        setTimeout(() => clickCreateDetailedJobTab(manageRootRef.current), 100);
+        setPendingDeepLink(null);
+      }
     } else {
       stopHidingLegacyDupes();
     }
@@ -89,7 +95,7 @@ export default function AppShell() {
     <>
       {view === 'today' && (
         <TodayScreen
-          onOpenDetailed={() => setView('manage')}
+          onOpenDetailed={() => { setPendingDeepLink('create-detailed-job'); setMoreKey(k => k + 1); setView('manage'); }}
           jobs={jobs}
           receipts={receipts}
           onAddJob={handleAddJob}

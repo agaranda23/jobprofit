@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import * as XLSX from "xlsx";
 
-const TABS = ["Overview", "Add Job", "Jobs", "Schedule", "Materials", "Settings"];
+const TABS = ["Overview", "Create detailed job", "Jobs", "Schedule", "Materials", "Settings"];
 const defBiz = { name: "Your Business Name", phone: "07XXX XXXXXX", email: "you@email.com", address: "Your Business Address", trade: "General Builder", vatRegistered: false, vatNumber: "", hourlyRate: 45, bankDetails: "", logoUrl: "" };
 
 const LEAD_SOURCES = ["Checkatrade", "Rated People", "MyBuilder", "TrustATrader", "Bark", "Facebook", "Instagram", "Google", "Word of mouth", "Direct call", "Other"];
@@ -336,7 +336,7 @@ function OverviewTab({ jobs, expenses, invoices, onGo, biz, showVat }) {
     </div>; })}</div>}
     {jobs.length > 0 && <div style={{ marginBottom: 22 }}><span style={S.lbl}>Recent Jobs</span>{jobs.slice(0, 4).map(j => { const { profit } = calcProfit(j, expenses); return <div key={j.id} onClick={() => onGo("Jobs", j.id)} style={{ ...S.card, marginBottom: 10 }}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 8 }}><div style={{ flex: 1 }}><div style={{ fontWeight: 600, fontSize: 14, color: T.text }}>{j.customer}</div><div style={{ fontSize: 13, color: T.textMuted, marginTop: 2, fontWeight: 400 }}>{j.summary.slice(0, 55)}</div></div><div style={{ textAlign: "right", flexShrink: 0 }}><div style={{ fontWeight: 800, fontSize: 18, color: T.accent }}>{GBP(profit)}</div><div style={{ fontSize: 12, color: T.textMuted, fontWeight: 400 }}>of {GBP(j.total)}</div></div></div><div style={{ display: "flex", gap: 6, marginTop: 8 }}><Badge text={jLbl(j.jobStatus || "quote")} bg={jCol(j.jobStatus || "quote")} /><Badge text={pLbl(j.paymentStatus)} bg={pCol(j.paymentStatus)} /></div></div>; })}</div>}
     <span style={S.lbl}>Quick Actions</span>
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 20 }}><button onClick={() => onGo("Add Job")} style={{ ...pri, width: "100%" }}>🔨 New Job</button><button onClick={() => onGo("Materials")} style={{ ...sec, width: "100%" }}>🧾 Add Receipt</button></div>
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 20 }}><button onClick={() => onGo("Create detailed job")} style={{ ...pri, width: "100%" }}>🔨 New Job</button><button onClick={() => onGo("Materials")} style={{ ...sec, width: "100%" }}>🧾 Add Receipt</button></div>
     {/* Lead Source Breakdown */}
     {jobs.length > 0 && (() => { const srcMap = {}; jobs.forEach(j => { if (j.source) { if (!srcMap[j.source]) srcMap[j.source] = { count: 0, revenue: 0 }; srcMap[j.source].count++; srcMap[j.source].revenue += j.total; } }); const entries = Object.entries(srcMap).sort((a, b) => b[1].revenue - a[1].revenue); if (entries.length === 0) return null; return <div style={{ marginBottom: 16 }}><span style={S.lbl}>Where Your Leads Come From</span><div style={{ background: T.surface, borderRadius: T.r, padding: 14, border: `1px solid ${T.border}`, boxShadow: T.cardShadow }}>{entries.map(([name, data]) => <div key={name} style={{ display: "flex", alignItems: "center", gap: 10, padding: "7px 0", borderBottom: `1px solid ${T.borderLight}` }}><span style={{ fontSize: 16 }}>{srcIcon(name)}</span><div style={{ flex: 1 }}><div style={{ fontWeight: 600, fontSize: 14 }}>{name}</div><div style={{ fontSize: 12, color: T.textMuted, fontWeight: 400 }}>{data.count} job{data.count !== 1 ? "s" : ""}</div></div><div style={{ fontWeight: 800, fontSize: 15, color: T.accent }}>{GBP(data.revenue)}</div></div>)}</div></div>; })()}
     {/* 30-Day Forecast */}
@@ -993,7 +993,7 @@ export default function App() {
   const onAddInv = inv => { setInvoices(p => [...p, inv]); flash("📄 Invoice " + inv.number + " created"); };
   const onUpdInv = u => setInvoices(p => p.map(i => i.id === u.id ? u : i));
   const goTo = (t, jobId) => { setTab(t); if (jobId) setNavJobId(jobId); };
-  const tabIcons = { Overview: "📊", "Add Job": "🔨", Jobs: "📋", Schedule: "📅", Materials: "🧾", Settings: "⚙️" };
+  const tabIcons = { Overview: "📊", "Create detailed job": "🔨", Jobs: "📋", Schedule: "📅", Materials: "🧾", Settings: "⚙️" };
   return <div style={{ fontFamily: T.font, maxWidth: 640, margin: "0 auto", padding: "14px 16px", minHeight: "100vh", background: T.bg, color: T.text, WebkitFontSmoothing: "antialiased" }}>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
     <style>{`@keyframes fadeIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}@keyframes spin{to{transform:rotate(360deg)}}@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.04)}}`}</style>
@@ -1002,7 +1002,7 @@ export default function App() {
     <div style={{ display: "flex", gap: 0, marginTop: 0, paddingTop: 0, marginBottom: 8, borderBottom: `1px solid ${T.border}`, overflowX: "auto" }}>{TABS.map(t => { const cnt = t === "Jobs" ? jobs.length : t === "Materials" ? expenses.length : t === "Schedule" ? jobs.filter(j => j.scheduledDate === td()).length : 0; const alert = (t === "Materials" && unassigned > 0) || (t === "Jobs" && jobs.some(j => j.paymentStatus === "unpaid" && j.quoteStatus === "accepted")); return <button key={t} onClick={() => setTab(t)} style={{ flex: 1, padding: "8px 4px", border: "none", background: "none", cursor: "pointer", fontSize: 11, fontFamily: T.font, whiteSpace: "nowrap", display: "flex", alignItems: "center", justifyContent: "center", gap: 4, color: tab === t ? T.primary : T.textMuted, borderBottom: tab === t ? `3px solid ${T.primary}` : "3px solid transparent", fontWeight: tab === t ? 800 : 600, position: "relative", transition: "all .15s" }}>{tabIcons[t]} {t}{cnt > 0 && t !== "Overview" && <span style={{ background: T.primary, color: "#fff", borderRadius: 8, padding: "1px 7px", fontSize: 10, fontWeight: 700 }}>{cnt}</span>}{alert && <span style={{ position: "absolute", top: 4, right: 4, width: 8, height: 8, borderRadius: "50%", background: T.hiVis, border: `2px solid ${T.bg}` }} />}</button>; })}</div>
     <div style={{ paddingBottom: 90 }}>
       {tab === "Overview" && <OverviewTab jobs={jobs} expenses={expenses} invoices={invoices} onGo={goTo} biz={biz} showVat={showVat} />}
-      {tab === "Add Job" && <AddJobTab onGen={onGen} biz={biz} />}
+      {tab === "Create detailed job" && <AddJobTab onGen={onGen} biz={biz} />}
       {tab === "Jobs" && <JobsTab jobs={jobs} expenses={expenses} invoices={invoices} onUpdate={onUpdJob} onDelExp={onDelExp} onAddExp={onAddExp} onAddInvoice={onAddInv} onUpdateInvoice={onUpdInv} biz={biz} showVat={showVat} onXLSX={() => doExportXLSX(jobs, expenses, invoices, showVat)} unassigned={unassigned} onGoMaterials={() => setTab("Materials")} initialJobId={navJobId} clearInitialJob={() => setNavJobId(null)} flash={flash} />}
       {tab === "Schedule" && <ScheduleTab jobs={jobs} expenses={expenses} biz={biz} onUpdate={onUpdJob} onGo={goTo} flash={flash} />}
       {tab === "Materials" && <MaterialsTab jobs={jobs} expenses={expenses} onAddExp={onAddExp} onDelExp={onDelExp} onAssign={onAssign} showVat={showVat} onXLSX={() => doExportXLSX(jobs, expenses, invoices, showVat)} />}
@@ -1011,7 +1011,7 @@ export default function App() {
     {/* Sticky bottom bar — always visible */}
     <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 900, background: T.surface, borderTop: `1px solid ${T.border}`, padding: "10px 16px", paddingBottom: "max(10px, env(safe-area-inset-bottom))", boxShadow: "0 -2px 12px rgba(0,0,0,.08)" }}>
       <div style={{ maxWidth: 640, margin: "0 auto", display: "flex", gap: 10 }}>
-        <button onClick={() => setTab("Add Job")} style={{ ...S.btn, flex: 2, background: `linear-gradient(135deg, ${T.hiVis}, #D97706)`, color: "#fff", fontSize: 16, fontWeight: 800, padding: "14px 20px", borderRadius: 12, boxShadow: "0 4px 12px rgba(245,158,11,.35)", border: "none" }}>+ Add Job</button>
+        <button onClick={() => setTab("Create detailed job")} style={{ ...S.btn, flex: 2, background: `linear-gradient(135deg, ${T.hiVis}, #D97706)`, color: "#fff", fontSize: 16, fontWeight: 800, padding: "14px 20px", borderRadius: 12, boxShadow: "0 4px 12px rgba(245,158,11,.35)", border: "none" }}>+ Add Job</button>
         <button onClick={() => { stickyReceiptRef.current?.click(); }} style={{ ...S.btn, flex: 1, background: T.surfaceAlt, color: T.textMed, fontSize: 14, fontWeight: 700, padding: "14px 16px", borderRadius: 12, border: `1.5px solid ${T.border}` }}>📷 Receipt</button>
       </div>
     </div>
