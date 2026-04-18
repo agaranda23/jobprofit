@@ -1,8 +1,9 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import App from './App.jsx';
 import TodayScreen from './screens/TodayScreen';
 import HistoryScreen from './screens/HistoryScreen';
 import BottomNav from './components/BottomNav';
+import { startHidingLegacyDupes, stopHidingLegacyDupes } from './lib/hideLegacyDupes';
 import {
   getTodayJobs,
   getTodayReceipts,
@@ -40,6 +41,8 @@ export default function AppShell() {
   const [jobs, setJobs] = useState([]);
   const [receipts, setReceipts] = useState([]);
 
+  const manageRootRef = useRef(null);
+
   const refresh = useCallback(() => {
     setJobs(getTodayJobs());
     setReceipts(getTodayReceipts());
@@ -53,6 +56,11 @@ export default function AppShell() {
   // Re-read when switching back to today or history, in case the legacy App mutated storage
   useEffect(() => {
     if (view === 'today' || view === 'history') refresh();
+    if (view === 'manage' && manageRootRef.current) {
+      startHidingLegacyDupes(manageRootRef.current);
+    } else {
+      stopHidingLegacyDupes();
+    }
   }, [view, refresh]);
 
   // Also listen for storage events from other tabs
@@ -97,7 +105,7 @@ export default function AppShell() {
         />
       )}
 
-      <div style={{ display: view === 'manage' ? 'block' : 'none' }}>
+      <div ref={manageRootRef} style={{ display: view === 'manage' ? 'block' : 'none' }}>
         <div className="manage-header">
           <h1>Manage</h1>
           <p>Customers, quotes, materials & invoices</p>

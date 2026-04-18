@@ -521,3 +521,22 @@ body {
 [style*="background: linear-gradient(135deg, #22"] {
   display: none !important;
 }
+
+/* Manage tab header */
+.manage-header {
+  padding: 24px 20px 16px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+}
+.manage-header h1 {
+  font-size: 32px;
+  font-weight: 700;
+  margin: 0 0 4px;
+  color: var(--text);
+  letter-spacing: -0.02em;
+}
+.manage-header p {
+  color: var(--text-dim);
+  font-size: 14px;
+  margin: 0;
+}
