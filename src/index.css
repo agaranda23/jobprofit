@@ -396,3 +396,8 @@ body { background: var(--bg); color: var(--text); -webkit-font-smoothing: antial
   cursor: pointer;
 }
 .unpaid-toggle input { width: 18px; height: 18px; accent-color: var(--accent); }
+
+/* Make sure bottom nav sits above the legacy App on More */
+.bottom-nav { z-index: 9999 !important; background: #0b0d10 !important; }
+/* Give legacy app room to scroll past the bottom nav */
+body { padding-bottom: 72px; }
