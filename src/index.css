@@ -401,3 +401,23 @@ body { background: var(--bg); color: var(--text); -webkit-font-smoothing: antial
 .bottom-nav { z-index: 9999 !important; background: #0b0d10 !important; }
 /* Give legacy app room to scroll past the bottom nav */
 body { padding-bottom: 72px; }
+
+/* Full-width fix for Today + History */
+.today-screen {
+  max-width: 100% !important;
+  width: 100%;
+  margin: 0 !important;
+  padding-left: 20px !important;
+  padding-right: 20px !important;
+  box-sizing: border-box;
+}
+@media (min-width: 640px) {
+  .today-screen {
+    max-width: 560px !important;
+    margin: 0 auto !important;
+  }
+}
+/* Center totals panel + action buttons so they fill screen properly */
+.totals, .actions, .recent, .unpaid, .timeline { width: 100%; }
+.totals { box-sizing: border-box; }
+.action-btn { width: 100%; box-sizing: border-box; }
