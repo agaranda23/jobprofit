@@ -1,13 +1,16 @@
 import { useRef, useState } from 'react';
 
+const isMobile = typeof navigator !== 'undefined' &&
+  /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+
 export default function AddReceiptModal({ onClose, onSave }) {
   const fileRef = useRef(null);
-  const [photo, setPhoto] = useState(null); // data URL
+  const [photo, setPhoto] = useState(null);
   const [label, setLabel] = useState('');
   const [amount, setAmount] = useState('');
   const [error, setError] = useState('');
 
-  const openCamera = () => fileRef.current?.click();
+  const openPicker = () => fileRef.current?.click();
 
   const onFile = (e) => {
     const f = e.target.files?.[0];
@@ -24,7 +27,7 @@ export default function AddReceiptModal({ onClose, onSave }) {
       id: Date.now(),
       label: label.trim() || 'Receipt',
       amount: amt,
-      photo, // data URL — swap for Supabase/Netlify blob upload later
+      photo,
       date: new Date().toISOString(),
       createdAt: new Date().toISOString(),
     });
@@ -39,19 +42,19 @@ export default function AddReceiptModal({ onClose, onSave }) {
           ref={fileRef}
           type="file"
           accept="image/*"
-          capture="environment"
+          {...(isMobile ? { capture: 'environment' } : {})}
           style={{ display: 'none' }}
           onChange={onFile}
         />
 
         {!photo ? (
-          <button className="btn-primary btn-large" onClick={openCamera}>
-            📸 Take photo
+          <button type="button" className="btn-primary btn-large" onClick={openPicker}>
+            📸 {isMobile ? 'Take photo' : 'Choose photo'}
           </button>
         ) : (
           <>
             <img src={photo} alt="Receipt" className="receipt-preview" />
-            <button className="link-btn" onClick={openCamera}>Retake</button>
+            <button type="button" className="link-btn" onClick={openPicker}>Change photo</button>
           </>
         )}
 
