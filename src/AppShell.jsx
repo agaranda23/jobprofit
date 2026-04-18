@@ -36,6 +36,7 @@ function migrateLegacyTodayData() {
 
 export default function AppShell() {
   const [view, setView] = useState('today');
+  const [moreKey, setMoreKey] = useState(0);
   const [jobs, setJobs] = useState([]);
   const [receipts, setReceipts] = useState([]);
 
@@ -97,10 +98,10 @@ export default function AppShell() {
       )}
 
       <div style={{ display: view === 'more' ? 'block' : 'none' }}>
-        <App />
+        <App key={moreKey} />
       </div>
 
-      <BottomNav view={view} onChange={setView} />
+      <BottomNav view={view} onChange={(v) => { if (v === 'more') setMoreKey(k => k + 1); setView(v); }} />
     </>
   );
 }

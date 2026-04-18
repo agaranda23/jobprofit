@@ -15,6 +15,7 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed }) {
   const [error, setError] = useState('');
   const [retryCount, setRetryCount] = useState(0);
   const recogRef = useRef(null);
+  const manualOverride = useRef(false);
 
   // Auto-start mic on mount
   useEffect(() => {
@@ -53,6 +54,7 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed }) {
         }
       };
       r.onend = () => {
+        if (manualOverride.current) { manualOverride.current = false; return; }
         setStatus(s => {
           if (s === 'listening') {
             const t = (finalText || '').trim();
@@ -139,7 +141,7 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed }) {
             <div className="voice-indicator pulsing">🎤 Listening…</div>
             <p className="transcript-preview">{transcript || 'Example: "Kitchen job Sarah £380 cash"'}</p>
             <button className="btn-primary" onClick={stopListening} style={{ width: '100%', marginBottom: 8 }}>Done</button>
-            <button className="link-btn centered" onClick={() => { stopListening(); setStatus('manual'); }}>Type instead</button>
+            <button className="link-btn centered" onClick={() => { manualOverride.current = true; stopListening(); setStatus('manual'); }}>Type instead</button>
           </>
         )}
 
