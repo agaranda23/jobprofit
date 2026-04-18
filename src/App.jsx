@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import * as XLSX from "xlsx";
 
 const TABS = ["Overview", "Add Job", "Jobs", "Schedule", "Materials", "Settings"];
@@ -32,15 +32,6 @@ const seedInvoices = [
   { id:"INV-0004", jobId:"J-0004", number:"INV-0004", status:"paid", created:"2026-02-25", dueDate:"2026-03-11", paidDate:"2026-03-01" },
 ];
 
-
-const OVERHEAD_CATEGORIES = ["Van/fuel", "Insurance", "Phone/broadband", "Tools/equipment", "Accountant", "Marketing", "Premises", "Other"];
-const seedOverheads = [
-  { id: "OH-0001", name: "Van & fuel", category: "Van/fuel", amount: 400, is_active: true },
-  { id: "OH-0002", name: "Public liability insurance", category: "Insurance", amount: 80, is_active: true },
-  { id: "OH-0003", name: "Phone & broadband", category: "Phone/broadband", amount: 60, is_active: true },
-  { id: "OH-0004", name: "Tools & equipment", category: "Tools/equipment", amount: 100, is_active: true },
-];
-
 const GBP = n => "£" + Number(n).toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const mkId = p => `${p}-${String(Date.now()).slice(-4)}`;
 const thisMonth = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; };
@@ -58,114 +49,13 @@ function nextInvNum(invoices) { const nums = invoices.map(i => parseInt(i.number
 
 async function aiQuote(text, biz) {
   const sys = `You are a quoting assistant for UK tradespeople (${biz.trade}). Output ONLY valid JSON (no markdown): {"customer":"name or TBC","address":"address or TBC","phone":"phone or empty","email":"email or empty","summary":"1-2 sentence","lineItems":[{"desc":"","cost":number}],"notes":"","total":number}. UK rates, hourly £${biz.hourlyRate}. Materials separate.${biz.vatRegistered ? " Add 20% VAT line." : ""}`;
-  try { const r = await fetch("/.netlify/functions/ai", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 1000, system: sys, messages: [{ role: "user", content: `Voice note:\n"${text}"` }] }) }); const d = await r.json(); return JSON.parse((d.content || []).map(i => i.text || "").join("").replace(/```json|```/g, "").trim()); } catch { return null; }
+  try { const r = await fetch("https://api.anthropic.com/v1/messages", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 1000, system: sys, messages: [{ role: "user", content: `Voice note:\n"${text}"` }] }) }); const d = await r.json(); return JSON.parse((d.content || []).map(i => i.text || "").join("").replace(/```json|```/g, "").trim()); } catch { return null; }
 }
 async function aiReceipt(b64raw) {
   const b64 = b64raw.includes(",") ? b64raw.split(",")[1] : b64raw;
-  try { const r = await fetch("/.netlify/functions/ai", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 500, messages: [{ role: "user", content: [{ type: "image", source: { type: "base64", media_type: "image/jpeg", data: b64 } }, { type: "text", text: 'Extract from receipt. ONLY valid JSON: {"merchant":"","date":"YYYY-MM-DD","amount":number,"vat":number or 0,"desc":"brief items"}' }] }] }) }); const d = await r.json(); return JSON.parse((d.content || []).map(i => i.text || "").join("").replace(/```json|```/g, "").trim()); } catch { return null; }
+  try { const r = await fetch("https://api.anthropic.com/v1/messages", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 500, messages: [{ role: "user", content: [{ type: "image", source: { type: "base64", media_type: "image/jpeg", data: b64 } }, { type: "text", text: 'Extract from receipt. ONLY valid JSON: {"merchant":"","date":"YYYY-MM-DD","amount":number,"vat":number or 0,"desc":"brief items"}' }] }] }) }); const d = await r.json(); return JSON.parse((d.content || []).map(i => i.text || "").join("").replace(/```json|```/g, "").trim()); } catch { return null; }
 }
 function generateInvoiceText(job, biz, inv, showVat) { const vatAmt = showVat ? Math.round(job.total * 0.2 * 100) / 100 : 0; const gross = job.total + vatAmt; let t = `INVOICE ${inv.number}\nDate: ${inv.created}\nDue: ${inv.dueDate}\n\nFrom:\n${biz.name}\n${biz.address}\n${biz.phone}\n${biz.email}\n`; if (showVat && biz.vatNumber) t += `VAT: ${biz.vatNumber}\n`; t += `\nTo:\n${job.customer}\n${job.address}\n\nJob: ${job.summary}\n\nBreakdown:\n`; job.lineItems.forEach(i => { t += `  ${i.desc}: ${GBP(i.cost)}\n`; }); t += `\nSubtotal: ${GBP(job.total)}\n`; if (showVat) t += `VAT (20%): ${GBP(vatAmt)}\n`; t += `TOTAL: ${GBP(gross)}\n`; if (biz.bankDetails) t += `\nBank Details:\n${biz.bankDetails}\n`; t += `\nRef: ${inv.number}`; return t; }
-
-
-async function generateJobReportPDF(job, expenses, biz) {
-  if (!window.jspdf) { await new Promise((res, rej) => { const sc = document.createElement("script"); sc.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"; sc.onload = res; sc.onerror = rej; document.head.appendChild(sc); }); }
-  const { jsPDF } = window.jspdf; const doc = new jsPDF();
-  const w = doc.internal.pageSize.getWidth(); let y = 20;
-  const jExp = expenses.filter(e => e.jobId === job.id);
-  const totMat = jExp.reduce((s, e) => s + e.amount, 0);
-  const profit = job.total - totMat;
-  const margin = job.total > 0 ? Math.round((profit / job.total) * 100) : 0;
-
-  // Header
-  if (biz.logoUrl) { try { doc.addImage(biz.logoUrl, "JPEG", 14, y, 30, 30); } catch {} }
-  doc.setFontSize(22); doc.setFont("helvetica", "bold"); doc.setTextColor(30, 58, 138);
-  doc.text("JOB REPORT", w - 14, y + 8, { align: "right" });
-  doc.setFontSize(10); doc.setFont("helvetica", "normal"); doc.setTextColor(100);
-  doc.text(job.id, w - 14, y + 16, { align: "right" });
-  doc.text("Date: " + job.date, w - 14, y + 22, { align: "right" });
-
-  // Business info
-  y = 55; doc.setFontSize(9); doc.setTextColor(150); doc.text("FROM", 14, y);
-  doc.setFontSize(11); doc.setFont("helvetica", "bold"); doc.setTextColor(30); doc.text(biz.name, 14, y + 6);
-  doc.setFontSize(9); doc.setFont("helvetica", "normal"); doc.setTextColor(80);
-  doc.text(biz.phone + "  •  " + biz.email, 14, y + 12);
-
-  // Customer
-  const toX = w / 2 + 10; doc.setFontSize(9); doc.setTextColor(150); doc.text("JOB FOR", toX, y);
-  doc.setFontSize(11); doc.setFont("helvetica", "bold"); doc.setTextColor(30); doc.text(job.customer, toX, y + 6);
-  doc.setFontSize(9); doc.setFont("helvetica", "normal"); doc.setTextColor(80);
-  if (job.address) doc.text(job.address, toX, y + 12);
-  if (job.phone) doc.text(job.phone, toX, y + 18);
-
-  // Divider
-  y = 85; doc.setDrawColor(220); doc.setLineWidth(0.5); doc.line(14, y, w - 14, y);
-
-  // Summary
-  y += 8; doc.setFontSize(9); doc.setTextColor(150); doc.text("JOB DESCRIPTION", 14, y);
-  y += 5; doc.setFontSize(10); doc.setTextColor(60);
-  const sl = doc.splitTextToSize(job.summary, w - 28); doc.text(sl, 14, y); y += sl.length * 5 + 8;
-
-  // Profit summary box
-  doc.setFillColor(30, 58, 138); doc.rect(14, y, w - 28, 10, "F");
-  doc.setFontSize(9); doc.setFont("helvetica", "bold"); doc.setTextColor(255);
-  doc.text("FINANCIAL SUMMARY", 18, y + 7);
-  y += 14;
-  const cols = [["Quote Value", GBP(job.total)], ["Materials Cost", GBP(totMat)], ["Gross Profit", GBP(profit)], ["Margin", margin + "%"]];
-  const colW = (w - 28) / 4;
-  cols.forEach(([label, val], i) => {
-    const x = 14 + i * colW;
-    doc.setFillColor(i % 2 === 0 ? 248 : 240, 249, 250);
-    doc.rect(x, y - 2, colW, 16, "F");
-    doc.setFontSize(8); doc.setFont("helvetica", "normal"); doc.setTextColor(120); doc.text(label, x + 3, y + 4);
-    doc.setFontSize(12); doc.setFont("helvetica", "bold");
-    doc.setTextColor(label === "Gross Profit" ? (profit >= 0 ? 22 : 220) : 30, label === "Gross Profit" ? (profit >= 0 ? 163 : 38) : 58, label === "Gross Profit" ? (profit >= 0 ? 74 : 46) : 138);
-    doc.text(val, x + 3, y + 12);
-  });
-  y += 22;
-
-  // Line items
-  doc.setFillColor(30, 58, 138); doc.rect(14, y, w - 28, 8, "F");
-  doc.setFontSize(9); doc.setFont("helvetica", "bold"); doc.setTextColor(255);
-  doc.text("Quote Breakdown", 18, y + 5.5); doc.text("Amount", w - 18, y + 5.5, { align: "right" });
-  y += 12; doc.setFont("helvetica", "normal"); doc.setTextColor(60);
-  job.lineItems.forEach((it, i) => {
-    if (i % 2 === 0) { doc.setFillColor(248, 249, 250); doc.rect(14, y - 3.5, w - 28, 7, "F"); }
-    doc.setFontSize(10); doc.text(it.desc, 18, y); doc.text(GBP(it.cost), w - 18, y, { align: "right" }); y += 8;
-  });
-
-  // Materials
-  if (jExp.length > 0) {
-    y += 6; doc.setFillColor(220, 38, 38); doc.rect(14, y, w - 28, 8, "F");
-    doc.setFontSize(9); doc.setFont("helvetica", "bold"); doc.setTextColor(255);
-    doc.text("Materials / Expenses", 18, y + 5.5); doc.text("Cost", w - 18, y + 5.5, { align: "right" });
-    y += 12; doc.setFont("helvetica", "normal"); doc.setTextColor(60);
-    jExp.forEach((e, i) => {
-      if (i % 2 === 0) { doc.setFillColor(254, 242, 242); doc.rect(14, y - 3.5, w - 28, 7, "F"); }
-      doc.setFontSize(10); doc.text((e.merchant || "Unknown") + " — " + (e.desc || ""), 18, y);
-      doc.text(GBP(e.amount), w - 18, y, { align: "right" }); y += 8;
-    });
-  }
-
-  // Notes
-  const notes = job.jobNotes || [];
-  if (notes.length > 0) {
-    y += 6; doc.setFillColor(100, 100, 100); doc.rect(14, y, w - 28, 8, "F");
-    doc.setFontSize(9); doc.setFont("helvetica", "bold"); doc.setTextColor(255); doc.text("Job Notes", 18, y + 5.5);
-    y += 12; doc.setFont("helvetica", "normal"); doc.setTextColor(60);
-    notes.forEach(n => {
-      doc.setFontSize(10); doc.setFont("helvetica", "bold"); doc.text(n.subject || "Note", 14, y); y += 5;
-      doc.setFont("helvetica", "normal"); doc.setFontSize(9);
-      const nl = doc.splitTextToSize(n.body, w - 28); doc.text(nl, 14, y); y += nl.length * 4 + 5;
-    });
-  }
-
-  // Footer
-  const fy = doc.internal.pageSize.getHeight() - 15;
-  doc.setFontSize(8); doc.setTextColor(170); doc.setFont("helvetica", "normal");
-  doc.text(biz.name + "  •  Generated by JobProfit  •  " + job.id, w / 2, fy, { align: "center" });
-
-  return doc;
-}
 
 async function generateInvoicePDF(job, biz, inv, showVat) {
   if (!window.jspdf) { await new Promise((res, rej) => { const s = document.createElement("script"); s.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"; s.onload = res; s.onerror = rej; document.head.appendChild(s); }); }
@@ -260,7 +150,7 @@ function PhotoModal({ src, onClose }) { if (!src) return null; return <div onCli
 function ProfitBar({ quote, materials, profit, margin }) {
   const matPct = quote > 0 ? Math.min((materials / quote) * 100, 100) : 0;
   return <div style={{ background: T.surface, borderRadius: T.r, padding: 18, border: `1px solid ${T.border}`, boxShadow: T.cardShadow }}>
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr", gap: 8, marginBottom: 14 }}>
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: 8, marginBottom: 14 }}>
       <div><div style={{ fontSize: 10, color: T.textMuted, fontWeight: 600, letterSpacing: .5, textTransform: "uppercase" }}>Quote</div><div style={{ fontSize: 20, fontWeight: 800, color: T.primary }}>{GBP(quote)}</div></div>
       <div><div style={{ fontSize: 10, color: T.textMuted, fontWeight: 600, letterSpacing: .5, textTransform: "uppercase" }}>Materials</div><div style={{ fontSize: 20, fontWeight: 800, color: T.danger }}>{GBP(materials)}</div></div>
       <div><div style={{ fontSize: 10, color: T.textMuted, fontWeight: 600, letterSpacing: .5, textTransform: "uppercase" }}>Profit</div><div style={{ fontSize: 20, fontWeight: 800, color: T.accent }}>{GBP(profit)}</div></div>
@@ -271,173 +161,30 @@ function ProfitBar({ quote, materials, profit, margin }) {
   </div>;
 }
 
-function QuickStats({ todayProfit, outstanding, paidThisMonth, profitThisMonth, unpaidCount, onChase, jobs, expenses, biz, overheads }) {
+function QuickStats({ todayProfit, outstanding, paidThisMonth, profitThisMonth, unpaidCount, onChase }) {
   const [animProfit, setAnimProfit] = useState(0);
-  useEffect(() => { let start = 0; const end = todayProfit; const dur = 600; const t0 = performance.now(); const step = ts => { const p = Math.min((ts - t0) / dur, 1); const ease = 1 - Math.pow(1 - p, 3); setAnimProfit(start + (end - start) * ease); if (p < 1) requestAnimationFrame(step); }; requestAnimationFrame(step); }, [todayProfit]);
-
-  // --- Momentum calculations ---
-  const today = td();
-  const now = new Date();
-  const dayOfMonth = now.getDate();
-  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
-  const projectedMonthProfit = dayOfMonth > 0 ? Math.round((profitThisMonth / dayOfMonth) * daysInMonth) : 0;
-
-  // Last month profit
-  const lastMo = (() => { const d = new Date(); d.setMonth(d.getMonth() - 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; })();
-  const lastMoPaid = jobs.filter(j => j.paymentDate?.startsWith(lastMo)).reduce((s, j) => s + j.total, 0);
-  const lastMoMat = expenses.filter(e => e.date?.startsWith(lastMo)).reduce((s, e) => s + e.amount, 0);
-  const lastMonthProfit = lastMoPaid - lastMoMat;
-  const vsLastMonth = lastMonthProfit > 0 ? Math.round(((profitThisMonth - lastMonthProfit) / lastMonthProfit) * 100) : 0;
-  const vsColor = vsLastMonth > 3 ? T.accent : vsLastMonth < -3 ? T.danger : T.hiVis;
-
-  // Profit per hour today (est)
-  const rate = biz?.hourlyRate || 45;
-  const todayPaidJobs = jobs.filter(j => j.paymentDate === today);
-  const estHoursToday = todayPaidJobs.length > 0 ? Math.max(todayPaidJobs.reduce((s, j) => s + (j.total / rate), 0), 1) : 0;
-  const profitPerHour = estHoursToday > 0 ? Math.round(todayProfit / estHoursToday) : 0;
-
-  // Profit streak
-  const streakCount = (() => { let streak = 0; const d = new Date(); for (let i = 0; i < 30; i++) { const ds = d.toISOString().slice(0, 10); const dayPaid = jobs.filter(j => j.paymentDate === ds).reduce((s, j) => s + j.total, 0); const dayMat = expenses.filter(e => e.date === ds).reduce((s, e) => s + e.amount, 0); if (dayPaid - dayMat > 0) streak++; else break; d.setDate(d.getDate() - 1); } return streak; })();
-
-  // True Hourly Rate (weekly) — used for Next Move logic only
-  const d7ago = (() => { const d = new Date(); d.setDate(d.getDate() - 7); return d.toISOString().slice(0, 10); })();
-  const weekPaidJobs = jobs.filter(j => j.paymentStatus === "paid" && j.paymentDate >= d7ago);
-  const weekGross = weekPaidJobs.reduce((s, j) => s + j.total, 0);
-  const weekMat = weekPaidJobs.reduce((s, j) => s + expenses.filter(e => e.jobId === j.id).reduce((a, e) => a + e.amount, 0), 0);
-  const weekNet = weekGross - weekMat;
-  const weekEstHours = weekGross > 0 ? Math.max(Math.round(weekGross / rate), 1) : 0;
-  const trueHourly = weekEstHours > 0 ? Math.round(weekNet / weekEstHours) : 0;
-  const targetHourly = biz?.targetHourlyRate || 100;
-
-  // Tomorrow check for Next Move
-  const tomorrowDate = (() => { const d = new Date(); d.setDate(d.getDate() + 1); return d.toISOString().slice(0, 10); })();
-  const hasTomorrowJobs = jobs.some(j => j.scheduledDate === tomorrowDate);
-
-  // Smart guidance line (max ~40 chars, calm tone)
-  const guidance = (() => {
-    if (todayProfit === 0) return "First job sets the pace.";
-    if (projectedMonthProfit >= lastMonthProfit && lastMonthProfit > 0) return "Momentum building.";
-    if (lastMonthProfit > 0 && projectedMonthProfit < lastMonthProfit) return "Below pace — tighten pricing.";
-    return "Keep pushing.";
-  })();
-
-  // Next Move coach — priority order
-  const nextMove = (() => {
-    if (outstanding > 0) return { text: `Next move: Chase ${GBP(outstanding)}.`, action: onChase };
-    if (trueHourly > 0 && trueHourly < targetHourly) return { text: "Next move: Raise pricing.", action: null };
-    if (!hasTomorrowJobs) return { text: "Next move: Fill tomorrow.", action: null };
-    return { text: "Strong week. Keep momentum.", action: null };
-  })();
-
-  // Unpaid progress bar
-  const unpaidPct = outstanding > 0 ? Math.min(outstanding / (paidThisMonth + outstanding) * 100, 100) : 0;
-
-  return <div style={{ marginBottom: 24 }}>
-    {/* Hero — TODAY PROFIT */}
-    <div style={{ background: "linear-gradient(160deg, #1a3a7a 0%, #1e3a8a 55%, #15306e 100%)", borderRadius: T.r, padding: "26px 20px 22px", color: "#fff", boxShadow: "0 12px 28px rgba(26,58,122,0.22)", marginBottom: 10, textAlign: "center", position: "relative", overflow: "hidden" }}>
-      <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(255,255,255,0.04), rgba(0,0,0,0.08))", pointerEvents: "none" }} />
-      <div style={{ fontSize: 10, fontWeight: 600, letterSpacing: 2, textTransform: "uppercase", opacity: .65, marginBottom: 8, position: "relative" }}>Today You Made</div>
-      <div style={{ fontSize: 46, fontWeight: 800, lineHeight: 1, letterSpacing: -1.5, position: "relative" }}>{GBP(animProfit)}</div>
-      <div style={{ fontSize: 12, opacity: .6, marginTop: 6, fontWeight: 400, position: "relative" }}>profit after materials</div>
-      <div style={{ fontSize: 11, opacity: .45, marginTop: 8, fontWeight: 400, position: "relative", letterSpacing: .2 }}>{guidance}</div>
+  useEffect(() => { let start = 0; const end = todayProfit; const dur = 400; const t0 = performance.now(); const step = ts => { const p = Math.min((ts - t0) / dur, 1); setAnimProfit(start + (end - start) * p); if (p < 1) requestAnimationFrame(step); }; requestAnimationFrame(step); }, [todayProfit]);
+  return <div style={{ marginBottom: 20 }}>
+    {/* Hero — PROFIT CENTREPIECE */}
+    <div style={{ background: "linear-gradient(180deg, #1f9d55, #178a4a)", borderRadius: T.r, padding: "24px 20px 20px", color: "#fff", boxShadow: "0 10px 25px rgba(22,120,60,0.18)", marginBottom: 8, textAlign: "center", position: "relative", overflow: "hidden" }}>
+      <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(255,255,255,0.05), rgba(0,0,0,0.06))", pointerEvents: "none" }} />
+      <div style={{ fontSize: 11, fontWeight: 600, letterSpacing: 1.5, textTransform: "uppercase", opacity: .8, marginBottom: 6, position: "relative" }}>Today You Made</div>
+      <div style={{ fontSize: 44, fontWeight: 800, lineHeight: 1, letterSpacing: -1, position: "relative" }}>{GBP(animProfit)}</div>
+      <div style={{ fontSize: 12, opacity: .7, marginTop: 6, fontWeight: 500, position: "relative" }}>profit after materials</div>
     </div>
-
-    {/* Cash Collected + Unpaid */}
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 10 }}>
-      {/* Cash Collected — white card, navy text */}
-      <div style={{ background: T.surface, borderRadius: T.r, padding: "16px 16px 14px", boxShadow: T.cardShadow, border: `1px solid ${T.border}` }}>
-        <div style={{ fontSize: 10, color: T.textMuted, fontWeight: 500, textTransform: "uppercase", letterSpacing: .8, marginBottom: 4 }}>Cash In</div>
-        <div style={{ fontSize: 24, fontWeight: 800, color: "#1e3a8a", lineHeight: 1 }}>{GBP(paidThisMonth)}</div>
-        <div style={{ fontSize: 11, color: T.textMuted, fontWeight: 400, marginTop: 4 }}>this month</div>
+    {/* Scoreboard — Smaller, supporting */}
+    <div style={{ background: T.primary, borderRadius: T.r, padding: "14px 16px", color: "#fff", boxShadow: T.cardShadow, marginBottom: 8 }}>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <div><div style={{ fontSize: 10, opacity: .55, fontWeight: 500, textTransform: "uppercase", letterSpacing: .5 }}>Month Profit</div><div style={{ fontSize: 22, fontWeight: 800 }}>{GBP(profitThisMonth)}</div></div>
+        <div><div style={{ fontSize: 10, opacity: .55, fontWeight: 500, textTransform: "uppercase", letterSpacing: .5 }}>Month Paid</div><div style={{ fontSize: 22, fontWeight: 800 }}>{GBP(paidThisMonth)}</div></div>
       </div>
-      {/* Unpaid */}
-      <button onClick={outstanding > 0 ? onChase : undefined} style={{ background: outstanding > 0 ? "#FEF3C7" : T.surfaceAlt, borderRadius: T.r, padding: "16px 16px 14px", color: outstanding > 0 ? "#92400E" : T.textMuted, boxShadow: T.cardShadow, border: outstanding > 0 ? "1px solid #FDE68A" : `1px solid ${T.border}`, cursor: outstanding > 0 ? "pointer" : "default", fontFamily: T.font, textAlign: "left" }}>
-        <div style={{ fontSize: 10, fontWeight: 500, textTransform: "uppercase", letterSpacing: .8, marginBottom: 4, opacity: .7 }}>Unpaid</div>
-        <div style={{ fontSize: 24, fontWeight: 800, lineHeight: 1 }}>{GBP(outstanding)}</div>
-        <div style={{ fontSize: 11, fontWeight: 400, marginTop: 4, opacity: .7 }}>{outstanding > 0 ? `${unpaidCount} invoice${unpaidCount !== 1 ? "s" : ""}` : "All clear"}</div>
-        {outstanding > 0 && <div style={{ height: 2, borderRadius: 2, background: "#FDE68A", marginTop: 8, overflow: "hidden" }}><div style={{ height: "100%", borderRadius: 2, background: "#F59E0B", width: unpaidPct + "%" }} /></div>}
-      </button>
     </div>
-
-    {/* Performance Momentum */}
-    <div style={{ background: T.surface, borderRadius: T.r, padding: "16px 16px 14px", border: `1px solid ${T.border}`, boxShadow: T.cardShadow, marginBottom: 0 }}>
-      <div style={{ fontSize: 10, fontWeight: 600, color: T.textMuted, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 12 }}>Performance Momentum</div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 9 }}>
-        <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-          <span style={{ fontSize: 13, opacity: .5 }}>⚡</span>
-          <span style={{ fontSize: 18, fontWeight: 800, color: T.text }}>{GBP(profitPerHour)}</span>
-          <span style={{ fontSize: 12, color: T.textMuted, fontWeight: 400 }}>/hr today</span>
-        </div>
-        <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-          <span style={{ fontSize: 13, opacity: .5 }}>📈</span>
-          <span style={{ fontSize: 18, fontWeight: 800, color: T.text }}>On track for {GBP(projectedMonthProfit)}</span>
-          <span style={{ fontSize: 12, color: T.textMuted, fontWeight: 400 }}>this month</span>
-        </div>
-        <div style={{ display: "flex", alignItems: "baseline", gap: 6 }}>
-          <span style={{ fontSize: 13, opacity: .5 }}>🔥</span>
-          <span style={{ fontSize: 18, fontWeight: 800, color: vsColor }}>{vsLastMonth >= 0 ? "+" : ""}{vsLastMonth}%</span>
-          <span style={{ fontSize: 12, color: T.textMuted, fontWeight: 400 }}>vs last month</span>
-        </div>
-        {streakCount >= 2 && <div style={{ fontSize: 12, color: T.textMuted, fontWeight: 400, paddingLeft: 20 }}>{streakCount}-day profit streak</div>}
-      </div>
-      {/* Next Move coach pill */}
-      <button onClick={nextMove.action || undefined} style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 14, padding: "7px 12px", background: "#EEF2FF", border: "1px solid #C7D2FE", borderRadius: 20, cursor: nextMove.action ? "pointer" : "default", fontFamily: T.font }}>
-        <span style={{ fontSize: 12, fontWeight: 600, color: "#4338CA", flex: 1 }}>{nextMove.text}</span>
-        {nextMove.action && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#4338CA" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>}
-      </button>
-    </div>
+    {/* Outstanding — Left border accent + pulse */}
+    {outstanding > 0 && <><style>{`@keyframes subtlePulse{0%,100%{box-shadow:0 10px 25px rgba(0,0,0,0.08)}50%{box-shadow:0 10px 25px rgba(245,158,11,0.18)}}`}</style><button onClick={onChase} style={{ width: "100%", background: T.hiVis, borderRadius: T.r, padding: "14px 18px", color: "#fff", border: "none", borderLeft: "4px solid #D97706", cursor: "pointer", fontFamily: T.font, animation: "subtlePulse 3s ease-in-out infinite", display: "flex", alignItems: "center", justifyContent: "space-between", transition: "transform .1s", WebkitTapHighlightColor: "transparent" }} onPointerDown={e => e.currentTarget.style.transform = T.tapScale} onPointerUp={e => e.currentTarget.style.transform = "none"}>
+      <div style={{ textAlign: "left" }}><div style={{ fontSize: 22, fontWeight: 800 }}>{GBP(outstanding)}</div><div style={{ fontSize: 13, fontWeight: 500, opacity: .9 }}>{unpaidCount} unpaid — tap to chase</div></div>
+      <ChvIc />
+    </button></>}
   </div>;
-}
-
-
-function MonthlyOverheadsSettings({ overheads, onUpdate }) {
-  const [adding, setAdding] = React.useState(false);
-  const [form, setForm] = React.useState({ name: "", category: OVERHEAD_CATEGORIES[0], amount: "" });
-  const save = () => {
-    if (!form.name || !form.amount) return;
-    onUpdate([...overheads, { id: "OH-" + String(Date.now()).slice(-4), name: form.name, category: form.category, amount: Number(form.amount), is_active: true }]);
-    setForm({ name: "", category: OVERHEAD_CATEGORIES[0], amount: "" });
-    setAdding(false);
-  };
-  const toggle = id => onUpdate(overheads.map(o => o.id === id ? { ...o, is_active: !o.is_active } : o));
-  const remove = id => onUpdate(overheads.filter(o => o.id !== id));
-  const total = overheads.filter(o => o.is_active).reduce((s, o) => s + Number(o.amount), 0);
-  return (
-    <div style={{ marginTop: 24 }}>
-      <span style={S.lbl}>📊 Monthly Fixed Costs</span>
-      <div style={{ background: T.surface, borderRadius: T.r, padding: 16, border: `1px solid ${T.border}`, boxShadow: T.cardShadow, marginBottom: 10 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-          <div style={{ fontSize: 13, fontWeight: 600, color: T.textMed }}>Total: <span style={{ color: T.danger, fontWeight: 800 }}>{GBP(total)}</span>/mo</div>
-          <button onClick={() => setAdding(true)} style={{ ...S.ghost, fontSize: 13 }}><PlusIc /> Add cost</button>
-        </div>
-        {overheads.map(o => (
-          <div key={o.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 0", borderBottom: `1px solid ${T.borderLight}` }}>
-            <input type="checkbox" checked={o.is_active} onChange={() => toggle(o.id)} style={{ width: 18, height: 18, accentColor: T.primary }} />
-            <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 600, fontSize: 14 }}>{o.name}</div>
-              <div style={{ fontSize: 11, color: T.textMuted }}>{o.category}</div>
-            </div>
-            <div style={{ fontWeight: 700, fontSize: 14, color: o.is_active ? T.danger : T.textMuted }}>{GBP(o.amount)}/mo</div>
-            <button onClick={() => remove(o.id)} style={{ ...S.iconBtn, color: T.textMuted }}><BinIc /></button>
-          </div>
-        ))}
-        {overheads.length === 0 && <div style={{ textAlign: "center", padding: 16, color: T.textMuted, fontSize: 14 }}>No fixed costs yet. Add insurance, van, fuel etc.</div>}
-        {adding && (
-          <div style={{ marginTop: 14, padding: 14, background: T.surfaceAlt, borderRadius: T.rSm, display: "flex", flexDirection: "column", gap: 10 }}>
-            <input placeholder="Name (e.g. Van insurance)" value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} style={S.inp} />
-            <select value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} style={{ ...S.inp, appearance: "auto" }}>
-              {OVERHEAD_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
-            <input type="number" placeholder="Monthly amount (£)" value={form.amount} onChange={e => setForm({ ...form, amount: e.target.value })} style={S.inp} />
-            <div style={{ display: "flex", gap: 8 }}>
-              <button onClick={save} style={{ ...grn, flex: 1 }}>Save</button>
-              <button onClick={() => setAdding(false)} style={sec}>Cancel</button>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
 }
 
 function SendInvoiceModal({ job, biz, inv, showVat, onClose, flash }) {
@@ -531,12 +278,18 @@ function InsightsCard({ jobs, expenses, invoices, biz, onGo }) {
 
   if (jobs.length < 2) return <div style={{ background: T.surface, borderRadius: T.r, padding: 20, border: `1px solid ${T.border}`, boxShadow: T.cardShadow, marginBottom: 16, textAlign: "center" }}><svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={T.textMuted} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: 8 }}><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg><div style={{ fontWeight: 700, fontSize: 14, color: T.textMed }}>Add a few jobs to unlock insights</div></div>;
 
-  return <div style={{ animation: "fadeIn .4s ease-out" }}>
+  return <div style={{ background: T.surface, borderRadius: T.r, padding: 16, border: `1px solid ${T.border}`, boxShadow: T.cardShadow, marginBottom: 16, animation: "fadeIn .4s ease-out" }}>
     <style>{`@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}`}</style>
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: alerts.length > 0 ? 14 : 0 }}>
-      <div><div style={{ fontSize: 10, color: T.textMuted, fontWeight: 500, textTransform: "uppercase", letterSpacing: .5, marginBottom: 3 }}>Avg Profit</div><div style={{ fontSize: 20, fontWeight: 800, color: T.accent }}>{GBP(avgProfit)}</div><div style={{ fontSize: 11, color: T.textMuted, fontWeight: 400 }}>per job</div></div>
-      <div><div style={{ fontSize: 10, color: T.textMuted, fontWeight: 500, textTransform: "uppercase", letterSpacing: .5, marginBottom: 3 }}>Profit/Hour</div><div style={{ fontSize: 20, fontWeight: 800, color: T.primary }}>{GBP(profitPerHr)}</div><div style={{ fontSize: 11, color: T.textMuted, fontWeight: 400 }}>this week</div></div>
-      <div><div style={{ fontSize: 10, color: T.textMuted, fontWeight: 500, textTransform: "uppercase", letterSpacing: .5, marginBottom: 3 }}>Materials</div><div style={{ fontSize: 20, fontWeight: 800, color: matPct > 50 ? T.danger : T.textMed }}>{matPct}%</div><div style={{ fontSize: 11, color: T.textMuted, fontWeight: 400 }}>of revenue</div></div>
+    <span style={{ ...S.lbl, marginBottom: 12 }}>Weekly Insights</span>
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: alerts.length > 0 ? 12 : 0 }}>
+      <div><div style={{ fontSize: 10, color: T.textMuted, fontWeight: 600, textTransform: "uppercase", letterSpacing: .5 }}>Avg Profit/Job</div><div style={{ fontSize: 20, fontWeight: 800, color: T.accent, marginTop: 2 }}>{GBP(avgProfit)}</div></div>
+      <div><div style={{ fontSize: 10, color: T.textMuted, fontWeight: 600, textTransform: "uppercase", letterSpacing: .5 }}>Profit/Hour</div><div style={{ fontSize: 20, fontWeight: 800, color: T.primary, marginTop: 2 }}>{GBP(profitPerHr)}</div></div>
+      <div><div style={{ fontSize: 10, color: T.textMuted, fontWeight: 600, textTransform: "uppercase", letterSpacing: .5 }}>Materials %</div><div style={{ fontSize: 20, fontWeight: 800, color: matPct > 50 ? T.danger : T.textMed, marginTop: 2 }}>{matPct}%</div></div>
+    </div>
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginTop: 8, marginBottom: alerts.length > 0 ? 12 : 0 }}>
+      <div><div style={{ fontSize: 10, color: T.textMuted, fontWeight: 600, textTransform: "uppercase", letterSpacing: .5 }}>Unpaid</div><div style={{ fontSize: 20, fontWeight: 800, color: unpaidTotal > 0 ? T.hiVis : T.accent, marginTop: 2 }}>{GBP(unpaidTotal)}</div><div style={{ fontSize: 11, color: T.textMuted, fontWeight: 400 }}>{unpaidJobs.length} job{unpaidJobs.length !== 1 ? "s" : ""}</div></div>
+      <div><div style={{ fontSize: 10, color: T.textMuted, fontWeight: 600, textTransform: "uppercase", letterSpacing: .5 }}>This Week</div><div style={{ fontSize: 20, fontWeight: 800, color: T.primary, marginTop: 2 }}>{GBP(twRevenue)}</div><div style={{ fontSize: 11, color: T.textMuted, fontWeight: 400 }}>{paidThisWeek.length} paid</div></div>
+      {bestSrc ? <div><div style={{ fontSize: 10, color: T.textMuted, fontWeight: 600, textTransform: "uppercase", letterSpacing: .5 }}>Best Source</div><div style={{ fontSize: 16, fontWeight: 800, color: T.accent, marginTop: 2 }}>{bestSrc[0]}</div><div style={{ fontSize: 11, color: T.textMuted, fontWeight: 400 }}>{GBP(bestSrc[1].profit)} profit</div></div> : <div><div style={{ fontSize: 10, color: T.textMuted, fontWeight: 600, textTransform: "uppercase", letterSpacing: .5 }}>Margin</div><div style={{ fontSize: 20, fontWeight: 800, color: twMargin >= 30 ? T.accent : twMargin >= 15 ? T.hiVis : T.danger, marginTop: 2 }}>{twMargin}%</div></div>}
     </div>
     {alerts.length > 0 && <div style={{ borderTop: `1px solid ${T.borderLight}`, paddingTop: 12 }}>
       {alerts.map((a, i) => <button key={i} onClick={a.action || undefined} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", marginBottom: i < alerts.length - 1 ? 6 : 0, background: a.color + "10", border: `1px solid ${a.color}25`, borderRadius: T.rSm, cursor: a.action ? "pointer" : "default", fontFamily: T.font, textAlign: "left" }}><span style={{ fontSize: 16, flexShrink: 0 }}>{a.icon}</span><div style={{ fontSize: 13, fontWeight: 600, color: T.text, flex: 1 }}>{a.text}</div>{a.action && <ChvIc />}</button>)}
@@ -545,75 +298,7 @@ function InsightsCard({ jobs, expenses, invoices, biz, onGo }) {
 }
 
 /* ═══ OVERVIEW ═══════════════════════════════════════ */
-
-function WeeklyScoreboard({ jobs, expenses, invoices, overheads }) {
-  const now = new Date();
-  const d7ago = (() => { const d = new Date(); d.setDate(d.getDate() - 7); return d.toISOString().slice(0, 10); })();
-  const d14ago = (() => { const d = new Date(); d.setDate(d.getDate() - 14); return d.toISOString().slice(0, 10); })();
-  const today = now.toISOString().slice(0, 10);
-
-  // This week
-  const weekJobs = jobs.filter(j => j.jobStatus === "complete" && j.paymentDate >= d7ago && j.paymentDate <= today);
-  const weekEarned = weekJobs.reduce((s, j) => s + j.total, 0);
-  const weekMat = expenses.filter(e => e.date >= d7ago && e.date <= today).reduce((s, e) => s + e.amount, 0);
-  const ohTotal = (overheads || []).filter(o => o.is_active).reduce((s, o) => s + Number(o.amount), 0);
-  const dailyOH = ohTotal / 30;
-  const weekOH = Math.round(dailyOH * 7);
-  const weekProfit = weekEarned - weekMat - weekOH;
-  const weekOwed = jobs.filter(j => j.paymentStatus === "unpaid" && j.quoteStatus === "accepted" && (j.date >= d7ago || j.scheduledDate >= d7ago)).reduce((s, j) => s + j.total, 0);
-
-  // Last week for comparison
-  const lastWeekJobs = jobs.filter(j => j.jobStatus === "complete" && j.paymentDate >= d14ago && j.paymentDate < d7ago);
-  const lastWeekEarned = lastWeekJobs.reduce((s, j) => s + j.total, 0);
-  const lastWeekMat = expenses.filter(e => e.date >= d14ago && e.date < d7ago).reduce((s, e) => s + e.amount, 0);
-  const lastWeekProfit = lastWeekEarned - lastWeekMat - weekOH;
-  const vsLastWeek = lastWeekProfit > 0 ? (weekProfit > lastWeekProfit ? "up" : weekProfit < lastWeekProfit ? "down" : "same") : null;
-
-  if (weekJobs.length === 0 && weekEarned === 0) return (
-    <div style={{ background: T.surface, borderRadius: T.r, padding: "14px 16px", border: `1px solid ${T.border}`, boxShadow: T.cardShadow, marginBottom: 10 }}>
-      <div style={{ fontSize: 10, fontWeight: 700, color: T.textMuted, textTransform: "uppercase", letterSpacing: 1.2, marginBottom: 6 }}>This week</div>
-      <div style={{ fontSize: 13, color: T.textMuted }}>No completed jobs this week yet</div>
-    </div>
-  );
-
-  return (
-    <div style={{ background: T.surface, borderRadius: T.r, padding: "14px 16px", border: `1px solid ${T.border}`, boxShadow: T.cardShadow, marginBottom: 10 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-        <div style={{ fontSize: 10, fontWeight: 700, color: T.textMuted, textTransform: "uppercase", letterSpacing: 1.2 }}>This week</div>
-        {vsLastWeek && vsLastWeek !== "same" && (
-          <span style={{ fontSize: 12, fontWeight: 700, color: vsLastWeek === "up" ? T.accent : T.danger }}>
-            {vsLastWeek === "up" ? "▲ Up from last week" : "▼ Down from last week"}
-          </span>
-        )}
-      </div>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
-        <div>
-          <div style={{ fontSize: 10, color: T.textMuted, fontWeight: 500, textTransform: "uppercase", letterSpacing: .5, marginBottom: 2 }}>Jobs done</div>
-          <div style={{ fontSize: 20, fontWeight: 800, color: T.primary }}>{weekJobs.length}</div>
-        </div>
-        <div>
-          <div style={{ fontSize: 10, color: T.textMuted, fontWeight: 500, textTransform: "uppercase", letterSpacing: .5, marginBottom: 2 }}>Earned</div>
-          <div style={{ fontSize: 20, fontWeight: 800, color: T.text }}>{GBP(weekEarned)}</div>
-        </div>
-        <div>
-          <div style={{ fontSize: 10, color: T.textMuted, fontWeight: 500, textTransform: "uppercase", letterSpacing: .5, marginBottom: 2 }}>Materials</div>
-          <div style={{ fontSize: 20, fontWeight: 800, color: T.danger }}>{GBP(weekMat)}</div>
-        </div>
-        <div>
-          <div style={{ fontSize: 10, color: T.textMuted, fontWeight: 500, textTransform: "uppercase", letterSpacing: .5, marginBottom: 2 }}>Real profit</div>
-          <div style={{ fontSize: 20, fontWeight: 800, color: weekProfit >= 0 ? T.accent : T.danger }}>{GBP(weekProfit)}</div>
-        </div>
-      </div>
-      {weekOwed > 0 && (
-        <div style={{ marginTop: 8, padding: "6px 10px", background: T.hiVisLight, borderRadius: T.rSm, fontSize: 12, fontWeight: 700, color: T.warn }}>
-          Still owed this week: {GBP(weekOwed)}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function OverviewTab({ jobs, expenses, invoices, onGo, biz, showVat, overheads }) {
+function OverviewTab({ jobs, expenses, invoices, onGo, biz, showVat }) {
   const mo = thisMonth(); const today = td(); const paid = jobs.filter(j => j.paymentStatus === "paid"); const unpaid = jobs.filter(j => j.paymentStatus === "unpaid" && j.quoteStatus === "accepted");
   const totUnpaid = unpaid.reduce((s, j) => s + j.total, 0); const moPaid = jobs.filter(j => j.paymentDate?.startsWith(mo)).reduce((s, j) => s + j.total, 0);
   const moMat = expenses.filter(e => e.date?.startsWith(mo)).reduce((s, e) => s + e.amount, 0); const moProfit = moPaid - moMat;
@@ -628,41 +313,17 @@ function OverviewTab({ jobs, expenses, invoices, onGo, biz, showVat, overheads }
   const tmrwJobs = jobs.filter(j => j.scheduledDate === tomorrowDate);
   const tmrwVal = tmrwJobs.reduce((s, j) => s + j.total, 0);
   const todayJobs = jobs.filter(j => j.scheduledDate === today);
-  const [insightsOpen, setInsightsOpen] = useState(false);
   return <div>
     <div style={{ marginTop: 6, marginBottom: 10 }}><h2 style={{ fontSize: 21, fontWeight: 800, margin: 0, letterSpacing: -0.3 }}>Good {greeting}</h2><p style={{ fontSize: 12, color: T.textMuted, margin: "2px 0 0", fontWeight: 400 }}>Your scoreboard</p></div>
-    {/* Schedule Preview */}
+    {/* Schedule Preview — supporting, not competing */}
     {todayJobs.length > 0 && <button onClick={() => onGo("Schedule")} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", marginBottom: 6, background: T.primary, border: "none", borderRadius: T.r, cursor: "pointer", fontFamily: T.font, textAlign: "left", color: "#fff", boxShadow: T.cardShadow, transition: "transform .1s" }} onPointerDown={e => e.currentTarget.style.transform = T.tapScale} onPointerUp={e => e.currentTarget.style.transform = "none"}><div style={{ width: 30, height: 30, borderRadius: 7, background: "rgba(255,255,255,.12)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div><div style={{ flex: 1 }}><div style={{ fontWeight: 700, fontSize: 14 }}>{todayJobs.length} job{todayJobs.length !== 1 ? "s" : ""} today</div><div style={{ fontSize: 12, opacity: .75, fontWeight: 400 }}>{GBP(todayJobs.reduce((s, j) => s + j.total, 0))} scheduled</div></div><ChvIc /></button>}
     {/* Tomorrow */}
-    <button onClick={() => onGo("Schedule")} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", marginBottom: 18, background: tmrwJobs.length > 0 ? T.hiVis : T.surfaceAlt, border: tmrwJobs.length > 0 ? "none" : `1.5px solid ${T.border}`, borderRadius: T.r, cursor: "pointer", fontFamily: T.font, textAlign: "left", color: tmrwJobs.length > 0 ? "#fff" : T.textMuted, boxShadow: T.cardShadow, transition: "transform .1s" }} onPointerDown={e => e.currentTarget.style.transform = T.tapScale} onPointerUp={e => e.currentTarget.style.transform = "none"}><div style={{ width: 30, height: 30, borderRadius: 7, background: tmrwJobs.length > 0 ? "rgba(255,255,255,.12)" : T.border, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={tmrwJobs.length > 0 ? "#fff" : T.textMuted} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div><div style={{ flex: 1 }}>{tmrwJobs.length > 0 ? <><div style={{ fontWeight: 700, fontSize: 14 }}>Tomorrow's booked</div><div style={{ fontSize: 12, opacity: .75, fontWeight: 400 }}>{GBP(tmrwVal)} lined up</div></> : <div style={{ fontWeight: 600, fontSize: 13 }}>No jobs tomorrow</div>}</div><ChvIc /></button>
-    <WeeklyScoreboard jobs={jobs} expenses={expenses} invoices={invoices} overheads={overheads} />
-    <QuickStats todayProfit={todayProfit} outstanding={totUnpaid} paidThisMonth={moPaid} profitThisMonth={moProfit} unpaidCount={unpaid.length} onChase={scrollToChase} jobs={jobs} expenses={expenses} biz={biz} overheads={overheads} />
-
-    {/* Collapsible Insights */}
-    <button onClick={() => setInsightsOpen(!insightsOpen)} style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 16px", marginBottom: insightsOpen ? 0 : 20, background: T.surface, border: `1px solid ${T.border}`, borderRadius: insightsOpen ? `${T.r}px ${T.r}px 0 0` : T.r, cursor: "pointer", fontFamily: T.font, boxShadow: T.cardShadow }}>
-      <span style={{ fontSize: 11, fontWeight: 600, color: T.textMuted, textTransform: "uppercase", letterSpacing: 1.2 }}>Insights</span>
-      <span style={{ fontSize: 14, color: T.textMuted, transform: insightsOpen ? "rotate(180deg)" : "none", transition: "transform .2s" }}>▼</span>
-    </button>
-    {insightsOpen && <div style={{ background: T.surface, borderRadius: `0 0 ${T.r}px ${T.r}px`, border: `1px solid ${T.border}`, borderTop: "none", padding: 16, marginBottom: 20, boxShadow: T.cardShadow }}>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 14 }}>
-        <div><div style={{ fontSize: 10, color: T.textMuted, fontWeight: 500, textTransform: "uppercase", letterSpacing: .5, marginBottom: 3 }}>Month Profit</div><div style={{ fontSize: 20, fontWeight: 800, color: T.accent }}>{GBP(moProfit)}</div></div>
-        <Stat label="Active Jobs" value={activeJobs} color={T.primary} icon="🔨" sub={`${activeJobs} running`} />
-        <Stat label="Materials" value={GBP(moMat)} color={T.danger} icon="🧾" sub="this month" />
-      </div>
-      <InsightsCard jobs={jobs} expenses={expenses} invoices={invoices} biz={biz} onGo={onGo} />
-    </div>}
-
+    <button onClick={() => onGo("Schedule")} style={{ width: "100%", display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", marginBottom: 18, background: tmrwJobs.length > 0 ? T.hiVis : T.surfaceAlt, border: tmrwJobs.length > 0 ? "none" : `1.5px solid ${T.border}`, borderRadius: T.r, cursor: "pointer", fontFamily: T.font, textAlign: "left", color: tmrwJobs.length > 0 ? "#fff" : T.textMuted, boxShadow: T.cardShadow, transition: "transform .1s" }} onPointerDown={e => e.currentTarget.style.transform = T.tapScale} onPointerUp={e => e.currentTarget.style.transform = "none"}><div style={{ width: 30, height: 30, borderRadius: 7, background: tmrwJobs.length > 0 ? "rgba(255,255,255,.12)" : T.border, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={tmrwJobs.length > 0 ? "#fff" : T.textMuted} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div><div style={{ flex: 1 }}>{tmrwJobs.length > 0 ? <><div style={{ fontWeight: 700, fontSize: 14 }}>{tmrwJobs.length} job{tmrwJobs.length !== 1 ? "s" : ""} tomorrow</div><div style={{ fontSize: 12, opacity: .75, fontWeight: 400 }}>{GBP(tmrwVal)} potential</div></> : <div style={{ fontWeight: 600, fontSize: 13 }}>No jobs tomorrow</div>}</div><ChvIc /></button>
+    <QuickStats todayProfit={todayProfit} outstanding={totUnpaid} paidThisMonth={moPaid} profitThisMonth={moProfit} unpaidCount={unpaid.length} onChase={scrollToChase} />
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 16 }}><Stat label="Active Jobs" value={activeJobs} color={T.primary} icon="🔨" /><Stat label="Materials" value={GBP(moMat)} color={T.danger} icon="🧾" /></div>
+    <InsightsCard jobs={jobs} expenses={expenses} invoices={invoices} biz={biz} onGo={onGo} />
     {unassigned > 0 && <button onClick={() => onGo("Materials")} style={{ width: "100%", display: "flex", alignItems: "center", gap: 12, padding: "14px 16px", marginBottom: 14, background: T.surface, border: `1.5px solid ${T.hiVis}`, borderRadius: T.r, cursor: "pointer", fontFamily: T.font, textAlign: "left" }}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={T.hiVis} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg><div style={{ flex: 1 }}><div style={{ fontWeight: 700, fontSize: 14, color: T.text }}>{unassigned} receipt{unassigned !== 1 ? "s" : ""} need a job</div></div><ChvIc /></button>}
-    {unpaid.length > 0 && <div id="chase-section" style={{ marginBottom: 24 }}>
-      {/* Single authority chase card */}
-      <div style={{ background: "#FEF3C7", border: "1px solid #FDE68A", borderRadius: T.r, padding: "14px 16px", marginBottom: 12, display: "flex", alignItems: "center", gap: 12 }}>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 14, fontWeight: 700, color: "#92400E" }}>⚠️ {GBP(totUnpaid)} unpaid · {unpaid.length} invoice{unpaid.length !== 1 ? "s" : ""}</div>
-          <div style={{ fontSize: 12, color: "#B45309", fontWeight: 400, marginTop: 2 }}>{unpaid.map(j => j.customer.split(" ").slice(-1)[0]).join(", ")}</div>
-        </div>
-        <button onClick={scrollToChase} style={{ background: "#D97706", color: "#fff", border: "none", borderRadius: 10, padding: "8px 16px", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: T.font, flexShrink: 0 }}>Chase now</button>
-      </div>
-      {[...unpaid].sort((a, b) => { const aInv = invoices.find(i => i.jobId === a.id); const bInv = invoices.find(i => i.jobId === b.id); const aDays = aInv ? daysSince(aInv.created) : daysSince(a.date); const bDays = bInv ? daysSince(bInv.created) : daysSince(b.date); return bDays - aDays || b.total - a.total; }).slice(0, 5).map(j => { const jInv = invoices.find(i => i.jobId === j.id); const days = jInv ? daysSince(jInv.created) : daysSince(j.date); const level = chaseLevel(j, jInv); const li = chaseLevelInfo(level); const lastR = (j.reminders || []).length > 0 ? j.reminders[j.reminders.length - 1] : null; const chaseCount = (j.reminders || []).length; const nextChase = !lastR ? "Chase now" : daysSince(lastR.date) >= 3 ? "Chase again" : "Chased " + daysSince(lastR.date) + "d ago"; return <div key={j.id} style={{ ...S.card, marginBottom: 10, borderLeft: `4px solid ${li.color}` }}>
+    {unpaid.length > 0 && <div id="chase-section" style={{ marginBottom: 22 }}><span style={S.lbl}>💰 Chase These Payments</span>{[...unpaid].sort((a, b) => { const aInv = invoices.find(i => i.jobId === a.id); const bInv = invoices.find(i => i.jobId === b.id); const aDays = aInv ? daysSince(aInv.created) : daysSince(a.date); const bDays = bInv ? daysSince(bInv.created) : daysSince(b.date); return bDays - aDays || b.total - a.total; }).slice(0, 5).map(j => { const jInv = invoices.find(i => i.jobId === j.id); const days = jInv ? daysSince(jInv.created) : daysSince(j.date); const level = chaseLevel(j, jInv); const li = chaseLevelInfo(level); const lastR = (j.reminders || []).length > 0 ? j.reminders[j.reminders.length - 1] : null; const chaseCount = (j.reminders || []).length; const nextChase = !lastR ? "Chase now" : daysSince(lastR.date) >= 3 ? "Chase again" : "Chased " + daysSince(lastR.date) + "d ago"; return <div key={j.id} style={{ ...S.card, marginBottom: 10, borderLeft: `4px solid ${li.color}` }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
         <div onClick={() => onGo("Jobs", j.id)} style={{ flex: 1, cursor: "pointer" }}><div style={{ fontWeight: 700, fontSize: 15 }}>{j.customer}</div><div style={{ fontSize: 13, color: T.textMed, marginTop: 2 }}>{j.summary.slice(0, 45)}…</div><div style={{ display: "flex", gap: 6, marginTop: 6, alignItems: "center", flexWrap: "wrap" }}><span style={{ fontSize: 11, color: li.color, fontWeight: 700, background: li.bg, padding: "2px 8px", borderRadius: 10 }}>{li.icon} {days}d overdue</span>{chaseCount > 0 && <span style={{ fontSize: 11, color: T.textMuted, background: T.surfaceAlt, padding: "2px 8px", borderRadius: 10 }}>Chased {chaseCount}x</span>}<span style={{ fontSize: 11, color: daysSince(lastR?.date) >= 3 || !lastR ? T.warn : T.textMuted, fontWeight: 600 }}>{nextChase}</span></div></div>
         <div style={{ textAlign: "right", flexShrink: 0 }}><div style={{ fontWeight: 800, fontSize: 18, color: li.color }}>{GBP(j.total)}</div></div>
@@ -782,100 +443,12 @@ function ChasePaymentPanel({ job, biz, inv, showVat, onUpdate, flash }) {
 }
 
 /* ═══ JOB DETAIL — Full Pipeline ═════════════════════ */
-
-function StickToPlan({ job, expenses }) {
-  const jExp = expenses.filter(e => e.jobId === job.id);
-  const actualMaterials = jExp.reduce((s, e) => s + e.amount, 0);
-  const quotedProfit = job.total - (job.quotedMaterialsCost || 0) - (job.quotedLabourCost || 0);
-  const currentProfit = job.total - actualMaterials - (job.actualLabourCost || 0);
-  const hasQuotedCosts = job.quotedMaterialsCost || job.quotedLabourCost;
-
-  // If no plan costs set, show setup prompt
-  if (!hasQuotedCosts) return (
-    <div style={{ background: T.surfaceAlt, border: `1.5px dashed ${T.border}`, borderRadius: T.r, padding: "12px 16px", marginBottom: 16, display: "flex", alignItems: "center", gap: 10 }}>
-      <span style={{ fontSize: 18 }}>📋</span>
-      <div style={{ flex: 1 }}>
-        <div style={{ fontWeight: 700, fontSize: 13, color: T.textMed }}>Stick to plan</div>
-        <div style={{ fontSize: 12, color: T.textMuted, marginTop: 1 }}>Add planned costs to track profit drift</div>
-      </div>
-    </div>
-  );
-
-  const diff = currentProfit - quotedProfit;
-  const diffPct = quotedProfit !== 0 ? Math.abs(Math.round((diff / quotedProfit) * 100)) : 0;
-  const isDown = diff < 0;
-  const badge = diffPct <= 5 ? { label: "✅ On plan", color: T.accent, bg: T.accentLight }
-    : diffPct <= 20 ? { label: "⚠ Slight drift", color: T.warn, bg: T.warnLight }
-    : { label: "❌ Off plan", color: T.danger, bg: T.dangerLight };
-  const profitColor = diffPct > 20 ? T.danger : diffPct > 5 ? T.warn : T.accent;
-
-  return (
-    <div style={{ background: T.surface, borderRadius: T.r, padding: "16px 16px 14px", border: `1px solid ${T.border}`, boxShadow: T.cardShadow, marginBottom: 16 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-        <span style={{ fontSize: 11, fontWeight: 700, color: T.textMuted, textTransform: "uppercase", letterSpacing: 1 }}>Stick to plan</span>
-        <span style={{ fontSize: 12, fontWeight: 700, color: badge.color, background: badge.bg, padding: "3px 10px", borderRadius: 12 }}>{badge.label}</span>
-      </div>
-      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
-          <span style={{ color: T.textMuted }}>Quoted profit</span>
-          <span style={{ fontWeight: 700 }}>{GBP(quotedProfit)}</span>
-        </div>
-        <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
-          <span style={{ color: T.textMuted }}>Current estimate</span>
-          <span style={{ fontWeight: 800, color: profitColor }}>{GBP(currentProfit)}</span>
-        </div>
-        {isDown && <div style={{ fontSize: 12, color: profitColor, fontWeight: 700, marginTop: 2 }}>
-          {diffPct > 20 ? "⚠ Profit drifting from original plan" : `Down ${GBP(Math.abs(diff))} vs plan`}
-        </div>}
-        {!isDown && diff !== 0 && <div style={{ fontSize: 12, color: T.accent, fontWeight: 700, marginTop: 2 }}>Up {GBP(diff)} vs plan 🎉</div>}
-      </div>
-    </div>
-  );
-}
-
-function PlannedCostsForm({ job, onUpdate, onClose }) {
-  const [qm, setQm] = React.useState(String(job.quotedMaterialsCost || ""));
-  const [ql, setQl] = React.useState(String(job.quotedLabourCost || ""));
-  const [al, setAl] = React.useState(String(job.actualLabourCost || ""));
-  const save = () => {
-    onUpdate({ ...job, quotedMaterialsCost: Number(qm) || 0, quotedLabourCost: Number(ql) || 0, actualLabourCost: Number(al) || 0 });
-    onClose();
-  };
-  return (
-    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 1000 }} onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
-      <div style={{ background: T.surface, borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 500, padding: 24 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
-          <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>📋 Plan vs Actual</h3>
-          <button onClick={onClose} style={{ width: 36, height: 36, borderRadius: "50%", border: "none", background: T.surfaceAlt, cursor: "pointer", fontSize: 16 }}>✕</button>
-        </div>
-        <div style={{ fontSize: 13, color: T.textMuted, marginBottom: 16 }}>Set your planned costs to track profit drift as the job progresses.</div>
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          <div>
-            <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 4 }}>Quoted materials cost (£)</label>
-            <input type="number" placeholder="e.g. 400" value={qm} onChange={e => setQm(e.target.value)} style={S.inp} />
-          </div>
-          <div>
-            <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 4 }}>Quoted labour cost (£)</label>
-            <input type="number" placeholder="e.g. 800" value={ql} onChange={e => setQl(e.target.value)} style={S.inp} />
-          </div>
-          <div>
-            <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 4 }}>Actual labour cost so far (£)</label>
-            <input type="number" placeholder="e.g. 950" value={al} onChange={e => setAl(e.target.value)} style={S.inp} />
-          </div>
-          <button onClick={save} style={{ ...grn, width: "100%", marginTop: 4 }}>💾 Save Plan</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function JobDetail({ job, expenses, invoices, onBack, onUpdate, onDelExp, onAddExp, onAddInvoice, onUpdateInvoice, biz, showVat, onViewCustomer, flash }) {
   const [ed, setEd] = useState(false); const [d, setD] = useState({ ...job }); const [viewPhoto, setViewPhoto] = useState(null);
   const [addingExp, setAddingExp] = useState(false);
   const [noteSubject, setNoteSubject] = useState(""); const [noteBody, setNoteBody] = useState("");
   const [showSendModal, setShowSendModal] = useState(false); const photoRef = useRef(null);
   const [showSchModal, setShowSchModal] = useState(false);
-  const [showPlanModal, setShowPlanModal] = useState(false);
   const [schDate, setSchDate] = useState(job.scheduledDate || ""); const [schStart, setSchStart] = useState(job.scheduledStart || ""); const [schEnd, setSchEnd] = useState(job.scheduledEnd || "");
   const saveSchedule = () => { onUpdate({ ...job, scheduledDate: schDate || null, scheduledStart: schStart || null, scheduledEnd: schEnd || null }); setShowSchModal(false); flash("📅 Schedule updated"); };
   const clearSchedule = () => { onUpdate({ ...job, scheduledDate: null, scheduledStart: null, scheduledEnd: null }); setShowSchModal(false); flash("📅 Unscheduled"); };
@@ -902,7 +475,6 @@ function JobDetail({ job, expenses, invoices, onBack, onUpdate, onDelExp, onAddE
 
   return <div>
     <PhotoModal src={viewPhoto} onClose={() => setViewPhoto(null)} />
-    {showPlanModal && <PlannedCostsForm job={job} onUpdate={onUpdate} onClose={() => setShowPlanModal(false)} />}
     {showSendModal && inv && <SendInvoiceModal job={job} biz={biz} inv={inv} showVat={showVat} onClose={() => setShowSendModal(false)} flash={flash} />}
     <button onClick={onBack} style={{ ...S.ghost, marginBottom: 16 }}><ChvIc d="left" /> All Jobs</button>
     {/* Pipeline */}
@@ -923,7 +495,6 @@ function JobDetail({ job, expenses, invoices, onBack, onUpdate, onDelExp, onAddE
     </div>
     {/* Profit */}
     <ProfitBar quote={job.total} materials={totExp} profit={profit} margin={margin} />
-    <StickToPlan job={job} expenses={expenses} />
     {showVat && totVat > 0 && <div style={{ marginTop: 8, padding: "10px 14px", background: T.warnLight, borderRadius: T.rSm }}><span style={{ fontSize: 13, color: T.warn, fontWeight: 700 }}>VAT reclaim: {GBP(totVat)}</span></div>}
     {/* Pipeline buttons */}
     <div style={{ marginTop: 16, marginBottom: 16 }}>
@@ -959,14 +530,7 @@ function JobDetail({ job, expenses, invoices, onBack, onUpdate, onDelExp, onAddE
       </div>
     </div>}
     {/* Quick actions */}
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr 1fr 1fr", gap: 8, marginBottom: 16 }}>
-      <button onClick={() => setAddingExp(true)} style={{ ...sec, width: "100%", fontSize: 12, padding: "10px 6px" }}>🧾 Material</button>
-      <button onClick={() => photoRef.current?.click()} style={{ ...sec, width: "100%", fontSize: 12, padding: "10px 6px" }}>📷 Photo</button>
-      <button onClick={() => { setEd(true); setD({ ...job }); }} style={{ ...sec, width: "100%", fontSize: 12, padding: "10px 6px" }}>✏️ Edit</button>
-      <button onClick={() => setShowPlanModal(true)} style={{ ...S.btn, background: T.cyan, color: "#fff", width: "100%", fontSize: 12, padding: "10px 6px", border: "none" }}>📋 Plan</button>
-      <button onClick={async () => { flash("📄 Generating..."); try { const doc = await generateJobReportPDF(job, expenses, biz); const slug = (job.customer || job.id).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""); const dateStr = td(); doc.save("job-report-" + slug + "-" + dateStr + ".pdf"); flash("📄 Report downloaded"); } catch { flash("PDF failed"); } }} style={{ ...S.btn, background: T.purple, color: "#fff", width: "100%", fontSize: 12, padding: "10px 6px", border: "none" }}>📄 Report</button>
-      <input ref={photoRef} type="file" accept="image/*" capture="environment" multiple onChange={handleJobPhoto} style={{ display: "none" }} />
-    </div>
+    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, marginBottom: 16 }}><button onClick={() => setAddingExp(true)} style={{ ...sec, width: "100%", fontSize: 12, padding: "10px 6px" }}>🧾 Material</button><button onClick={() => photoRef.current?.click()} style={{ ...sec, width: "100%", fontSize: 12, padding: "10px 6px" }}>📷 Photo</button><button onClick={() => { setEd(true); setD({ ...job }); }} style={{ ...sec, width: "100%", fontSize: 12, padding: "10px 6px" }}>✏️ Edit</button><input ref={photoRef} type="file" accept="image/*" capture="environment" multiple onChange={handleJobPhoto} style={{ display: "none" }} /></div>
     {/* Quote breakdown */}
     <div style={{ background: T.surface, borderRadius: T.r, padding: 20, border: `1px solid ${T.border}`, boxShadow: T.cardShadow, marginBottom: 16 }}>
       <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 14 }}><span style={S.lbl}>Quote Breakdown</span><span style={{ fontSize: 12, color: T.textMuted }}>{q.id} · {q.date}</span></div>
@@ -1176,7 +740,7 @@ function AddJobTab({ onGen, biz }) {
 }
 
 /* ═══ SETTINGS ═══════════════════════════════════════ */
-function SettingsTab({ biz, onUpd, overheads, onUpdateOverheads }) {
+function SettingsTab({ biz, onUpd }) {
   const ch = (f, v) => onUpd({ ...biz, [f]: v }); const logoRef = useRef(null);
   const handleLogo = async e => { const f = e.target.files?.[0]; if (!f) return; try { const raw = await fileToB64(f); const c = await compress(raw, 200, 0.8); ch("logoUrl", c); } catch {} };
   const [notifPerm, setNotifPerm] = useState(typeof Notification !== "undefined" ? Notification.permission : "denied");
@@ -1187,7 +751,6 @@ function SettingsTab({ biz, onUpd, overheads, onUpdateOverheads }) {
     {[{ l: "Business Name", f: "name" }, { l: "Trade", f: "trade" }, { l: "Phone", f: "phone" }, { l: "Email", f: "email" }, { l: "Address", f: "address" }, { l: "Hourly Rate (£)", f: "hourlyRate", t: "number" }].map(({ l, f, t }) => <div key={f} style={{ marginBottom: 14 }}><label style={{ display: "block", fontSize: 14, fontWeight: 600, color: T.textMed, marginBottom: 6 }}>{l}</label><input type={t || "text"} value={biz[f]} onChange={e => ch(f, t === "number" ? Number(e.target.value) : e.target.value)} style={S.inp} /></div>)}
     <div style={{ marginBottom: 14 }}><label style={{ display: "block", fontSize: 14, fontWeight: 600, color: T.textMed, marginBottom: 6 }}>Bank Details (on invoices)</label><textarea value={biz.bankDetails || ""} onChange={e => ch("bankDetails", e.target.value)} placeholder={"Sort code: 12-34-56\nAccount: 12345678\nName: Smith Plumbing Ltd"} style={{ ...S.inp, minHeight: 70, resize: "vertical" }} /></div>
     <div style={{ marginTop: 12, padding: 18, background: T.surfaceAlt, borderRadius: T.r, border: `1px solid ${T.border}` }}><div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: biz.vatRegistered ? 14 : 0 }}><input type="checkbox" id="vat" checked={biz.vatRegistered} onChange={e => ch("vatRegistered", e.target.checked)} style={{ width: 22, height: 22, accentColor: T.primary }} /><label htmlFor="vat" style={{ fontSize: 15, fontWeight: 700, cursor: "pointer" }}>VAT Registered</label></div>{biz.vatRegistered ? <><div style={{ marginBottom: 12 }}><label style={{ display: "block", fontSize: 14, fontWeight: 600, color: T.textMed, marginBottom: 6 }}>VAT Number</label><input value={biz.vatNumber} onChange={e => ch("vatNumber", e.target.value)} style={S.inp} placeholder="GB 123 4567 89" /></div><div style={{ fontSize: 13, color: T.accent, fontWeight: 600 }}>✅ VAT tracked</div></> : <div style={{ fontSize: 13, color: T.textMuted, marginTop: 8 }}>Turn on for VAT tracking</div>}</div>
-    <MonthlyOverheadsSettings overheads={overheads} onUpdate={onUpdateOverheads} />
     {/* Reminders & Notifications */}
     <div style={{ marginTop: 20 }}><span style={S.lbl}>🔔 Reminders</span>
       <div style={{ background: T.surface, borderRadius: T.r, padding: 18, border: `1px solid ${T.border}`, boxShadow: T.cardShadow }}>
@@ -1210,21 +773,49 @@ function SettingsTab({ biz, onUpd, overheads, onUpdateOverheads }) {
 const STORAGE_KEY = "jobprofit-app-data";
 
 function loadSavedData() {
+  // Try localStorage first (works on Android home screen PWA)
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) return JSON.parse(raw);
-  } catch (e) { }
+  } catch (e) { /* localStorage may be blocked in artifact sandbox */ }
   return null;
 }
 
-function saveData(data) {
+function saveToLocalStorage(data) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-  } catch (e) { }
+    return true;
+  } catch (e) { return false; }
+}
+
+async function loadFromWindowStorage() {
+  try {
+    if (window.storage) {
+      const result = await window.storage.get(STORAGE_KEY);
+      if (result && result.value) return JSON.parse(result.value);
+    }
+  } catch (e) { /* window.storage may not exist outside artifact */ }
+  return null;
+}
+
+async function saveToWindowStorage(data) {
+  try {
+    if (window.storage) {
+      await window.storage.set(STORAGE_KEY, JSON.stringify(data));
+      return true;
+    }
+  } catch (e) { /* ignore */ }
+  return false;
+}
+
+function saveData(data) {
+  // Save to both — whichever is available will work
+  saveToLocalStorage(data);
+  saveToWindowStorage(data);
 }
 
 /* ═══ MAIN APP ═══════════════════════════════════════ */
-function App() {
+export default function App() {
   const [tab, setTab] = useState("Overview");
   const [jobs, setJobs] = useState(seedJobs);
   const [expenses, setExpenses] = useState(seedExp);
@@ -1232,38 +823,140 @@ function App() {
   const [biz, setBiz] = useState(defBiz);
   const [note, setNote] = useState("");
   const [navJobId, setNavJobId] = useState(null);
-  const [overheads, setOverheads] = useState(seedOverheads);
   const [dataLoaded, setDataLoaded] = useState(false);
   const stickyReceiptRef = useRef(null);
   const showVat = biz.vatRegistered; const unassigned = expenses.filter(e => !e.jobId).length;
 
   // Load saved data on mount
   useEffect(() => {
-    const saved = loadSavedData();
-    if (saved) {
-      if (saved.jobs) setJobs(saved.jobs);
-      if (saved.expenses) setExpenses(saved.expenses);
-      if (saved.invoices) setInvoices(saved.invoices);
-      if (saved.biz) setBiz(saved.biz);
-      if (saved.overheads) setOverheads(saved.overheads);
+    // Try localStorage first (instant, works on Android home screen)
+    const localData = loadSavedData();
+    if (localData) {
+      if (localData.jobs) setJobs(localData.jobs);
+      if (localData.expenses) setExpenses(localData.expenses);
+      if (localData.invoices) setInvoices(localData.invoices);
+      if (localData.biz) setBiz(localData.biz);
+      setDataLoaded(true);
+      return;
     }
-    setDataLoaded(true);
+    // Fallback: try window.storage (artifact sandbox)
+    loadFromWindowStorage().then(saved => {
+      if (saved) {
+        if (saved.jobs) setJobs(saved.jobs);
+        if (saved.expenses) setExpenses(saved.expenses);
+        if (saved.invoices) setInvoices(saved.invoices);
+        if (saved.biz) setBiz(saved.biz);
+      }
+      setDataLoaded(true);
+    });
   }, []);
 
   // Auto-save whenever data changes (after initial load)
   useEffect(() => {
     if (!dataLoaded) return;
     const timer = setTimeout(() => {
-      saveData({ jobs, expenses, invoices, biz, overheads });
+      saveData({ jobs, expenses, invoices, biz });
     }, 300);
     return () => clearTimeout(timer);
-  }, [jobs, expenses, invoices, biz, overheads, dataLoaded]);
+  }, [jobs, expenses, invoices, biz, dataLoaded]);
 
-  // Register service worker for PWA (manifest is now a static file)
+  // PWA homescreen icon & manifest injection
   useEffect(() => {
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js').catch(() => {});
-    }
+    // Remove any existing manifest/icons we previously injected
+    document.querySelectorAll('[data-jp-pwa]').forEach(el => el.remove());
+
+    // Apple touch icon (iOS homescreen)
+    const appleIcon = document.createElement('link');
+    appleIcon.setAttribute('data-jp-pwa', '1');
+    appleIcon.rel = 'apple-touch-icon';
+    appleIcon.href = LOGO;
+    document.head.appendChild(appleIcon);
+
+    // Standard favicon
+    const favicon = document.createElement('link');
+    favicon.setAttribute('data-jp-pwa', '1');
+    favicon.rel = 'icon';
+    favicon.type = 'image/png';
+    favicon.href = LOGO;
+    document.head.appendChild(favicon);
+
+    // Meta tags for PWA
+    const metas = [
+      { name: 'apple-mobile-web-app-capable', content: 'yes' },
+      { name: 'apple-mobile-web-app-status-bar-style', content: 'black-translucent' },
+      { name: 'apple-mobile-web-app-title', content: 'JobProfit' },
+      { name: 'mobile-web-app-capable', content: 'yes' },
+      { name: 'theme-color', content: '#1DBA63' },
+    ];
+    metas.forEach(m => {
+      const tag = document.createElement('meta');
+      tag.setAttribute('data-jp-pwa', '1');
+      tag.name = m.name;
+      tag.content = m.content;
+      document.head.appendChild(tag);
+    });
+
+    // Web app manifest (Android homescreen + PWA install)
+    // Convert base64 logo to a blob URL — Android handles blob URLs much better than inline data URIs in manifests
+    const b64 = LOGO.split(',')[1];
+    const byteStr = atob(b64);
+    const ab = new ArrayBuffer(byteStr.length);
+    const ia = new Uint8Array(ab);
+    for (let i = 0; i < byteStr.length; i++) ia[i] = byteStr.charCodeAt(i);
+    const iconBlob = new Blob([ab], { type: 'image/png' });
+    const iconURL = URL.createObjectURL(iconBlob);
+
+    // Generate a maskable version with padding (Android adaptive icon safe zone)
+    const maskableCanvas = document.createElement('canvas');
+    maskableCanvas.width = 512;
+    maskableCanvas.height = 512;
+    const mCtx = maskableCanvas.getContext('2d');
+    // Fill background for maskable (visible area is inner ~80%)
+    mCtx.fillStyle = '#111827';
+    mCtx.fillRect(0, 0, 512, 512);
+    const mImg = new Image();
+    mImg.src = LOGO;
+    const maskableReady = new Promise(res => {
+      mImg.onload = () => {
+        const pad = 80; // safe zone padding
+        mCtx.drawImage(mImg, pad, pad, 512 - pad * 2, 512 - pad * 2);
+        maskableCanvas.toBlob(blob => {
+          res(blob ? URL.createObjectURL(blob) : iconURL);
+        }, 'image/png');
+      };
+      mImg.onerror = () => res(iconURL);
+    });
+
+    maskableReady.then(maskableURL => {
+      const manifest = {
+        name: 'JobProfit',
+        short_name: 'JobProfit',
+        description: 'Build wealth, not just jobs',
+        start_url: '.',
+        display: 'standalone',
+        background_color: '#111827',
+        theme_color: '#1DBA63',
+        icons: [
+          { src: iconURL, sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: maskableURL, sizes: '512x512', type: 'image/png', purpose: 'maskable' }
+        ]
+      };
+      const blob = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
+      const manifestBlobURL = URL.createObjectURL(blob);
+      const manifestLink = document.createElement('link');
+      manifestLink.setAttribute('data-jp-pwa', '1');
+      manifestLink.rel = 'manifest';
+      manifestLink.href = manifestBlobURL;
+      document.head.appendChild(manifestLink);
+    });
+
+    return () => {
+      document.querySelectorAll('[data-jp-pwa]').forEach(el => {
+        if (el.href) URL.revokeObjectURL(el.href);
+        el.remove();
+      });
+      URL.revokeObjectURL(iconURL);
+    };
   }, []);
 
   // Auto-notification scheduling on app open
@@ -1302,18 +995,18 @@ function App() {
   const goTo = (t, jobId) => { setTab(t); if (jobId) setNavJobId(jobId); };
   const tabIcons = { Overview: "📊", "Add Job": "🔨", Jobs: "📋", Schedule: "📅", Materials: "🧾", Settings: "⚙️" };
   return <div style={{ fontFamily: T.font, maxWidth: 640, margin: "0 auto", padding: "14px 16px", minHeight: "100vh", background: T.bg, color: T.text, WebkitFontSmoothing: "antialiased" }}>
-    {/* Font loaded in index.html */}
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet" />
     <style>{`@keyframes fadeIn{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:translateY(0)}}@keyframes spin{to{transform:rotate(360deg)}}@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.04)}}`}</style>
     <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "8px 16px", margin: 0 }}><img src={LOGO} alt="JobProfit" style={{ height: 72, width: "auto", display: "block", objectFit: "contain" }} /><div style={{ display: "flex", flexDirection: "column", gap: 2 }}><div style={{ fontSize: 26, fontWeight: 800, lineHeight: 1 }}>Job<span style={{ color: "#F59E0B" }}>Profit</span></div><div style={{ fontSize: 12, fontWeight: 500, color: "#9CA3AF", marginTop: 2, letterSpacing: 0.2 }}>Build wealth, not just jobs</div></div></div>
     {note && <div style={{ background: T.accentLight, border: "1px solid #BBF7D0", borderRadius: T.rSm, padding: "10px 16px", marginBottom: 14, color: "#166534", fontSize: 14, fontWeight: 600, animation: "fadeIn .3s" }}>{note}</div>}
     <div style={{ display: "flex", gap: 0, marginTop: 0, paddingTop: 0, marginBottom: 8, borderBottom: `1px solid ${T.border}`, overflowX: "auto" }}>{TABS.map(t => { const cnt = t === "Jobs" ? jobs.length : t === "Materials" ? expenses.length : t === "Schedule" ? jobs.filter(j => j.scheduledDate === td()).length : 0; const alert = (t === "Materials" && unassigned > 0) || (t === "Jobs" && jobs.some(j => j.paymentStatus === "unpaid" && j.quoteStatus === "accepted")); return <button key={t} onClick={() => setTab(t)} style={{ flex: 1, padding: "8px 4px", border: "none", background: "none", cursor: "pointer", fontSize: 11, fontFamily: T.font, whiteSpace: "nowrap", display: "flex", alignItems: "center", justifyContent: "center", gap: 4, color: tab === t ? T.primary : T.textMuted, borderBottom: tab === t ? `3px solid ${T.primary}` : "3px solid transparent", fontWeight: tab === t ? 800 : 600, position: "relative", transition: "all .15s" }}>{tabIcons[t]} {t}{cnt > 0 && t !== "Overview" && <span style={{ background: T.primary, color: "#fff", borderRadius: 8, padding: "1px 7px", fontSize: 10, fontWeight: 700 }}>{cnt}</span>}{alert && <span style={{ position: "absolute", top: 4, right: 4, width: 8, height: 8, borderRadius: "50%", background: T.hiVis, border: `2px solid ${T.bg}` }} />}</button>; })}</div>
     <div style={{ paddingBottom: 90 }}>
-      {tab === "Overview" && <OverviewTab jobs={jobs} expenses={expenses} invoices={invoices} onGo={goTo} biz={biz} showVat={showVat} overheads={overheads} />}
+      {tab === "Overview" && <OverviewTab jobs={jobs} expenses={expenses} invoices={invoices} onGo={goTo} biz={biz} showVat={showVat} />}
       {tab === "Add Job" && <AddJobTab onGen={onGen} biz={biz} />}
       {tab === "Jobs" && <JobsTab jobs={jobs} expenses={expenses} invoices={invoices} onUpdate={onUpdJob} onDelExp={onDelExp} onAddExp={onAddExp} onAddInvoice={onAddInv} onUpdateInvoice={onUpdInv} biz={biz} showVat={showVat} onXLSX={() => doExportXLSX(jobs, expenses, invoices, showVat)} unassigned={unassigned} onGoMaterials={() => setTab("Materials")} initialJobId={navJobId} clearInitialJob={() => setNavJobId(null)} flash={flash} />}
       {tab === "Schedule" && <ScheduleTab jobs={jobs} expenses={expenses} biz={biz} onUpdate={onUpdJob} onGo={goTo} flash={flash} />}
       {tab === "Materials" && <MaterialsTab jobs={jobs} expenses={expenses} onAddExp={onAddExp} onDelExp={onDelExp} onAssign={onAssign} showVat={showVat} onXLSX={() => doExportXLSX(jobs, expenses, invoices, showVat)} />}
-      {tab === "Settings" && <SettingsTab biz={biz} onUpd={setBiz} overheads={overheads} onUpdateOverheads={setOverheads} />}
+      {tab === "Settings" && <SettingsTab biz={biz} onUpd={setBiz} />}
     </div>
     {/* Sticky bottom bar — always visible */}
     <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 900, background: T.surface, borderTop: `1px solid ${T.border}`, padding: "10px 16px", paddingBottom: "max(10px, env(safe-area-inset-bottom))", boxShadow: "0 -2px 12px rgba(0,0,0,.08)" }}>
@@ -1325,7 +1018,3 @@ function App() {
     <input ref={stickyReceiptRef} type="file" accept="image/*" capture="environment" onChange={async e => { const f = e.target.files?.[0]; if (!f) return; flash("📷 Scanning..."); try { const raw = await fileToB64(f); const c = await compress(raw); const d = await aiReceipt(c); if (d) { onAddExp({ id: mkId("E"), jobId: "", merchant: d.merchant || "Unknown", date: d.date || td(), amount: Number(d.amount || 0), vat: Number(d.vat || 0), desc: d.desc || "", photo: c }); } else { onAddExp({ id: mkId("E"), jobId: "", merchant: "Unknown", date: td(), amount: 0, vat: 0, desc: "Scan failed — edit manually", photo: c }); } } catch { flash("Scan failed"); } if (stickyReceiptRef.current) stickyReceiptRef.current.value = ""; }} style={{ display: "none" }} />
   </div>;
 }
-
-
-
-export default App;
