@@ -1,39 +1,88 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import App from './App.jsx';
 import TodayScreen from './screens/TodayScreen';
 import HistoryScreen from './screens/HistoryScreen';
 import BottomNav from './components/BottomNav';
+import {
+  getTodayJobs,
+  getTodayReceipts,
+  addTodayJob,
+  addTodayReceipt,
+  markJobPaid,
+} from './lib/store';
+
+// One-time migration: pull any pre-existing jp.jobs / jp.receipts into the unified store
+function migrateLegacyTodayData() {
+  try {
+    const legacyJobsRaw = localStorage.getItem('jp.jobs');
+    const legacyReceiptsRaw = localStorage.getItem('jp.receipts');
+    const migratedFlag = localStorage.getItem('jp.migrated.v1');
+    if (migratedFlag) return;
+
+    if (legacyJobsRaw) {
+      const legacy = JSON.parse(legacyJobsRaw) || [];
+      for (const j of legacy) addTodayJob(j);
+    }
+    if (legacyReceiptsRaw) {
+      const legacy = JSON.parse(legacyReceiptsRaw) || [];
+      for (const r of legacy) addTodayReceipt(r);
+    }
+    localStorage.setItem('jp.migrated.v1', '1');
+    // Keep the old keys as backup; don't delete in case something went wrong
+  } catch (e) {
+    console.warn('Migration failed', e);
+  }
+}
 
 export default function AppShell() {
   const [view, setView] = useState('today');
+  const [jobs, setJobs] = useState([]);
+  const [receipts, setReceipts] = useState([]);
 
-  const [todayJobs, setTodayJobs] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('jp.jobs') || '[]'); } catch { return []; }
-  });
-  const [todayReceipts, setTodayReceipts] = useState(() => {
-    try { return JSON.parse(localStorage.getItem('jp.receipts') || '[]'); } catch { return []; }
-  });
+  const refresh = useCallback(() => {
+    setJobs(getTodayJobs());
+    setReceipts(getTodayReceipts());
+  }, []);
 
   useEffect(() => {
-    try { localStorage.setItem('jp.jobs', JSON.stringify(todayJobs)); } catch {}
-  }, [todayJobs]);
-  useEffect(() => {
-    try { localStorage.setItem('jp.receipts', JSON.stringify(todayReceipts)); } catch {}
-  }, [todayReceipts]);
+    migrateLegacyTodayData();
+    refresh();
+  }, [refresh]);
 
-  const handleAddJob = (job) => setTodayJobs(p => [job, ...p]);
-  const handleAddReceipt = (receipt) => setTodayReceipts(p => [receipt, ...p]);
+  // Re-read when switching back to today or history, in case the legacy App mutated storage
+  useEffect(() => {
+    if (view === 'today' || view === 'history') refresh();
+  }, [view, refresh]);
+
+  // Also listen for storage events from other tabs
+  useEffect(() => {
+    const onStorage = (e) => {
+      if (e.key === 'jobprofit-app-data') refresh();
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, [refresh]);
+
+  const handleAddJob = (job) => {
+    addTodayJob(job);
+    refresh();
+  };
+  const handleAddReceipt = (receipt) => {
+    addTodayReceipt(receipt);
+    refresh();
+  };
   const handleMarkPaid = (id) => {
-    setTodayJobs(p => p.map(j => j.id === id ? { ...j, paid: true } : j));
+    markJobPaid(id);
+    refresh();
   };
 
   return (
     <>
       {view === 'today' && (
         <TodayScreen
-          onOpenDetailed={() => setView("more")}
-          jobs={todayJobs}
-          receipts={todayReceipts}
+          onOpenDetailed={() => setView('more')}
+          jobs={jobs}
+          receipts={receipts}
           onAddJob={handleAddJob}
           onAddReceipt={handleAddReceipt}
         />
@@ -41,8 +90,8 @@ export default function AppShell() {
 
       {view === 'history' && (
         <HistoryScreen
-          jobs={todayJobs}
-          receipts={todayReceipts}
+          jobs={jobs}
+          receipts={receipts}
           onMarkPaid={handleMarkPaid}
         />
       )}
