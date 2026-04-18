@@ -2,7 +2,7 @@ export default function BottomNav({ view, onChange }) {
   const tabs = [
     { id: 'today', label: 'Today', icon: '●' },
     { id: 'history', label: 'History', icon: '≡' },
-    { id: 'more', label: 'More', icon: '⋯' },
+    { id: 'manage', label: 'Manage', icon: '⋯' },
   ];
   return (
     <nav className="bottom-nav">

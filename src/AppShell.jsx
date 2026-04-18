@@ -81,7 +81,7 @@ export default function AppShell() {
     <>
       {view === 'today' && (
         <TodayScreen
-          onOpenDetailed={() => setView('more')}
+          onOpenDetailed={() => setView('manage')}
           jobs={jobs}
           receipts={receipts}
           onAddJob={handleAddJob}
@@ -97,11 +97,15 @@ export default function AppShell() {
         />
       )}
 
-      <div style={{ display: view === 'more' ? 'block' : 'none' }}>
+      <div style={{ display: view === 'manage' ? 'block' : 'none' }}>
+        <div className="manage-header">
+          <h1>Manage</h1>
+          <p>Customers, quotes, materials & invoices</p>
+        </div>
         <App key={moreKey} />
       </div>
 
-      <BottomNav view={view} onChange={(v) => { if (v === 'more') setMoreKey(k => k + 1); setView(v); }} />
+      <BottomNav view={view} onChange={(v) => { if (v === 'manage') setMoreKey(k => k + 1); setView(v); }} />
     </>
   );
 }
