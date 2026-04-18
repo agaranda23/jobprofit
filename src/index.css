@@ -313,3 +313,86 @@ body { background: var(--bg); color: var(--text); -webkit-font-smoothing: antial
   margin: 0 0 20px;
 }
 .recent { margin-top: 32px; }
+
+/* History */
+.unpaid { margin: 32px 0 0; }
+.unpaid h2, .timeline h3, .recent h2 {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 0 0 12px;
+}
+.unpaid-list { list-style: none; padding: 0; margin: 0 0 16px; }
+.unpaid-item {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 8px;
+}
+.unpaid-main {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+.unpaid-label { font-size: 16px; font-weight: 500; }
+.unpaid-amount { font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.mark-paid-btn {
+  width: 100%;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--accent);
+  padding: 10px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.mark-paid-btn:active { transform: scale(0.99); }
+
+.timeline { margin-top: 32px; }
+.day-group { margin-bottom: 24px; }
+.day-label {
+  font-size: 13px !important;
+  color: var(--text-dim) !important;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin: 0 0 8px !important;
+  font-weight: 600 !important;
+}
+
+.unpaid-chip {
+  display: inline-block;
+  font-size: 11px;
+  background: #3a2a1a;
+  color: #ffa755;
+  padding: 2px 8px;
+  border-radius: 10px;
+  margin-left: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 600;
+  vertical-align: middle;
+}
+
+.empty-state {
+  color: var(--text-dim);
+  text-align: center;
+  padding: 32px 0;
+  font-size: 15px;
+}
+
+.unpaid-toggle {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center;
+  gap: 10px;
+  margin: 12px 0 4px !important;
+  font-size: 14px !important;
+  color: var(--text) !important;
+  cursor: pointer;
+}
+.unpaid-toggle input { width: 18px; height: 18px; accent-color: var(--accent); }

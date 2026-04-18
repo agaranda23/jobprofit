@@ -10,9 +10,12 @@ export default function AddJobModal({ onClose, onSave }) {
   const [transcript, setTranscript] = useState('');
   const [name, setName] = useState('');
   const [amount, setAmount] = useState('');
+  const [unpaid, setUnpaid] = useState(false);
   const [error, setError] = useState('');
   const recogRef = useRef(null);
+  const unpaidRef = useRef(false);
 
+  useEffect(() => { unpaidRef.current = unpaid; }, [unpaid]);
   useEffect(() => () => { try { recogRef.current?.abort(); } catch {} }, []);
 
   const startListening = () => {
@@ -64,19 +67,18 @@ export default function AddJobModal({ onClose, onSave }) {
       const cleanName = (parsed.name || '').trim();
       const cleanAmt = parsed.amount;
 
-      // Magic path: clean parse → auto-save, no review step
       if (cleanName && cleanAmt != null && !isNaN(cleanAmt) && cleanAmt > 0) {
         onSave({
           id: Date.now(),
           name: cleanName,
           amount: cleanAmt,
+          paid: !unpaidRef.current,
           date: new Date().toISOString(),
           createdAt: new Date().toISOString(),
         });
         return;
       }
 
-      // Otherwise drop to review
       setName(cleanName);
       setAmount(cleanAmt != null ? String(cleanAmt) : '');
       setStatus('review');
@@ -90,6 +92,7 @@ export default function AddJobModal({ onClose, onSave }) {
     if (!name.trim() || isNaN(amt)) { setError('Name and amount required'); return; }
     onSave({
       id: Date.now(), name: name.trim(), amount: amt,
+      paid: !unpaid,
       date: new Date().toISOString(), createdAt: new Date().toISOString(),
     });
   };
@@ -123,14 +126,20 @@ export default function AddJobModal({ onClose, onSave }) {
         )}
 
         {(status === 'review' || status === 'ready') && (
-          <div className="modal-fields">
-            <label><span>Job</span>
-              <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Bathroom tiling" />
+          <>
+            <div className="modal-fields">
+              <label><span>Job</span>
+                <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Bathroom tiling" />
+              </label>
+              <label><span>Amount (£)</span>
+                <input type="number" inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} placeholder="650" />
+              </label>
+            </div>
+            <label className="unpaid-toggle">
+              <input type="checkbox" checked={unpaid} onChange={e => setUnpaid(e.target.checked)} />
+              <span>Still waiting to be paid</span>
             </label>
-            <label><span>Amount (£)</span>
-              <input type="number" inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} placeholder="650" />
-            </label>
-          </div>
+          </>
         )}
 
         {error && <p className="modal-error">{error}</p>}
