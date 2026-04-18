@@ -61,9 +61,28 @@ export default function AddJobModal({ onClose, onSave }) {
   const parse = async (text) => {
     try {
       const parsed = await parseJobFromSpeech(text);
-      setName(parsed.name || '');
-      setAmount(parsed.amount != null ? String(parsed.amount) : '');
-    } catch {} finally { setStatus('review'); }
+      const cleanName = (parsed.name || '').trim();
+      const cleanAmt = parsed.amount;
+
+      // Magic path: clean parse → auto-save, no review step
+      if (cleanName && cleanAmt != null && !isNaN(cleanAmt) && cleanAmt > 0) {
+        onSave({
+          id: Date.now(),
+          name: cleanName,
+          amount: cleanAmt,
+          date: new Date().toISOString(),
+          createdAt: new Date().toISOString(),
+        });
+        return;
+      }
+
+      // Otherwise drop to review
+      setName(cleanName);
+      setAmount(cleanAmt != null ? String(cleanAmt) : '');
+      setStatus('review');
+    } catch {
+      setStatus('review');
+    }
   };
 
   const save = () => {
@@ -98,7 +117,7 @@ export default function AddJobModal({ onClose, onSave }) {
 
         {status === 'parsing' && (
           <>
-            <p className="modal-help">Understanding…</p>
+            <p className="modal-help">Saving…</p>
             <p className="transcript-preview">{transcript}</p>
           </>
         )}

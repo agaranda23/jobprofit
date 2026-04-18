@@ -291,3 +291,25 @@ body { background: var(--bg); color: var(--text); -webkit-font-smoothing: antial
 .modal-or { text-align: center; color: var(--text-dim); font-size: 13px; margin: 4px 0 8px; letter-spacing: 0.05em; }
 .voice-indicator.pulsing { animation: pulse 1.2s ease-in-out infinite; }
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
+
+/* v2 polish */
+.today-subhead {
+  color: var(--text-dim);
+  font-size: 14px;
+  margin: 8px 0 24px;
+  letter-spacing: 0.01em;
+}
+.profit-value {
+  font-size: 44px !important;
+  color: #34d672 !important;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.profit-row { padding: 18px 0 !important; }
+.total-value { font-size: 22px; }
+.recent-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 0 0 20px;
+}
+.recent { margin-top: 32px; }

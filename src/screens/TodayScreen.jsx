@@ -9,7 +9,7 @@ export default function TodayScreen({ jobs = [], receipts = [], onAddJob, onAddR
 
   const key = todayKey();
 
-  const { earned, spent, profit, recent } = useMemo(() => {
+  const { earned, spent, profit, recent, hasEntries } = useMemo(() => {
     const todaysJobs = jobs.filter(j => (j.date || '').slice(0, 10) === key);
     const todaysReceipts = receipts.filter(r => (r.date || '').slice(0, 10) === key);
 
@@ -17,22 +17,25 @@ export default function TodayScreen({ jobs = [], receipts = [], onAddJob, onAddR
     const spent = todaysReceipts.reduce((s, r) => s + Number(r.amount || 0), 0);
 
     const entries = [
-      ...todaysJobs.map(j => ({ id: 'j' + j.id, kind: 'job', label: j.name || 'Job', amount: Number(j.amount || 0), ts: j.createdAt || j.date })),
-      ...todaysReceipts.map(r => ({ id: 'r' + r.id, kind: 'receipt', label: r.label || 'Receipt', amount: -Number(r.amount || 0), ts: r.createdAt || r.date })),
+      ...todaysJobs.map(j => ({ id: 'j' + j.id, label: j.name || 'Job', amount: Number(j.amount || 0), ts: j.createdAt || j.date })),
+      ...todaysReceipts.map(r => ({ id: 'r' + r.id, label: r.label || 'Receipt', amount: -Number(r.amount || 0), ts: r.createdAt || r.date })),
     ].sort((a, b) => new Date(b.ts) - new Date(a.ts)).slice(0, 3);
 
-    return { earned, spent, profit: earned - spent, recent: entries };
+    return { earned, spent, profit: earned - spent, recent: entries, hasEntries: entries.length > 0 };
   }, [jobs, receipts, key]);
+
+  const subhead = hasEntries
+    ? (profit >= 0 ? `You're up ${gbp(profit)} today` : `You're down ${gbp(Math.abs(profit))} today`)
+    : 'Your profit so far today';
 
   return (
     <div className="today-screen">
-      {/* Section 1 — Header */}
       <header className="today-header">
         <h1>Today</h1>
         <p className="today-date">{formatToday()}</p>
+        <p className="today-subhead">{subhead}</p>
       </header>
 
-      {/* Section 2 — Daily totals */}
       <section className="totals">
         <div className="total-row">
           <span className="total-label">Earned</span>
@@ -48,7 +51,6 @@ export default function TodayScreen({ jobs = [], receipts = [], onAddJob, onAddR
         </div>
       </section>
 
-      {/* Section 3 — Primary actions */}
       <section className="actions">
         <button className="action-btn action-primary" onClick={() => setJobOpen(true)}>
           <span className="action-icon">🎤</span>
@@ -60,9 +62,9 @@ export default function TodayScreen({ jobs = [], receipts = [], onAddJob, onAddR
         </button>
       </section>
 
-      {/* Section 4 — Recent today */}
       {recent.length > 0 && (
         <section className="recent">
+          <div className="recent-divider" />
           <h2>Recent today</h2>
           <ul className="recent-list">
             {recent.map(e => (
