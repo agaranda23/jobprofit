@@ -31,6 +31,7 @@ export default function AppShell() {
     <>
       {view === 'today' && (
         <TodayScreen
+          onOpenDetailed={() => setView("more")}
           jobs={todayJobs}
           receipts={todayReceipts}
           onAddJob={handleAddJob}

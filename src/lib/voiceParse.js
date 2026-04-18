@@ -1,20 +1,18 @@
-// Parse "Bathroom tiling £650" style transcripts via the existing
-// Netlify AI proxy at /.netlify/functions/ai.
-// Falls back to regex if the API is unreachable.
+// Parse "Kitchen job Sarah £380 cash" via the Netlify AI proxy.
+// Falls back to regex if unreachable.
 
 export async function parseJobFromSpeech(transcript) {
   const text = (transcript || '').trim();
-  if (!text) return { name: '', amount: null };
+  if (!text) return { name: '', amount: null, paymentType: null };
 
-  // Try AI parse first
   try {
     const res = await fetch('/.netlify/functions/ai', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
-        max_tokens: 120,
-        system: 'Extract a job name and amount in GBP from the user\'s transcript. Respond ONLY with JSON: {"name": string, "amount": number}. Amount should be a number in pounds (no currency symbol). If no amount found, set amount to null.',
+        max_tokens: 160,
+        system: 'Extract a job name, amount in GBP, and optional payment type from the transcript. Respond ONLY with JSON: {"name": string, "amount": number, "paymentType": "cash"|"bank transfer"|"card"|"cheque"|null}. Amount must be a number in pounds (no symbol). If no amount, set amount to null. If payment type not mentioned, set to null.',
         messages: [{ role: 'user', content: text }],
       }),
     });
@@ -27,18 +25,20 @@ export async function parseJobFromSpeech(transcript) {
         return {
           name: parsed.name || regexName(text),
           amount: parsed.amount ?? regexAmount(text),
+          paymentType: parsed.paymentType ?? regexPayment(text),
         };
       }
     }
-  } catch {
-    // fall through to regex
-  }
+  } catch {}
 
-  return { name: regexName(text), amount: regexAmount(text) };
+  return {
+    name: regexName(text),
+    amount: regexAmount(text),
+    paymentType: regexPayment(text),
+  };
 }
 
 function regexAmount(text) {
-  // Matches £650, 650 pounds, 1,250.50, 1.2k etc.
   const m = text.match(/£?\s*([\d,]+(?:\.\d+)?)\s*(k|pounds?|quid)?/i);
   if (!m) return null;
   let n = parseFloat(m[1].replace(/,/g, ''));
@@ -47,10 +47,19 @@ function regexAmount(text) {
 }
 
 function regexName(text) {
-  // Strip amount mentions, trim trailing "for/at/£..." clauses
   return text
     .replace(/£?\s*[\d,]+(?:\.\d+)?\s*(k|pounds?|quid)?/gi, '')
-    .replace(/\b(for|at|cost(s|ing)?|priced)\b/gi, '')
+    .replace(/\b(cash|bank transfer|card|cheque|check)\b/gi, '')
+    .replace(/\b(for|at|cost(s|ing)?|priced|paid|via|by)\b/gi, '')
     .replace(/\s+/g, ' ')
     .trim();
+}
+
+function regexPayment(text) {
+  const t = text.toLowerCase();
+  if (/\bcash\b/.test(t)) return 'cash';
+  if (/\bbank (transfer|payment)\b|\btransfer\b|\bbacs\b/.test(t)) return 'bank transfer';
+  if (/\bcard\b|\bcredit\b|\bdebit\b/.test(t)) return 'card';
+  if (/\bcheque\b|\bcheck\b/.test(t)) return 'cheque';
+  return null;
 }
