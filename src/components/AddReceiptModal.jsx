@@ -25,16 +25,16 @@ export default function AddReceiptModal({ onClose, onSave }) {
       setExtracting(true);
       try {
         const result = await extractReceipt(dataUrl);
-        if (result) {
+        if (result?.error) {
+          setExtractError("OCR failed: " + result.error);
+        } else if (result) {
           if (result.merchant) setLabel(result.merchant);
           if (result.total != null) setAmount(String(result.total));
           if (result.vat != null) setVat(String(result.vat));
           if (result.items?.length) setItems(result.items);
           if (!result.merchant && result.total == null) {
-            setExtractError("Couldn't read this receipt — fill in below");
+            setExtractError("Couldn't read this receipt - fill in below");
           }
-        } else {
-          setExtractError("Couldn't read this receipt — fill in below");
         }
       } finally {
         setExtracting(false);
