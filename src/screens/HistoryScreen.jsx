@@ -81,6 +81,11 @@ export default function HistoryScreen({ jobs = [], receipts = [], onMarkPaid }) 
                   <span className="unpaid-label">{e.label}</span>
                   <span className="unpaid-amount">{gbp(e.amount)}</span>
                 </div>
+                {(() => {
+                  const d = new Date(e.ts);
+                  const days = Math.floor((Date.now() - d) / 86400000);
+                  return days > 0 ? <p className="unpaid-age-line">{days} day{days === 1 ? '' : 's'} unpaid</p> : null;
+                })()}
                 <button className="mark-paid-btn" onClick={() => onMarkPaid?.(e.rawId)}>
                   Mark as paid
                 </button>

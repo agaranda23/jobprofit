@@ -12,7 +12,7 @@ export default function TodayScreen({ jobs = [], receipts = [], onAddJob, onAddR
 
   const key = todayKey();
 
-  const { earned, spent, profit, recent, hasEntries } = useMemo(() => {
+  const { earned, spent, profit, recent, hasEntries, unpaidTotal, oldestDays, unpaidCount } = useMemo(() => {
     const todaysJobs = jobs.filter(j => (j.date || '').slice(0, 10) === key);
     const todaysReceipts = receipts.filter(r => (r.date || '').slice(0, 10) === key);
     const earned = todaysJobs.reduce((s, j) => s + Number(j.amount || 0), 0);
@@ -21,7 +21,16 @@ export default function TodayScreen({ jobs = [], receipts = [], onAddJob, onAddR
       ...todaysJobs.map(j => ({ id: 'j' + j.id, label: j.name || 'Job', amount: Number(j.amount || 0), ts: j.createdAt || j.date })),
       ...todaysReceipts.map(r => ({ id: 'r' + r.id, label: r.label || 'Receipt', amount: -Number(r.amount || 0), ts: r.createdAt || r.date })),
     ].sort((a, b) => new Date(b.ts) - new Date(a.ts)).slice(0, 3);
-    return { earned, spent, profit: earned - spent, recent: entries, hasEntries: entries.length > 0 };
+    const unpaidJobs = jobs.filter(j => j.paid === false);
+    const unpaidTotal = unpaidJobs.reduce((s, j) => s + Number(j.amount || 0), 0);
+    const now = new Date();
+    let oldestDays = 0;
+    for (const j of unpaidJobs) {
+      const d = new Date(j.date || j.createdAt || now);
+      const days = Math.floor((now - d) / 86400000);
+      if (days > oldestDays) oldestDays = days;
+    }
+    return { earned, spent, profit: earned - spent, recent: entries, hasEntries: entries.length > 0, unpaidTotal, oldestDays, unpaidCount: unpaidJobs.length };
   }, [jobs, receipts, key]);
 
   // Flash profit when it changes
@@ -61,6 +70,12 @@ export default function TodayScreen({ jobs = [], receipts = [], onAddJob, onAddR
         <h1>Today</h1>
         <p className="today-date">{formatToday()}</p>
         <p className="today-subhead">{subhead}</p>
+        {unpaidCount > 0 && (
+          <p className="today-unpaid-line">
+            <span className="unpaid-amount-inline">{gbp(unpaidTotal)}</span> waiting to be collected
+            {oldestDays > 0 && <span className="unpaid-age"> · oldest {oldestDays} day{oldestDays === 1 ? '' : 's'}</span>}
+          </p>
+        )}
       </header>
 
       <section className="totals">
