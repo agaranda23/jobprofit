@@ -540,3 +540,87 @@ body {
   font-size: 14px;
   margin: 0;
 }
+
+/* Receipt OCR + items UI */
+.modal-tall { max-height: 88vh; overflow-y: auto; }
+
+.field-row { display: flex; gap: 10px; }
+.field-row label { display: flex; flex-direction: column; gap: 6px; font-size: 14px; color: var(--text-dim); }
+
+.ocr-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  background: var(--surface-2);
+  border-radius: 10px;
+  margin: 12px 0 4px;
+  font-size: 14px;
+  color: var(--text-dim);
+}
+.ocr-spinner {
+  width: 14px; height: 14px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.receipt-items {
+  background: var(--surface-2);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin: 12px 0 4px;
+}
+.receipt-items-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 8px;
+}
+.receipt-items-list { list-style: none; padding: 0; margin: 0; }
+.receipt-item {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+.receipt-item:last-child { border-bottom: none; }
+.receipt-item-desc {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-size: 14px;
+  padding: 6px 0;
+}
+.receipt-item-cost {
+  width: 70px;
+  background: transparent;
+  border: none;
+  color: var(--text);
+  font-size: 14px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  padding: 6px 0;
+}
+.receipt-item-desc:focus, .receipt-item-cost:focus { outline: none; color: var(--accent); }
+.receipt-item-x {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 18px;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+.receipt-item-x:hover { color: var(--danger); }
+
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
