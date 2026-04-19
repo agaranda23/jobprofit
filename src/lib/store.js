@@ -127,14 +127,21 @@ export function addTodayReceipt(payload) {
   const today = now.toISOString().slice(0, 10);
   const id = nextExpenseId(data.expenses);
 
+  const items = Array.isArray(payload.items) ? payload.items : [];
+  const desc = items.length > 0
+    ? items.map(i => i.desc).filter(Boolean).join(', ')
+    : '';
+  const expDate = payload.date ? payload.date.slice(0, 10) : today;
   const newExp = {
     id,
-    jobId: '', // unassigned — the old app's "unassigned expenses" bucket picks this up
+    jobId: '',
     merchant: payload.label || 'Receipt',
-    date: today,
+    date: expDate,
     amount: Number(payload.amount || 0),
-    vat: 0,
-    desc: '',
+    vat: Number(payload.vat || 0),
+    desc,
+    items,
+    invoiceNumber: payload.invoiceNumber || null,
     photo: payload.photo || null,
     createdAt: now.toISOString(),
   };
