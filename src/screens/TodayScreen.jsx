@@ -12,6 +12,7 @@ export default function TodayScreen({ jobs = [], receipts = [], onAddJob, onAddR
 
   const key = todayKey();
 
+  const everEmpty = jobs.length === 0 && receipts.length === 0;
   const { earned, spent, profit, recent, hasEntries, unpaidTotal, oldestDays, unpaidCount } = useMemo(() => {
     const todaysJobs = jobs.filter(j => (j.date || '').slice(0, 10) === key);
     const todaysReceipts = receipts.filter(r => (r.date || '').slice(0, 10) === key);
@@ -95,6 +96,10 @@ export default function TodayScreen({ jobs = [], receipts = [], onAddJob, onAddR
           <span className="action-icon">📸</span><span>Add receipt</span>
         </button>
       </section>
+
+      {everEmpty && (
+        <p className="empty-hint">Add your first job to start tracking profit</p>
+      )}
 
       {recent.length > 0 && (
         <section className="recent">

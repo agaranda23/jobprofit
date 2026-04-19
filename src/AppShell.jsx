@@ -13,6 +13,33 @@ import {
   markJobPaid,
 } from './lib/store';
 
+
+// One-time wipe of seeded demo data (J-0001 to J-0004 and E-0001 to E-0005).
+// Real user-added entries are preserved.
+function wipeLegacyDemoData() {
+  try {
+    if (localStorage.getItem('jp.demoCleared.v1')) return;
+    const raw = localStorage.getItem('jobprofit-app-data');
+    if (!raw) {
+      localStorage.setItem('jp.demoCleared.v1', '1');
+      return;
+    }
+    const data = JSON.parse(raw);
+    const demoJobIds = new Set(['J-0001', 'J-0002', 'J-0003', 'J-0004']);
+    const demoExpIds = new Set(['E-0001', 'E-0002', 'E-0003', 'E-0004', 'E-0005']);
+    if (Array.isArray(data.jobs)) {
+      data.jobs = data.jobs.filter(j => !demoJobIds.has(j.id));
+    }
+    if (Array.isArray(data.expenses)) {
+      data.expenses = data.expenses.filter(e => !demoExpIds.has(e.id));
+    }
+    localStorage.setItem('jobprofit-app-data', JSON.stringify(data));
+    localStorage.setItem('jp.demoCleared.v1', '1');
+  } catch (e) {
+    console.warn('Demo wipe failed', e);
+  }
+}
+
 // One-time migration: pull any pre-existing jp.jobs / jp.receipts into the unified store
 function migrateLegacyTodayData() {
   try {
@@ -51,6 +78,7 @@ export default function AppShell() {
   }, []);
 
   useEffect(() => {
+    wipeLegacyDemoData();
     migrateLegacyTodayData();
     refresh();
   }, [refresh]);

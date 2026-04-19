@@ -817,8 +817,8 @@ function saveData(data) {
 /* ═══ MAIN APP ═══════════════════════════════════════ */
 export default function App() {
   const [tab, setTab] = useState("Overview");
-  const [jobs, setJobs] = useState(seedJobs);
-  const [expenses, setExpenses] = useState(seedExp);
+  const [jobs, setJobs] = useState([]);
+  const [expenses, setExpenses] = useState([]);
   const [invoices, setInvoices] = useState(seedInvoices);
   const [biz, setBiz] = useState(defBiz);
   const [note, setNote] = useState("");
