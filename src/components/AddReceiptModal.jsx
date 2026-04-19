@@ -8,6 +8,8 @@ export default function AddReceiptModal({ onClose, onSave }) {
   const [amount, setAmount] = useState('');
   const [vat, setVat] = useState('');
   const [items, setItems] = useState([]);
+  const [receiptDate, setReceiptDate] = useState('');
+  const [invoiceNumber, setInvoiceNumber] = useState('');
   const [extracting, setExtracting] = useState(false);
   const [extractError, setExtractError] = useState('');
   const [error, setError] = useState('');
@@ -32,6 +34,8 @@ export default function AddReceiptModal({ onClose, onSave }) {
           if (result.total != null) setAmount(String(result.total));
           if (result.vat != null) setVat(String(result.vat));
           if (result.items?.length) setItems(result.items);
+          if (result.date) setReceiptDate(result.date);
+          if (result.invoiceNumber) setInvoiceNumber(result.invoiceNumber);
           if (!result.merchant && result.total == null) {
             setExtractError("Couldn't read this receipt - fill in below");
           }
@@ -52,14 +56,18 @@ export default function AddReceiptModal({ onClose, onSave }) {
     const amt = parseFloat(amount);
     if (isNaN(amt)) { setError('Amount required'); return; }
     const vatNum = vat === '' ? 0 : parseFloat(vat);
+    const dateISO = receiptDate
+      ? new Date(receiptDate).toISOString()
+      : new Date().toISOString();
     onSave({
       id: Date.now(),
       label: label.trim() || 'Receipt',
       amount: amt,
       vat: isNaN(vatNum) ? 0 : vatNum,
       items: items.filter(i => i.desc?.trim()),
+      invoiceNumber: invoiceNumber.trim() || null,
       photo,
-      date: new Date().toISOString(),
+      date: dateISO,
       createdAt: new Date().toISOString(),
     });
   };
@@ -115,6 +123,16 @@ export default function AddReceiptModal({ onClose, onSave }) {
             <label style={{ flex: 1 }}>
               <span>VAT (£)</span>
               <input type="number" inputMode="decimal" value={vat} onChange={e => setVat(e.target.value)} placeholder="7.00" />
+            </label>
+          </div>
+          <div className="field-row">
+            <label style={{ flex: 1 }}>
+              <span>Date</span>
+              <input type="date" value={receiptDate} onChange={e => setReceiptDate(e.target.value)} />
+            </label>
+            <label style={{ flex: 1 }}>
+              <span>Invoice no.</span>
+              <input type="text" value={invoiceNumber} onChange={e => setInvoiceNumber(e.target.value)} placeholder="optional" />
             </label>
           </div>
         </div>

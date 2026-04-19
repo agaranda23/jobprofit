@@ -48,13 +48,15 @@ export async function extractReceipt(photoDataUrl) {
     max_tokens: 800,
     system: `You read UK trade receipts. Extract the data and respond ONLY with valid JSON, no preamble, no code fences.
 
-Schema: {"merchant": string|null, "total": number|null, "vat": number|null, "date": string|null, "items": [{"desc": string, "cost": number}]}
+Schema: {"merchant": string|null, "total": number|null, "vat": number|null, "date": string|null, "invoiceNumber": string|null, "paymentMethod": string|null, "items": [{"desc": string, "cost": number}]}
 
 Rules:
 - "total" = gross amount paid in pounds (number, not string, no currency symbol)
 - "vat" = VAT amount in pounds if shown separately. Null if not shown or unclear.
 - "merchant" = shop name (e.g. "Screwfix", "Toolstation", "B&Q")
-- "date" = ISO YYYY-MM-DD if visible, else null
+- "date" = ISO YYYY-MM-DD of the receipt (transaction date, not today). Convert from any format like "11/11/2019" to "2019-11-11". Null if not visible.
+- "invoiceNumber" = invoice/receipt/order number string if shown, else null
+- "paymentMethod" = "cash", "card", "bank transfer", or "cheque" if shown, else null
 - "items" = each line item with description and cost in pounds. Group similar items if many. Skip subtotal/VAT/total lines.
 - If receipt unreadable or not a receipt, return all nulls and empty items array.
 - Numbers must be JSON numbers (e.g. 12.50 not "£12.50").`,
@@ -112,6 +114,8 @@ Rules:
       total: typeof parsed.total === 'number' ? parsed.total : null,
       vat: typeof parsed.vat === 'number' ? parsed.vat : null,
       date: parsed.date || null,
+      invoiceNumber: parsed.invoiceNumber || null,
+      paymentMethod: parsed.paymentMethod || null,
       items: Array.isArray(parsed.items) ? parsed.items.filter(i => i?.desc) : [],
     };
   } catch (e) {
