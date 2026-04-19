@@ -50,7 +50,7 @@ export default function HistoryScreen({ jobs = [], receipts = [], onMarkPaid }) 
 
   return (
     <div className="today-screen">
-      <div className="app-brand"><span className="app-brand-mark">JP</span><span className="app-brand-name">JobProfit</span></div>
+      <div className="app-brand"><img src="/icon-192.png" alt="" className="app-brand-logo" /><span className="app-brand-name">JobProfit</span></div>
       <header className="today-header">
         <h1>History</h1>
         <p className="today-date">This week</p>

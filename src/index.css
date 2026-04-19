@@ -653,3 +653,14 @@ body {
   letter-spacing: -0.01em;
 }
 .today-screen { padding-top: 8px !important; }
+
+
+/* Real logo replaces the JP placeholder */
+.app-brand-mark { display: none !important; }
+.app-brand-logo {
+  width: 32px;
+  height: 32px;
+  border-radius: 7px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
