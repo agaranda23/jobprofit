@@ -193,6 +193,20 @@ export default function AppShell() {
     setPendingLink(null);
   };
 
+  const handleSignOut = async () => {
+    try {
+      await supabase.auth.signOut();
+      // Reset local UI state; session listener will clear session
+      setJobs([]);
+      setReceipts([]);
+      setCloudLoaded(false);
+      // Clear local mirror too
+      try { localStorage.removeItem('jobprofit-app-data'); } catch {}
+    } catch (e) {
+      console.warn('Sign out failed', e);
+    }
+  };
+
   if (!authReady) {
     return <div className="auth-loading"><div className="ocr-spinner" /></div>;
   }
@@ -222,7 +236,13 @@ export default function AppShell() {
 
       <div ref={manageRootRef} style={{ display: view === 'manage' ? 'block' : 'none' }}>
         <div className="manage-header">
-          <h1>Manage</h1>
+          <div className="manage-header-top">
+            <h1>Manage</h1>
+            <button className="signout-btn" onClick={handleSignOut} title="Sign out">
+              <span>{session?.user?.email || 'Account'}</span>
+              <span className="signout-btn-label">Sign out</span>
+            </button>
+          </div>
           <p>Customers, quotes, materials & invoices</p>
         </div>
         <App key={moreKey} />
