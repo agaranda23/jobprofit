@@ -3,6 +3,7 @@ import App from './App.jsx';
 import TodayScreen from './screens/TodayScreen';
 import HistoryScreen from './screens/HistoryScreen';
 import BottomNav from './components/BottomNav';
+import LinkReceiptModal from './components/LinkReceiptModal';
 import { startHidingLegacyDupes, stopHidingLegacyDupes } from './lib/hideLegacyDupes';
 import { clickCreateDetailedJobTab } from './lib/manageDeepLink';
 import { supabase } from './lib/supabase';
@@ -18,6 +19,7 @@ import {
   addJobToCloud,
   addReceiptToCloud,
   markJobPaidCloud,
+  linkReceiptToJob,
 } from './lib/store';
 
 function wipeLegacyDemoData() {
@@ -64,15 +66,15 @@ export default function AppShell() {
   const [view, setView] = useState('today');
   const [moreKey, setMoreKey] = useState(0);
   const [pendingDeepLink, setPendingDeepLink] = useState(null);
-  const [jobs, setJobs] = useState(() => getTodayJobs());       // first-paint cache
+  const [jobs, setJobs] = useState(() => getTodayJobs());
   const [receipts, setReceipts] = useState(() => getTodayReceipts());
   const [session, setSession] = useState(null);
   const [authReady, setAuthReady] = useState(false);
   const [cloudLoaded, setCloudLoaded] = useState(false);
+  const [pendingLink, setPendingLink] = useState(null); // receipt awaiting job link
 
   const manageRootRef = useRef(null);
 
-  // --- Refresh from cloud (authoritative), fall back to localStorage if it fails ---
   const refreshFromCloud = useCallback(async () => {
     try {
       const [cloudJobs, cloudReceipts] = await Promise.all([
@@ -87,7 +89,6 @@ export default function AppShell() {
     }
   }, []);
 
-  // Local-only refresh (used by Manage re-reads)
   const refreshLocal = useCallback(() => {
     if (!cloudLoaded) {
       setJobs(getTodayJobs());
@@ -95,7 +96,6 @@ export default function AppShell() {
     }
   }, [cloudLoaded]);
 
-  // --- Auth session ---
   useEffect(() => {
     let mounted = true;
     supabase.auth.getSession().then(({ data }) => {
@@ -105,7 +105,7 @@ export default function AppShell() {
     });
     const { data: listener } = supabase.auth.onAuthStateChange((_event, newSession) => {
       setSession(newSession);
-      if (!newSession) setCloudLoaded(false); // reset on sign-out
+      if (!newSession) setCloudLoaded(false);
     });
     return () => {
       mounted = false;
@@ -113,16 +113,12 @@ export default function AppShell() {
     };
   }, []);
 
-  // --- Initial data load once signed in ---
   useEffect(() => {
     wipeLegacyDemoData();
     migrateLegacyTodayData();
-    if (session) {
-      refreshFromCloud();
-    }
+    if (session) refreshFromCloud();
   }, [session, refreshFromCloud]);
 
-  // --- Manage tab behaviours ---
   useEffect(() => {
     if (view === 'today' || view === 'history') refreshLocal();
     if (view === 'manage' && manageRootRef.current) {
@@ -136,7 +132,6 @@ export default function AppShell() {
     }
   }, [view, refreshLocal, pendingDeepLink]);
 
-  // --- Cross-tab sync ---
   useEffect(() => {
     const onStorage = (e) => {
       if (e.key === 'jobprofit-app-data' && !cloudLoaded) {
@@ -148,27 +143,27 @@ export default function AppShell() {
     return () => window.removeEventListener('storage', onStorage);
   }, [cloudLoaded]);
 
-  // --- Write handlers: cloud first, then refresh ---
   const handleAddJob = async (job) => {
     try {
       await addJobToCloud(job);
       await refreshFromCloud();
     } catch (e) {
       console.error('Add job failed', e);
-      // Fallback to localStorage-only
       addTodayJob(job);
       setJobs(getTodayJobs());
     }
   };
 
   const handleAddReceipt = async (arg) => {
-    // New signature from AddReceiptModal: { payload, photoFile }
-    // Old signature (still supported): raw payload
     const payload = arg?.payload || arg;
     const photoFile = arg?.photoFile || null;
     try {
-      await addReceiptToCloud(payload, photoFile);
+      const savedReceipt = await addReceiptToCloud(payload, photoFile);
       await refreshFromCloud();
+      // Only show link modal if there are jobs to potentially link to
+      if (savedReceipt?.id) {
+        setPendingLink(savedReceipt);
+      }
     } catch (e) {
       console.error('Add receipt failed', e);
       addTodayReceipt(payload);
@@ -185,6 +180,17 @@ export default function AppShell() {
       markJobPaid(id);
       setJobs(getTodayJobs());
     }
+  };
+
+  const handleLinkReceipt = async (jobId) => {
+    if (!pendingLink) return;
+    try {
+      await linkReceiptToJob(pendingLink.id, jobId);
+      await refreshFromCloud();
+    } catch (e) {
+      console.error('Link receipt failed', e);
+    }
+    setPendingLink(null);
   };
 
   if (!authReady) {
@@ -223,6 +229,15 @@ export default function AppShell() {
       </div>
 
       <BottomNav view={view} onChange={(v) => { if (v === 'manage') setMoreKey(k => k + 1); setView(v); }} />
+
+      {pendingLink && (
+        <LinkReceiptModal
+          receipt={pendingLink}
+          jobs={jobs}
+          onLink={handleLinkReceipt}
+          onSkip={() => setPendingLink(null)}
+        />
+      )}
     </>
   );
 }

@@ -784,3 +784,69 @@ body {
   height: 32px;
   border-width: 3px;
 }
+
+/* Link-receipt-to-job modal */
+.modal-sub {
+  color: var(--text-dim);
+  font-size: 14px;
+  margin: -4px 0 16px;
+}
+.link-empty {
+  padding: 12px 0 4px;
+  text-align: center;
+  color: var(--text-dim);
+}
+.link-empty p { margin: 4px 0; font-size: 14px; }
+.link-job-list {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 16px;
+  max-height: 50vh;
+  overflow-y: auto;
+}
+.link-job-btn {
+  width: 100%;
+  background: var(--surface-2, #1a1f1e);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 8px;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 0.15s;
+}
+.link-job-btn:hover, .link-job-btn:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+.link-job-main {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+.link-job-name {
+  font-weight: 600;
+  font-size: 15px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.link-job-amount {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  font-size: 14px;
+  color: var(--accent);
+  flex-shrink: 0;
+}
+.link-job-date {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.btn-secondary.full-width {
+  width: 100%;
+}
