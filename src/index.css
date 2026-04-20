@@ -697,3 +697,90 @@ body {
   padding: 0 20px;
   font-style: italic;
 }
+
+/* Auth screen */
+.auth-screen {
+  min-height: 100vh;
+  padding: 0 24px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  max-width: 420px;
+  margin: 0 auto;
+}
+.auth-brand {
+  text-align: center;
+  margin-bottom: 40px;
+}
+.auth-logo {
+  width: 56px;
+  height: 56px;
+  border-radius: 12px;
+  margin-bottom: 16px;
+}
+.auth-title {
+  font-size: 28px;
+  font-weight: 800;
+  margin: 0 0 6px;
+  color: var(--text);
+  letter-spacing: -0.02em;
+}
+.auth-tagline {
+  color: var(--text-dim);
+  font-size: 15px;
+  margin: 0;
+}
+.auth-form { display: flex; flex-direction: column; gap: 16px; }
+.auth-label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--text-dim); font-weight: 500; }
+.auth-label input {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  font-size: 16px;
+  padding: 14px 16px;
+  width: 100%;
+  box-sizing: border-box;
+}
+.auth-label input:focus { outline: none; border-color: var(--accent); }
+.auth-submit {
+  background: var(--accent);
+  color: #0b1f10;
+  border: none;
+  border-radius: 10px;
+  padding: 14px 20px;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  margin-top: 4px;
+}
+.auth-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+.auth-hint { color: var(--text-dim); font-size: 13px; text-align: center; margin: 8px 0 0; }
+.auth-error { color: var(--danger); font-size: 13px; margin: 4px 0 0; text-align: center; }
+.auth-sent {
+  text-align: center;
+  padding: 24px 0;
+}
+.auth-sent-icon { font-size: 48px; margin-bottom: 12px; }
+.auth-sent h2 { color: var(--text); margin: 0 0 12px; font-size: 22px; }
+.auth-sent p { color: var(--text-dim); margin: 4px 0; font-size: 15px; }
+.auth-link-btn {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 14px;
+  margin-top: 16px;
+  cursor: pointer;
+  padding: 8px;
+}
+.auth-loading {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.auth-loading .ocr-spinner {
+  width: 32px;
+  height: 32px;
+  border-width: 3px;
+}
