@@ -5,6 +5,7 @@ import HistoryScreen from './screens/HistoryScreen';
 import BottomNav from './components/BottomNav';
 import LinkReceiptModal from './components/LinkReceiptModal';
 import { startHidingLegacyDupes, stopHidingLegacyDupes } from './lib/hideLegacyDupes';
+import { startHidingLegacyWrites, stopHidingLegacyWrites } from './lib/hideLegacyWrites';
 import { clickCreateDetailedJobTab } from './lib/manageDeepLink';
 import { supabase } from './lib/supabase';
 import AuthScreen from './components/AuthScreen';
@@ -123,12 +124,14 @@ export default function AppShell() {
     if (view === 'today' || view === 'history') refreshLocal();
     if (view === 'manage' && manageRootRef.current) {
       startHidingLegacyDupes(manageRootRef.current);
+      startHidingLegacyWrites(manageRootRef.current);
       if (pendingDeepLink === 'create-detailed-job') {
         setTimeout(() => clickCreateDetailedJobTab(manageRootRef.current), 100);
         setPendingDeepLink(null);
       }
     } else {
       stopHidingLegacyDupes();
+      stopHidingLegacyWrites();
     }
   }, [view, refreshLocal, pendingDeepLink]);
 

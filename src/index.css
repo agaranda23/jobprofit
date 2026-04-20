@@ -890,3 +890,43 @@ body {
 .signout-btn:hover {
   border-color: #ffa755;
 }
+
+
+/* ========================================================
+   TEMP: Hide legacy Manage write actions
+   These buttons write to localStorage only (pre-cloud).
+   Users add jobs/receipts via Today → cloud-backed path.
+   Remove this block when legacy App.jsx migrates to cloud.
+======================================================== */
+
+/* Hide the "Create detailed job" tab in Manage toolbar */
+.manage-header ~ * [class*="tab"]:nth-child(2),
+.manage-header + div button:nth-of-type(2) {
+  /* fallback — we target more specifically below */
+}
+
+/* Hide Quick Scan section in Materials tab (Snap Receipt + Manual buttons) */
+.manage-header ~ div [class*="quick-scan"],
+.manage-header ~ div [class*="QuickScan"] {
+  display: none !important;
+}
+
+/* Hide the "Create detailed job" tab button — targets it by emoji + text */
+.manage-header ~ div button {
+  /* base — we'll refine with :has() below */
+}
+
+
+/* Hide "Create detailed job" tab — uses :has() selector (modern browsers) */
+.manage-header ~ div nav button:nth-child(2),
+.manage-header ~ div [role="tablist"] button:nth-child(2),
+.manage-header ~ div > div > button:nth-child(2) {
+  /* too broad — we need the actual class */
+}
+
+/* Generic hide for any button whose visible text is "Create detailed job" */
+button.jp-hide-legacy-write { display: none !important; }
+
+/* === Actual hiding via text-content matching not possible in pure CSS ===
+   We'll use a small JS snippet that runs after Manage mounts.
+   See hideLegacyWriteButtons() wiring in AppShell. */
