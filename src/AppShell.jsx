@@ -13,11 +13,13 @@ import {
   addTodayJob,
   addTodayReceipt,
   markJobPaid,
+  getJobsFromCloud,
+  getReceiptsFromCloud,
+  addJobToCloud,
+  addReceiptToCloud,
+  markJobPaidCloud,
 } from './lib/store';
 
-
-// One-time wipe of seeded demo data (J-0001 to J-0004 and E-0001 to E-0005).
-// Real user-added entries are preserved.
 function wipeLegacyDemoData() {
   try {
     if (localStorage.getItem('jp.demoCleared.v1')) return;
@@ -29,12 +31,8 @@ function wipeLegacyDemoData() {
     const data = JSON.parse(raw);
     const demoJobIds = new Set(['J-0001', 'J-0002', 'J-0003', 'J-0004']);
     const demoExpIds = new Set(['E-0001', 'E-0002', 'E-0003', 'E-0004', 'E-0005']);
-    if (Array.isArray(data.jobs)) {
-      data.jobs = data.jobs.filter(j => !demoJobIds.has(j.id));
-    }
-    if (Array.isArray(data.expenses)) {
-      data.expenses = data.expenses.filter(e => !demoExpIds.has(e.id));
-    }
+    if (Array.isArray(data.jobs)) data.jobs = data.jobs.filter(j => !demoJobIds.has(j.id));
+    if (Array.isArray(data.expenses)) data.expenses = data.expenses.filter(e => !demoExpIds.has(e.id));
     localStorage.setItem('jobprofit-app-data', JSON.stringify(data));
     localStorage.setItem('jp.demoCleared.v1', '1');
   } catch (e) {
@@ -42,14 +40,12 @@ function wipeLegacyDemoData() {
   }
 }
 
-// One-time migration: pull any pre-existing jp.jobs / jp.receipts into the unified store
 function migrateLegacyTodayData() {
   try {
     const legacyJobsRaw = localStorage.getItem('jp.jobs');
     const legacyReceiptsRaw = localStorage.getItem('jp.receipts');
     const migratedFlag = localStorage.getItem('jp.migrated.v1');
     if (migratedFlag) return;
-
     if (legacyJobsRaw) {
       const legacy = JSON.parse(legacyJobsRaw) || [];
       for (const j of legacy) addTodayJob(j);
@@ -68,19 +64,38 @@ export default function AppShell() {
   const [view, setView] = useState('today');
   const [moreKey, setMoreKey] = useState(0);
   const [pendingDeepLink, setPendingDeepLink] = useState(null);
-  const [jobs, setJobs] = useState([]);
-  const [receipts, setReceipts] = useState([]);
+  const [jobs, setJobs] = useState(() => getTodayJobs());       // first-paint cache
+  const [receipts, setReceipts] = useState(() => getTodayReceipts());
   const [session, setSession] = useState(null);
   const [authReady, setAuthReady] = useState(false);
+  const [cloudLoaded, setCloudLoaded] = useState(false);
 
   const manageRootRef = useRef(null);
 
-  const refresh = useCallback(() => {
-    setJobs(getTodayJobs());
-    setReceipts(getTodayReceipts());
+  // --- Refresh from cloud (authoritative), fall back to localStorage if it fails ---
+  const refreshFromCloud = useCallback(async () => {
+    try {
+      const [cloudJobs, cloudReceipts] = await Promise.all([
+        getJobsFromCloud(),
+        getReceiptsFromCloud(),
+      ]);
+      setJobs(cloudJobs);
+      setReceipts(cloudReceipts);
+      setCloudLoaded(true);
+    } catch (e) {
+      console.warn('Cloud refresh failed, keeping localStorage view', e);
+    }
   }, []);
 
-  // Auth: get current session + subscribe to changes
+  // Local-only refresh (used by Manage re-reads)
+  const refreshLocal = useCallback(() => {
+    if (!cloudLoaded) {
+      setJobs(getTodayJobs());
+      setReceipts(getTodayReceipts());
+    }
+  }, [cloudLoaded]);
+
+  // --- Auth session ---
   useEffect(() => {
     let mounted = true;
     supabase.auth.getSession().then(({ data }) => {
@@ -90,6 +105,7 @@ export default function AppShell() {
     });
     const { data: listener } = supabase.auth.onAuthStateChange((_event, newSession) => {
       setSession(newSession);
+      if (!newSession) setCloudLoaded(false); // reset on sign-out
     });
     return () => {
       mounted = false;
@@ -97,14 +113,18 @@ export default function AppShell() {
     };
   }, []);
 
+  // --- Initial data load once signed in ---
   useEffect(() => {
     wipeLegacyDemoData();
     migrateLegacyTodayData();
-    refresh();
-  }, [refresh]);
+    if (session) {
+      refreshFromCloud();
+    }
+  }, [session, refreshFromCloud]);
 
+  // --- Manage tab behaviours ---
   useEffect(() => {
-    if (view === 'today' || view === 'history') refresh();
+    if (view === 'today' || view === 'history') refreshLocal();
     if (view === 'manage' && manageRootRef.current) {
       startHidingLegacyDupes(manageRootRef.current);
       if (pendingDeepLink === 'create-detailed-job') {
@@ -114,30 +134,59 @@ export default function AppShell() {
     } else {
       stopHidingLegacyDupes();
     }
-  }, [view, refresh]);
+  }, [view, refreshLocal, pendingDeepLink]);
 
+  // --- Cross-tab sync ---
   useEffect(() => {
     const onStorage = (e) => {
-      if (e.key === 'jobprofit-app-data') refresh();
+      if (e.key === 'jobprofit-app-data' && !cloudLoaded) {
+        setJobs(getTodayJobs());
+        setReceipts(getTodayReceipts());
+      }
     };
     window.addEventListener('storage', onStorage);
     return () => window.removeEventListener('storage', onStorage);
-  }, [refresh]);
+  }, [cloudLoaded]);
 
-  const handleAddJob = (job) => {
-    addTodayJob(job);
-    refresh();
-  };
-  const handleAddReceipt = (receipt) => {
-    addTodayReceipt(receipt);
-    refresh();
-  };
-  const handleMarkPaid = (id) => {
-    markJobPaid(id);
-    refresh();
+  // --- Write handlers: cloud first, then refresh ---
+  const handleAddJob = async (job) => {
+    try {
+      await addJobToCloud(job);
+      await refreshFromCloud();
+    } catch (e) {
+      console.error('Add job failed', e);
+      // Fallback to localStorage-only
+      addTodayJob(job);
+      setJobs(getTodayJobs());
+    }
   };
 
-  // Auth gates
+  const handleAddReceipt = async (arg) => {
+    // New signature from AddReceiptModal: { payload, photoFile }
+    // Old signature (still supported): raw payload
+    const payload = arg?.payload || arg;
+    const photoFile = arg?.photoFile || null;
+    try {
+      await addReceiptToCloud(payload, photoFile);
+      await refreshFromCloud();
+    } catch (e) {
+      console.error('Add receipt failed', e);
+      addTodayReceipt(payload);
+      setReceipts(getTodayReceipts());
+    }
+  };
+
+  const handleMarkPaid = async (id) => {
+    try {
+      await markJobPaidCloud(id);
+      await refreshFromCloud();
+    } catch (e) {
+      console.error('Mark paid failed', e);
+      markJobPaid(id);
+      setJobs(getTodayJobs());
+    }
+  };
+
   if (!authReady) {
     return <div className="auth-loading"><div className="ocr-spinner" /></div>;
   }

@@ -4,6 +4,7 @@ import { extractReceipt } from '../lib/receiptOCR';
 export default function AddReceiptModal({ onClose, onSave }) {
   const fileRef = useRef(null);
   const [photo, setPhoto] = useState(null);
+  const [photoFile, setPhotoFile] = useState(null);
   const [label, setLabel] = useState('');
   const [amount, setAmount] = useState('');
   const [vat, setVat] = useState('');
@@ -13,12 +14,14 @@ export default function AddReceiptModal({ onClose, onSave }) {
   const [extracting, setExtracting] = useState(false);
   const [extractError, setExtractError] = useState('');
   const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
 
   const openPicker = () => fileRef.current?.click();
 
   const onFile = (e) => {
     const f = e.target.files?.[0];
     if (!f) return;
+    setPhotoFile(f); // Keep raw File for Supabase upload
     const reader = new FileReader();
     reader.onload = async () => {
       const dataUrl = reader.result;
@@ -52,24 +55,34 @@ export default function AddReceiptModal({ onClose, onSave }) {
   };
   const removeItem = (idx) => setItems(prev => prev.filter((_, i) => i !== idx));
 
-  const save = () => {
+  const save = async () => {
     const amt = parseFloat(amount);
     if (isNaN(amt)) { setError('Amount required'); return; }
     const vatNum = vat === '' ? 0 : parseFloat(vat);
-    const dateISO = receiptDate
-      ? new Date(receiptDate).toISOString()
-      : new Date().toISOString();
-    onSave({
-      id: Date.now(),
-      label: label.trim() || 'Receipt',
-      amount: amt,
-      vat: isNaN(vatNum) ? 0 : vatNum,
-      items: items.filter(i => i.desc?.trim()),
-      invoiceNumber: invoiceNumber.trim() || null,
-      photo,
-      date: dateISO,
-      createdAt: new Date().toISOString(),
-    });
+    setSaving(true);
+    setError('');
+    try {
+      const dateISO = receiptDate
+        ? new Date(receiptDate).toISOString()
+        : new Date().toISOString();
+      await onSave({
+        payload: {
+          id: Date.now(),
+          label: label.trim() || 'Receipt',
+          amount: amt,
+          vat: isNaN(vatNum) ? 0 : vatNum,
+          items: items.filter(i => i.desc?.trim()),
+          invoiceNumber: invoiceNumber.trim() || null,
+          photo, // keep base64 for legacy mirror
+          date: dateISO,
+          createdAt: new Date().toISOString(),
+        },
+        photoFile, // raw File for cloud upload
+      });
+    } catch (e) {
+      setError(e?.message || 'Save failed — check connection');
+      setSaving(false);
+    }
   };
 
   return (
@@ -169,8 +182,10 @@ export default function AddReceiptModal({ onClose, onSave }) {
         {error && <p className="modal-error">{error}</p>}
 
         <div className="modal-actions">
-          <button className="btn-secondary" onClick={onClose}>Cancel</button>
-          <button className="btn-primary" onClick={save} disabled={extracting}>Save receipt</button>
+          <button className="btn-secondary" onClick={onClose} disabled={saving}>Cancel</button>
+          <button className="btn-primary" onClick={save} disabled={extracting || saving}>
+            {saving ? 'Saving…' : 'Save receipt'}
+          </button>
         </div>
       </div>
     </div>
