@@ -5,6 +5,8 @@ import HistoryScreen from './screens/HistoryScreen';
 import BottomNav from './components/BottomNav';
 import { startHidingLegacyDupes, stopHidingLegacyDupes } from './lib/hideLegacyDupes';
 import { clickCreateDetailedJobTab } from './lib/manageDeepLink';
+import { supabase } from './lib/supabase';
+import AuthScreen from './components/AuthScreen';
 import {
   getTodayJobs,
   getTodayReceipts,
@@ -57,7 +59,6 @@ function migrateLegacyTodayData() {
       for (const r of legacy) addTodayReceipt(r);
     }
     localStorage.setItem('jp.migrated.v1', '1');
-    // Keep the old keys as backup; don't delete in case something went wrong
   } catch (e) {
     console.warn('Migration failed', e);
   }
@@ -69,6 +70,8 @@ export default function AppShell() {
   const [pendingDeepLink, setPendingDeepLink] = useState(null);
   const [jobs, setJobs] = useState([]);
   const [receipts, setReceipts] = useState([]);
+  const [session, setSession] = useState(null);
+  const [authReady, setAuthReady] = useState(false);
 
   const manageRootRef = useRef(null);
 
@@ -77,13 +80,29 @@ export default function AppShell() {
     setReceipts(getTodayReceipts());
   }, []);
 
+  // Auth: get current session + subscribe to changes
+  useEffect(() => {
+    let mounted = true;
+    supabase.auth.getSession().then(({ data }) => {
+      if (!mounted) return;
+      setSession(data.session);
+      setAuthReady(true);
+    });
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      setSession(newSession);
+    });
+    return () => {
+      mounted = false;
+      listener?.subscription?.unsubscribe?.();
+    };
+  }, []);
+
   useEffect(() => {
     wipeLegacyDemoData();
     migrateLegacyTodayData();
     refresh();
   }, [refresh]);
 
-  // Re-read when switching back to today or history, in case the legacy App mutated storage
   useEffect(() => {
     if (view === 'today' || view === 'history') refresh();
     if (view === 'manage' && manageRootRef.current) {
@@ -97,7 +116,6 @@ export default function AppShell() {
     }
   }, [view, refresh]);
 
-  // Also listen for storage events from other tabs
   useEffect(() => {
     const onStorage = (e) => {
       if (e.key === 'jobprofit-app-data') refresh();
@@ -118,6 +136,14 @@ export default function AppShell() {
     markJobPaid(id);
     refresh();
   };
+
+  // Auth gates
+  if (!authReady) {
+    return <div className="auth-loading"><div className="ocr-spinner" /></div>;
+  }
+  if (!session) {
+    return <AuthScreen />;
+  }
 
   return (
     <>
