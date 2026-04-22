@@ -6,6 +6,18 @@
 
 import { supabase } from './supabase';
 
+// Returns YYYY-MM-DD in the user's local timezone (not UTC).
+// Critical: new Date().toISOString().slice(0,10) returns UTC date,
+// which differs from local date in evenings (UK +0/+1 from UTC).
+function localDateString(d = new Date()) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+
+
 const KEY = 'jobprofit-app-data';
 
 // ============================================================
@@ -72,7 +84,7 @@ export function getTodayJobs() {
     amount: Number(j.total || 0),
     paid: j.paymentStatus === 'paid',
     paymentType: j.paymentMethod || null,
-    date: j.paymentDate || j.date || j.scheduledDate || new Date().toISOString().slice(0, 10),
+    date: j.paymentDate || j.date || j.scheduledDate || localDateString(),
     createdAt: j.createdAt || j.date || new Date().toISOString(),
   }));
 }
@@ -84,7 +96,7 @@ export function getTodayReceipts() {
     label: e.merchant || e.desc || 'Receipt',
     amount: Number(e.amount || 0),
     photo: e.photo || null,
-    date: e.date || new Date().toISOString().slice(0, 10),
+    date: e.date || localDateString(),
     createdAt: e.createdAt || e.date || new Date().toISOString(),
     jobId: e.jobId || null,
   }));
@@ -161,7 +173,7 @@ export function addTodayReceipt(payload) {
 
 export function markJobPaid(jobId) {
   const data = read();
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDateString();
   data.jobs = data.jobs.map(j =>
     j.id === jobId
       ? { ...j, paymentStatus: 'paid', paymentDate: today, jobStatus: 'complete', paymentMethod: j.paymentMethod || 'cash' }
@@ -242,7 +254,7 @@ export async function addJobToCloud(payload) {
 
   const amount = Number(payload.amount || 0);
   const isPaid = payload.paid !== false;
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDateString();
 
   const row = {
     user_id,
@@ -311,7 +323,7 @@ export async function addReceiptToCloud(payload, photoFile) {
     merchant: payload.label || 'Receipt',
     amount: Number(payload.amount || 0),
     vat: Number(payload.vat || 0),
-    date: payload.date ? payload.date.slice(0, 10) : new Date().toISOString().slice(0, 10),
+    date: payload.date ? payload.date.slice(0, 10) : localDateString(),
     invoice_number: payload.invoiceNumber || null,
     payment_method: payload.paymentMethod || null,
     image_path: imagePath,
@@ -361,7 +373,7 @@ export async function markJobPaidCloud(jobId) {
   const user_id = await getUserId();
   if (!user_id) throw new Error('Not signed in');
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = localDateString();
   const { error } = await supabase
     .from('jobs')
     .update({

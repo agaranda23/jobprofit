@@ -9,7 +9,10 @@ export default function AddReceiptModal({ onClose, onSave }) {
   const [amount, setAmount] = useState('');
   const [vat, setVat] = useState('');
   const [items, setItems] = useState([]);
-  const [receiptDate, setReceiptDate] = useState('');
+  const [receiptDate, setReceiptDate] = useState(() => {
+    const d = new Date();
+    return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  });
   const [invoiceNumber, setInvoiceNumber] = useState('');
   const [extracting, setExtracting] = useState(false);
   const [extractError, setExtractError] = useState('');

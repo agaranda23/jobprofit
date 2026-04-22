@@ -49,15 +49,23 @@ export default function TodayScreen({ jobs = [], receipts = [], onAddJob, onAddR
     setTimeout(() => setToast(''), 2400);
   };
 
-  const handleJobSave = (payload) => {
-    onAddJob?.(payload);
+  const handleJobSave = async (payload) => {
     setJobOpen(false);
-    showToast('Job added');
+    try {
+      await onAddJob?.(payload);
+      showToast('Job saved');
+    } catch (e) {
+      showToast('Saved offline — will sync');
+    }
   };
-  const handleReceiptSave = (payload) => {
-    onAddReceipt?.(payload);
+  const handleReceiptSave = async (payload) => {
     setReceiptOpen(false);
-    showToast('Receipt added');
+    try {
+      await onAddReceipt?.(payload);
+      showToast('Receipt saved');
+    } catch (e) {
+      showToast('Saved offline — will sync');
+    }
   };
 
   const subhead = hasEntries
