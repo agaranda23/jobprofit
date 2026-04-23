@@ -16,7 +16,7 @@ export default function TodayScreen({ jobs = [], receipts = [], onAddJob, onAddR
   const { earned, spent, profit, recent, hasEntries, unpaidTotal, oldestDays, unpaidCount, weekProfit, weekCount } = useMemo(() => {
     const todaysJobs = jobs.filter(j => (j.date || '').slice(0, 10) === key);
     const todaysReceipts = receipts.filter(r => (r.date || '').slice(0, 10) === key);
-    const earned = todaysJobs.reduce((s, j) => s + Number(j.amount || 0), 0);
+    const earned = todaysJobs.filter(j => j.paid !== false).reduce((s, j) => s + Number(j.amount || 0), 0);
     const spent = todaysReceipts.reduce((s, r) => s + Number(r.amount || 0), 0);
     const entries = [
       ...todaysJobs.map(j => ({ id: 'j' + j.id, label: j.name || 'Job', amount: Number(j.amount || 0), ts: j.createdAt || j.date })),
