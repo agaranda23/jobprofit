@@ -131,7 +131,7 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed }) {
             <p className="modal-help">Say what you earned</p>
             <p className="modal-example">Example: "Kitchen job Sarah £380 cash"</p>
             <button className="mic-button" onClick={startListening}>🎤 Tap to speak</button>
-            <button className="link-btn centered" onClick={() => setStatus('manual')}>Type instead</button>
+            <button className="link-btn centered" onClick={() => { setError(''); setStatus('manual'); }}>Type instead</button>
           </>
         )}
 
