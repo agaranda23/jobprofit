@@ -65,9 +65,10 @@ export default function AddReceiptModal({ onClose, onSave }) {
     setSaving(true);
     setError('');
     try {
-      const dateISO = receiptDate
-        ? new Date(receiptDate).toISOString()
-        : new Date().toISOString();
+      // Pass YYYY-MM-DD as-is; the cloud date column expects this format.
+      // Avoid new Date(yyyy-mm-dd) which interprets as UTC midnight and shifts in non-UTC zones.
+      const d = new Date();
+      const dateISO = receiptDate || `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
       await onSave({
         payload: {
           id: Date.now(),

@@ -105,7 +105,7 @@ export function getTodayReceipts() {
 export function addTodayJob(payload) {
   const data = read();
   const now = new Date();
-  const today = now.toISOString().slice(0, 10);
+  const today = localDateString(now);
   const id = payload.legacyId || nextJobId(data.jobs);
   const amount = Number(payload.amount || 0);
   const isPaid = payload.paid !== false;
@@ -142,7 +142,7 @@ export function addTodayJob(payload) {
 export function addTodayReceipt(payload) {
   const data = read();
   const now = new Date();
-  const today = now.toISOString().slice(0, 10);
+  const today = localDateString(now);
   const id = payload.legacyId || nextExpenseId(data.expenses);
 
   const items = Array.isArray(payload.items) ? payload.items : [];
