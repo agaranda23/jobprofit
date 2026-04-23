@@ -177,9 +177,7 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed }) {
             <button className="btn-primary btn-large" onClick={save} style={{ marginTop: 8 }}>Save job</button>
             <button className="link-btn centered" onClick={() => setStatus('manual')}>Edit details</button>
             {onOpenDetailed && (
-              <button className="link-btn centered subtle" onClick={() => { onClose(); onOpenDetailed(); }}>
-                Create detailed job in Manage
-              </button>
+              
             )}
           </>
         )}
@@ -203,9 +201,7 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed }) {
               <button className="btn-primary" onClick={save}>Save job</button>
             </div>
             {onOpenDetailed && (
-              <button className="link-btn centered subtle" onClick={() => { onClose(); onOpenDetailed(); }}>
-                Create detailed job in Manage
-              </button>
+              
             )}
           </>
         )}

@@ -13,7 +13,7 @@ export default function TodayScreen({ jobs = [], receipts = [], onAddJob, onAddR
   const key = todayKey();
 
   const everEmpty = jobs.length === 0 && receipts.length === 0;
-  const { earned, spent, profit, recent, hasEntries, unpaidTotal, oldestDays, unpaidCount } = useMemo(() => {
+  const { earned, spent, profit, recent, hasEntries, unpaidTotal, oldestDays, unpaidCount, weekProfit, weekCount } = useMemo(() => {
     const todaysJobs = jobs.filter(j => (j.date || '').slice(0, 10) === key);
     const todaysReceipts = receipts.filter(r => (r.date || '').slice(0, 10) === key);
     const earned = todaysJobs.reduce((s, j) => s + Number(j.amount || 0), 0);
@@ -31,7 +31,15 @@ export default function TodayScreen({ jobs = [], receipts = [], onAddJob, onAddR
       const days = Math.floor((now - d) / 86400000);
       if (days > oldestDays) oldestDays = days;
     }
-    return { earned, spent, profit: earned - spent, recent: entries, hasEntries: entries.length > 0, unpaidTotal, oldestDays, unpaidCount: unpaidJobs.length };
+    // Week profit = all paid job amounts in last 7 days - all receipts in last 7 days
+    const sevenDaysAgo = Date.now() - 7 * 86400000;
+    const weekJobs = jobs.filter(j => new Date(j.date || j.createdAt || 0).getTime() >= sevenDaysAgo && j.paid !== false);
+    const weekReceipts = receipts.filter(r => new Date(r.date || r.createdAt || 0).getTime() >= sevenDaysAgo);
+    const weekEarned = weekJobs.reduce((s, j) => s + Number(j.amount || 0), 0);
+    const weekSpent = weekReceipts.reduce((s, r) => s + Number(r.amount || 0), 0);
+    const weekProfit = weekEarned - weekSpent;
+    const weekCount = weekJobs.length;
+    return { earned, spent, profit: earned - spent, recent: entries, hasEntries: entries.length > 0, unpaidTotal, oldestDays, unpaidCount: unpaidJobs.length, weekProfit, weekCount };
   }, [jobs, receipts, key]);
 
   // Flash profit when it changes
@@ -83,6 +91,11 @@ export default function TodayScreen({ jobs = [], receipts = [], onAddJob, onAddR
           <p className="today-unpaid-line">
             <span className="unpaid-amount-inline">{gbp(unpaidTotal)}</span> waiting to be collected
             {oldestDays > 0 && <span className="unpaid-age"> · oldest {oldestDays} day{oldestDays === 1 ? '' : 's'}</span>}
+          </p>
+        )}
+        {weekCount > 0 && (
+          <p className="today-week-line">
+            This week: <span className="week-profit-inline">{gbp(weekProfit)}</span> across {weekCount} job{weekCount === 1 ? '' : 's'}
           </p>
         )}
       </header>

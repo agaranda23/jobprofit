@@ -930,3 +930,14 @@ button.jp-hide-legacy-write { display: none !important; }
 /* === Actual hiding via text-content matching not possible in pure CSS ===
    We'll use a small JS snippet that runs after Manage mounts.
    See hideLegacyWriteButtons() wiring in AppShell. */
+
+
+.today-week-line {
+  margin: 4px 0 0;
+  font-size: 14px;
+  color: var(--text-dim);
+}
+.week-profit-inline {
+  color: var(--accent, #5ec58a);
+  font-weight: 700;
+}

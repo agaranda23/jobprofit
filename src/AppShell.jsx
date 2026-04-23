@@ -240,13 +240,13 @@ export default function AppShell() {
       <div ref={manageRootRef} style={{ display: view === 'manage' ? 'block' : 'none' }}>
         <div className="manage-header">
           <div className="manage-header-top">
-            <h1>Manage</h1>
+            <h1>Business</h1>
             <button className="signout-btn" onClick={handleSignOut} title="Sign out">
               <span>{session?.user?.email || 'Account'}</span>
               <span className="signout-btn-label">Sign out</span>
             </button>
           </div>
-          <p>Customers, quotes, materials & invoices</p>
+          <p>Quotes, jobs, customers & insights</p>
         </div>
         <App key={moreKey} />
       </div>
