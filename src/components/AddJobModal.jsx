@@ -17,11 +17,9 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed }) {
   const recogRef = useRef(null);
   const manualOverride = useRef(false);
 
-  // Auto-start mic on mount
+  // Clean up any active recognition on unmount
   useEffect(() => {
-    if (SR) startListening();
     return () => { try { recogRef.current?.abort(); } catch {} };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const startListening = () => {
