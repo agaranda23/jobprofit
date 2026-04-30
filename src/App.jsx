@@ -313,6 +313,23 @@ function OverviewTab({ jobs, expenses, invoices, onGo, biz, showVat }) {
   const tmrwJobs = jobs.filter(j => j.scheduledDate === tomorrowDate);
   const tmrwVal = tmrwJobs.reduce((s, j) => s + j.total, 0);
   const todayJobs = jobs.filter(j => j.scheduledDate === today);
+  // Fresh-install empty state — replace dashboard with focused onboarding
+  if (jobs.length === 0 && expenses.length === 0) {
+    return <div>
+      <div style={{ marginTop: 6, marginBottom: 18 }}><h2 style={{ fontSize: 21, fontWeight: 800, margin: 0, letterSpacing: -0.3 }}>Good {greeting}</h2><p style={{ fontSize: 12, color: T.textMuted, margin: "2px 0 0", fontWeight: 400 }}>Let\'s log your first job</p></div>
+      <div style={{ background: T.surface, borderRadius: T.r, padding: 22, border: `1px solid ${T.border}`, boxShadow: T.cardShadow, marginBottom: 16 }}>
+        <div style={{ fontSize: 38, marginBottom: 12, textAlign: "center" }}>👋</div>
+        <h3 style={{ fontSize: 18, fontWeight: 800, margin: "0 0 8px", textAlign: "center", letterSpacing: -0.2 }}>Track your daily profit in seconds</h3>
+        <p style={{ fontSize: 14, color: T.textMed, margin: "0 0 18px", textAlign: "center", lineHeight: 1.5 }}>Tap below and say something like:</p>
+        <div style={{ background: T.surfaceAlt, borderRadius: T.rSm, padding: "12px 14px", marginBottom: 18, border: `1px dashed ${T.border}` }}>
+          <div style={{ fontSize: 14, color: T.text, fontWeight: 500, fontStyle: "italic", textAlign: "center" }}>"Kitchen job £250, paid cash"</div>
+        </div>
+        <button onClick={() => onGo("Create detailed job")} style={{ ...pri, width: "100%", padding: "14px 16px", fontSize: 15 }}>🔨 Add your first job</button>
+        <button onClick={() => onGo("Materials")} style={{ ...S.ghost, width: "100%", marginTop: 8, padding: "12px 16px", fontSize: 14, justifyContent: "center" }}>🧾 Or snap a receipt</button>
+      </div>
+      <p style={{ fontSize: 12, color: T.textMuted, textAlign: "center", margin: "8px 0 0", lineHeight: 1.5 }}>It takes less than 30 seconds.<br/>Your dashboard appears as soon as you add your first entry.</p>
+    </div>;
+  }
   return <div>
     <div style={{ marginTop: 6, marginBottom: 10 }}><h2 style={{ fontSize: 21, fontWeight: 800, margin: 0, letterSpacing: -0.3 }}>Good {greeting}</h2><p style={{ fontSize: 12, color: T.textMuted, margin: "2px 0 0", fontWeight: 400 }}>Your scoreboard</p></div>
     {/* Schedule Preview — supporting, not competing */}
