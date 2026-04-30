@@ -741,15 +741,29 @@ function AddJobTab({ onGen, biz }) {
 
 /* ═══ SETTINGS ═══════════════════════════════════════ */
 function SettingsTab({ biz, onUpd }) {
-  const ch = (f, v) => onUpd({ ...biz, [f]: v }); const logoRef = useRef(null);
+  const [lastSaved, setLastSaved] = useState(null);
+  const ch = (f, v) => { onUpd({ ...biz, [f]: v }); setLastSaved(f); setTimeout(() => setLastSaved(p => p === f ? null : p), 2000); };
+  const logoRef = useRef(null);
+  // Auto-build legacy bankDetails string from structured fields when any are set
+  useEffect(() => {
+    if (biz.accountName || biz.sortCode || biz.accountNumber) {
+      const lines = [];
+      if (biz.sortCode) lines.push("Sort code: " + biz.sortCode);
+      if (biz.accountNumber) lines.push("Account: " + biz.accountNumber);
+      if (biz.accountName) lines.push("Name: " + biz.accountName);
+      const built = lines.join("\n");
+      if (built !== biz.bankDetails) onUpd({ ...biz, bankDetails: built });
+    }
+  }, [biz.accountName, biz.sortCode, biz.accountNumber]);
+  const Saved = ({ f }) => lastSaved === f ? <span style={{ fontSize: 12, color: T.accent, marginLeft: 8, fontWeight: 600 }}>Saved ✓</span> : null;
   const handleLogo = async e => { const f = e.target.files?.[0]; if (!f) return; try { const raw = await fileToB64(f); const c = await compress(raw, 200, 0.8); ch("logoUrl", c); } catch {} };
   const [notifPerm, setNotifPerm] = useState(typeof Notification !== "undefined" ? Notification.permission : "denied");
   const requestNotif = async () => { if (typeof Notification === "undefined") return; const p = await Notification.requestPermission(); setNotifPerm(p); if (p === "granted") new Notification("JobProfit", { body: "Notifications enabled! You'll get daily check-ins and overdue alerts.", icon: "📊" }); };
   return <div style={{ maxWidth: 500 }}>
     <span style={S.lbl}>Your Business</span>
     <div style={{ marginBottom: 18, display: "flex", alignItems: "center", gap: 14 }}><div onClick={() => logoRef.current?.click()} style={{ width: 64, height: 64, borderRadius: T.rSm, background: biz.logoUrl ? "none" : T.surfaceAlt, border: `2px dashed ${T.border}`, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", overflow: "hidden" }}>{biz.logoUrl ? <img src={biz.logoUrl} alt="Logo" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ fontSize: 24 }}>📷</span>}</div><div><div style={{ fontWeight: 600, fontSize: 14 }}>Business Logo</div><div style={{ fontSize: 12, color: T.textMuted }}>Shown on PDF invoices</div><button onClick={() => logoRef.current?.click()} style={{ ...S.ghost, padding: "4px 0", fontSize: 13 }}>Upload</button></div><input ref={logoRef} type="file" accept="image/*" onChange={handleLogo} style={{ display: "none" }} /></div>
-    {[{ l: "Business Name", f: "name" }, { l: "Trade", f: "trade" }, { l: "Phone", f: "phone" }, { l: "Email", f: "email" }, { l: "Address", f: "address" }, { l: "Hourly Rate (£)", f: "hourlyRate", t: "number" }].map(({ l, f, t }) => <div key={f} style={{ marginBottom: 14 }}><label style={{ display: "block", fontSize: 14, fontWeight: 600, color: T.textMed, marginBottom: 6 }}>{l}</label><input type={t || "text"} value={biz[f]} onChange={e => ch(f, t === "number" ? Number(e.target.value) : e.target.value)} style={S.inp} /></div>)}
-    <div style={{ marginBottom: 14 }}><label style={{ display: "block", fontSize: 14, fontWeight: 600, color: T.textMed, marginBottom: 6 }}>Bank Details (on invoices)</label><textarea value={biz.bankDetails || ""} onChange={e => ch("bankDetails", e.target.value)} placeholder={"Sort code: 12-34-56\nAccount: 12345678\nName: Smith Plumbing Ltd"} style={{ ...S.inp, minHeight: 70, resize: "vertical" }} /></div>
+    {[{ l: "Business Name", f: "name" }, { l: "Trade", f: "trade" }, { l: "Phone", f: "phone" }, { l: "Email", f: "email" }, { l: "Address", f: "address" }, { l: "Hourly Rate (£)", f: "hourlyRate", t: "number" }, { l: "Account Name", f: "accountName", p: "Smith Plumbing Ltd" }, { l: "Sort Code", f: "sortCode", p: "12-34-56" }, { l: "Account Number", f: "accountNumber", p: "12345678" }].map(({ l, f, t, p }) => <div key={f} style={{ marginBottom: 14 }}><label style={{ display: "block", fontSize: 14, fontWeight: 600, color: T.textMed, marginBottom: 6 }}>{l}<Saved f={f} /></label><input type={t || "text"} value={biz[f] || ""} onChange={e => ch(f, t === "number" ? Number(e.target.value) : e.target.value)} placeholder={p || ""} style={S.inp} /></div>)}
+    <div style={{ marginBottom: 14 }}><label style={{ display: "block", fontSize: 14, fontWeight: 600, color: T.textMed, marginBottom: 6 }}>Additional bank details (optional)<Saved f="bankDetails" /></label><textarea value={biz.bankDetails || ""} onChange={e => ch("bankDetails", e.target.value)} placeholder={"Sort code: 12-34-56\nAccount: 12345678\nName: Smith Plumbing Ltd"} style={{ ...S.inp, minHeight: 70, resize: "vertical" }} /></div>
     <div style={{ marginTop: 12, padding: 18, background: T.surfaceAlt, borderRadius: T.r, border: `1px solid ${T.border}` }}><div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: biz.vatRegistered ? 14 : 0 }}><input type="checkbox" id="vat" checked={biz.vatRegistered} onChange={e => ch("vatRegistered", e.target.checked)} style={{ width: 22, height: 22, accentColor: T.primary }} /><label htmlFor="vat" style={{ fontSize: 15, fontWeight: 700, cursor: "pointer" }}>VAT Registered</label></div>{biz.vatRegistered ? <><div style={{ marginBottom: 12 }}><label style={{ display: "block", fontSize: 14, fontWeight: 600, color: T.textMed, marginBottom: 6 }}>VAT Number</label><input value={biz.vatNumber} onChange={e => ch("vatNumber", e.target.value)} style={S.inp} placeholder="GB 123 4567 89" /></div><div style={{ fontSize: 13, color: T.accent, fontWeight: 600 }}>✅ VAT tracked</div></> : <div style={{ fontSize: 13, color: T.textMuted, marginTop: 8 }}>Turn on for VAT tracking</div>}</div>
     {/* Reminders & Notifications */}
     <div style={{ marginTop: 20 }}><span style={S.lbl}>🔔 Reminders</span>
