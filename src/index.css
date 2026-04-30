@@ -730,6 +730,37 @@ body {
   font-size: 15px;
   margin: 0;
 }
+.auth-benefits {
+  list-style: none;
+  padding: 0;
+  margin: 22px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  text-align: left;
+}
+.auth-benefits li {
+  position: relative;
+  padding-left: 26px;
+  color: var(--text);
+  font-size: 14px;
+  line-height: 1.4;
+  font-weight: 500;
+}
+.auth-benefits li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 4px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--accent);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 6.2l2.5 2.3 4.5-5' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 12px 12px;
+}
 .auth-form { display: flex; flex-direction: column; gap: 16px; }
 .auth-label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--text-dim); font-weight: 500; }
 .auth-label input {

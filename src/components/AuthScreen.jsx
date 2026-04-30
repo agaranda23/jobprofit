@@ -37,6 +37,11 @@ export default function AuthScreen() {
         <img src="/icon-192.png" alt="" className="auth-logo" />
         <h1 className="auth-title">JobProfit</h1>
         <p className="auth-tagline">Track what you actually make each day</p>
+        <ul className="auth-benefits">
+          <li>Log jobs in seconds — by voice or photo</li>
+          <li>Auto-generate invoices and chase unpaid ones</li>
+          <li>See your real profit, not just revenue</li>
+        </ul>
       </div>
 
       {!sent ? (
