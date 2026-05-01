@@ -120,6 +120,8 @@ body { background: var(--bg); color: var(--text); -webkit-font-smoothing: antial
 .total-value { font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .profit-row .total-label { color: var(--text); font-weight: 600; }
 .profit-value { font-size: 32px; font-weight: 700; color: var(--accent); letter-spacing: -0.01em; }
+.total-awaiting-row { padding: 4px 0 0; border: none !important; justify-content: flex-end; }
+.total-awaiting-label { font-size: 14px; font-weight: 600; color: #f59e0b; letter-spacing: -0.005em; }
 
 .actions {
   display: flex;

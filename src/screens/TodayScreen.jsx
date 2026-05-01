@@ -99,6 +99,11 @@ export default function TodayScreen({ jobs = [], receipts = [], onAddJob, onAddR
           <span className="total-label">Profit</span>
           <span className={`total-value profit-value ${flash ? 'flash' : ''}`}>{gbp(profit)}</span>
         </div>
+        {unpaidTotal > 0 && (
+          <div className="total-row total-awaiting-row">
+            <span className="total-awaiting-label">+ {gbp(unpaidTotal)} awaiting</span>
+          </div>
+        )}
       </section>
 
       <section className="actions">
