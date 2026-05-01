@@ -222,6 +222,7 @@ export default function AppShell() {
       {view === 'today' && (
         <TodayScreen
           onOpenDetailed={() => { setPendingDeepLink('create-detailed-job'); setMoreKey(k => k + 1); setView('manage'); }}
+          onChase={() => { setMoreKey(k => k + 1); setView('manage'); }}
           jobs={jobs}
           receipts={receipts}
           onAddJob={handleAddJob}
