@@ -72,3 +72,22 @@ OverviewTab). Future migration to cloud is a separate concern.
 - No back-button work this week (parked)
 - No App.jsx split this week (parked)
 - No invoicing/calendar/scheduling/RAMS scope creep
+
+## Status (1 May 2026)
+
+Cards 1-5 shipped clean:
+- Card 1 — rename History → Insights (`b4b9663`)
+- Card 2 — Awaiting card + inline footnote + chase tap-nav (`e4d73f2`, `7542eaa`, `b51d91a`)
+- Card 3 — Avg-per-job week-over-week (`09dced7`)
+- Card 4 — 30-day outlook projection from recent pace (`b1c61a9`)
+- Card 5 — Headline subhead picker (`5f73e7d`)
+
+Card 6 (weekly scoreboard) — intentionally skipped. The Today screen
+already has 4 insight blocks above any scoreboard would sit. An
+aggregator would repeat the same data; a best/worst-by-job-type
+card would require adding a category field to AddJobModal (the
+scope creep the plan explicitly forbids); a streak card would
+feel gimmicky. If testers ask for a one-glance summary, revisit
+with real signal.
+
+Last verified-good commit: 5f73e7d.
