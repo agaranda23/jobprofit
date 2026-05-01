@@ -90,9 +90,32 @@ export default function TodayScreen({ jobs = [], receipts = [], onAddJob, onAddR
     try { await onAddReceipt?.(payload); } catch (e) { showToast('Saved offline — will sync'); }
   };
 
-  const subhead = hasEntries
-    ? (profit >= 0 ? `You're up ${gbp(profit)} today` : `You're down ${gbp(Math.abs(profit))} today`)
-    : 'Your profit so far today';
+  // Headline insight picker — strict priority order
+  // Each tier has thresholds to avoid emotionally-meaningless alerts
+  const subhead = (() => {
+    // 1. 30-day cover short by >£100 AND sample large enough
+    if (sample14JobCount >= 5 && cushion < -100) {
+      return `Watch out — short by ${gbp(Math.abs(cushion))} in the next 30 days`;
+    }
+    // 2. Money owed > £200 AND oldest > 14 days
+    if (unpaidTotal > 200 && oldestDays > 14) {
+      return `${gbp(unpaidTotal)} still owed — oldest ${oldestDays} day${oldestDays === 1 ? '' : 's'}`;
+    }
+    // 3. Avg-per-job dropped > £30 vs last week
+    if (lastWeekCount > 0 && lastWeekAvgPerJob - avgPerJob > 30) {
+      return `Per-job average down ${gbp(lastWeekAvgPerJob - avgPerJob)} vs last week`;
+    }
+    // 4. Today's profit positive (paid jobs done today)
+    if (hasEntries && profit >= 0) {
+      return `You're up ${gbp(profit)} today`;
+    }
+    // 5. Today's profit negative
+    if (hasEntries && profit < 0) {
+      return `You're down ${gbp(Math.abs(profit))} today`;
+    }
+    // Default fallback
+    return 'Your profit so far today';
+  })();
 
   return (
     <div className="today-screen">
