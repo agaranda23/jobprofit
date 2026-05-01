@@ -13,7 +13,7 @@ export default function TodayScreen({ jobs = [], receipts = [], onAddJob, onAddR
   const key = todayKey();
 
   const everEmpty = jobs.length === 0 && receipts.length === 0;
-  const { earned, spent, profit, recent, hasEntries, unpaidTotal, oldestDays, unpaidCount, weekProfit, weekCount, avgPerJob, lastWeekAvgPerJob, lastWeekCount } = useMemo(() => {
+  const { earned, spent, profit, recent, hasEntries, unpaidTotal, oldestDays, unpaidCount, weekProfit, weekCount, avgPerJob, lastWeekAvgPerJob, lastWeekCount, sample14JobCount, projectedIncome, projectedSpend, cushion } = useMemo(() => {
     const todaysJobs = jobs.filter(j => (j.date || '').slice(0, 10) === key);
     const todaysReceipts = receipts.filter(r => (r.date || '').slice(0, 10) === key);
     const earned = todaysJobs.filter(j => j.paid !== false).reduce((s, j) => s + Number(j.amount || 0), 0);
@@ -49,7 +49,19 @@ export default function TodayScreen({ jobs = [], receipts = [], onAddJob, onAddR
     const lastWeekEarned = lastWeekJobs.reduce((s, j) => s + Number(j.amount || 0), 0);
     const avgPerJob = weekCount > 0 ? Math.round(weekEarned / weekCount) : 0;
     const lastWeekAvgPerJob = lastWeekCount > 0 ? Math.round(lastWeekEarned / lastWeekCount) : 0;
-    return { earned, spent, profit: earned - spent, recent: entries, hasEntries: entries.length > 0, unpaidTotal, oldestDays, unpaidCount: unpaidJobs.length, weekProfit, weekCount, avgPerJob, lastWeekAvgPerJob, lastWeekCount };
+    // 30-day outlook: project last 14 days forward, paid-only
+    const sample14Jobs = jobs.filter(j => {
+      const t = new Date(j.date || j.createdAt || 0).getTime();
+      return t >= fourteenDaysAgo && j.paid !== false;
+    });
+    const sample14Receipts = receipts.filter(r => new Date(r.date || r.createdAt || 0).getTime() >= fourteenDaysAgo);
+    const sample14Earned = sample14Jobs.reduce((s, j) => s + Number(j.amount || 0), 0);
+    const sample14Spent = sample14Receipts.reduce((s, r) => s + Number(r.amount || 0), 0);
+    const sample14JobCount = sample14Jobs.length;
+    const projectedIncome = Math.round((sample14Earned / 14) * 30);
+    const projectedSpend = Math.round((sample14Spent / 14) * 30);
+    const cushion = projectedIncome - projectedSpend;
+    return { earned, spent, profit: earned - spent, recent: entries, hasEntries: entries.length > 0, unpaidTotal, oldestDays, unpaidCount: unpaidJobs.length, weekProfit, weekCount, avgPerJob, lastWeekAvgPerJob, lastWeekCount, sample14JobCount, projectedIncome, projectedSpend, cushion };
   }, [jobs, receipts, key]);
 
   // Flash profit when it changes
@@ -147,6 +159,42 @@ export default function TodayScreen({ jobs = [], receipts = [], onAddJob, onAddR
           )}
         </div>
       )}
+
+      {sample14JobCount > 0 && (() => {
+        const enoughSample = sample14JobCount >= 5;
+        let tone = 'soft';
+        let verdictLabel = '';
+        let verdictAmount = 0;
+        if (enoughSample) {
+          const cushionRatio = projectedSpend > 0 ? cushion / projectedSpend : (cushion > 0 ? 1 : -1);
+          verdictAmount = Math.abs(cushion);
+          if (cushion >= 0 && cushionRatio >= 0.25) { tone = 'good'; verdictLabel = 'cushion'; }
+          else if (cushion >= 0) { tone = 'tight'; verdictLabel = 'cushion (tight)'; }
+          else if (cushionRatio >= -0.25) { tone = 'tight'; verdictLabel = 'short — might be tight'; }
+          else { tone = 'short'; verdictLabel = 'short'; }
+        }
+        return (
+          <div className={`outlook-card outlook-card-${tone}`}>
+            <div className="outlook-card-label">Next 30 days outlook</div>
+            {enoughSample ? (
+              <>
+                <div className="outlook-card-rows">
+                  <div className="outlook-card-row"><span>Projected income</span><span>{gbp(projectedIncome)}</span></div>
+                  <div className="outlook-card-row"><span>Projected spend</span><span>{gbp(projectedSpend)}</span></div>
+                </div>
+                <div className="outlook-card-verdict">
+                  {tone === 'good' ? '✓' : '⚠'} {gbp(verdictAmount)} {verdictLabel}
+                </div>
+              </>
+            ) : (
+              <div className="outlook-card-soft">
+                At your recent pace, you're on track for ~{gbp(projectedIncome)} over the next 30 days
+              </div>
+            )}
+            <div className="outlook-card-foot">Based on your last 14 days · {sample14JobCount} job{sample14JobCount === 1 ? '' : 's'}</div>
+          </div>
+        );
+      })()}
 
       <section className="actions">
         <button className="action-btn action-primary" onClick={() => setJobOpen(true)}>

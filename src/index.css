@@ -1027,3 +1027,26 @@ input[type=number] { -moz-appearance: textfield; }
 .avg-delta { font-weight: 700; font-size: 13px; padding: 2px 7px; border-radius: 6px; }
 .avg-delta-up { color: var(--accent); background: rgba(34, 197, 94, 0.1); }
 .avg-delta-down { color: #f59e0b; background: rgba(245, 158, 11, 0.1); }
+
+
+/* 30-day outlook card */
+.outlook-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px 18px;
+  margin: 14px 0 0;
+}
+.outlook-card-good { border-left: 4px solid var(--accent); }
+.outlook-card-tight { border-left: 4px solid #f59e0b; }
+.outlook-card-short { border-left: 4px solid #f59e0b; }
+.outlook-card-label { font-size: 12px; font-weight: 600; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 12px; }
+.outlook-card-rows { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+.outlook-card-row { display: flex; justify-content: space-between; font-size: 14px; color: var(--text); }
+.outlook-card-row > :first-child { color: var(--text-dim); font-weight: 500; }
+.outlook-card-row > :last-child { font-weight: 700; font-variant-numeric: tabular-nums; }
+.outlook-card-verdict { font-size: 16px; font-weight: 700; padding-top: 10px; border-top: 1px solid var(--border); }
+.outlook-card-good .outlook-card-verdict { color: var(--accent); }
+.outlook-card-tight .outlook-card-verdict, .outlook-card-short .outlook-card-verdict { color: #f59e0b; }
+.outlook-card-soft { font-size: 14px; color: var(--text); line-height: 1.45; margin-bottom: 10px; }
+.outlook-card-foot { font-size: 12px; color: var(--text-dim); margin-top: 10px; font-style: italic; }
