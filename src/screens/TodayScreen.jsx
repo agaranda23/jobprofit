@@ -3,7 +3,7 @@ import AddJobModal from '../components/AddJobModal';
 import AddReceiptModal from '../components/AddReceiptModal';
 import { gbp, todayKey, formatToday } from '../lib/today';
 
-export default function TodayScreen({ jobs = [], receipts = [], onAddJob, onAddReceipt, onOpenDetailed }) {
+export default function TodayScreen({ jobs = [], receipts = [], onAddJob, onAddReceipt, onOpenDetailed, onChase }) {
   const [jobOpen, setJobOpen] = useState(false);
   const [receiptOpen, setReceiptOpen] = useState(false);
   const [toast, setToast] = useState('');
@@ -79,12 +79,6 @@ export default function TodayScreen({ jobs = [], receipts = [], onAddJob, onAddR
         <h1>Today</h1>
         <p className="today-date">{formatToday()}</p>
         <p className="today-subhead">{subhead}</p>
-        {unpaidCount > 0 && (
-          <p className="today-unpaid-line">
-            <span className="unpaid-amount-inline">{gbp(unpaidTotal)}</span> waiting to be collected
-            {oldestDays > 0 && <span className="unpaid-age"> · oldest {oldestDays} day{oldestDays === 1 ? '' : 's'}</span>}
-          </p>
-        )}
         {weekCount > 0 && (
           <p className="today-week-line">
             This week: <span className="week-profit-inline">{gbp(weekProfit)}</span> across {weekCount} job{weekCount === 1 ? '' : 's'}
@@ -105,6 +99,24 @@ export default function TodayScreen({ jobs = [], receipts = [], onAddJob, onAddR
           </div>
         )}
       </section>
+
+      {unpaidCount > 0 && (
+        <button
+          type="button"
+          className={`awaiting-card ${oldestDays > 30 ? 'awaiting-card-late' : ''}`}
+          onClick={() => onChase?.()}
+        >
+          <div className="awaiting-card-icon">⏰</div>
+          <div className="awaiting-card-body">
+            <div className="awaiting-card-amount">{gbp(unpaidTotal)} awaiting</div>
+            <div className="awaiting-card-meta">
+              {unpaidCount} job{unpaidCount === 1 ? '' : 's'}
+              {oldestDays > 0 && ` · oldest ${oldestDays} day${oldestDays === 1 ? '' : 's'}`}
+            </div>
+          </div>
+          <div className="awaiting-card-chev">→</div>
+        </button>
+      )}
 
       <section className="actions">
         <button className="action-btn action-primary" onClick={() => setJobOpen(true)}>
