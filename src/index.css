@@ -162,10 +162,14 @@ body { background: var(--bg); color: var(--text); -webkit-font-smoothing: antial
 .recent-item {
   display: flex;
   justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
   padding: 14px 0;
   border-bottom: 1px solid var(--border);
   font-size: 16px;
 }
+.recent-item > :first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.recent-amount { flex-shrink: 0; }
 .recent-item:last-child { border-bottom: none; }
 .recent-amount.pos { color: var(--accent); font-variant-numeric: tabular-nums; }
 .recent-amount.neg { color: var(--danger); font-variant-numeric: tabular-nums; }
@@ -1005,3 +1009,21 @@ input[type=number] { -moz-appearance: textfield; }
 .awaiting-card-amount { font-size: 20px; font-weight: 700; color: var(--text); letter-spacing: -0.01em; }
 .awaiting-card-meta { font-size: 13px; color: var(--text-dim); margin-top: 2px; font-weight: 500; }
 .awaiting-card-chev { font-size: 22px; color: var(--text-dim); flex-shrink: 0; font-weight: 300; padding-right: 4px; }
+
+
+/* Avg-per-job card */
+.avg-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px 18px;
+  margin: 14px 0 0;
+}
+.avg-card-label { font-size: 12px; font-weight: 600; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 8px; }
+.avg-card-amount { font-size: 28px; font-weight: 700; color: var(--text); letter-spacing: -0.01em; line-height: 1.1; }
+.avg-card-meta { font-size: 13px; color: var(--text-dim); margin-top: 2px; font-weight: 500; }
+.avg-card-compare { font-size: 13px; color: var(--text-dim); margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.avg-card-compare-soft { font-style: italic; opacity: 0.85; }
+.avg-delta { font-weight: 700; font-size: 13px; padding: 2px 7px; border-radius: 6px; }
+.avg-delta-up { color: var(--accent); background: rgba(34, 197, 94, 0.1); }
+.avg-delta-down { color: #f59e0b; background: rgba(245, 158, 11, 0.1); }

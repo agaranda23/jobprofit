@@ -13,7 +13,7 @@ export default function TodayScreen({ jobs = [], receipts = [], onAddJob, onAddR
   const key = todayKey();
 
   const everEmpty = jobs.length === 0 && receipts.length === 0;
-  const { earned, spent, profit, recent, hasEntries, unpaidTotal, oldestDays, unpaidCount, weekProfit, weekCount } = useMemo(() => {
+  const { earned, spent, profit, recent, hasEntries, unpaidTotal, oldestDays, unpaidCount, weekProfit, weekCount, avgPerJob, lastWeekAvgPerJob, lastWeekCount } = useMemo(() => {
     const todaysJobs = jobs.filter(j => (j.date || '').slice(0, 10) === key);
     const todaysReceipts = receipts.filter(r => (r.date || '').slice(0, 10) === key);
     const earned = todaysJobs.filter(j => j.paid !== false).reduce((s, j) => s + Number(j.amount || 0), 0);
@@ -39,7 +39,17 @@ export default function TodayScreen({ jobs = [], receipts = [], onAddJob, onAddR
     const weekSpent = weekReceipts.reduce((s, r) => s + Number(r.amount || 0), 0);
     const weekProfit = weekEarned - weekSpent;
     const weekCount = weekJobs.length;
-    return { earned, spent, profit: earned - spent, recent: entries, hasEntries: entries.length > 0, unpaidTotal, oldestDays, unpaidCount: unpaidJobs.length, weekProfit, weekCount };
+    // Per-job avg: this week vs last week (paid only, 7-day rolling)
+    const fourteenDaysAgo = Date.now() - 14 * 86400000;
+    const lastWeekJobs = jobs.filter(j => {
+      const t = new Date(j.date || j.createdAt || 0).getTime();
+      return t >= fourteenDaysAgo && t < sevenDaysAgo && j.paid !== false;
+    });
+    const lastWeekCount = lastWeekJobs.length;
+    const lastWeekEarned = lastWeekJobs.reduce((s, j) => s + Number(j.amount || 0), 0);
+    const avgPerJob = weekCount > 0 ? Math.round(weekEarned / weekCount) : 0;
+    const lastWeekAvgPerJob = lastWeekCount > 0 ? Math.round(lastWeekEarned / lastWeekCount) : 0;
+    return { earned, spent, profit: earned - spent, recent: entries, hasEntries: entries.length > 0, unpaidTotal, oldestDays, unpaidCount: unpaidJobs.length, weekProfit, weekCount, avgPerJob, lastWeekAvgPerJob, lastWeekCount };
   }, [jobs, receipts, key]);
 
   // Flash profit when it changes
@@ -116,6 +126,26 @@ export default function TodayScreen({ jobs = [], receipts = [], onAddJob, onAddR
           </div>
           <div className="awaiting-card-chev">→</div>
         </button>
+      )}
+
+      {weekCount > 0 && (
+        <div className="avg-card">
+          <div className="avg-card-label">This week's average per job</div>
+          <div className="avg-card-amount">{gbp(avgPerJob)}</div>
+          <div className="avg-card-meta">across {weekCount} job{weekCount === 1 ? '' : 's'}</div>
+          {lastWeekCount > 0 ? (
+            <div className="avg-card-compare">
+              Last week: {gbp(lastWeekAvgPerJob)} across {lastWeekCount} job{lastWeekCount === 1 ? '' : 's'}
+              {avgPerJob !== lastWeekAvgPerJob && (
+                <span className={`avg-delta ${avgPerJob > lastWeekAvgPerJob ? 'avg-delta-up' : 'avg-delta-down'}`}>
+                  {avgPerJob > lastWeekAvgPerJob ? '↑' : '↓'} {gbp(Math.abs(avgPerJob - lastWeekAvgPerJob))}
+                </span>
+              )}
+            </div>
+          ) : (
+            <div className="avg-card-compare avg-card-compare-soft">First week tracking — comparison appears next week</div>
+          )}
+        </div>
       )}
 
       <section className="actions">
