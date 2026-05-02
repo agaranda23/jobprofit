@@ -227,6 +227,12 @@ function mapCloudJobToToday(r) {
     paymentType: r.payment_type || null,
     date: r.payment_date || r.date,
     createdAt: r.created_at,
+    summary: r.summary || '',
+    address: r.address || '',
+    phone: r.phone || '',
+    email: r.email || '',
+    notes: r.notes || '',
+    lineItems: [],
     expenses: [],
     cloud: true,
   };
