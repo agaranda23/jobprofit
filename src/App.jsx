@@ -41,7 +41,7 @@ const pCol = s => s === "paid" ? "#16A34A" : "#F59E0B";
 const pLbl = s => s === "paid" ? "Paid" : "Unpaid";
 const jCol = s => s === "complete" ? "#16A34A" : s === "active" ? "#2563EB" : "#6b7280";
 const jLbl = s => s === "complete" ? "Complete" : s === "active" ? "Active" : "Quote";
-function calcProfit(job, expenses) { const mat = expenses.filter(e => e.jobId === job.id).reduce((s, e) => s + e.amount, 0); return { materials: mat, profit: job.total - mat, margin: job.total > 0 ? Math.round((job.total - mat) / job.total * 100) : 0 }; }
+function calcProfit(job, expenses) { const mat = expenses.filter(e => e.jobId === job.id).reduce((s, e) => s + e.amount, 0); return { materials: mat, profit: (job.total??job.amount??0) - mat, margin: (job.total??job.amount??0) > 0 ? Math.round(((job.total??job.amount??0) - mat) / (job.total??job.amount??0) * 100) : 0 }; }
 function fileToB64(f) { return new Promise((r, e) => { const x = new FileReader(); x.onload = () => r(x.result); x.onerror = e; x.readAsDataURL(f); }); }
 function compress(d, mw = 800, q = 0.7) { return new Promise(r => { const i = new Image(); i.onload = () => { const c = document.createElement("canvas"); let w = i.width, h = i.height; if (w > mw) { h = Math.round(h * mw / w); w = mw; } c.width = w; c.height = h; c.getContext("2d").drawImage(i, 0, 0, w, h); r(c.toDataURL("image/jpeg", q)); }; i.src = d; }); }
 function getCustomers(jobs, expenses) { const map = {}; jobs.forEach(j => { const key = j.customer.toLowerCase().trim(); if (!map[key]) map[key] = { name: j.customer, address: j.address, phone: j.phone || "", email: j.email || "", jobs: [], totalRevenue: 0, totalExpenses: 0 }; const jE = expenses.filter(e => e.jobId === j.id).reduce((s, e) => s + e.amount, 0); map[key].jobs.push(j); map[key].totalRevenue += (j.total??j.amount??0); map[key].totalExpenses += jE; if (j.address && !map[key].address) map[key].address = j.address; if (j.phone && !map[key].phone) map[key].phone = j.phone; if (j.email && !map[key].email) map[key].email = j.email; }); return Object.values(map); }
@@ -55,12 +55,12 @@ async function aiReceipt(b64raw) {
   const b64 = b64raw.includes(",") ? b64raw.split(",")[1] : b64raw;
   try { const r = await fetch("https://api.anthropic.com/v1/messages", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 500, messages: [{ role: "user", content: [{ type: "image", source: { type: "base64", media_type: "image/jpeg", data: b64 } }, { type: "text", text: 'Extract from receipt. ONLY valid JSON: {"merchant":"","date":"YYYY-MM-DD","amount":number,"vat":number or 0,"desc":"brief items"}' }] }] }) }); const d = await r.json(); return JSON.parse((d.content || []).map(i => i.text || "").join("").replace(/```json|```/g, "").trim()); } catch { return null; }
 }
-function generateInvoiceText(job, biz, inv, showVat) { const vatAmt = showVat ? Math.round(job.total * 0.2 * 100) / 100 : 0; const gross = job.total + vatAmt; let t = `INVOICE ${inv.number}\nDate: ${inv.created}\nDue: ${inv.dueDate}\n\nFrom:\n${biz.name}\n${biz.address}\n${biz.phone}\n${biz.email}\n`; if (showVat && biz.vatNumber) t += `VAT: ${biz.vatNumber}\n`; t += `\nTo:\n${job.customer}\n${job.address}\n\nJob: ${job.summary}\n\nBreakdown:\n`; job.lineItems.forEach(i => { t += `  ${i.desc}: ${GBP(i.cost)}\n`; }); t += `\nSubtotal: ${GBP(job.total)}\n`; if (showVat) t += `VAT (20%): ${GBP(vatAmt)}\n`; t += `TOTAL: ${GBP(gross)}\n`; if (biz.bankDetails) t += `\nBank Details:\n${biz.bankDetails}\n`; t += `\nRef: ${inv.number}`; return t; }
+function generateInvoiceText(job, biz, inv, showVat) { const vatAmt = showVat ? Math.round((job.total??job.amount??0) * 0.2 * 100) / 100 : 0; const gross = (job.total??job.amount??0) + vatAmt; let t = `INVOICE ${inv.number}\nDate: ${inv.created}\nDue: ${inv.dueDate}\n\nFrom:\n${biz.name}\n${biz.address}\n${biz.phone}\n${biz.email}\n`; if (showVat && biz.vatNumber) t += `VAT: ${biz.vatNumber}\n`; t += `\nTo:\n${job.customer}\n${job.address}\n\nJob: ${job.summary}\n\nBreakdown:\n`; job.lineItems.forEach(i => { t += `  ${i.desc}: ${GBP(i.cost)}\n`; }); t += `\nSubtotal: ${GBP((job.total??job.amount??0))}\n`; if (showVat) t += `VAT (20%): ${GBP(vatAmt)}\n`; t += `TOTAL: ${GBP(gross)}\n`; if (biz.bankDetails) t += `\nBank Details:\n${biz.bankDetails}\n`; t += `\nRef: ${inv.number}`; return t; }
 
 async function generateInvoicePDF(job, biz, inv, showVat) {
   if (!window.jspdf) { await new Promise((res, rej) => { const s = document.createElement("script"); s.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"; s.onload = res; s.onerror = rej; document.head.appendChild(s); }); }
   const { jsPDF } = window.jspdf; const doc = new jsPDF();
-  const vatAmt = showVat ? Math.round(job.total * 0.2 * 100) / 100 : 0; const gross = job.total + vatAmt;
+  const vatAmt = showVat ? Math.round((job.total??job.amount??0) * 0.2 * 100) / 100 : 0; const gross = (job.total??job.amount??0) + vatAmt;
   const w = doc.internal.pageSize.getWidth(); let y = 20;
   if (biz.logoUrl) { try { doc.addImage(biz.logoUrl, "JPEG", 14, y, 30, 30); } catch {} }
   doc.setFontSize(24); doc.setFont("helvetica", "bold"); doc.setTextColor(30, 58, 138); doc.text("INVOICE", w - 14, y + 8, { align: "right" });
@@ -71,15 +71,15 @@ async function generateInvoicePDF(job, biz, inv, showVat) {
   y += 8; doc.setFontSize(9); doc.setTextColor(150); doc.text("JOB DESCRIPTION", 14, y); y += 6; doc.setFontSize(10); doc.setTextColor(60); const sl = doc.splitTextToSize(job.summary, w - 28); doc.text(sl, 14, y); y += sl.length * 5 + 6;
   doc.setFillColor(30, 58, 138); doc.rect(14, y, w - 28, 8, "F"); doc.setFontSize(9); doc.setFont("helvetica", "bold"); doc.setTextColor(255); doc.text("Description", 18, y + 5.5); doc.text("Amount", w - 18, y + 5.5, { align: "right" }); y += 12;
   doc.setFont("helvetica", "normal"); doc.setTextColor(60); job.lineItems.forEach((it, i) => { if (i % 2 === 0) { doc.setFillColor(248, 249, 250); doc.rect(14, y - 3.5, w - 28, 7, "F"); } doc.setFontSize(10); doc.text(it.desc, 18, y); doc.text(GBP(it.cost), w - 18, y, { align: "right" }); y += 8; });
-  y += 4; doc.setDrawColor(220); doc.line(w - 80, y, w - 14, y); y += 8; doc.setFontSize(10); doc.setTextColor(80); doc.text("Subtotal:", w - 80, y); doc.text(GBP(job.total), w - 18, y, { align: "right" }); if (showVat) { y += 7; doc.text("VAT (20%):", w - 80, y); doc.text(GBP(vatAmt), w - 18, y, { align: "right" }); }
+  y += 4; doc.setDrawColor(220); doc.line(w - 80, y, w - 14, y); y += 8; doc.setFontSize(10); doc.setTextColor(80); doc.text("Subtotal:", w - 80, y); doc.text(GBP((job.total??job.amount??0)), w - 18, y, { align: "right" }); if (showVat) { y += 7; doc.text("VAT (20%):", w - 80, y); doc.text(GBP(vatAmt), w - 18, y, { align: "right" }); }
   y += 3; doc.setDrawColor(30, 58, 138); doc.setLineWidth(1); doc.line(w - 80, y, w - 14, y); y += 9; doc.setFontSize(14); doc.setFont("helvetica", "bold"); doc.setTextColor(30, 58, 138); doc.text("TOTAL DUE:", w - 80, y); doc.text(GBP(gross), w - 18, y, { align: "right" });
   if (biz.bankDetails) { y += 18; doc.setFontSize(9); doc.setTextColor(150); doc.text("PAYMENT DETAILS", 14, y); y += 6; doc.setFontSize(10); doc.setTextColor(60); doc.setFont("helvetica", "normal"); biz.bankDetails.split("\n").forEach(line => { doc.text(line, 14, y); y += 5; }); y += 2; doc.setFont("helvetica", "bold"); doc.text("Reference: " + inv.number, 14, y); }
   const fy = doc.internal.pageSize.getHeight() - 15; doc.setFontSize(8); doc.setTextColor(170); doc.setFont("helvetica", "normal"); doc.text(biz.name + "  •  Generated by JobProfit", w / 2, fy, { align: "center" });
   return doc;
 }
 
-function waInvoiceLink(job, biz, inv, showVat) { const vatAmt = showVat ? Math.round(job.total * 0.2 * 100) / 100 : 0; const gross = job.total + vatAmt; let m = "Hi " + job.customer.split(" ").pop() + ",\n\nHere's your invoice:\n\n📄 " + inv.number + "\n📅 " + inv.created + "\n⏰ Due: " + inv.dueDate + "\n\n🔨 " + job.summary + "\n\nTotal: " + GBP(job.total) + "\n"; if (showVat) m += "VAT: " + GBP(vatAmt) + "\nTotal inc VAT: " + GBP(gross) + "\n"; if (biz.bankDetails) m += "\nBank details:\n" + biz.bankDetails + "\n"; m += "\nRef: " + inv.number + "\n\nCheers,\n" + biz.name; const phone = (job.phone || "").replace(/\s/g, "").replace(/^0/, "44"); return "https://wa.me/" + phone + "?text=" + encodeURIComponent(m); }
-function smsInvoiceLink(job, biz, inv, showVat) { const vatAmt = showVat ? Math.round(job.total * 0.2 * 100) / 100 : 0; const gross = job.total + vatAmt; const m = "Hi, invoice " + inv.number + " for " + job.summary.slice(0, 40) + ". Total: " + GBP(showVat ? gross : job.total) + ". Due: " + inv.dueDate + ". Ref: " + inv.number + ". " + biz.name; return "sms:" + (job.phone || "") + "?body=" + encodeURIComponent(m); }
+function waInvoiceLink(job, biz, inv, showVat) { const vatAmt = showVat ? Math.round((job.total??job.amount??0) * 0.2 * 100) / 100 : 0; const gross = (job.total??job.amount??0) + vatAmt; let m = "Hi " + job.customer.split(" ").pop() + ",\n\nHere's your invoice:\n\n📄 " + inv.number + "\n📅 " + inv.created + "\n⏰ Due: " + inv.dueDate + "\n\n🔨 " + job.summary + "\n\nTotal: " + GBP((job.total??job.amount??0)) + "\n"; if (showVat) m += "VAT: " + GBP(vatAmt) + "\nTotal inc VAT: " + GBP(gross) + "\n"; if (biz.bankDetails) m += "\nBank details:\n" + biz.bankDetails + "\n"; m += "\nRef: " + inv.number + "\n\nCheers,\n" + biz.name; const phone = (job.phone || "").replace(/\s/g, "").replace(/^0/, "44"); return "https://wa.me/" + phone + "?text=" + encodeURIComponent(m); }
+function smsInvoiceLink(job, biz, inv, showVat) { const vatAmt = showVat ? Math.round((job.total??job.amount??0) * 0.2 * 100) / 100 : 0; const gross = (job.total??job.amount??0) + vatAmt; const m = "Hi, invoice " + inv.number + " for " + job.summary.slice(0, 40) + ". Total: " + GBP(showVat ? gross : (job.total??job.amount??0)) + ". Due: " + inv.dueDate + ". Ref: " + inv.number + ". " + biz.name; return "sms:" + (job.phone || "") + "?body=" + encodeURIComponent(m); }
 function emailInvoiceLink(job, biz, inv, showVat) { return "mailto:" + (job.email || "") + "?subject=Invoice " + inv.number + " from " + biz.name + "&body=" + encodeURIComponent(generateInvoiceText(job, biz, inv, showVat)); }
 function waQuoteLink(j) { const phone = (j.phone || "").replace(/\s/g, "").replace(/^0/, "44"); return "https://wa.me/" + phone + "?text=" + encodeURIComponent("Hi " + j.customer.split(" ").pop() + ",\n\nQuote for:\n🔨 " + j.summary + "\n\n💷 Total: " + GBP((j.total??j.amount??0)) + "\n\nLet me know if you'd like to go ahead.\n\nCheers"); }
 
@@ -90,8 +90,8 @@ function chaseLevelInfo(level) { return level === "final" ? { label: "Final Noti
 
 function getReminderMsg(job, biz, inv, level, showVat) {
   const firstName = job.customer.split(" ").pop();
-  const vatAmt = showVat ? Math.round(job.total * 0.2 * 100) / 100 : 0;
-  const gross = job.total + (showVat ? vatAmt : 0);
+  const vatAmt = showVat ? Math.round((job.total??job.amount??0) * 0.2 * 100) / 100 : 0;
+  const gross = (job.total??job.amount??0) + (showVat ? vatAmt : 0);
   const ref = inv ? inv.number : job.id;
   if (level === "friendly") return {
     subject: "Payment reminder — " + ref,
@@ -194,7 +194,7 @@ function SendInvoiceModal({ job, biz, inv, showVat, onClose, flash }) {
     <div style={{ background: T.surface, borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 500, padding: 24, animation: "slideUp .25s ease-out" }}>
       <style>{`@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}`}</style>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}><h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>Send Invoice {inv.number}</h3><button onClick={onClose} style={{ width: 36, height: 36, borderRadius: "50%", border: "none", background: T.surfaceAlt, cursor: "pointer", fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button></div>
-      <div style={{ padding: "14px 16px", background: T.surfaceAlt, borderRadius: T.rSm, marginBottom: 20 }}><div style={{ fontSize: 14, fontWeight: 700 }}>{job.customer}</div><div style={{ fontSize: 13, color: T.textMed }}>{job.summary.slice(0, 60)}</div><div style={{ fontSize: 18, fontWeight: 800, color: T.primary, marginTop: 4 }}>{GBP(job.total)}</div></div>
+      <div style={{ padding: "14px 16px", background: T.surfaceAlt, borderRadius: T.rSm, marginBottom: 20 }}><div style={{ fontSize: 14, fontWeight: 700 }}>{job.customer}</div><div style={{ fontSize: 13, color: T.textMed }}>{job.summary.slice(0, 60)}</div><div style={{ fontSize: 18, fontWeight: 800, color: T.primary, marginTop: 4 }}>{GBP((job.total??job.amount??0))}</div></div>
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         <a href={waInvoiceLink(job, biz, inv, showVat)} target="_blank" rel="noopener noreferrer" onClick={onClose} style={{ ...waS, width: "100%", textDecoration: "none", boxSizing: "border-box", justifyContent: "center" }}><WaIc /> Send via WhatsApp</a>
         <a href={smsInvoiceLink(job, biz, inv, showVat)} onClick={onClose} style={{ ...S.btn, background: "#2563EB", color: "#fff", width: "100%", textDecoration: "none", boxSizing: "border-box", justifyContent: "center" }}>💬 Send via SMS</a>
@@ -424,7 +424,7 @@ function ChasePaymentPanel({ job, biz, inv, showVat, onUpdate, flash }) {
     <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
       <span style={{ fontSize: 22 }}>{info.icon}</span>
       <div style={{ flex: 1 }}>
-        <div style={{ fontWeight: 800, fontSize: 16, color: info.color }}>{GBP(job.total)} overdue</div>
+        <div style={{ fontWeight: 800, fontSize: 16, color: info.color }}>{GBP((job.total??job.amount??0))} overdue</div>
         <div style={{ fontSize: 13, color: T.textMed }}>{days} days since invoice · {nextSuggestion}</div>
       </div>
     </div>
@@ -511,7 +511,7 @@ function JobDetail({ job, expenses, invoices, onBack, onUpdate, onDelExp, onAddE
       <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}><Badge text={qLbl(q.quoteStatus)} bg={qCol(q.quoteStatus)} /><Badge text={jLbl(job.jobStatus || "quote")} bg={jCol(job.jobStatus || "quote")} /><Badge text={pLbl(job.paymentStatus)} bg={pCol(job.paymentStatus)} />{inv && <Badge text={inv.number} bg={T.purple} />}{job.source && <Badge text={srcIcon(job.source) + " " + job.source} bg={srcCol(job.source)} />}</div>
     </div>
     {/* Profit */}
-    <ProfitBar quote={job.total} materials={totExp} profit={profit} margin={margin} />
+    <ProfitBar quote={(job.total??job.amount??0)} materials={totExp} profit={profit} margin={margin} />
     {showVat && totVat > 0 && <div style={{ marginTop: 8, padding: "10px 14px", background: T.warnLight, borderRadius: T.rSm }}><span style={{ fontSize: 13, color: T.warn, fontWeight: 700 }}>VAT reclaim: {GBP(totVat)}</span></div>}
     {/* Pipeline buttons */}
     <div style={{ marginTop: 16, marginBottom: 16 }}>
@@ -554,7 +554,7 @@ function JobDetail({ job, expenses, invoices, onBack, onUpdate, onDelExp, onAddE
       <p style={{ color: T.textMed, lineHeight: 1.6, margin: "0 0 14px", fontSize: 14 }}>{q.summary}</p>
       <div style={{ borderTop: `2px solid ${T.border}` }}>{q.lineItems.map((it, i) => <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 0", borderBottom: `1px solid ${T.borderLight}`, gap: 8 }}>{ed ? <><input style={{ ...S.inpSm, flex: 1 }} value={it.desc} onChange={e => upLI(i, "desc", e.target.value)} /><input style={{ ...S.inpSm, width: 80, textAlign: "right" }} type="number" value={it.cost} onChange={e => upLI(i, "cost", e.target.value)} /><button onClick={() => rmLI(i)} style={{ ...S.iconBtn, color: T.danger }}><BinIc /></button></> : <><span style={{ color: T.textMed, flex: 1, fontSize: 14 }}>{it.desc}</span><span onClick={() => { setEd(true); setD({ ...job }); }} style={{ fontWeight: 700, fontFamily: T.mono, fontSize: 14, cursor: "pointer", padding: "4px 8px", borderRadius: 6, background: T.surfaceAlt }}>{GBP(it.cost)}</span></>}</div>)}</div>
       {ed && <><button onClick={addLI} style={{ ...S.ghost, marginTop: 8 }}><PlusIc /> Add line</button><div style={{ display: "flex", gap: 8, marginTop: 12 }}><button onClick={save} style={grn}>Save</button><button onClick={() => { setEd(false); setD({ ...job }); }} style={sec}>Cancel</button></div></>}
-      <div style={{ display: "flex", justifyContent: "flex-end", borderTop: `2px solid ${T.text}`, paddingTop: 14, marginTop: 8 }}><div style={{ textAlign: "right" }}><div style={{ fontSize: 11, color: T.textMuted }}>TOTAL</div><div onClick={() => { if (!ed) { setEd(true); setD({ ...job }); } }} style={{ fontSize: 28, fontWeight: 800, cursor: ed ? "default" : "pointer" }}>{GBP(ed ? d.lineItems.reduce((s, i) => s + Number(i.cost), 0) : q.total)}{!ed && <span style={{ fontSize: 12, color: T.textMuted, marginLeft: 6 }}>✏️</span>}</div></div></div>
+      <div style={{ display: "flex", justifyContent: "flex-end", borderTop: `2px solid ${T.text}`, paddingTop: 14, marginTop: 8 }}><div style={{ textAlign: "right" }}><div style={{ fontSize: 11, color: T.textMuted }}>TOTAL</div><div onClick={() => { if (!ed) { setEd(true); setD({ ...job }); } }} style={{ fontSize: 28, fontWeight: 800, cursor: ed ? "default" : "pointer" }}>{GBP(ed ? d.lineItems.reduce((s, i) => s + Number(i.cost), 0) : (q.total??q.amount??0))}{!ed && <span style={{ fontSize: 12, color: T.textMuted, marginLeft: 6 }}>✏️</span>}</div></div></div>
     </div>
     {/* Materials */}
     <div style={{ background: T.surface, borderRadius: T.r, padding: 18, border: `1px solid ${T.border}`, boxShadow: T.cardShadow, marginBottom: 16 }}>
