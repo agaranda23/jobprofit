@@ -227,6 +227,7 @@ function mapCloudJobToToday(r) {
     paymentType: r.payment_type || null,
     date: r.payment_date || r.date,
     createdAt: r.created_at,
+    expenses: [],
     cloud: true,
   };
 }
