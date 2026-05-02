@@ -868,24 +868,16 @@ export default function App() {
       if (localData.expenses) setExpenses(localData.expenses);
       if (localData.invoices) setInvoices(localData.invoices);
       if (localData.biz) setBiz(localData.biz);
+      setDataLoaded(true);
+      return;
     }
     // Fallback: try window.storage (artifact sandbox)
-    loadFromWindowStorage().then(async saved => {
+    loadFromWindowStorage().then(saved => {
       if (saved) {
         if (saved.jobs) setJobs(saved.jobs);
         if (saved.expenses) setExpenses(saved.expenses);
         if (saved.invoices) setInvoices(saved.invoices);
         if (saved.biz) setBiz(saved.biz);
-      }
-      // Always fetch from Supabase — cloud is source of truth
-      // Overwrites local state if cloud returns jobs (handles cold start)
-      try {
-        const cloudJobs = await getJobsFromCloud();
-        if (cloudJobs && cloudJobs.length > 0) {
-          setJobs(cloudJobs);
-        }
-      } catch (e) {
-        console.warn('getJobsFromCloud failed on mount', e);
       }
       setDataLoaded(true);
     });
