@@ -237,7 +237,7 @@ function mapCloudJobToToday(r) {
     jobStatus: r.paid === true ? 'paid' : 'unpaid',
     paymentStatus: r.paid === true ? 'paid' : 'unpaid',
     quoteStatus: 'active',
-    customer: r.customer_name || '',
+    customer: r.customer_name || r.name || '',
     reference: r.customer_name || r.summary || '',
     expenses: [],
     cloud: true,
