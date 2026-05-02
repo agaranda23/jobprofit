@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import * as XLSX from "xlsx";
+import { getJobsFromCloud } from './lib/store';
 
 const TABS = ["Overview", "Create detailed job", "Jobs", "Schedule", "Materials", "Settings"];
 const defBiz = { name: "Your Business Name", phone: "07XXX XXXXXX", email: "you@email.com", address: "Your Business Address", trade: "General Builder", vatRegistered: false, vatNumber: "", hourlyRate: 45, bankDetails: "", logoUrl: "" };
@@ -316,7 +317,7 @@ function OverviewTab({ jobs, expenses, invoices, onGo, biz, showVat }) {
   // Fresh-install empty state — replace dashboard with focused onboarding
   if (jobs.length === 0 && expenses.length === 0) {
     return <div>
-      <div style={{ marginTop: 6, marginBottom: 18 }}><h2 style={{ fontSize: 21, fontWeight: 800, margin: 0, letterSpacing: -0.3 }}>Good {greeting}</h2><p style={{ fontSize: 12, color: T.textMuted, margin: "2px 0 0", fontWeight: 400 }}>Let\'s log your first job</p></div>
+      <div style={{ marginTop: 6, marginBottom: 18 }}><h2 style={{ fontSize: 21, fontWeight: 800, margin: 0, letterSpacing: -0.3 }}>Good {greeting}</h2><p style={{ fontSize: 12, color: T.textMuted, margin: "2px 0 0", fontWeight: 400 }}>Let's log your first job</p></div>
       <div style={{ background: T.surface, borderRadius: T.r, padding: 22, border: `1px solid ${T.border}`, boxShadow: T.cardShadow, marginBottom: 16 }}>
         <div style={{ fontSize: 38, marginBottom: 12, textAlign: "center" }}>👋</div>
         <h3 style={{ fontSize: 18, fontWeight: 800, margin: "0 0 8px", textAlign: "center", letterSpacing: -0.2 }}>Track your daily profit in seconds</h3>
@@ -867,16 +868,24 @@ export default function App() {
       if (localData.expenses) setExpenses(localData.expenses);
       if (localData.invoices) setInvoices(localData.invoices);
       if (localData.biz) setBiz(localData.biz);
-      setDataLoaded(true);
-      return;
     }
     // Fallback: try window.storage (artifact sandbox)
-    loadFromWindowStorage().then(saved => {
+    loadFromWindowStorage().then(async saved => {
       if (saved) {
         if (saved.jobs) setJobs(saved.jobs);
         if (saved.expenses) setExpenses(saved.expenses);
         if (saved.invoices) setInvoices(saved.invoices);
         if (saved.biz) setBiz(saved.biz);
+      }
+      // Always fetch from Supabase — cloud is source of truth
+      // Overwrites local state if cloud returns jobs (handles cold start)
+      try {
+        const cloudJobs = await getJobsFromCloud();
+        if (cloudJobs && cloudJobs.length > 0) {
+          setJobs(cloudJobs);
+        }
+      } catch (e) {
+        console.warn('getJobsFromCloud failed on mount', e);
       }
       setDataLoaded(true);
     });
