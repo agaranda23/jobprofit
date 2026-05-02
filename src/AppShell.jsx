@@ -82,7 +82,7 @@ export default function AppShell() {
         getJobsFromCloud(),
         getReceiptsFromCloud(),
       ]);
-      setJobs(cloudJobs);      try { const _ls = JSON.parse(localStorage.getItem('jobprofit-app-data') || '{}'); localStorage.setItem('jobprofit-app-data', JSON.stringify({..._ls, jobs: cloudJobs})); } catch(_lsErr) {}
+      setJobs(cloudJobs);      
       setReceipts(cloudReceipts);
       setCloudLoaded(true);
     } catch (e) {
