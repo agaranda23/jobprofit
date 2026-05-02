@@ -233,6 +233,12 @@ function mapCloudJobToToday(r) {
     email: r.email || '',
     notes: r.notes || '',
     lineItems: [],
+    total: Number(r.amount || 0),
+    jobStatus: r.paid === true ? 'paid' : 'unpaid',
+    paymentStatus: r.paid === true ? 'paid' : 'unpaid',
+    quoteStatus: 'active',
+    customer: r.customer_name || '',
+    reference: r.customer_name || r.summary || '',
     expenses: [],
     cloud: true,
   };
