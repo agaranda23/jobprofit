@@ -846,9 +846,9 @@ function saveData(data) {
 }
 
 /* ═══ MAIN APP ═══════════════════════════════════════ */
-export default function App() {
+export default function App({ cloudJobs } = {}) {
   const [tab, setTab] = useState("Overview");
-  const [jobs, setJobs] = useState([]);
+  const [jobs, setJobs] = useState(() => Array.isArray(cloudJobs) && cloudJobs.length > 0 ? cloudJobs : []);
   const [expenses, setExpenses] = useState([]);
   const [invoices, setInvoices] = useState(seedInvoices);
   const [biz, setBiz] = useState(defBiz);
@@ -881,6 +881,13 @@ export default function App() {
       setDataLoaded(true);
     });
   }, []);
+
+        useEffect(() => {
+              if (Array.isArray(cloudJobs) && cloudJobs.length > 0) {
+                      setJobs(cloudJobs);
+                      setDataLoaded(true);
+              }
+        }, [cloudJobs]);
 
   // Auto-save whenever data changes (after initial load)
   useEffect(() => {
