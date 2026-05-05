@@ -249,7 +249,7 @@ export default function AppShell() {
           </div>
           <p>Quotes, jobs, customers & insights</p>
         </div>
-        <App key={moreKey} />
+        <App key={moreKey} cloudJobs={jobs} />
       </div>
 
       <BottomNav view={view} onChange={(v) => { if (v === 'manage') setMoreKey(k => k + 1); setView(v); }} />
