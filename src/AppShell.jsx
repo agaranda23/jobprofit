@@ -9,6 +9,7 @@ import { startHidingLegacyWrites, stopHidingLegacyWrites } from './lib/hideLegac
 import { clickCreateDetailedJobTab } from './lib/manageDeepLink';
 import { supabase } from './lib/supabase';
 import AuthScreen from './components/AuthScreen';
+import { parseHash, navigateToView, replaceHistory } from './lib/navigation';
 import {
   getTodayJobs,
   getTodayReceipts,
@@ -64,7 +65,7 @@ function migrateLegacyTodayData() {
 }
 
 export default function AppShell() {
-  const [view, setView] = useState('today');
+  const [view, setView] = useState(() => parseHash().view);
   const [moreKey, setMoreKey] = useState(0);
   const [pendingDeepLink, setPendingDeepLink] = useState(null);
   const [jobs, setJobs] = useState(() => getTodayJobs());
@@ -75,6 +76,36 @@ export default function AppShell() {
   const [pendingLink, setPendingLink] = useState(null); // receipt awaiting job link
 
   const manageRootRef = useRef(null);
+
+  // Hash-routed navigation: pushes history before switching view so browser
+  // Back returns to the previous in-app screen instead of exiting the SPA.
+  const navigate = useCallback((nextView) => {
+    navigateToView(nextView);
+    setView(nextView);
+  }, []);
+
+  // Canonicalise the URL after auth resolves (e.g. "" → "#/today"). Gated
+  // on authReady so we don't strip Supabase's magic-link hash fragment
+  // before detectSessionInUrl has consumed it.
+  useEffect(() => {
+    if (!authReady) return;
+    const { view: parsed } = parseHash();
+    const expected = `#/${parsed}`;
+    if (window.location.hash !== expected && parsed === 'today') {
+      replaceHistory({ view: parsed }, expected);
+    }
+  }, [authReady]);
+
+  // Single popstate listener: re-derive view from hash on Back/Forward.
+  // Do NOT bump moreKey here — App.jsx state must survive a Back navigation.
+  useEffect(() => {
+    const onPop = () => {
+      const { view: nextView } = parseHash();
+      setView(nextView);
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
 
   const refreshFromCloud = useCallback(async () => {
     try {
@@ -221,8 +252,8 @@ export default function AppShell() {
     <>
       {view === 'today' && (
         <TodayScreen
-          onOpenDetailed={() => { setPendingDeepLink('create-detailed-job'); setMoreKey(k => k + 1); setView('manage'); }}
-          onChase={() => { setMoreKey(k => k + 1); setView('manage'); }}
+          onOpenDetailed={() => { setPendingDeepLink('create-detailed-job'); setMoreKey(k => k + 1); navigate('manage'); }}
+          onChase={() => { setMoreKey(k => k + 1); navigate('manage'); }}
           jobs={jobs}
           receipts={receipts}
           onAddJob={handleAddJob}
@@ -252,7 +283,7 @@ export default function AppShell() {
         <App key={moreKey} />
       </div>
 
-      <BottomNav view={view} onChange={(v) => { if (v === 'manage') setMoreKey(k => k + 1); setView(v); }} />
+      <BottomNav view={view} onChange={(v) => { if (v === 'manage') setMoreKey(k => k + 1); navigate(v); }} />
 
       {pendingLink && (
         <LinkReceiptModal

@@ -1,5 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import * as XLSX from "xlsx";
+import { parseHash, navigateToInnerTab } from "./lib/navigation";
 
 const TABS = ["Overview", "Create detailed job", "Jobs", "Schedule", "Materials", "Settings"];
 const defBiz = { name: "Your Business Name", phone: "07XXX XXXXXX", email: "you@email.com", address: "Your Business Address", trade: "General Builder", vatRegistered: false, vatNumber: "", hourlyRate: 45, bankDetails: "", logoUrl: "" };
@@ -847,7 +848,7 @@ function saveData(data) {
 
 /* ═══ MAIN APP ═══════════════════════════════════════ */
 export default function App() {
-  const [tab, setTab] = useState("Overview");
+  const [tab, setTabState] = useState(() => parseHash().innerTab || "Overview");
   const [jobs, setJobs] = useState([]);
   const [expenses, setExpenses] = useState([]);
   const [invoices, setInvoices] = useState(seedInvoices);
@@ -857,6 +858,20 @@ export default function App() {
   const [dataLoaded, setDataLoaded] = useState(false);
   const stickyReceiptRef = useRef(null);
   const showVat = biz.vatRegistered; const unassigned = expenses.filter(e => !e.jobId).length;
+
+  // Push a history entry on every tab switch so browser Back unwinds tabs
+  // instead of exiting the app. Wrapping the setter keeps all existing
+  // setTab(...) call sites working without a refactor.
+  const setTab = useCallback((t) => {
+    navigateToInnerTab(t);
+    setTabState(t);
+  }, []);
+
+  useEffect(() => {
+    const onPop = () => setTabState(parseHash().innerTab || "Overview");
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
 
   // Load saved data on mount
   useEffect(() => {
