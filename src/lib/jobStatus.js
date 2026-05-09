@@ -20,6 +20,7 @@ export function deriveStatus(job) {
   if (job.status) return job.status;
   if (job.paid || job.paymentStatus === 'paid') return 'paid';
   if (job.invoiceSentAt) return 'awaiting';
+  if (job.invoiceStatus === 'invoiced' && job.paymentStatus !== 'paid') return 'awaiting';
   if (job.completedAt || job.jobStatus === 'complete') return 'completed';
   return 'draft';
 }
