@@ -1,6 +1,12 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import * as XLSX from "xlsx";
 import { parseHash, navigateToInnerTab } from "./lib/navigation";
+import { deriveStatus } from "./lib/jobStatus";
+import { nextInvoiceNumber } from "./lib/invoiceNumber";
+import { downloadInvoicePDF } from "./lib/invoicePDF";
+import { buildInvoiceWhatsAppMessage, buildWhatsAppLink } from "./lib/invoiceMessage";
+import { getMissingInvoiceFields } from "./lib/bizValidation";
+import { writeJobMeta, extractJobMeta, applyJobMetaToJobs } from "./lib/jobMeta";
 
 const TABS = ["Overview", "Create detailed job", "Jobs", "Schedule", "Materials", "Settings"];
 const defBiz = { name: "Your Business Name", phone: "07XXX XXXXXX", email: "you@email.com", address: "Your Business Address", trade: "General Builder", vatRegistered: false, vatNumber: "", hourlyRate: 45, bankDetails: "", accountName: "", sortCode: "", accountNumber: "", logoUrl: "" };
@@ -188,19 +194,78 @@ function QuickStats({ todayProfit, outstanding, paidThisMonth, profitThisMonth, 
   </div>;
 }
 
-function SendInvoiceModal({ job, biz, inv, showVat, onClose, flash }) {
+function SendInvoiceModal({ job, biz, jobs, onUpdate, onClose, flash }) {
+  const [invoiceNumber, setInvoiceNumber] = useState(() => job.invoiceNumber || nextInvoiceNumber(jobs));
+  const [dueDate, setDueDate] = useState(() => {
+    if (job.invoiceDueDate) return new Date(job.invoiceDueDate).toISOString().slice(0, 10);
+    const d = new Date(); d.setDate(d.getDate() + 14);
+    return d.toISOString().slice(0, 10);
+  });
   const [pdfBusy, setPdfBusy] = useState(false);
-  const downloadPDF = async () => { setPdfBusy(true); try { const doc = await generateInvoicePDF(job, biz, inv, showVat); doc.save(inv.number + "-" + job.customer.replace(/\s/g, "-") + ".pdf"); flash("📄 PDF downloaded"); } catch { flash("PDF failed"); } setPdfBusy(false); };
+  const [copyOk, setCopyOk] = useState(false);
+  const missing = getMissingInvoiceFields(biz);
+  const showVat = !!biz?.vatRegistered;
+  const previewMessage = buildInvoiceWhatsAppMessage({ job, biz, invoiceNumber, dueDate });
+
+  const handleSendWhatsApp = () => {
+    onUpdate({
+      ...job,
+      status: 'invoice_sent',
+      invoiceSentAt: new Date().toISOString(),
+      invoiceNumber,
+      invoiceDueDate: new Date(dueDate).toISOString(),
+    });
+    const link = buildWhatsAppLink({ phone: job.customerPhone || job.phone, message: previewMessage });
+    window.open(link, '_blank', 'noopener');
+    flash("📤 Invoice sent");
+    onClose();
+  };
+
+  const handleDownloadPDF = () => {
+    setPdfBusy(true);
+    try { downloadInvoicePDF({ job, biz, invoiceNumber, dueDate }); flash("📄 PDF downloaded"); }
+    catch (e) { console.error(e); flash("PDF failed"); }
+    setPdfBusy(false);
+  };
+
+  const handleCopyText = async () => {
+    try { await navigator.clipboard.writeText(previewMessage); setCopyOk(true); setTimeout(() => setCopyOk(false), 2000); }
+    catch { flash("Copy failed"); }
+  };
+
+  // Shim for the legacy SMS/Email helpers (they expect an `inv` object).
+  const invShim = { number: invoiceNumber, created: new Date().toLocaleDateString('en-GB'), dueDate: new Date(dueDate).toLocaleDateString('en-GB') };
+
   return <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 1000 }} onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
-    <div style={{ background: T.surface, borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 500, padding: 24, animation: "slideUp .25s ease-out" }}>
-      <style>{`@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}`}</style>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}><h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>Send Invoice {inv.number}</h3><button onClick={onClose} style={{ width: 36, height: 36, borderRadius: "50%", border: "none", background: T.surfaceAlt, cursor: "pointer", fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button></div>
-      <div style={{ padding: "14px 16px", background: T.surfaceAlt, borderRadius: T.rSm, marginBottom: 20 }}><div style={{ fontSize: 14, fontWeight: 700 }}>{job.customer}</div><div style={{ fontSize: 13, color: T.textMed }}>{(job.summary ?? '').slice(0, 60)}</div><div style={{ fontSize: 18, fontWeight: 800, color: T.primary, marginTop: 4 }}>{GBP((job.total??job.amount??0))}</div></div>
+    <div style={{ background: T.surface, borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 500, padding: 24, animation: "slideUp .25s ease-out", maxHeight: "90vh", overflowY: "auto" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+        <h3 style={{ margin: 0, fontSize: 18, fontWeight: 800 }}>Send Invoice</h3>
+        <button onClick={onClose} style={{ width: 36, height: 36, borderRadius: "50%", border: "none", background: T.surfaceAlt, cursor: "pointer", fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
+      </div>
+      <div style={{ padding: "14px 16px", background: T.surfaceAlt, borderRadius: T.rSm, marginBottom: 16 }}>
+        <div style={{ fontSize: 14, fontWeight: 700 }}>{job.customer}</div>
+        <div style={{ fontSize: 13, color: T.textMed }}>{(job.summary ?? '').slice(0, 60)}</div>
+        <div style={{ fontSize: 18, fontWeight: 800, color: T.primary, marginTop: 4 }}>{GBP((job.total??job.amount??0))}</div>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginBottom: 14 }}>
+        <div>
+          <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 4 }}>Invoice number</label>
+          <input value={invoiceNumber} onChange={e => setInvoiceNumber(e.target.value)} style={S.inp} />
+        </div>
+        <div>
+          <label style={{ display: "block", fontSize: 12, fontWeight: 700, color: T.textMuted, marginBottom: 4 }}>Due date</label>
+          <input type="date" value={dueDate} onChange={e => setDueDate(e.target.value)} style={S.inp} />
+        </div>
+      </div>
+      {missing.length > 0 && <div style={{ background: T.warnLight, border: "1px solid #FDE68A", borderRadius: T.rSm, padding: "10px 12px", marginBottom: 14, fontSize: 13, color: "#92400E" }}>⚠️ Missing: {missing.join(', ')} — fix in Settings to include payment instructions</div>}
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        <a href={waInvoiceLink(job, biz, inv, showVat)} target="_blank" rel="noopener noreferrer" onClick={onClose} style={{ ...waS, width: "100%", textDecoration: "none", boxSizing: "border-box", justifyContent: "center" }}><WaIc /> Send via WhatsApp</a>
-        <a href={smsInvoiceLink(job, biz, inv, showVat)} onClick={onClose} style={{ ...S.btn, background: "#2563EB", color: "#fff", width: "100%", textDecoration: "none", boxSizing: "border-box", justifyContent: "center" }}>💬 Send via SMS</a>
-        <a href={emailInvoiceLink(job, biz, inv, showVat)} onClick={onClose} style={{ ...pri, width: "100%", textDecoration: "none", boxSizing: "border-box", justifyContent: "center" }}>📧 Send via Email</a>
-        <button onClick={downloadPDF} disabled={pdfBusy} style={{ ...sec, width: "100%", opacity: pdfBusy ? .5 : 1 }}>{pdfBusy ? <><Spinner /> Generating...</> : <>📄 Download PDF</>}</button>
+        <button onClick={handleSendWhatsApp} style={{ ...waS, width: "100%", justifyContent: "center", border: "none", cursor: "pointer" }}><WaIc /> Send via WhatsApp</button>
+        <button onClick={handleDownloadPDF} disabled={pdfBusy} style={{ ...pri, width: "100%", opacity: pdfBusy ? .5 : 1 }}>{pdfBusy ? <><Spinner /> Generating…</> : <>📄 Download PDF</>}</button>
+      </div>
+      <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 8 }}>
+        <a href={smsInvoiceLink(job, biz, invShim, showVat)} style={{ ...sec, width: "100%", textDecoration: "none", boxSizing: "border-box", justifyContent: "center" }}>💬 Send via SMS</a>
+        <a href={emailInvoiceLink(job, biz, invShim, showVat)} style={{ ...sec, width: "100%", textDecoration: "none", boxSizing: "border-box", justifyContent: "center" }}>📧 Send via Email</a>
+        <button onClick={handleCopyText} style={{ ...S.ghost, width: "100%", justifyContent: "center" }}>{copyOk ? "✅ Copied" : "📋 Copy text"}</button>
       </div>
     </div>
   </div>;
@@ -461,11 +526,12 @@ function ChasePaymentPanel({ job, biz, inv, showVat, onUpdate, flash }) {
 }
 
 /* ═══ JOB DETAIL — Full Pipeline ═════════════════════ */
-function JobDetail({ job, expenses, invoices, onBack, onUpdate, onDelExp, onAddExp, onAddInvoice, onUpdateInvoice, biz, showVat, onViewCustomer, flash }) {
+function JobDetail({ job, jobs, expenses, invoices, onBack, onUpdate, onDelExp, onAddExp, onAddInvoice, onUpdateInvoice, biz, showVat, onViewCustomer, flash }) {
   const [ed, setEd] = useState(false); const [d, setD] = useState({ ...job }); const [viewPhoto, setViewPhoto] = useState(null);
   const [addingExp, setAddingExp] = useState(false);
   const [noteSubject, setNoteSubject] = useState(""); const [noteBody, setNoteBody] = useState("");
   const [showSendModal, setShowSendModal] = useState(false); const photoRef = useRef(null);
+  const [showPaidPicker, setShowPaidPicker] = useState(false);
   const [showSchModal, setShowSchModal] = useState(false);
   const [schDate, setSchDate] = useState(job.scheduledDate || ""); const [schStart, setSchStart] = useState(job.scheduledStart || ""); const [schEnd, setSchEnd] = useState(job.scheduledEnd || "");
   const saveSchedule = () => { onUpdate({ ...job, scheduledDate: schDate || null, scheduledStart: schStart || null, scheduledEnd: schEnd || null }); setShowSchModal(false); flash("📅 Schedule updated"); };
@@ -485,15 +551,15 @@ function JobDetail({ job, expenses, invoices, onBack, onUpdate, onDelExp, onAddE
   const handleJobPhoto = async e => { const files = Array.from(e.target.files || []); const photos = []; for (const f of files) { try { const raw = await fileToB64(f); const c = await compress(raw); photos.push(c); } catch {} } if (photos.length) onUpdate({ ...job, photos: [...(job.photos || []), ...photos] }); if (photoRef.current) photoRef.current.value = ""; };
   const rmPhoto = i => { const p = [...(job.photos || [])]; p.splice(i, 1); onUpdate({ ...job, photos: p }); };
   const convertToJob = () => { onUpdate({ ...job, quoteStatus: "accepted", jobStatus: "active" }); flash("🔨 Converted to active job"); };
-  const markComplete = () => { onUpdate({ ...job, jobStatus: "complete" }); flash("✅ Job complete"); };
+  const markComplete = () => { onUpdate({ ...job, status: 'completed', completedAt: new Date().toISOString(), jobStatus: "complete" }); flash("✅ Ready to invoice"); };
   const createInvoice = () => { const num = nextInvNum(invoices); const due = new Date(); due.setDate(due.getDate() + 14); const ni = { id: mkId("INV"), jobId: job.id, number: num, status: "unpaid", created: td(), dueDate: due.toISOString().slice(0, 10), paidDate: "" }; onAddInvoice(ni); onUpdate({ ...job, invoiceId: ni.id, invoiceStatus: "invoiced" }); };
-  const markPaid = (method) => { onUpdate({ ...job, paymentStatus: "paid", paymentDate: td(), paymentMethod: method, jobStatus: "complete" }); if (inv) onUpdateInvoice({ ...inv, status: "paid", paidDate: td() }); flash("💷 Paid via " + method); };
-  const markUnpaid = () => { onUpdate({ ...job, paymentStatus: "unpaid", paymentDate: "", paymentMethod: "" }); if (inv) onUpdateInvoice({ ...inv, status: "unpaid", paidDate: "" }); };
+  const markPaid = (method) => { onUpdate({ ...job, status: 'paid', paidAt: new Date().toISOString(), paymentMethod: method, paymentStatus: "paid", paymentDate: td(), jobStatus: "complete" }); if (inv) onUpdateInvoice({ ...inv, status: "paid", paidDate: td() }); flash("💷 Paid via " + method); };
+  const markUnpaid = () => { onUpdate({ ...job, status: undefined, paidAt: null, paymentMethod: "", paymentStatus: "unpaid", paymentDate: "" }); if (inv) onUpdateInvoice({ ...inv, status: "unpaid", paidDate: "" }); };
   const steps = [{ label: "Quote", done: true }, { label: "Accepted", done: job.quoteStatus === "accepted" }, { label: "Active", done: job.jobStatus === "active" || job.jobStatus === "complete" }, { label: "Invoiced", done: !!inv }, { label: "Paid", done: job.paymentStatus === "paid" }];
 
   return <div>
     <PhotoModal src={viewPhoto} onClose={() => setViewPhoto(null)} />
-    {showSendModal && inv && <SendInvoiceModal job={job} biz={biz} inv={inv} showVat={showVat} onClose={() => setShowSendModal(false)} flash={flash} />}
+    {showSendModal && <SendInvoiceModal job={job} biz={biz} jobs={jobs} onUpdate={onUpdate} onClose={() => setShowSendModal(false)} flash={flash} />}
     <button onClick={onBack} style={{ ...S.ghost, marginBottom: 16 }}><ChvIc d="left" /> All Jobs</button>
     {/* Pipeline */}
     <div style={{ display: "flex", gap: 2, marginBottom: 16 }}>{steps.map((s, i) => <div key={i} style={{ flex: 1, textAlign: "center" }}><div style={{ height: 4, borderRadius: 2, background: s.done ? T.accent : T.border, marginBottom: 4 }} /><div style={{ fontSize: 9, fontWeight: 700, color: s.done ? T.accent : T.textMuted, textTransform: "uppercase" }}>{s.label}</div></div>)}</div>
@@ -519,9 +585,52 @@ function JobDetail({ job, expenses, invoices, onBack, onUpdate, onDelExp, onAddE
       {job.quoteStatus === "draft" && <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}><button onClick={() => onUpdate({ ...job, quoteStatus: "sent" })} style={{ ...warnBtn, width: "100%" }}><SendIc /> Mark Sent</button><a href={waQuoteLink(job)} target="_blank" rel="noopener noreferrer" style={{ ...waS, width: "100%", textDecoration: "none", boxSizing: "border-box" }}><WaIc /> WhatsApp</a></div>}
       {job.quoteStatus === "sent" && <button onClick={convertToJob} style={{ ...grn, width: "100%" }}>✅ Accept & Convert to Job</button>}
       {job.quoteStatus === "accepted" && (!job.jobStatus || job.jobStatus === "quote") && <button onClick={convertToJob} style={{ ...pri, width: "100%" }}>🔨 Convert to Active Job</button>}
-      {job.jobStatus === "active" && !inv && <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}><button onClick={createInvoice} style={{ ...pri, width: "100%" }}><DocIc /> Create Invoice</button><button onClick={markComplete} style={{ ...grn, width: "100%" }}>✅ Complete</button></div>}
-      {inv && job.paymentStatus !== "paid" && <div style={{ display: "flex", flexDirection: "column", gap: 10 }}><button onClick={() => setShowSendModal(true)} style={{ ...pri, width: "100%" }}><SendIc /> Send Invoice</button><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}><button onClick={() => markPaid("bank transfer")} style={{ ...grn, width: "100%", fontSize: 13, padding: "12px 8px" }}>💳 Bank</button><button onClick={() => markPaid("cash")} style={{ ...S.btn, background: T.cyan, color: "#fff", width: "100%", fontSize: 13, padding: "12px 8px" }}>💵 Cash</button><button onClick={() => markPaid("card")} style={{ ...S.btn, background: T.purple, color: "#fff", width: "100%", fontSize: 13, padding: "12px 8px" }}>💳 Card</button></div></div>}
-      {job.paymentStatus === "paid" && <div style={{ padding: "14px 16px", background: T.accentLight, borderRadius: T.rSm, textAlign: "center" }}><div style={{ fontWeight: 800, fontSize: 16, color: T.accent }}>✅ Paid {job.paymentDate} via {job.paymentMethod}</div><button onClick={markUnpaid} style={{ ...S.ghost, color: T.textMuted, fontSize: 12, marginTop: 4 }}>Undo</button></div>}
+      {(() => {
+        // Gate-by-negation: status-driven shows whenever the legacy quote-stage
+        // buttons above (lines 584-586) would NOT match. Catches cloud-synced
+        // jobs which have quoteStatus: 'active' (a value none of the legacy
+        // branches recognise — see src/lib/store.js mapCloudJobToToday).
+        const showStatusDriven = !(
+          job.quoteStatus === 'draft' ||
+          job.quoteStatus === 'sent' ||
+          (job.quoteStatus === 'accepted' && (!job.jobStatus || job.jobStatus === 'quote'))
+        );
+        if (!showStatusDriven) return null;
+        const status = deriveStatus(job);
+        if (status === 'draft') {
+          return <button onClick={markComplete} style={{ ...grn, width: "100%" }}>✅ Mark Complete</button>;
+        }
+        if (status === 'completed') {
+          return <button onClick={() => setShowSendModal(true)} style={{ ...pri, width: "100%" }}><SendIc /> Send Invoice</button>;
+        }
+        if (status === 'invoice_sent' || status === 'awaiting') {
+          return <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {showPaidPicker ? (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: T.textMed }}>Mark this paid?</div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
+                  <button onClick={() => { markPaid("bank transfer"); setShowPaidPicker(false); }} style={{ ...grn, fontSize: 13, padding: "12px 8px" }}>💳 Bank</button>
+                  <button onClick={() => { markPaid("cash"); setShowPaidPicker(false); }} style={{ ...S.btn, background: T.cyan, color: "#fff", fontSize: 13, padding: "12px 8px" }}>💵 Cash</button>
+                  <button onClick={() => { markPaid("card"); setShowPaidPicker(false); }} style={{ ...S.btn, background: T.purple, color: "#fff", fontSize: 13, padding: "12px 8px" }}>💳 Card</button>
+                </div>
+                <button onClick={() => setShowPaidPicker(false)} style={{ ...S.ghost, color: T.textMuted, justifyContent: "center" }}>Cancel</button>
+              </div>
+            ) : (
+              <button onClick={() => setShowPaidPicker(true)} style={{ ...grn, width: "100%" }}>💷 Mark as Paid</button>
+            )}
+            <button onClick={() => setShowSendModal(true)} style={{ ...S.ghost, color: T.primary, justifyContent: "center" }}>Resend invoice</button>
+          </div>;
+        }
+        if (status === 'paid') {
+          return <div style={{ padding: "14px 16px", background: T.accentLight, borderRadius: T.rSm, textAlign: "center" }}>
+            <div style={{ fontWeight: 800, fontSize: 16, color: T.accent }}>
+              ✅ Paid {job.paidAt ? new Date(job.paidAt).toLocaleDateString('en-GB') : (job.paymentDate || '')}{job.paymentMethod ? " via " + job.paymentMethod : ""}
+            </div>
+            <button onClick={markUnpaid} style={{ ...S.ghost, color: T.textMuted, fontSize: 12, marginTop: 4 }}>Mark as unpaid</button>
+          </div>;
+        }
+        return null;
+      })()}
     </div>
     {/* Chase Payment Panel — shows when unpaid */}
     {inv && job.paymentStatus !== "paid" && <ChasePaymentPanel job={job} biz={biz} inv={inv} showVat={showVat} onUpdate={onUpdate} flash={flash} />}
@@ -600,7 +709,7 @@ function JobsTab({ jobs, expenses, invoices, onUpdate, onDelExp, onAddExp, onAdd
   useEffect(() => { if (initialJobId) { setSelId(initialJobId); clearInitialJob(); } }, [initialJobId]);
   const sel = jobs.find(j => j.id === selId);
   if (custView) { const cs = getCustomers(jobs, expenses); const c = cs.find(x => x.name.toLowerCase() === custView.toLowerCase()); if (c) return <CustomerDetail customer={c} expenses={expenses} onBack={() => setCustView(null)} onGoJob={id => { setCustView(null); setSelId(id); }} />; setCustView(null); }
-  if (sel) return <JobDetail job={sel} expenses={expenses} invoices={invoices} onBack={() => setSelId(null)} onUpdate={onUpdate} onDelExp={onDelExp} onAddExp={onAddExp} onAddInvoice={onAddInvoice} onUpdateInvoice={onUpdateInvoice} biz={biz} showVat={showVat} onViewCustomer={() => setCustView(sel.customer)} flash={flash} />;
+  if (sel) return <JobDetail job={sel} jobs={jobs} expenses={expenses} invoices={invoices} onBack={() => setSelId(null)} onUpdate={onUpdate} onDelExp={onDelExp} onAddExp={onAddExp} onAddInvoice={onAddInvoice} onUpdateInvoice={onUpdateInvoice} biz={biz} showVat={showVat} onViewCustomer={() => setCustView(sel.customer)} flash={flash} />;
   const paid = jobs.filter(j => (j.paymentStatus??(j.paid?'paid':'unpaid')) === "paid"); const unpaid = jobs.filter(j => (j.paymentStatus??(j.paid?'paid':'unpaid')) === "unpaid" && (j.quoteStatus??'accepted') === "accepted");
   const filtered = filter === "all" ? jobs : filter === "paid" ? paid : filter === "unpaid" ? unpaid : filter === "active" ? jobs.filter(j => (j.jobStatus??(j.paid?'complete':'active')) === "active") : jobs.filter(j => (j.quoteStatus??'accepted') === "draft");
   return <div>
@@ -905,7 +1014,7 @@ export default function App({ cloudJobs } = {}) {
     // Try localStorage first (instant, works on Android home screen)
     const localData = loadSavedData();
     if (localData) {
-      if (localData.jobs) setJobs(localData.jobs);
+      if (localData.jobs) setJobs(applyJobMetaToJobs(localData.jobs));
       if (localData.expenses) setExpenses(localData.expenses);
       if (localData.invoices) setInvoices(localData.invoices);
       if (localData.biz) setBiz(localData.biz);
@@ -915,7 +1024,7 @@ export default function App({ cloudJobs } = {}) {
     // Fallback: try window.storage (artifact sandbox)
     loadFromWindowStorage().then(saved => {
       if (saved) {
-        if (saved.jobs) setJobs(saved.jobs);
+        if (saved.jobs) setJobs(applyJobMetaToJobs(saved.jobs));
         if (saved.expenses) setExpenses(saved.expenses);
         if (saved.invoices) setInvoices(saved.invoices);
         if (saved.biz) setBiz(saved.biz);
@@ -926,7 +1035,31 @@ export default function App({ cloudJobs } = {}) {
 
         useEffect(() => {
               if (Array.isArray(cloudJobs) && cloudJobs.length > 0) {
-                      setJobs(cloudJobs);
+                      setJobs(prev => {
+                        // PRD-3 fields aren't in the Supabase schema yet, so the
+                        // cloud-mapped jobs arrive without them and would otherwise
+                        // wipe locally-entered payment state. Two layers of defence:
+                        //   1. Merge — preserve fields from the prev React state
+                        //      (in-session protection).
+                        //   2. applyJobMetaToJobs — overlay the per-job side-channel
+                        //      (jp.jobMeta.<id>) which survives across refreshes.
+                        const PRESERVE_KEYS = [
+                          'status', 'invoiceSentAt', 'invoiceNumber', 'invoiceDueDate',
+                          'completedAt', 'paidAt', 'customerPhone', 'paymentMethod',
+                          'paymentStatus', 'paymentDate',
+                        ];
+                        const localById = new Map(prev.map(j => [j.id, j]));
+                        const merged = cloudJobs.map(cloudJob => {
+                          const local = localById.get(cloudJob.id);
+                          if (!local) return cloudJob;
+                          const overlay = {};
+                          for (const key of PRESERVE_KEYS) {
+                            if (local[key] !== undefined) overlay[key] = local[key];
+                          }
+                          return { ...cloudJob, ...overlay };
+                        });
+                        return applyJobMetaToJobs(merged);
+                      });
                       setDataLoaded(true);
               }
         }, [cloudJobs]);
@@ -1066,7 +1199,10 @@ export default function App({ cloudJobs } = {}) {
   }, [jobs, biz]);
   const flash = m => { setNote(m); setTimeout(() => setNote(""), 3500); };
   const onGen = j => { setJobs(p => [j, ...p]); setTab("Jobs"); flash("✅ Quote created"); };
-  const onUpdJob = u => setJobs(p => p.map(j => j.id === u.id ? u : j));
+  const onUpdJob = u => {
+    writeJobMeta(u.id, extractJobMeta(u));
+    setJobs(p => p.map(j => j.id === u.id ? u : j));
+  };
   const onAddExp = e => { setExpenses(p => [e, ...p]); flash(e.photo ? "📷 Receipt scanned" : "🧾 Material added"); };
   const onDelExp = id => setExpenses(p => p.filter(e => e.id !== id));
   const onAssign = (eid, jid) => { setExpenses(p => p.map(e => e.id === eid ? { ...e, jobId: jid } : e)); flash("✅ Assigned"); };
