@@ -1,9 +1,11 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import AddJobModal from '../components/AddJobModal';
 import AddReceiptModal from '../components/AddReceiptModal';
+import AwaitingCard from '../components/AwaitingCard';
 import { gbp, todayKey, formatToday } from '../lib/today';
+import { isAwaitingPayment } from '../lib/jobStatus';
 
-export default function TodayScreen({ jobs = [], receipts = [], onAddJob, onAddReceipt, onOpenDetailed, onChase }) {
+export default function TodayScreen({ jobs = [], receipts = [], onAddJob, onAddReceipt, onOpenDetailed, onChase, onMarkPaid }) {
   const [jobOpen, setJobOpen] = useState(false);
   const [receiptOpen, setReceiptOpen] = useState(false);
   const [toast, setToast] = useState('');
@@ -145,23 +147,33 @@ export default function TodayScreen({ jobs = [], receipts = [], onAddJob, onAddR
         )}
       </section>
 
-      {unpaidCount > 0 && (
-        <button
-          type="button"
-          className={`awaiting-card ${oldestDays > 30 ? 'awaiting-card-late' : ''}`}
-          onClick={() => onChase?.()}
-        >
-          <div className="awaiting-card-icon">⏰</div>
-          <div className="awaiting-card-body">
-            <div className="awaiting-card-amount">{gbp(unpaidTotal)} awaiting</div>
-            <div className="awaiting-card-meta">
-              {unpaidCount} job{unpaidCount === 1 ? '' : 's'}
-              {oldestDays > 0 && ` · oldest ${oldestDays} day${oldestDays === 1 ? '' : 's'}`}
+      {(() => {
+        const awaitingJobs = jobs
+          .filter(isAwaitingPayment)
+          .sort((a, b) => new Date(a.invoiceSentAt || 0) - new Date(b.invoiceSentAt || 0));
+        if (awaitingJobs.length === 0) return null;
+        const totalOwed = awaitingJobs.reduce((s, j) => s + (j.total ?? j.amount ?? 0), 0);
+        return (
+          <section className="awaiting-section">
+            <header className="awaiting-section-header">
+              <h3 className="awaiting-section-title">💰 Awaiting payment</h3>
+              <span className="awaiting-section-total">
+                {gbp(totalOwed)} from {awaitingJobs.length} {awaitingJobs.length === 1 ? 'job' : 'jobs'}
+              </span>
+            </header>
+            <div className="awaiting-list">
+              {awaitingJobs.map(j => (
+                <AwaitingCard key={j.id} job={j} onMarkPaid={onMarkPaid} />
+              ))}
             </div>
-          </div>
-          <div className="awaiting-card-chev">→</div>
-        </button>
-      )}
+            {onChase && (
+              <button type="button" className="awaiting-section-link" onClick={onChase}>
+                View all in Business →
+              </button>
+            )}
+          </section>
+        );
+      })()}
 
       {weekCount > 0 && (
         <div className="avg-card">

@@ -985,30 +985,38 @@ input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin
 input[type=number] { -moz-appearance: textfield; }
 
 
-/* Awaiting card */
-.awaiting-card {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  width: 100%;
-  background: var(--surface);
-  border: 1px solid #f59e0b40;
-  border-left: 4px solid #f59e0b;
-  border-radius: 14px;
-  padding: 16px 18px;
-  margin: 14px 0 0;
-  cursor: pointer;
-  font-family: inherit;
-  text-align: left;
-  transition: transform .1s, border-color .15s;
-}
-.awaiting-card:active { transform: scale(0.985); }
-.awaiting-card-late { border-color: #ef444460; border-left-color: #ef4444; }
-.awaiting-card-icon { font-size: 22px; line-height: 1; flex-shrink: 0; }
-.awaiting-card-body { flex: 1; min-width: 0; }
-.awaiting-card-amount { font-size: 20px; font-weight: 700; color: var(--text); letter-spacing: -0.01em; }
-.awaiting-card-meta { font-size: 13px; color: var(--text-dim); margin-top: 2px; font-weight: 500; }
-.awaiting-card-chev { font-size: 22px; color: var(--text-dim); flex-shrink: 0; font-weight: 300; padding-right: 4px; }
+/* Awaiting payment section */
+.awaiting-section { margin: 16px 0 0; }
+.awaiting-section-header { display: flex; justify-content: space-between; align-items: baseline; padding: 0 4px; margin-bottom: 10px; }
+.awaiting-section-title { margin: 0; font-size: 16px; font-weight: 700; color: var(--text); letter-spacing: -0.005em; }
+.awaiting-section-total { font-size: 13px; color: var(--text-dim); font-weight: 600; }
+.awaiting-list { display: flex; flex-direction: column; gap: 8px; }
+.awaiting-section-link { display: block; width: 100%; margin-top: 8px; padding: 10px; background: transparent; border: none; color: var(--text-dim); font-family: inherit; font-size: 13px; font-weight: 600; text-align: center; cursor: pointer; border-radius: 10px; transition: background 0.15s; }
+.awaiting-section-link:hover { background: var(--surface-2); color: var(--text); }
+
+/* Awaiting per-job card */
+.awaiting-job-card { background: var(--surface); border: 1px solid #f59e0b40; border-left: 4px solid #f59e0b; border-radius: 14px; overflow: hidden; }
+.awaiting-job-card-row { display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; }
+.awaiting-job-customer-col { flex: 1; min-width: 0; }
+.awaiting-job-customer { font-size: 15px; font-weight: 700; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.awaiting-job-meta { font-size: 12px; color: var(--text-dim); margin-top: 2px; font-weight: 500; }
+.awaiting-job-meta-warn { color: #f59e0b; }
+.awaiting-job-meta-late { color: #ef4444; }
+.awaiting-job-amount { font-size: 17px; font-weight: 700; color: var(--text); margin-left: 12px; font-variant-numeric: tabular-nums; }
+
+/* Mark Paid action */
+.awaiting-job-paid-btn { width: 100%; background: var(--accent); color: #0b1f10; border: none; padding: 12px; font-family: inherit; font-size: 14px; font-weight: 700; cursor: pointer; transition: background 0.15s, transform 0.05s; }
+.awaiting-job-paid-btn:hover { background: #16a34a; }
+.awaiting-job-paid-btn:active { transform: scale(0.98); }
+.awaiting-job-picker { padding: 0 14px 12px; border-top: 1px solid var(--border); }
+.awaiting-job-picker-label { font-size: 12px; font-weight: 600; color: var(--text-dim); padding: 10px 0 6px; }
+.awaiting-job-picker-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
+.awaiting-job-method-btn { padding: 10px 6px; border: none; border-radius: 10px; font-family: inherit; font-size: 12px; font-weight: 700; color: #fff; cursor: pointer; transition: opacity 0.15s, transform 0.05s; }
+.awaiting-job-method-btn:active { transform: scale(0.97); }
+.awaiting-job-method-bank { background: var(--accent); color: #0b1f10; }
+.awaiting-job-method-cash { background: #06b6d4; }
+.awaiting-job-method-card { background: #a855f7; }
+.awaiting-job-picker-cancel { width: 100%; margin-top: 6px; padding: 8px; background: transparent; border: none; color: var(--text-dim); font-family: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
 
 
 /* Avg-per-job card */
