@@ -121,7 +121,6 @@ export default function TodayScreen({ jobs = [], receipts = [], onAddJob, onAddR
 
   return (
     <div className="today-screen">
-      <div className="app-brand"><img src="/icon-192.png" alt="" className="app-brand-logo" /><span className="app-brand-name">JobProfit</span></div>
       <header className="today-header">
         <h1>Today</h1>
         <p className="today-date">{formatToday()}</p>
@@ -180,7 +179,7 @@ export default function TodayScreen({ jobs = [], receipts = [], onAddJob, onAddR
           <div className="avg-card-label">This week's average per job</div>
           <div className="avg-card-amount">{gbp(avgPerJob)}</div>
           <div className="avg-card-meta">across {weekCount} job{weekCount === 1 ? '' : 's'}</div>
-          {lastWeekCount > 0 ? (
+          {lastWeekCount > 0 && (
             <div className="avg-card-compare">
               Last week: {gbp(lastWeekAvgPerJob)} across {lastWeekCount} job{lastWeekCount === 1 ? '' : 's'}
               {avgPerJob !== lastWeekAvgPerJob && (
@@ -189,8 +188,6 @@ export default function TodayScreen({ jobs = [], receipts = [], onAddJob, onAddR
                 </span>
               )}
             </div>
-          ) : (
-            <div className="avg-card-compare avg-card-compare-soft">First week tracking — comparison appears next week</div>
           )}
         </div>
       )}
