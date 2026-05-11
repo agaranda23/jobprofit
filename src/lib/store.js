@@ -411,6 +411,26 @@ export async function markJobPaidCloud(jobId) {
   write(data);
 }
 
+export async function deleteJobFromCloud(jobId) {
+  const user_id = await getUserId();
+  if (!user_id) throw new Error('Not signed in');
+
+  const { error } = await supabase
+    .from('jobs')
+    .delete()
+    .eq('id', jobId);
+
+  if (error) {
+    console.error('deleteJobFromCloud failed', error);
+    throw error;
+  }
+
+  // Mirror: remove from localStorage
+  const data = read();
+  data.jobs = data.jobs.filter(j => j.cloudId !== jobId && j.id !== jobId);
+  write(data);
+}
+
 export async function linkReceiptToJob(receiptId, jobId) {
   const user_id = await getUserId();
   if (!user_id) throw new Error('Not signed in');

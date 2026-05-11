@@ -23,6 +23,7 @@ import {
   addReceiptToCloud,
   markJobPaidCloud,
   linkReceiptToJob,
+  deleteJobFromCloud,
 } from './lib/store';
 
 function wipeLegacyDemoData() {
@@ -180,8 +181,9 @@ export default function AppShell() {
 
   const handleAddJob = async (job) => {
     try {
-      await addJobToCloud(job);
+      const saved = await addJobToCloud(job);
       await refreshFromCloud();
+      return saved; // callers can use saved.id for undo/delete flows
     } catch (e) {
       console.error('Add job failed', e);
       addTodayJob(job);
@@ -203,6 +205,24 @@ export default function AppShell() {
       console.error('Add receipt failed', e);
       addTodayReceipt(payload);
       setReceipts(getTodayReceipts());
+    }
+  };
+
+  const handleDeleteJob = async (id) => {
+    try {
+      await deleteJobFromCloud(id);
+      await refreshFromCloud();
+    } catch (e) {
+      console.error('Delete job failed', e);
+      // Fallback: remove from local state and localStorage mirror
+      const data = (() => {
+        try { return JSON.parse(localStorage.getItem('jobprofit-app-data') || '{}'); } catch { return {}; }
+      })();
+      if (Array.isArray(data.jobs)) {
+        data.jobs = data.jobs.filter(j => j.cloudId !== id && j.id !== id);
+        try { localStorage.setItem('jobprofit-app-data', JSON.stringify(data)); } catch {}
+      }
+      setJobs(prev => prev.filter(j => j.id !== id));
     }
   };
 
@@ -278,6 +298,7 @@ export default function AppShell() {
           receipts={receipts}
           onAddJob={handleAddJob}
           onAddReceipt={handleAddReceipt}
+          onDeleteJob={handleDeleteJob}
         />
       )}
 

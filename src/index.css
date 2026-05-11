@@ -498,6 +498,36 @@ body {
   from { opacity: 0; transform: translate(-50%, 10px); }
   to   { opacity: 1; transform: translate(-50%, 0); }
 }
+.toast-with-action {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+}
+.toast-msg { flex: 1; }
+.toast-action-btn {
+  background: none;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.toast-action-btn:hover { background: rgba(34,197,94,0.1); }
+.toast-dismiss-btn {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 18px;
+  line-height: 1;
+  padding: 0 2px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
 
 /* Manage header — sits above the legacy CRM */
 .manage-header {
@@ -694,14 +724,37 @@ body {
   letter-spacing: 0.02em;
 }
 
-/* Empty state hint on Today */
-.empty-hint {
-  text-align: center;
+/* Onboarding card — empty Today state */
+.onboarding-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 28px 24px 24px;
+  margin-bottom: 28px;
+  text-align: left;
+}
+.onboarding-card-heading {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0 0 10px;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+}
+.onboarding-card-body {
+  font-size: 15px;
   color: var(--text-dim);
-  font-size: 14px;
-  margin: 24px 0 0;
-  padding: 0 20px;
-  font-style: italic;
+  margin: 0 0 24px;
+  line-height: 1.5;
+}
+.onboarding-card-cta-primary {
+  margin-bottom: 10px;
+  font-size: 16px;
+  padding: 16px;
+}
+.onboarding-card-cta-secondary {
+  font-size: 15px;
+  padding: 14px;
 }
 
 /* Auth screen */

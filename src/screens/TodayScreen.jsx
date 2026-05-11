@@ -1,16 +1,21 @@
-import { useState, useMemo, useEffect, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import AddJobModal from '../components/AddJobModal';
 import AddReceiptModal from '../components/AddReceiptModal';
 import AwaitingCard from '../components/AwaitingCard';
 import { gbp, todayKey, formatToday } from '../lib/today';
 import { isAwaitingPayment } from '../lib/jobStatus';
 
-export default function TodayScreen({ jobs = [], receipts = [], onAddJob, onAddReceipt, onOpenDetailed, onChase, onMarkPaid }) {
+export default function TodayScreen({ jobs = [], receipts = [], onAddJob, onAddReceipt, onOpenDetailed, onChase, onMarkPaid, onDeleteJob }) {
   const [jobOpen, setJobOpen] = useState(false);
   const [receiptOpen, setReceiptOpen] = useState(false);
-  const [toast, setToast] = useState('');
+  // toast: null | { msg: string, action?: string, onAction?: () => void }
+  const [toast, setToast] = useState(null);
   const [flash, setFlash] = useState(false);
   const prevProfit = useRef(null);
+  const toastTimerRef = useRef(null);
+  // Stores the Supabase id of a demo job so the undo closure can find it
+  // after AppShell re-renders with the refreshed jobs array.
+  const demoJobIdRef = useRef(null);
 
   const key = todayKey();
 
@@ -76,10 +81,20 @@ export default function TodayScreen({ jobs = [], receipts = [], onAddJob, onAddR
     prevProfit.current = profit;
   }, [profit]);
 
-  const showToast = (msg) => {
-    setToast(msg);
-    setTimeout(() => setToast(''), 2400);
-  };
+  const dismissToast = useCallback(() => {
+    clearTimeout(toastTimerRef.current);
+    setToast(null);
+  }, []);
+
+  const showToast = useCallback((msg, opts = {}) => {
+    clearTimeout(toastTimerRef.current);
+    setToast({ msg, action: opts.action || null, onAction: opts.onAction || null });
+    const duration = opts.duration ?? 2400;
+    toastTimerRef.current = setTimeout(dismissToast, duration);
+  }, [dismissToast]);
+
+  // Clean up timer on unmount
+  useEffect(() => () => clearTimeout(toastTimerRef.current), []);
 
   const handleJobSave = async (payload) => {
     setJobOpen(false);
@@ -90,6 +105,44 @@ export default function TodayScreen({ jobs = [], receipts = [], onAddJob, onAddR
     setReceiptOpen(false);
     showToast('Receipt saved');
     try { await onAddReceipt?.(payload); } catch (e) { showToast('Saved offline — will sync'); }
+  };
+
+  const handleDemoJob = async () => {
+    const today = todayKey();
+    const payload = {
+      name: 'Kitchen tap fix',
+      customerName: 'Sarah at no.4',
+      amount: 180,
+      paid: true,
+      paymentType: 'cash',
+      date: today,
+      source: 'Demo',
+      isDemo: true,
+    };
+    try {
+      const saved = await onAddJob?.(payload);
+      // saved.id is the Supabase UUID returned by addJobToCloud via handleAddJob
+      if (saved?.id) demoJobIdRef.current = saved.id;
+
+      showToast('Demo job added.', {
+        action: 'Delete demo',
+        onAction: async () => {
+          const id = demoJobIdRef.current;
+          dismissToast();
+          if (id && onDeleteJob) {
+            try {
+              await onDeleteJob(id);
+            } catch (e) {
+              console.error('Delete demo failed', e);
+            }
+            demoJobIdRef.current = null;
+          }
+        },
+        duration: 6000,
+      });
+    } catch (e) {
+      showToast('Could not add demo job — check your connection');
+    }
   };
 
   // Headline insight picker — strict priority order
@@ -124,29 +177,31 @@ export default function TodayScreen({ jobs = [], receipts = [], onAddJob, onAddR
       <header className="today-header">
         <h1>Today</h1>
         <p className="today-date">{formatToday()}</p>
-        <p className="today-subhead">{subhead}</p>
-        {weekCount > 0 && (
+        {!everEmpty && <p className="today-subhead">{subhead}</p>}
+        {!everEmpty && weekCount > 0 && (
           <p className="today-week-line">
             This week: <span className="week-profit-inline">{gbp(weekProfit)}</span> across {weekCount} job{weekCount === 1 ? '' : 's'}
           </p>
         )}
       </header>
 
-      <section className="totals">
-        <div className="total-row"><span className="total-label">Earned</span><span className="total-value">{gbp(earned)}</span></div>
-        <div className="total-row"><span className="total-label">Spent</span><span className="total-value">{gbp(spent)}</span></div>
-        <div className="total-row profit-row">
-          <span className="total-label">Profit</span>
-          <span className={`total-value profit-value ${flash ? 'flash' : ''}`}>{gbp(profit)}</span>
-        </div>
-        {unpaidTotal > 0 && (
-          <div className="total-row total-awaiting-row">
-            <span className="total-awaiting-label">+ {gbp(unpaidTotal)} awaiting</span>
+      {!everEmpty && (
+        <section className="totals">
+          <div className="total-row"><span className="total-label">Earned</span><span className="total-value">{gbp(earned)}</span></div>
+          <div className="total-row"><span className="total-label">Spent</span><span className="total-value">{gbp(spent)}</span></div>
+          <div className="total-row profit-row">
+            <span className="total-label">Profit</span>
+            <span className={`total-value profit-value ${flash ? 'flash' : ''}`}>{gbp(profit)}</span>
           </div>
-        )}
-      </section>
+          {unpaidTotal > 0 && (
+            <div className="total-row total-awaiting-row">
+              <span className="total-awaiting-label">+ {gbp(unpaidTotal)} awaiting</span>
+            </div>
+          )}
+        </section>
+      )}
 
-      {(() => {
+      {!everEmpty && (() => {
         const awaitingJobs = jobs
           .filter(isAwaitingPayment)
           .sort((a, b) => new Date(a.invoiceSentAt || 0) - new Date(b.invoiceSentAt || 0));
@@ -174,7 +229,7 @@ export default function TodayScreen({ jobs = [], receipts = [], onAddJob, onAddR
         );
       })()}
 
-      {weekCount > 0 && (
+      {!everEmpty && weekCount > 0 && (
         <div className="avg-card">
           <div className="avg-card-label">This week's average per job</div>
           <div className="avg-card-amount">{gbp(avgPerJob)}</div>
@@ -192,7 +247,7 @@ export default function TodayScreen({ jobs = [], receipts = [], onAddJob, onAddR
         </div>
       )}
 
-      {sample14JobCount > 0 && (() => {
+      {!everEmpty && sample14JobCount > 0 && (() => {
         const enoughSample = sample14JobCount >= 5;
         let tone = 'soft';
         let verdictLabel = '';
@@ -228,6 +283,25 @@ export default function TodayScreen({ jobs = [], receipts = [], onAddJob, onAddR
         );
       })()}
 
+      {everEmpty && (
+        <div className="onboarding-card">
+          <h2 className="onboarding-card-heading">Let's see your real profit.</h2>
+          <p className="onboarding-card-body">Add yesterday's job. Takes 30 seconds. We'll show you what you actually made.</p>
+          <button
+            className="action-btn action-primary onboarding-card-cta-primary"
+            onClick={() => setJobOpen(true)}
+          >
+            Add a job
+          </button>
+          <button
+            className="action-btn action-secondary onboarding-card-cta-secondary"
+            onClick={handleDemoJob}
+          >
+            Try a demo job
+          </button>
+        </div>
+      )}
+
       <section className="actions">
         <button className="action-btn action-primary" onClick={() => setJobOpen(true)}>
           <span className="action-icon">🎤</span><span>Add job</span>
@@ -236,10 +310,6 @@ export default function TodayScreen({ jobs = [], receipts = [], onAddJob, onAddR
           <span className="action-icon">📸</span><span>Add receipt</span>
         </button>
       </section>
-
-      {everEmpty && (
-        <p className="empty-hint">Add your first job to start tracking profit</p>
-      )}
 
       {recent.length > 0 && (
         <section className="recent">
@@ -272,7 +342,21 @@ export default function TodayScreen({ jobs = [], receipts = [], onAddJob, onAddR
         />
       )}
 
-      {toast && <div className="toast">{toast}</div>}
+      {toast && (
+        <div className="toast toast-with-action">
+          <span className="toast-msg">{toast.msg}</span>
+          {toast.action && (
+            <button
+              type="button"
+              className="toast-action-btn"
+              onClick={() => { toast.onAction?.(); }}
+            >
+              {toast.action}
+            </button>
+          )}
+          <button type="button" className="toast-dismiss-btn" onClick={dismissToast} aria-label="Dismiss">×</button>
+        </div>
+      )}
     </div>
   );
 }
