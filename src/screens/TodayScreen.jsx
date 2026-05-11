@@ -179,7 +179,7 @@ export default function TodayScreen({ jobs = [], receipts = [], onAddJob, onAddR
           <div className="avg-card-label">This week's average per job</div>
           <div className="avg-card-amount">{gbp(avgPerJob)}</div>
           <div className="avg-card-meta">across {weekCount} job{weekCount === 1 ? '' : 's'}</div>
-          {lastWeekCount > 0 ? (
+          {lastWeekCount > 0 && (
             <div className="avg-card-compare">
               Last week: {gbp(lastWeekAvgPerJob)} across {lastWeekCount} job{lastWeekCount === 1 ? '' : 's'}
               {avgPerJob !== lastWeekAvgPerJob && (
