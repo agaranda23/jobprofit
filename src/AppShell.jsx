@@ -10,6 +10,7 @@ import { clickCreateDetailedJobTab } from './lib/manageDeepLink';
 import { supabase } from './lib/supabase';
 import AuthScreen from './components/AuthScreen';
 import { parseHash, navigateToView, replaceHistory } from './lib/navigation';
+import { writeJobMeta, extractJobMeta, applyJobMetaToJobs } from './lib/jobMeta';
 import {
   getTodayJobs,
   getTodayReceipts,
@@ -113,7 +114,7 @@ export default function AppShell() {
         getJobsFromCloud(),
         getReceiptsFromCloud(),
       ]);
-      setJobs(cloudJobs);      
+      setJobs(applyJobMetaToJobs(cloudJobs));
       setReceipts(cloudReceipts);
       setCloudLoaded(true);
     } catch (e) {
@@ -123,7 +124,7 @@ export default function AppShell() {
 
   const refreshLocal = useCallback(() => {
     if (!cloudLoaded) {
-      setJobs(getTodayJobs());
+      setJobs(applyJobMetaToJobs(getTodayJobs()));
       setReceipts(getTodayReceipts());
     }
   }, [cloudLoaded]);
@@ -169,7 +170,7 @@ export default function AppShell() {
   useEffect(() => {
     const onStorage = (e) => {
       if (e.key === 'jobprofit-app-data' && !cloudLoaded) {
-        setJobs(getTodayJobs());
+        setJobs(applyJobMetaToJobs(getTodayJobs()));
         setReceipts(getTodayReceipts());
       }
     };
@@ -184,7 +185,7 @@ export default function AppShell() {
     } catch (e) {
       console.error('Add job failed', e);
       addTodayJob(job);
-      setJobs(getTodayJobs());
+      setJobs(applyJobMetaToJobs(getTodayJobs()));
     }
   };
 
@@ -212,8 +213,26 @@ export default function AppShell() {
     } catch (e) {
       console.error('Mark paid failed', e);
       markJobPaid(id);
-      setJobs(getTodayJobs());
+      setJobs(applyJobMetaToJobs(getTodayJobs()));
     }
+  };
+
+  // Mark-paid from the new Today awaiting section. Single-device per PRD #3
+  // architecture: writes the new payment fields into the jobMeta side-channel
+  // and updates React state. No cloud write — that's a future PRD.
+  const onMarkPaidFromToday = (job, method) => {
+    const updated = {
+      ...job,
+      status: 'paid',
+      paidAt: new Date().toISOString(),
+      paymentMethod: method,
+      paymentStatus: 'paid',
+      paymentDate: new Date().toISOString().slice(0, 10),
+      jobStatus: 'complete',
+      paid: true,
+    };
+    writeJobMeta(updated.id, extractJobMeta(updated));
+    setJobs(prev => prev.map(j => j.id === updated.id ? updated : j));
   };
 
   const handleLinkReceipt = async (jobId) => {
@@ -254,6 +273,7 @@ export default function AppShell() {
         <TodayScreen
           onOpenDetailed={() => { setPendingDeepLink('create-detailed-job'); setMoreKey(k => k + 1); navigate('manage'); }}
           onChase={() => { setMoreKey(k => k + 1); navigate('manage'); }}
+          onMarkPaid={onMarkPaidFromToday}
           jobs={jobs}
           receipts={receipts}
           onAddJob={handleAddJob}
@@ -280,7 +300,7 @@ export default function AppShell() {
           </div>
           <p>Quotes, jobs, customers & insights</p>
         </div>
-        <App key={moreKey} cloudJobs={jobs} />
+        <App key={moreKey} cloudJobs={applyJobMetaToJobs(jobs)} />
       </div>
 
       <BottomNav view={view} onChange={(v) => { if (v === 'manage') setMoreKey(k => k + 1); navigate(v); }} />
