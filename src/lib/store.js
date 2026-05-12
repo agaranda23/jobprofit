@@ -237,7 +237,7 @@ function mapCloudJobToToday(r) {
     jobStatus: r.paid === true ? 'paid' : 'unpaid',
     paymentStatus: r.paid === true ? 'paid' : 'unpaid',
     quoteStatus: 'active',
-    customer: (r.customer_name || '').includes(' — ') ? (r.customer_name || '').split(' — ')[0].trim() : '',
+    customer: r.customer_name || '',
     reference: r.customer_name || r.summary || '',
     expenses: [],
     cloud: true,
@@ -271,11 +271,12 @@ export async function addJobToCloud(payload) {
 
   const row = {
     user_id,
-    customer_name: payload.name || 'Job',
+    customer_name: payload.customer || payload.name || 'Job',
     date: today,
     summary: payload.name || 'Job',
     amount,
     paid: isPaid,
+    phone: payload.phone || null,
     payment_type: payload.paymentType || (isPaid ? 'cash' : null),
     payment_date: isPaid ? today : null,
     source: payload.source || 'Quick add',
