@@ -9,6 +9,8 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed }) {
   const [status, setStatus] = useState('idle'); // idle | listening | parsing | preview | manual
   const [transcript, setTranscript] = useState('');
   const [name, setName] = useState('');
+  const [customer, setCustomer] = useState('');
+  const [phone, setPhone] = useState('');
   const [amount, setAmount] = useState('');
   const [paymentType, setPaymentType] = useState(null);
   const [unpaid, setUnpaid] = useState(false);
@@ -78,6 +80,7 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed }) {
     try {
       const parsed = await parseJobFromSpeech(text);
       const cleanName = (parsed.name || '').trim();
+      const cleanCustomer = (parsed.customer || '').trim();
       const cleanAmt = parsed.amount;
 
       if (cleanAmt == null || isNaN(cleanAmt) || cleanAmt <= 0) {
@@ -90,6 +93,7 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed }) {
         }
         // After one retry, drop to manual with what we have
         setName(cleanName);
+        setCustomer(cleanCustomer);
         setAmount('');
         setPaymentType(parsed.paymentType || null);
         setStatus('manual');
@@ -97,6 +101,7 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed }) {
       }
 
       setName(cleanName || 'Job');
+      setCustomer(cleanCustomer);
       setAmount(String(cleanAmt));
       setPaymentType(parsed.paymentType || null);
       setStatus('preview');
@@ -111,6 +116,8 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed }) {
     onSave({
       id: Date.now(),
       name: name.trim(),
+      customer: customer.trim() || null,
+      phone: phone.trim() || null,
       amount: amt,
       paymentType: paymentType || null,
       paid: !unpaid,
@@ -157,6 +164,12 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed }) {
                 <span className="preview-label">Job</span>
                 <span className="preview-value">{name}</span>
               </div>
+              {customer && (
+                <div className="preview-row">
+                  <span className="preview-label">Customer</span>
+                  <span className="preview-value">{customer}</span>
+                </div>
+              )}
               <div className="preview-row">
                 <span className="preview-label">Amount</span>
                 <span className="preview-value preview-amount">£{amount}</span>
@@ -181,7 +194,13 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed }) {
           <>
             <div className="modal-fields">
               <label><span>Job</span>
-                <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Kitchen job Sarah" autoFocus />
+                <input type="text" value={name} onChange={e => setName(e.target.value)} placeholder="Kitchen renovation" autoFocus />
+              </label>
+              <label><span>Customer</span>
+                <input type="text" value={customer} onChange={e => setCustomer(e.target.value)} placeholder="Sarah Mitchell" />
+              </label>
+              <label><span>Phone</span>
+                <input type="tel" inputMode="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="07700 900123" />
               </label>
               <label><span>Amount (£)</span>
                 <input type="number" inputMode="decimal" value={amount} onChange={e => setAmount(e.target.value)} placeholder="380" />

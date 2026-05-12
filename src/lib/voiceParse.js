@@ -3,7 +3,7 @@
 
 export async function parseJobFromSpeech(transcript) {
   const text = (transcript || '').trim();
-  if (!text) return { name: '', amount: null, paymentType: null };
+  if (!text) return { name: '', customer: null, amount: null, paymentType: null };
 
   try {
     const res = await fetch('/.netlify/functions/ai', {
@@ -12,7 +12,7 @@ export async function parseJobFromSpeech(transcript) {
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
         max_tokens: 160,
-        system: 'Extract a job name, amount in GBP, and optional payment type from the transcript. Respond ONLY with JSON: {"name": string, "amount": number, "paymentType": "cash"|"bank transfer"|"card"|"cheque"|null}. Amount must be a number in pounds (no symbol). If no amount, set amount to null. If payment type not mentioned, set to null.',
+        system: 'Extract a job name, customer name (only if explicitly named), amount in GBP, and optional payment type from the transcript. Respond ONLY with JSON: {"name": string, "customer": string|null, "amount": number|null, "paymentType": "cash"|"bank transfer"|"card"|"cheque"|null}.\n\nRules:\n- name: the job description (e.g. "Kitchen renovation", "Bathroom refit", "Plastering"). NOT the customer name.\n- customer: a person\'s name if EXPLICITLY mentioned (e.g. "for Sarah", "Mrs Mitchell", "John\'s"). Set to null if no name is clearly given. Do NOT guess names from job descriptions, locations, or generic nouns. Common job-type words (kitchen, bathroom, electrics, plumbing, garden, fence, etc.) are NOT customer names.\n- amount: number in pounds with no symbol. null if not present.\n- paymentType: as listed, or null if not mentioned.\n\nExamples:\n- "Kitchen job Sarah £380 cash" → {"name": "Kitchen job", "customer": "Sarah", "amount": 380, "paymentType": "cash"}\n- "Plastering 250" → {"name": "Plastering", "customer": null, "amount": 250, "paymentType": null}\n- "Bathroom refit for Mrs Mitchell £2950 bank transfer" → {"name": "Bathroom refit", "customer": "Mrs Mitchell", "amount": 2950, "paymentType": "bank transfer"}\n- "Garden fence £450" → {"name": "Garden fence", "customer": null, "amount": 450, "paymentType": null}',
         messages: [{ role: 'user', content: text }],
       }),
     });
@@ -24,6 +24,7 @@ export async function parseJobFromSpeech(transcript) {
         const parsed = JSON.parse(clean);
         return {
           name: parsed.name || regexName(text),
+          customer: parsed.customer ?? null,
           amount: parsed.amount ?? regexAmount(text),
           paymentType: parsed.paymentType ?? regexPayment(text),
         };
@@ -31,8 +32,11 @@ export async function parseJobFromSpeech(transcript) {
     }
   } catch {}
 
+  // Fallback: regex can't reliably extract personal names without false positives,
+  // so customer is always null here. User fills it in via the manual form.
   return {
     name: regexName(text),
+    customer: null,
     amount: regexAmount(text),
     paymentType: regexPayment(text),
   };
