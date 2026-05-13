@@ -576,7 +576,7 @@ function JobDetail({ job, jobs, expenses, invoices, onBack, onUpdate, onDelExp, 
         {q.phone && <a href={"https://wa.me/" + (q.phone || "").replace(/\s/g, "").replace(/^0/, "44")} target="_blank" rel="noopener noreferrer" style={{ ...S.btn, flex: 1, background: "#25D366", color: "#fff", padding: "10px 12px", fontSize: 13, textDecoration: "none", justifyContent: "center", minHeight: 36 }}>💬 WhatsApp</a>}
         {q.phone && <a href={"sms:" + q.phone} style={{ ...S.btn, flex: 1, background: "#2563EB", color: "#fff", padding: "10px 12px", fontSize: 13, textDecoration: "none", justifyContent: "center", minHeight: 36 }}>✉️ Text</a>}
       </div>}
-      <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}><Badge text={qLbl(q.quoteStatus)} bg={qCol(q.quoteStatus)} /><StatusBadge job={job} />{inv && <Badge text={inv.number} bg={T.purple} />}{job.source && <Badge text={srcIcon(job.source) + " " + job.source} bg={srcCol(job.source)} />}</div>
+      <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>{(q.quoteStatus === 'draft' || q.quoteStatus === 'sent') && <Badge text={qLbl(q.quoteStatus)} bg={qCol(q.quoteStatus)} />}<StatusBadge job={job} />{inv && <Badge text={inv.number} bg={T.purple} />}{job.source && <Badge text={srcIcon(job.source) + " " + job.source} bg={srcCol(job.source)} />}</div>
     </div>
     {/* Profit */}
     <ProfitBar quote={(job.total??job.amount??0)} materials={totExp} profit={profit} margin={margin} />
