@@ -78,7 +78,8 @@ function formatSortCode(raw) {
 }
 
 function isSortCodeValid(v) {
-  return /^\d{2}-\d{2}-\d{2}$/.test(v);
+  // Accept formatted NN-NN-NN or raw 6 digits — normalize before checking
+  return /^\d{6}$/.test(v.replace(/\D/g, ''));
 }
 
 function isAccountNumberValid(v) {
@@ -115,8 +116,8 @@ export default function OnboardingWizard({ session, profile, onComplete }) {
       trading_name: profile?.business_name || legacy.trading_name || '',
       first_name: profile?.first_name || '',
       last_name: profile?.last_name || '',
-      sort_code: profile?.sort_code || legacy.sort_code || '',
-      account_number: profile?.account_number || legacy.account_number || '',
+      sort_code: formatSortCode(profile?.sort_code || legacy.sort_code || ''),
+      account_number: (profile?.account_number || legacy.account_number || '').replace(/\D/g, '').slice(0, 8),
       email: session?.user?.email || '',
     };
   });
