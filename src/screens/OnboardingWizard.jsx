@@ -85,15 +85,40 @@ function isAccountNumberValid(v) {
   return /^\d{8}$/.test(v);
 }
 
+/**
+ * Pull legacy biz fields from the old-nav localStorage blob so users with
+ * completed old-nav Settings don't have to retype them.
+ * Returns an object with only the keys that have a non-empty value.
+ */
+function legacyBizDefaults() {
+  try {
+    const raw = localStorage.getItem('jobprofit-app-data');
+    if (!raw) return {};
+    const biz = JSON.parse(raw)?.biz;
+    if (!biz) return {};
+    return {
+      trading_name: biz.name || '',
+      sort_code: biz.sortCode || '',
+      account_number: biz.accountNumber || '',
+    };
+  } catch {
+    return {};
+  }
+}
+
 export default function OnboardingWizard({ session, profile, onComplete }) {
   const [stepIndex, setStepIndex] = useState(() => firstMissingStep(profile, session));
-  const [values, setValues] = useState({
-    trading_name: profile?.business_name || '',
-    first_name: profile?.first_name || '',
-    last_name: profile?.last_name || '',
-    sort_code: profile?.sort_code || '',
-    account_number: profile?.account_number || '',
-    email: session?.user?.email || '',
+  const [values, setValues] = useState(() => {
+    // Profile (cloud) takes priority; legacy localStorage fills gaps.
+    const legacy = legacyBizDefaults();
+    return {
+      trading_name: profile?.business_name || legacy.trading_name || '',
+      first_name: profile?.first_name || '',
+      last_name: profile?.last_name || '',
+      sort_code: profile?.sort_code || legacy.sort_code || '',
+      account_number: profile?.account_number || legacy.account_number || '',
+      email: session?.user?.email || '',
+    };
   });
   const [bankTouched, setBankTouched] = useState({ sort_code: false, account_number: false });
   const [saving, setSaving] = useState(false);
