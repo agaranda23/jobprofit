@@ -6,7 +6,7 @@ import { useEffect, useRef } from 'react';
  * Contains: user identity, required-fields checklist, optional fields, sign-out.
  * Slice 2 will wire required-fields completion status to the real profile data.
  */
-export default function AccountDrawer({ open, session, profile, onClose, onSignOut }) {
+export default function AccountDrawer({ open, session, profile, onClose, onSignOut, onOpenWizard }) {
   const drawerRef = useRef(null);
 
   // Trap focus and close on Escape
@@ -80,6 +80,14 @@ export default function AccountDrawer({ open, session, profile, onClose, onSignO
             </div>
           ))}
         </div>
+        {!allRequiredDone && onOpenWizard && (
+          <button
+            className="drawer-complete-btn"
+            onClick={onOpenWizard}
+          >
+            Complete profile
+          </button>
+        )}
 
         {/* Optional fields */}
         <div className="drawer-section-label" style={{ color: 'var(--text-dim)', marginTop: 16 }}>

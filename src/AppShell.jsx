@@ -5,6 +5,7 @@ import HistoryScreen from './screens/HistoryScreen';
 import JobsScreen from './screens/JobsScreen';
 import ScheduleScreen from './screens/ScheduleScreen';
 import MoneyScreen from './screens/MoneyScreen';
+import OnboardingWizard from './screens/OnboardingWizard';
 import BottomNav from './components/BottomNav';
 import HeaderAvatar from './components/HeaderAvatar';
 import AccountDrawer from './components/AccountDrawer';
@@ -103,6 +104,11 @@ export default function AppShell() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   // First-open toast for users seeing the new nav for the first time
   const [navToast, setNavToast] = useState(null);
+  // Wizard state (new nav only).
+  // wizardOpen — should the wizard overlay be showing right now?
+  // postWizardNav — view to navigate to after the wizard completes (e.g. 'jobs').
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const [postWizardNav, setPostWizardNav] = useState(null);
 
   const manageRootRef = useRef(null);
 
@@ -244,6 +250,18 @@ export default function AppShell() {
     return () => clearTimeout(t);
   }, []);
 
+  // Wizard trigger: when new-nav profile loads and required fields are missing,
+  // open the wizard once per session. The sessionStorage flag prevents looping
+  // the user through the wizard on every reload during a single session.
+  useEffect(() => {
+    if (!NEW_NAV) return;
+    if (!profile) return; // wait for profile to resolve
+    if (sessionStorage.getItem('jp.wizardActive')) return; // already in wizard this session
+    if (isProfileComplete(profile, session)) return; // already done
+    sessionStorage.setItem('jp.wizardActive', '1');
+    setWizardOpen(true);
+  }, [profile, session]);
+
   const handleAddJob = async (job) => {
     try {
       await addJobToCloud(job);
@@ -326,6 +344,14 @@ export default function AppShell() {
   };
 
   const openDetailed = () => {
+    // New-nav: gate job create on wizard completion.
+    // Old-nav: no gate — existing behaviour unchanged.
+    if (NEW_NAV && !isProfileComplete(profile, session)) {
+      sessionStorage.setItem('jp.wizardActive', '1');
+      setPostWizardNav('jobs');
+      setWizardOpen(true);
+      return;
+    }
     setPendingDeepLink('create-detailed-job');
     setMoreKey(k => k + 1);
     navigate(NEW_NAV ? 'jobs' : 'manage');
@@ -449,6 +475,11 @@ export default function AppShell() {
           profile={profile}
           onClose={() => setDrawerOpen(false)}
           onSignOut={handleSignOut}
+          onOpenWizard={() => {
+            setDrawerOpen(false);
+            sessionStorage.setItem('jp.wizardActive', '1');
+            setWizardOpen(true);
+          }}
         />
       )}
 
@@ -468,6 +499,43 @@ export default function AppShell() {
           onSkip={() => setPendingLink(null)}
         />
       )}
+
+      {/* ── Onboarding wizard (new nav only) ───────────────────────── */}
+      {NEW_NAV && wizardOpen && (
+        <OnboardingWizard
+          session={session}
+          profile={profile}
+          onComplete={(savedProfile) => {
+            setProfile(savedProfile);
+            setWizardOpen(false);
+            sessionStorage.removeItem('jp.wizardActive');
+            if (postWizardNav) {
+              navigate(postWizardNav);
+              setPostWizardNav(null);
+              // If user was trying to create a job, open the detailed form now
+              if (postWizardNav === 'jobs') {
+                setPendingDeepLink('create-detailed-job');
+                setMoreKey(k => k + 1);
+              }
+            }
+          }}
+        />
+      )}
     </>
   );
+}
+
+/**
+ * Returns true when all 5 required profile fields are present.
+ * Used by both the wizard trigger and the job-create gate.
+ * Old-nav callers never reach this — gate is always inside NEW_NAV blocks.
+ */
+function isProfileComplete(profile, session) {
+  if (!profile) return false;
+  const hasName = !!(profile.business_name);
+  const hasFirst = !!(profile.first_name);
+  const hasLast = !!(profile.last_name);
+  const hasBank = !!(profile.sort_code && profile.account_number);
+  const hasEmail = !!(session?.user?.email);
+  return hasName && hasFirst && hasLast && hasBank && hasEmail;
 }
