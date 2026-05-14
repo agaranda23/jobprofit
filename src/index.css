@@ -1566,6 +1566,11 @@ input[type=number] { -moz-appearance: textfield; }
   width: 100%;
   margin: 0 auto;
   box-sizing: border-box;
+  /* Scrollable so footer stays pinned when the mobile keyboard opens.
+     min-height: 0 is required for overflow-y to work inside a flex child. */
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  min-height: 0;
 }
 
 .wizard-step-label {
