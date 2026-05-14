@@ -2,14 +2,19 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import App from './App.jsx';
 import TodayScreen from './screens/TodayScreen';
 import HistoryScreen from './screens/HistoryScreen';
+import JobsScreen from './screens/JobsScreen';
+import ScheduleScreen from './screens/ScheduleScreen';
+import MoneyScreen from './screens/MoneyScreen';
 import BottomNav from './components/BottomNav';
+import HeaderAvatar from './components/HeaderAvatar';
+import AccountDrawer from './components/AccountDrawer';
 import LinkReceiptModal from './components/LinkReceiptModal';
 import { startHidingLegacyDupes, stopHidingLegacyDupes } from './lib/hideLegacyDupes';
 import { startHidingLegacyWrites, stopHidingLegacyWrites } from './lib/hideLegacyWrites';
 import { clickCreateDetailedJobTab } from './lib/manageDeepLink';
 import { supabase } from './lib/supabase';
 import AuthScreen from './components/AuthScreen';
-import { parseHash, navigateToView, replaceHistory } from './lib/navigation';
+import { parseHash, navigateToView, replaceHistory, TOP_VIEWS } from './lib/navigation';
 import { writeJobMeta, extractJobMeta, applyJobMetaToJobs } from './lib/jobMeta';
 import {
   getTodayJobs,
@@ -24,6 +29,16 @@ import {
   markJobPaidCloud,
   linkReceiptToJob,
 } from './lib/store';
+
+// ─── Feature flag ────────────────────────────────────────────────────────────
+// Enable the new 4-tab nav by running in the browser console:
+//   localStorage.setItem('jp.newNav', '1'); location.reload();
+// Disable:
+//   localStorage.removeItem('jp.newNav'); location.reload();
+const NEW_NAV = localStorage.getItem('jp.newNav') === '1';
+
+// New-nav views that the hash router needs to know about
+const NEW_NAV_VIEWS = ['today', 'jobs', 'schedule', 'money'];
 
 function wipeLegacyDemoData() {
   try {
@@ -65,29 +80,51 @@ function migrateLegacyTodayData() {
   }
 }
 
+function parseViewFromHash() {
+  const { view } = parseHash();
+  if (NEW_NAV) {
+    // Accept new-nav view names; map unknown ones to 'today'
+    return NEW_NAV_VIEWS.includes(view) ? view : 'today';
+  }
+  return view;
+}
+
 export default function AppShell() {
-  const [view, setView] = useState(() => parseHash().view);
+  const [view, setView] = useState(() => parseViewFromHash());
   const [moreKey, setMoreKey] = useState(0);
   const [pendingDeepLink, setPendingDeepLink] = useState(null);
   const [jobs, setJobs] = useState(() => getTodayJobs());
   const [receipts, setReceipts] = useState(() => getTodayReceipts());
   const [session, setSession] = useState(null);
+  const [profile, setProfile] = useState(null);
   const [authReady, setAuthReady] = useState(false);
   const [cloudLoaded, setCloudLoaded] = useState(false);
   const [pendingLink, setPendingLink] = useState(null); // receipt awaiting job link
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  // First-open toast for users seeing the new nav for the first time
+  const [navToast, setNavToast] = useState(null);
 
   const manageRootRef = useRef(null);
 
   // Hash-routed navigation: pushes history before switching view so browser
   // Back returns to the previous in-app screen instead of exiting the SPA.
   const navigate = useCallback((nextView) => {
-    navigateToView(nextView);
+    // navigateToView only knows legacy TOP_VIEWS; for new-nav tabs we push
+    // the hash directly so Back still works.
+    if (NEW_NAV) {
+      const hash = `#/${nextView}`;
+      if (window.location.hash !== hash) {
+        window.history.pushState({ view: nextView }, '', hash);
+      }
+    } else {
+      navigateToView(nextView);
+    }
     setView(nextView);
   }, []);
 
-  // Canonicalise the URL after auth resolves (e.g. "" → "#/today"). Gated
-  // on authReady so we don't strip Supabase's magic-link hash fragment
-  // before detectSessionInUrl has consumed it.
+  // Canonicalise the URL after auth resolves. Gated on authReady so we don't
+  // strip Supabase's magic-link hash fragment before detectSessionInUrl has
+  // consumed it.
   useEffect(() => {
     if (!authReady) return;
     const { view: parsed } = parseHash();
@@ -101,8 +138,7 @@ export default function AppShell() {
   // Do NOT bump moreKey here — App.jsx state must survive a Back navigation.
   useEffect(() => {
     const onPop = () => {
-      const { view: nextView } = parseHash();
-      setView(nextView);
+      setView(parseViewFromHash());
     };
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
@@ -129,6 +165,20 @@ export default function AppShell() {
     }
   }, [cloudLoaded]);
 
+  // Fetch user profile from Supabase (best-effort — slice 2 adds the actual columns)
+  const refreshProfile = useCallback(async (userId) => {
+    try {
+      const { data } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+      if (data) setProfile(data);
+    } catch {
+      // profiles table may not have first_name/last_name yet — that's fine for slice 1
+    }
+  }, []);
+
   useEffect(() => {
     let mounted = true;
     supabase.auth.getSession().then(({ data }) => {
@@ -149,12 +199,17 @@ export default function AppShell() {
   useEffect(() => {
     wipeLegacyDemoData();
     migrateLegacyTodayData();
-    if (session) refreshFromCloud();
-  }, [session, refreshFromCloud]);
+    if (session) {
+      refreshFromCloud();
+      refreshProfile(session.user.id);
+    }
+  }, [session, refreshFromCloud, refreshProfile]);
 
   useEffect(() => {
-    if (view === 'today' || view === 'history') refreshLocal();
-    if (view === 'manage' && manageRootRef.current) {
+    const legacyRefreshViews = NEW_NAV ? ['today'] : ['today', 'history'];
+    if (legacyRefreshViews.includes(view)) refreshLocal();
+
+    if (!NEW_NAV && view === 'manage' && manageRootRef.current) {
       startHidingLegacyDupes(manageRootRef.current);
       startHidingLegacyWrites(manageRootRef.current);
       if (pendingDeepLink === 'create-detailed-job') {
@@ -177,6 +232,17 @@ export default function AppShell() {
     window.addEventListener('storage', onStorage);
     return () => window.removeEventListener('storage', onStorage);
   }, [cloudLoaded]);
+
+  // Show a one-time orientation toast when new nav first activates
+  useEffect(() => {
+    if (!NEW_NAV) return;
+    const toastKey = 'jp.newNavToast.v1';
+    if (localStorage.getItem(toastKey)) return;
+    setNavToast("Business is now Jobs, Schedule, and Money. Settings is top-right.");
+    localStorage.setItem(toastKey, '1');
+    const t = setTimeout(() => setNavToast(null), 6000);
+    return () => clearTimeout(t);
+  }, []);
 
   const handleAddJob = async (job) => {
     try {
@@ -249,15 +315,20 @@ export default function AppShell() {
   const handleSignOut = async () => {
     try {
       await supabase.auth.signOut();
-      // Reset local UI state; session listener will clear session
       setJobs([]);
       setReceipts([]);
       setCloudLoaded(false);
-      // Clear local mirror too
+      setDrawerOpen(false);
       try { localStorage.removeItem('jobprofit-app-data'); } catch {}
     } catch (e) {
       console.warn('Sign out failed', e);
     }
+  };
+
+  const openDetailed = () => {
+    setPendingDeepLink('create-detailed-job');
+    setMoreKey(k => k + 1);
+    navigate(NEW_NAV ? 'jobs' : 'manage');
   };
 
   if (!authReady) {
@@ -267,43 +338,127 @@ export default function AppShell() {
     return <AuthScreen />;
   }
 
+  const avatarProps = { session, profile, onClick: () => setDrawerOpen(true) };
+
   return (
     <>
-      {view === 'today' && (
-        <TodayScreen
-          onOpenDetailed={() => { setPendingDeepLink('create-detailed-job'); setMoreKey(k => k + 1); navigate('manage'); }}
-          onChase={() => { setMoreKey(k => k + 1); navigate('manage'); }}
-          onMarkPaid={onMarkPaidFromToday}
-          jobs={jobs}
-          receipts={receipts}
-          onAddJob={handleAddJob}
-          onAddReceipt={handleAddReceipt}
-        />
+      {/* ── NEW NAV (feature-flagged) ─────────────────────────────────── */}
+      {NEW_NAV && (
+        <>
+          {view === 'today' && (
+            <TodayScreen
+              onOpenDetailed={openDetailed}
+              onChase={() => navigate('money')}
+              onMarkPaid={onMarkPaidFromToday}
+              jobs={jobs}
+              receipts={receipts}
+              onAddJob={handleAddJob}
+              onAddReceipt={handleAddReceipt}
+              avatarProps={avatarProps}
+            />
+          )}
+
+          {view === 'jobs' && (
+            <JobsScreen
+              jobs={jobs}
+              session={session}
+              profile={profile}
+              onAvatarClick={() => setDrawerOpen(true)}
+              onNewJob={openDetailed}
+            />
+          )}
+
+          {view === 'schedule' && (
+            <ScheduleScreen
+              jobs={jobs}
+              session={session}
+              profile={profile}
+              onAvatarClick={() => setDrawerOpen(true)}
+              onAddJob={openDetailed}
+            />
+          )}
+
+          {view === 'money' && (
+            <MoneyScreen
+              jobs={jobs}
+              receipts={receipts}
+              session={session}
+              profile={profile}
+              onAvatarClick={() => setDrawerOpen(true)}
+              onMarkPaid={handleMarkPaid}
+            />
+          )}
+
+          <BottomNav
+            view={view}
+            onChange={navigate}
+            newNav={true}
+          />
+        </>
       )}
 
-      {view === 'history' && (
-        <HistoryScreen
-          jobs={jobs}
-          receipts={receipts}
-          onMarkPaid={handleMarkPaid}
-        />
-      )}
+      {/* ── LEGACY NAV (unchanged) ────────────────────────────────────── */}
+      {!NEW_NAV && (
+        <>
+          {view === 'today' && (
+            <TodayScreen
+              onOpenDetailed={() => { setPendingDeepLink('create-detailed-job'); setMoreKey(k => k + 1); navigate('manage'); }}
+              onChase={() => { setMoreKey(k => k + 1); navigate('manage'); }}
+              onMarkPaid={onMarkPaidFromToday}
+              jobs={jobs}
+              receipts={receipts}
+              onAddJob={handleAddJob}
+              onAddReceipt={handleAddReceipt}
+            />
+          )}
 
-      <div ref={manageRootRef} style={{ display: view === 'manage' ? 'block' : 'none' }}>
-        <div className="manage-header">
-          <div className="manage-header-top">
-            <h1>Business</h1>
-            <button className="signout-btn" onClick={handleSignOut} title="Sign out">
-              <span>{session?.user?.email || 'Account'}</span>
-              <span className="signout-btn-label">Sign out</span>
-            </button>
+          {view === 'history' && (
+            <HistoryScreen
+              jobs={jobs}
+              receipts={receipts}
+              onMarkPaid={handleMarkPaid}
+            />
+          )}
+
+          <div ref={manageRootRef} style={{ display: view === 'manage' ? 'block' : 'none' }}>
+            <div className="manage-header">
+              <div className="manage-header-top">
+                <h1>Business</h1>
+                <button className="signout-btn" onClick={handleSignOut} title="Sign out">
+                  <span>{session?.user?.email || 'Account'}</span>
+                  <span className="signout-btn-label">Sign out</span>
+                </button>
+              </div>
+              <p>Quotes, jobs, customers & insights</p>
+            </div>
+            <App key={moreKey} cloudJobs={applyJobMetaToJobs(jobs)} />
           </div>
-          <p>Quotes, jobs, customers & insights</p>
-        </div>
-        <App key={moreKey} cloudJobs={applyJobMetaToJobs(jobs)} />
-      </div>
 
-      <BottomNav view={view} onChange={(v) => { if (v === 'manage') setMoreKey(k => k + 1); navigate(v); }} />
+          <BottomNav
+            view={view}
+            onChange={(v) => { if (v === 'manage') setMoreKey(k => k + 1); navigate(v); }}
+          />
+        </>
+      )}
+
+      {/* ── Account drawer (new nav only — legacy uses inline sign-out) ─ */}
+      {NEW_NAV && (
+        <AccountDrawer
+          open={drawerOpen}
+          session={session}
+          profile={profile}
+          onClose={() => setDrawerOpen(false)}
+          onSignOut={handleSignOut}
+        />
+      )}
+
+      {/* ── One-time orientation toast ──────────────────────────────────── */}
+      {navToast && (
+        <div className="nav-toast" role="status">
+          {navToast}
+          <button className="nav-toast-close" onClick={() => setNavToast(null)} aria-label="Dismiss">✕</button>
+        </div>
+      )}
 
       {pendingLink && (
         <LinkReceiptModal

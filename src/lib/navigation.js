@@ -13,7 +13,7 @@
 //   "Materials" → materials
 //   "Settings" → settings
 
-export const TOP_VIEWS = ['today', 'history', 'manage'];
+export const TOP_VIEWS = ['today', 'history', 'manage', 'jobs', 'schedule', 'money'];
 
 export const INNER_TAB_TO_SLUG = {
   'Overview': 'overview',
