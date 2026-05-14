@@ -83,7 +83,9 @@ function isSortCodeValid(v) {
 }
 
 function isAccountNumberValid(v) {
-  return /^\d{8}$/.test(v);
+  // UK accounts are 8 digits at the major banks, but some building societies
+  // and older sole-trader accounts use 6 or 7. Accept 6-8.
+  return /^\d{6,8}$/.test(v);
 }
 
 /**
@@ -293,7 +295,7 @@ function BankStep({ values, touched, onChange, onBlur }) {
         aria-label="Account number"
       />
       {touched.account_number && values.account_number && !isAccountNumberValid(values.account_number) && (
-        <p className="wizard-field-error">Account number must be 8 digits</p>
+        <p className="wizard-field-error">Account number must be 6–8 digits</p>
       )}
     </div>
   );
