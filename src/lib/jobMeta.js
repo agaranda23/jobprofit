@@ -12,6 +12,7 @@ const META_FIELDS = [
   'status', 'invoiceSentAt', 'invoiceNumber', 'invoiceDueDate',
   'completedAt', 'paidAt', 'customerPhone', 'paymentMethod',
   'paymentStatus', 'paymentDate',
+  'payments', // Phase A of partial-payments PRD — 11th field
 ];
 
 export function readJobMeta(id) {

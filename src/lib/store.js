@@ -240,6 +240,7 @@ function mapCloudJobToToday(r) {
     customer: r.customer_name || '',
     reference: r.customer_name || r.summary || '',
     expenses: [],
+    payments: [], // Phase A of partial-payments PRD — jobMeta overlay provides actual values
     cloud: true,
   };
 }
