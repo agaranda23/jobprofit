@@ -5,6 +5,8 @@ import HistoryScreen from './screens/HistoryScreen';
 import JobsScreen from './screens/JobsScreen';
 import ScheduleScreen from './screens/ScheduleScreen';
 import MoneyScreen from './screens/MoneyScreen';
+import WorkScreen from './screens/WorkScreen';
+import SettingsScreen from './screens/SettingsScreen';
 import OnboardingWizard from './screens/OnboardingWizard';
 import BottomNav from './components/BottomNav';
 import HeaderAvatar from './components/HeaderAvatar';
@@ -31,15 +33,20 @@ import {
   linkReceiptToJob,
 } from './lib/store';
 
-// ─── Feature flag ────────────────────────────────────────────────────────────
-// Enable the new 4-tab nav by running in the browser console:
+// ─── Feature flags ───────────────────────────────────────────────────────────
+// Enable the new 4-tab nav:
 //   localStorage.setItem('jp.newNav', '1'); location.reload();
-// Disable:
-//   localStorage.removeItem('jp.newNav'); location.reload();
-const NEW_NAV = localStorage.getItem('jp.newNav') === '1';
+// Enable slice-3 nav (Today / Work / Finance / Settings):
+//   localStorage.setItem('jp.navSlice3', '1'); location.reload();
+// Disable slice-3:
+//   localStorage.removeItem('jp.navSlice3'); location.reload();
+const NEW_NAV      = localStorage.getItem('jp.newNav')      === '1';
+const NAV_SLICE_3  = localStorage.getItem('jp.navSlice3')   === '1';
 
-// New-nav views that the hash router needs to know about
-const NEW_NAV_VIEWS = ['today', 'jobs', 'schedule', 'money'];
+// View IDs recognised by each nav mode.
+// SLICE_3_VIEWS mirrors NEW_NAV_VIEWS but uses 'work'/'finance'/'settings'.
+const NEW_NAV_VIEWS  = ['today', 'jobs', 'schedule', 'money'];
+const SLICE_3_VIEWS  = ['today', 'work', 'finance', 'settings'];
 
 function wipeLegacyDemoData() {
   try {
@@ -83,6 +90,12 @@ function migrateLegacyTodayData() {
 
 function parseViewFromHash() {
   const { view } = parseHash();
+  if (NAV_SLICE_3) {
+    // Slice-3 view set; also map legacy job/schedule routes to 'work'
+    if (view === 'jobs' || view === 'schedule') return 'work';
+    if (view === 'money') return 'finance';
+    return SLICE_3_VIEWS.includes(view) ? view : 'today';
+  }
   if (NEW_NAV) {
     // Accept new-nav view names; map unknown ones to 'today'
     return NEW_NAV_VIEWS.includes(view) ? view : 'today';
@@ -115,9 +128,9 @@ export default function AppShell() {
   // Hash-routed navigation: pushes history before switching view so browser
   // Back returns to the previous in-app screen instead of exiting the SPA.
   const navigate = useCallback((nextView) => {
-    // navigateToView only knows legacy TOP_VIEWS; for new-nav tabs we push
-    // the hash directly so Back still works.
-    if (NEW_NAV) {
+    // navigateToView only knows legacy TOP_VIEWS; for new-nav / slice-3 tabs
+    // we push the hash directly so Back still works.
+    if (NEW_NAV || NAV_SLICE_3) {
       const hash = `#/${nextView}`;
       if (window.location.hash !== hash) {
         window.history.pushState({ view: nextView }, '', hash);
@@ -212,7 +225,7 @@ export default function AppShell() {
   }, [session, refreshFromCloud, refreshProfile]);
 
   useEffect(() => {
-    const legacyRefreshViews = NEW_NAV ? ['today'] : ['today', 'history'];
+    const legacyRefreshViews = (NEW_NAV || NAV_SLICE_3) ? ['today'] : ['today', 'history'];
     if (legacyRefreshViews.includes(view)) refreshLocal();
 
     if (!NEW_NAV && view === 'manage' && manageRootRef.current) {
@@ -239,22 +252,31 @@ export default function AppShell() {
     return () => window.removeEventListener('storage', onStorage);
   }, [cloudLoaded]);
 
-  // Show a one-time orientation toast when new nav first activates
+  // Show a one-time orientation toast when a nav mode first activates
   useEffect(() => {
-    if (!NEW_NAV) return;
-    const toastKey = 'jp.newNavToast.v1';
-    if (localStorage.getItem(toastKey)) return;
-    setNavToast("Business is now Jobs, Schedule, and Money. Settings is top-right.");
-    localStorage.setItem(toastKey, '1');
-    const t = setTimeout(() => setNavToast(null), 6000);
-    return () => clearTimeout(t);
+    if (NAV_SLICE_3) {
+      const toastKey = 'jp.slice3NavToast.v1';
+      if (localStorage.getItem(toastKey)) return;
+      setNavToast("Jobs + Schedule are now Work. Settings is now a tab.");
+      localStorage.setItem(toastKey, '1');
+      const t = setTimeout(() => setNavToast(null), 6000);
+      return () => clearTimeout(t);
+    }
+    if (NEW_NAV) {
+      const toastKey = 'jp.newNavToast.v1';
+      if (localStorage.getItem(toastKey)) return;
+      setNavToast("Business is now Jobs, Schedule, and Money. Settings is top-right.");
+      localStorage.setItem(toastKey, '1');
+      const t = setTimeout(() => setNavToast(null), 6000);
+      return () => clearTimeout(t);
+    }
   }, []);
 
-  // Wizard trigger: when new-nav profile loads and required fields are missing,
-  // open the wizard once per session. The sessionStorage flag prevents looping
-  // the user through the wizard on every reload during a single session.
+  // Wizard trigger: when new-nav or slice-3 profile loads and required fields
+  // are missing, open the wizard once per session.
+  // The sessionStorage flag prevents looping the user on every reload.
   useEffect(() => {
-    if (!NEW_NAV) return;
+    if (!NEW_NAV && !NAV_SLICE_3) return;
     if (!profile) return; // wait for profile to resolve
     if (sessionStorage.getItem('jp.wizardActive')) return; // already in wizard this session
     if (isProfileComplete(profile, session)) return; // already done
@@ -344,17 +366,19 @@ export default function AppShell() {
   };
 
   const openDetailed = () => {
-    // New-nav: gate job create on wizard completion.
+    // New-nav / slice-3: gate job create on wizard completion.
     // Old-nav: no gate — existing behaviour unchanged.
-    if (NEW_NAV && !isProfileComplete(profile, session)) {
+    if ((NEW_NAV || NAV_SLICE_3) && !isProfileComplete(profile, session)) {
       sessionStorage.setItem('jp.wizardActive', '1');
-      setPostWizardNav('jobs');
+      // After wizard, route to 'work' (slice 3) or 'jobs' (new nav)
+      setPostWizardNav(NAV_SLICE_3 ? 'work' : 'jobs');
       setWizardOpen(true);
       return;
     }
     setPendingDeepLink('create-detailed-job');
     setMoreKey(k => k + 1);
-    navigate(NEW_NAV ? 'jobs' : 'manage');
+    // Slice 3: route to 'work'; New nav: 'jobs'; Legacy: 'manage'
+    navigate(NAV_SLICE_3 ? 'work' : NEW_NAV ? 'jobs' : 'manage');
   };
 
   if (!authReady) {
@@ -366,10 +390,70 @@ export default function AppShell() {
 
   const avatarProps = { session, profile, onClick: () => setDrawerOpen(true) };
 
+  // Wizard open handler — shared across all nav modes that support it
+  const openWizardFromSettings = () => {
+    sessionStorage.setItem('jp.wizardActive', '1');
+    setWizardOpen(true);
+  };
+
   return (
     <>
-      {/* ── NEW NAV (feature-flagged) ─────────────────────────────────── */}
-      {NEW_NAV && (
+      {/* ── SLICE-3 NAV (Today / Work / Finance / Settings) ─────────── */}
+      {NAV_SLICE_3 && (
+        <>
+          {view === 'today' && (
+            <TodayScreen
+              onOpenDetailed={openDetailed}
+              onChase={() => navigate('finance')}
+              onMarkPaid={onMarkPaidFromToday}
+              jobs={jobs}
+              receipts={receipts}
+              onAddJob={handleAddJob}
+              onAddReceipt={handleAddReceipt}
+              avatarProps={avatarProps}
+            />
+          )}
+
+          {view === 'work' && (
+            <WorkScreen
+              jobs={jobs}
+              onNewJob={openDetailed}
+            />
+          )}
+
+          {view === 'finance' && (
+            <MoneyScreen
+              jobs={jobs}
+              receipts={receipts}
+              session={session}
+              profile={profile}
+              onMarkPaid={handleMarkPaid}
+              // No avatar — Settings tab replaces the drawer in slice 3
+            />
+          )}
+
+          {view === 'settings' && (
+            <SettingsScreen
+              session={session}
+              profile={profile}
+              onSignOut={handleSignOut}
+              onOpenWizard={openWizardFromSettings}
+            />
+          )}
+
+          {/* HeaderAvatar and AccountDrawer are NOT rendered when slice 3 is active.
+              The Settings tab is the single account entry point. */}
+
+          <BottomNav
+            view={view}
+            onChange={navigate}
+            slice3={true}
+          />
+        </>
+      )}
+
+      {/* ── NEW NAV (Today / Jobs / Schedule / Money) ────────────────── */}
+      {!NAV_SLICE_3 && NEW_NAV && (
         <>
           {view === 'today' && (
             <TodayScreen
@@ -424,7 +508,7 @@ export default function AppShell() {
       )}
 
       {/* ── LEGACY NAV (unchanged) ────────────────────────────────────── */}
-      {!NEW_NAV && (
+      {!NAV_SLICE_3 && !NEW_NAV && (
         <>
           {view === 'today' && (
             <TodayScreen
@@ -467,8 +551,8 @@ export default function AppShell() {
         </>
       )}
 
-      {/* ── Account drawer (new nav only — legacy uses inline sign-out) ─ */}
-      {NEW_NAV && (
+      {/* ── Account drawer (new nav only — slice 3 uses Settings tab instead) ─ */}
+      {!NAV_SLICE_3 && NEW_NAV && (
         <AccountDrawer
           open={drawerOpen}
           session={session}
@@ -500,8 +584,8 @@ export default function AppShell() {
         />
       )}
 
-      {/* ── Onboarding wizard (new nav only) ───────────────────────── */}
-      {NEW_NAV && wizardOpen && (
+      {/* ── Onboarding wizard (new nav + slice-3) ──────────────────────── */}
+      {(NEW_NAV || NAV_SLICE_3) && wizardOpen && (
         <OnboardingWizard
           session={session}
           profile={profile}
@@ -513,7 +597,7 @@ export default function AppShell() {
               navigate(postWizardNav);
               setPostWizardNav(null);
               // If user was trying to create a job, open the detailed form now
-              if (postWizardNav === 'jobs') {
+              if (postWizardNav === 'jobs' || postWizardNav === 'work') {
                 setPendingDeepLink('create-detailed-job');
                 setMoreKey(k => k + 1);
               }
