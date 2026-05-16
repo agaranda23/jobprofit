@@ -1497,6 +1497,127 @@ input[type=number] { -moz-appearance: textfield; }
   line-height: 1.5;
 }
 
+/* ── Finance: outstanding hero ────────────────── */
+.outstanding-hero {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 20px 20px 18px;
+  margin: 0 0 16px;
+  text-align: center;
+}
+.outstanding-hero--clear {
+  padding: 14px 20px;
+  text-align: center;
+}
+.outstanding-hero-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 8px;
+}
+.outstanding-hero-figure {
+  font-size: 42px;
+  font-weight: 800;
+  color: var(--text);
+  letter-spacing: -0.03em;
+  line-height: 1;
+  margin-bottom: 6px;
+}
+.outstanding-hero-sub {
+  font-size: 14px;
+  color: var(--text-dim);
+  font-weight: 500;
+}
+.outstanding-hero-caught-up {
+  font-size: 15px;
+  color: var(--accent);
+  font-weight: 600;
+}
+
+/* ── Finance: chase these section ─────────────── */
+.chase-section { margin: 0 0 16px; }
+.chase-section-title {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin: 0 0 10px;
+}
+.chase-row-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+.chase-btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 12px;
+  background: #1a4080;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.15s, transform 0.05s;
+}
+.chase-btn:hover { background: #1e4d9a; }
+.chase-btn:active { transform: scale(0.98); }
+.chase-btn--disabled {
+  background: var(--surface-2);
+  color: var(--text-dim);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* ── Finance: mark-paid picker inside chase row ─ */
+.chase-picker { padding: 4px 0 6px; }
+.chase-picker-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim);
+  padding: 6px 0 8px;
+}
+.chase-picker-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 6px;
+}
+.chase-picker-cancel {
+  width: 100%;
+  margin-top: 6px;
+  padding: 8px;
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* ── Finance: week totals strip ───────────────── */
+.week-totals-strip {
+  font-size: 13px;
+  color: var(--text-dim);
+  font-weight: 500;
+  padding: 10px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  margin: 0 0 16px;
+  line-height: 1.6;
+  word-break: break-word;
+}
+
 /* ── Orientation toast ────────────────────────── */
 .nav-toast {
   position: fixed;
