@@ -195,7 +195,7 @@ function QuickStats({ todayProfit, outstanding, paidThisMonth, profitThisMonth, 
   </div>;
 }
 
-function SendInvoiceModal({ job, biz, jobs, onUpdate, onClose, flash }) {
+function SendInvoiceModal({ job, biz, profile, jobs, onUpdate, onClose, flash }) {
   const [invoiceNumber, setInvoiceNumber] = useState(() => job.invoiceNumber || nextInvoiceNumber(jobs));
   const [dueDate, setDueDate] = useState(() => {
     if (job.invoiceDueDate) return new Date(job.invoiceDueDate).toISOString().slice(0, 10);
@@ -204,7 +204,7 @@ function SendInvoiceModal({ job, biz, jobs, onUpdate, onClose, flash }) {
   });
   const [pdfBusy, setPdfBusy] = useState(false);
   const [copyOk, setCopyOk] = useState(false);
-  const missing = getMissingInvoiceFields(biz);
+  const missing = getMissingInvoiceFields(biz, profile);
   const showVat = !!biz?.vatRegistered;
   const previewMessage = buildInvoiceWhatsAppMessage({ job, biz, invoiceNumber, dueDate });
 
@@ -527,7 +527,7 @@ function ChasePaymentPanel({ job, biz, inv, showVat, onUpdate, flash }) {
 }
 
 /* ═══ JOB DETAIL — Full Pipeline ═════════════════════ */
-function JobDetail({ job, jobs, expenses, invoices, onBack, onUpdate, onDelExp, onAddExp, onAddInvoice, onUpdateInvoice, biz, showVat, onViewCustomer, flash }) {
+function JobDetail({ job, jobs, expenses, invoices, onBack, onUpdate, onDelExp, onAddExp, onAddInvoice, onUpdateInvoice, biz, profile, showVat, onViewCustomer, flash }) {
   const [ed, setEd] = useState(false); const [d, setD] = useState({ ...job }); const [viewPhoto, setViewPhoto] = useState(null);
   const [addingExp, setAddingExp] = useState(false);
   const [noteSubject, setNoteSubject] = useState(""); const [noteBody, setNoteBody] = useState("");
@@ -560,7 +560,7 @@ function JobDetail({ job, jobs, expenses, invoices, onBack, onUpdate, onDelExp, 
 
   return <div>
     <PhotoModal src={viewPhoto} onClose={() => setViewPhoto(null)} />
-    {showSendModal && <SendInvoiceModal job={job} biz={biz} jobs={jobs} onUpdate={onUpdate} onClose={() => setShowSendModal(false)} flash={flash} />}
+    {showSendModal && <SendInvoiceModal job={job} biz={biz} profile={profile} jobs={jobs} onUpdate={onUpdate} onClose={() => setShowSendModal(false)} flash={flash} />}
     <button onClick={onBack} style={{ ...S.ghost, marginBottom: 16 }}><ChvIc d="left" /> All Jobs</button>
     {/* Pipeline */}
     <div style={{ display: "flex", gap: 2, marginBottom: 16 }}>{steps.map((s, i) => <div key={i} style={{ flex: 1, textAlign: "center" }}><div style={{ height: 4, borderRadius: 2, background: s.done ? T.accent : T.border, marginBottom: 4 }} /><div style={{ fontSize: 9, fontWeight: 700, color: s.done ? T.accent : T.textMuted, textTransform: "uppercase" }}>{s.label}</div></div>)}</div>
@@ -703,14 +703,14 @@ function JobDetail({ job, jobs, expenses, invoices, onBack, onUpdate, onDelExp, 
 }
 
 /* ═══ JOBS TAB ═══════════════════════════════════════ */
-function JobsTab({ jobs, expenses, invoices, onUpdate, onDelExp, onAddExp, onAddInvoice, onUpdateInvoice, biz, showVat, onXLSX, unassigned, onGoMaterials, initialJobId, clearInitialJob, flash }) {
+function JobsTab({ jobs, expenses, invoices, onUpdate, onDelExp, onAddExp, onAddInvoice, onUpdateInvoice, biz, profile, showVat, onXLSX, unassigned, onGoMaterials, initialJobId, clearInitialJob, flash }) {
   const [selId, setSelId] = useState(initialJobId || null);
   const [custView, setCustView] = useState(null);
   const [filter, setFilter] = useState("all");
   useEffect(() => { if (initialJobId) { setSelId(initialJobId); clearInitialJob(); } }, [initialJobId]);
   const sel = jobs.find(j => j.id === selId);
   if (custView) { const cs = getCustomers(jobs, expenses); const c = cs.find(x => x.name.toLowerCase() === custView.toLowerCase()); if (c) return <CustomerDetail customer={c} expenses={expenses} onBack={() => setCustView(null)} onGoJob={id => { setCustView(null); setSelId(id); }} />; setCustView(null); }
-  if (sel) return <JobDetail job={sel} jobs={jobs} expenses={expenses} invoices={invoices} onBack={() => setSelId(null)} onUpdate={onUpdate} onDelExp={onDelExp} onAddExp={onAddExp} onAddInvoice={onAddInvoice} onUpdateInvoice={onUpdateInvoice} biz={biz} showVat={showVat} onViewCustomer={() => setCustView(sel.customer)} flash={flash} />;
+  if (sel) return <JobDetail job={sel} jobs={jobs} expenses={expenses} invoices={invoices} onBack={() => setSelId(null)} onUpdate={onUpdate} onDelExp={onDelExp} onAddExp={onAddExp} onAddInvoice={onAddInvoice} onUpdateInvoice={onUpdateInvoice} biz={biz} profile={profile} showVat={showVat} onViewCustomer={() => setCustView(sel.customer)} flash={flash} />;
   const paid = jobs.filter(j => (j.paymentStatus??(j.paid?'paid':'unpaid')) === "paid"); const unpaid = jobs.filter(j => (j.paymentStatus??(j.paid?'paid':'unpaid')) === "unpaid" && (j.quoteStatus??'accepted') === "accepted");
   const filtered = filter === "all" ? jobs : filter === "paid" ? paid : filter === "unpaid" ? unpaid : filter === "active" ? jobs.filter(j => (j.jobStatus??(j.paid?'complete':'active')) === "active") : jobs.filter(j => (j.quoteStatus??'accepted') === "draft");
   return <div>
@@ -984,7 +984,7 @@ function saveData(data) {
 }
 
 /* ═══ MAIN APP ═══════════════════════════════════════ */
-export default function App({ cloudJobs } = {}) {
+export default function App({ cloudJobs, profile: supabaseProfile } = {}) {
   const [tab, setTabState] = useState(() => parseHash().innerTab || "Overview");
   const [jobs, setJobs] = useState(() => Array.isArray(cloudJobs) && cloudJobs.length > 0 ? cloudJobs : []);
   const [expenses, setExpenses] = useState([]);
@@ -1219,7 +1219,7 @@ export default function App({ cloudJobs } = {}) {
     <div style={{ paddingBottom: 90 }}>
       {tab === "Overview" && <OverviewTab jobs={jobs} expenses={expenses} invoices={invoices} onGo={goTo} biz={biz} showVat={showVat} />}
       {tab === "Create detailed job" && <AddJobTab onGen={onGen} biz={biz} />}
-      {tab === "Jobs" && <JobsTab jobs={jobs} expenses={expenses} invoices={invoices} onUpdate={onUpdJob} onDelExp={onDelExp} onAddExp={onAddExp} onAddInvoice={onAddInv} onUpdateInvoice={onUpdInv} biz={biz} showVat={showVat} onXLSX={() => doExportXLSX(jobs, expenses, invoices, showVat)} unassigned={unassigned} onGoMaterials={() => setTab("Materials")} initialJobId={navJobId} clearInitialJob={() => setNavJobId(null)} flash={flash} />}
+      {tab === "Jobs" && <JobsTab jobs={jobs} expenses={expenses} invoices={invoices} onUpdate={onUpdJob} onDelExp={onDelExp} onAddExp={onAddExp} onAddInvoice={onAddInv} onUpdateInvoice={onUpdInv} biz={biz} profile={supabaseProfile} showVat={showVat} onXLSX={() => doExportXLSX(jobs, expenses, invoices, showVat)} unassigned={unassigned} onGoMaterials={() => setTab("Materials")} initialJobId={navJobId} clearInitialJob={() => setNavJobId(null)} flash={flash} />}
       {tab === "Schedule" && <ScheduleTab jobs={jobs} expenses={expenses} biz={biz} onUpdate={onUpdJob} onGo={goTo} flash={flash} />}
       {tab === "Materials" && <MaterialsTab jobs={jobs} expenses={expenses} onAddExp={onAddExp} onDelExp={onDelExp} onAssign={onAssign} showVat={showVat} onXLSX={() => doExportXLSX(jobs, expenses, invoices, showVat)} />}
       {tab === "Settings" && <SettingsTab biz={biz} onUpd={setBiz} />}

@@ -457,7 +457,7 @@ export default function AppShell() {
               </div>
               <p>Quotes, jobs, customers & insights</p>
             </div>
-            <App key={moreKey} cloudJobs={applyJobMetaToJobs(jobs)} />
+            <App key={moreKey} cloudJobs={applyJobMetaToJobs(jobs)} profile={profile} />
           </div>
 
           <BottomNav
