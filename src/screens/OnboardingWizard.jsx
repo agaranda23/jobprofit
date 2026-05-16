@@ -221,9 +221,10 @@ export default function OnboardingWizard({ session, profile, onComplete }) {
             touched={bankTouched}
             onChange={(field, val) => setValues(v => ({ ...v, [field]: val }))}
             onBlur={(field) => setBankTouched(t => ({ ...t, [field]: true }))}
+            onSubmit={handleNext}
           />
         ) : step.type === 'email' ? (
-          <EmailStep value={values.email} />
+          <EmailStep value={values.email} onSubmit={handleNext} />
         ) : (
           <input
             className="wizard-input"
@@ -251,16 +252,37 @@ export default function OnboardingWizard({ session, profile, onComplete }) {
         <button
           className="wizard-next-btn"
           onClick={handleNext}
+          type="submit"
           disabled={!canAdvance() || saving}
+          aria-disabled={!canAdvance() || saving}
         >
-          {saving ? 'Saving…' : stepIndex === STEPS.length - 1 ? 'Finish' : 'Next'}
+          {saving ? 'Saving…' : stepIndex === STEPS.length - 1 ? 'Finish' : (
+            <>
+              Continue
+              <svg
+                aria-hidden="true"
+                width="18"
+                height="18"
+                viewBox="0 0 18 18"
+                fill="none"
+                xmlns="http://www.w3.org/2000/svg"
+                style={{ marginLeft: 8, verticalAlign: 'middle' }}
+              >
+                <path d="M6.75 4.5L11.25 9L6.75 13.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </>
+          )}
         </button>
       </div>
     </div>
   );
 }
 
-function BankStep({ values, touched, onChange, onBlur }) {
+function BankStep({ values, touched, onChange, onBlur, onSubmit }) {
+  function handleKeyDown(e) {
+    if (e.key === 'Enter') onSubmit();
+  }
+
   return (
     <div className="wizard-bank">
       <label className="wizard-bank-label" htmlFor="wiz-sort-code">Sort code</label>
@@ -273,6 +295,7 @@ function BankStep({ values, touched, onChange, onBlur }) {
         placeholder="12-34-56"
         onChange={e => onChange('sort_code', formatSortCode(e.target.value))}
         onBlur={() => onBlur('sort_code')}
+        onKeyDown={handleKeyDown}
         autoFocus
         autoComplete="off"
         aria-label="Sort code"
@@ -291,6 +314,7 @@ function BankStep({ values, touched, onChange, onBlur }) {
         placeholder="12345678"
         onChange={e => onChange('account_number', e.target.value.replace(/\D/g, '').slice(0, 8))}
         onBlur={() => onBlur('account_number')}
+        onKeyDown={handleKeyDown}
         autoComplete="off"
         aria-label="Account number"
       />
@@ -301,13 +325,14 @@ function BankStep({ values, touched, onChange, onBlur }) {
   );
 }
 
-function EmailStep({ value }) {
+function EmailStep({ value, onSubmit }) {
   return (
     <input
       className="wizard-input wizard-input--prefilled"
       type="email"
       value={value}
       readOnly
+      onKeyDown={e => { if (e.key === 'Enter') onSubmit(); }}
       aria-label="Email — read only, set on account"
     />
   );
