@@ -17,6 +17,7 @@ import { supabase } from './lib/supabase';
 import AuthScreen from './components/AuthScreen';
 import { parseHash, navigateToView, replaceHistory, TOP_VIEWS } from './lib/navigation';
 import { writeJobMeta, extractJobMeta, applyJobMetaToJobs } from './lib/jobMeta';
+import { addPayment } from './lib/payments';
 import {
   getTodayJobs,
   getTodayReceipts,
@@ -319,6 +320,18 @@ export default function AppShell() {
     setJobs(prev => prev.map(j => j.id === updated.id ? updated : j));
   };
 
+  // Partial-payment add (Phase B of partial-payments PRD). Single-device per
+  // PRD #3/#4 architecture: payments[] lives in the jobMeta side-channel,
+  // never round-trips through the cloud schema. addPayment helper in
+  // payments.js handles validation + auto-flip rule; this handler persists
+  // to the side-channel and updates React state. Symmetric with
+  // onMarkPaidFromToday above.
+  const onAddPayment = (job, payload) => {
+    const updated = addPayment(job, payload);
+    writeJobMeta(updated.id, extractJobMeta(updated));
+    setJobs(prev => prev.map(j => j.id === updated.id ? updated : j));
+  };
+
   const handleLinkReceipt = async (jobId) => {
     if (!pendingLink) return;
     try {
@@ -457,7 +470,7 @@ export default function AppShell() {
               </div>
               <p>Quotes, jobs, customers & insights</p>
             </div>
-            <App key={moreKey} cloudJobs={applyJobMetaToJobs(jobs)} profile={profile} />
+            <App key={moreKey} cloudJobs={applyJobMetaToJobs(jobs)} profile={profile} onAddPayment={onAddPayment} />
           </div>
 
           <BottomNav
