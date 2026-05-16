@@ -7,6 +7,8 @@ import { downloadInvoicePDF } from "./lib/invoicePDF";
 import { buildInvoiceWhatsAppMessage, buildWhatsAppLink } from "./lib/invoiceMessage";
 import { getMissingInvoiceFields } from "./lib/bizValidation";
 import { writeJobMeta, extractJobMeta, applyJobMetaToJobs } from "./lib/jobMeta";
+import { canSendInvoice, incrementSendCount } from "./lib/plan";
+import { supabase } from "./lib/supabase";
 import StatusBadge from "./components/StatusBadge";
 
 const TABS = ["Overview", "Create detailed job", "Jobs", "Schedule", "Materials", "Settings"];
@@ -204,29 +206,62 @@ function SendInvoiceModal({ job, biz, profile, jobs, onUpdate, onClose, flash })
   });
   const [pdfBusy, setPdfBusy] = useState(false);
   const [copyOk, setCopyOk] = useState(false);
+  // 'send' = normal view; 'paywall' = quota exceeded, swap body without stacking a new modal
+  const [view, setView] = useState('send');
   const missing = getMissingInvoiceFields(biz, profile);
   const showVat = !!biz?.vatRegistered;
   const previewMessage = buildInvoiceWhatsAppMessage({ job, biz, invoiceNumber, dueDate });
 
+  // True only when this is a first-time send (job not yet in invoice_sent state).
+  // Re-opening an already-sent invoice does NOT re-bill and does NOT re-gate.
+  const isFirstSend = job.status !== 'invoice_sent';
+
+  // Perform the status transition + send-count increment (first sends only).
+  // Returns false if the paywall should open instead.
+  const attemptSend = () => {
+    if (isFirstSend && !canSendInvoice(profile)) {
+      setView('paywall');
+      return false;
+    }
+    if (isFirstSend) {
+      onUpdate({
+        ...job,
+        status: 'invoice_sent',
+        invoiceSentAt: new Date().toISOString(),
+        invoiceNumber,
+        invoiceDueDate: new Date(dueDate).toISOString(),
+      });
+      // Optimistic: increment locally is handled by AppShell re-fetching profile on next load.
+      // Fire the Supabase write without blocking the UI.
+      incrementSendCount(supabase, profile?.id);
+      flash("Invoice sent. First one's on us — Pro unlocks the rest.", 5000);
+    }
+    return true;
+  };
+
   const handleSendWhatsApp = () => {
-    onUpdate({
-      ...job,
-      status: 'invoice_sent',
-      invoiceSentAt: new Date().toISOString(),
-      invoiceNumber,
-      invoiceDueDate: new Date(dueDate).toISOString(),
-    });
+    if (!attemptSend()) return;
     const link = buildWhatsAppLink({ phone: job.customerPhone || job.phone, message: previewMessage });
     window.open(link, '_blank', 'noopener');
-    flash("📤 Invoice sent");
     onClose();
   };
 
   const handleDownloadPDF = () => {
+    if (!attemptSend()) return;
     setPdfBusy(true);
-    try { downloadInvoicePDF({ job, biz, invoiceNumber, dueDate }); flash("📄 PDF downloaded"); }
+    try { downloadInvoicePDF({ job, biz, invoiceNumber, dueDate }); }
     catch (e) { console.error(e); flash("PDF failed"); }
     setPdfBusy(false);
+    onClose();
+  };
+
+  const handleSendSMS = (e) => {
+    if (!attemptSend()) { e.preventDefault(); return; }
+    // <a> tag follows its href naturally after this returns
+  };
+
+  const handleSendEmail = (e) => {
+    if (!attemptSend()) { e.preventDefault(); return; }
   };
 
   const handleCopyText = async () => {
@@ -237,6 +272,33 @@ function SendInvoiceModal({ job, biz, profile, jobs, onUpdate, onClose, flash })
   // Shim for the legacy SMS/Email helpers (they expect an `inv` object).
   const invShim = { number: invoiceNumber, created: new Date().toLocaleDateString('en-GB'), dueDate: new Date(dueDate).toLocaleDateString('en-GB') };
 
+  // ── Paywall view (swaps the modal body, does not stack a second overlay) ──
+  if (view === 'paywall') {
+    return <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 1000 }} onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div style={{ background: T.surface, borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 500, padding: 24, animation: "slideUp .25s ease-out", maxHeight: "90vh", overflowY: "auto" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20 }}>
+          <h3 style={{ margin: 0, fontSize: 20, fontWeight: 800 }}>Unlock unlimited sends</h3>
+          {/* X returns to job detail, matching spec */}
+          <button onClick={onClose} style={{ width: 36, height: 36, borderRadius: "50%", border: "none", background: T.surfaceAlt, cursor: "pointer", fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
+        </div>
+        <div style={{ marginBottom: 20, display: "flex", flexDirection: "column", gap: 8 }}>
+          <p style={{ margin: 0, fontSize: 15, color: T.text, lineHeight: 1.5 }}>You sent your first invoice on us.</p>
+          <p style={{ margin: 0, fontSize: 15, color: T.text, lineHeight: 1.5 }}>Pro keeps the loop running — every quote, every invoice, every chase, no cap.</p>
+          <p style={{ margin: 0, fontSize: 15, color: T.text, lineHeight: 1.5 }}>Same app, same 30 seconds, no per-invoice fee.</p>
+        </div>
+        <div style={{ background: T.surfaceAlt, borderRadius: T.rSm, padding: "14px 16px", marginBottom: 20, textAlign: "center" }}>
+          <div style={{ fontSize: 28, fontWeight: 800, color: T.text }}>£12<span style={{ fontSize: 16, fontWeight: 600 }}>/month</span></div>
+          <div style={{ fontSize: 13, color: T.textMed, marginTop: 4 }}>cancel anytime · launch price for early users*</div>
+        </div>
+        {/* PLACEHOLDER: £12/month price needs founder sign-off at merge. Tally URL is a placeholder — needs replacing with live Stripe/Tally link. */}
+        <a href="https://tally.so/r/jobprofit-pro-waitlist" target="_blank" rel="noopener" style={{ ...pri, display: "flex", width: "100%", textDecoration: "none", boxSizing: "border-box", justifyContent: "center", marginBottom: 12 }}>Get Pro</a>
+        {/* "Not yet" returns to send view, NOT to job detail */}
+        <button onClick={() => setView('send')} style={{ ...S.ghost, width: "100%", justifyContent: "center" }}>Not yet</button>
+      </div>
+    </div>;
+  }
+
+  // ── Normal send view ────────────────────────────────────────────────────
   return <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,.5)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 1000 }} onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
     <div style={{ background: T.surface, borderRadius: "20px 20px 0 0", width: "100%", maxWidth: 500, padding: 24, animation: "slideUp .25s ease-out", maxHeight: "90vh", overflowY: "auto" }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
@@ -264,8 +326,8 @@ function SendInvoiceModal({ job, biz, profile, jobs, onUpdate, onClose, flash })
         <button onClick={handleDownloadPDF} disabled={pdfBusy} style={{ ...pri, width: "100%", opacity: pdfBusy ? .5 : 1 }}>{pdfBusy ? <><Spinner /> Generating…</> : <>📄 Download PDF</>}</button>
       </div>
       <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 8 }}>
-        <a href={smsInvoiceLink(job, biz, invShim, showVat)} style={{ ...sec, width: "100%", textDecoration: "none", boxSizing: "border-box", justifyContent: "center" }}>💬 Send via SMS</a>
-        <a href={emailInvoiceLink(job, biz, invShim, showVat)} style={{ ...sec, width: "100%", textDecoration: "none", boxSizing: "border-box", justifyContent: "center" }}>📧 Send via Email</a>
+        <a href={smsInvoiceLink(job, biz, invShim, showVat)} onClick={handleSendSMS} style={{ ...sec, width: "100%", textDecoration: "none", boxSizing: "border-box", justifyContent: "center" }}>💬 Send via SMS</a>
+        <a href={emailInvoiceLink(job, biz, invShim, showVat)} onClick={handleSendEmail} style={{ ...sec, width: "100%", textDecoration: "none", boxSizing: "border-box", justifyContent: "center" }}>📧 Send via Email</a>
         <button onClick={handleCopyText} style={{ ...S.ghost, width: "100%", justifyContent: "center" }}>{copyOk ? "✅ Copied" : "📋 Copy text"}</button>
       </div>
     </div>
@@ -1198,7 +1260,7 @@ export default function App({ cloudJobs, profile: supabaseProfile } = {}) {
       setTimeout(() => { try { new Notification("JobProfit — Overdue Invoice", { body: `${GBP(worst.total)} overdue from ${worst.customer} — tap to chase` }); } catch {} }, 5000);
     }
   }, [jobs, biz]);
-  const flash = m => { setNote(m); setTimeout(() => setNote(""), 3500); };
+  const flash = (m, ms = 3500) => { setNote(m); setTimeout(() => setNote(""), ms); };
   const onGen = j => { setJobs(p => [j, ...p]); setTab("Jobs"); flash("✅ Quote created"); };
   const onUpdJob = u => {
     writeJobMeta(u.id, extractJobMeta(u));
