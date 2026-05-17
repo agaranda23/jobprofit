@@ -140,9 +140,7 @@ export default function OnboardingWizard({ session, profile, onComplete }) {
       return isSortCodeValid(values.sort_code) && isAccountNumberValid(values.account_number);
     }
     if (step.type === 'email') {
-      // F-04: email is display-only confirmation; auth session is sufficient.
-      // An empty email (e.g. social-login accounts) must not block Finish.
-      return true;
+      return !!values.email.trim();
     }
     return (values[step.id] || '').trim().length > 0;
   }

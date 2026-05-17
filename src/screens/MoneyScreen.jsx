@@ -1,6 +1,6 @@
 /**
- * FinanceScreen — Finance tab in the nav. Replaces HistoryScreen as the finance tab.
- * Slice 1: surfaces the existing Insights/History content under the Finance label.
+ * MoneyScreen — Tab 4 in the new nav. Replaces HistoryScreen as the money tab.
+ * Slice 1: surfaces the existing Insights/History content under the Money label.
  * Chase-via-WhatsApp flow (slice 4) and job-type profitability (slice 5) are placeholders.
  *
  * polish/finance-hero-reframe: outstanding hero promoted to top, week totals
@@ -18,7 +18,7 @@ import {
   lastChasedLabel,
 } from '../lib/chaseLadder.js';
 
-export default function FinanceScreen({ jobs = [], receipts = [], session, profile, onAvatarClick, onMarkPaid }) {
+export default function MoneyScreen({ jobs = [], receipts = [], session, profile, onAvatarClick, onMarkPaid }) {
   const now = new Date();
   const startOfWeek = getStartOfWeek(now);
 
@@ -71,7 +71,7 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
   const hasActivity = grouped.length > 0 || unpaid.length > 0;
 
   return (
-    <div className="screen finance-screen">
+    <div className="screen money-screen">
       <div className="screen-header">
         <h1 className="screen-title">Finance</h1>
         {onAvatarClick && (

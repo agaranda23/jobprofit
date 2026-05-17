@@ -1473,8 +1473,8 @@ input[type=number] { -moz-appearance: textfield; }
 }
 .schedule-add { color: var(--jp-green); font-weight: 700; font-size: 12px; }
 
-/* ── FinanceScreen ──────────────────────────────── */
-.finance-screen .screen-title { color: var(--text); }
+/* ── MoneyScreen ──────────────────────────────── */
+.money-screen .screen-title { color: var(--text); }
 .money-insights-teaser {
   background: var(--surface);
   border: 1px solid var(--border);
