@@ -4,7 +4,7 @@ import TodayScreen from './screens/TodayScreen';
 import HistoryScreen from './screens/HistoryScreen';
 import JobsScreen from './screens/JobsScreen';
 import ScheduleScreen from './screens/ScheduleScreen';
-import MoneyScreen from './screens/MoneyScreen';
+import FinanceScreen from './screens/FinanceScreen';
 import WorkScreen from './screens/WorkScreen';
 import SettingsScreen from './screens/SettingsScreen';
 import OnboardingWizard from './screens/OnboardingWizard';
@@ -435,7 +435,7 @@ export default function AppShell() {
           )}
 
           {view === 'finance' && (
-            <MoneyScreen
+            <FinanceScreen
               jobs={jobs}
               receipts={receipts}
               session={session}
@@ -502,7 +502,7 @@ export default function AppShell() {
           )}
 
           {view === 'money' && (
-            <MoneyScreen
+            <FinanceScreen
               jobs={jobs}
               receipts={receipts}
               session={session}
