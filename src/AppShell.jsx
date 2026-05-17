@@ -39,11 +39,8 @@ import {
 //   localStorage.setItem('jp.newNav', '1'); location.reload();
 // Enable slice-3 nav (Today / Work / Finance / Settings):
 //   localStorage.setItem('jp.navSlice3', '1'); location.reload();
-// Disable slice-3 (opt-out):
-//   localStorage.setItem('jp.navSlice3', '0'); location.reload();
-// Slice 3 nav is default-on as of 2026-05-17. Set jp.navSlice3='0' in localStorage to opt back to the previous nav.
 const NEW_NAV      = localStorage.getItem('jp.newNav')      === '1';
-const NAV_SLICE_3  = localStorage.getItem('jp.navSlice3')   !== '0';
+const NAV_SLICE_3  = localStorage.getItem('jp.navSlice3')   === '1';
 
 // View IDs recognised by each nav mode.
 // SLICE_3_VIEWS mirrors NEW_NAV_VIEWS but uses 'work'/'finance'/'settings'.
