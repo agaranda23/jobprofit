@@ -1577,32 +1577,6 @@ input[type=number] { -moz-appearance: textfield; }
   cursor: not-allowed;
   opacity: 0.6;
 }
-/* Tier 2+ — slightly darker blue, same shape and size as .chase-btn */
-.chase-btn--again {
-  background: #143366;
-}
-.chase-btn--again:hover { background: #1a4080; }
-
-/* "Last chased Nd ago" pill — sits inline in .unpaid-main */
-.chase-row-pill {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--text-dim);
-  background: var(--surface-2);
-  border-radius: 20px;
-  padding: 2px 8px;
-  white-space: nowrap;
-  margin-left: auto;
-  align-self: center;
-}
-
-/* User-facing hint shown at tier 4+ ("Time for a call?") */
-.chase-row-hint {
-  font-size: 12px;
-  color: var(--text-dim);
-  margin: 4px 0 0;
-  font-style: italic;
-}
 
 /* ── Finance: mark-paid picker inside chase row ─ */
 .chase-picker { padding: 4px 0 6px; }

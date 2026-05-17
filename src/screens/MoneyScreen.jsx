@@ -9,14 +9,6 @@
 import { useMemo, useState } from 'react';
 import { gbp } from '../lib/today';
 import HeaderAvatar from '../components/HeaderAvatar';
-import {
-  getChaseState,
-  recordChase,
-  clearChase,
-  computeTier,
-  buildChaseLink,
-  lastChasedLabel,
-} from '../lib/chaseLadder.js';
 
 export default function MoneyScreen({ jobs = [], receipts = [], session, profile, onAvatarClick, onMarkPaid }) {
   const now = new Date();
@@ -161,60 +153,32 @@ export default function MoneyScreen({ jobs = [], receipts = [], session, profile
   );
 }
 
-/* ── Chase row with tiered WhatsApp / Mark paid actions ───────────────── */
+/* ── Chase row with inline WhatsApp / Mark paid actions ───────────────── */
 function ChaseRow({ entry, onMarkPaid }) {
   const [pickerOpen, setPickerOpen] = useState(false);
-  // Chase state is read fresh on each render — no hook needed since it's a
-  // pure localStorage read and the component re-renders after recordChase
-  // updates state via the local pickerOpen toggle (which forces a re-mount).
-  // We use a local re-render trigger instead to keep the pill live.
-  const [, forceUpdate] = useState(0);
 
-  const chaseState = getChaseState(entry.rawId);
-  const tier = computeTier(chaseState);
-  const pill = lastChasedLabel(chaseState);
-
-  const name = (entry.customer || entry.label || '').split(' ')[0] || 'there';
-  const amountOutstanding = gbp(entry.amount);
-  const daysSinceDue = chaseState
-    ? Math.floor((Date.now() - new Date(chaseState.firstChasedAt)) / (24 * 60 * 60 * 1000))
-    : 0;
-
-  const chaseHref = buildChaseLink({
-    phone: entry.phone,
-    name,
-    amountOutstanding,
-    daysSinceDue,
-    tier,
-    amountPaid: 0,
-  });
-
-  function handleChaseClick() {
-    recordChase(entry.rawId);
-    forceUpdate(n => n + 1);
-  }
+  const chaseHref = buildChaseLink(entry);
 
   return (
     <li className="unpaid-item">
       <div className="unpaid-main">
         <span className="unpaid-label">{entry.label}</span>
-        <span className="unpaid-amount">{amountOutstanding}</span>
-        {pill && <span className="chase-row-pill">{pill}</span>}
+        <span className="unpaid-amount">{gbp(entry.amount)}</span>
       </div>
       {pickerOpen ? (
         <div className="chase-picker">
           <div className="chase-picker-label">Mark as paid — how?</div>
           <div className="chase-picker-grid">
             <button type="button" className="awaiting-job-method-btn awaiting-job-method-bank"
-              onClick={() => { clearChase(entry.rawId); onMarkPaid?.(entry.rawId); setPickerOpen(false); }}>
+              onClick={() => { onMarkPaid?.(entry.rawId); setPickerOpen(false); }}>
               Bank
             </button>
             <button type="button" className="awaiting-job-method-btn awaiting-job-method-cash"
-              onClick={() => { clearChase(entry.rawId); onMarkPaid?.(entry.rawId); setPickerOpen(false); }}>
+              onClick={() => { onMarkPaid?.(entry.rawId); setPickerOpen(false); }}>
               Cash
             </button>
             <button type="button" className="awaiting-job-method-btn awaiting-job-method-card"
-              onClick={() => { clearChase(entry.rawId); onMarkPaid?.(entry.rawId); setPickerOpen(false); }}>
+              onClick={() => { onMarkPaid?.(entry.rawId); setPickerOpen(false); }}>
               Card
             </button>
           </div>
@@ -222,40 +186,45 @@ function ChaseRow({ entry, onMarkPaid }) {
             onClick={() => setPickerOpen(false)}>Cancel</button>
         </div>
       ) : (
-        <>
-          <div className="chase-row-actions">
-            {chaseHref ? (
-              <a
-                href={chaseHref}
-                target="_blank"
-                rel="noopener noreferrer"
-                className={`chase-btn${tier >= 2 ? ' chase-btn--again' : ''}`}
-                onClick={handleChaseClick}
-              >
-                {tier >= 2 ? 'Chase again' : 'Chase'}
-              </a>
-            ) : (
-              <button type="button" className="chase-btn chase-btn--disabled" disabled>
-                {tier >= 2 ? 'Chase again' : 'Chase'}
-              </button>
-            )}
-            {onMarkPaid && (
-              <button
-                type="button"
-                className="mark-paid-btn"
-                onClick={() => setPickerOpen(true)}
-              >
-                Mark paid
-              </button>
-            )}
-          </div>
-          {tier >= 4 && (
-            <p className="chase-row-hint">Three chases in. Time for a call?</p>
+        <div className="chase-row-actions">
+          {chaseHref ? (
+            <a
+              href={chaseHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="chase-btn"
+            >
+              Chase
+            </a>
+          ) : (
+            <button type="button" className="chase-btn chase-btn--disabled" disabled>
+              Chase
+            </button>
           )}
-        </>
+          {onMarkPaid && (
+            <button
+              type="button"
+              className="mark-paid-btn"
+              onClick={() => setPickerOpen(true)}
+            >
+              Mark paid
+            </button>
+          )}
+        </div>
       )}
     </li>
   );
+}
+
+/* Build a wa.me chase link from the entry's phone number.
+   Returns null when there is no phone — caller renders a disabled Chase button. */
+function buildChaseLink(entry) {
+  const phone = (entry.phone || '').replace(/\s/g, '').replace(/^0/, '44').replace(/^\+/, '');
+  const name = (entry.customer || entry.label || '').split(' ')[0] || 'there';
+  const amount = gbp(entry.amount);
+  const msg = `Hi ${name}, just a friendly reminder that ${amount} is still outstanding. Let me know if you have any questions — cheers!`;
+  if (!phone) return null;
+  return `https://wa.me/${phone}?text=${encodeURIComponent(msg)}`;
 }
 
 function getStartOfWeek(date) {
