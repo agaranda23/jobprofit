@@ -1,6 +1,6 @@
 /**
- * FinanceScreen — Finance tab in the nav. Replaces HistoryScreen as the finance tab.
- * Slice 1: surfaces the existing Insights/History content under the Finance label.
+ * FinanceScreen — Money tab in the slice-3 nav. Replaces HistoryScreen as the money tab.
+ * Slice 1: surfaces the existing Insights/History content under the Money label.
  * Chase-via-WhatsApp flow (slice 4) and job-type profitability (slice 5) are placeholders.
  *
  * polish/finance-hero-reframe: outstanding hero promoted to top, week totals
@@ -73,7 +73,7 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
   return (
     <div className="screen finance-screen">
       <div className="screen-header">
-        <h1 className="screen-title">Finance</h1>
+        <h1 className="screen-title">Money</h1>
         {onAvatarClick && (
           <div className="screen-header-right">
             <HeaderAvatar session={session} profile={profile} onClick={onAvatarClick} />
