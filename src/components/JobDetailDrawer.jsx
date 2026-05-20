@@ -15,6 +15,12 @@ import {
 import { computeBalance, computeAmountPaid } from '../lib/payments';
 import { gbp } from '../lib/today';
 import { compressPhoto } from '../lib/photoCompress';
+import {
+  isLegacyPhoto,
+  dataUrlToBlob,
+  makePhotoEntry,
+} from '../lib/jobPhotos';
+import { uploadJobPhoto, getSignedPhotoUrl, deleteJobPhoto } from '../lib/store';
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -611,10 +617,67 @@ function ReceiptsSection({ job, receipts, onViewPhoto, onAddReceipt, onDeleteRec
 }
 
 /**
+ * Single photo thumbnail that resolves a signed URL when the entry is a
+ * bucket-path object `{ path, uploadedAt }`, or renders the string directly
+ * for legacy base64 entries.
+ *
+ * @param {{ entry: string|object, index: number, onViewPhoto: function, onDeletePhoto?: function }} props
+ */
+function PhotoThumb({ entry, index, onViewPhoto, onDeletePhoto }) {
+  // Legacy base64 string — render directly; no async resolution needed.
+  const isLegacy = isLegacyPhoto(entry);
+  const [resolvedSrc, setResolvedSrc] = useState(isLegacy ? entry : null);
+
+  useEffect(() => {
+    if (isLegacy) return; // already set above
+    let cancelled = false;
+    getSignedPhotoUrl(entry.path, 3600).then((url) => {
+      if (!cancelled && url) setResolvedSrc(url);
+    });
+    return () => { cancelled = true; };
+  }, [isLegacy, entry]);
+
+  if (!resolvedSrc) {
+    return (
+      <div className="jd-photo-thumb-wrap">
+        <div className="jd-photo-thumb-placeholder" aria-label={`Photo ${index + 1} loading`} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="jd-photo-thumb-wrap">
+      <button
+        type="button"
+        className="jd-photo-thumb-btn"
+        onClick={() => onViewPhoto(resolvedSrc)}
+        aria-label={`View photo ${index + 1}`}
+      >
+        <img src={resolvedSrc} alt="" className="jd-photo-thumb" />
+      </button>
+      {onDeletePhoto && (
+        <button
+          type="button"
+          className="jd-photo-delete-btn"
+          onClick={() => onDeletePhoto(index)}
+          aria-label={`Delete photo ${index + 1}`}
+        >
+          ✕
+        </button>
+      )}
+    </div>
+  );
+}
+
+/**
  * Photos section — photos attached directly to the job (job.photos[]).
  * Tap a thumbnail to enlarge via PhotoLightbox.
  * Always renders when onAddPhoto is provided so the CTA is discoverable
  * even when there are no photos yet.
+ *
+ * Handles mixed photo formats:
+ *   - Legacy: string (base64 data-URL) — rendered directly
+ *   - New:    { path, uploadedAt } object — resolved via signed URL from job-photos bucket
  *
  * The file input and its ref live in JobDetailDrawer (the parent) because
  * the async compression handler needs access to onUpdateJob. This component
@@ -648,27 +711,14 @@ function PhotosSection({ photos, onViewPhoto, onAddPhoto, photoAdding, onDeleteP
       {hasPhotos && (
         <div className="jd-section-body">
           <div className="jd-photos-grid">
-            {photos.map((src, i) => (
-              <div key={i} className="jd-photo-thumb-wrap">
-                <button
-                  type="button"
-                  className="jd-photo-thumb-btn"
-                  onClick={() => onViewPhoto(src)}
-                  aria-label={`View photo ${i + 1}`}
-                >
-                  <img src={src} alt="" className="jd-photo-thumb" />
-                </button>
-                {onDeletePhoto && (
-                  <button
-                    type="button"
-                    className="jd-photo-delete-btn"
-                    onClick={() => onDeletePhoto(i)}
-                    aria-label={`Delete photo ${i + 1}`}
-                  >
-                    ✕
-                  </button>
-                )}
-              </div>
+            {photos.map((entry, i) => (
+              <PhotoThumb
+                key={i}
+                entry={entry}
+                index={i}
+                onViewPhoto={onViewPhoto}
+                onDeletePhoto={onDeletePhoto}
+              />
             ))}
           </div>
         </div>
@@ -923,26 +973,40 @@ export default function JobDetailDrawer({
   };
 
   // ── Photo add ─────────────────────────────────────────────────────────────
-  // Mirrors handleJobPhoto in App.jsx (lines 618): file → base64 → compress → push
+  // New behaviour: compress → Blob → upload to job-photos bucket (private) →
+  // store { path, uploadedAt } object in meta.photos[].
+  //
+  // Offline/upload-failure fallback: when uploadJobPhoto returns null (no auth,
+  // no network, bucket error) the compressed base64 data-URL is kept as a legacy
+  // string entry so the photo is visible immediately and survives the session.
   const handlePhotoFiles = async (e) => {
     const files = Array.from(e.target.files || []);
     if (!files.length) return;
     setPhotoAdding(true);
-    const compressed = [];
+    const newEntries = [];
     for (const f of files) {
       try {
         const dataUrl = await compressPhoto(f);
-        compressed.push(dataUrl);
+        // Attempt to upload to private storage bucket
+        const blob = dataUrlToBlob(dataUrl);
+        const result = await uploadJobPhoto(blob, job.id, f.name);
+        if (result?.path) {
+          // Successfully uploaded — store bucket-path object
+          newEntries.push(makePhotoEntry(result.path));
+        } else {
+          // Upload failed (offline / no auth) — fall back to legacy base64 string
+          newEntries.push(dataUrl);
+        }
       } catch {
-        // skip unreadable files silently — user can try again
+        // Skip unreadable files silently — user can try again
       }
     }
-    if (compressed.length && onUpdateJob) {
-      onUpdateJob({ ...job, photos: [...(job.photos || []), ...compressed] });
+    if (newEntries.length && onUpdateJob) {
+      onUpdateJob({ ...job, photos: [...(job.photos || []), ...newEntries] });
       showFlash('Photo added');
     }
     setPhotoAdding(false);
-    // reset input so the same file can be re-added if needed
+    // Reset input so the same file can be re-added if needed
     if (photoInputRef.current) photoInputRef.current.value = '';
   };
 
@@ -981,12 +1045,21 @@ export default function JobDetailDrawer({
   };
 
   // ── Photo delete ──────────────────────────────────────────────────────────
-  // Mirrors rmPhoto in App.jsx (line 619): splice by index, write via onUpdateJob.
-  const handleDeletePhoto = (idx) => {
+  // Removes from meta.photos[] array by index.
+  // For bucket-path entries ({ path, uploadedAt }), also removes the storage
+  // object from the job-photos bucket — best-effort, failure does not block UI.
+  // For legacy base64 string entries, nothing to clean up in storage.
+  const handleDeletePhoto = async (idx) => {
     if (!window.confirm('Delete this photo?')) return;
+    const entry = (job.photos || [])[idx];
     const updated = (job.photos || []).filter((_, i) => i !== idx);
     onUpdateJob({ ...job, photos: updated });
     showFlash('Photo deleted');
+
+    // Best-effort storage cleanup for bucket entries
+    if (entry && !isLegacyPhoto(entry) && entry.path) {
+      deleteJobPhoto(entry.path); // fire-and-forget; failure is logged inside deleteJobPhoto
+    }
   };
 
   // ── Note delete ───────────────────────────────────────────────────────────

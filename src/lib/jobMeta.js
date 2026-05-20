@@ -4,7 +4,12 @@
 // because mapCloudJobToToday doesn't know them) can be reversed by re-overlaying
 // the meta on top of the cloud-mapped job.
 //
-// Single-device only. Cross-device sync is a follow-up PRD.
+// Cloud sync: after every writeJobMeta call, updateJobMetaInCloud (store.js)
+// is fired async so the meta column on the Supabase jobs row is kept in sync.
+// The localStorage write always succeeds first; the cloud write is best-effort.
+// On app load, mapCloudJobToToday spreads r.meta onto the job object before
+// applyJobMetaToJobs overlays localStorage on top — so cloud is the baseline
+// and any unsynced offline edits win until the next successful online write.
 
 const META_KEY_PREFIX = 'jp.jobMeta.';
 
@@ -12,11 +17,17 @@ const META_FIELDS = [
   'status', 'invoiceSentAt', 'invoiceNumber', 'invoiceDueDate',
   'completedAt', 'paidAt', 'customerPhone', 'paymentMethod',
   'paymentStatus', 'paymentDate',
-  'payments', // Phase A of partial-payments PRD — 11th field
-  // Phase F — quote acceptance signature (trader-side, single-device)
-  'acceptedSignature', // PNG dataURL ~5 KB
+  'payments', // Phase A of partial-payments PRD
+  // Phase F — quote acceptance signature
+  'acceptedSignature', // PNG dataURL ~5 KB (kept in meta — acceptable at scale for now)
   'acceptedAt',        // ISO timestamp of acceptance
   'quoteStatus',       // mirrored so acceptance flip survives cloud-sync stomp
+  // Fields that were previously silently dropped by extractJobMeta (single-device bug fix):
+  'photos',     // array of photo entries: legacy base64 strings OR { path, uploadedAt } objects
+  'jobNotes',   // array of { id, subject, body, date } note objects
+  'lineItems',  // array of { desc, cost } — also written to line_items column in same UPDATE
+  'total',      // numeric — recomputed from lineItems on every edit
+  'amount',     // numeric — kept in sync with total
 ];
 
 export function readJobMeta(id) {
@@ -33,8 +44,12 @@ export function readJobMeta(id) {
 // clear a field by passing it as undefined (JSON.stringify drops it; on next
 // read the field is absent → effectively cleared). Null and '' survive
 // serialisation and overlay as cleared values, matching what markUnpaid writes.
+//
+// Returns the full merged meta object so callers that also need to fire the
+// cloud write (e.g. onUpdateJob in AppShell) can pass it directly to
+// updateJobMetaInCloud without a second readJobMeta call.
 export function writeJobMeta(id, partial) {
-  if (!id || !partial) return;
+  if (!id || !partial) return null;
   try {
     const existing = readJobMeta(id);
     const next = { ...existing };
@@ -42,7 +57,9 @@ export function writeJobMeta(id, partial) {
       if (key in partial) next[key] = partial[key];
     }
     localStorage.setItem(META_KEY_PREFIX + id, JSON.stringify(next));
+    return next;
   } catch { /* localStorage may be blocked or full */ }
+  return null;
 }
 
 export function clearJobMeta(id) {
