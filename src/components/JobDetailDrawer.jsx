@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import PaymentSummaryBlock from './PaymentSummaryBlock';
 import PaymentHistoryList from './PaymentHistoryList';
 import RecordPaymentModal from './RecordPaymentModal';
 import SendInvoiceModal from './SendInvoiceModal';
+import AddReceiptModal from './AddReceiptModal';
 import {
   getChaseState,
   recordChase,
@@ -12,6 +13,7 @@ import {
 } from '../lib/chaseLadder';
 import { computeBalance, computeAmountPaid } from '../lib/payments';
 import { gbp } from '../lib/today';
+import { compressPhoto } from '../lib/photoCompress';
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -335,43 +337,60 @@ function QuickContactSection({ job }) {
 /**
  * Receipts section — receipts linked to this job via jobId.
  * Tapping a receipt with a photo opens the photo lightbox.
- * Hidden when no receipts are linked.
+ * Always renders (even with no linked receipts) when onAddReceipt is present,
+ * so the "+ Add receipt" CTA is discoverable on jobs with no materials yet.
  */
-function ReceiptsSection({ job, receipts, onViewPhoto }) {
+function ReceiptsSection({ job, receipts, onViewPhoto, onAddReceipt }) {
   // receipts shape from getTodayReceipts: { id, label, amount, photo, date, jobId, imagePath }
   // Match on both string UUID (cloud) and legacy integer-style IDs
   const jobReceipts = receipts.filter(r => {
     if (!r.jobId) return false;
     return String(r.jobId) === String(job.id) || String(r.jobId) === String(job.cloudId);
   });
-  if (jobReceipts.length === 0) return null;
+
+  // Hide entirely when there's nothing to show and no handler to add one
+  if (jobReceipts.length === 0 && !onAddReceipt) return null;
 
   return (
     <div className="jd-section">
-      <div className="jd-section-header">Receipts</div>
-      <div className="jd-section-body jd-section-body--flush">
-        {jobReceipts.map(r => (
-          <div key={r.id} className="jd-receipt-row">
-            {r.photo ? (
-              <button
-                type="button"
-                className="jd-receipt-thumb-btn"
-                onClick={() => onViewPhoto(r.photo)}
-                aria-label="View receipt photo"
-              >
-                <img src={r.photo} alt="" className="jd-receipt-thumb" />
-              </button>
-            ) : (
-              <div className="jd-receipt-icon" aria-hidden="true">🧾</div>
-            )}
-            <div className="jd-receipt-meta">
-              <div className="jd-receipt-label">{r.label || 'Receipt'}</div>
-              {r.date && <div className="jd-receipt-date">{fmtDate(r.date)}</div>}
-            </div>
-            <div className="jd-receipt-amount">{gbp(r.amount || 0)}</div>
-          </div>
-        ))}
+      <div className="jd-section-header jd-section-header--with-action">
+        <span>Receipts</span>
+        {onAddReceipt && (
+          <button
+            type="button"
+            className="jd-section-action-btn"
+            onClick={onAddReceipt}
+            aria-label="Add receipt"
+          >
+            + Add receipt
+          </button>
+        )}
       </div>
+      {jobReceipts.length > 0 && (
+        <div className="jd-section-body jd-section-body--flush">
+          {jobReceipts.map(r => (
+            <div key={r.id} className="jd-receipt-row">
+              {r.photo ? (
+                <button
+                  type="button"
+                  className="jd-receipt-thumb-btn"
+                  onClick={() => onViewPhoto(r.photo)}
+                  aria-label="View receipt photo"
+                >
+                  <img src={r.photo} alt="" className="jd-receipt-thumb" />
+                </button>
+              ) : (
+                <div className="jd-receipt-icon" aria-hidden="true">🧾</div>
+              )}
+              <div className="jd-receipt-meta">
+                <div className="jd-receipt-label">{r.label || 'Receipt'}</div>
+                {r.date && <div className="jd-receipt-date">{fmtDate(r.date)}</div>}
+              </div>
+              <div className="jd-receipt-amount">{gbp(r.amount || 0)}</div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -379,48 +398,147 @@ function ReceiptsSection({ job, receipts, onViewPhoto }) {
 /**
  * Photos section — photos attached directly to the job (job.photos[]).
  * Tap a thumbnail to enlarge via PhotoLightbox.
- * Hidden when job has no photos.
+ * Always renders when onAddPhoto is provided so the CTA is discoverable
+ * even when there are no photos yet.
+ *
+ * The file input and its ref live in JobDetailDrawer (the parent) because
+ * the async compression handler needs access to onUpdateJob. This component
+ * receives onAddPhoto (a function that triggers photoInputRef.current.click())
+ * and photoAdding (a loading flag) for display purposes.
  */
-function PhotosSection({ photos, onViewPhoto }) {
-  if (!Array.isArray(photos) || photos.length === 0) return null;
+function PhotosSection({ photos, onViewPhoto, onAddPhoto, photoAdding }) {
+  const hasPhotos = Array.isArray(photos) && photos.length > 0;
+
+  // Hide entirely when nothing to show and no handler to add
+  if (!hasPhotos && !onAddPhoto) return null;
 
   return (
     <div className="jd-section">
-      <div className="jd-section-header">Photos</div>
-      <div className="jd-section-body">
-        <div className="jd-photos-grid">
-          {photos.map((src, i) => (
-            <button
-              key={i}
-              type="button"
-              className="jd-photo-thumb-btn"
-              onClick={() => onViewPhoto(src)}
-              aria-label={`View photo ${i + 1}`}
-            >
-              <img src={src} alt="" className="jd-photo-thumb" />
-            </button>
-          ))}
-        </div>
+      <div className="jd-section-header jd-section-header--with-action">
+        <span>Photos</span>
+        {onAddPhoto && (
+          <button
+            type="button"
+            className="jd-section-action-btn"
+            onClick={onAddPhoto}
+            disabled={photoAdding}
+            aria-label="Add photo"
+          >
+            {photoAdding ? 'Adding…' : '+ Add photo'}
+          </button>
+        )}
       </div>
+      {hasPhotos && (
+        <div className="jd-section-body">
+          <div className="jd-photos-grid">
+            {photos.map((src, i) => (
+              <button
+                key={i}
+                type="button"
+                className="jd-photo-thumb-btn"
+                onClick={() => onViewPhoto(src)}
+                aria-label={`View photo ${i + 1}`}
+              >
+                <img src={src} alt="" className="jd-photo-thumb" />
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 /**
  * Notes section — free-form job notes (job.jobNotes[] or job.notes string).
- * Hidden when job has no notes content.
+ * Always renders when the inline form is open or when edit props are present.
+ * Otherwise hides when there is no notes content.
+ *
+ * Edit props (all optional — section degrades gracefully when absent):
+ *   onOpenNoteForm  – opens the inline form (used by "+ Add note" button)
+ *   noteFormOpen    – boolean controlling whether the inline form is expanded
+ *   noteSubject     – controlled value for subject input
+ *   noteBody        – controlled value for body textarea
+ *   onNoteSubjectChange / onNoteBodyChange – onChange handlers
+ *   onSubmitNote    – fires when Save is tapped
+ *   onCancelNote    – fires when Cancel is tapped (collapses form, no save)
  */
-function NotesSection({ job }) {
+function NotesSection({
+  job,
+  onOpenNoteForm,
+  noteFormOpen,
+  noteSubject,
+  noteBody,
+  onNoteSubjectChange,
+  onNoteBodyChange,
+  onSubmitNote,
+  onCancelNote,
+}) {
   const structuredNotes = Array.isArray(job.jobNotes) ? job.jobNotes : [];
   // cloud jobs may have a plain notes string instead of the structured array
   const plainNotes = typeof job.notes === 'string' ? job.notes.trim() : '';
 
-  if (structuredNotes.length === 0 && !plainNotes) return null;
+  const hasContent = structuredNotes.length > 0 || !!plainNotes;
+  const canAdd = typeof onOpenNoteForm === 'function';
+
+  // Hide entirely when there's nothing to display and no way to add
+  if (!hasContent && !canAdd) return null;
 
   return (
     <div className="jd-section">
-      <div className="jd-section-header">Notes</div>
+      <div className="jd-section-header jd-section-header--with-action">
+        <span>Notes</span>
+        {canAdd && !noteFormOpen && (
+          <button
+            type="button"
+            className="jd-section-action-btn"
+            onClick={onOpenNoteForm}
+            aria-label="Add note"
+          >
+            + Add note
+          </button>
+        )}
+      </div>
       <div className="jd-section-body">
+        {/* Inline add-note form — only when canAdd and form is open */}
+        {canAdd && noteFormOpen && (
+          <div className="jd-note-form">
+            <input
+              type="text"
+              className="jd-note-form-subject"
+              placeholder="Subject (e.g. Site visit, Customer request)"
+              value={noteSubject}
+              onChange={e => onNoteSubjectChange(e.target.value)}
+              aria-label="Note subject"
+            />
+            <textarea
+              className="jd-note-form-body"
+              placeholder="Write your note…"
+              value={noteBody}
+              onChange={e => onNoteBodyChange(e.target.value)}
+              rows={3}
+              aria-label="Note body"
+            />
+            <div className="jd-note-form-actions">
+              <button
+                type="button"
+                className="btn-ghost jd-note-form-cancel"
+                onClick={onCancelNote}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn-primary jd-note-form-save"
+                onClick={onSubmitNote}
+                disabled={!noteBody?.trim()}
+              >
+                Save note
+              </button>
+            </div>
+          </div>
+        )}
+
         {plainNotes && (
           <p className="jd-note-plain">{plainNotes}</p>
         )}
@@ -459,14 +577,15 @@ function NotesSection({ job }) {
  * slides up rather than right (see .job-detail-sheet in index.css).
  *
  * Props:
- *   job           – full job object (required)
- *   receipts      – flat receipts/expenses array from AppShell (filtered by jobId inside)
- *   biz           – business settings (name, bank, VAT) — needed for invoice generation
- *   profile       – Supabase profiles row or null — needed for paywall gating
- *   jobs          – all jobs array — needed by nextInvoiceNumber to avoid gaps
- *   onUpdateJob(updatedJob) – persists job field updates (sets invoiceSentAt etc.)
+ *   job                     – full job object (required)
+ *   receipts                – flat receipts/expenses array from AppShell (filtered by jobId inside)
+ *   biz                     – business settings (name, bank, VAT) — needed for invoice generation
+ *   profile                 – Supabase profiles row or null — needed for paywall gating
+ *   jobs                    – all jobs array — needed by nextInvoiceNumber to avoid gaps
+ *   onUpdateJob(updatedJob) – persists job field updates (photos, notes, invoiceSentAt etc.)
+ *   onAddReceipt(arg)       – AppShell handler; arg = { payload, photoFile } (same shape as TodayScreen)
  *   onAddPayment(job, payload) – from AppShell, persists to jobMeta side-channel
- *   onClose()     – called when the sheet should close
+ *   onClose()               – called when the sheet should close
  */
 export default function JobDetailDrawer({
   job,
@@ -475,13 +594,24 @@ export default function JobDetailDrawer({
   profile,
   jobs,
   onUpdateJob,
+  onAddReceipt,
   onAddPayment,
   onClose,
 }) {
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
+  const [receiptModalOpen, setReceiptModalOpen] = useState(false);
   const [lightboxSrc, setLightboxSrc] = useState(null);
   const [toast, setToast] = useState(null);
+
+  // Photo add — hidden file input, ref kept here so the button can trigger it
+  const photoInputRef = useRef(null);
+  const [photoAdding, setPhotoAdding] = useState(false);
+
+  // Note add — inline form state
+  const [noteFormOpen, setNoteFormOpen] = useState(false);
+  const [noteSubject, setNoteSubject] = useState('');
+  const [noteBody, setNoteBody] = useState('');
 
   // Close on Escape — also closes lightbox if open
   useEffect(() => {
@@ -537,6 +667,64 @@ export default function JobDetailDrawer({
   const showFlash = (msg) => {
     setToast(msg);
     setTimeout(() => setToast(null), 3000);
+  };
+
+  // ── Photo add ─────────────────────────────────────────────────────────────
+  // Mirrors handleJobPhoto in App.jsx (lines 618): file → base64 → compress → push
+  const handlePhotoFiles = async (e) => {
+    const files = Array.from(e.target.files || []);
+    if (!files.length) return;
+    setPhotoAdding(true);
+    const compressed = [];
+    for (const f of files) {
+      try {
+        const dataUrl = await compressPhoto(f);
+        compressed.push(dataUrl);
+      } catch {
+        // skip unreadable files silently — user can try again
+      }
+    }
+    if (compressed.length && onUpdateJob) {
+      onUpdateJob({ ...job, photos: [...(job.photos || []), ...compressed] });
+      showFlash('Photo added');
+    }
+    setPhotoAdding(false);
+    // reset input so the same file can be re-added if needed
+    if (photoInputRef.current) photoInputRef.current.value = '';
+  };
+
+  // ── Note add ──────────────────────────────────────────────────────────────
+  // Shape mirrors the legacy submitNote in App.jsx (line 616):
+  //   { id, subject, body, date } appended to job.jobNotes[]
+  const handleSubmitNote = () => {
+    const body = noteBody.trim();
+    if (!body) return;
+    const newNote = {
+      id: `N-${Date.now()}`,
+      subject: noteSubject.trim() || 'Note',
+      body,
+      date: new Date().toISOString(),
+    };
+    onUpdateJob({ ...job, jobNotes: [...(job.jobNotes || []), newNote] });
+    setNoteSubject('');
+    setNoteBody('');
+    setNoteFormOpen(false);
+    showFlash('Note added');
+  };
+
+  // ── Receipt add ───────────────────────────────────────────────────────────
+  // After AddReceiptModal calls onSave(arg), we inject the jobId into the
+  // payload so AppShell's handleAddReceipt can write the correct jobId to
+  // Supabase / localStorage — then close the modal.
+  const handleReceiptSave = async (arg) => {
+    if (!onAddReceipt) return;
+    const injected = {
+      payload: { ...arg.payload, jobId: job.id },
+      photoFile: arg.photoFile || null,
+    };
+    await onAddReceipt(injected);
+    setReceiptModalOpen(false);
+    showFlash('Receipt added');
   };
 
   return (
@@ -679,14 +867,40 @@ export default function JobDetailDrawer({
             job={job}
             receipts={receipts}
             onViewPhoto={setLightboxSrc}
+            onAddReceipt={onAddReceipt ? () => setReceiptModalOpen(true) : undefined}
+          />
+
+          {/* Hidden file input for photo capture — rendered here so handlePhotoFiles
+              has access to onUpdateJob via closure. The button lives in PhotosSection. */}
+          <input
+            ref={photoInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            multiple
+            style={{ display: 'none' }}
+            onChange={handlePhotoFiles}
+            aria-hidden="true"
           />
 
           <PhotosSection
             photos={job.photos}
             onViewPhoto={setLightboxSrc}
+            onAddPhoto={onUpdateJob ? () => photoInputRef.current?.click() : undefined}
+            photoAdding={photoAdding}
           />
 
-          <NotesSection job={job} />
+          <NotesSection
+            job={job}
+            onOpenNoteForm={onUpdateJob ? () => setNoteFormOpen(true) : undefined}
+            noteFormOpen={noteFormOpen}
+            noteSubject={noteSubject}
+            noteBody={noteBody}
+            onNoteSubjectChange={setNoteSubject}
+            onNoteBodyChange={setNoteBody}
+            onSubmitNote={handleSubmitNote}
+            onCancelNote={() => { setNoteFormOpen(false); setNoteSubject(''); setNoteBody(''); }}
+          />
 
           {/* Payment history — self-gates when no payments */}
           <PaymentHistoryList job={job} />
@@ -721,6 +935,14 @@ export default function JobDetailDrawer({
           onUpdate={onUpdateJob ?? (() => {})}
           onClose={() => setInvoiceModalOpen(false)}
           flash={showFlash}
+        />
+      )}
+
+      {/* AddReceiptModal — pre-bound to this job; jobId is injected in handleReceiptSave */}
+      {receiptModalOpen && (
+        <AddReceiptModal
+          onClose={() => setReceiptModalOpen(false)}
+          onSave={handleReceiptSave}
         />
       )}
     </>
