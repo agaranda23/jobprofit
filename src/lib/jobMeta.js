@@ -13,6 +13,10 @@ const META_FIELDS = [
   'completedAt', 'paidAt', 'customerPhone', 'paymentMethod',
   'paymentStatus', 'paymentDate',
   'payments', // Phase A of partial-payments PRD — 11th field
+  // Phase F — quote acceptance signature (trader-side, single-device)
+  'acceptedSignature', // PNG dataURL ~5 KB
+  'acceptedAt',        // ISO timestamp of acceptance
+  'quoteStatus',       // mirrored so acceptance flip survives cloud-sync stomp
 ];
 
 export function readJobMeta(id) {

@@ -4,6 +4,7 @@ import PaymentHistoryList from './PaymentHistoryList';
 import RecordPaymentModal from './RecordPaymentModal';
 import SendInvoiceModal from './SendInvoiceModal';
 import AddReceiptModal from './AddReceiptModal';
+import SignaturePad from './SignaturePad';
 import {
   getChaseState,
   recordChase,
@@ -273,6 +274,23 @@ function DetailsSection({
                 Save
               </button>
             </div>
+          </div>
+        )}
+
+        {/* Accepted signature — read-only thumbnail shown after quote acceptance */}
+        {job.acceptedSignature && (
+          <div className="sig-accepted-card">
+            <div className="sig-accepted-label">Accepted by customer</div>
+            <img
+              src={job.acceptedSignature}
+              alt="Customer signature"
+              className="sig-accepted-img"
+            />
+            {job.acceptedAt && (
+              <div className="sig-accepted-date">
+                Signed {fmtDate(job.acceptedAt)}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -825,6 +843,7 @@ export default function JobDetailDrawer({
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
   const [receiptModalOpen, setReceiptModalOpen] = useState(false);
+  const [sigPadOpen, setSigPadOpen] = useState(false);
   const [lightboxSrc, setLightboxSrc] = useState(null);
   const [toast, setToast] = useState(null);
 
@@ -1069,11 +1088,27 @@ export default function JobDetailDrawer({
     showFlash('Converted to active job');
   };
 
+  // Phase F — Accept Quote with signature.
+  // Called by SignaturePad.onSave with the PNG dataURL after customer signs.
+  const handleSignatureSave = (signatureDataURL) => {
+    setSigPadOpen(false);
+    onUpdateJob({
+      ...job,
+      acceptedSignature: signatureDataURL,
+      quoteStatus: 'accepted',
+      acceptedAt: new Date().toISOString(),
+      jobStatus: 'active',
+    });
+    showFlash('Quote accepted — signed by customer');
+  };
+
   // Mark Sent: visible when quoteStatus is 'draft' (quote exists but not yet sent)
   const showMarkSent = job.quoteStatus === 'draft' && onUpdateJob;
-  // Convert: visible when quoteStatus is 'sent' OR (accepted but jobStatus not set / 'quote')
+  // Accept Quote: the Tradify-steal CTA — shows when quote is sent but not yet accepted
+  const showAcceptQuote = onUpdateJob && job.quoteStatus === 'sent' && !job.acceptedSignature;
+  // Convert: fallback for jobs already accepted without a signature, or legacy quoteStatus edge cases
   const showConvert =
-    onUpdateJob && (
+    onUpdateJob && !showAcceptQuote && (
       job.quoteStatus === 'sent' ||
       (job.quoteStatus === 'accepted' && (!job.jobStatus || job.jobStatus === 'quote'))
     );
@@ -1199,8 +1234,8 @@ export default function JobDetailDrawer({
             </div>
           )}
 
-          {/* Pipeline buttons — Mark Sent (draft quote) and Convert (sent quote) */}
-          {(showMarkSent || showConvert) && (
+          {/* Pipeline buttons — Mark Sent (draft quote), Accept Quote (sent), Convert (fallback) */}
+          {(showMarkSent || showAcceptQuote || showConvert) && (
             <div className="job-detail-pipeline-row">
               {showMarkSent && (
                 <button
@@ -1210,6 +1245,16 @@ export default function JobDetailDrawer({
                   onClick={handleMarkSent}
                 >
                   Mark sent
+                </button>
+              )}
+              {showAcceptQuote && (
+                <button
+                  type="button"
+                  className="btn-convert"
+                  style={{ flex: 1 }}
+                  onClick={() => setSigPadOpen(true)}
+                >
+                  Accept quote
                 </button>
               )}
               {showConvert && (
@@ -1316,6 +1361,31 @@ export default function JobDetailDrawer({
 
       {/* Photo lightbox — sits on top of everything */}
       <PhotoLightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />
+
+      {/* SignaturePad modal — sits above the drawer; uses modal-backdrop--top (z-index 1100) */}
+      {sigPadOpen && (
+        <div className="modal-backdrop modal-backdrop--top" onClick={() => setSigPadOpen(false)}>
+          <div className="modal-sheet" onClick={e => e.stopPropagation()}>
+            <div className="modal-sheet-header">
+              <h3 className="modal-sheet-title">Accept quote</h3>
+              <button
+                type="button"
+                className="modal-sheet-close"
+                onClick={() => setSigPadOpen(false)}
+                aria-label="Close signature pad"
+              >
+                ✕
+              </button>
+            </div>
+            <SignaturePad
+              onSave={handleSignatureSave}
+              onCancel={() => setSigPadOpen(false)}
+              width={300}
+              height={180}
+            />
+          </div>
+        </div>
+      )}
 
       {/* RecordPaymentModal — rendered outside the sheet so it sits on top */}
       {paymentModalOpen && (
