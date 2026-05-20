@@ -254,9 +254,9 @@ export default function AppShell() {
   // Show a one-time orientation toast when a nav mode first activates
   useEffect(() => {
     if (NAV_SLICE_3) {
-      const toastKey = 'jp.slice3NavToast.v1';
+      const toastKey = 'jp.slice3NavToast.v2';
       if (localStorage.getItem(toastKey)) return;
-      setNavToast("Jobs + Schedule are now Work. Settings is now a tab.");
+      setNavToast("Your new nav: Jobs for your work, Money for your finances, Settings for your account.");
       localStorage.setItem(toastKey, '1');
       const t = setTimeout(() => setNavToast(null), 6000);
       return () => clearTimeout(t);
@@ -409,7 +409,7 @@ export default function AppShell() {
 
   return (
     <>
-      {/* ── SLICE-3 NAV (Today / Work / Finance / Settings) ─────────── */}
+      {/* ── SLICE-3 NAV (Today / Jobs / Money / Settings) ───────────── */}
       {NAV_SLICE_3 && (
         <>
           {view === 'today' && (

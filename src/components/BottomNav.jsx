@@ -2,12 +2,12 @@
  * BottomNav — supports three nav layouts:
  *   1. legacy 3-tab (Today / Insights / Business) — default
  *   2. newNav 4-tab (Today / Jobs / Schedule / Money) — newNav prop
- *   3. slice3 4-tab (Today / Work / Finance / Settings) — slice3 prop
+ *   3. slice3 4-tab (Today / Jobs / Money / Settings) — slice3 prop
  *
  * Selection order: slice3 > newNav > legacy.
  *
  * Badge props:
- *   financeBadge — used by slice-3 Finance tab (alias of legacy moneyBadge).
+ *   financeBadge — used by slice-3 Money tab (alias of legacy moneyBadge).
  *   moneyBadge   — used by newNav Money tab (kept for back-compat).
  */
 export default function BottomNav({
@@ -36,8 +36,8 @@ export default function BottomNav({
 
   const slice3Tabs = [
     { id: 'today',    label: 'Today',    icon: '●' },
-    { id: 'work',     label: 'Work',     icon: '⊞' },
-    { id: 'finance',  label: 'Finance',  icon: '£', badge: resolvedFinanceBadge > 0 ? resolvedFinanceBadge : 0 },
+    { id: 'work',     label: 'Jobs',     icon: '⊞' },
+    { id: 'finance',  label: 'Money',    icon: '£', badge: resolvedFinanceBadge > 0 ? resolvedFinanceBadge : 0 },
     { id: 'settings', label: 'Settings', icon: '⚙' },
   ];
 

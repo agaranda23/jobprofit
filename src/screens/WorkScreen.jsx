@@ -1,5 +1,5 @@
 /**
- * WorkScreen — Slice-3 replacement for the separate Jobs + Schedule tabs.
+ * WorkScreen — Jobs tab in slice-3 nav.
  *
  * Merges Job list and calendar into one tab with a segmented control at the top.
  * Last-used subview persists in localStorage under 'jp.workView'.
@@ -148,7 +148,7 @@ export default function WorkScreen({ jobs = [], onNewJob }) {
     <div className="screen work-screen">
       {/* Header */}
       <div className="screen-header">
-        <h1 className="screen-title">Work</h1>
+        <h1 className="screen-title">Jobs</h1>
         <div className="screen-header-right">
           <button className="new-btn" onClick={onNewJob}>+ New job</button>
         </div>
