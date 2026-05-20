@@ -3014,6 +3014,98 @@ input[type=number] { -moz-appearance: textfield; }
   object-fit: contain;
 }
 
+/* ── ProfitBarSection ─────────────────────────────────────────────────────── */
+
+.jd-profit-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.jd-profit-cell {
+  text-align: center;
+}
+
+.jd-profit-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 2px;
+}
+
+.jd-profit-value {
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.jd-profit-value--quote   { color: var(--primary); }
+.jd-profit-value--materials { color: var(--danger); }
+.jd-profit-value--profit  { color: var(--accent); }
+
+.jd-profit-bar-track {
+  height: 10px;
+  border-radius: 5px;
+  background: var(--surface-alt, var(--border));
+  overflow: hidden;
+}
+
+.jd-profit-bar-fill {
+  height: 100%;
+  border-radius: 5px;
+  transition: background 0.4s;
+}
+
+.jd-profit-bar-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 5px;
+}
+
+.jd-profit-bar-label--materials {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--danger);
+}
+
+.jd-profit-bar-label--profit {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+/* ── QuickContactSection ─────────────────────────────────────────────────── */
+
+.jd-contact-row {
+  display: flex;
+  gap: 8px;
+}
+
+.jd-contact-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 8px;
+  border-radius: 10px;
+  background: var(--surface-alt, var(--border));
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  border: 1px solid var(--border);
+  min-height: 40px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.jd-contact-btn:active {
+  opacity: 0.75;
+}
+
 /* ── SendInvoiceModal & shared modal-sheet styles ─────────────────────────── */
 
 .btn-ghost {

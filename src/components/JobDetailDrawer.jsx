@@ -193,29 +193,139 @@ function DetailsSection({ job }) {
 }
 
 /**
- * Materials section — line items with costs and a running total.
- * Uses job.lineItems[] (quote breakdown).
- * Hidden when the job has no line items.
+ * ProfitBarSection — read-only stacked bar showing quote / materials / profit / margin.
+ * "Materials" here means actual receipts/expenses linked to the job (not the quote lineItems).
+ * Hidden entirely when job.quote === 0 (no "0% margin" stub for jobs with no quote).
  */
-function MaterialsSection({ job }) {
-  const items = Array.isArray(job.lineItems) ? job.lineItems.filter(i => i.desc || i.cost) : [];
-  if (items.length === 0) return null;
+function ProfitBarSection({ job, receipts }) {
+  const quote = job.total ?? job.amount ?? 0;
+  if (!quote) return null;
 
-  const total = items.reduce((sum, i) => sum + Number(i.cost || 0), 0);
+  const materials = receipts
+    .filter(r => r.jobId && (String(r.jobId) === String(job.id) || String(r.jobId) === String(job.cloudId)))
+    .reduce((sum, r) => sum + Number(r.amount || 0), 0);
+  const profit = quote - materials;
+  const margin = quote > 0 ? Math.round((profit / quote) * 100) : 0;
+  const matPct = quote > 0 ? Math.min((materials / quote) * 100, 100) : 0;
+
+  const marginColor = margin >= 30 ? 'var(--accent)' : margin >= 15 ? 'var(--warn)' : 'var(--danger)';
 
   return (
     <div className="jd-section">
-      <div className="jd-section-header">Materials &amp; Quote breakdown</div>
-      <div className="jd-section-body jd-section-body--flush">
-        {items.map((item, idx) => (
-          <div key={idx} className="jd-line-item">
-            <span className="jd-line-item-desc">{item.desc || '—'}</span>
-            <span className="jd-line-item-cost">{gbp(Number(item.cost || 0))}</span>
+      <div className="jd-section-header">Profit</div>
+      <div className="jd-section-body">
+        <div className="jd-profit-grid">
+          <div className="jd-profit-cell">
+            <div className="jd-profit-label">Quote</div>
+            <div className="jd-profit-value jd-profit-value--quote">{gbp(quote)}</div>
           </div>
-        ))}
+          <div className="jd-profit-cell">
+            <div className="jd-profit-label">Materials</div>
+            <div className="jd-profit-value jd-profit-value--materials">{gbp(materials)}</div>
+          </div>
+          <div className="jd-profit-cell">
+            <div className="jd-profit-label">Profit</div>
+            <div className="jd-profit-value jd-profit-value--profit">{gbp(profit)}</div>
+          </div>
+          <div className="jd-profit-cell">
+            <div className="jd-profit-label">Margin</div>
+            <div className="jd-profit-value" style={{ color: marginColor }}>{margin}%</div>
+          </div>
+        </div>
+        <div className="jd-profit-bar-track">
+          <div
+            className="jd-profit-bar-fill"
+            style={{ background: `linear-gradient(90deg, var(--danger) ${matPct}%, var(--accent) ${matPct}%)` }}
+          />
+        </div>
+        <div className="jd-profit-bar-labels">
+          <span className="jd-profit-bar-label--materials">Materials {Math.round(matPct)}%</span>
+          <span className="jd-profit-bar-label--profit">Profit {Math.round(100 - matPct)}%</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * QuoteBreakdownSection — read-only list of job.lineItems[].
+ * Shows per-item description, optional quantity, unit cost, and a total.
+ * Hidden when lineItems is empty or absent. Edit/add is Phase E (deferred).
+ */
+function QuoteBreakdownSection({ job }) {
+  const items = Array.isArray(job.lineItems) ? job.lineItems.filter(i => i.desc || i.cost) : [];
+  if (items.length === 0) return null;
+
+  const total = items.reduce((sum, i) => {
+    const qty = Number(i.qty || i.quantity || 1);
+    const unit = Number(i.cost || i.unitCost || i.price || 0);
+    return sum + qty * unit;
+  }, 0);
+
+  return (
+    <div className="jd-section">
+      <div className="jd-section-header">Quote breakdown</div>
+      <div className="jd-section-body jd-section-body--flush">
+        {items.map((item, idx) => {
+          const qty = Number(item.qty || item.quantity || 1);
+          const unit = Number(item.cost || item.unitCost || item.price || 0);
+          const lineTotal = qty * unit;
+          return (
+            <div key={idx} className="jd-line-item">
+              <span className="jd-line-item-desc">
+                {item.desc || '—'}
+                {qty > 1 && (
+                  <span className="jd-line-item-qty"> × {qty}</span>
+                )}
+              </span>
+              <span className="jd-line-item-cost">{gbp(lineTotal)}</span>
+            </div>
+          );
+        })}
         <div className="jd-line-total">
           <span className="jd-line-total-label">Total</span>
           <span className="jd-line-total-value">{gbp(total)}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * QuickContactSection — tap-to-call / sms / email row.
+ * Only renders buttons for contact methods that actually exist on the job.
+ * Hidden entirely when neither phone nor email is present.
+ * WhatsApp is intentionally omitted — it already exists in the Chase CTA.
+ */
+function QuickContactSection({ job }) {
+  const phone = job.customerPhone || job.phone || job.mobile || '';
+  const email = job.email || job.customerEmail || '';
+
+  if (!phone && !email) return null;
+
+  return (
+    <div className="jd-section">
+      <div className="jd-section-header">Contact</div>
+      <div className="jd-section-body">
+        <div className="jd-contact-row">
+          {phone && (
+            <a href={`tel:${phone}`} className="jd-contact-btn" aria-label={`Call ${phone}`}>
+              <span aria-hidden="true">📞</span>
+              <span>Call</span>
+            </a>
+          )}
+          {phone && (
+            <a href={`sms:${phone}`} className="jd-contact-btn" aria-label={`Text ${phone}`}>
+              <span aria-hidden="true">💬</span>
+              <span>Text</span>
+            </a>
+          )}
+          {email && (
+            <a href={`mailto:${email}`} className="jd-contact-btn" aria-label={`Email ${email}`}>
+              <span aria-hidden="true">✉️</span>
+              <span>Email</span>
+            </a>
+          )}
         </div>
       </div>
     </div>
@@ -550,12 +660,21 @@ export default function JobDetailDrawer({
             </div>
           )}
 
-          {/* ── Content sections — missing in Phase C, restored here ── */}
+          {/* ── Content sections ── */}
 
+          {/* Profit overview — sits above the details so profitability is front-and-centre */}
+          <ProfitBarSection job={job} receipts={receipts} />
+
+          {/* Job details (description, address, contact, dates) */}
           <DetailsSection job={job} />
 
-          <MaterialsSection job={job} />
+          {/* Quick-contact buttons — below Details since it's contact-related */}
+          <QuickContactSection job={job} />
 
+          {/* Quote breakdown — the priced line items that make up the job total */}
+          <QuoteBreakdownSection job={job} />
+
+          {/* Receipts (material purchase photos / linked expense records) */}
           <ReceiptsSection
             job={job}
             receipts={receipts}
