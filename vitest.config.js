@@ -5,10 +5,9 @@ export default defineConfig({
     // Phase A is pure helpers (no DOM, no React). Node environment is faster
     // and avoids loading jsdom for unit tests that don't need it.
     environment: 'node',
-    // Discover *.test.{js,jsx} anywhere in src — covers both the
-    // src/lib/__tests__/foo.test.js layout (this branch) and the
-    // sibling src/lib/foo.test.js layout (main's bizValidation.test.js).
-    include: ['src/**/*.test.{js,jsx}'],
+    // Discover *.test.{js,jsx} anywhere in src or netlify/functions.
+    // src/** covers lib, components, screens. netlify/** covers function unit tests.
+    include: ['src/**/*.test.{js,jsx}', 'netlify/**/*.test.{js,jsx}'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html'],
