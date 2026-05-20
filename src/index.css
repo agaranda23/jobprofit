@@ -1644,6 +1644,261 @@ input[type=number] { -moz-appearance: textfield; }
   word-break: break-word;
 }
 
+/* ── Money tab M3 — hero card ─────────────────── */
+.money-hero {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 20px 20px 18px;
+  margin: 0 0 16px;
+  text-align: center;
+}
+.money-hero--clear {
+  padding: 14px 20px;
+  text-align: center;
+}
+.money-hero__caught-up {
+  font-size: 15px;
+  color: var(--accent);
+  font-weight: 600;
+}
+.money-hero__label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 8px;
+}
+.money-hero__figure {
+  font-size: 42px;
+  font-weight: 800;
+  color: var(--text);
+  letter-spacing: -0.03em;
+  line-height: 1;
+  margin-bottom: 6px;
+}
+.money-hero__meta {
+  font-size: 14px;
+  color: var(--text-dim);
+  font-weight: 500;
+  margin-bottom: 14px;
+}
+.money-hero__chase-cta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 20px;
+  background: #25D366;
+  color: #fff;
+  border-radius: 10px;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  text-decoration: none;
+  margin-bottom: 16px;
+  cursor: pointer;
+  transition: background 0.15s, transform 0.05s;
+}
+.money-hero__chase-cta:hover { background: #1fbc59; }
+.money-hero__chase-cta:active { transform: scale(0.98); }
+.money-hero__chase-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  text-align: left;
+}
+
+/* ── Money tab M3 — generic card ──────────────── */
+.money-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  margin: 0 0 16px;
+}
+.money-card--chart {
+  padding: 12px 12px 8px;
+}
+
+/* ── Money tab M3 — two-up stat row ───────────── */
+.money-twoUp {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 0 0 16px;
+}
+.money-twoUp__card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px 14px;
+}
+.money-twoUp__label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 8px;
+}
+.money-twoUp__value {
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--text);
+  letter-spacing: -0.02em;
+  line-height: 1;
+}
+.money-twoUp__value--negative {
+  color: #ef4444;
+}
+
+/* ── Money tab M3 — insight cards ─────────────── */
+.money-insight {
+  /* extends .money-card */
+}
+.money-insight__row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.money-insight__label {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.money-insight__tooltip {
+  font-size: 13px;
+  color: var(--text-dim);
+  cursor: help;
+  line-height: 1;
+}
+.money-insight__value {
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--text);
+  letter-spacing: -0.02em;
+  line-height: 1;
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.money-insight__delta {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+.money-insight__delta--up   { color: #22c55e; }
+.money-insight__delta--down { color: #ef4444; }
+.money-insight__delta--flat { color: var(--text-dim); }
+.money-insight--empty .money-insight__value { display: none; }
+.money-insight__hint {
+  font-size: 13px;
+  color: var(--text-dim);
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* ── Money tab M3 — margin nudge ──────────────── */
+.money-nudge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 16px;
+  /* extends .money-card */
+}
+.money-nudge__icon { font-size: 18px; flex-shrink: 0; }
+.money-nudge__copy {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  flex: 1;
+  line-height: 1.4;
+}
+.money-nudge__caret {
+  font-size: 14px;
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+.money-nudge--up   { border-color: #22c55e40; }
+.money-nudge--down { border-color: #ef444440; }
+
+/* ── Money tab M3 — recent transactions (collapsed) */
+.money-timeline {
+  /* extends .money-card */
+}
+.money-timeline__header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+}
+.money-timeline__title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-dim);
+  letter-spacing: 0.04em;
+}
+.money-timeline__chevron {
+  font-size: 14px;
+  color: var(--text-dim);
+  transition: transform 0.2s;
+  display: inline-block;
+}
+.money-timeline__chevron--open {
+  transform: rotate(180deg);
+}
+.money-timeline__body {
+  margin-top: 12px;
+}
+.money-timeline__group { margin-bottom: 12px; }
+.money-timeline__group:last-child { margin-bottom: 0; }
+.money-timeline__day {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin: 0 0 6px;
+}
+.money-timeline__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.money-timeline__item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 14px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--border);
+}
+.money-timeline__item:last-child { border-bottom: none; }
+.money-timeline__item-label {
+  color: var(--text);
+  font-weight: 500;
+}
+.money-timeline__item-amount {
+  font-weight: 700;
+  font-size: 14px;
+}
+.money-timeline__item-amount.pos { color: #22c55e; }
+.money-timeline__item-amount.neg { color: #ef4444; }
+
 /* ── Orientation toast ────────────────────────── */
 .nav-toast {
   position: fixed;

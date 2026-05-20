@@ -17,8 +17,6 @@ import { startHidingLegacyWrites, stopHidingLegacyWrites } from './lib/hideLegac
 import { clickCreateDetailedJobTab } from './lib/manageDeepLink';
 import { supabase } from './lib/supabase';
 import AuthScreen from './components/AuthScreen';
-import CashflowChart from './components/CashflowChart';
-import { SAMPLE_DATA } from './components/CashflowChart.helpers.js';
 import { parseHash, navigateToView, replaceHistory, TOP_VIEWS } from './lib/navigation';
 import { writeJobMeta, extractJobMeta, applyJobMetaToJobs } from './lib/jobMeta';
 import { addPayment } from './lib/payments';
@@ -43,11 +41,6 @@ import {
 //   localStorage.setItem('jp.navSlice3', '1'); location.reload();
 const NEW_NAV        = localStorage.getItem('jp.newNav')        === '1';
 const NAV_SLICE_3    = localStorage.getItem('jp.navSlice3')    === '1';
-// M2 dev-flag: renders CashflowChart on the finance view so founders can eyeball
-// it on the deploy preview. No-op in production (flag is never set by the app).
-// Remove this flag check after M3 wires the chart into FinanceScreen.
-// To enable: localStorage.setItem('jp.chartPreview', '1'); location.reload();
-const CHART_PREVIEW  = NAV_SLICE_3 && localStorage.getItem('jp.chartPreview') === '1';
 
 // View IDs recognised by each nav mode.
 // SLICE_3_VIEWS mirrors NEW_NAV_VIEWS but uses 'work'/'finance'/'settings'.
@@ -461,19 +454,6 @@ export default function AppShell() {
 
           {/* HeaderAvatar and AccountDrawer are NOT rendered when slice 3 is active.
               The Settings tab is the single account entry point. */}
-
-          {/* ── M2 chart dev-flag preview (remove after M3 ships) ───── */}
-          {CHART_PREVIEW && (
-            <div className="screen" style={{ padding: '16px', boxSizing: 'border-box' }}>
-              <h2 style={{ margin: '0 0 12px', fontSize: '1rem' }}>
-                CashflowChart preview (M2 sample data)
-              </h2>
-              <CashflowChart data={SAMPLE_DATA} />
-              <p style={{ fontSize: '0.75rem', color: '#9ca3af', marginTop: '12px' }}>
-                Dev only — disable: <code>localStorage.removeItem(&apos;jp.chartPreview&apos;); location.reload()</code>
-              </p>
-            </div>
-          )}
 
           <BottomNav
             view={view}
