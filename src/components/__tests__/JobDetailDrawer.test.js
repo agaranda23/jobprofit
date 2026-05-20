@@ -640,3 +640,303 @@ describe('addPayment auto-flip — paying balance in full', () => {
     expect(shouldShowChase(job)).toBe(false);
   });
 });
+
+// ── Phase E-3: lineItems edit helpers ────────────────────────────────────────
+
+/**
+ * Pure helpers extracted from the handleSaveLiEdit and handleUpdateLiItem
+ * closures in JobDetailDrawer. Tested here as pure functions — same pattern
+ * used throughout this file (no DOM mount).
+ */
+
+function computeLineItemsTotal(items) {
+  return items.reduce((s, i) => s + Number(i.cost || 0), 0);
+}
+
+function applyUpdateItem(draft, idx, field, value) {
+  const next = [...draft];
+  next[idx] = { ...next[idx], [field]: field === 'cost' ? value : value };
+  return next;
+}
+
+function addBlankItem(draft) {
+  return [...draft, { desc: '', cost: 0 }];
+}
+
+function deleteItem(draft, idx) {
+  return draft.filter((_, i) => i !== idx);
+}
+
+function finaliseDraft(draft) {
+  return draft
+    .map(i => ({ desc: i.desc || '', cost: Number(i.cost || 0) }))
+    .filter(i => i.desc || i.cost > 0);
+}
+
+describe('lineItems edit — computeLineItemsTotal', () => {
+  it('sums costs correctly', () => {
+    expect(computeLineItemsTotal([{ desc: 'A', cost: 100 }, { desc: 'B', cost: 250 }])).toBe(350);
+  });
+
+  it('returns 0 for an empty draft', () => {
+    expect(computeLineItemsTotal([])).toBe(0);
+  });
+
+  it('treats missing cost as 0', () => {
+    expect(computeLineItemsTotal([{ desc: 'Labour' }])).toBe(0);
+  });
+
+  it('coerces string cost values (from input onChange) to numbers', () => {
+    expect(computeLineItemsTotal([{ desc: 'A', cost: '120.50' }])).toBeCloseTo(120.5);
+  });
+});
+
+describe('lineItems edit — applyUpdateItem', () => {
+  const draft = [{ desc: 'Labour', cost: 200 }, { desc: 'Materials', cost: 100 }];
+
+  it('updates desc of the correct index', () => {
+    const result = applyUpdateItem(draft, 0, 'desc', 'New labour');
+    expect(result[0].desc).toBe('New labour');
+    expect(result[1].desc).toBe('Materials'); // unchanged
+  });
+
+  it('updates cost of the correct index', () => {
+    const result = applyUpdateItem(draft, 1, 'cost', '150');
+    expect(result[1].cost).toBe('150');
+    expect(result[0].cost).toBe(200); // unchanged
+  });
+
+  it('does not mutate the original draft array', () => {
+    applyUpdateItem(draft, 0, 'desc', 'X');
+    expect(draft[0].desc).toBe('Labour'); // original unchanged
+  });
+});
+
+describe('lineItems edit — addBlankItem', () => {
+  it('appends a blank item to the draft', () => {
+    const result = addBlankItem([{ desc: 'A', cost: 100 }]);
+    expect(result.length).toBe(2);
+    expect(result[1]).toEqual({ desc: '', cost: 0 });
+  });
+
+  it('works on an empty draft', () => {
+    const result = addBlankItem([]);
+    expect(result.length).toBe(1);
+    expect(result[0]).toEqual({ desc: '', cost: 0 });
+  });
+});
+
+describe('lineItems edit — deleteItem', () => {
+  const draft = [{ desc: 'A', cost: 10 }, { desc: 'B', cost: 20 }, { desc: 'C', cost: 30 }];
+
+  it('removes the item at the given index', () => {
+    const result = deleteItem(draft, 1);
+    expect(result.length).toBe(2);
+    expect(result.map(i => i.desc)).toEqual(['A', 'C']);
+  });
+
+  it('does not mutate the original array', () => {
+    deleteItem(draft, 0);
+    expect(draft.length).toBe(3);
+  });
+});
+
+describe('lineItems edit — finaliseDraft (blank row filtering)', () => {
+  it('removes items with no desc and zero cost', () => {
+    const result = finaliseDraft([{ desc: '', cost: 0 }, { desc: 'Labour', cost: 100 }]);
+    expect(result.length).toBe(1);
+    expect(result[0].desc).toBe('Labour');
+  });
+
+  it('keeps items that have a desc but zero cost', () => {
+    const result = finaliseDraft([{ desc: 'TBC', cost: 0 }]);
+    expect(result.length).toBe(1);
+  });
+
+  it('keeps items with a cost but no desc', () => {
+    const result = finaliseDraft([{ desc: '', cost: 50 }]);
+    expect(result.length).toBe(1);
+  });
+
+  it('coerces cost string to number', () => {
+    const result = finaliseDraft([{ desc: 'Labour', cost: '200' }]);
+    expect(result[0].cost).toBe(200);
+  });
+
+  it('total of finalised items matches computeLineItemsTotal after coercion', () => {
+    const draft = [{ desc: 'A', cost: '120' }, { desc: '', cost: 0 }, { desc: 'B', cost: '80' }];
+    const finalItems = finaliseDraft(draft);
+    expect(computeLineItemsTotal(finalItems)).toBe(200);
+  });
+});
+
+// ── Phase E-3: schedule update shape ─────────────────────────────────────────
+
+/**
+ * Validates the exact field shape written to onUpdateJob when the schedule
+ * is saved. The handler in JobDetailDrawer does:
+ *   onUpdateJob({ ...job, scheduledDate, scheduledStart, scheduledEnd })
+ * Null is written when a field is cleared (empty string → null).
+ */
+function buildScheduleUpdate(job, schedDate, schedStart, schedEnd) {
+  return {
+    ...job,
+    scheduledDate: schedDate || null,
+    scheduledStart: schedStart || null,
+    scheduledEnd: schedEnd || null,
+  };
+}
+
+describe('schedule update — buildScheduleUpdate', () => {
+  const baseJob = { id: 'j1', customer: 'Alan', amount: 500 };
+
+  it('writes scheduledDate into the returned object', () => {
+    const result = buildScheduleUpdate(baseJob, '2026-06-01', '09:00', '17:00');
+    expect(result.scheduledDate).toBe('2026-06-01');
+  });
+
+  it('writes scheduledStart and scheduledEnd', () => {
+    const result = buildScheduleUpdate(baseJob, '2026-06-01', '09:00', '17:00');
+    expect(result.scheduledStart).toBe('09:00');
+    expect(result.scheduledEnd).toBe('17:00');
+  });
+
+  it('writes null when schedStart is empty (user left it blank)', () => {
+    const result = buildScheduleUpdate(baseJob, '2026-06-01', '', '');
+    expect(result.scheduledStart).toBeNull();
+    expect(result.scheduledEnd).toBeNull();
+  });
+
+  it('preserves all other job fields', () => {
+    const result = buildScheduleUpdate(baseJob, '2026-06-01', '', '');
+    expect(result.id).toBe('j1');
+    expect(result.customer).toBe('Alan');
+  });
+});
+
+// ── Phase E-3: pipeline transition logic ─────────────────────────────────────
+
+/**
+ * Mirrors showMarkSent and showConvert visibility logic in JobDetailDrawer,
+ * and the field updates written to onUpdateJob for each transition.
+ */
+
+function showMarkSentGate(job) {
+  return job.quoteStatus === 'draft';
+}
+
+function showConvertGate(job) {
+  return (
+    job.quoteStatus === 'sent' ||
+    (job.quoteStatus === 'accepted' && (!job.jobStatus || job.jobStatus === 'quote'))
+  );
+}
+
+function buildMarkSentUpdate(job) {
+  return { ...job, quoteStatus: 'sent' };
+}
+
+function buildConvertUpdate(job) {
+  return { ...job, quoteStatus: 'accepted', jobStatus: 'active' };
+}
+
+describe('pipeline — Mark Sent visibility and transition', () => {
+  it('shows Mark Sent when quoteStatus is draft', () => {
+    expect(showMarkSentGate({ quoteStatus: 'draft' })).toBe(true);
+  });
+
+  it('hides Mark Sent when quoteStatus is sent', () => {
+    expect(showMarkSentGate({ quoteStatus: 'sent' })).toBe(false);
+  });
+
+  it('hides Mark Sent when quoteStatus is accepted', () => {
+    expect(showMarkSentGate({ quoteStatus: 'accepted' })).toBe(false);
+  });
+
+  it('Mark Sent transition writes quoteStatus: sent', () => {
+    const job = { id: 'j1', quoteStatus: 'draft' };
+    const updated = buildMarkSentUpdate(job);
+    expect(updated.quoteStatus).toBe('sent');
+  });
+
+  it('Mark Sent does not alter other fields', () => {
+    const job = { id: 'j1', customer: 'Alan', quoteStatus: 'draft' };
+    expect(buildMarkSentUpdate(job).customer).toBe('Alan');
+  });
+});
+
+describe('pipeline — Convert visibility and transition', () => {
+  it('shows Convert when quoteStatus is sent', () => {
+    expect(showConvertGate({ quoteStatus: 'sent', jobStatus: undefined })).toBe(true);
+  });
+
+  it('shows Convert when accepted and jobStatus is absent (legacy quote that was never activated)', () => {
+    expect(showConvertGate({ quoteStatus: 'accepted', jobStatus: undefined })).toBe(true);
+  });
+
+  it('shows Convert when accepted and jobStatus is quote', () => {
+    expect(showConvertGate({ quoteStatus: 'accepted', jobStatus: 'quote' })).toBe(true);
+  });
+
+  it('hides Convert when already active', () => {
+    expect(showConvertGate({ quoteStatus: 'accepted', jobStatus: 'active' })).toBe(false);
+  });
+
+  it('hides Convert when already complete', () => {
+    expect(showConvertGate({ quoteStatus: 'accepted', jobStatus: 'complete' })).toBe(false);
+  });
+
+  it('hides Convert when quoteStatus is draft (use Mark Sent first)', () => {
+    expect(showConvertGate({ quoteStatus: 'draft' })).toBe(false);
+  });
+
+  it('Convert transition sets quoteStatus: accepted AND jobStatus: active', () => {
+    const job = { id: 'j1', quoteStatus: 'sent' };
+    const updated = buildConvertUpdate(job);
+    expect(updated.quoteStatus).toBe('accepted');
+    expect(updated.jobStatus).toBe('active');
+  });
+
+  it('Convert does not alter other fields', () => {
+    const job = { id: 'j1', customer: 'Alan', quoteStatus: 'sent', amount: 500 };
+    expect(buildConvertUpdate(job).amount).toBe(500);
+  });
+});
+
+// ── Phase E-3: lineItems total feeds back to job.amount ──────────────────────
+
+describe('lineItems save — total recomputed and written to job.amount / job.total', () => {
+  function buildLineItemsSave(job, finalItems) {
+    const newTotal = finalItems.reduce((s, i) => s + Number(i.cost || 0), 0);
+    return { ...job, lineItems: finalItems, total: newTotal, amount: newTotal };
+  }
+
+  it('sets total and amount to the sum of finalised item costs', () => {
+    const job = { id: 'j1', lineItems: [], total: 0, amount: 0 };
+    const items = [{ desc: 'Labour', cost: 300 }, { desc: 'Materials', cost: 150 }];
+    const updated = buildLineItemsSave(job, items);
+    expect(updated.total).toBe(450);
+    expect(updated.amount).toBe(450);
+  });
+
+  it('both total and amount are set to the same value', () => {
+    const job = { id: 'j1', total: 999, amount: 999 };
+    const items = [{ desc: 'A', cost: 200 }];
+    const updated = buildLineItemsSave(job, items);
+    expect(updated.total).toBe(updated.amount);
+  });
+
+  it('sets total/amount to 0 when all items are removed', () => {
+    const job = { id: 'j1', total: 500, amount: 500 };
+    const updated = buildLineItemsSave(job, []);
+    expect(updated.total).toBe(0);
+    expect(updated.amount).toBe(0);
+  });
+
+  it('writes finalised lineItems array onto the updated job', () => {
+    const job = { id: 'j1', lineItems: [{ desc: 'Old', cost: 100 }] };
+    const items = [{ desc: 'New', cost: 200 }];
+    const updated = buildLineItemsSave(job, items);
+    expect(updated.lineItems).toEqual(items);
+  });
+});

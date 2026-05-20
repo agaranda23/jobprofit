@@ -112,8 +112,30 @@ function PhotoLightbox({ src, onClose }) {
 /**
  * Details section — job description, address, contact, dates.
  * Hidden when there is no renderable content.
+ *
+ * Schedule edit props (all optional — degrades gracefully when absent):
+ *   schedEditMode        – boolean; shows the inline edit form
+ *   schedDate            – draft scheduledDate (YYYY-MM-DD)
+ *   schedStart           – draft scheduledStart (HH:MM)
+ *   schedEnd             – draft scheduledEnd (HH:MM)
+ *   onScheduleEdit       – open edit form
+ *   onScheduleCancel     – discard and close
+ *   onScheduleSave       – persist via onUpdateJob and close
+ *   onScheduleDateChange / onScheduleStartChange / onScheduleEndChange
  */
-function DetailsSection({ job }) {
+function DetailsSection({
+  job,
+  schedEditMode,
+  schedDate,
+  schedStart,
+  schedEnd,
+  onScheduleEdit,
+  onScheduleCancel,
+  onScheduleSave,
+  onScheduleDateChange,
+  onScheduleStartChange,
+  onScheduleEndChange,
+}) {
   const hasDesc = !!job.summary;
   const hasAddress = !!job.address;
   const hasPhone = !!(job.phone || job.customerPhone || job.mobile);
@@ -122,8 +144,10 @@ function DetailsSection({ job }) {
   const hasScheduled = !!job.scheduledDate;
   const hasCompleted = !!job.completedAt;
   const hasHours = !!(job.hoursEstimate || job.hours);
+  const canEditSchedule = typeof onScheduleEdit === 'function';
 
-  const visible = hasDesc || hasAddress || hasPhone || hasEmail || hasDate || hasScheduled || hasCompleted || hasHours;
+  const visible = hasDesc || hasAddress || hasPhone || hasEmail || hasDate ||
+    hasScheduled || hasCompleted || hasHours || canEditSchedule;
   if (!visible) return null;
 
   const phone = job.phone || job.customerPhone || job.mobile || '';
@@ -134,7 +158,19 @@ function DetailsSection({ job }) {
 
   return (
     <div className="jd-section">
-      <div className="jd-section-header">Details</div>
+      <div className="jd-section-header jd-section-header--with-action">
+        <span>Details</span>
+        {canEditSchedule && !schedEditMode && (
+          <button
+            type="button"
+            className="jd-section-action-btn"
+            onClick={onScheduleEdit}
+            aria-label="Edit schedule"
+          >
+            {hasScheduled ? 'Edit schedule' : '+ Schedule'}
+          </button>
+        )}
+      </div>
       <div className="jd-section-body">
         {hasDesc && (
           <p className="jd-detail-desc">{job.summary}</p>
@@ -168,7 +204,7 @@ function DetailsSection({ job }) {
             <span>Created {fmtDate(job.date || job.createdAt)}</span>
           </div>
         )}
-        {hasScheduled && (
+        {!schedEditMode && hasScheduled && (
           <div className="jd-detail-row">
             <span className="jd-detail-icon">🗓️</span>
             <span>
@@ -187,6 +223,56 @@ function DetailsSection({ job }) {
           <div className="jd-detail-row">
             <span className="jd-detail-icon">⏱️</span>
             <span>{job.hoursEstimate || job.hours} hrs estimated</span>
+          </div>
+        )}
+
+        {/* Inline schedule edit form */}
+        {schedEditMode && (
+          <div className="jd-schedule-edit-form">
+            <div>
+              <div className="jd-schedule-edit-label">Date</div>
+              <input
+                type="date"
+                className="jd-schedule-edit-input"
+                value={schedDate || ''}
+                onChange={e => onScheduleDateChange(e.target.value)}
+                aria-label="Scheduled date"
+              />
+            </div>
+            <div>
+              <div className="jd-schedule-edit-label">Time (optional)</div>
+              <div className="jd-schedule-edit-time-row">
+                <input
+                  type="time"
+                  className="jd-schedule-edit-input"
+                  value={schedStart || ''}
+                  onChange={e => onScheduleStartChange(e.target.value)}
+                  aria-label="Start time"
+                  placeholder="Start"
+                />
+                <input
+                  type="time"
+                  className="jd-schedule-edit-input"
+                  value={schedEnd || ''}
+                  onChange={e => onScheduleEndChange(e.target.value)}
+                  aria-label="End time"
+                  placeholder="End"
+                />
+              </div>
+            </div>
+            <div className="jd-schedule-edit-footer">
+              <button type="button" className="btn-ghost" onClick={onScheduleCancel}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={onScheduleSave}
+                disabled={!schedDate}
+              >
+                Save
+              </button>
+            </div>
           </div>
         )}
       </div>
@@ -250,45 +336,142 @@ function ProfitBarSection({ job, receipts }) {
 }
 
 /**
- * QuoteBreakdownSection — read-only list of job.lineItems[].
- * Shows per-item description, optional quantity, unit cost, and a total.
- * Hidden when lineItems is empty or absent. Edit/add is Phase E (deferred).
+ * QuoteBreakdownSection — editable list of job.lineItems[].
+ *
+ * Read mode: description + cost per row, total at foot.
+ * Edit mode (toggled by "+ Edit" header button): each row gets text + number
+ * inputs and an × delete button; a "+ Add line item" row appends a blank entry.
+ * Save recomputes job.total from the edited items and calls onUpdateJob.
+ * Cancel discards the draft.
+ *
+ * Edit props (all optional — section degrades to read-only when absent):
+ *   editMode       – boolean
+ *   editItems      – draft copy of lineItems
+ *   onToggleEdit   – open edit mode (copies items into draft)
+ *   onCancelEdit   – discard draft and close edit mode
+ *   onSaveEdit     – persist draft via onUpdateJob, close edit mode
+ *   onUpdateItem(idx, field, value) – update one field of one draft item
+ *   onAddItem      – append a blank draft item
+ *   onDeleteItem(idx) – remove a draft item
  */
-function QuoteBreakdownSection({ job }) {
+function QuoteBreakdownSection({
+  job,
+  editMode,
+  editItems,
+  onToggleEdit,
+  onCancelEdit,
+  onSaveEdit,
+  onUpdateItem,
+  onAddItem,
+  onDeleteItem,
+}) {
   const items = Array.isArray(job.lineItems) ? job.lineItems.filter(i => i.desc || i.cost) : [];
-  if (items.length === 0) return null;
 
-  const total = items.reduce((sum, i) => {
+  // Hide entirely in read mode when there are no items and no edit handler
+  if (items.length === 0 && !onToggleEdit) return null;
+
+  const readTotal = items.reduce((sum, i) => {
     const qty = Number(i.qty || i.quantity || 1);
     const unit = Number(i.cost || i.unitCost || i.price || 0);
     return sum + qty * unit;
   }, 0);
 
+  const draftTotal = Array.isArray(editItems)
+    ? editItems.reduce((sum, i) => sum + Number(i.cost || 0), 0)
+    : 0;
+
   return (
     <div className="jd-section">
-      <div className="jd-section-header">Quote breakdown</div>
-      <div className="jd-section-body jd-section-body--flush">
-        {items.map((item, idx) => {
-          const qty = Number(item.qty || item.quantity || 1);
-          const unit = Number(item.cost || item.unitCost || item.price || 0);
-          const lineTotal = qty * unit;
-          return (
-            <div key={idx} className="jd-line-item">
-              <span className="jd-line-item-desc">
-                {item.desc || '—'}
-                {qty > 1 && (
-                  <span className="jd-line-item-qty"> × {qty}</span>
-                )}
-              </span>
-              <span className="jd-line-item-cost">{gbp(lineTotal)}</span>
-            </div>
-          );
-        })}
-        <div className="jd-line-total">
-          <span className="jd-line-total-label">Total</span>
-          <span className="jd-line-total-value">{gbp(total)}</span>
-        </div>
+      <div className="jd-section-header jd-section-header--with-action">
+        <span>Quote breakdown</span>
+        {onToggleEdit && !editMode && (
+          <button
+            type="button"
+            className="jd-section-action-btn"
+            onClick={onToggleEdit}
+            aria-label="Edit quote breakdown"
+          >
+            Edit
+          </button>
+        )}
       </div>
+
+      {editMode ? (
+        <div className="jd-section-body">
+          {(editItems || []).map((item, idx) => (
+            <div key={idx} className="jd-li-edit-row">
+              <input
+                type="text"
+                className="jd-li-input-desc"
+                placeholder="Description"
+                value={item.desc || ''}
+                onChange={e => onUpdateItem(idx, 'desc', e.target.value)}
+                aria-label={`Line item ${idx + 1} description`}
+              />
+              <input
+                type="number"
+                className="jd-li-input-cost"
+                placeholder="0.00"
+                min="0"
+                step="0.01"
+                value={item.cost ?? ''}
+                onChange={e => onUpdateItem(idx, 'cost', e.target.value)}
+                aria-label={`Line item ${idx + 1} cost`}
+              />
+              <button
+                type="button"
+                className="jd-li-delete-btn"
+                onClick={() => onDeleteItem(idx)}
+                aria-label={`Delete line item ${idx + 1}`}
+              >
+                ✕
+              </button>
+            </div>
+          ))}
+          <button type="button" className="jd-li-add-btn" onClick={onAddItem}>
+            + Add line item
+          </button>
+          <div className="jd-li-edit-footer">
+            <button type="button" className="btn-ghost" onClick={onCancelEdit}>
+              Cancel
+            </button>
+            <button type="button" className="btn-primary" onClick={onSaveEdit}>
+              Save — {gbp(draftTotal)}
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="jd-section-body jd-section-body--flush">
+          {items.length === 0 ? (
+            <div style={{ padding: '12px 0', color: 'var(--text-dim)', fontSize: 14 }}>
+              No line items yet.
+            </div>
+          ) : (
+            items.map((item, idx) => {
+              const qty = Number(item.qty || item.quantity || 1);
+              const unit = Number(item.cost || item.unitCost || item.price || 0);
+              const lineTotal = qty * unit;
+              return (
+                <div key={idx} className="jd-line-item">
+                  <span className="jd-line-item-desc">
+                    {item.desc || '—'}
+                    {qty > 1 && (
+                      <span className="jd-line-item-qty"> × {qty}</span>
+                    )}
+                  </span>
+                  <span className="jd-line-item-cost">{gbp(lineTotal)}</span>
+                </div>
+              );
+            })
+          )}
+          {items.length > 0 && (
+            <div className="jd-line-total">
+              <span className="jd-line-total-label">Total</span>
+              <span className="jd-line-total-value">{gbp(readTotal)}</span>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -654,6 +837,16 @@ export default function JobDetailDrawer({
   const [noteSubject, setNoteSubject] = useState('');
   const [noteBody, setNoteBody] = useState('');
 
+  // LineItems edit — inline draft state
+  const [liEditMode, setLiEditMode] = useState(false);
+  const [liDraft, setLiDraft] = useState([]);
+
+  // Schedule edit — inline draft state
+  const [schedEditMode, setSchedEditMode] = useState(false);
+  const [schedDate, setSchedDate] = useState('');
+  const [schedStart, setSchedStart] = useState('');
+  const [schedEnd, setSchedEnd] = useState('');
+
   // Close on Escape — also closes lightbox if open
   useEffect(() => {
     const onKey = (e) => {
@@ -799,6 +992,92 @@ export default function JobDetailDrawer({
     }
   };
 
+  // ── LineItems edit ────────────────────────────────────────────────────────
+  // Data shape: { desc: string, cost: number } — matches legacy seed and AI-generated jobs.
+  const handleToggleLiEdit = () => {
+    // Seed draft from the canonical lineItems, normalising all cost values to numbers.
+    const base = Array.isArray(job.lineItems) ? job.lineItems : [];
+    setLiDraft(base.map(i => ({ desc: i.desc || '', cost: Number(i.cost || 0) })));
+    setLiEditMode(true);
+  };
+
+  const handleCancelLiEdit = () => {
+    setLiEditMode(false);
+    setLiDraft([]);
+  };
+
+  const handleUpdateLiItem = (idx, field, value) => {
+    setLiDraft(prev => {
+      const next = [...prev];
+      next[idx] = { ...next[idx], [field]: field === 'cost' ? value : value };
+      return next;
+    });
+  };
+
+  const handleAddLiItem = () => {
+    setLiDraft(prev => [...prev, { desc: '', cost: 0 }]);
+  };
+
+  const handleDeleteLiItem = (idx) => {
+    setLiDraft(prev => prev.filter((_, i) => i !== idx));
+  };
+
+  const handleSaveLiEdit = () => {
+    const finalItems = liDraft
+      .map(i => ({ desc: i.desc || '', cost: Number(i.cost || 0) }))
+      .filter(i => i.desc || i.cost > 0); // drop blank rows
+    const newTotal = finalItems.reduce((s, i) => s + i.cost, 0);
+    onUpdateJob({ ...job, lineItems: finalItems, total: newTotal, amount: newTotal });
+    setLiEditMode(false);
+    setLiDraft([]);
+    showFlash('Quote updated');
+  };
+
+  // ── Schedule edit ─────────────────────────────────────────────────────────
+  const handleScheduleEdit = () => {
+    setSchedDate(job.scheduledDate || '');
+    setSchedStart(job.scheduledStart || '');
+    setSchedEnd(job.scheduledEnd || '');
+    setSchedEditMode(true);
+  };
+
+  const handleScheduleCancel = () => {
+    setSchedEditMode(false);
+  };
+
+  const handleScheduleSave = () => {
+    if (!schedDate) return;
+    onUpdateJob({
+      ...job,
+      scheduledDate: schedDate || null,
+      scheduledStart: schedStart || null,
+      scheduledEnd: schedEnd || null,
+    });
+    setSchedEditMode(false);
+    showFlash('Schedule updated');
+  };
+
+  // ── Pipeline transitions ──────────────────────────────────────────────────
+  // Mirrors legacy convertToJob (App.jsx line 620) and Mark Sent (line 660).
+  const handleMarkSent = () => {
+    onUpdateJob({ ...job, quoteStatus: 'sent' });
+    showFlash('Quote marked as sent');
+  };
+
+  const handleConvert = () => {
+    onUpdateJob({ ...job, quoteStatus: 'accepted', jobStatus: 'active' });
+    showFlash('Converted to active job');
+  };
+
+  // Mark Sent: visible when quoteStatus is 'draft' (quote exists but not yet sent)
+  const showMarkSent = job.quoteStatus === 'draft' && onUpdateJob;
+  // Convert: visible when quoteStatus is 'sent' OR (accepted but jobStatus not set / 'quote')
+  const showConvert =
+    onUpdateJob && (
+      job.quoteStatus === 'sent' ||
+      (job.quoteStatus === 'accepted' && (!job.jobStatus || job.jobStatus === 'quote'))
+    );
+
   return (
     <>
       {/* Backdrop */}
@@ -920,19 +1199,67 @@ export default function JobDetailDrawer({
             </div>
           )}
 
+          {/* Pipeline buttons — Mark Sent (draft quote) and Convert (sent quote) */}
+          {(showMarkSent || showConvert) && (
+            <div className="job-detail-pipeline-row">
+              {showMarkSent && (
+                <button
+                  type="button"
+                  className="btn-warn"
+                  style={{ flex: 1 }}
+                  onClick={handleMarkSent}
+                >
+                  Mark sent
+                </button>
+              )}
+              {showConvert && (
+                <button
+                  type="button"
+                  className="btn-convert"
+                  style={{ flex: 1 }}
+                  onClick={handleConvert}
+                >
+                  Convert to job
+                </button>
+              )}
+            </div>
+          )}
+
           {/* ── Content sections ── */}
 
           {/* Profit overview — sits above the details so profitability is front-and-centre */}
           <ProfitBarSection job={job} receipts={receipts} />
 
-          {/* Job details (description, address, contact, dates) */}
-          <DetailsSection job={job} />
+          {/* Job details (description, address, contact, dates, schedule edit) */}
+          <DetailsSection
+            job={job}
+            schedEditMode={schedEditMode}
+            schedDate={schedDate}
+            schedStart={schedStart}
+            schedEnd={schedEnd}
+            onScheduleEdit={onUpdateJob ? handleScheduleEdit : undefined}
+            onScheduleCancel={handleScheduleCancel}
+            onScheduleSave={handleScheduleSave}
+            onScheduleDateChange={setSchedDate}
+            onScheduleStartChange={setSchedStart}
+            onScheduleEndChange={setSchedEnd}
+          />
 
           {/* Quick-contact buttons — below Details since it's contact-related */}
           <QuickContactSection job={job} />
 
-          {/* Quote breakdown — the priced line items that make up the job total */}
-          <QuoteBreakdownSection job={job} />
+          {/* Quote breakdown — editable line items that make up the job total */}
+          <QuoteBreakdownSection
+            job={job}
+            editMode={liEditMode}
+            editItems={liDraft}
+            onToggleEdit={onUpdateJob ? handleToggleLiEdit : undefined}
+            onCancelEdit={handleCancelLiEdit}
+            onSaveEdit={handleSaveLiEdit}
+            onUpdateItem={handleUpdateLiItem}
+            onAddItem={handleAddLiItem}
+            onDeleteItem={handleDeleteLiItem}
+          />
 
           {/* Receipts (material purchase photos / linked expense records) */}
           <ReceiptsSection
