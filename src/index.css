@@ -209,7 +209,9 @@ body { background: var(--bg); color: var(--text); -webkit-font-smoothing: antial
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  z-index: 100;
+  /* z-index 300 sits above .drawer-backdrop (200) and .job-detail-sheet (201)
+     so RecordPaymentModal blocks all clicks to the drawer underneath. */
+  z-index: 300;
 }
 .modal {
   background: var(--surface);
@@ -2607,6 +2609,11 @@ input[type=number] { -moz-appearance: textfield; }
   left: 0;
   right: 0;
   bottom: 0;
+  /* height: 88vh gives the flex container an explicit size so that
+     .job-detail-body (flex: 1) can fill the remaining space and
+     overflow-y: auto actually kicks in. Without this, max-height alone
+     leaves the sheet collapsing to only the header row (the "sliver" bug). */
+  height: 88vh;
   max-height: 88vh;
   background: var(--surface);
   border-top: 1px solid var(--border);
