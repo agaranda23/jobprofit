@@ -2732,3 +2732,193 @@ input[type=number] { -moz-appearance: textfield; }
   pointer-events: none;
   animation: fade-in 0.2s ease;
 }
+
+/* ── SendInvoiceModal & shared modal-sheet styles ─────────────────────────── */
+
+.btn-ghost {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 15px;
+  font-weight: 500;
+  padding: 12px 16px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-family: inherit;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn-ghost:hover { background: var(--surface-2); }
+
+/* SendInvoiceModal uses the shared .modal-backdrop but needs a higher
+   z-index so it sits above the JobDetailDrawer (z-index ~900 range).
+   The modifier overrides only the stacking level — shape stays shared. */
+.modal-backdrop--top {
+  z-index: 1100;
+}
+.modal-sheet {
+  background: var(--surface);
+  border-radius: 20px 20px 0 0;
+  width: 100%;
+  max-width: 500px;
+  padding: 24px 20px calc(24px + env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 90svh;
+  overflow-y: auto;
+  animation: slide-up 0.25s ease-out;
+}
+.modal-sheet-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.modal-sheet-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--text);
+}
+.modal-sheet-close {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
+  background: var(--surface-2);
+  cursor: pointer;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+}
+.modal-sheet-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.modal-sheet-text {
+  margin: 0;
+  font-size: 15px;
+  color: var(--text);
+  line-height: 1.5;
+}
+.modal-sheet-btn {
+  width: 100%;
+  justify-content: center;
+}
+.modal-price-block {
+  background: var(--surface-2);
+  border-radius: 10px;
+  padding: 14px 16px;
+  text-align: center;
+}
+.modal-price {
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--text);
+}
+.modal-price-period {
+  font-size: 16px;
+  font-weight: 600;
+}
+.modal-price-sub {
+  font-size: 13px;
+  color: var(--text-dim);
+  margin-top: 4px;
+}
+
+/* Invoice preview card inside the modal */
+.invoice-preview-card {
+  background: var(--surface-2);
+  border-radius: 10px;
+  padding: 14px 16px;
+}
+.invoice-preview-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
+.invoice-preview-summary {
+  font-size: 13px;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+.invoice-preview-amount {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--accent);
+  margin-top: 4px;
+}
+
+/* Invoice number + due date inline fields */
+.invoice-fields-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.invoice-field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.invoice-field-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.invoice-field-input {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 14px;
+  color: var(--text);
+  font-family: inherit;
+  width: 100%;
+  box-sizing: border-box;
+}
+.invoice-field-input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* Missing-settings warning */
+.invoice-missing-warning {
+  background: #fef3c7;
+  border: 1px solid #fde68a;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 13px;
+  color: #92400e;
+}
+
+/* Primary send button — full width, green */
+.invoice-send-primary {
+  margin-top: 4px;
+}
+
+/* Secondary actions (WhatsApp text-only + PDF download) */
+.invoice-secondary-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Resend invoice row in JobDetailDrawer */
+.job-detail-resend-row {
+  display: flex;
+  justify-content: center;
+}
+.job-detail-resend-btn {
+  font-size: 14px;
+  color: var(--accent);
+  padding: 8px 12px;
+}

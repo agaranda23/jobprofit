@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import PaymentSummaryBlock from './PaymentSummaryBlock';
 import PaymentHistoryList from './PaymentHistoryList';
 import RecordPaymentModal from './RecordPaymentModal';
+import SendInvoiceModal from './SendInvoiceModal';
 import {
   getChaseState,
   recordChase,
@@ -83,12 +84,25 @@ const STATUS_CLASS = {
  * slides up rather than right (see .job-detail-sheet in index.css).
  *
  * Props:
- *   job         – full job object (required)
+ *   job           – full job object (required)
+ *   biz           – business settings (name, bank, VAT) — needed for invoice generation
+ *   profile       – Supabase profiles row or null — needed for paywall gating
+ *   jobs          – all jobs array — needed by nextInvoiceNumber to avoid gaps
+ *   onUpdateJob(updatedJob) – persists job field updates (sets invoiceSentAt etc.)
  *   onAddPayment(job, payload) – from AppShell, persists to jobMeta side-channel
- *   onClose()   – called when the sheet should close
+ *   onClose()     – called when the sheet should close
  */
-export default function JobDetailDrawer({ job, onAddPayment, onClose }) {
+export default function JobDetailDrawer({
+  job,
+  biz,
+  profile,
+  jobs,
+  onUpdateJob,
+  onAddPayment,
+  onClose,
+}) {
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
+  const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
   const [toast, setToast] = useState(null);
 
   // Close on Escape
@@ -103,6 +117,16 @@ export default function JobDetailDrawer({ job, onAddPayment, onClose }) {
   const displayName = job.customer || job.name || 'Unnamed job';
   const amount = job.total ?? job.amount;
   const showChase = shouldShowChase(job);
+
+  // Invoice send CTA gating:
+  // - "Send invoice" when the job has never been invoiced (status not Invoiced/Paid,
+  //   and invoiceSentAt is absent).
+  // - "Resend invoice" (secondary link) when invoice was already sent.
+  const invoiceAlreadySent =
+    status === 'Invoiced' || status === 'Paid' ||
+    !!job.invoiceSentAt || job.status === 'invoice_sent';
+  const showSendInvoice = status !== 'Paid' && !invoiceAlreadySent;
+  const showResendInvoice = status !== 'Paid' && invoiceAlreadySent;
 
   const chaseState = getChaseState(job.id);
   const tier = computeTier(chaseState);
@@ -198,8 +222,21 @@ export default function JobDetailDrawer({ job, onAddPayment, onClose }) {
             }}
           />
 
-          {/* Primary CTA — always visible, separate from PaymentSummaryBlock's own buttons */}
-          {status !== 'Paid' && (
+          {/* Primary CTA block — mutually exclusive based on invoice state */}
+          {showSendInvoice && (
+            <div className="job-detail-cta-row">
+              <button
+                type="button"
+                className="btn-primary job-detail-cta-primary"
+                onClick={() => setInvoiceModalOpen(true)}
+              >
+                Send invoice
+              </button>
+            </div>
+          )}
+
+          {/* Once invoice is sent: Record payment becomes the primary CTA */}
+          {!showSendInvoice && status !== 'Paid' && (
             <div className="job-detail-cta-row">
               <button
                 type="button"
@@ -207,6 +244,19 @@ export default function JobDetailDrawer({ job, onAddPayment, onClose }) {
                 onClick={() => setPaymentModalOpen(true)}
               >
                 Record payment
+              </button>
+            </div>
+          )}
+
+          {/* Resend invoice — secondary, only when invoice already sent and not paid */}
+          {showResendInvoice && (
+            <div className="job-detail-resend-row">
+              <button
+                type="button"
+                className="btn-ghost job-detail-resend-btn"
+                onClick={() => setInvoiceModalOpen(true)}
+              >
+                Resend invoice
               </button>
             </div>
           )}
@@ -243,6 +293,19 @@ export default function JobDetailDrawer({ job, onAddPayment, onClose }) {
           job={job}
           onAddPayment={onAddPayment}
           onClose={() => setPaymentModalOpen(false)}
+          flash={showFlash}
+        />
+      )}
+
+      {/* SendInvoiceModal — rendered outside the sheet so it sits on top */}
+      {invoiceModalOpen && (
+        <SendInvoiceModal
+          job={job}
+          biz={biz ?? {}}
+          profile={profile ?? null}
+          jobs={jobs ?? []}
+          onUpdate={onUpdateJob ?? (() => {})}
+          onClose={() => setInvoiceModalOpen(false)}
           flash={showFlash}
         />
       )}
