@@ -448,3 +448,49 @@ export async function getReceiptSignedUrl(imagePath) {
   }
   return data?.signedUrl || null;
 }
+
+/**
+ * Deletes a receipt by its cloud UUID (or legacy localStorage ID).
+ *
+ * Flow:
+ *   1. Find the receipt in localStorage to retrieve imagePath (if any).
+ *   2. Delete the storage object (best-effort — a missing file is not fatal).
+ *   3. Delete the receipts row from Supabase (user owns their own rows via RLS).
+ *   4. Mirror-remove from localStorage.
+ *
+ * If the user is not signed in, falls back to localStorage-only removal so the
+ * delete still works offline / in the demo build.
+ */
+export async function deleteReceiptFromCloud(receiptId) {
+  // Find legacy mirror entry so we can remove the storage file if present
+  const data = read();
+  const localEntry = data.expenses.find(
+    e => e.cloudId === receiptId || e.id === receiptId
+  );
+  const imagePath = localEntry?.imagePath || null;
+
+  const user_id = await getUserId();
+  if (user_id) {
+    // Attempt to remove the storage object (ignore 404s — file may not exist)
+    if (imagePath) {
+      await supabase.storage.from('receipts').remove([imagePath]);
+    }
+
+    // Delete the receipts row — RLS ensures the user can only delete their own rows
+    const { error } = await supabase
+      .from('receipts')
+      .delete()
+      .eq('id', receiptId);
+
+    if (error) {
+      console.error('deleteReceiptFromCloud failed', error);
+      throw error;
+    }
+  }
+
+  // Mirror: remove from localStorage regardless of cloud outcome
+  data.expenses = data.expenses.filter(
+    e => e.cloudId !== receiptId && e.id !== receiptId
+  );
+  write(data);
+}
