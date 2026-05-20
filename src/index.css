@@ -1363,6 +1363,11 @@ input[type=number] { -moz-appearance: textfield; }
 .job-card--warn {
   border-color: var(--jp-amber);
 }
+.job-card--tappable {
+  cursor: pointer;
+  transition: opacity 0.12s;
+}
+.job-card--tappable:active { opacity: 0.7; }
 .job-card-top {
   display: flex;
   align-items: center;
@@ -2594,4 +2599,129 @@ input[type=number] { -moz-appearance: textfield; }
   font-size: 18px;
   color: var(--text-dim);
   line-height: 1;
+}
+
+/* ── JobDetailDrawer (bottom sheet) ──────────────────────────────────────── */
+.job-detail-sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  max-height: 88vh;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  border-radius: 20px 20px 0 0;
+  z-index: 201;
+  display: flex;
+  flex-direction: column;
+  animation: slide-up 0.25s ease-out;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+@keyframes slide-up {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+.job-detail-sheet-handle {
+  width: 40px;
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  margin: 10px auto 4px;
+  flex-shrink: 0;
+}
+.job-detail-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 16px 12px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.job-detail-header-left {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+.job-detail-title-block {
+  min-width: 0;
+}
+.job-detail-customer {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.job-detail-summary {
+  font-size: 13px;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+.job-detail-header-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+}
+.job-detail-amount {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--jp-green);
+  font-variant-numeric: tabular-nums;
+}
+.job-detail-close {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 18px;
+  cursor: pointer;
+  padding: 4px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+.job-detail-body {
+  overflow-y: auto;
+  padding: 16px 16px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  flex: 1;
+}
+.job-detail-cta-row {
+  display: flex;
+}
+.job-detail-cta-primary {
+  flex: 1;
+}
+.job-detail-chase-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.job-detail-chase-btn {
+  flex: 1;
+}
+.job-detail-chased-label {
+  font-size: 12px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+.job-detail-toast {
+  position: absolute;
+  bottom: calc(16px + env(safe-area-inset-bottom));
+  left: 16px;
+  right: 16px;
+  background: var(--jp-green);
+  color: #0b1f10;
+  font-size: 14px;
+  font-weight: 700;
+  padding: 12px 16px;
+  border-radius: 12px;
+  text-align: center;
+  pointer-events: none;
+  animation: fade-in 0.2s ease;
 }

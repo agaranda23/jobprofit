@@ -429,6 +429,7 @@ export default function AppShell() {
             <WorkScreen
               jobs={jobs}
               onNewJob={openDetailed}
+              onAddPayment={onAddPayment}
             />
           )}
 

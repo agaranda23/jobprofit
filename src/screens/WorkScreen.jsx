@@ -8,6 +8,7 @@
  */
 import { useState, useCallback } from 'react';
 import WorkCalendar from './WorkCalendar';
+import JobDetailDrawer from '../components/JobDetailDrawer';
 
 const STORAGE_KEY = 'jp.workView';
 
@@ -43,7 +44,7 @@ function deriveDisplayStatus(job) {
 
 // ── JobCard (inline — extracted from JobsScreen to avoid circular dep) ────────
 
-function JobCard({ job }) {
+function JobCard({ job, onSelect }) {
   const status = deriveDisplayStatus(job);
   const statusClass = {
     Quoted:   'status--quoted',
@@ -56,7 +57,14 @@ function JobCard({ job }) {
   const doneNotInvoiced = status === 'Done';
 
   return (
-    <li className={`job-card ${doneNotInvoiced ? 'job-card--warn' : ''}`}>
+    <li
+      className={`job-card job-card--tappable ${doneNotInvoiced ? 'job-card--warn' : ''}`}
+      onClick={() => onSelect?.(job)}
+      role="button"
+      tabIndex={0}
+      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') onSelect?.(job); }}
+      aria-label={`View details for ${job.customer || job.name || 'Unnamed job'}`}
+    >
       <div className="job-card-top">
         <span className={`job-status-pill ${statusClass}`}>{status[0]}</span>
         <span className="job-card-customer">{job.customer || job.name || 'Unnamed job'}</span>
@@ -82,7 +90,7 @@ function JobCard({ job }) {
 
 // ── JobsList subview ──────────────────────────────────────────────────────────
 
-function JobsList({ jobs, onNewJob }) {
+function JobsList({ jobs, onJobSelect }) {
   const [filter, setFilter] = useState('All');
 
   const filtered = jobs.filter(j => {
@@ -123,7 +131,7 @@ function JobsList({ jobs, onNewJob }) {
       ) : (
         <ul className="job-list">
           {filtered.map(j => (
-            <JobCard key={j.id || j.cloudId} job={j} />
+            <JobCard key={j.id || j.cloudId} job={j} onSelect={onJobSelect} />
           ))}
         </ul>
       )}
@@ -133,8 +141,10 @@ function JobsList({ jobs, onNewJob }) {
 
 // ── WorkScreen (root) ─────────────────────────────────────────────────────────
 
-export default function WorkScreen({ jobs = [], onNewJob }) {
+export default function WorkScreen({ jobs = [], onNewJob, onAddPayment }) {
   const [subview, setSubview] = useState(getPersistedView);
+  // selectedJob drives the JobDetailDrawer — null means closed.
+  const [selectedJob, setSelectedJob] = useState(null);
 
   const switchSubview = useCallback((v) => {
     // Telemetry — wire to real analytics when infrastructure exists
@@ -143,6 +153,17 @@ export default function WorkScreen({ jobs = [], onNewJob }) {
     setSubview(v);
     persistView(v);
   }, []);
+
+  // Keep the drawer's job in sync when AppShell refreshes jobs[] after a payment.
+  // Without this the drawer would show stale balance/payments after adding a payment.
+  const liveSelectedJob = selectedJob
+    ? (jobs.find(j => j.id === selectedJob.id) ?? selectedJob)
+    : null;
+
+  const handleAddPayment = (job, payload) => {
+    onAddPayment?.(job, payload);
+    // liveSelectedJob will update automatically on next render as jobs[] refreshes.
+  };
 
   return (
     <div className="screen work-screen">
@@ -174,9 +195,18 @@ export default function WorkScreen({ jobs = [], onNewJob }) {
 
       {/* Subview */}
       {subview === 'list' ? (
-        <JobsList jobs={jobs} onNewJob={onNewJob} />
+        <JobsList jobs={jobs} onJobSelect={setSelectedJob} />
       ) : (
         <WorkCalendar jobs={jobs} onNewJobOnDate={onNewJob} />
+      )}
+
+      {/* Job detail drawer — renders on top when a job is selected */}
+      {liveSelectedJob && (
+        <JobDetailDrawer
+          job={liveSelectedJob}
+          onAddPayment={handleAddPayment}
+          onClose={() => setSelectedJob(null)}
+        />
       )}
     </div>
   );
