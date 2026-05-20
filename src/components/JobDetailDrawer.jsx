@@ -66,6 +66,18 @@ function deriveStatus(job) {
   return 'Quoted';
 }
 
+/** Formats an ISO date string or YYYY-MM-DD to en-GB display date. Returns '' for falsy. */
+function fmtDate(raw) {
+  if (!raw) return '';
+  try {
+    // YYYY-MM-DD strings: parse as local date to avoid UTC midnight offset
+    const d = raw.length === 10 ? new Date(raw + 'T00:00:00') : new Date(raw);
+    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+  } catch {
+    return raw;
+  }
+}
+
 const STATUS_CLASS = {
   Quoted:   'status--quoted',
   Active:   'status--active',
@@ -73,6 +85,369 @@ const STATUS_CLASS = {
   Invoiced: 'status--invoiced',
   Paid:     'status--paid',
 };
+
+// ── Section components (inline — not extracted until legacy JobDetail is fully split) ──
+
+/**
+ * Full-screen photo lightbox — tap anywhere to close.
+ * Mirrors the PhotoModal in App.jsx (kept inline to avoid cross-file dep on the monolith).
+ */
+function PhotoLightbox({ src, onClose }) {
+  if (!src) return null;
+  return (
+    <div
+      className="photo-lightbox-backdrop"
+      onClick={onClose}
+      role="dialog"
+      aria-label="Photo enlarged"
+      aria-modal="true"
+    >
+      <img src={src} alt="" className="photo-lightbox-img" />
+    </div>
+  );
+}
+
+/**
+ * Details section — job description, address, contact, dates.
+ * Hidden when there is no renderable content.
+ */
+function DetailsSection({ job }) {
+  const hasDesc = !!job.summary;
+  const hasAddress = !!job.address;
+  const hasPhone = !!(job.phone || job.customerPhone || job.mobile);
+  const hasEmail = !!job.email;
+  const hasDate = !!(job.date || job.createdAt);
+  const hasScheduled = !!job.scheduledDate;
+  const hasCompleted = !!job.completedAt;
+  const hasHours = !!(job.hoursEstimate || job.hours);
+
+  const visible = hasDesc || hasAddress || hasPhone || hasEmail || hasDate || hasScheduled || hasCompleted || hasHours;
+  if (!visible) return null;
+
+  const phone = job.phone || job.customerPhone || job.mobile || '';
+  const scheduledTime =
+    job.scheduledStart && job.scheduledEnd
+      ? `${job.scheduledStart} – ${job.scheduledEnd}`
+      : job.scheduledStart || '';
+
+  return (
+    <div className="jd-section">
+      <div className="jd-section-header">Details</div>
+      <div className="jd-section-body">
+        {hasDesc && (
+          <p className="jd-detail-desc">{job.summary}</p>
+        )}
+        {hasAddress && (
+          <a
+            href={`https://maps.google.com/?q=${encodeURIComponent(job.address)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="jd-detail-row jd-detail-link"
+          >
+            <span className="jd-detail-icon">📍</span>
+            <span>{job.address}</span>
+          </a>
+        )}
+        {hasPhone && (
+          <a href={`tel:${phone}`} className="jd-detail-row jd-detail-link">
+            <span className="jd-detail-icon">📞</span>
+            <span>{phone}</span>
+          </a>
+        )}
+        {hasEmail && (
+          <a href={`mailto:${job.email}`} className="jd-detail-row jd-detail-link">
+            <span className="jd-detail-icon">✉️</span>
+            <span>{job.email}</span>
+          </a>
+        )}
+        {hasDate && (
+          <div className="jd-detail-row">
+            <span className="jd-detail-icon">📅</span>
+            <span>Created {fmtDate(job.date || job.createdAt)}</span>
+          </div>
+        )}
+        {hasScheduled && (
+          <div className="jd-detail-row">
+            <span className="jd-detail-icon">🗓️</span>
+            <span>
+              Scheduled {fmtDate(job.scheduledDate)}
+              {scheduledTime ? ` · ${scheduledTime}` : ''}
+            </span>
+          </div>
+        )}
+        {hasCompleted && (
+          <div className="jd-detail-row">
+            <span className="jd-detail-icon">✅</span>
+            <span>Completed {fmtDate(job.completedAt)}</span>
+          </div>
+        )}
+        {hasHours && (
+          <div className="jd-detail-row">
+            <span className="jd-detail-icon">⏱️</span>
+            <span>{job.hoursEstimate || job.hours} hrs estimated</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * ProfitBarSection — read-only stacked bar showing quote / materials / profit / margin.
+ * "Materials" here means actual receipts/expenses linked to the job (not the quote lineItems).
+ * Hidden entirely when job.quote === 0 (no "0% margin" stub for jobs with no quote).
+ */
+function ProfitBarSection({ job, receipts }) {
+  const quote = job.total ?? job.amount ?? 0;
+  if (!quote) return null;
+
+  const materials = receipts
+    .filter(r => r.jobId && (String(r.jobId) === String(job.id) || String(r.jobId) === String(job.cloudId)))
+    .reduce((sum, r) => sum + Number(r.amount || 0), 0);
+  const profit = quote - materials;
+  const margin = quote > 0 ? Math.round((profit / quote) * 100) : 0;
+  const matPct = quote > 0 ? Math.min((materials / quote) * 100, 100) : 0;
+
+  const marginColor = margin >= 30 ? 'var(--accent)' : margin >= 15 ? 'var(--warn)' : 'var(--danger)';
+
+  return (
+    <div className="jd-section">
+      <div className="jd-section-header">Profit</div>
+      <div className="jd-section-body">
+        <div className="jd-profit-grid">
+          <div className="jd-profit-cell">
+            <div className="jd-profit-label">Quote</div>
+            <div className="jd-profit-value jd-profit-value--quote">{gbp(quote)}</div>
+          </div>
+          <div className="jd-profit-cell">
+            <div className="jd-profit-label">Materials</div>
+            <div className="jd-profit-value jd-profit-value--materials">{gbp(materials)}</div>
+          </div>
+          <div className="jd-profit-cell">
+            <div className="jd-profit-label">Profit</div>
+            <div className="jd-profit-value jd-profit-value--profit">{gbp(profit)}</div>
+          </div>
+          <div className="jd-profit-cell">
+            <div className="jd-profit-label">Margin</div>
+            <div className="jd-profit-value" style={{ color: marginColor }}>{margin}%</div>
+          </div>
+        </div>
+        <div className="jd-profit-bar-track">
+          <div
+            className="jd-profit-bar-fill"
+            style={{ background: `linear-gradient(90deg, var(--danger) ${matPct}%, var(--accent) ${matPct}%)` }}
+          />
+        </div>
+        <div className="jd-profit-bar-labels">
+          <span className="jd-profit-bar-label--materials">Materials {Math.round(matPct)}%</span>
+          <span className="jd-profit-bar-label--profit">Profit {Math.round(100 - matPct)}%</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * QuoteBreakdownSection — read-only list of job.lineItems[].
+ * Shows per-item description, optional quantity, unit cost, and a total.
+ * Hidden when lineItems is empty or absent. Edit/add is Phase E (deferred).
+ */
+function QuoteBreakdownSection({ job }) {
+  const items = Array.isArray(job.lineItems) ? job.lineItems.filter(i => i.desc || i.cost) : [];
+  if (items.length === 0) return null;
+
+  const total = items.reduce((sum, i) => {
+    const qty = Number(i.qty || i.quantity || 1);
+    const unit = Number(i.cost || i.unitCost || i.price || 0);
+    return sum + qty * unit;
+  }, 0);
+
+  return (
+    <div className="jd-section">
+      <div className="jd-section-header">Quote breakdown</div>
+      <div className="jd-section-body jd-section-body--flush">
+        {items.map((item, idx) => {
+          const qty = Number(item.qty || item.quantity || 1);
+          const unit = Number(item.cost || item.unitCost || item.price || 0);
+          const lineTotal = qty * unit;
+          return (
+            <div key={idx} className="jd-line-item">
+              <span className="jd-line-item-desc">
+                {item.desc || '—'}
+                {qty > 1 && (
+                  <span className="jd-line-item-qty"> × {qty}</span>
+                )}
+              </span>
+              <span className="jd-line-item-cost">{gbp(lineTotal)}</span>
+            </div>
+          );
+        })}
+        <div className="jd-line-total">
+          <span className="jd-line-total-label">Total</span>
+          <span className="jd-line-total-value">{gbp(total)}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * QuickContactSection — tap-to-call / sms / email row.
+ * Only renders buttons for contact methods that actually exist on the job.
+ * Hidden entirely when neither phone nor email is present.
+ * WhatsApp is intentionally omitted — it already exists in the Chase CTA.
+ */
+function QuickContactSection({ job }) {
+  const phone = job.customerPhone || job.phone || job.mobile || '';
+  const email = job.email || job.customerEmail || '';
+
+  if (!phone && !email) return null;
+
+  return (
+    <div className="jd-section">
+      <div className="jd-section-header">Contact</div>
+      <div className="jd-section-body">
+        <div className="jd-contact-row">
+          {phone && (
+            <a href={`tel:${phone}`} className="jd-contact-btn" aria-label={`Call ${phone}`}>
+              <span aria-hidden="true">📞</span>
+              <span>Call</span>
+            </a>
+          )}
+          {phone && (
+            <a href={`sms:${phone}`} className="jd-contact-btn" aria-label={`Text ${phone}`}>
+              <span aria-hidden="true">💬</span>
+              <span>Text</span>
+            </a>
+          )}
+          {email && (
+            <a href={`mailto:${email}`} className="jd-contact-btn" aria-label={`Email ${email}`}>
+              <span aria-hidden="true">✉️</span>
+              <span>Email</span>
+            </a>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Receipts section — receipts linked to this job via jobId.
+ * Tapping a receipt with a photo opens the photo lightbox.
+ * Hidden when no receipts are linked.
+ */
+function ReceiptsSection({ job, receipts, onViewPhoto }) {
+  // receipts shape from getTodayReceipts: { id, label, amount, photo, date, jobId, imagePath }
+  // Match on both string UUID (cloud) and legacy integer-style IDs
+  const jobReceipts = receipts.filter(r => {
+    if (!r.jobId) return false;
+    return String(r.jobId) === String(job.id) || String(r.jobId) === String(job.cloudId);
+  });
+  if (jobReceipts.length === 0) return null;
+
+  return (
+    <div className="jd-section">
+      <div className="jd-section-header">Receipts</div>
+      <div className="jd-section-body jd-section-body--flush">
+        {jobReceipts.map(r => (
+          <div key={r.id} className="jd-receipt-row">
+            {r.photo ? (
+              <button
+                type="button"
+                className="jd-receipt-thumb-btn"
+                onClick={() => onViewPhoto(r.photo)}
+                aria-label="View receipt photo"
+              >
+                <img src={r.photo} alt="" className="jd-receipt-thumb" />
+              </button>
+            ) : (
+              <div className="jd-receipt-icon" aria-hidden="true">🧾</div>
+            )}
+            <div className="jd-receipt-meta">
+              <div className="jd-receipt-label">{r.label || 'Receipt'}</div>
+              {r.date && <div className="jd-receipt-date">{fmtDate(r.date)}</div>}
+            </div>
+            <div className="jd-receipt-amount">{gbp(r.amount || 0)}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Photos section — photos attached directly to the job (job.photos[]).
+ * Tap a thumbnail to enlarge via PhotoLightbox.
+ * Hidden when job has no photos.
+ */
+function PhotosSection({ photos, onViewPhoto }) {
+  if (!Array.isArray(photos) || photos.length === 0) return null;
+
+  return (
+    <div className="jd-section">
+      <div className="jd-section-header">Photos</div>
+      <div className="jd-section-body">
+        <div className="jd-photos-grid">
+          {photos.map((src, i) => (
+            <button
+              key={i}
+              type="button"
+              className="jd-photo-thumb-btn"
+              onClick={() => onViewPhoto(src)}
+              aria-label={`View photo ${i + 1}`}
+            >
+              <img src={src} alt="" className="jd-photo-thumb" />
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Notes section — free-form job notes (job.jobNotes[] or job.notes string).
+ * Hidden when job has no notes content.
+ */
+function NotesSection({ job }) {
+  const structuredNotes = Array.isArray(job.jobNotes) ? job.jobNotes : [];
+  // cloud jobs may have a plain notes string instead of the structured array
+  const plainNotes = typeof job.notes === 'string' ? job.notes.trim() : '';
+
+  if (structuredNotes.length === 0 && !plainNotes) return null;
+
+  return (
+    <div className="jd-section">
+      <div className="jd-section-header">Notes</div>
+      <div className="jd-section-body">
+        {plainNotes && (
+          <p className="jd-note-plain">{plainNotes}</p>
+        )}
+        {structuredNotes.length > 0 && (
+          <div className="jd-notes-list">
+            {[...structuredNotes].reverse().map(n => (
+              <div key={n.id} className="jd-note-card">
+                <div className="jd-note-meta">
+                  <span className="jd-note-subject">{n.subject || 'Note'}</span>
+                  <span className="jd-note-date">
+                    {n.date
+                      ? new Date(n.date).toLocaleString('en-GB', {
+                          day: 'numeric', month: 'short', year: 'numeric',
+                          hour: '2-digit', minute: '2-digit',
+                        })
+                      : ''}
+                  </span>
+                </div>
+                <p className="jd-note-body">{n.body}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 // ── Main component ────────────────────────────────────────────────────────
 
@@ -85,6 +460,7 @@ const STATUS_CLASS = {
  *
  * Props:
  *   job           – full job object (required)
+ *   receipts      – flat receipts/expenses array from AppShell (filtered by jobId inside)
  *   biz           – business settings (name, bank, VAT) — needed for invoice generation
  *   profile       – Supabase profiles row or null — needed for paywall gating
  *   jobs          – all jobs array — needed by nextInvoiceNumber to avoid gaps
@@ -94,6 +470,7 @@ const STATUS_CLASS = {
  */
 export default function JobDetailDrawer({
   job,
+  receipts = [],
   biz,
   profile,
   jobs,
@@ -103,14 +480,20 @@ export default function JobDetailDrawer({
 }) {
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
+  const [lightboxSrc, setLightboxSrc] = useState(null);
   const [toast, setToast] = useState(null);
 
-  // Close on Escape
+  // Close on Escape — also closes lightbox if open
   useEffect(() => {
-    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    const onKey = (e) => {
+      if (e.key === 'Escape') {
+        if (lightboxSrc) { setLightboxSrc(null); return; }
+        onClose();
+      }
+    };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [onClose]);
+  }, [onClose, lightboxSrc]);
 
   const status = deriveStatus(job);
   const statusClass = STATUS_CLASS[status] || '';
@@ -149,8 +532,8 @@ export default function JobDetailDrawer({
     window.open(link, '_blank', 'noopener,noreferrer');
   };
 
-  // flash callback passed down to RecordPaymentModal so success toasts
-  // appear in the drawer context rather than nowhere
+  // flash callback passed down to modals so success toasts
+  // appear in the drawer context
   const showFlash = (msg) => {
     setToast(msg);
     setTimeout(() => setToast(null), 3000);
@@ -277,6 +660,34 @@ export default function JobDetailDrawer({
             </div>
           )}
 
+          {/* ── Content sections ── */}
+
+          {/* Profit overview — sits above the details so profitability is front-and-centre */}
+          <ProfitBarSection job={job} receipts={receipts} />
+
+          {/* Job details (description, address, contact, dates) */}
+          <DetailsSection job={job} />
+
+          {/* Quick-contact buttons — below Details since it's contact-related */}
+          <QuickContactSection job={job} />
+
+          {/* Quote breakdown — the priced line items that make up the job total */}
+          <QuoteBreakdownSection job={job} />
+
+          {/* Receipts (material purchase photos / linked expense records) */}
+          <ReceiptsSection
+            job={job}
+            receipts={receipts}
+            onViewPhoto={setLightboxSrc}
+          />
+
+          <PhotosSection
+            photos={job.photos}
+            onViewPhoto={setLightboxSrc}
+          />
+
+          <NotesSection job={job} />
+
           {/* Payment history — self-gates when no payments */}
           <PaymentHistoryList job={job} />
         </div>
@@ -286,6 +697,9 @@ export default function JobDetailDrawer({
           <div className="job-detail-toast" role="status">{toast}</div>
         )}
       </div>
+
+      {/* Photo lightbox — sits on top of everything */}
+      <PhotoLightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />
 
       {/* RecordPaymentModal — rendered outside the sheet so it sits on top */}
       {paymentModalOpen && (

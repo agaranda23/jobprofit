@@ -436,6 +436,7 @@ export default function AppShell() {
           {view === 'work' && (
             <WorkScreen
               jobs={jobs}
+              receipts={receipts}
               onNewJob={openDetailed}
               onAddPayment={onAddPayment}
               onUpdateJob={onUpdateJob}

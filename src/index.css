@@ -209,7 +209,9 @@ body { background: var(--bg); color: var(--text); -webkit-font-smoothing: antial
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  z-index: 100;
+  /* z-index 300 sits above .drawer-backdrop (200) and .job-detail-sheet (201)
+     so RecordPaymentModal blocks all clicks to the drawer underneath. */
+  z-index: 300;
 }
 .modal {
   background: var(--surface);
@@ -2607,6 +2609,11 @@ input[type=number] { -moz-appearance: textfield; }
   left: 0;
   right: 0;
   bottom: 0;
+  /* height: 88vh gives the flex container an explicit size so that
+     .job-detail-body (flex: 1) can fill the remaining space and
+     overflow-y: auto actually kicks in. Without this, max-height alone
+     leaves the sheet collapsing to only the header row (the "sliver" bug). */
+  height: 88vh;
   max-height: 88vh;
   background: var(--surface);
   border-top: 1px solid var(--border);
@@ -2724,6 +2731,379 @@ input[type=number] { -moz-appearance: textfield; }
   text-align: center;
   pointer-events: none;
   animation: fade-in 0.2s ease;
+}
+
+/* ── JobDetailDrawer content sections (Details / Materials / Receipts / Photos / Notes) ── */
+
+.jd-section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.jd-section-header {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 10px 14px 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.jd-section-body {
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* flush variant — no padding so rows can span edge-to-edge */
+.jd-section-body--flush {
+  padding: 0;
+}
+
+/* ── Details ── */
+
+.jd-detail-desc {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text);
+  line-height: 1.55;
+}
+
+.jd-detail-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.jd-detail-link {
+  color: var(--accent);
+  text-decoration: none;
+}
+.jd-detail-link:active { opacity: 0.7; }
+
+.jd-detail-icon {
+  flex-shrink: 0;
+  width: 18px;
+  text-align: center;
+  line-height: 1.4;
+}
+
+/* ── Materials / line items ── */
+
+.jd-line-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-light, var(--border));
+  font-size: 14px;
+}
+.jd-line-item:last-of-type { border-bottom: none; }
+
+.jd-line-item-desc {
+  color: var(--text-dim);
+  flex: 1;
+}
+
+.jd-line-item-cost {
+  font-weight: 700;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.jd-line-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  padding: 10px 14px;
+  border-top: 2px solid var(--border);
+  font-size: 15px;
+}
+
+.jd-line-total-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.jd-line-total-value {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Receipts ── */
+
+.jd-receipt-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-light, var(--border));
+}
+.jd-receipt-row:last-child { border-bottom: none; }
+
+.jd-receipt-thumb-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  flex-shrink: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.jd-receipt-thumb {
+  width: 44px;
+  height: 44px;
+  object-fit: cover;
+  display: block;
+  border-radius: 8px;
+}
+
+.jd-receipt-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  background: var(--surface-2, var(--surface));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  flex-shrink: 0;
+}
+
+.jd-receipt-meta {
+  flex: 1;
+  min-width: 0;
+}
+
+.jd-receipt-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.jd-receipt-date {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+
+.jd-receipt-amount {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--danger, #ef4444);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+/* ── Photos ── */
+
+.jd-photos-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(76px, 1fr));
+  gap: 8px;
+}
+
+.jd-photo-thumb-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  border-radius: 8px;
+  overflow: hidden;
+  -webkit-tap-highlight-color: transparent;
+  aspect-ratio: 1;
+}
+
+.jd-photo-thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 8px;
+  display: block;
+  border: 1px solid var(--border);
+}
+
+/* ── Notes ── */
+
+.jd-note-plain {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-dim);
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+.jd-notes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.jd-note-card {
+  background: var(--surface-2, var(--surface));
+  border-radius: 8px;
+  padding: 12px;
+  border: 1px solid var(--border);
+}
+
+.jd-note-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+
+.jd-note-subject {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.jd-note-date {
+  font-size: 11px;
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+
+.jd-note-body {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-dim);
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+/* ── Photo lightbox ── */
+
+.photo-lightbox-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.92);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  padding: 20px;
+  cursor: pointer;
+}
+
+.photo-lightbox-img {
+  max-width: 94vw;
+  max-height: 90vh;
+  border-radius: 12px;
+  object-fit: contain;
+}
+
+/* ── ProfitBarSection ─────────────────────────────────────────────────────── */
+
+.jd-profit-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.jd-profit-cell {
+  text-align: center;
+}
+
+.jd-profit-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 2px;
+}
+
+.jd-profit-value {
+  font-size: 16px;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.jd-profit-value--quote   { color: var(--primary); }
+.jd-profit-value--materials { color: var(--danger); }
+.jd-profit-value--profit  { color: var(--accent); }
+
+.jd-profit-bar-track {
+  height: 10px;
+  border-radius: 5px;
+  background: var(--surface-alt, var(--border));
+  overflow: hidden;
+}
+
+.jd-profit-bar-fill {
+  height: 100%;
+  border-radius: 5px;
+  transition: background 0.4s;
+}
+
+.jd-profit-bar-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 5px;
+}
+
+.jd-profit-bar-label--materials {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--danger);
+}
+
+.jd-profit-bar-label--profit {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+/* ── QuickContactSection ─────────────────────────────────────────────────── */
+
+.jd-contact-row {
+  display: flex;
+  gap: 8px;
+}
+
+.jd-contact-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 8px;
+  border-radius: 10px;
+  background: var(--surface-alt, var(--border));
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  border: 1px solid var(--border);
+  min-height: 40px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.jd-contact-btn:active {
+  opacity: 0.75;
 }
 
 /* ── SendInvoiceModal & shared modal-sheet styles ─────────────────────────── */

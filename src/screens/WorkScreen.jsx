@@ -141,7 +141,7 @@ function JobsList({ jobs, onJobSelect }) {
 
 // ── WorkScreen (root) ─────────────────────────────────────────────────────────
 
-export default function WorkScreen({ jobs = [], onNewJob, onAddPayment, onUpdateJob, biz, profile }) {
+export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddPayment, onUpdateJob, biz, profile }) {
   const [subview, setSubview] = useState(getPersistedView);
   // selectedJob drives the JobDetailDrawer — null means closed.
   const [selectedJob, setSelectedJob] = useState(null);
@@ -204,6 +204,7 @@ export default function WorkScreen({ jobs = [], onNewJob, onAddPayment, onUpdate
       {liveSelectedJob && (
         <JobDetailDrawer
           job={liveSelectedJob}
+          receipts={receipts}
           biz={biz}
           profile={profile}
           jobs={jobs}
