@@ -585,6 +585,31 @@ export async function updateJobMetaInCloud(jobId, metaObject) {
 }
 
 /**
+ * Fetches a single job by its publicAccessToken without authentication.
+ *
+ * Used exclusively by PublicQuoteView — the anon Supabase client can read
+ * jobs that have a non-null publicAccessToken (RLS policy jobs_select_public_by_token).
+ * The client-side filter on the specific token value is the capability gate.
+ *
+ * Returns the mapped job object on success, or null when the token does not
+ * match any row (bogus URL, token rotated, or job deleted).
+ *
+ * @param {string} token – the publicAccessToken UUID from the URL
+ * @returns {Promise<object|null>}
+ */
+export async function fetchPublicJob(token) {
+  if (!token) return null;
+  const { data, error } = await supabase
+    .from('jobs')
+    .select('id, customer_name, summary, amount, paid, line_items, meta, date, created_at')
+    .eq('meta->>publicAccessToken', token)
+    .single();
+
+  if (error || !data) return null;
+  return mapCloudJobToToday(data);
+}
+
+/**
  * Deletes a receipt by its cloud UUID (or legacy localStorage ID).
  *
  * Flow:

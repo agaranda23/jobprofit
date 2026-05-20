@@ -21,6 +21,11 @@ import {
   makePhotoEntry,
 } from '../lib/jobPhotos';
 import { uploadJobPhoto, getSignedPhotoUrl, deleteJobPhoto } from '../lib/store';
+import {
+  generatePublicAccessToken,
+  buildPublicQuoteUrl,
+  buildShareMessage,
+} from '../lib/publicQuoteToken';
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -1175,6 +1180,51 @@ export default function JobDetailDrawer({
     showFlash('Quote accepted — signed by customer');
   };
 
+  // ── Send link (Phase G-1) ─────────────────────────────────────────────────
+  // Lazily generates a publicAccessToken on first tap, then opens the Web Share
+  // API with a templated message. Falls back to clipboard copy when Share API
+  // is unavailable (desktop browsers, older iOS).
+  const handleSendLink = async () => {
+    // Ensure the job has a token — generate one if not
+    let token = job.publicAccessToken;
+    if (!token) {
+      token = generatePublicAccessToken();
+      // Persist immediately so the token survives if the user closes the drawer
+      if (onUpdateJob) {
+        onUpdateJob({ ...job, publicAccessToken: token });
+      }
+    }
+
+    const url = buildPublicQuoteUrl(token);
+    const customerName = job.customer || job.name || '';
+    const businessName = job.businessName || job.business_name || '';
+    const message = buildShareMessage(url, customerName, businessName);
+
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: 'Your quote', text: message, url });
+        return;
+      } catch (err) {
+        // User cancelled the share sheet — treat as no-op, not an error
+        if (err?.name === 'AbortError') return;
+        // Share failed for another reason — fall through to clipboard
+      }
+    }
+
+    // Clipboard fallback
+    try {
+      await navigator.clipboard.writeText(url);
+      showFlash('Link copied — paste it in WhatsApp');
+    } catch {
+      showFlash('Could not copy link — share this URL: ' + url);
+    }
+  };
+
+  // Send link: visible when the job has lineItems but is not yet accepted
+  const showSendLink = onUpdateJob &&
+    Array.isArray(job.lineItems) && job.lineItems.length > 0 &&
+    job.quoteStatus !== 'accepted';
+
   // Mark Sent: visible when quoteStatus is 'draft' (quote exists but not yet sent)
   const showMarkSent = job.quoteStatus === 'draft' && onUpdateJob;
   // Accept Quote: the Tradify-steal CTA — shows when quote is sent but not yet accepted
@@ -1339,6 +1389,22 @@ export default function JobDetailDrawer({
                 >
                   Convert to job
                 </button>
+              )}
+            </div>
+          )}
+
+          {/* Send link CTA — share the public quote URL via WhatsApp / clipboard */}
+          {showSendLink && (
+            <div className="job-detail-send-link-row">
+              <button
+                type="button"
+                className="btn-ghost job-detail-send-link-btn"
+                onClick={handleSendLink}
+              >
+                Send quote link
+              </button>
+              {job.publicAccessToken && (
+                <span className="job-detail-send-link-hint">Link already sent</span>
               )}
             </div>
           )}

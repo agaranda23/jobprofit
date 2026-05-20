@@ -3711,3 +3711,252 @@ input[type=number] { -moz-appearance: textfield; }
   font-size: 12px;
   color: var(--text-dim);
 }
+
+/* ── Send quote link CTA (JobDetailDrawer — Phase G-1) ────────────────────── */
+
+.job-detail-send-link-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 0 2px;
+}
+
+.job-detail-send-link-btn {
+  flex: 1;
+}
+
+.job-detail-send-link-hint {
+  font-size: 12px;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+/* ── PublicQuoteView — /q/<token> ─────────────────────────────────────────── */
+
+/* Full-page wrapper: centres card on desktop, full-width on phone */
+.pqv-wrap {
+  min-height: 100dvh;
+  background: var(--bg, #f5f5f5);
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 24px 16px 48px;
+  box-sizing: border-box;
+}
+
+/* Card container */
+.pqv-card {
+  background: var(--card-bg, #ffffff);
+  border-radius: 16px;
+  box-shadow: 0 2px 16px rgba(0,0,0,.08);
+  width: 100%;
+  max-width: 600px;
+  padding: 24px 20px 32px;
+  box-sizing: border-box;
+}
+
+/* Error card variant */
+.pqv-card--error {
+  text-align: center;
+  padding: 40px 20px;
+}
+
+.pqv-error-icon {
+  font-size: 40px;
+  margin-bottom: 16px;
+  color: var(--danger, #e53e3e);
+}
+
+.pqv-error-title {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0 0 12px;
+  color: var(--text, #1a1a1a);
+}
+
+.pqv-error-body {
+  font-size: 15px;
+  color: var(--text-dim, #666);
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* Header: business name + quote label/date */
+.pqv-header {
+  margin-bottom: 20px;
+}
+
+.pqv-business-name {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text, #1a1a1a);
+  margin-bottom: 4px;
+}
+
+.pqv-quote-label {
+  font-size: 13px;
+  color: var(--text-dim, #666);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+.pqv-quote-date {
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* Accepted badge */
+.pqv-accepted-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #d1fae5;
+  color: #065f46;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 14px;
+  font-weight: 600;
+  margin-bottom: 20px;
+}
+
+.pqv-accepted-badge-icon {
+  font-size: 18px;
+}
+
+/* Section: customer name + description */
+.pqv-section {
+  margin-bottom: 24px;
+}
+
+.pqv-section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-dim, #666);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  margin: 0 0 12px;
+}
+
+.pqv-customer-name {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text, #1a1a1a);
+  margin-bottom: 6px;
+}
+
+.pqv-description {
+  font-size: 15px;
+  color: var(--text, #1a1a1a);
+  margin: 0;
+  line-height: 1.6;
+}
+
+/* Line items breakdown */
+.pqv-line-items {
+  border-top: 1px solid var(--border, #e5e5e5);
+}
+
+.pqv-line-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border, #e5e5e5);
+  gap: 12px;
+}
+
+.pqv-line-item-desc {
+  font-size: 15px;
+  color: var(--text, #1a1a1a);
+  flex: 1;
+  min-width: 0;
+}
+
+.pqv-line-item-qty {
+  color: var(--text-dim, #666);
+  font-size: 13px;
+}
+
+.pqv-line-item-cost {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text, #1a1a1a);
+  white-space: nowrap;
+}
+
+/* Total row */
+.pqv-line-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 14px 0 0;
+  gap: 12px;
+}
+
+.pqv-line-total-label {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text, #1a1a1a);
+}
+
+.pqv-line-total-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--accent, #00b386);
+}
+
+/* Flat total (no line items) */
+.pqv-flat-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  border-top: 1px solid var(--border, #e5e5e5);
+  padding-top: 16px;
+  gap: 12px;
+}
+
+.pqv-flat-total-label {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text, #1a1a1a);
+}
+
+.pqv-flat-total-value {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--accent, #00b386);
+}
+
+/* Footer */
+.pqv-footer {
+  margin-top: 28px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border, #e5e5e5);
+}
+
+.pqv-footer-note {
+  font-size: 13px;
+  color: var(--text-dim, #666);
+  margin: 0;
+  text-align: center;
+  line-height: 1.5;
+}
+
+/* Skeleton loading states */
+.pqv-skeleton {
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: pqv-shimmer 1.4s infinite;
+  border-radius: 6px;
+  margin-bottom: 14px;
+  height: 16px;
+}
+
+.pqv-skeleton--title { height: 24px; width: 60%; }
+.pqv-skeleton--line  { height: 14px; width: 100%; }
+.pqv-skeleton--short { width: 40%; }
+
+@keyframes pqv-shimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
