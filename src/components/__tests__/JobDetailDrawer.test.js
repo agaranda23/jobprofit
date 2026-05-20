@@ -940,3 +940,123 @@ describe('lineItems save — total recomputed and written to job.amount / job.to
     expect(updated.lineItems).toEqual(items);
   });
 });
+
+// ── Phase F: Accept Quote with signature ─────────────────────────────────────
+//
+// Pure logic tests — no canvas, no React, no DOM.
+// Canvas drawing is covered by visual smoke on the deploy preview.
+
+/**
+ * Mirrors the showAcceptQuote visibility logic in JobDetailDrawer:
+ *   - visible when quoteStatus is 'sent' AND acceptedSignature is absent
+ *   - hidden when quoteStatus is 'accepted' (already signed)
+ *   - hidden when quoteStatus is 'draft' (not yet sent)
+ *   - hidden when acceptedSignature already present (already accepted with sig)
+ */
+function showAcceptQuoteGate(job) {
+  return job.quoteStatus === 'sent' && !job.acceptedSignature;
+}
+
+/**
+ * Mirrors the update written to onUpdateJob when handleSignatureSave fires.
+ * acceptedAt is injected via the real Date — tests pass a fixed ISO string.
+ */
+function buildAcceptedUpdate(job, signatureDataURL, acceptedAt) {
+  return {
+    ...job,
+    acceptedSignature: signatureDataURL,
+    quoteStatus: 'accepted',
+    acceptedAt,
+    jobStatus: 'active',
+  };
+}
+
+/**
+ * Mirrors the showConvert fallback gate in JobDetailDrawer after Phase F.
+ * Convert is hidden when showAcceptQuote is true (prefer the signature path).
+ */
+function showConvertFallbackGate(job) {
+  const acceptQuoteVisible = showAcceptQuoteGate(job);
+  if (acceptQuoteVisible) return false;
+  return (
+    job.quoteStatus === 'sent' ||
+    (job.quoteStatus === 'accepted' && (!job.jobStatus || job.jobStatus === 'quote'))
+  );
+}
+
+const FAKE_SIG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+const FAKE_AT  = '2026-05-20T10:30:00.000Z';
+
+describe('Phase F — Accept Quote visibility gate', () => {
+  it('shows Accept Quote when quoteStatus is sent and no signature yet', () => {
+    expect(showAcceptQuoteGate({ quoteStatus: 'sent' })).toBe(true);
+  });
+
+  it('hides Accept Quote when quoteStatus is accepted (already signed)', () => {
+    expect(showAcceptQuoteGate({ quoteStatus: 'accepted', acceptedSignature: FAKE_SIG })).toBe(false);
+  });
+
+  it('hides Accept Quote when quoteStatus is draft (not sent yet)', () => {
+    expect(showAcceptQuoteGate({ quoteStatus: 'draft' })).toBe(false);
+  });
+
+  it('hides Accept Quote when acceptedSignature already present (idempotent)', () => {
+    expect(showAcceptQuoteGate({ quoteStatus: 'sent', acceptedSignature: FAKE_SIG })).toBe(false);
+  });
+});
+
+describe('Phase F — buildAcceptedUpdate field shape', () => {
+  it('writes acceptedSignature dataURL onto the job', () => {
+    const job = { id: 'j1', quoteStatus: 'sent', jobStatus: 'quote' };
+    const updated = buildAcceptedUpdate(job, FAKE_SIG, FAKE_AT);
+    expect(updated.acceptedSignature).toBe(FAKE_SIG);
+  });
+
+  it('flips quoteStatus to accepted', () => {
+    const job = { id: 'j1', quoteStatus: 'sent' };
+    const updated = buildAcceptedUpdate(job, FAKE_SIG, FAKE_AT);
+    expect(updated.quoteStatus).toBe('accepted');
+  });
+
+  it('flips jobStatus to active', () => {
+    const job = { id: 'j1', quoteStatus: 'sent', jobStatus: 'quote' };
+    const updated = buildAcceptedUpdate(job, FAKE_SIG, FAKE_AT);
+    expect(updated.jobStatus).toBe('active');
+  });
+
+  it('writes acceptedAt ISO timestamp', () => {
+    const job = { id: 'j1', quoteStatus: 'sent' };
+    const updated = buildAcceptedUpdate(job, FAKE_SIG, FAKE_AT);
+    expect(updated.acceptedAt).toBe(FAKE_AT);
+  });
+
+  it('preserves all other job fields', () => {
+    const job = { id: 'j1', customer: 'Alan', amount: 500, quoteStatus: 'sent' };
+    const updated = buildAcceptedUpdate(job, FAKE_SIG, FAKE_AT);
+    expect(updated.customer).toBe('Alan');
+    expect(updated.amount).toBe(500);
+    expect(updated.id).toBe('j1');
+  });
+});
+
+describe('Phase F — Convert fallback hidden when Accept Quote is available', () => {
+  it('hides Convert when Accept Quote is showing (quoteStatus sent, no sig)', () => {
+    expect(showConvertFallbackGate({ quoteStatus: 'sent' })).toBe(false);
+  });
+
+  it('shows Convert for legacy accepted-but-no-jobStatus edge case', () => {
+    expect(showConvertFallbackGate({ quoteStatus: 'accepted', jobStatus: undefined })).toBe(true);
+  });
+
+  it('shows Convert for legacy quoteStatus: accepted + jobStatus: quote', () => {
+    expect(showConvertFallbackGate({ quoteStatus: 'accepted', jobStatus: 'quote' })).toBe(true);
+  });
+
+  it('hides Convert when job is fully active', () => {
+    expect(showConvertFallbackGate({ quoteStatus: 'accepted', jobStatus: 'active' })).toBe(false);
+  });
+
+  it('hides Convert when quoteStatus is draft', () => {
+    expect(showConvertFallbackGate({ quoteStatus: 'draft' })).toBe(false);
+  });
+});
