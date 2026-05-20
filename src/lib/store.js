@@ -43,7 +43,7 @@ function write(data) {
   try {
     const current = read();
     localStorage.setItem(KEY, JSON.stringify({ ...current, ...data }));
-  } catch {}
+  } catch { /* localStorage may be blocked or full */ }
 }
 
 function nextJobId(jobs) {
@@ -218,9 +218,18 @@ export async function getReceiptsFromCloud() {
 }
 
 function mapCloudJobToToday(r) {
+  // Spread r.meta first as the cloud baseline. All fields below are the
+  // explicit column values — they override any same-named key from meta so
+  // the database schema always wins for canonical columns (id, amount, paid…).
+  // Fields that only exist in meta (photos, jobNotes, lineItems edits, payments,
+  // acceptedSignature, etc.) survive via the spread and are then overlaid by
+  // applyJobMetaToJobs which merges the localStorage side-channel on top.
+  // Merge semantics: cloud meta → explicit columns → localStorage overlay.
+  const cloudMeta = (r.meta && typeof r.meta === 'object') ? r.meta : {};
+
   return {
+    ...cloudMeta,
     id: r.id, // Supabase UUID (source of truth)
-    legacyId: r.customer_name ? null : null, // populated on dual-write if needed
     name: r.customer_name || r.summary?.slice(0, 40) || 'Job',
     amount: Number(r.amount || 0),
     paid: r.paid === true,
@@ -232,15 +241,17 @@ function mapCloudJobToToday(r) {
     phone: r.phone || '',
     email: r.email || '',
     notes: r.notes || '',
-    lineItems: [],
-    total: Number(r.amount || 0),
-    jobStatus: r.paid === true ? 'paid' : 'unpaid',
-    paymentStatus: r.paid === true ? 'paid' : 'unpaid',
-    quoteStatus: 'active',
+    // lineItems: prefer meta version (post-insert edits) over the DB column.
+    // If meta has no lineItems, fall back to the line_items column or empty array.
+    lineItems: cloudMeta.lineItems ?? (Array.isArray(r.line_items) ? r.line_items : []),
+    total: cloudMeta.total ?? Number(r.amount || 0),
+    jobStatus: cloudMeta.jobStatus ?? (r.paid === true ? 'paid' : 'unpaid'),
+    paymentStatus: cloudMeta.paymentStatus ?? (r.paid === true ? 'paid' : 'unpaid'),
+    quoteStatus: cloudMeta.quoteStatus ?? 'active',
     customer: r.customer_name || '',
     reference: r.customer_name || r.summary || '',
     expenses: [],
-    payments: [], // Phase A of partial-payments PRD — jobMeta overlay provides actual values
+    payments: cloudMeta.payments ?? [],
     cloud: true,
   };
 }
@@ -447,6 +458,130 @@ export async function getReceiptSignedUrl(imagePath) {
     return null;
   }
   return data?.signedUrl || null;
+}
+
+/**
+ * Removes a photo file from the `job-photos` storage bucket.
+ * Best-effort — failures are logged but do not throw so they never block the UI.
+ * Called by handleDeletePhoto in JobDetailDrawer after removing the entry from
+ * meta.photos[]. Only invoked for new-format entries ({ path, uploadedAt });
+ * legacy base64 strings have nothing to clean up in storage.
+ *
+ * @param {string} storagePath – path in the job-photos bucket
+ * @returns {Promise<void>}
+ */
+export async function deleteJobPhoto(storagePath) {
+  if (!storagePath) return;
+  try {
+    await supabase.storage.from('job-photos').remove([storagePath]);
+  } catch (err) {
+    console.warn('deleteJobPhoto failed (best-effort)', storagePath, err?.message);
+  }
+}
+
+/**
+ * Returns a signed URL for a job photo stored in the `job-photos` bucket.
+ * The bucket is private — all reads require a signed URL.
+ *
+ * @param {string} storagePath – path in the job-photos bucket (e.g. `<uid>/<jobId>/<ts>-file.jpg`)
+ * @param {number} [ttlSec=3600] – URL lifetime in seconds (default 1 hour)
+ * @returns {Promise<string|null>} – signed URL string, or null on error
+ */
+export async function getSignedPhotoUrl(storagePath, ttlSec = 3600) {
+  if (!storagePath) return null;
+  const { data, error } = await supabase.storage
+    .from('job-photos')
+    .createSignedUrl(storagePath, ttlSec);
+  if (error) {
+    console.warn('Signed photo URL failed for', storagePath, error);
+    return null;
+  }
+  return data?.signedUrl || null;
+}
+
+/**
+ * Uploads a job photo file to the private `job-photos` Supabase storage bucket.
+ * Path scheme: `<user_id>/<job_id>/<timestamp>-<filename>`
+ * The file is accepted as a Blob (the caller converts the compressed dataURL first).
+ *
+ * @param {Blob} blob        – compressed image blob
+ * @param {string} jobId     – Supabase job UUID
+ * @param {string} filename  – original filename (used for the suffix only)
+ * @returns {Promise<{ path: string }|null>} – storage path object, or null on failure
+ */
+export async function uploadJobPhoto(blob, jobId, filename) {
+  const user_id = await getUserId();
+  if (!user_id) return null;
+
+  const ts = Date.now();
+  const safeName = (filename || 'photo.jpg').replace(/[^a-zA-Z0-9._-]/g, '_');
+  const path = `${user_id}/${jobId}/${ts}-${safeName}`;
+
+  const { error } = await supabase.storage
+    .from('job-photos')
+    .upload(path, blob, {
+      contentType: blob.type || 'image/jpeg',
+      upsert: false,
+    });
+
+  if (error) {
+    console.error('uploadJobPhoto failed', error);
+    return null;
+  }
+  return { path };
+}
+
+/**
+ * Updates the `meta` jsonb column on a jobs row, and simultaneously keeps the
+ * `line_items` column in sync when `metaObject.lineItems` is present.
+ *
+ * This is fire-and-forget from the caller's perspective — `writeJobMeta` in
+ * jobMeta.js calls this without await after the localStorage write succeeds.
+ *
+ * Offline / no-auth handling: if the Supabase client is not authenticated or
+ * the network is unavailable, returns `{ ok: false, error: 'offline' }` without
+ * throwing. The localStorage write already happened; the next successful online
+ * write for this job will sync the meta column.
+ *
+ * @param {string} jobId       – Supabase UUID for the job row
+ * @param {object} metaObject  – the full meta object from extractJobMeta()
+ * @returns {Promise<{ ok: boolean, error?: string }>}
+ */
+export async function updateJobMetaInCloud(jobId, metaObject) {
+  if (!jobId || !metaObject) return { ok: false, error: 'missing-args' };
+
+  let user_id;
+  try {
+    user_id = await getUserId();
+  } catch {
+    return { ok: false, error: 'offline' };
+  }
+
+  if (!user_id) return { ok: false, error: 'offline' };
+
+  // Build the UPDATE payload. Always write meta. When lineItems is present,
+  // also keep the legacy line_items column in sync (Alan's decision #4).
+  const updatePayload = { meta: metaObject };
+  if (Array.isArray(metaObject.lineItems)) {
+    updatePayload.line_items = metaObject.lineItems;
+  }
+
+  try {
+    const { error } = await supabase
+      .from('jobs')
+      .update(updatePayload)
+      .eq('id', jobId);
+
+    if (error) {
+      console.warn('updateJobMetaInCloud failed', jobId, error);
+      return { ok: false, error: error.message };
+    }
+    return { ok: true };
+  } catch (err) {
+    // Network-level failure — localStorage is the durable copy until next sync
+    console.warn('updateJobMetaInCloud network error', jobId, err?.message);
+    return { ok: false, error: 'offline' };
+  }
 }
 
 /**

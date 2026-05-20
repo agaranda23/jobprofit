@@ -33,6 +33,7 @@ import {
   markJobPaidCloud,
   linkReceiptToJob,
   deleteReceiptFromCloud,
+  updateJobMetaInCloud,
 } from './lib/store';
 
 // ─── Feature flags ───────────────────────────────────────────────────────────
@@ -336,9 +337,19 @@ export default function AppShell() {
     }
   };
 
-  // Mark-paid from the new Today awaiting section. Single-device per PRD #3
-  // architecture: writes the new payment fields into the jobMeta side-channel
-  // and updates React state. No cloud write — that's a future PRD.
+  // Fires the cloud write after every writeJobMeta call. Fire-and-forget —
+  // the UI does not await this. localStorage write already succeeded by the
+  // time this runs. Errors are logged; they do not surface to the user because
+  // the local state is already correct.
+  const syncMetaToCloud = (jobId, mergedMeta) => {
+    if (!jobId || !mergedMeta) return;
+    updateJobMetaInCloud(jobId, mergedMeta).catch((err) => {
+      console.warn('syncMetaToCloud failed', jobId, err?.message);
+    });
+  };
+
+  // Mark-paid from the new Today awaiting section. Writes the new payment fields
+  // into the jobMeta side-channel, then fires the cloud write async.
   const onMarkPaidFromToday = (job, method) => {
     const updated = {
       ...job,
@@ -350,27 +361,26 @@ export default function AppShell() {
       jobStatus: 'complete',
       paid: true,
     };
-    writeJobMeta(updated.id, extractJobMeta(updated));
+    const merged = writeJobMeta(updated.id, extractJobMeta(updated));
+    syncMetaToCloud(updated.id, merged);
     setJobs(prev => prev.map(j => j.id === updated.id ? updated : j));
   };
 
-  // Partial-payment add (Phase B of partial-payments PRD). Single-device per
-  // PRD #3/#4 architecture: payments[] lives in the jobMeta side-channel,
-  // never round-trips through the cloud schema. addPayment helper in
-  // payments.js handles validation + auto-flip rule; this handler persists
-  // to the side-channel and updates React state. Symmetric with
-  // onMarkPaidFromToday above.
+  // Partial-payment add (Phase B of partial-payments PRD). payments[] lives in
+  // the jobMeta side-channel; addPayment handles validation + auto-flip rule.
   const onAddPayment = (job, payload) => {
     const updated = addPayment(job, payload);
-    writeJobMeta(updated.id, extractJobMeta(updated));
+    const merged = writeJobMeta(updated.id, extractJobMeta(updated));
+    syncMetaToCloud(updated.id, merged);
     setJobs(prev => prev.map(j => j.id === updated.id ? updated : j));
   };
 
-  // Generic job field update used by SendInvoiceModal (sets invoiceSentAt,
-  // invoiceNumber, invoiceDueDate, status). Same single-device pattern as
-  // onAddPayment: jobMeta side-channel only, no cloud write.
+  // Generic job field update used by JobDetailDrawer and SendInvoiceModal.
+  // Writes all meta fields (photos, notes, lineItems, invoice state, etc.)
+  // to localStorage then fires a cloud write async.
   const onUpdateJob = (updated) => {
-    writeJobMeta(updated.id, extractJobMeta(updated));
+    const merged = writeJobMeta(updated.id, extractJobMeta(updated));
+    syncMetaToCloud(updated.id, merged);
     setJobs(prev => prev.map(j => j.id === updated.id ? updated : j));
   };
 
