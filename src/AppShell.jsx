@@ -352,6 +352,14 @@ export default function AppShell() {
     setJobs(prev => prev.map(j => j.id === updated.id ? updated : j));
   };
 
+  // Generic job field update used by SendInvoiceModal (sets invoiceSentAt,
+  // invoiceNumber, invoiceDueDate, status). Same single-device pattern as
+  // onAddPayment: jobMeta side-channel only, no cloud write.
+  const onUpdateJob = (updated) => {
+    writeJobMeta(updated.id, extractJobMeta(updated));
+    setJobs(prev => prev.map(j => j.id === updated.id ? updated : j));
+  };
+
   const handleLinkReceipt = async (jobId) => {
     if (!pendingLink) return;
     try {
@@ -430,6 +438,9 @@ export default function AppShell() {
               jobs={jobs}
               onNewJob={openDetailed}
               onAddPayment={onAddPayment}
+              onUpdateJob={onUpdateJob}
+              biz={null}
+              profile={profile}
             />
           )}
 
