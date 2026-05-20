@@ -28,6 +28,8 @@ const META_FIELDS = [
   'lineItems',  // array of { desc, cost } — also written to line_items column in same UPDATE
   'total',      // numeric — recomputed from lineItems on every edit
   'amount',     // numeric — kept in sync with total
+  // Phase G-1 — public quote share link
+  'publicAccessToken', // UUID; lazily generated when trader first taps "Send link"
 ];
 
 export function readJobMeta(id) {
