@@ -260,6 +260,139 @@ describe('computeTier — first-chase and tier progression', () => {
   });
 });
 
+// ── Content section visibility helpers (mirroring drawer logic) ──────────────
+
+// Mirrors MaterialsSection render gate: show only when there are non-empty line items.
+function hasMaterials(job) {
+  const items = Array.isArray(job.lineItems) ? job.lineItems.filter(i => i.desc || i.cost) : [];
+  return items.length > 0;
+}
+
+// Mirrors ReceiptsSection render gate: show only when receipts are linked to this job.
+function hasLinkedReceipts(job, receipts) {
+  return receipts.some(r => {
+    if (!r.jobId) return false;
+    return String(r.jobId) === String(job.id) || String(r.jobId) === String(job.cloudId);
+  });
+}
+
+// Mirrors PhotosSection render gate.
+function hasPhotos(job) {
+  return Array.isArray(job.photos) && job.photos.length > 0;
+}
+
+// Mirrors NotesSection render gate.
+function hasNotes(job) {
+  const structured = Array.isArray(job.jobNotes) ? job.jobNotes : [];
+  const plain = typeof job.notes === 'string' ? job.notes.trim() : '';
+  return structured.length > 0 || !!plain;
+}
+
+// Mirrors MaterialsSection total calculation.
+function materialsTotal(job) {
+  const items = Array.isArray(job.lineItems) ? job.lineItems : [];
+  return items.reduce((sum, i) => sum + Number(i.cost || 0), 0);
+}
+
+describe('MaterialsSection — render gate and total', () => {
+  it('shows when job has at least one line item with a desc', () => {
+    expect(hasMaterials({ lineItems: [{ desc: 'Pipes', cost: 40 }] })).toBe(true);
+  });
+
+  it('shows when line item has no desc but has a non-zero cost', () => {
+    expect(hasMaterials({ lineItems: [{ desc: '', cost: 10 }] })).toBe(true);
+  });
+
+  it('hides when lineItems is an empty array', () => {
+    expect(hasMaterials({ lineItems: [] })).toBe(false);
+  });
+
+  it('hides when lineItems is absent', () => {
+    expect(hasMaterials({})).toBe(false);
+  });
+
+  it('hides when all items have neither desc nor cost', () => {
+    expect(hasMaterials({ lineItems: [{ desc: '', cost: 0 }] })).toBe(false);
+  });
+
+  it('totals line item costs correctly', () => {
+    const job = { lineItems: [{ desc: 'A', cost: 30 }, { desc: 'B', cost: 45.5 }] };
+    expect(materialsTotal(job)).toBeCloseTo(75.5);
+  });
+
+  it('treats missing cost as zero in total', () => {
+    const job = { lineItems: [{ desc: 'A' }, { desc: 'B', cost: 20 }] };
+    expect(materialsTotal(job)).toBe(20);
+  });
+});
+
+describe('ReceiptsSection — render gate', () => {
+  const job = { id: 'j1' };
+
+  it('shows when a receipt is linked by jobId string match', () => {
+    const receipts = [{ id: 'r1', jobId: 'j1', amount: 12, label: 'Screws' }];
+    expect(hasLinkedReceipts(job, receipts)).toBe(true);
+  });
+
+  it('shows when jobId is stored as integer matching string id', () => {
+    const receipts = [{ id: 'r2', jobId: 'j1', amount: 5, label: 'Tape' }];
+    expect(hasLinkedReceipts({ id: 'j1' }, receipts)).toBe(true);
+  });
+
+  it('hides when no receipts are linked to this job', () => {
+    const receipts = [{ id: 'r3', jobId: 'j2', amount: 8, label: 'Paint' }];
+    expect(hasLinkedReceipts(job, receipts)).toBe(false);
+  });
+
+  it('hides when receipts array is empty', () => {
+    expect(hasLinkedReceipts(job, [])).toBe(false);
+  });
+
+  it('matches via cloudId when job has a cloudId', () => {
+    const jobWithCloud = { id: 'local1', cloudId: 'cloud-uuid-abc' };
+    const receipts = [{ id: 'r4', jobId: 'cloud-uuid-abc', amount: 20 }];
+    expect(hasLinkedReceipts(jobWithCloud, receipts)).toBe(true);
+  });
+
+  it('ignores receipts with no jobId', () => {
+    const receipts = [{ id: 'r5', jobId: null, amount: 7 }];
+    expect(hasLinkedReceipts(job, receipts)).toBe(false);
+  });
+});
+
+describe('PhotosSection — render gate', () => {
+  it('shows when job.photos has entries', () => {
+    expect(hasPhotos({ photos: ['data:image/jpeg;base64,abc'] })).toBe(true);
+  });
+
+  it('hides when job.photos is an empty array', () => {
+    expect(hasPhotos({ photos: [] })).toBe(false);
+  });
+
+  it('hides when job.photos is absent', () => {
+    expect(hasPhotos({})).toBe(false);
+  });
+});
+
+describe('NotesSection — render gate', () => {
+  it('shows when job.jobNotes has entries', () => {
+    const job = { jobNotes: [{ id: 'n1', subject: 'Visit', body: 'Arrived 9am', date: new Date().toISOString() }] };
+    expect(hasNotes(job)).toBe(true);
+  });
+
+  it('shows when job.notes is a non-empty string (cloud jobs)', () => {
+    expect(hasNotes({ notes: 'Needs key from neighbour' })).toBe(true);
+  });
+
+  it('hides when jobNotes is empty and notes is blank', () => {
+    expect(hasNotes({ jobNotes: [], notes: '   ' })).toBe(false);
+  });
+
+  it('hides when both fields are absent', () => {
+    expect(hasNotes({})).toBe(false);
+  });
+});
+
 // ── addPayment auto-flip — balance-hits-zero marks paid ──────────────────────
 
 describe('addPayment auto-flip — paying balance in full', () => {
