@@ -1,0 +1,198 @@
+/**
+ * CashflowChart.css — styles for the Money tab cash flow chart.
+ *
+ * Semantic colour tokens. M3 can override these per-page if needed.
+ * Design rules from money-tab-redesign-2026-05-20.md:
+ *   green  = paid / profit / cash-in
+ *   red    = open / cash-out / action needed
+ *   amber  = cost / warning
+ *   navy   = neutral KPI
+ */
+
+:root {
+  --cf-green: #22c55e;
+  --cf-red:   #ef4444;
+  --cf-amber: #f59e0b;
+  --cf-navy:  #1e3a5f;
+  --cf-track-bg: rgba(0, 0, 0, 0.06);
+  --cf-empty-color: #9ca3af;
+  --cf-label-color: inherit;
+  --cf-row-gap: 10px;
+  --cf-bar-height: 10px;
+  --cf-bar-radius: 5px;
+}
+
+/* ── Container ─────────────────────────────────────────────────────────────── */
+
+.cashflow-chart {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0;
+}
+
+/* ── Controls row (mode + range) ───────────────────────────────────────────── */
+
+.cashflow-chart__controls {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+/* Mode select */
+
+.cashflow-chart__mode-label {
+  display: inline-block;
+}
+
+.cashflow-chart__mode-select {
+  appearance: none;
+  -webkit-appearance: none;
+  background-color: transparent;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  padding: 6px 28px 6px 10px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  font-family: inherit;
+  color: inherit;
+  cursor: pointer;
+  /* chevron via background-image */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%236b7280' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+}
+
+.cashflow-chart__mode-select:focus {
+  outline: 2px solid var(--cf-green);
+  outline-offset: 1px;
+}
+
+/* Range button group */
+
+.cashflow-chart__range-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.cashflow-chart__range-btn {
+  border: 1px solid #d1d5db;
+  border-radius: 20px;
+  padding: 4px 12px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  font-family: inherit;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  transition: background-color 0.15s, border-color 0.15s;
+  /* Override default button padding from index.css */
+  min-width: auto;
+  line-height: 1.4;
+}
+
+.cashflow-chart__range-btn:hover:not(:disabled) {
+  border-color: var(--cf-green);
+}
+
+.cashflow-chart__range-btn--active {
+  background-color: var(--cf-green);
+  border-color: var(--cf-green);
+  color: #fff;
+}
+
+.cashflow-chart__range-btn--disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+/* ── Bars ───────────────────────────────────────────────────────────────────── */
+
+.cashflow-chart__bars {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cf-row-gap);
+}
+
+.cashflow-chart__row {
+  display: grid;
+  grid-template-columns: 72px 1fr 60px;
+  align-items: center;
+  gap: 8px;
+  min-height: 20px;
+}
+
+/* Month label */
+
+.cashflow-chart__month-label {
+  font-size: 0.8rem;
+  color: var(--cf-empty-color);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
+}
+
+/* Empty dash for months with no activity */
+
+.cashflow-chart__empty-dash {
+  color: var(--cf-empty-color);
+  font-size: 1rem;
+  line-height: 1;
+}
+
+/* Bar track and bars */
+
+.cashflow-chart__bar-track {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.cashflow-chart__bar {
+  height: var(--cf-bar-height);
+  border-radius: var(--cf-bar-radius);
+  min-width: 4px;
+  transition: width 0.25s ease-out;
+}
+
+/* Total label (right side) */
+
+.cashflow-chart__total-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* ── Empty state ─────────────────────────────────────────────────────────────── */
+
+.cashflow-chart__empty {
+  padding: 24px 0;
+  text-align: center;
+}
+
+.cashflow-chart__empty-msg {
+  font-size: 0.9rem;
+  color: var(--cf-empty-color);
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* ── Responsive — narrow viewports (≤360px) ──────────────────────────────── */
+
+@media (max-width: 360px) {
+  .cashflow-chart__row {
+    grid-template-columns: 60px 1fr 50px;
+    gap: 5px;
+  }
+
+  .cashflow-chart__month-label {
+    font-size: 0.72rem;
+  }
+
+  .cashflow-chart__total-label {
+    font-size: 0.72rem;
+  }
+}
