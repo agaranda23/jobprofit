@@ -32,6 +32,7 @@ import {
   addReceiptToCloud,
   markJobPaidCloud,
   linkReceiptToJob,
+  deleteReceiptFromCloud,
 } from './lib/store';
 
 // ─── Feature flags ───────────────────────────────────────────────────────────
@@ -297,17 +298,30 @@ export default function AppShell() {
   const handleAddReceipt = async (arg) => {
     const payload = arg?.payload || arg;
     const photoFile = arg?.photoFile || null;
+    // When jobId is already known (e.g. added from inside JobDetailDrawer),
+    // skip the LinkReceiptModal — the job link is already in the payload.
+    const jobIdAlreadyKnown = !!(payload?.jobId);
     try {
       const savedReceipt = await addReceiptToCloud(payload, photoFile);
       await refreshFromCloud();
-      // Only show link modal if there are jobs to potentially link to
-      if (savedReceipt?.id) {
+      if (savedReceipt?.id && !jobIdAlreadyKnown) {
         setPendingLink(savedReceipt);
       }
     } catch (e) {
       console.error('Add receipt failed', e);
       addTodayReceipt(payload);
       setReceipts(getTodayReceipts());
+    }
+  };
+
+  const handleDeleteReceipt = async (receiptId) => {
+    try {
+      await deleteReceiptFromCloud(receiptId);
+      await refreshFromCloud();
+    } catch (e) {
+      console.error('Delete receipt failed', e);
+      // Optimistic local removal so the UI updates even if cloud fails
+      setReceipts(prev => prev.filter(r => r.id !== receiptId && r.cloudId !== receiptId));
     }
   };
 
@@ -441,6 +455,7 @@ export default function AppShell() {
               onAddPayment={onAddPayment}
               onUpdateJob={onUpdateJob}
               onAddReceipt={handleAddReceipt}
+              onDeleteReceipt={handleDeleteReceipt}
               biz={null}
               profile={profile}
             />

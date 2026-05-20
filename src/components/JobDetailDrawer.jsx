@@ -339,8 +339,10 @@ function QuickContactSection({ job }) {
  * Tapping a receipt with a photo opens the photo lightbox.
  * Always renders (even with no linked receipts) when onAddReceipt is present,
  * so the "+ Add receipt" CTA is discoverable on jobs with no materials yet.
+ *
+ * onDeleteReceipt(id) — optional; when present, each receipt row gets an × button.
  */
-function ReceiptsSection({ job, receipts, onViewPhoto, onAddReceipt }) {
+function ReceiptsSection({ job, receipts, onViewPhoto, onAddReceipt, onDeleteReceipt }) {
   // receipts shape from getTodayReceipts: { id, label, amount, photo, date, jobId, imagePath }
   // Match on both string UUID (cloud) and legacy integer-style IDs
   const jobReceipts = receipts.filter(r => {
@@ -386,7 +388,19 @@ function ReceiptsSection({ job, receipts, onViewPhoto, onAddReceipt }) {
                 <div className="jd-receipt-label">{r.label || 'Receipt'}</div>
                 {r.date && <div className="jd-receipt-date">{fmtDate(r.date)}</div>}
               </div>
-              <div className="jd-receipt-amount">{gbp(r.amount || 0)}</div>
+              <div className="jd-receipt-right">
+                <div className="jd-receipt-amount">{gbp(r.amount || 0)}</div>
+                {onDeleteReceipt && (
+                  <button
+                    type="button"
+                    className="jd-receipt-delete-btn"
+                    onClick={() => onDeleteReceipt(r.id)}
+                    aria-label="Delete receipt"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
             </div>
           ))}
         </div>
@@ -405,8 +419,10 @@ function ReceiptsSection({ job, receipts, onViewPhoto, onAddReceipt }) {
  * the async compression handler needs access to onUpdateJob. This component
  * receives onAddPhoto (a function that triggers photoInputRef.current.click())
  * and photoAdding (a loading flag) for display purposes.
+ *
+ * onDeletePhoto(idx) — optional; when present, each thumbnail gets an × button.
  */
-function PhotosSection({ photos, onViewPhoto, onAddPhoto, photoAdding }) {
+function PhotosSection({ photos, onViewPhoto, onAddPhoto, photoAdding, onDeletePhoto }) {
   const hasPhotos = Array.isArray(photos) && photos.length > 0;
 
   // Hide entirely when nothing to show and no handler to add
@@ -432,15 +448,26 @@ function PhotosSection({ photos, onViewPhoto, onAddPhoto, photoAdding }) {
         <div className="jd-section-body">
           <div className="jd-photos-grid">
             {photos.map((src, i) => (
-              <button
-                key={i}
-                type="button"
-                className="jd-photo-thumb-btn"
-                onClick={() => onViewPhoto(src)}
-                aria-label={`View photo ${i + 1}`}
-              >
-                <img src={src} alt="" className="jd-photo-thumb" />
-              </button>
+              <div key={i} className="jd-photo-thumb-wrap">
+                <button
+                  type="button"
+                  className="jd-photo-thumb-btn"
+                  onClick={() => onViewPhoto(src)}
+                  aria-label={`View photo ${i + 1}`}
+                >
+                  <img src={src} alt="" className="jd-photo-thumb" />
+                </button>
+                {onDeletePhoto && (
+                  <button
+                    type="button"
+                    className="jd-photo-delete-btn"
+                    onClick={() => onDeletePhoto(i)}
+                    aria-label={`Delete photo ${i + 1}`}
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
             ))}
           </div>
         </div>
@@ -462,6 +489,7 @@ function PhotosSection({ photos, onViewPhoto, onAddPhoto, photoAdding }) {
  *   onNoteSubjectChange / onNoteBodyChange – onChange handlers
  *   onSubmitNote    – fires when Save is tapped
  *   onCancelNote    – fires when Cancel is tapped (collapses form, no save)
+ *   onDeleteNote(id) – optional; when present, each note gets a Delete button
  */
 function NotesSection({
   job,
@@ -473,6 +501,7 @@ function NotesSection({
   onNoteBodyChange,
   onSubmitNote,
   onCancelNote,
+  onDeleteNote,
 }) {
   const structuredNotes = Array.isArray(job.jobNotes) ? job.jobNotes : [];
   // cloud jobs may have a plain notes string instead of the structured array
@@ -558,6 +587,16 @@ function NotesSection({
                   </span>
                 </div>
                 <p className="jd-note-body">{n.body}</p>
+                {onDeleteNote && (
+                  <button
+                    type="button"
+                    className="jd-note-delete-btn"
+                    onClick={() => onDeleteNote(n.id)}
+                    aria-label="Delete note"
+                  >
+                    Delete
+                  </button>
+                )}
               </div>
             ))}
           </div>
@@ -582,10 +621,11 @@ function NotesSection({
  *   biz                     – business settings (name, bank, VAT) — needed for invoice generation
  *   profile                 – Supabase profiles row or null — needed for paywall gating
  *   jobs                    – all jobs array — needed by nextInvoiceNumber to avoid gaps
- *   onUpdateJob(updatedJob) – persists job field updates (photos, notes, invoiceSentAt etc.)
- *   onAddReceipt(arg)       – AppShell handler; arg = { payload, photoFile } (same shape as TodayScreen)
+ *   onUpdateJob(updatedJob)    – persists job field updates (photos, notes, invoiceSentAt etc.)
+ *   onAddReceipt(arg)          – AppShell handler; arg = { payload, photoFile } (same shape as TodayScreen)
+ *   onDeleteReceipt(receiptId) – AppShell handler; deletes from Supabase + localStorage mirror
  *   onAddPayment(job, payload) – from AppShell, persists to jobMeta side-channel
- *   onClose()               – called when the sheet should close
+ *   onClose()                  – called when the sheet should close
  */
 export default function JobDetailDrawer({
   job,
@@ -595,6 +635,7 @@ export default function JobDetailDrawer({
   jobs,
   onUpdateJob,
   onAddReceipt,
+  onDeleteReceipt,
   onAddPayment,
   onClose,
 }) {
@@ -725,6 +766,37 @@ export default function JobDetailDrawer({
     await onAddReceipt(injected);
     setReceiptModalOpen(false);
     showFlash('Receipt added');
+  };
+
+  // ── Photo delete ──────────────────────────────────────────────────────────
+  // Mirrors rmPhoto in App.jsx (line 619): splice by index, write via onUpdateJob.
+  const handleDeletePhoto = (idx) => {
+    if (!window.confirm('Delete this photo?')) return;
+    const updated = (job.photos || []).filter((_, i) => i !== idx);
+    onUpdateJob({ ...job, photos: updated });
+    showFlash('Photo deleted');
+  };
+
+  // ── Note delete ───────────────────────────────────────────────────────────
+  // Mirrors deleteNote in App.jsx (line 617): filter by id, write via onUpdateJob.
+  const handleDeleteNote = (noteId) => {
+    if (!window.confirm('Delete this note?')) return;
+    const updated = (job.jobNotes || []).filter(n => n.id !== noteId);
+    onUpdateJob({ ...job, jobNotes: updated });
+    showFlash('Note deleted');
+  };
+
+  // ── Receipt delete ────────────────────────────────────────────────────────
+  const handleDeleteReceipt = async (receiptId) => {
+    if (!window.confirm('Delete this receipt?')) return;
+    if (onDeleteReceipt) {
+      try {
+        await onDeleteReceipt(receiptId);
+        showFlash('Receipt deleted');
+      } catch {
+        showFlash('Could not delete receipt — try again');
+      }
+    }
   };
 
   return (
@@ -868,6 +940,7 @@ export default function JobDetailDrawer({
             receipts={receipts}
             onViewPhoto={setLightboxSrc}
             onAddReceipt={onAddReceipt ? () => setReceiptModalOpen(true) : undefined}
+            onDeleteReceipt={onDeleteReceipt ? handleDeleteReceipt : undefined}
           />
 
           {/* Hidden file input for photo capture — rendered here so handlePhotoFiles
@@ -888,6 +961,7 @@ export default function JobDetailDrawer({
             onViewPhoto={setLightboxSrc}
             onAddPhoto={onUpdateJob ? () => photoInputRef.current?.click() : undefined}
             photoAdding={photoAdding}
+            onDeletePhoto={onUpdateJob ? handleDeletePhoto : undefined}
           />
 
           <NotesSection
@@ -900,6 +974,7 @@ export default function JobDetailDrawer({
             onNoteBodyChange={setNoteBody}
             onSubmitNote={handleSubmitNote}
             onCancelNote={() => { setNoteFormOpen(false); setNoteSubject(''); setNoteBody(''); }}
+            onDeleteNote={onUpdateJob ? handleDeleteNote : undefined}
           />
 
           {/* Payment history — self-gates when no payments */}

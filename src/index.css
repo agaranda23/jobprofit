@@ -2906,6 +2906,13 @@ input[type=number] { -moz-appearance: textfield; }
   margin-top: 2px;
 }
 
+.jd-receipt-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
 .jd-receipt-amount {
   font-size: 14px;
   font-weight: 700;
@@ -2913,6 +2920,25 @@ input[type=number] { -moz-appearance: textfield; }
   font-variant-numeric: tabular-nums;
   flex-shrink: 0;
 }
+
+.jd-receipt-delete-btn {
+  background: none;
+  border: none;
+  padding: 4px;
+  cursor: pointer;
+  color: var(--text-dim);
+  font-size: 14px;
+  line-height: 1;
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+  flex-shrink: 0;
+}
+.jd-receipt-delete-btn:active { background: var(--surface-2, var(--surface)); }
 
 /* ── Photos ── */
 
@@ -2941,6 +2967,40 @@ input[type=number] { -moz-appearance: textfield; }
   display: block;
   border: 1px solid var(--border);
 }
+
+/* Wrapper that holds the thumb button + delete overlay */
+.jd-photo-thumb-wrap {
+  position: relative;
+  aspect-ratio: 1;
+}
+
+.jd-photo-thumb-wrap .jd-photo-thumb-btn {
+  width: 100%;
+  height: 100%;
+  aspect-ratio: 1;
+}
+
+.jd-photo-delete-btn {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--danger, #ef4444);
+  color: #fff;
+  border: none;
+  font-size: 11px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  -webkit-tap-highlight-color: transparent;
+  /* ensure the × sits on top of the image */
+  z-index: 1;
+}
+.jd-photo-delete-btn:active { opacity: 0.8; }
 
 /* ── Notes ── */
 
@@ -2992,6 +3052,20 @@ input[type=number] { -moz-appearance: textfield; }
   line-height: 1.55;
   white-space: pre-wrap;
 }
+
+.jd-note-delete-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  margin-top: 8px;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--danger, #ef4444);
+  font-weight: 500;
+  -webkit-tap-highlight-color: transparent;
+  display: inline-block;
+}
+.jd-note-delete-btn:active { opacity: 0.7; }
 
 /* ── Section header with action CTA (Phase E-1) ── */
 
