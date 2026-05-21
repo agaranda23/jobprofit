@@ -17,9 +17,15 @@
  *   404  { error: 'token not found' }
  *   500  { error: 'server configuration error' }
  *   502  { error: 'database error' }
+ *
+ * Side effects:
+ *   On first accept, fires a Resend notification email to the trader.
+ *   Email is fire-and-forget — failures are logged but never block the 200 response.
+ *   Requires RESEND_API_KEY env var; gracefully skips if absent.
  */
 
 import { createClient } from '@supabase/supabase-js';
+import { sendTraderAcceptEmail } from './_lib/sendTraderAcceptEmail.js';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -106,7 +112,7 @@ export const handler = async function (event) {
   try {
     const { data, error } = await adminClient
       .from('jobs')
-      .select('id, meta')
+      .select('id, user_id, meta')
       .eq('meta->>publicAccessToken', token)
       .single();
 
@@ -153,6 +159,46 @@ export const handler = async function (event) {
   } catch (err) {
     console.error('accept-quote: DB update threw', jobRow.id, err?.message);
     return json(502, { error: 'Could not save signature — please try again' });
+  }
+
+  // ── 9. Notify trader via email (fire-and-forget) ─────────────────────────────
+  // Look up trader email + business name. Both queries are quick reads against
+  // indexed primary keys. If either fails, log and continue — email is advisory.
+  try {
+    const [userResult, profileResult] = await Promise.all([
+      adminClient.auth.admin.getUserById(jobRow.user_id),
+      adminClient
+        .from('profiles')
+        .select('business_name')
+        .eq('id', jobRow.user_id)
+        .maybeSingle(),
+    ]);
+
+    const traderEmail = userResult?.data?.user?.email;
+    const traderBusinessName = profileResult?.data?.business_name ?? null;
+
+    if (!traderEmail) {
+      console.warn('[email] Could not resolve trader email for user_id:', jobRow.user_id);
+    } else {
+      // Derive display values from meta — these fields are set by the trader when
+      // building the quote; fall back gracefully if absent.
+      const meta = updatedMeta;
+      const jobDescription = meta.jobTitle || meta.description || meta.title || null;
+      const amount = meta.totalAmount ?? meta.quoteAmount ?? meta.total ?? null;
+
+      // await so the result is logged, but result does NOT affect the HTTP response
+      await sendTraderAcceptEmail({
+        traderEmail,
+        traderBusinessName,
+        customerName: cleanName,
+        jobDescription,
+        amount,
+        acceptedAt,
+      });
+    }
+  } catch (err) {
+    // Email lookup/send must never crash the accept flow
+    console.error('[email] Notification lookup/send threw unexpectedly:', err?.message);
   }
 
   // Return only what the public page needs — no internal IDs or other tokens
