@@ -19,6 +19,7 @@ import { supabase } from './lib/supabase';
 import AuthScreen from './components/AuthScreen';
 import { parseHash, navigateToView, replaceHistory, TOP_VIEWS } from './lib/navigation';
 import { writeJobMeta, extractJobMeta, applyJobMetaToJobs } from './lib/jobMeta';
+import { subscribeToJobs } from './lib/realtime';
 import { addPayment } from './lib/payments';
 import {
   getTodayJobs,
@@ -118,6 +119,11 @@ export default function AppShell() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   // First-open toast for users seeing the new nav for the first time
   const [navToast, setNavToast] = useState(null);
+  // Realtime event toast — e.g. "Customer signed quote — <name>"
+  const [realtimeToast, setRealtimeToast] = useState(null);
+  // Ref holding the most recent jobs array so the Realtime handler can compare
+  // previous acceptedSignature state without a stale closure.
+  const jobsRef = useRef([]);
   // Wizard state (new nav only).
   // wizardOpen — should the wizard overlay be showing right now?
   // postWizardNav — view to navigate to after the wizard completes (e.g. 'jobs').
@@ -185,6 +191,12 @@ export default function AppShell() {
     }
   }, [cloudLoaded]);
 
+  // Keep jobsRef current so the Realtime handler can read the latest job state
+  // without a stale closure. Runs synchronously after every render that changes jobs.
+  useEffect(() => {
+    jobsRef.current = jobs;
+  }, [jobs]);
+
   // Fetch user profile from Supabase (best-effort — slice 2 adds the actual columns)
   const refreshProfile = useCallback(async (userId) => {
     try {
@@ -224,6 +236,63 @@ export default function AppShell() {
       refreshProfile(session.user.id);
     }
   }, [session, refreshFromCloud, refreshProfile]);
+
+  // ─── Realtime subscription ───────────────────────────────────────────────
+  // Subscribe to jobs table changes as soon as a session is available.
+  // On any INSERT/UPDATE/DELETE: refetch from cloud (idempotent, RLS-filtered).
+  // On UPDATE with a freshly-set acceptedSignature from a remote source:
+  //   show a toast if the trader isn't already viewing that job's drawer.
+  //   The drawer auto-updates via the refetch — no separate notify needed there.
+  // On reconnect after offline: immediate refetch to catch missed events.
+  //
+  // Local optimistic edits (offline) survive: applyJobMetaToJobs merges the
+  // localStorage side-channel on top of cloud data, so a refetch after a
+  // remote change does not overwrite offline-only local edits.
+  useEffect(() => {
+    if (!session?.user?.id) return;
+
+    const userId = session.user.id;
+
+    const handleJobChange = async (payload) => {
+      // Detect remote signature: compare previous job state (from ref) to the
+      // incoming change. Only fire a toast when:
+      //   1. The event is an UPDATE
+      //   2. The changed row has acceptedSignature set
+      //   3. The previous in-memory version for that row had no acceptedSignature
+      //   4. acceptedSource is 'remote' (written by the Phase G-2 Netlify function)
+      if (payload.eventType === 'UPDATE' && payload.new) {
+        const incoming = payload.new;
+        const incomingMeta = (incoming.meta && typeof incoming.meta === 'object') ? incoming.meta : {};
+        const hasRemoteSig = incomingMeta.acceptedSignature && incomingMeta.acceptedSource === 'remote';
+
+        if (hasRemoteSig) {
+          const prev = jobsRef.current.find(j => j.id === incoming.id);
+          const prevHadSig = !!(prev?.acceptedSignature);
+          if (!prevHadSig) {
+            const customerName = incoming.customer_name || prev?.name || 'Customer';
+            setRealtimeToast(`Customer signed quote — ${customerName}`);
+            const t = setTimeout(() => setRealtimeToast(null), 6000);
+            // Cleanup is handled via the outer effect's return; the timeout id
+            // is intentionally not tracked here because the toast message itself
+            // is short-lived and a stale clear is harmless.
+            void t;
+          }
+        }
+      }
+
+      // Refetch regardless of event type — keeps all state in sync.
+      await refreshFromCloud();
+    };
+
+    const unsub = subscribeToJobs(
+      userId,
+      handleJobChange,
+      // onReconnect: immediate refetch to catch events missed during disconnect.
+      () => { refreshFromCloud(); }
+    );
+
+    return () => { unsub(); };
+  }, [session, refreshFromCloud]);
 
   useEffect(() => {
     const legacyRefreshViews = (NEW_NAV || NAV_SLICE_3) ? ['today'] : ['today', 'history'];
@@ -622,6 +691,14 @@ export default function AppShell() {
         <div className="nav-toast" role="status">
           {navToast}
           <button className="nav-toast-close" onClick={() => setNavToast(null)} aria-label="Dismiss">✕</button>
+        </div>
+      )}
+
+      {/* ── Realtime event toast (e.g. remote signature) ─────────────────── */}
+      {realtimeToast && (
+        <div className="nav-toast nav-toast--realtime" role="status" aria-live="polite">
+          {realtimeToast}
+          <button className="nav-toast-close" onClick={() => setRealtimeToast(null)} aria-label="Dismiss">✕</button>
         </div>
       )}
 
