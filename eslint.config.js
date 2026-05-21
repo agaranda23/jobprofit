@@ -5,7 +5,7 @@ import reactRefresh from 'eslint-plugin-react-refresh'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 export default defineConfig([
-  globalIgnores(['dist']),
+  globalIgnores(['dist', 'public/App.jsx', 'public/public/']),
   {
     files: ['**/*.{js,jsx}'],
     extends: [
@@ -24,6 +24,13 @@ export default defineConfig([
     },
     rules: {
       'no-unused-vars': ['error', { varsIgnorePattern: '^[A-Z_]' }],
+    },
+  },
+  // Netlify functions run in Node — give them process, exports, etc.
+  {
+    files: ['netlify/functions/**/*.{js,jsx}'],
+    languageOptions: {
+      globals: { ...globals.node },
     },
   },
 ])

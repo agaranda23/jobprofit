@@ -297,9 +297,15 @@ function DetailsSection({
               alt="Customer signature"
               className="sig-accepted-img"
             />
+            {/* G-2: distinguish remote signature from on-screen (Phase F) */}
+            <div className="sig-accepted-source">
+              {job.acceptedSource === 'remote'
+                ? `Signed remotely${job.acceptedName ? ` by ${job.acceptedName}` : ' by customer'}`
+                : 'Signed on screen'}
+            </div>
             {job.acceptedAt && (
               <div className="sig-accepted-date">
-                Signed {fmtDate(job.acceptedAt)}
+                {fmtDate(job.acceptedAt)}
               </div>
             )}
           </div>

@@ -1,0 +1,160 @@
+/**
+ * accept-quote — Netlify function (Phase G-2)
+ *
+ * Receives a customer signature from the public quote page and writes it to
+ * the jobs row via the service-role client (bypasses RLS, safe only server-side).
+ *
+ * POST body (JSON):
+ *   { token: string, signature: string, acceptedName?: string }
+ *
+ * Required env vars (set in Netlify dashboard — NEVER commit to the repo):
+ *   SUPABASE_SERVICE_ROLE_KEY  — Supabase dashboard → Project Settings → API → service_role
+ *   VITE_SUPABASE_URL          — already set for the browser build; reused here
+ *
+ * Response shapes:
+ *   200  { acceptedAt, alreadyAccepted? }
+ *   400  { error: 'validation error message' }
+ *   404  { error: 'token not found' }
+ *   500  { error: 'server configuration error' }
+ *   502  { error: 'database error' }
+ */
+
+import { createClient } from '@supabase/supabase-js';
+
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'Content-Type',
+  'Content-Type': 'application/json',
+};
+
+/** UUID v4 shape — must match isValidToken in publicQuoteToken.js */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+/** data:image/png;base64,... prefix */
+const DATA_URL_PREFIX = 'data:image/png;base64,';
+
+/** Maximum signature payload: 200 KB expressed as base64 character count */
+const MAX_SIG_CHARS = Math.ceil((200 * 1024 * 4) / 3);
+
+function json(statusCode, body) {
+  return { statusCode, headers: CORS_HEADERS, body: JSON.stringify(body) };
+}
+
+export const handler = async function (event) {
+  // Preflight
+  if (event.httpMethod === 'OPTIONS') {
+    return { statusCode: 200, headers: CORS_HEADERS, body: '' };
+  }
+
+  if (event.httpMethod !== 'POST') {
+    return json(405, { error: 'Method not allowed' });
+  }
+
+  // ── 1. Parse body ────────────────────────────────────────────────────────────
+  let body;
+  try {
+    body = JSON.parse(event.body || '{}');
+  } catch {
+    return json(400, { error: 'Invalid JSON body' });
+  }
+
+  const { token, signature, acceptedName } = body;
+
+  // ── 2. Validate token ────────────────────────────────────────────────────────
+  if (typeof token !== 'string' || !UUID_RE.test(token)) {
+    return json(400, { error: 'Invalid token format' });
+  }
+
+  // ── 3. Validate signature ────────────────────────────────────────────────────
+  if (typeof signature !== 'string') {
+    return json(400, { error: 'Signature is required' });
+  }
+  if (!signature.startsWith(DATA_URL_PREFIX)) {
+    return json(400, { error: 'Signature must be a PNG dataURL' });
+  }
+  if (signature.length > MAX_SIG_CHARS + DATA_URL_PREFIX.length) {
+    return json(400, { error: 'Signature exceeds maximum size (200 KB)' });
+  }
+
+  // acceptedName is optional; strip to plain string if present
+  const cleanName = acceptedName && typeof acceptedName === 'string'
+    ? acceptedName.trim().slice(0, 200)
+    : null;
+
+  // ── 4. Validate env vars ─────────────────────────────────────────────────────
+  const supabaseUrl = process.env.VITE_SUPABASE_URL;
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!supabaseUrl || !serviceRoleKey) {
+    // Log clearly so Netlify function logs surface the misconfiguration
+    console.error(
+      'accept-quote: missing env vars.',
+      'VITE_SUPABASE_URL present:', !!supabaseUrl,
+      'SUPABASE_SERVICE_ROLE_KEY present:', !!serviceRoleKey
+    );
+    return json(500, { error: 'Server configuration error — contact support' });
+  }
+
+  // ── 5. Initialize service-role Supabase client ───────────────────────────────
+  // Service role bypasses RLS — only used server-side, never exposed to the browser.
+  const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false },
+  });
+
+  // ── 6. Find the job by token ─────────────────────────────────────────────────
+  let jobRow;
+  try {
+    const { data, error } = await adminClient
+      .from('jobs')
+      .select('id, meta')
+      .eq('meta->>publicAccessToken', token)
+      .single();
+
+    if (error || !data) {
+      return json(404, { error: 'Quote not found. The link may be invalid or the job has been removed.' });
+    }
+    jobRow = data;
+  } catch (err) {
+    console.error('accept-quote: DB select failed', err?.message);
+    return json(502, { error: 'Database error — please try again' });
+  }
+
+  // ── 7. Idempotency — return existing state if already accepted ───────────────
+  const existingMeta = (jobRow.meta && typeof jobRow.meta === 'object') ? jobRow.meta : {};
+  if (existingMeta.acceptedSignature) {
+    return json(200, {
+      acceptedAt: existingMeta.acceptedAt,
+      alreadyAccepted: true,
+    });
+  }
+
+  // ── 8. Write acceptance ──────────────────────────────────────────────────────
+  const acceptedAt = new Date().toISOString();
+  const updatedMeta = {
+    ...existingMeta,
+    acceptedSignature: signature,
+    acceptedAt,
+    acceptedName: cleanName,
+    acceptedSource: 'remote',
+    quoteStatus: 'accepted',
+    jobStatus: 'active',
+  };
+
+  try {
+    const { error: updateError } = await adminClient
+      .from('jobs')
+      .update({ meta: updatedMeta })
+      .eq('id', jobRow.id);
+
+    if (updateError) {
+      console.error('accept-quote: DB update failed', jobRow.id, updateError?.message);
+      return json(502, { error: 'Could not save signature — please try again' });
+    }
+  } catch (err) {
+    console.error('accept-quote: DB update threw', jobRow.id, err?.message);
+    return json(502, { error: 'Could not save signature — please try again' });
+  }
+
+  // Return only what the public page needs — no internal IDs or other tokens
+  return json(200, { acceptedAt });
+};
