@@ -43,12 +43,13 @@ import {
 } from './lib/store';
 
 // ─── Feature flags ───────────────────────────────────────────────────────────
-// Enable the new 4-tab nav:
+// Slice-3 nav (Today / Jobs / Money / Settings) is the default for all users.
+// Escape hatch to fall back to legacy nav (debugging only):
+//   localStorage.setItem('jp.navSlice3', '0'); location.reload();
+// Legacy 4-tab newNav remains opt-in:
 //   localStorage.setItem('jp.newNav', '1'); location.reload();
-// Enable slice-3 nav (Today / Work / Finance / Settings):
-//   localStorage.setItem('jp.navSlice3', '1'); location.reload();
 const NEW_NAV        = localStorage.getItem('jp.newNav')        === '1';
-const NAV_SLICE_3    = localStorage.getItem('jp.navSlice3')    === '1';
+const NAV_SLICE_3    = localStorage.getItem('jp.navSlice3')    !== '0';
 
 // View IDs recognised by each nav mode.
 // SLICE_3_VIEWS mirrors NEW_NAV_VIEWS but uses 'work'/'finance'/'settings'.
