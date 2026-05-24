@@ -1,5 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import App from './App.jsx';
+import {
+  isPushSupported,
+  getSubscriptionStatus,
+  subscribe as pushSubscribe,
+} from './lib/pushSubscribe.js';
 import TodayScreen from './screens/TodayScreen';
 import HistoryScreen from './screens/HistoryScreen';
 import JobsScreen from './screens/JobsScreen';
@@ -129,6 +134,8 @@ export default function AppShell() {
   // postWizardNav — view to navigate to after the wizard completes (e.g. 'jobs').
   const [wizardOpen, setWizardOpen] = useState(false);
   const [postWizardNav, setPostWizardNav] = useState(null);
+  // Push permission prompt: show once per device, dismiss stored in localStorage
+  const [pushPromptVisible, setPushPromptVisible] = useState(false);
 
   const manageRootRef = useRef(null);
 
@@ -236,6 +243,47 @@ export default function AppShell() {
       refreshProfile(session.user.id);
     }
   }, [session, refreshFromCloud, refreshProfile]);
+
+  // Register service worker for PWA (required for push and offline caching).
+  // Located here (AppShell) so it fires on every authenticated session, not just
+  // inside the legacy App.jsx monolith. Safe to call multiple times — the browser
+  // deduplicates registrations to the same script URL.
+  useEffect(() => {
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch((err) => {
+        console.warn('SW registration failed', err?.message);
+      });
+    }
+  }, []);
+
+  // Push permission prompt: show once per device, 5 seconds after sign-in.
+  // Conditions to show:
+  //   - Push is supported by this browser/OS (not iOS < 16.4 in browser tabs)
+  //   - User is signed in (session exists)
+  //   - User has never been asked on this device (jp.pushPromptDismissed not set)
+  //   - Notification.permission is 'default' (not already granted or denied)
+  // If permission is 'granted' but no subscription exists (expired or cleared),
+  // silently re-subscribe without showing the prompt.
+  useEffect(() => {
+    if (!session?.user?.id) return;
+    if (!isPushSupported()) return;
+
+    // Silently re-subscribe if previously granted but subscription expired
+    getSubscriptionStatus().then((status) => {
+      if (status === 'granted-unsubscribed') {
+        pushSubscribe(session.user.id).catch(() => {});
+        return;
+      }
+      if (status !== 'default') return;
+      if (localStorage.getItem('jp.pushPromptDismissed')) return;
+
+      // Wait 5 s after sign-in before showing — give the user time to orient
+      const t = setTimeout(() => {
+        setPushPromptVisible(true);
+      }, 5000);
+      return () => clearTimeout(t);
+    }).catch(() => {});
+  }, [session]);
 
   // ─── Realtime subscription ───────────────────────────────────────────────
   // Subscribe to jobs table changes as soon as a session is available.
@@ -464,6 +512,22 @@ export default function AppShell() {
     setPendingLink(null);
   };
 
+  const handleEnablePush = async () => {
+    setPushPromptVisible(false);
+    localStorage.setItem('jp.pushPromptDismissed', '1');
+    // requestPermission is in pushSubscribe but we can call the browser API
+    // directly here since we need to react to the result in the same gesture.
+    const permission = await Notification.requestPermission();
+    if (permission === 'granted' && session?.user?.id) {
+      pushSubscribe(session.user.id).catch(() => {});
+    }
+  };
+
+  const handleDismissPush = () => {
+    setPushPromptVisible(false);
+    localStorage.setItem('jp.pushPromptDismissed', '1');
+  };
+
   const handleSignOut = async () => {
     try {
       await supabase.auth.signOut();
@@ -684,6 +748,33 @@ export default function AppShell() {
             setWizardOpen(true);
           }}
         />
+      )}
+
+      {/* ── Push permission prompt (shown once per device, 5 s after sign-in) ── */}
+      {/* Non-blocking: sits at the bottom above the nav, never blocks content.  */}
+      {/* iOS: only shown when app is installed to Home Screen (Safari 16.4+).   */}
+      {pushPromptVisible && (
+        <div className="push-prompt" role="dialog" aria-label="Enable notifications">
+          <p className="push-prompt-text">
+            Get a buzz when a customer signs your quote?
+          </p>
+          <div className="push-prompt-actions">
+            <button
+              className="push-prompt-enable"
+              onClick={handleEnablePush}
+              type="button"
+            >
+              Enable notifications
+            </button>
+            <button
+              className="push-prompt-dismiss"
+              onClick={handleDismissPush}
+              type="button"
+            >
+              Not now
+            </button>
+          </div>
+        </div>
       )}
 
       {/* ── One-time orientation toast ──────────────────────────────────── */}

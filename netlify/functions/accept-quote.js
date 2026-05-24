@@ -20,6 +20,7 @@
  */
 
 import { createClient } from '@supabase/supabase-js';
+import { sendPushToUser } from './_lib/sendPushToUser.js';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -106,7 +107,7 @@ export const handler = async function (event) {
   try {
     const { data, error } = await adminClient
       .from('jobs')
-      .select('id, meta')
+      .select('id, user_id, customer_name, meta')
       .eq('meta->>publicAccessToken', token)
       .single();
 
@@ -153,6 +154,22 @@ export const handler = async function (event) {
   } catch (err) {
     console.error('accept-quote: DB update threw', jobRow.id, err?.message);
     return json(502, { error: 'Could not save signature — please try again' });
+  }
+
+  // ── 9. Notify the trader via push (fire-and-forget) ─────────────────────────
+  // The trader also gets a real-time in-app toast via Supabase Realtime when
+  // the app is open. Push covers the closed/backgrounded case.
+  // If VAPID keys aren't configured yet, sendPushToUser is a silent no-op.
+  if (jobRow.user_id) {
+    const customerName = jobRow.customer_name || cleanName || 'A customer';
+    sendPushToUser(jobRow.user_id, {
+      title: 'Quote accepted',
+      body: `${customerName} signed your quote`,
+      url: '/',
+      tag: `quote-accepted-${jobRow.id}`,
+    }).catch((err) => {
+      console.warn('accept-quote: push failed (non-blocking)', err?.message);
+    });
   }
 
   // Return only what the public page needs — no internal IDs or other tokens
