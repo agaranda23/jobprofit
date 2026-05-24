@@ -3960,3 +3960,56 @@ input[type=number] { -moz-appearance: textfield; }
   0%   { background-position: 200% 0; }
   100% { background-position: -200% 0; }
 }
+
+/* ── Push permission prompt ────────────────────────────────────────────────── */
+/* Non-blocking card above the bottom nav. Shown once per device, 5 s after   */
+/* sign-in, only when Notification.permission === 'default'.                   */
+.push-prompt {
+  position: fixed;
+  bottom: 88px; /* sits above the 72px bottom nav + breathing room */
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  z-index: 300;
+  max-width: calc(100vw - 40px);
+  width: 340px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  animation: toast-in 0.25s ease-out;
+}
+.push-prompt-text {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+  margin: 0 0 12px;
+  line-height: 1.4;
+}
+.push-prompt-actions {
+  display: flex;
+  gap: 8px;
+}
+.push-prompt-enable {
+  flex: 1;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+}
+.push-prompt-dismiss {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-family: inherit;
+}

@@ -25,8 +25,14 @@
  *   4. Section rows that are "coming soon" show a "›" chevron but no tap handler,
  *      matching the AccountDrawer optional-fields pattern.
  */
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import pkg from '../../package.json';
+import {
+  isPushSupported,
+  getSubscriptionStatus,
+  subscribe as pushSubscribe,
+  unsubscribe as pushUnsubscribe,
+} from '../lib/pushSubscribe.js';
 
 const APP_VERSION = pkg.version;
 
@@ -82,6 +88,84 @@ function PlaceholderRow({ label }) {
     <Row
       label={label}
       action="Coming soon"
+      chevron={false}
+    />
+  );
+}
+
+// ── NotificationsSection ──────────────────────────────────────────────────────
+// Manages the push subscription toggle for the current device.
+// Status values mirror getSubscriptionStatus() from pushSubscribe.js.
+
+function NotificationsSection({ session }) {
+  // 'loading' while we check, then one of the getSubscriptionStatus() values
+  const [status, setStatus] = useState('loading');
+  const [working, setWorking] = useState(false);
+
+  useEffect(() => {
+    if (!isPushSupported()) {
+      setStatus('unsupported');
+      return;
+    }
+    getSubscriptionStatus().then(setStatus).catch(() => setStatus('unsupported'));
+  }, []);
+
+  const handleToggle = async () => {
+    if (working) return;
+    setWorking(true);
+    try {
+      if (status === 'granted-subscribed') {
+        await pushUnsubscribe();
+        setStatus('granted-unsubscribed');
+      } else {
+        // 'default' or 'granted-unsubscribed'
+        const permission = await Notification.requestPermission();
+        if (permission === 'granted' && session?.user?.id) {
+          const sub = await pushSubscribe(session.user.id);
+          setStatus(sub ? 'granted-subscribed' : 'granted-unsubscribed');
+        } else if (permission === 'denied') {
+          setStatus('denied');
+        }
+      }
+    } catch {
+      // Fail silently — status stays where it was
+    } finally {
+      setWorking(false);
+    }
+  };
+
+  if (status === 'loading') {
+    return (
+      <Row label="Quote signed alerts" value="Checking..." chevron={false} />
+    );
+  }
+
+  if (status === 'unsupported') {
+    return (
+      <Row
+        label="Quote signed alerts"
+        value="Not supported on this browser"
+        chevron={false}
+      />
+    );
+  }
+
+  if (status === 'denied') {
+    return (
+      <Row
+        label="Quote signed alerts"
+        value="Blocked — enable in phone settings"
+        chevron={false}
+      />
+    );
+  }
+
+  const isOn = status === 'granted-subscribed';
+  return (
+    <Row
+      label="Quote signed alerts"
+      value={working ? 'Updating…' : isOn ? 'On' : 'Off'}
+      onTap={handleToggle}
       chevron={false}
     />
   );
@@ -164,6 +248,7 @@ export default function SettingsScreen({
 
       {/* Notifications */}
       <SectionCard title="Notifications">
+        <NotificationsSection session={session} />
         <PlaceholderRow label="Chase reminders" />
         <PlaceholderRow label="Weekly profit digest" />
       </SectionCard>
