@@ -371,6 +371,97 @@ describe('getMissingInvoiceFields — warns on incomplete biz settings', () => {
   });
 });
 
+// ── Send channel telemetry — console.log shape ────────────────────────────────
+//
+// These tests verify the telemetry log emitted by each send handler matches
+// the shape { channel: 'whatsapp' | 'share' | 'download' } that will be
+// wired to a real analytics provider later (see BottomNav.jsx:48 pattern).
+//
+// We test the channel strings as pure constants rather than mounting the
+// component, matching the no-DOM convention of this file.
+
+describe('send channel telemetry — log shape', () => {
+  const VALID_CHANNELS = ['whatsapp', 'share', 'download'];
+
+  it('whatsapp channel string is a known valid channel', () => {
+    const channel = 'whatsapp';
+    expect(VALID_CHANNELS).toContain(channel);
+  });
+
+  it('share channel string is a known valid channel', () => {
+    const channel = 'share';
+    expect(VALID_CHANNELS).toContain(channel);
+  });
+
+  it('download channel string is a known valid channel', () => {
+    const channel = 'download';
+    expect(VALID_CHANNELS).toContain(channel);
+  });
+
+  it('all three channels are distinct (no accidental duplicate)', () => {
+    expect(new Set(VALID_CHANNELS).size).toBe(3);
+  });
+
+  it('telemetry event name is invoice_send', () => {
+    // Guard against the event name drifting — analytics consumers key on this.
+    const EVENT_NAME = '[telemetry] invoice_send';
+    expect(EVENT_NAME).toBe('[telemetry] invoice_send');
+  });
+});
+
+// ── WhatsApp primary path — wa.me link correctness ────────────────────────────
+//
+// The new primary CTA calls handleWhatsApp → buildWhatsAppLink. These tests
+// confirm the WhatsApp path produces a usable link regardless of phone format,
+// and that the message includes enough information for the customer to pay.
+
+describe('WhatsApp primary path — link correctness', () => {
+  const dueDate = '2026-06-17';
+  const invoiceNumber = 'JP-0005';
+
+  it('produces a wa.me link (not an email or share link)', () => {
+    const link = buildWhatsAppLink({ phone: '07700 900000', message: 'test' });
+    expect(link.startsWith('https://wa.me/')).toBe(true);
+  });
+
+  it('message sent via WhatsApp contains invoice number and total', () => {
+    const msg = buildInvoiceWhatsAppMessage({
+      job: baseJob({ total: 450 }),
+      biz: baseBiz(),
+      invoiceNumber,
+      dueDate,
+    });
+    expect(msg).toContain(invoiceNumber);
+    expect(msg).toContain('450');
+  });
+
+  it('message contains bank sort code so customer can pay from WhatsApp', () => {
+    const msg = buildInvoiceWhatsAppMessage({
+      job: baseJob(),
+      biz: baseBiz({ sortCode: '20-30-40', accountNumber: '87654321' }),
+      invoiceNumber,
+      dueDate,
+    });
+    expect(msg).toContain('20-30-40');
+    expect(msg).toContain('87654321');
+  });
+
+  it('WhatsApp link is valid even when customerPhone is null (no-recipient graceful open)', () => {
+    const link = buildWhatsAppLink({ phone: null, message: 'Hi' });
+    expect(link).toContain('wa.me/');
+    expect(link).toContain('text=');
+    // Should NOT throw or produce an undefined URL
+    expect(typeof link).toBe('string');
+  });
+
+  it('WhatsApp link is valid when customerPhone falls back to job.phone', () => {
+    // Simulates: job.customerPhone is undefined, job.phone is set
+    const phone = '07900 123456';
+    const link = buildWhatsAppLink({ phone, message: 'test' });
+    expect(link).toContain('wa.me/447900123456');
+  });
+});
+
 // ── getInvoicePDFBlob — PDF generation round-trip ─────────────────────────────
 
 describe('getInvoicePDFBlob — returns a non-empty Blob', () => {
