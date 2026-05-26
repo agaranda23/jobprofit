@@ -583,6 +583,7 @@ export default function AppShell() {
               onOpenDetailed={openDetailed}
               onChase={() => navigate('finance')}
               onMarkPaid={onMarkPaidFromToday}
+              onJobTap={() => navigate('work')}
               jobs={jobs}
               receipts={receipts}
               onAddJob={handleAddJob}
@@ -644,6 +645,7 @@ export default function AppShell() {
               onOpenDetailed={openDetailed}
               onChase={() => navigate('money')}
               onMarkPaid={onMarkPaidFromToday}
+              onJobTap={() => navigate('jobs')}
               jobs={jobs}
               receipts={receipts}
               onAddJob={handleAddJob}
@@ -699,6 +701,7 @@ export default function AppShell() {
               onOpenDetailed={() => { setPendingDeepLink('create-detailed-job'); setMoreKey(k => k + 1); navigate('manage'); }}
               onChase={() => { setMoreKey(k => k + 1); navigate('manage'); }}
               onMarkPaid={onMarkPaidFromToday}
+              onJobTap={() => navigate('manage')}
               jobs={jobs}
               receipts={receipts}
               onAddJob={handleAddJob}
