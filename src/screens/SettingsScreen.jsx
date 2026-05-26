@@ -7,8 +7,8 @@
  *
  * Section structure:
  *   Account          — real (folds in AccountDrawer logic)
- *   Invoice settings — real labels, placeholder taps
- *   Notifications    — placeholder (wiring is out of scope for slice 3)
+ *   Invoice settings — real labels, all editable via EditFieldModal
+ *   Notifications    — push toggle + placeholders
  *   Subscription     — placeholder
  *   Accountant       — placeholder
  *   Data & privacy   — placeholder
@@ -16,18 +16,21 @@
  *   App              — theme toggle (placeholder) + version read from package.json
  *
  * Judgement calls documented here:
- *   1. "Complete profile" wizard button is kept. It opens the existing wizard
- *      flow via onOpenWizard — same path as the AccountDrawer did.
- *   2. Theme toggle is a visual placeholder only (dark mode is hard-coded in
+ *   1. "Re-run setup wizard" row is a manual escape hatch — always available at
+ *      the bottom of Account, regardless of completion status.
+ *   2. Logo row opens a text-input modal for v1 (URL only). A proper upload
+ *      flow is deferred to a follow-up — noted in this file.
+ *   3. Theme toggle is a visual placeholder only (dark mode is hard-coded in
  *      index.css via prefers-color-scheme). A real toggle is a follow-up task.
- *   3. Version is imported from package.json using Vite's JSON import — zero
+ *   4. Version is imported from package.json using Vite's JSON import — zero
  *      runtime overhead, no fetch needed.
- *   4. Section rows that are "coming soon" show a "›" chevron but no tap handler,
- *      matching the AccountDrawer optional-fields pattern.
+ *   5. Editable rows use EditFieldModal (single or composite). Saves bubble
+ *      up via onProfileUpdate — AppShell writes to Supabase + updates profile.
  */
 import { useEffect, useRef, useState } from 'react';
 import pkg from '../../package.json';
 import { supabase } from '../lib/supabase.js';
+import EditFieldModal from '../components/EditFieldModal.jsx';
 import {
   isPushSupported,
   getSubscriptionStatus,
@@ -37,8 +40,7 @@ import {
 
 const APP_VERSION = pkg.version;
 
-// ── Helpers (shared with AccountDrawer — duplicated intentionally to avoid
-//    coupling SettingsScreen to a components/ file that may be refactored) ─────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function deriveInitials(profile, session) {
   const firstName = profile?.first_name?.trim();
@@ -52,6 +54,32 @@ function deriveInitials(profile, session) {
   if (parts.length >= 2 && parts[0] && parts[1]) return (parts[0][0] + parts[1][0]).toUpperCase();
   const alpha = local.replace(/[^a-zA-Z]/g, '');
   return alpha.slice(0, 2).toUpperCase() || '?';
+}
+
+/** Strip non-digits then format as XX-XX-XX (up to 6 digits). */
+function formatSortCode(raw) {
+  const digits = raw.replace(/\D/g, '').slice(0, 6);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 4) return `${digits.slice(0, 2)}-${digits.slice(2)}`;
+  return `${digits.slice(0, 2)}-${digits.slice(2, 4)}-${digits.slice(4)}`;
+}
+
+// ── Validation helpers ────────────────────────────────────────────────────────
+
+function validateNonEmpty(v) {
+  return v.trim() ? null : 'This field is required';
+}
+
+function validateAccountNumber(v) {
+  const digits = v.replace(/\D/g, '');
+  return digits.length === 8 ? null : 'Must be 8 digits';
+}
+
+function validateHourlyRate(v) {
+  if (v === '' || v === null || v === undefined) return null; // optional
+  const n = parseFloat(v);
+  if (isNaN(n) || n < 0) return 'Must be a positive number';
+  return null;
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
@@ -95,11 +123,8 @@ function PlaceholderRow({ label }) {
 }
 
 // ── NotificationsSection ──────────────────────────────────────────────────────
-// Manages the push subscription toggle for the current device.
-// Status values mirror getSubscriptionStatus() from pushSubscribe.js.
 
 function NotificationsSection({ session }) {
-  // 'loading' while we check, then one of the getSubscriptionStatus() values
   const [status, setStatus] = useState('loading');
   const [working, setWorking] = useState(false);
 
@@ -119,7 +144,6 @@ function NotificationsSection({ session }) {
         await pushUnsubscribe();
         setStatus('granted-unsubscribed');
       } else {
-        // 'default' or 'granted-unsubscribed'
         const permission = await Notification.requestPermission();
         if (permission === 'granted' && session?.user?.id) {
           const sub = await pushSubscribe(session.user.id);
@@ -136,11 +160,8 @@ function NotificationsSection({ session }) {
   };
 
   if (status === 'loading') {
-    return (
-      <Row label="Quote signed alerts" value="Checking..." chevron={false} />
-    );
+    return <Row label="Quote signed alerts" value="Checking..." chevron={false} />;
   }
-
   if (status === 'unsupported') {
     return (
       <Row
@@ -150,7 +171,6 @@ function NotificationsSection({ session }) {
       />
     );
   }
-
   if (status === 'denied') {
     return (
       <Row
@@ -191,7 +211,7 @@ function VoiceLanguageSection({ session }) {
 
   const handleChange = async (code) => {
     const previous = selected;
-    setSelected(code); // optimistic
+    setSelected(code);
     setError('');
     setSaving(true);
     try {
@@ -205,7 +225,7 @@ function VoiceLanguageSection({ session }) {
       }
       localStorage.setItem('jp.voiceLang', code);
     } catch {
-      setSelected(previous); // revert
+      setSelected(previous);
       setError('Could not save — try again');
     } finally {
       setSaving(false);
@@ -240,6 +260,7 @@ export default function SettingsScreen({
   profile,
   onSignOut,
   onOpenWizard,
+  onProfileUpdate,
 }) {
   const email       = session?.user?.email || '';
   const firstName   = profile?.first_name  || '';
@@ -255,6 +276,123 @@ export default function SettingsScreen({
     { label: 'Email',        done: !!email },
   ];
   const allRequiredDone = required.every(r => r.done);
+
+  // ── Edit modal state ──────────────────────────────────────────────────────
+  // activeEdit: null | { modal: string, ...props for EditFieldModal }
+  const [activeEdit, setActiveEdit] = useState(null);
+  const [saveToast, setSaveToast] = useState('');
+  const toastTimerRef = useRef(null);
+
+  const showSavedToast = (msg = 'Saved') => {
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    setSaveToast(msg);
+    toastTimerRef.current = setTimeout(() => setSaveToast(''), 2500);
+  };
+
+  const handleSave = async (patch) => {
+    if (!onProfileUpdate) throw new Error('onProfileUpdate not wired');
+    await onProfileUpdate(patch);
+    showSavedToast('Saved');
+  };
+
+  const closeEdit = () => setActiveEdit(null);
+
+  // ── Edit openers ──────────────────────────────────────────────────────────
+
+  const openEditName = () => setActiveEdit({
+    modal: 'name',
+    title: 'Your name',
+    fields: [
+      {
+        key: 'first_name',
+        label: 'First name',
+        value: firstName,
+        validate: validateNonEmpty,
+      },
+      {
+        key: 'last_name',
+        label: 'Last name',
+        value: lastName,
+        validate: validateNonEmpty,
+      },
+    ],
+  });
+
+  const openEditBusinessName = () => setActiveEdit({
+    modal: 'business_name',
+    fieldKey: 'business_name',
+    fieldLabel: 'Business / trading name',
+    currentValue: tradingName,
+    validate: validateNonEmpty,
+  });
+
+  const openEditLogo = () => setActiveEdit({
+    modal: 'logo_url',
+    fieldKey: 'logo_url',
+    fieldLabel: 'Logo URL',
+    currentValue: profile?.logo_url || '',
+    placeholder: 'https://yourdomain.com/logo.png',
+    helpText: 'Paste a public image URL. A full upload flow is coming soon.',
+    // Logo URL is optional — no required validation
+    validate: null,
+  });
+
+  const openEditBankDetails = () => setActiveEdit({
+    modal: 'bank',
+    title: 'Bank details',
+    fields: [
+      {
+        key: 'account_name',
+        label: 'Account name',
+        value: profile?.account_name || '',
+        validate: validateNonEmpty,
+        placeholder: 'e.g. Alan Aranda',
+      },
+      {
+        key: 'sort_code',
+        label: 'Sort code',
+        value: profile?.sort_code || '',
+        validate: (v) => {
+          const digits = v.replace(/\D/g, '');
+          return digits.length === 6 ? null : 'Must be 6 digits (XX-XX-XX)';
+        },
+        formatOnBlur: formatSortCode,
+        placeholder: 'XX-XX-XX',
+        helpText: 'Auto-formats on blur',
+      },
+      {
+        key: 'account_number',
+        label: 'Account number',
+        value: profile?.account_number || '',
+        validate: validateAccountNumber,
+        placeholder: '8 digits',
+        inputType: 'number',
+      },
+    ],
+  });
+
+  const openEditHourlyRate = () => setActiveEdit({
+    modal: 'hourly_rate',
+    fieldKey: 'hourly_rate',
+    fieldLabel: 'Hourly rate',
+    currentValue: profile?.hourly_rate ?? '',
+    inputType: 'number',
+    placeholder: '0.00',
+    helpText: 'Your default rate in GBP. Used to calculate time cost on jobs.',
+    validate: validateHourlyRate,
+  });
+
+  const openEditVat = () => setActiveEdit({
+    modal: 'vat_number',
+    fieldKey: 'vat_number',
+    fieldLabel: 'VAT number',
+    currentValue: profile?.vat_number || '',
+    placeholder: 'GB 123 4567 89',
+    helpText: 'Optional. Appears on invoices when set.',
+    validate: null,
+  });
+
+  // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
     <div className="screen settings-screen">
@@ -281,16 +419,37 @@ export default function SettingsScreen({
           onClick={onOpenWizard}
           type="button"
         >
-          <span>⚠ Profile incomplete — tap to finish setup</span>
+          <span>Profile incomplete — tap to finish setup</span>
           <span>›</span>
         </button>
       )}
 
       {/* Account section */}
       <SectionCard title="Account">
-        <Row label="Name"          value={displayName || '—'} />
-        <Row label="Email"         value={email        || '—'} />
-        <Row label="Business name" value={tradingName  || '—'} />
+        <Row
+          label="Name"
+          value={displayName || '—'}
+          onTap={openEditName}
+        />
+        <Row
+          label="Email"
+          value={email || '—'}
+          chevron={false}
+        />
+        <Row
+          label="Business name"
+          value={tradingName || '—'}
+          onTap={openEditBusinessName}
+        />
+        <Row
+          label="Re-run setup wizard"
+          onTap={() => {
+            // Remove the once-per-session guard so the wizard can open again
+            sessionStorage.removeItem('jp.wizardActive');
+            onOpenWizard?.();
+          }}
+          chevron
+        />
         <Row
           label="Sign out"
           danger
@@ -301,11 +460,32 @@ export default function SettingsScreen({
 
       {/* Invoice settings */}
       <SectionCard title="Invoice settings">
-        <Row label="Logo"         value={profile?.logo_url ? 'Set' : 'None'} />
-        <Row label="Trading name" value={tradingName || '—'} />
-        <Row label="Bank details" value={(profile?.sort_code && profile?.account_number) ? 'Set' : '—'} />
-        <Row label="Hourly rate"  value={profile?.hourly_rate ? `£${profile.hourly_rate}/hr` : '—'} />
-        <Row label="VAT"          value={profile?.vat_number ? `Registered` : 'Not set'} />
+        <Row
+          label="Logo"
+          value={profile?.logo_url ? 'Set' : 'None'}
+          onTap={openEditLogo}
+        />
+        {/* Trading name here is the same business_name field — same edit modal */}
+        <Row
+          label="Trading name"
+          value={tradingName || '—'}
+          onTap={openEditBusinessName}
+        />
+        <Row
+          label="Bank details"
+          value={(profile?.sort_code && profile?.account_number) ? 'Set' : '—'}
+          onTap={openEditBankDetails}
+        />
+        <Row
+          label="Hourly rate"
+          value={profile?.hourly_rate ? `£${profile.hourly_rate}/hr` : '—'}
+          onTap={openEditHourlyRate}
+        />
+        <Row
+          label="VAT"
+          value={profile?.vat_number ? 'Registered' : 'Not set'}
+          onTap={openEditVat}
+        />
       </SectionCard>
 
       {/* Voice input language */}
@@ -355,6 +535,34 @@ export default function SettingsScreen({
 
       {/* Extra breathing room above bottom nav */}
       <div style={{ height: 32 }} />
+
+      {/* ── Saved toast ──────────────────────────────────────────────────── */}
+      {saveToast && (
+        <div className="toast" role="status" aria-live="polite">
+          {saveToast}
+        </div>
+      )}
+
+      {/* ── Edit field modal ─────────────────────────────────────────────── */}
+      {activeEdit && (
+        <EditFieldModal
+          open
+          // Composite mode (name / bank)
+          title={activeEdit.title}
+          fields={activeEdit.fields}
+          // Single-field mode
+          fieldKey={activeEdit.fieldKey}
+          fieldLabel={activeEdit.fieldLabel}
+          currentValue={activeEdit.currentValue}
+          inputType={activeEdit.inputType}
+          placeholder={activeEdit.placeholder}
+          helpText={activeEdit.helpText}
+          validate={activeEdit.validate}
+          formatOnBlur={activeEdit.formatOnBlur}
+          onSave={handleSave}
+          onClose={closeEdit}
+        />
+      )}
     </div>
   );
 }

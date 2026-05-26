@@ -3390,6 +3390,78 @@ input[type=number] { -moz-appearance: textfield; }
   width: 100%;
   justify-content: center;
 }
+
+/* ── EditFieldModal ──────────────────────────────────────────────────────── */
+.edit-field-sheet {
+  gap: 16px;
+}
+.edit-field-body {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.edit-field-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.edit-field-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.edit-field-input {
+  background: var(--surface-2);
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 17px;
+  font-weight: 500;
+  height: 56px;
+  padding: 0 14px;
+  width: 100%;
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+  transition: border-color 0.15s;
+}
+.edit-field-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+.edit-field-input--error {
+  border-color: #ef4444;
+}
+.edit-field-error {
+  font-size: 13px;
+  color: #ef4444;
+}
+.edit-field-help {
+  font-size: 13px;
+  color: var(--text-dim);
+}
+.edit-field-save-error {
+  margin: 0;
+  font-size: 14px;
+  color: #ef4444;
+  text-align: center;
+}
+.edit-field-actions {
+  display: flex;
+  gap: 10px;
+  padding-top: 4px;
+}
+.edit-field-cancel {
+  flex: 1;
+}
+.edit-field-save {
+  flex: 2;
+}
+.edit-field-save--saved {
+  background: #16a34a;
+}
 .modal-price-block {
   background: var(--surface-2);
   border-radius: 10px;
