@@ -1,11 +1,10 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import AddJobModal from '../components/AddJobModal';
 import AddReceiptModal from '../components/AddReceiptModal';
-import AwaitingCard from '../components/AwaitingCard';
 import { gbp, todayKey, formatToday } from '../lib/today';
-import { isAwaitingPayment } from '../lib/jobStatus';
+import { isAwaitingPayment, daysSinceInvoice, deriveStatus } from '../lib/jobStatus';
 
-export default function TodayScreen({ jobs = [], receipts = [], onAddJob, onAddReceipt, onOpenDetailed, onChase, onMarkPaid }) {
+export default function TodayScreen({ jobs = [], receipts = [], onAddJob, onAddReceipt, onOpenDetailed, onChase, onMarkPaid, onJobTap }) {
   const [jobOpen, setJobOpen] = useState(false);
   const [receiptOpen, setReceiptOpen] = useState(false);
   const [toast, setToast] = useState('');
@@ -92,26 +91,35 @@ export default function TodayScreen({ jobs = [], receipts = [], onAddJob, onAddR
     try { await onAddReceipt?.(payload); } catch (e) { showToast('Saved offline — will sync'); }
   };
 
+  // Awaiting-payment totals for the subhead and Money on the table card
+  const { awaitingTotal, awaitingCount } = useMemo(() => {
+    const aw = jobs.filter(isAwaitingPayment);
+    return {
+      awaitingTotal: aw.reduce((s, j) => s + (j.total ?? j.amount ?? 0), 0),
+      awaitingCount: aw.length,
+    };
+  }, [jobs]);
+
   // Headline insight picker — strict priority order
   // Each tier has thresholds to avoid emotionally-meaningless alerts
   const subhead = (() => {
+    // 0. Money on the table (always wins when there's cash owed — it's the loop climax)
+    if (awaitingCount > 0) {
+      return `${gbp(awaitingTotal)} on the table from ${awaitingCount} ${awaitingCount === 1 ? 'job' : 'jobs'}`;
+    }
     // 1. 30-day cover short by >£100 AND sample large enough
     if (sample14JobCount >= 5 && cushion < -100) {
       return `Watch out — short by ${gbp(Math.abs(cushion))} in the next 30 days`;
     }
-    // 2. Money owed > £200 AND oldest > 14 days
-    if (unpaidTotal > 200 && oldestDays > 14) {
-      return `${gbp(unpaidTotal)} still owed — oldest ${oldestDays} day${oldestDays === 1 ? '' : 's'}`;
-    }
-    // 3. Avg-per-job dropped > £30 vs last week
+    // 2. Avg-per-job dropped > £30 vs last week
     if (lastWeekCount > 0 && lastWeekAvgPerJob - avgPerJob > 30) {
       return `Per-job average down ${gbp(lastWeekAvgPerJob - avgPerJob)} vs last week`;
     }
-    // 4. Today's profit positive (paid jobs done today)
+    // 3. Today's profit positive (paid jobs done today)
     if (hasEntries && profit >= 0) {
       return `You're up ${gbp(profit)} today`;
     }
-    // 5. Today's profit negative
+    // 4. Today's profit negative
     if (hasEntries && profit < 0) {
       return `You're down ${gbp(Math.abs(profit))} today`;
     }
@@ -139,40 +147,20 @@ export default function TodayScreen({ jobs = [], receipts = [], onAddJob, onAddR
           <span className="total-label">Profit</span>
           <span className={`total-value profit-value ${flash ? 'flash' : ''}`}>{gbp(profit)}</span>
         </div>
-        {unpaidTotal > 0 && (
-          <div className="total-row total-awaiting-row">
-            <span className="total-awaiting-label">+ {gbp(unpaidTotal)} awaiting</span>
-          </div>
-        )}
+        {/* awaiting footnote removed — promoted to Money on the table card below */}
       </section>
 
-      {(() => {
-        const awaitingJobs = jobs
-          .filter(isAwaitingPayment)
-          .sort((a, b) => new Date(a.invoiceSentAt || 0) - new Date(b.invoiceSentAt || 0));
-        if (awaitingJobs.length === 0) return null;
-        const totalOwed = awaitingJobs.reduce((s, j) => s + (j.total ?? j.amount ?? 0), 0);
-        return (
-          <section className="awaiting-section">
-            <header className="awaiting-section-header">
-              <h3 className="awaiting-section-title">💰 Awaiting payment</h3>
-              <span className="awaiting-section-total">
-                {gbp(totalOwed)} from {awaitingJobs.length} {awaitingJobs.length === 1 ? 'job' : 'jobs'}
-              </span>
-            </header>
-            <div className="awaiting-list">
-              {awaitingJobs.map(j => (
-                <AwaitingCard key={j.id} job={j} onMarkPaid={onMarkPaid} />
-              ))}
-            </div>
-            {onChase && (
-              <button type="button" className="awaiting-section-link" onClick={onChase}>
-                View all in Business →
-              </button>
-            )}
-          </section>
-        );
-      })()}
+      <MoneyOnTheTable jobs={jobs} onMarkPaid={onMarkPaid} />
+      <NextUpCard jobs={jobs} onJobTap={onJobTap} />
+
+      <section className="actions">
+        <button className="action-btn action-primary" onClick={() => setJobOpen(true)}>
+          <span className="action-icon">🎤</span><span>Add job</span>
+        </button>
+        <button className="action-btn action-secondary" onClick={() => setReceiptOpen(true)}>
+          <span className="action-icon">📸</span><span>Add receipt</span>
+        </button>
+      </section>
 
       {weekCount > 0 && (
         <div className="avg-card">
@@ -228,15 +216,6 @@ export default function TodayScreen({ jobs = [], receipts = [], onAddJob, onAddR
         );
       })()}
 
-      <section className="actions">
-        <button className="action-btn action-primary" onClick={() => setJobOpen(true)}>
-          <span className="action-icon">🎤</span><span>Add job</span>
-        </button>
-        <button className="action-btn action-secondary" onClick={() => setReceiptOpen(true)}>
-          <span className="action-icon">📸</span><span>Add receipt</span>
-        </button>
-      </section>
-
       {everEmpty && (
         <p className="empty-hint">Add your first job to start tracking profit</p>
       )}
@@ -276,3 +255,152 @@ export default function TodayScreen({ jobs = [], receipts = [], onAddJob, onAddR
     </div>
   );
 }
+
+// ── Money on the table ────────────────────────────────────────────────────────
+// Renders directly below the profit card when at least one invoice is awaiting.
+// Hidden entirely when nothing is owed — no "£0 to chase" noise.
+
+function ChaseRow({ job, onMarkPaid }) {
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const days = daysSinceInvoice(job);
+  const amount = job.total ?? job.amount ?? 0;
+  const customer = job.customer || job.customerName || 'Customer';
+  const jobName = job.name || job.summary?.slice(0, 30) || 'job';
+
+  const ageMeta = (() => {
+    if (days == null) return { text: 'Invoice sent', cls: '' };
+    if (days === 0)   return { text: 'Sent today', cls: '' };
+    if (days >= 14)   return { text: `${days} days ago — overdue`, cls: 'chase-row-meta-overdue' };
+    if (days >= 9)    return { text: `${days} days ago — chase`, cls: 'chase-row-meta-warn' };
+    return { text: `${days} day${days === 1 ? '' : 's'} ago`, cls: '' };
+  })();
+
+  const handleChase = () => {
+    const firstName = customer.split(' ')[0];
+    const msg = `Hi ${firstName}, quick nudge on the invoice for ${jobName} — ${gbp(amount)}. Any update? Cheers.`;
+    const phone = job.customerPhone || '';
+    if (phone) {
+      const clean = phone.replace(/\s/g, '').replace(/^0/, '44').replace(/^\+/, '');
+      window.open(`https://wa.me/${clean}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener');
+    } else {
+      const email = job.customerEmail || '';
+      window.open(`mailto:${email}?subject=Invoice reminder&body=${encodeURIComponent(msg)}`, '_blank', 'noopener');
+    }
+  };
+
+  return (
+    <div className="chase-row">
+      <div className="chase-row-top">
+        <div className="chase-row-info">
+          <span className="chase-row-customer">{customer}</span>
+          {jobName && jobName !== customer && (
+            <span className="chase-row-job"> — {jobName}</span>
+          )}
+          <div className={`chase-row-meta ${ageMeta.cls}`}>{ageMeta.text}</div>
+        </div>
+        <span className="chase-row-amount">{gbp(amount)}</span>
+      </div>
+      {pickerOpen ? (
+        <div className="chase-row-picker">
+          <div className="chase-row-picker-label">How were you paid?</div>
+          <div className="chase-row-picker-grid">
+            <button type="button" className="awaiting-job-method-btn awaiting-job-method-bank"
+              onClick={() => { onMarkPaid?.(job, 'bank transfer'); setPickerOpen(false); }}>Bank</button>
+            <button type="button" className="awaiting-job-method-btn awaiting-job-method-cash"
+              onClick={() => { onMarkPaid?.(job, 'cash'); setPickerOpen(false); }}>Cash</button>
+            <button type="button" className="awaiting-job-method-btn awaiting-job-method-card"
+              onClick={() => { onMarkPaid?.(job, 'card'); setPickerOpen(false); }}>Card</button>
+          </div>
+          <button type="button" className="chase-row-picker-cancel"
+            onClick={() => setPickerOpen(false)}>Cancel</button>
+        </div>
+      ) : (
+        <div className="chase-row-actions">
+          <button type="button" className="chase-row-btn-chase" onClick={handleChase}>Chase</button>
+          <button type="button" className="chase-row-btn-paid" onClick={() => setPickerOpen(true)}>Mark paid</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function MoneyOnTheTable({ jobs, onMarkPaid }) {
+  const awaitingJobs = jobs
+    .filter(isAwaitingPayment)
+    .sort((a, b) => new Date(a.invoiceSentAt || 0) - new Date(b.invoiceSentAt || 0));
+
+  if (awaitingJobs.length === 0) return null;
+
+  return (
+    <section className="money-section">
+      <h3 className="money-section-title">Money on the table</h3>
+      <div className="money-list">
+        {awaitingJobs.map(j => (
+          <ChaseRow key={j.id} job={j} onMarkPaid={onMarkPaid} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+// ── Next up ───────────────────────────────────────────────────────────────────
+// Shows the soonest future scheduled job that isn't paid.
+// Hidden when no jobs are scheduled in the next 7 days.
+
+const DAY_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+function formatScheduledDate(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  d.setHours(0, 0, 0, 0);
+  const diffDays = Math.round((d - today) / 86400000);
+  if (diffDays === 0) return 'Today';
+  if (diffDays === 1) return 'Tomorrow';
+  return `${DAY_SHORT[d.getDay()]} ${d.getDate()} ${MONTH_SHORT[d.getMonth()]}`;
+}
+
+function NextUpCard({ jobs, onJobTap }) {
+  const nextJob = useMemo(() => {
+    const todayStr = new Date().toISOString().slice(0, 10);
+    return jobs
+      .filter(j => {
+        const dateStr = (j.scheduledDate || '').slice(0, 10);
+        if (!dateStr || dateStr < todayStr) return false;
+        return deriveStatus(j) !== 'paid';
+      })
+      .sort((a, b) => {
+        const da = a.scheduledDate || '';
+        const db = b.scheduledDate || '';
+        return da.localeCompare(db);
+      })[0] ?? null;
+  }, [jobs]);
+
+  if (!nextJob) return null;
+
+  const customer = nextJob.customer || nextJob.customerName || 'Customer';
+  const jobName = nextJob.name || nextJob.summary?.slice(0, 40) || '';
+  const amount = nextJob.total ?? nextJob.amount;
+  const dateLabel = formatScheduledDate(nextJob.scheduledDate);
+
+  const metaLine = [
+    dateLabel,
+    amount ? `${gbp(amount)} expected` : null,
+  ].filter(Boolean).join(' · ');
+
+  return (
+    <button
+      type="button"
+      className="next-up-card"
+      onClick={() => onJobTap?.(nextJob)}
+      aria-label={`View job: ${customer}${jobName ? ` — ${jobName}` : ''}`}
+    >
+      <span className="next-up-label">Next up</span>
+      <span className="next-up-name">{customer}{jobName ? ` — ${jobName}` : ''}</span>
+      <span className="next-up-meta">{metaLine}</span>
+    </button>
+  );
+}
+

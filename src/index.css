@@ -1020,6 +1020,43 @@ input[type=number] { -moz-appearance: textfield; }
 .awaiting-job-method-card { background: #a855f7; }
 .awaiting-job-picker-cancel { width: 100%; margin-top: 6px; padding: 8px; background: transparent; border: none; color: var(--text-dim); font-family: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
 
+/* Money on the table — replaces the old awaiting-section on Today */
+.money-section { margin: 0 0 12px; }
+.money-section-title { font-size: 13px; font-weight: 700; color: var(--text); letter-spacing: -0.005em; margin: 0 0 8px; text-transform: none; }
+.money-list { display: flex; flex-direction: column; gap: 8px; }
+
+/* Chase row — compact card per awaiting invoice */
+.chase-row { background: var(--surface); border: 1px solid #f59e0b40; border-left: 3px solid #f59e0b; border-radius: 12px; overflow: hidden; }
+.chase-row-top { display: flex; justify-content: space-between; align-items: flex-start; padding: 10px 12px 8px; gap: 8px; }
+.chase-row-info { flex: 1; min-width: 0; }
+.chase-row-customer { font-size: 14px; font-weight: 700; color: var(--text); }
+.chase-row-job { font-size: 13px; color: var(--text-dim); }
+.chase-row-meta { font-size: 12px; color: var(--text-dim); margin-top: 2px; font-weight: 500; }
+.chase-row-meta-warn { color: #f59e0b; }
+.chase-row-meta-overdue { color: #ef4444; }
+.chase-row-amount { font-size: 15px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap; flex-shrink: 0; }
+.chase-row-actions { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid var(--border); }
+.chase-row-btn-chase { padding: 10px; background: #f59e0b; color: #1a0e00; border: none; font-family: inherit; font-size: 13px; font-weight: 700; cursor: pointer; transition: opacity 0.15s; border-right: 1px solid var(--border); }
+.chase-row-btn-chase:active { opacity: 0.8; }
+.chase-row-btn-paid { padding: 10px; background: var(--accent); color: #0b1f10; border: none; font-family: inherit; font-size: 13px; font-weight: 700; cursor: pointer; transition: opacity 0.15s; }
+.chase-row-btn-paid:active { opacity: 0.8; }
+.chase-row-picker { padding: 8px 12px 10px; border-top: 1px solid var(--border); }
+.chase-row-picker-label { font-size: 11px; font-weight: 600; color: var(--text-dim); padding: 0 0 6px; }
+.chase-row-picker-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
+.chase-row-picker-cancel { width: 100%; margin-top: 6px; padding: 8px; background: transparent; border: none; color: var(--text-dim); font-family: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+
+/* Next up — dark card above the Add job CTA */
+.next-up-card {
+  display: flex; flex-direction: column; align-items: flex-start;
+  width: 100%; margin: 0 0 12px;
+  background: #0f1b2d; border: 1px solid #1b2a44; border-radius: 14px;
+  padding: 12px 14px; cursor: pointer; text-align: left;
+  transition: opacity 0.15s;
+}
+.next-up-card:active { opacity: 0.8; }
+.next-up-label { font-size: 10px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; }
+.next-up-name { font-size: 15px; font-weight: 700; color: #f5f7fa; line-height: 1.3; margin-bottom: 3px; }
+.next-up-meta { font-size: 12px; color: #9ca3af; }
 
 /* Avg-per-job card */
 .avg-card {
