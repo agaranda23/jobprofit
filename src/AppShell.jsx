@@ -549,6 +549,32 @@ export default function AppShell() {
     }
   };
 
+  /**
+   * Update a subset of the user's profile.
+   * Writes to Supabase first, then updates local state optimistically.
+   * If the Supabase write fails, the local state is reverted so the UI
+   * stays consistent with what's actually stored.
+   *
+   * Called by SettingsScreen via the onProfileUpdate prop.
+   */
+  const handleProfileUpdate = async (patch) => {
+    if (!session?.user?.id) throw new Error('Not signed in');
+    const previous = profile;
+    // Optimistic update — row updates immediately in the UI
+    setProfile(prev => ({ ...prev, ...patch }));
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update(patch)
+        .eq('id', session.user.id);
+      if (error) throw error;
+    } catch (err) {
+      // Revert optimistic update on failure
+      setProfile(previous);
+      throw err;
+    }
+  };
+
   const openDetailed = () => {
     // New-nav / slice-3: gate job create on wizard completion.
     // Old-nav: no gate — existing behaviour unchanged.
@@ -630,6 +656,7 @@ export default function AppShell() {
               profile={profile}
               onSignOut={handleSignOut}
               onOpenWizard={openWizardFromSettings}
+              onProfileUpdate={handleProfileUpdate}
             />
           )}
 
