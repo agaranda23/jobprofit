@@ -348,7 +348,8 @@ body { background: var(--bg); color: var(--text); -webkit-font-smoothing: antial
   width: 100%;
   margin-bottom: 10px;
 }
-.unpaid-label { font-size: 16px; font-weight: 500; flex: 1; min-width: 0; }
+.unpaid-name-group { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; flex: 1; min-width: 0; }
+.unpaid-label { font-size: 16px; font-weight: 500; }
 .unpaid-amount { font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; flex-shrink: 0; }
 .mark-paid-btn {
   width: 100%;
@@ -1726,7 +1727,6 @@ input[type=number] { -moz-appearance: textfield; }
   border-radius: 20px;
   padding: 2px 8px;
   white-space: nowrap;
-  margin-left: auto;
   align-self: center;
 }
 
