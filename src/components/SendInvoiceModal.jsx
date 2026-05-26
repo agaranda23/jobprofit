@@ -1,13 +1,13 @@
 /**
  * SendInvoiceModal — bottom-sheet for sending an invoice from JobDetailDrawer.
  *
- * Primary send path: Web Share API with PDF file attachment (puts WhatsApp
- * one tap away on modern iOS/Android without forcing a specific app).
+ * Primary send path: wa.me deep-link opens WhatsApp directly with invoice
+ * text + bank details. Fast, native, no app-switching friction.
  *
- * Fallback path (when navigator.share with files is unavailable, e.g. older
- * Android WebView, desktop): wa.me deep-link opens WhatsApp with the invoice
- * text; a PDF download is offered separately so the trader can attach it
- * manually.
+ * Secondary path ("More ways to send"):
+ *   - Web Share API with PDF file (attaches the actual PDF — heavier but
+ *     useful when the customer needs a formal document).
+ *   - PDF download (for manual attachment or filing).
  *
  * Props:
  *   job         – full job object
@@ -90,8 +90,26 @@ export default function SendInvoiceModal({
     return true;
   };
 
-  // Primary path: Web Share API with PDF file (modern iOS/Android).
+  // Primary path: wa.me deep-link — opens WhatsApp with invoice text + bank
+  // details. Fast, no PDF generation overhead, works on any phone.
+  const handleWhatsApp = () => {
+    // TODO: replace console.log with posthog/mixpanel/etc
+    console.log('[telemetry] invoice_send', { channel: 'whatsapp' });
+    if (!attemptSend()) return;
+    const link = buildWhatsAppLink({
+      phone: job.customerPhone || job.phone || '',
+      message,
+    });
+    window.open(link, '_blank', 'noopener');
+    flash('Invoice sent');
+    onClose();
+  };
+
+  // Secondary path: Web Share API with PDF file (modern iOS/Android). Attaches
+  // the actual PDF so customers who need a formal document get one.
   const handleSharePDF = async () => {
+    // TODO: replace console.log with posthog/mixpanel/etc
+    console.log('[telemetry] invoice_send', { channel: 'share' });
     if (!attemptSend()) return;
     setBusy(true);
     try {
@@ -123,8 +141,6 @@ export default function SendInvoiceModal({
       if (err?.name !== 'AbortError') {
         flash('Could not send — try the download below');
       }
-      // Undo status transition on abort so invoiceSentAt is not set spuriously.
-      // Re-opening the modal will show the pre-send state again.
       // NOTE: if attemptSend already called onUpdate we can't rollback cleanly
       // without a dedicated undo path, so we only rollback when no share happened.
       setBusy(false);
@@ -133,20 +149,9 @@ export default function SendInvoiceModal({
     setBusy(false);
   };
 
-  // Fallback WhatsApp deep-link only (no PDF). Useful when PDF generation
-  // is failing or when the user prefers to type a message.
-  const handleWhatsApp = () => {
-    if (!attemptSend()) return;
-    const link = buildWhatsAppLink({
-      phone: job.customerPhone || job.phone || '',
-      message,
-    });
-    window.open(link, '_blank', 'noopener');
-    flash('Invoice sent');
-    onClose();
-  };
-
   const handleDownloadPDF = () => {
+    // TODO: replace console.log with posthog/mixpanel/etc
+    console.log('[telemetry] invoice_send', { channel: 'download' });
     if (!attemptSend()) return;
     try {
       downloadInvoicePDF({ job, biz, invoiceNumber, dueDate });
@@ -252,24 +257,25 @@ export default function SendInvoiceModal({
           </div>
         )}
 
-        {/* Primary CTA — share PDF (Web Share) or wa.me fallback */}
+        {/* Primary CTA — WhatsApp deep-link (fast, no PDF overhead) */}
         <button
           type="button"
-          className="btn-primary modal-sheet-btn invoice-send-primary"
-          onClick={handleSharePDF}
-          disabled={busy}
+          className="btn-primary modal-sheet-btn invoice-send-whatsapp"
+          onClick={handleWhatsApp}
         >
-          {busy ? 'Sending…' : 'Send invoice'}
+          💬 Send via WhatsApp
         </button>
 
-        {/* Secondary options */}
+        {/* More ways to send — secondary options, always visible */}
         <div className="invoice-secondary-actions">
+          <div className="invoice-more-ways-label">More ways to send</div>
           <button
             type="button"
             className="btn-secondary modal-sheet-btn"
-            onClick={handleWhatsApp}
+            onClick={handleSharePDF}
+            disabled={busy}
           >
-            WhatsApp (text only)
+            {busy ? 'Preparing PDF…' : 'Send with PDF (share sheet)'}
           </button>
           <button
             type="button"

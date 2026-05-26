@@ -3478,12 +3478,35 @@ input[type=number] { -moz-appearance: textfield; }
   color: #92400e;
 }
 
-/* Primary send button — full width, green */
-.invoice-send-primary {
+/* WhatsApp primary send button — brand green, full width, tall touch target */
+.invoice-send-whatsapp {
+  background: #25D366;
+  color: #fff;
+  font-weight: 700;
+  font-size: 17px;
+  min-height: 56px;
   margin-top: 4px;
 }
+.invoice-send-whatsapp:hover,
+.invoice-send-whatsapp:active {
+  background: #1da851;
+}
+.invoice-send-whatsapp:disabled {
+  background: #25D366;
+  opacity: 0.5;
+}
 
-/* Secondary actions (WhatsApp text-only + PDF download) */
+/* "More ways to send" label above secondary options */
+.invoice-more-ways-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding-top: 4px;
+}
+
+/* Secondary actions (PDF share + download) */
 .invoice-secondary-actions {
   display: flex;
   flex-direction: column;
