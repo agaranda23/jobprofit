@@ -27,6 +27,7 @@
  */
 import { useEffect, useRef, useState } from 'react';
 import pkg from '../../package.json';
+import { supabase } from '../lib/supabase.js';
 import {
   isPushSupported,
   getSubscriptionStatus,
@@ -171,6 +172,67 @@ function NotificationsSection({ session }) {
   );
 }
 
+// ── Voice language picker ─────────────────────────────────────────────────────
+
+const VOICE_LANGS = [
+  { code: 'en-GB', label: 'English (UK)' },
+  { code: 'pl-PL', label: 'Polski' },
+  { code: 'ro-RO', label: 'Română' },
+  { code: 'pt-PT', label: 'Português' },
+  { code: 'es-ES', label: 'Español' },
+];
+
+function VoiceLanguageSection({ session }) {
+  const [selected, setSelected] = useState(
+    () => localStorage.getItem('jp.voiceLang') || 'en-GB'
+  );
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleChange = async (code) => {
+    const previous = selected;
+    setSelected(code); // optimistic
+    setError('');
+    setSaving(true);
+    try {
+      const userId = session?.user?.id;
+      if (userId) {
+        const { error: dbErr } = await supabase
+          .from('profiles')
+          .update({ preferred_voice_lang: code })
+          .eq('id', userId);
+        if (dbErr) throw dbErr;
+      }
+      localStorage.setItem('jp.voiceLang', code);
+    } catch {
+      setSelected(previous); // revert
+      setError('Could not save — try again');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <>
+      {VOICE_LANGS.map(({ code, label }) => (
+        <button
+          key={code}
+          className={`settings-row ${selected === code ? 'settings-row--active' : ''}`}
+          onClick={() => handleChange(code)}
+          disabled={saving}
+          type="button"
+        >
+          <span className="settings-row-label">{label}</span>
+          <span className="settings-row-right">
+            {selected === code && <span className="settings-row-check">✓</span>}
+          </span>
+        </button>
+      ))}
+      {error && <p className="settings-row-error">{error}</p>}
+    </>
+  );
+}
+
 // ── SettingsScreen ────────────────────────────────────────────────────────────
 
 export default function SettingsScreen({
@@ -244,6 +306,11 @@ export default function SettingsScreen({
         <Row label="Bank details" value={(profile?.sort_code && profile?.account_number) ? 'Set' : '—'} />
         <Row label="Hourly rate"  value={profile?.hourly_rate ? `£${profile.hourly_rate}/hr` : '—'} />
         <Row label="VAT"          value={profile?.vat_number ? `Registered` : 'Not set'} />
+      </SectionCard>
+
+      {/* Voice input language */}
+      <SectionCard title="Voice input language">
+        <VoiceLanguageSection session={session} />
       </SectionCard>
 
       {/* Notifications */}

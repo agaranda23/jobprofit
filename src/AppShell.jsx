@@ -213,7 +213,14 @@ export default function AppShell() {
         .select('*')
         .eq('id', userId)
         .single();
-      if (data) setProfile(data);
+      if (data) {
+        setProfile(data);
+        // Sync voice language preference to localStorage so AddJobModal can read
+        // it synchronously when setting up the SpeechRecognition object.
+        if (data.preferred_voice_lang) {
+          localStorage.setItem('jp.voiceLang', data.preferred_voice_lang);
+        }
+      }
     } catch {
       // profiles table may not have first_name/last_name yet — that's fine for slice 1
     }

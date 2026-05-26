@@ -30,7 +30,8 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed }) {
     if (!SR) { setStatus('manual'); return; }
     try {
       const r = new SR();
-      r.lang = 'en-GB'; r.interimResults = true; r.continuous = false; r.maxAlternatives = 1;
+      const lang = localStorage.getItem('jp.voiceLang') || 'en-GB';
+      r.lang = lang; r.interimResults = true; r.continuous = false; r.maxAlternatives = 1;
       let finalText = '';
       r.onresult = (e) => {
         let interim = '';
