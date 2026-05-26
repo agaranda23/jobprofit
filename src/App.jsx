@@ -290,10 +290,10 @@ function SendInvoiceModal({ job, biz, profile, jobs, onUpdate, onClose, flash })
           <p style={{ margin: 0, fontSize: 15, color: T.text, lineHeight: 1.5 }}>Same app, same 30 seconds, no per-invoice fee.</p>
         </div>
         <div style={{ background: T.surfaceAlt, borderRadius: T.rSm, padding: "14px 16px", marginBottom: 20, textAlign: "center" }}>
-          <div style={{ fontSize: 28, fontWeight: 800, color: T.text }}>£9<span style={{ fontSize: 16, fontWeight: 600 }}>/month</span></div>
-          <div style={{ fontSize: 13, color: T.textMed, marginTop: 4 }}>cancel anytime · launch price for early users*</div>
+          <div style={{ fontSize: 28, fontWeight: 800, color: T.text }}>£12<span style={{ fontSize: 16, fontWeight: 600 }}>/month</span></div>
+          <div style={{ fontSize: 13, color: T.textMed, marginTop: 4 }}>cancel anytime · early access price</div>
         </div>
-        {/* £9/month launch price — signed off 2026-05-17. Tally URL remains a placeholder — replace with live Stripe checkout when wired. */}
+        {/* £12/month launch price — signed off 2026-05-26. Tally URL remains a placeholder — replace with live Stripe checkout when wired. */}
         <a href="https://tally.so/r/jobprofit-pro-waitlist" target="_blank" rel="noopener" style={{ ...pri, display: "flex", width: "100%", textDecoration: "none", boxSizing: "border-box", justifyContent: "center", marginBottom: 12 }}>Get Pro</a>
         {/* "Not yet" returns to send view, NOT to job detail */}
         <button onClick={() => setView('send')} style={{ ...S.ghost, width: "100%", justifyContent: "center" }}>Not yet</button>

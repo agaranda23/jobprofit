@@ -1,5 +1,33 @@
-// Parse "Kitchen job Sarah £380 cash" via the Netlify AI proxy.
-// Falls back to regex if unreachable.
+// Parse job transcripts via the Netlify AI proxy.
+// Supports: English (en-GB), Polish (pl-PL), Romanian (ro-RO),
+//           Portuguese (pt-PT), Spanish (es-ES).
+// Falls back to regex if the AI proxy is unreachable.
+
+const MULTILINGUAL_SYSTEM_PROMPT = `Extract a job name, customer name (only if explicitly named), amount in GBP, and optional payment type from the transcript.
+Respond ONLY with JSON: {"name": string, "customer": string|null, "amount": number|null, "paymentType": "cash"|"bank transfer"|"card"|"cheque"|null}.
+
+The transcript may be in English, Polish, Romanian, Portuguese, or Spanish. Keep the job name and customer name in the source language — the trader recognises their own words.
+
+Rules:
+- name: the job description (e.g. "Kitchen renovation", "Kuchnia", "Bucătărie", "Cozinha", "Cocina"). NOT the customer name.
+- customer: a person's name if EXPLICITLY mentioned. Set to null if no name is clearly given. Do NOT guess names from job descriptions or locations.
+- amount: number in pounds with no symbol. null if not present.
+- paymentType: normalise to the English enum below regardless of input language.
+
+Payment type word list (normalise any of these to the English enum value):
+- "cash": cash, gotówka (PL), numerar (RO), dinheiro (PT), efectivo (ES)
+- "bank transfer": bank transfer, przelew (PL), transfer bancar (RO), transferência (PT), transferencia (ES), bacs
+- "card": card, karta (PL), card (RO), cartão (PT), tarjeta (ES), credit, debit
+- "cheque": cheque, czek (PL), cec (RO), cheque (PT/ES)
+
+Examples:
+- "Kitchen job Sarah £380 cash" → {"name": "Kitchen job", "customer": "Sarah", "amount": 380, "paymentType": "cash"}
+- "Kuchnia Sarah 380 gotówka" → {"name": "Kuchnia", "customer": "Sarah", "amount": 380, "paymentType": "cash"}
+- "Bucătărie pentru Maria 250 numerar" → {"name": "Bucătărie", "customer": "Maria", "amount": 250, "paymentType": "cash"}
+- "Cozinha 500 dinheiro" → {"name": "Cozinha", "customer": null, "amount": 500, "paymentType": "cash"}
+- "Cocina 300 efectivo" → {"name": "Cocina", "customer": null, "amount": 300, "paymentType": "cash"}
+- "Plastering 250" → {"name": "Plastering", "customer": null, "amount": 250, "paymentType": null}
+- "Bathroom refit for Mrs Mitchell £2950 bank transfer" → {"name": "Bathroom refit", "customer": "Mrs Mitchell", "amount": 2950, "paymentType": "bank transfer"}`;
 
 export async function parseJobFromSpeech(transcript) {
   const text = (transcript || '').trim();
@@ -12,7 +40,7 @@ export async function parseJobFromSpeech(transcript) {
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
         max_tokens: 160,
-        system: 'Extract a job name, customer name (only if explicitly named), amount in GBP, and optional payment type from the transcript. Respond ONLY with JSON: {"name": string, "customer": string|null, "amount": number|null, "paymentType": "cash"|"bank transfer"|"card"|"cheque"|null}.\n\nRules:\n- name: the job description (e.g. "Kitchen renovation", "Bathroom refit", "Plastering"). NOT the customer name.\n- customer: a person\'s name if EXPLICITLY mentioned (e.g. "for Sarah", "Mrs Mitchell", "John\'s"). Set to null if no name is clearly given. Do NOT guess names from job descriptions, locations, or generic nouns. Common job-type words (kitchen, bathroom, electrics, plumbing, garden, fence, etc.) are NOT customer names.\n- amount: number in pounds with no symbol. null if not present.\n- paymentType: as listed, or null if not mentioned.\n\nExamples:\n- "Kitchen job Sarah £380 cash" → {"name": "Kitchen job", "customer": "Sarah", "amount": 380, "paymentType": "cash"}\n- "Plastering 250" → {"name": "Plastering", "customer": null, "amount": 250, "paymentType": null}\n- "Bathroom refit for Mrs Mitchell £2950 bank transfer" → {"name": "Bathroom refit", "customer": "Mrs Mitchell", "amount": 2950, "paymentType": "bank transfer"}\n- "Garden fence £450" → {"name": "Garden fence", "customer": null, "amount": 450, "paymentType": null}',
+        system: MULTILINGUAL_SYSTEM_PROMPT,
         messages: [{ role: 'user', content: text }],
       }),
     });
@@ -54,16 +82,41 @@ function regexName(text) {
   return text
     .replace(/£?\s*[\d,]+(?:\.\d+)?\s*(k|pounds?|quid)?/gi, '')
     .replace(/\b(cash|bank transfer|card|cheque|check)\b/gi, '')
-    .replace(/\b(for|at|cost(s|ing)?|priced|paid|via|by)\b/gi, '')
+    // Polish payment words
+    .replace(/\b(gotówka|przelew)\b/gi, '')
+    // Romanian payment words
+    .replace(/\b(numerar|transfer bancar|cec)\b/gi, '')
+    // Portuguese payment words
+    .replace(/\b(dinheiro|transferência|cartão)\b/gi, '')
+    // Spanish payment words
+    .replace(/\b(efectivo|transferencia|tarjeta)\b/gi, '')
+    .replace(/\b(pentru|para|for|at|cost(s|ing)?|priced|paid|via|by)\b/gi, '')
     .replace(/\s+/g, ' ')
     .trim();
 }
 
 function regexPayment(text) {
   const t = text.toLowerCase();
+  // Cash — EN + PL + RO + PT + ES
   if (/\bcash\b/.test(t)) return 'cash';
+  if (/\bgotówka\b/.test(t)) return 'cash';
+  if (/\bnumerar\b/.test(t)) return 'cash';
+  if (/\bdinheiro\b/.test(t)) return 'cash';
+  if (/\befectivo\b/.test(t)) return 'cash';
+  // Bank transfer — EN + PL + RO + PT + ES
   if (/\bbank (transfer|payment)\b|\btransfer\b|\bbacs\b/.test(t)) return 'bank transfer';
+  if (/\bprzelew\b/.test(t)) return 'bank transfer';
+  if (/\btransfer bancar\b/.test(t)) return 'bank transfer';
+  if (/\btransferên(cia)?\b/.test(t)) return 'bank transfer';
+  if (/\btransferencia\b/.test(t)) return 'bank transfer';
+  // Card — EN + PL + RO + PT + ES
   if (/\bcard\b|\bcredit\b|\bdebit\b/.test(t)) return 'card';
+  if (/\bkarta\b/.test(t)) return 'card';
+  if (/\bcartão\b/.test(t)) return 'card';
+  if (/\btarjeta\b/.test(t)) return 'card';
+  // Cheque — EN + PL + RO + PT/ES
   if (/\bcheque\b|\bcheck\b/.test(t)) return 'cheque';
+  if (/\bczek\b/.test(t)) return 'cheque';
+  if (/\bcec\b/.test(t)) return 'cheque';
   return null;
 }
