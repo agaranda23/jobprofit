@@ -344,10 +344,12 @@ body { background: var(--bg); color: var(--text); -webkit-font-smoothing: antial
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 8px;
+  width: 100%;
   margin-bottom: 10px;
 }
-.unpaid-label { font-size: 16px; font-weight: 500; }
-.unpaid-amount { font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.unpaid-label { font-size: 16px; font-weight: 500; flex: 1; min-width: 0; }
+.unpaid-amount { font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; flex-shrink: 0; }
 .mark-paid-btn {
   width: 100%;
   background: var(--surface-2);
@@ -1044,6 +1046,94 @@ input[type=number] { -moz-appearance: textfield; }
 .chase-row-picker-label { font-size: 11px; font-weight: 600; color: var(--text-dim); padding: 0 0 6px; }
 .chase-row-picker-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
 .chase-row-picker-cancel { width: 100%; margin-top: 6px; padding: 8px; background: transparent; border: none; color: var(--text-dim); font-family: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+
+/* ── Money on the table v3 — single-invoice focus card ───────────────────── */
+.motm-section { margin: 0 0 12px; }
+.motm-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 14px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.motm-label {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 2px;
+}
+.motm-customer {
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--text);
+  line-height: 1.15;
+}
+.motm-meta {
+  font-size: 13px;
+  font-weight: 600;
+  color: #ef4444;
+  margin-bottom: 6px;
+}
+.motm-cta-chase {
+  width: 100%;
+  background: var(--accent);
+  color: #0b1f10;
+  border: none;
+  border-radius: 10px;
+  padding: 13px;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: opacity 0.15s;
+  margin-top: 6px;
+}
+.motm-cta-chase:active { opacity: 0.82; }
+.motm-cta-paid {
+  width: 100%;
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 8px 0 2px;
+  text-align: center;
+  text-decoration: underline;
+}
+.motm-picker { padding: 4px 0 0; }
+.motm-picker-label { font-size: 11px; font-weight: 600; color: var(--text-dim); padding: 0 0 6px; }
+.motm-picker-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px; }
+.motm-picker-cancel { width: 100%; margin-top: 6px; padding: 8px; background: transparent; border: none; color: var(--text-dim); font-family: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+
+/* All-chased-today collapsed line */
+.motm-all-chased {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 11px 14px;
+  margin: 0 0 12px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-dim);
+  cursor: pointer;
+  text-align: left;
+  -webkit-tap-highlight-color: transparent;
+}
+.motm-all-chased-tick { color: var(--accent); margin-right: 2px; }
+.motm-all-chased-arrow { color: var(--text-dim); flex-shrink: 0; margin-left: 8px; }
 
 /* Next up — dark card above the Add job CTA */
 .next-up-card {

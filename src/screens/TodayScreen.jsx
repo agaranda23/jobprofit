@@ -3,12 +3,14 @@ import AddJobModal from '../components/AddJobModal';
 import AddReceiptModal from '../components/AddReceiptModal';
 import { gbp, todayKey, formatToday } from '../lib/today';
 import { isAwaitingPayment, daysSinceInvoice, deriveStatus } from '../lib/jobStatus';
+import { getChaseState, recordChase } from '../lib/chaseLadder';
 
 export default function TodayScreen({ jobs = [], receipts = [], onAddJob, onAddReceipt, onOpenDetailed, onChase, onMarkPaid, onJobTap }) {
   const [jobOpen, setJobOpen] = useState(false);
   const [receiptOpen, setReceiptOpen] = useState(false);
   const [toast, setToast] = useState('');
   const [flash, setFlash] = useState(false);
+  const [chaseVersion, setChaseVersion] = useState(0);
   const prevProfit = useRef(null);
 
   const key = todayKey();
@@ -91,21 +93,74 @@ export default function TodayScreen({ jobs = [], receipts = [], onAddJob, onAddR
     try { await onAddReceipt?.(payload); } catch (e) { showToast('Saved offline — will sync'); }
   };
 
-  // Awaiting-payment totals for the subhead and Money on the table card
-  const { awaitingTotal, awaitingCount } = useMemo(() => {
-    const aw = jobs.filter(isAwaitingPayment);
-    return {
-      awaitingTotal: aw.reduce((s, j) => s + (j.total ?? j.amount ?? 0), 0),
-      awaitingCount: aw.length,
-    };
-  }, [jobs]);
+  // Awaiting-payment totals and single-invoice focus logic for v3
+  const { awaitingTotal, awaitingCount, focusInvoice, remainingCount, allChasedToday } = useMemo(() => {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const todayStartIso = todayStart.toISOString();
+
+    const awaitingJobs = jobs.filter(isAwaitingPayment);
+    const awaitingTotal = awaitingJobs.reduce((s, j) => s + (j.total ?? j.amount ?? 0), 0);
+    const awaitingCount = awaitingJobs.length;
+
+    if (awaitingCount === 0) {
+      return { awaitingTotal: 0, awaitingCount: 0, focusInvoice: null, remainingCount: 0, allChasedToday: false };
+    }
+
+    // Sort: never-chased first, then oldest lastChasedAt, then oldest invoice age as tiebreak
+    const sorted = [...awaitingJobs].sort((a, b) => {
+      const sa = getChaseState(a.id);
+      const sb = getChaseState(b.id);
+      const hasA = sa && sa.lastChasedAt;
+      const hasB = sb && sb.lastChasedAt;
+      if (!hasA && !hasB) {
+        // Both never chased — oldest invoice first
+        return new Date(a.invoiceSentAt || a.date || 0) - new Date(b.invoiceSentAt || b.date || 0);
+      }
+      if (!hasA) return -1; // A never chased — surfaces first
+      if (!hasB) return 1;  // B never chased — surfaces first
+      // Both chased — oldest lastChasedAt first
+      const diff = new Date(sa.lastChasedAt) - new Date(sb.lastChasedAt);
+      if (diff !== 0) return diff;
+      // Tiebreak: oldest invoice age
+      return new Date(a.invoiceSentAt || a.date || 0) - new Date(b.invoiceSentAt || b.date || 0);
+    });
+
+    // Check whether every outstanding invoice was chased today
+    const allChasedToday = sorted.every(j => {
+      const s = getChaseState(j.id);
+      return s && s.lastChasedAt >= todayStartIso;
+    });
+
+    if (allChasedToday) {
+      return { awaitingTotal, awaitingCount, focusInvoice: null, remainingCount: 0, allChasedToday: true };
+    }
+
+    // Pick the first that hasn't been chased today as the focus invoice
+    const focusInvoice = sorted.find(j => {
+      const s = getChaseState(j.id);
+      return !s || !s.lastChasedAt || s.lastChasedAt < todayStartIso;
+    }) ?? sorted[0];
+
+    // Remaining = all outstanding except the one being surfaced
+    const remainingCount = awaitingCount - 1;
+
+    return { awaitingTotal, awaitingCount, focusInvoice, remainingCount, allChasedToday: false };
+  }, [jobs, chaseVersion]);
 
   // Headline insight picker — strict priority order
   // Each tier has thresholds to avoid emotionally-meaningless alerts
   const subhead = (() => {
     // 0. Money on the table (always wins when there's cash owed — it's the loop climax)
     if (awaitingCount > 0) {
-      return `${gbp(awaitingTotal)} on the table from ${awaitingCount} ${awaitingCount === 1 ? 'job' : 'jobs'}`;
+      if (allChasedToday) {
+        // All chased today — fall through to other insight tiers below
+      } else if (focusInvoice) {
+        const amount = focusInvoice.total ?? focusInvoice.amount ?? 0;
+        const name = focusInvoice.customer || focusInvoice.customerName || 'Customer';
+        const tail = remainingCount > 0 ? ` · ${remainingCount} more after this` : '';
+        return `Chase ${gbp(amount)} from ${name}${tail}`;
+      }
     }
     // 1. 30-day cover short by >£100 AND sample large enough
     if (sample14JobCount >= 5 && cushion < -100) {
@@ -150,7 +205,14 @@ export default function TodayScreen({ jobs = [], receipts = [], onAddJob, onAddR
         {/* awaiting footnote removed — promoted to Money on the table card below */}
       </section>
 
-      <MoneyOnTheTable jobs={jobs} onMarkPaid={onMarkPaid} />
+      <MoneyOnTheTable
+        focusInvoice={focusInvoice}
+        awaitingTotal={awaitingTotal}
+        allChasedToday={allChasedToday}
+        onMarkPaid={onMarkPaid}
+        onNavigateToMoney={onChase}
+        onChaseRecorded={() => setChaseVersion(v => v + 1)}
+      />
       <NextUpCard jobs={jobs} onJobTap={onJobTap} />
 
       <section className="actions">
@@ -256,88 +318,119 @@ export default function TodayScreen({ jobs = [], receipts = [], onAddJob, onAddR
   );
 }
 
-// ── Money on the table ────────────────────────────────────────────────────────
-// Renders directly below the profit card when at least one invoice is awaiting.
-// Hidden entirely when nothing is owed — no "£0 to chase" noise.
+// ── Money on the table (v3 — single-invoice focus) ───────────────────────────
+// Shows the one invoice that most needs chasing right now.
+// Collapses to a single "All chased today" line when every outstanding invoice
+// has been chased at least once today. Hidden entirely when nothing is owed.
 
-function ChaseRow({ job, onMarkPaid }) {
+function MoneyOnTheTable({ focusInvoice, awaitingTotal, allChasedToday, onMarkPaid, onNavigateToMoney, onChaseRecorded }) {
   const [pickerOpen, setPickerOpen] = useState(false);
-  const days = daysSinceInvoice(job);
-  const amount = job.total ?? job.amount ?? 0;
-  const customer = job.customer || job.customerName || 'Customer';
-  const jobName = job.name || job.summary?.slice(0, 30) || 'job';
 
-  const ageMeta = (() => {
-    if (days == null) return { text: 'Invoice sent', cls: '' };
-    if (days === 0)   return { text: 'Sent today', cls: '' };
-    if (days >= 14)   return { text: `${days} days ago — overdue`, cls: 'chase-row-meta-overdue' };
-    if (days >= 9)    return { text: `${days} days ago — chase`, cls: 'chase-row-meta-warn' };
-    return { text: `${days} day${days === 1 ? '' : 's'} ago`, cls: '' };
+  // When focusInvoice changes (e.g. after chase), reset the picker
+  const prevFocusId = useRef(null);
+  if (focusInvoice?.id !== prevFocusId.current) {
+    prevFocusId.current = focusInvoice?.id ?? null;
+    if (pickerOpen) setPickerOpen(false);
+  }
+
+  // All-chased-today collapsed line
+  if (allChasedToday) {
+    return (
+      <button
+        type="button"
+        className="motm-all-chased"
+        onClick={() => onNavigateToMoney?.()}
+      >
+        <span className="motm-all-chased-text">
+          <span className="motm-all-chased-tick">✓</span> All chased today · {gbp(awaitingTotal)} still owed
+        </span>
+        <span className="motm-all-chased-arrow" aria-hidden="true">→</span>
+      </button>
+    );
+  }
+
+  // No focus invoice and not all-chased — nothing owed
+  if (!focusInvoice) return null;
+
+  const amount = focusInvoice.total ?? focusInvoice.amount ?? 0;
+  const customer = focusInvoice.customer || focusInvoice.customerName || 'Customer';
+  const jobName = focusInvoice.name || focusInvoice.summary?.slice(0, 30) || 'job';
+  const days = daysSinceInvoice(focusInvoice);
+
+  const agePhrasing = (() => {
+    if (days == null) return 'Invoice sent';
+    if (days === 0)   return 'Sent today';
+    if (days === 1)   return '1 day overdue';
+    return `${days} days overdue`;
   })();
 
   const handleChase = () => {
     const firstName = customer.split(' ')[0];
     const msg = `Hi ${firstName}, quick nudge on the invoice for ${jobName} — ${gbp(amount)}. Any update? Cheers.`;
-    const phone = job.customerPhone || '';
+    const phone = focusInvoice.customerPhone || focusInvoice.phone || '';
     if (phone) {
       const clean = phone.replace(/\s/g, '').replace(/^0/, '44').replace(/^\+/, '');
       window.open(`https://wa.me/${clean}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener');
     } else {
-      const email = job.customerEmail || '';
+      const email = focusInvoice.customerEmail || focusInvoice.email || '';
       window.open(`mailto:${email}?subject=Invoice reminder&body=${encodeURIComponent(msg)}`, '_blank', 'noopener');
     }
+    recordChase(focusInvoice.id);
+    onChaseRecorded?.();
   };
 
   return (
-    <div className="chase-row">
-      <div className="chase-row-top">
-        <div className="chase-row-info">
-          <span className="chase-row-customer">{customer}</span>
-          {jobName && jobName !== customer && (
-            <span className="chase-row-job"> — {jobName}</span>
-          )}
-          <div className={`chase-row-meta ${ageMeta.cls}`}>{ageMeta.text}</div>
-        </div>
-        <span className="chase-row-amount">{gbp(amount)}</span>
-      </div>
-      {pickerOpen ? (
-        <div className="chase-row-picker">
-          <div className="chase-row-picker-label">How were you paid?</div>
-          <div className="chase-row-picker-grid">
-            <button type="button" className="awaiting-job-method-btn awaiting-job-method-bank"
-              onClick={() => { onMarkPaid?.(job, 'bank transfer'); setPickerOpen(false); }}>Bank</button>
-            <button type="button" className="awaiting-job-method-btn awaiting-job-method-cash"
-              onClick={() => { onMarkPaid?.(job, 'cash'); setPickerOpen(false); }}>Cash</button>
-            <button type="button" className="awaiting-job-method-btn awaiting-job-method-card"
-              onClick={() => { onMarkPaid?.(job, 'card'); setPickerOpen(false); }}>Card</button>
+    <section className="motm-section">
+      <div
+        className="motm-card"
+        role="button"
+        tabIndex={0}
+        onClick={(e) => {
+          // Only navigate if the tap landed on the card body — not on the CTA buttons
+          if (!e.target.closest('.motm-cta-chase') && !e.target.closest('.motm-cta-paid') && !e.target.closest('.motm-picker')) {
+            onNavigateToMoney?.();
+          }
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') onNavigateToMoney?.();
+        }}
+      >
+        <div className="motm-label">Oldest on the table</div>
+        <div className="motm-customer">{customer}</div>
+        <div className="motm-meta">{gbp(amount)} · {agePhrasing}</div>
+
+        {pickerOpen ? (
+          <div className="motm-picker" onClick={e => e.stopPropagation()}>
+            <div className="motm-picker-label">How were you paid?</div>
+            <div className="motm-picker-grid">
+              <button type="button" className="awaiting-job-method-btn awaiting-job-method-bank"
+                onClick={() => { onMarkPaid?.(focusInvoice, 'bank transfer'); setPickerOpen(false); }}>Bank</button>
+              <button type="button" className="awaiting-job-method-btn awaiting-job-method-cash"
+                onClick={() => { onMarkPaid?.(focusInvoice, 'cash'); setPickerOpen(false); }}>Cash</button>
+              <button type="button" className="awaiting-job-method-btn awaiting-job-method-card"
+                onClick={() => { onMarkPaid?.(focusInvoice, 'card'); setPickerOpen(false); }}>Card</button>
+            </div>
+            <button type="button" className="motm-picker-cancel"
+              onClick={() => setPickerOpen(false)}>Cancel</button>
           </div>
-          <button type="button" className="chase-row-picker-cancel"
-            onClick={() => setPickerOpen(false)}>Cancel</button>
-        </div>
-      ) : (
-        <div className="chase-row-actions">
-          <button type="button" className="chase-row-btn-chase" onClick={handleChase}>Chase</button>
-          <button type="button" className="chase-row-btn-paid" onClick={() => setPickerOpen(true)}>Mark paid</button>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function MoneyOnTheTable({ jobs, onMarkPaid }) {
-  const awaitingJobs = jobs
-    .filter(isAwaitingPayment)
-    .sort((a, b) => new Date(a.invoiceSentAt || 0) - new Date(b.invoiceSentAt || 0));
-
-  if (awaitingJobs.length === 0) return null;
-
-  return (
-    <section className="money-section">
-      <h3 className="money-section-title">Money on the table</h3>
-      <div className="money-list">
-        {awaitingJobs.map(j => (
-          <ChaseRow key={j.id} job={j} onMarkPaid={onMarkPaid} />
-        ))}
+        ) : (
+          <>
+            <button
+              type="button"
+              className="motm-cta-chase"
+              onClick={(e) => { e.stopPropagation(); handleChase(); }}
+            >
+              Chase via WhatsApp
+            </button>
+            <button
+              type="button"
+              className="motm-cta-paid"
+              onClick={(e) => { e.stopPropagation(); setPickerOpen(true); }}
+            >
+              Mark paid
+            </button>
+          </>
+        )}
       </div>
     </section>
   );
