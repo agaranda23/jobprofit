@@ -32,7 +32,10 @@ function StageTile({ stage, count, total, selected, onSelect, tileRef, formatAmo
       ? 'stage-tile--lead'
       : '';
 
-  const amountText = isLead ? '£—' : '£' + formatAmount(total);
+  // Lead has no £ value; £0 reads as a failure state — both render a faint em-dash instead
+  const isEmpty = isLead || total === 0;
+  const amountText = isEmpty ? '—' : '£' + formatAmount(total);
+  const amountClass = isEmpty ? 'stage-tile-amount stage-tile-amount--empty' : 'stage-tile-amount';
 
   return (
     <button
@@ -44,7 +47,7 @@ function StageTile({ stage, count, total, selected, onSelect, tileRef, formatAmo
     >
       <span className="stage-tile-name">{stage.toUpperCase()}</span>
       <span className="stage-tile-count">{count} {count === 1 ? 'job' : 'jobs'}</span>
-      <span className="stage-tile-amount">{amountText}</span>
+      <span className={amountClass}>{amountText}</span>
     </button>
   );
 }
@@ -94,13 +97,15 @@ export default function StageStrip({ jobs, selectedStage, onSelectStage, deriveS
           />
         ))}
       </div>
-      {/* Connector rail — hairline + dots */}
+      {/* Connector rail — hairline + dots. Each dot wrapped in a flex cell that
+           mirrors the tile's flex: 1 1 0, so dots sit centred under their tile. */}
       <div className="stage-rail" aria-hidden="true">
         {STAGES.map(s => (
-          <span
-            key={s}
-            className={`stage-rail-dot${s === selectedStage ? ' stage-rail-dot--active' : ''}${s === 'Overdue' ? ' stage-rail-dot--overdue' : ''}${s === 'Lead' ? ' stage-rail-dot--lead' : ''}`}
-          />
+          <div key={s} className="stage-rail-cell">
+            <span
+              className={`stage-rail-dot${s === selectedStage ? ' stage-rail-dot--active' : ''}${s === 'Overdue' ? ' stage-rail-dot--overdue' : ''}${s === 'Lead' ? ' stage-rail-dot--lead' : ''}`}
+            />
+          </div>
         ))}
       </div>
     </div>
