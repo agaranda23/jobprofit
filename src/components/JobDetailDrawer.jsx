@@ -5,6 +5,7 @@ import RecordPaymentModal from './RecordPaymentModal';
 import SendInvoiceModal from './SendInvoiceModal';
 import AddReceiptModal from './AddReceiptModal';
 import SignaturePad from './SignaturePad';
+import EditFieldModal from './EditFieldModal';
 import {
   getChaseState,
   recordChase,
@@ -137,6 +138,11 @@ function PhotoLightbox({ src, onClose }) {
  *   onScheduleCancel     – discard and close
  *   onScheduleSave       – persist via onUpdateJob and close
  *   onScheduleDateChange / onScheduleStartChange / onScheduleEndChange
+ *
+ * Customer field edit callbacks (all optional — rows degrade to read-only when absent):
+ *   onEditSummary  – open EditFieldModal for job description
+ *   onEditPhone    – open EditFieldModal for customer phone
+ *   onEditEmail    – open EditFieldModal for customer email
  */
 function DetailsSection({
   job,
@@ -150,22 +156,27 @@ function DetailsSection({
   onScheduleDateChange,
   onScheduleStartChange,
   onScheduleEndChange,
+  onEditSummary,
+  onEditPhone,
+  onEditEmail,
 }) {
   const hasDesc = !!job.summary;
   const hasAddress = !!job.address;
   const hasPhone = !!(job.phone || job.customerPhone || job.mobile);
-  const hasEmail = !!job.email;
+  const hasEmail = !!(job.email || job.customerEmail);
   const hasDate = !!(job.date || job.createdAt);
   const hasScheduled = !!job.scheduledDate;
   const hasCompleted = !!job.completedAt;
   const hasHours = !!(job.hoursEstimate || job.hours);
   const canEditSchedule = typeof onScheduleEdit === 'function';
+  const canEditFields = typeof onEditPhone === 'function';
 
   const visible = hasDesc || hasAddress || hasPhone || hasEmail || hasDate ||
-    hasScheduled || hasCompleted || hasHours || canEditSchedule;
+    hasScheduled || hasCompleted || hasHours || canEditSchedule || canEditFields;
   if (!visible) return null;
 
-  const phone = job.phone || job.customerPhone || job.mobile || '';
+  const phone = job.customerPhone || job.phone || job.mobile || '';
+  const email = job.email || job.customerEmail || '';
   const scheduledTime =
     job.scheduledStart && job.scheduledEnd
       ? `${job.scheduledStart} – ${job.scheduledEnd}`
@@ -187,9 +198,24 @@ function DetailsSection({
         )}
       </div>
       <div className="jd-section-body">
-        {hasDesc && (
-          <p className="jd-detail-desc">{job.summary}</p>
+        {/* Job description — tappable when edit callback provided */}
+        {canEditFields ? (
+          <button
+            type="button"
+            className="jd-detail-desc-edit-wrap"
+            onClick={onEditSummary}
+            aria-label={hasDesc ? 'Edit job description' : 'Add job description'}
+          >
+            {hasDesc
+              ? <p className="jd-detail-desc" style={{ margin: 0, flex: 1 }}>{job.summary}</p>
+              : <span className="jd-detail-desc-add">+ Add description</span>
+            }
+            <span className="jd-detail-desc-edit-chevron" aria-hidden="true">›</span>
+          </button>
+        ) : (
+          hasDesc && <p className="jd-detail-desc">{job.summary}</p>
         )}
+
         {hasAddress && (
           <a
             href={`https://maps.google.com/?q=${encodeURIComponent(job.address)}`}
@@ -201,17 +227,57 @@ function DetailsSection({
             <span>{job.address}</span>
           </a>
         )}
-        {hasPhone && (
-          <a href={`tel:${phone}`} className="jd-detail-row jd-detail-link">
-            <span className="jd-detail-icon">📞</span>
-            <span>{phone}</span>
-          </a>
+
+        {/* Phone — always rendered when edit callback present (shows "+ Add" when empty) */}
+        {(hasPhone || canEditFields) && (
+          canEditFields ? (
+            <button
+              type="button"
+              className="jd-detail-edit-row"
+              onClick={onEditPhone}
+              aria-label={hasPhone ? 'Edit customer phone' : 'Add customer phone'}
+            >
+              <span className="jd-detail-edit-row-left">
+                <span className="jd-detail-icon">📞</span>
+                {hasPhone
+                  ? <span className="jd-detail-edit-row-value">{phone}</span>
+                  : <span className="jd-detail-edit-row-add">+ Add phone</span>
+                }
+              </span>
+              <span className="jd-detail-edit-chevron" aria-hidden="true">›</span>
+            </button>
+          ) : (
+            <a href={`tel:${phone}`} className="jd-detail-row jd-detail-link">
+              <span className="jd-detail-icon">📞</span>
+              <span>{phone}</span>
+            </a>
+          )
         )}
-        {hasEmail && (
-          <a href={`mailto:${job.email}`} className="jd-detail-row jd-detail-link">
-            <span className="jd-detail-icon">✉️</span>
-            <span>{job.email}</span>
-          </a>
+
+        {/* Email — always rendered when edit callback present (shows "+ Add" when empty) */}
+        {(hasEmail || canEditFields) && (
+          canEditFields ? (
+            <button
+              type="button"
+              className="jd-detail-edit-row"
+              onClick={onEditEmail}
+              aria-label={hasEmail ? 'Edit customer email' : 'Add customer email'}
+            >
+              <span className="jd-detail-edit-row-left">
+                <span className="jd-detail-icon">✉️</span>
+                {hasEmail
+                  ? <span className="jd-detail-edit-row-value">{email}</span>
+                  : <span className="jd-detail-edit-row-add">+ Add email</span>
+                }
+              </span>
+              <span className="jd-detail-edit-chevron" aria-hidden="true">›</span>
+            </button>
+          ) : (
+            <a href={`mailto:${email}`} className="jd-detail-row jd-detail-link">
+              <span className="jd-detail-icon">✉️</span>
+              <span>{email}</span>
+            </a>
+          )
         )}
         {hasDate && (
           <div className="jd-detail-row">
@@ -988,18 +1054,23 @@ export default function JobDetailDrawer({
   const [schedStart, setSchedStart] = useState('');
   const [schedEnd, setSchedEnd] = useState('');
 
-  // Close on Escape — also closes lightbox or kebab if open
+  // Customer field editing — single EditFieldModal controlled by this key.
+  // null = closed; 'name' | 'phone' | 'email' | 'summary' = which field is open.
+  const [editingField, setEditingField] = useState(null);
+
+  // Close on Escape — also closes lightbox, kebab, or customer-field edit modal if open
   useEffect(() => {
     const onKey = (e) => {
       if (e.key === 'Escape') {
         if (lightboxSrc) { setLightboxSrc(null); return; }
         if (kebabOpen) { setKebabOpen(false); return; }
+        if (editingField) { setEditingField(null); return; }
         onClose();
       }
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [onClose, lightboxSrc, kebabOpen]);
+  }, [onClose, lightboxSrc, kebabOpen, editingField]);
 
   // Scroll-chain bug fix: lock body scroll while the drawer is open.
   // Saves and restores the prior scroll position so the user lands back
@@ -1068,6 +1139,26 @@ export default function JobDetailDrawer({
   const showFlash = (msg) => {
     setToast(msg);
     setTimeout(() => setToast(null), 3000);
+  };
+
+  // ── Customer field editing ────────────────────────────────────────────────
+  // Saves the canonical modern field for each of the 4 editable customer fields.
+  // Legacy fallback fields (job.name, job.phone, job.mobile) are left untouched —
+  // the fallback chains (e.g. customerPhone || phone || mobile) read modern first,
+  // so writing to the canonical field takes precedence without needing a migration.
+  const handleCustomerFieldSave = async (patch) => {
+    if (!onUpdateJob) return;
+    // patch is { [fieldKey]: newValue } from EditFieldModal
+    const [fieldKey, rawValue] = Object.entries(patch)[0];
+    const value = typeof rawValue === 'string' ? rawValue.trim() : rawValue;
+    const canonicalMap = {
+      customer: 'customer',
+      customerPhone: 'customerPhone',
+      email: 'email',
+      summary: 'summary',
+    };
+    if (!canonicalMap[fieldKey]) return;
+    onUpdateJob({ ...job, [fieldKey]: value || null });
   };
 
   // ── Photo add ─────────────────────────────────────────────────────────────
@@ -1413,7 +1504,19 @@ export default function JobDetailDrawer({
           <div className="job-detail-header-left">
             <span className={`job-status-pill ${statusClass}`}>{status[0]}</span>
             <div className="job-detail-title-block">
-              <div className="job-detail-customer">{displayName}</div>
+              {onUpdateJob ? (
+                <button
+                  type="button"
+                  className="jd-customer-edit-btn"
+                  onClick={() => setEditingField('name')}
+                  aria-label="Edit customer name"
+                >
+                  <span className="job-detail-customer">{displayName}</span>
+                  <span className="jd-customer-edit-icon" aria-hidden="true">›</span>
+                </button>
+              ) : (
+                <div className="job-detail-customer">{displayName}</div>
+              )}
               {job.summary && (
                 <div className="job-detail-summary">{job.summary}</div>
               )}
@@ -1594,6 +1697,9 @@ export default function JobDetailDrawer({
             onScheduleDateChange={setSchedDate}
             onScheduleStartChange={setSchedStart}
             onScheduleEndChange={setSchedEnd}
+            onEditSummary={onUpdateJob ? () => setEditingField('summary') : undefined}
+            onEditPhone={onUpdateJob ? () => setEditingField('phone') : undefined}
+            onEditEmail={onUpdateJob ? () => setEditingField('email') : undefined}
           />
 
           {/* Quick-contact buttons — below Details since it's contact-related */}
@@ -1762,6 +1868,57 @@ export default function JobDetailDrawer({
         <AddReceiptModal
           onClose={() => setReceiptModalOpen(false)}
           onSave={handleReceiptSave}
+        />
+      )}
+
+      {/* Customer field EditFieldModal — single instance, configured by editingField state */}
+      {editingField === 'name' && (
+        <EditFieldModal
+          open
+          fieldKey="customer"
+          fieldLabel="Customer name"
+          currentValue={job.customer || job.name || ''}
+          inputType="text"
+          placeholder="e.g. Sarah Jones"
+          onSave={handleCustomerFieldSave}
+          onClose={() => setEditingField(null)}
+        />
+      )}
+      {editingField === 'phone' && (
+        <EditFieldModal
+          open
+          fieldKey="customerPhone"
+          fieldLabel="Customer phone"
+          currentValue={job.customerPhone || job.phone || job.mobile || ''}
+          inputType="tel"
+          placeholder="e.g. 07700 900 123"
+          onSave={handleCustomerFieldSave}
+          onClose={() => setEditingField(null)}
+        />
+      )}
+      {editingField === 'email' && (
+        <EditFieldModal
+          open
+          fieldKey="email"
+          fieldLabel="Customer email"
+          currentValue={job.email || job.customerEmail || ''}
+          inputType="email"
+          placeholder="e.g. customer@example.com"
+          onSave={handleCustomerFieldSave}
+          onClose={() => setEditingField(null)}
+        />
+      )}
+      {editingField === 'summary' && (
+        <EditFieldModal
+          open
+          fieldKey="summary"
+          fieldLabel="Job description"
+          currentValue={job.summary || ''}
+          inputType="textarea"
+          rows={4}
+          placeholder="Describe the job…"
+          onSave={handleCustomerFieldSave}
+          onClose={() => setEditingField(null)}
         />
       )}
     </>

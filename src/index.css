@@ -2847,6 +2847,27 @@ input[type=number] { -moz-appearance: textfield; }
   color: var(--text-dim);
   margin-top: 2px;
 }
+/* Tappable customer name button in the drawer header */
+.jd-customer-edit-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+  min-width: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+.jd-customer-edit-btn:active { opacity: 0.6; }
+.jd-customer-edit-icon {
+  font-size: 16px;
+  color: var(--text-dim);
+  line-height: 1;
+  opacity: 0.6;
+  flex-shrink: 0;
+}
 .job-detail-header-right {
   display: flex;
   align-items: center;
@@ -3064,6 +3085,71 @@ input[type=number] { -moz-appearance: textfield; }
   text-decoration: none;
 }
 .jd-detail-link:active { opacity: 0.7; }
+
+/* Tappable editable row in Details section — matches .settings-row pattern */
+.jd-detail-edit-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-dim);
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+  -webkit-tap-highlight-color: transparent;
+}
+.jd-detail-edit-row:active { opacity: 0.6; }
+.jd-detail-edit-row-left {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+.jd-detail-edit-row-value {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.jd-detail-edit-row-add {
+  color: var(--accent);
+  font-style: italic;
+}
+.jd-detail-edit-chevron {
+  font-size: 16px;
+  color: var(--text-dim);
+  line-height: 1.4;
+  flex-shrink: 0;
+  opacity: 0.6;
+}
+/* Tappable description block — sits outside the row pattern */
+.jd-detail-desc-edit-wrap {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.jd-detail-desc-edit-wrap:active { opacity: 0.6; }
+.jd-detail-desc-edit-chevron {
+  font-size: 16px;
+  color: var(--text-dim);
+  flex-shrink: 0;
+  opacity: 0.6;
+  padding-top: 2px;
+}
+.jd-detail-desc-add {
+  font-size: 13px;
+  color: var(--accent);
+  font-style: italic;
+}
 
 .jd-detail-icon {
   flex-shrink: 0;
@@ -3693,6 +3779,12 @@ input[type=number] { -moz-appearance: textfield; }
 .edit-field-input:focus {
   outline: none;
   border-color: var(--accent);
+}
+.edit-field-textarea {
+  height: auto;
+  padding: 14px;
+  resize: none;
+  line-height: 1.5;
 }
 .edit-field-input--error {
   border-color: #ef4444;
