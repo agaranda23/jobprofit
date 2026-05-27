@@ -468,6 +468,20 @@ body {
 .preview-label { color: var(--text-dim); font-size: 14px; }
 .preview-value { font-size: 17px; font-weight: 500; }
 .preview-amount { font-size: 22px; font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; }
+.preview-input {
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  font-size: 17px;
+  font-weight: 500;
+  text-align: right;
+  width: 60%;
+  padding: 2px 0;
+  outline: none;
+}
+.preview-input:focus { border-bottom-color: var(--accent); }
+.preview-input::placeholder { color: var(--text-dim); font-weight: 400; }
 
 .link-btn.centered { display: block; width: 100%; text-align: center; margin: 8px 0; }
 .link-btn.subtle { color: var(--text-dim); font-size: 13px; }
