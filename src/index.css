@@ -2819,6 +2819,7 @@ input[type=number] { -moz-appearance: textfield; }
 }
 .job-detail-body {
   overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 16px 16px 24px;
   display: flex;
   flex-direction: column;
@@ -2859,6 +2860,104 @@ input[type=number] { -moz-appearance: textfield; }
   pointer-events: none;
   animation: fade-in 0.2s ease;
 }
+
+/* Desktop: constrain drawer to card width, centred, with card-style border */
+@media (min-width: 600px) {
+  .job-detail-sheet {
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+    width: 100%;
+    max-width: 480px;
+    border-radius: 20px 20px 0 0;
+    border: 1px solid var(--border);
+    border-bottom: none;
+    box-shadow: 0 -4px 32px rgba(0, 0, 0, 0.4);
+  }
+  /* Slide-up animation plays correctly at constrained width */
+  @keyframes slide-up {
+    from { transform: translateX(-50%) translateY(100%); }
+    to   { transform: translateX(-50%) translateY(0); }
+  }
+}
+
+/* ── Kebab overflow menu ── */
+.jd-kebab-wrap {
+  position: relative;
+}
+
+.jd-kebab-btn {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 20px;
+  cursor: pointer;
+  padding: 4px 8px;
+  line-height: 1;
+  border-radius: 8px;
+  letter-spacing: 0.1em;
+  -webkit-tap-highlight-color: transparent;
+}
+.jd-kebab-btn:hover,
+.jd-kebab-btn:active { background: var(--surface-2); }
+
+.jd-kebab-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35);
+  z-index: 10;
+  min-width: 180px;
+  overflow: hidden;
+  animation: fade-in 0.15s ease;
+}
+
+.jd-kebab-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 500;
+  font-family: inherit;
+  padding: 13px 16px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.jd-kebab-item:last-child { border-bottom: none; }
+.jd-kebab-item:hover,
+.jd-kebab-item:active { background: var(--surface-2); }
+
+/* ── Empty-section pill chips ── */
+.jd-pill-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.jd-pill-chip {
+  display: inline-flex;
+  align-items: center;
+  background: var(--surface);
+  color: var(--text-dim);
+  border: 1px dashed var(--border);
+  padding: 7px 13px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  line-height: 1;
+}
+.jd-pill-chip:active { opacity: 0.7; }
+.jd-pill-chip:disabled { opacity: 0.4; cursor: default; }
 
 /* ── JobDetailDrawer content sections (Details / Materials / Receipts / Photos / Notes) ── */
 
@@ -3309,8 +3408,30 @@ input[type=number] { -moz-appearance: textfield; }
   object-fit: contain;
 }
 
-/* ── ProfitBarSection ─────────────────────────────────────────────────────── */
+/* ── ProfitBarSection — hero + subline ───────────────────────────────────── */
 
+/* Hero+subline body layout */
+.jd-profit-hero-body {
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 14px;
+  padding-bottom: 14px;
+}
+
+.jd-profit-hero {
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+}
+
+.jd-profit-subline {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-bottom: 4px;
+}
+
+/* Legacy 4-cell grid — kept for reference; no longer used in ProfitBarSection */
 .jd-profit-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
