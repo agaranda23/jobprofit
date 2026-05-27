@@ -1060,3 +1060,185 @@ describe('Phase F — Convert fallback hidden when Accept Quote is available', (
     expect(showConvertFallbackGate({ quoteStatus: 'draft' })).toBe(false);
   });
 });
+
+// ── Phase G: customer field editing — buildCustomerFieldUpdate ───────────────
+//
+// Mirrors the handleCustomerFieldSave logic in JobDetailDrawer:
+//   patch = { [fieldKey]: rawValue } from EditFieldModal
+//   value = rawValue.trim()
+//   onUpdateJob({ ...job, [fieldKey]: value || null })
+//
+// Canonical field map:
+//   customer      → name displayed in header
+//   customerPhone → modern phone field (fallback chain reads this first)
+//   email         → customer email
+//   summary       → job description
+
+function buildCustomerFieldUpdate(job, fieldKey, rawValue) {
+  const value = typeof rawValue === 'string' ? rawValue.trim() : rawValue;
+  const canonicalKeys = ['customer', 'customerPhone', 'email', 'summary'];
+  if (!canonicalKeys.includes(fieldKey)) return null; // reject unknown keys
+  return { ...job, [fieldKey]: value || null };
+}
+
+describe('buildCustomerFieldUpdate — customer name', () => {
+  const job = { id: 'j1', customer: 'Old Name', amount: 500 };
+
+  it('writes the new name to job.customer', () => {
+    const updated = buildCustomerFieldUpdate(job, 'customer', 'Sarah Jones');
+    expect(updated.customer).toBe('Sarah Jones');
+  });
+
+  it('trims whitespace from the saved value', () => {
+    const updated = buildCustomerFieldUpdate(job, 'customer', '  Sarah Jones  ');
+    expect(updated.customer).toBe('Sarah Jones');
+  });
+
+  it('writes null when the name field is cleared (empty string)', () => {
+    const updated = buildCustomerFieldUpdate(job, 'customer', '');
+    expect(updated.customer).toBeNull();
+  });
+
+  it('preserves all other job fields', () => {
+    const updated = buildCustomerFieldUpdate(job, 'customer', 'New');
+    expect(updated.id).toBe('j1');
+    expect(updated.amount).toBe(500);
+  });
+});
+
+describe('buildCustomerFieldUpdate — phone (customerPhone)', () => {
+  const job = { id: 'j1', customerPhone: '07700 900000', phone: '07700 000000', amount: 300 };
+
+  it('writes the new phone to job.customerPhone', () => {
+    const updated = buildCustomerFieldUpdate(job, 'customerPhone', '07700 900999');
+    expect(updated.customerPhone).toBe('07700 900999');
+  });
+
+  it('trims whitespace', () => {
+    const updated = buildCustomerFieldUpdate(job, 'customerPhone', ' 07700 900999 ');
+    expect(updated.customerPhone).toBe('07700 900999');
+  });
+
+  it('writes null when field is cleared', () => {
+    const updated = buildCustomerFieldUpdate(job, 'customerPhone', '');
+    expect(updated.customerPhone).toBeNull();
+  });
+
+  it('does NOT touch legacy job.phone field (left untouched for downstream safety)', () => {
+    const updated = buildCustomerFieldUpdate(job, 'customerPhone', '07700 900999');
+    // job.phone should be unchanged — we do not touch legacy fields
+    expect(updated.phone).toBe('07700 000000');
+  });
+});
+
+describe('buildCustomerFieldUpdate — email', () => {
+  const job = { id: 'j1', email: 'old@example.com', amount: 200 };
+
+  it('writes the new email to job.email', () => {
+    const updated = buildCustomerFieldUpdate(job, 'email', 'new@example.com');
+    expect(updated.email).toBe('new@example.com');
+  });
+
+  it('writes null when email is cleared', () => {
+    const updated = buildCustomerFieldUpdate(job, 'email', '   ');
+    expect(updated.email).toBeNull();
+  });
+});
+
+describe('buildCustomerFieldUpdate — summary (job description)', () => {
+  const job = { id: 'j1', summary: 'Old description', amount: 400 };
+
+  it('writes multi-line description to job.summary', () => {
+    const updated = buildCustomerFieldUpdate(job, 'summary', 'New boiler\nInstall and test');
+    expect(updated.summary).toBe('New boiler\nInstall and test');
+  });
+
+  it('writes null when summary is cleared', () => {
+    const updated = buildCustomerFieldUpdate(job, 'summary', '');
+    expect(updated.summary).toBeNull();
+  });
+
+  it('preserves all other job fields', () => {
+    const updated = buildCustomerFieldUpdate(job, 'summary', 'New desc');
+    expect(updated.id).toBe('j1');
+    expect(updated.amount).toBe(400);
+  });
+});
+
+describe('buildCustomerFieldUpdate — rejects unknown field keys', () => {
+  const job = { id: 'j1', amount: 500 };
+
+  it('returns null for an unrecognised field key', () => {
+    expect(buildCustomerFieldUpdate(job, 'address', '123 High St')).toBeNull();
+  });
+
+  it('returns null for an attempt to patch status', () => {
+    expect(buildCustomerFieldUpdate(job, 'status', 'paid')).toBeNull();
+  });
+});
+
+// ── Phase G: DetailsSection field visibility rules ────────────────────────────
+//
+// Mirrors the hasPhone / hasEmail derived values in the updated DetailsSection.
+// When edit callbacks are provided:
+//   - phone row always shows (hasPhone || canEditFields)
+//   - email row always shows (hasEmail || canEditFields)
+// When no edit callbacks:
+//   - rows only show when the field has a value (original behaviour preserved)
+
+function detailsRowVisibility(job, canEditFields) {
+  const hasPhone = !!(job.customerPhone || job.phone || job.mobile);
+  const hasEmail = !!(job.email || job.customerEmail);
+  return {
+    showPhone: hasPhone || canEditFields,
+    showEmail: hasEmail || canEditFields,
+    phoneIsAdd: !hasPhone && canEditFields,
+    emailIsAdd: !hasEmail && canEditFields,
+  };
+}
+
+describe('DetailsSection — phone/email row visibility with edit mode', () => {
+  it('shows phone row with value when job has customerPhone', () => {
+    const v = detailsRowVisibility({ customerPhone: '07700 900000' }, true);
+    expect(v.showPhone).toBe(true);
+    expect(v.phoneIsAdd).toBe(false);
+  });
+
+  it('shows phone row in Add mode when job has no phone and edit is enabled', () => {
+    const v = detailsRowVisibility({}, true);
+    expect(v.showPhone).toBe(true);
+    expect(v.phoneIsAdd).toBe(true);
+  });
+
+  it('hides phone row when job has no phone and edit is disabled', () => {
+    const v = detailsRowVisibility({}, false);
+    expect(v.showPhone).toBe(false);
+  });
+
+  it('shows email row in Add mode when job has no email and edit is enabled', () => {
+    const v = detailsRowVisibility({}, true);
+    expect(v.showEmail).toBe(true);
+    expect(v.emailIsAdd).toBe(true);
+  });
+
+  it('hides email row when job has no email and edit is disabled', () => {
+    const v = detailsRowVisibility({}, false);
+    expect(v.showEmail).toBe(false);
+  });
+
+  it('uses customerEmail as fallback for hasEmail', () => {
+    const v = detailsRowVisibility({ customerEmail: 'a@b.com' }, false);
+    expect(v.showEmail).toBe(true);
+    expect(v.emailIsAdd).toBe(false);
+  });
+
+  it('uses job.phone as fallback for hasPhone', () => {
+    const v = detailsRowVisibility({ phone: '07700 900000' }, false);
+    expect(v.showPhone).toBe(true);
+  });
+
+  it('uses job.mobile as fallback for hasPhone', () => {
+    const v = detailsRowVisibility({ mobile: '07700 900222' }, false);
+    expect(v.showPhone).toBe(true);
+  });
+});

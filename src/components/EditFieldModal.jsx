@@ -12,7 +12,8 @@
  *   fieldKey      string        e.g. 'business_name'
  *   fieldLabel    string        e.g. "Business name"
  *   currentValue  string|number
- *   inputType     'text'|'number'   default 'text'
+ *   inputType     'text'|'number'|'textarea'   default 'text'
+ *   rows          number        textarea row count — default 4, only used when inputType='textarea'
  *   placeholder   string
  *   helpText      string        caption below input
  *   validate      (value) => string|null
@@ -24,7 +25,7 @@
  *   title         string        modal header text
  *   fields        Array<{
  *                   key, label, value, inputType?,
- *                   placeholder?, helpText?, validate?, formatOnBlur?
+ *                   placeholder?, helpText?, validate?, formatOnBlur?, rows?
  *                 }>
  */
 import { useEffect, useRef, useState } from 'react';
@@ -45,30 +46,52 @@ function FieldRow({ field, value, onChange, error }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const sharedProps = {
+    ref: inputRef,
+    id: `ef-${field.key}`,
+    className: `edit-field-input${error ? ' edit-field-input--error' : ''}`,
+    value,
+    placeholder: field.placeholder || '',
+    onChange: e => onChange(field.key, e.target.value),
+    onBlur: e => {
+      if (field.formatOnBlur) {
+        onChange(field.key, field.formatOnBlur(e.target.value));
+      }
+    },
+    autoComplete: 'off',
+    autoCorrect: 'off',
+    spellCheck: false,
+  };
+
   return (
     <div className="edit-field-group">
       <label className="edit-field-label" htmlFor={`ef-${field.key}`}>
         {field.label}
       </label>
-      <input
-        ref={inputRef}
-        id={`ef-${field.key}`}
-        className={`edit-field-input${error ? ' edit-field-input--error' : ''}`}
-        type={field.inputType === 'number' ? 'text' : 'text'}
-        inputMode={field.inputType === 'number' ? 'numeric' : 'text'}
-        value={value}
-        placeholder={field.placeholder || ''}
-        onChange={e => onChange(field.key, e.target.value)}
-        onBlur={e => {
-          if (field.formatOnBlur) {
-            onChange(field.key, field.formatOnBlur(e.target.value));
+      {field.inputType === 'textarea' ? (
+        <textarea
+          {...sharedProps}
+          className={`edit-field-input edit-field-textarea${error ? ' edit-field-input--error' : ''}`}
+          rows={field.rows || 4}
+          autoCapitalize="sentences"
+        />
+      ) : (
+        <input
+          {...sharedProps}
+          type={field.inputType === 'number' ? 'text' : 'text'}
+          inputMode={
+            field.inputType === 'number' ? 'numeric' :
+            field.inputType === 'tel' ? 'tel' :
+            field.inputType === 'email' ? 'email' :
+            'text'
           }
-        }}
-        autoComplete="off"
-        autoCorrect="off"
-        autoCapitalize={field.inputType === 'number' ? 'none' : 'words'}
-        spellCheck={false}
-      />
+          autoCapitalize={
+            field.inputType === 'number' || field.inputType === 'tel' || field.inputType === 'email'
+              ? 'none'
+              : 'words'
+          }
+        />
+      )}
       {error && <span className="edit-field-error">{error}</span>}
       {field.helpText && !error && (
         <span className="edit-field-help">{field.helpText}</span>
@@ -86,6 +109,7 @@ export default function EditFieldModal({
   fieldLabel,
   currentValue = '',
   inputType = 'text',
+  rows,
   placeholder,
   helpText,
   validate,
@@ -106,6 +130,7 @@ export default function EditFieldModal({
         label: fieldLabel,
         value: currentValue,
         inputType,
+        rows,
         placeholder,
         helpText,
         validate,
