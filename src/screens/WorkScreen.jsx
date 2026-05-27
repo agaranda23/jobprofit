@@ -9,6 +9,8 @@
 import { useState, useCallback } from 'react';
 import WorkCalendar from './WorkCalendar';
 import JobDetailDrawer from '../components/JobDetailDrawer';
+import SendInvoiceModal from '../components/SendInvoiceModal';
+import { logTelemetry } from '../lib/telemetry';
 
 const STORAGE_KEY = 'jp.workView';
 
@@ -44,7 +46,7 @@ function deriveDisplayStatus(job) {
 
 // ── JobCard (inline — extracted from JobsScreen to avoid circular dep) ────────
 
-function JobCard({ job, onSelect }) {
+function JobCard({ job, onSelect, onSendInvoice }) {
   const status = deriveDisplayStatus(job);
   const statusClass = {
     Quoted:   'status--quoted',
@@ -84,13 +86,22 @@ function JobCard({ job, onSelect }) {
           <span className="job-card-warn">Done — not invoiced ⚠</span>
         )}
       </div>
+      {doneNotInvoiced && onSendInvoice && (
+        <button
+          type="button"
+          className="job-card-send-invoice-btn"
+          onClick={e => { e.stopPropagation(); onSendInvoice(job); }}
+        >
+          Send invoice →
+        </button>
+      )}
     </li>
   );
 }
 
 // ── JobsList subview ──────────────────────────────────────────────────────────
 
-function JobsList({ jobs, onJobSelect }) {
+function JobsList({ jobs, onJobSelect, onSendInvoice }) {
   const [filter, setFilter] = useState('All');
 
   const filtered = jobs.filter(j => {
@@ -131,7 +142,7 @@ function JobsList({ jobs, onJobSelect }) {
       ) : (
         <ul className="job-list">
           {filtered.map(j => (
-            <JobCard key={j.id || j.cloudId} job={j} onSelect={onJobSelect} />
+            <JobCard key={j.id || j.cloudId} job={j} onSelect={onJobSelect} onSendInvoice={onSendInvoice} />
           ))}
         </ul>
       )}
@@ -145,11 +156,12 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddPa
   const [subview, setSubview] = useState(getPersistedView);
   // selectedJob drives the JobDetailDrawer — null means closed.
   const [selectedJob, setSelectedJob] = useState(null);
+  // invoiceJob drives the inline SendInvoiceModal from the "Send invoice →" card CTA.
+  const [invoiceJob, setInvoiceJob] = useState(null);
+  const [invoiceToast, setInvoiceToast] = useState('');
 
   const switchSubview = useCallback((v) => {
-    // Telemetry — wire to real analytics when infrastructure exists
-    // TODO: replace console.log with posthog/mixpanel/etc
-    console.log('[telemetry] work_subview', { subview: v });
+    logTelemetry('work_subview', { subview: v });
     setSubview(v);
     persistView(v);
   }, []);
@@ -163,6 +175,11 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddPa
   const handleAddPayment = (job, payload) => {
     onAddPayment?.(job, payload);
     // liveSelectedJob will update automatically on next render as jobs[] refreshes.
+  };
+
+  const showInvoiceToast = (msg) => {
+    setInvoiceToast(msg);
+    setTimeout(() => setInvoiceToast(''), 2400);
   };
 
   return (
@@ -195,7 +212,7 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddPa
 
       {/* Subview */}
       {subview === 'list' ? (
-        <JobsList jobs={jobs} onJobSelect={setSelectedJob} />
+        <JobsList jobs={jobs} onJobSelect={setSelectedJob} onSendInvoice={setInvoiceJob} />
       ) : (
         <WorkCalendar jobs={jobs} onNewJobOnDate={onNewJob} />
       )}
@@ -215,6 +232,21 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddPa
           onClose={() => setSelectedJob(null)}
         />
       )}
+
+      {/* Inline SendInvoiceModal — opened by the "Send invoice →" card CTA */}
+      {invoiceJob && (
+        <SendInvoiceModal
+          job={invoiceJob}
+          biz={biz ?? {}}
+          profile={profile ?? null}
+          jobs={jobs}
+          onUpdate={onUpdateJob ?? (() => {})}
+          onClose={() => setInvoiceJob(null)}
+          flash={showInvoiceToast}
+        />
+      )}
+
+      {invoiceToast && <div className="toast">{invoiceToast}</div>}
     </div>
   );
 }

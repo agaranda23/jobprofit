@@ -1,3 +1,5 @@
+import { logTelemetry } from '../lib/telemetry';
+
 /**
  * BottomNav — supports three nav layouts:
  *   1. legacy 3-tab (Today / Insights / Business) — default
@@ -44,9 +46,7 @@ export default function BottomNav({
   const tabs = slice3 ? slice3Tabs : newNav ? newTabs : legacyTabs;
 
   const handleTap = (tabId) => {
-    // Telemetry — wire to real analytics when infrastructure exists
-    // TODO: replace console.log with posthog/mixpanel/etc
-    console.log('[telemetry] tab_tap', { tab: tabId, nav: slice3 ? 'slice3' : newNav ? 'newNav' : 'legacy' });
+    logTelemetry('tab_tap', { tab: tabId, nav: slice3 ? 'slice3' : newNav ? 'newNav' : 'legacy' });
     onChange(tabId);
   };
 

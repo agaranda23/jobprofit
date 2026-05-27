@@ -212,6 +212,7 @@ export default function TodayScreen({ jobs = [], receipts = [], onAddJob, onAddR
         onMarkPaid={onMarkPaid}
         onNavigateToMoney={onChase}
         onChaseRecorded={() => setChaseVersion(v => v + 1)}
+        onPaid={(msg) => showToast(msg)}
       />
       <NextUpCard jobs={jobs} onJobTap={onJobTap} />
 
@@ -279,7 +280,15 @@ export default function TodayScreen({ jobs = [], receipts = [], onAddJob, onAddR
       })()}
 
       {everEmpty && (
-        <p className="empty-hint">Add your first job to start tracking profit</p>
+        <div className="empty-welcome-card">
+          <p className="empty-welcome-text">Tap below to log your first job</p>
+          <button
+            className="action-btn action-primary empty-welcome-cta"
+            onClick={() => setJobOpen(true)}
+          >
+            <span className="action-icon">🎤</span><span>Add your first job</span>
+          </button>
+        </div>
       )}
 
       {recent.length > 0 && (
@@ -323,7 +332,7 @@ export default function TodayScreen({ jobs = [], receipts = [], onAddJob, onAddR
 // Collapses to a single "All chased today" line when every outstanding invoice
 // has been chased at least once today. Hidden entirely when nothing is owed.
 
-function MoneyOnTheTable({ focusInvoice, awaitingTotal, allChasedToday, onMarkPaid, onNavigateToMoney, onChaseRecorded }) {
+function MoneyOnTheTable({ focusInvoice, awaitingTotal, allChasedToday, onMarkPaid, onNavigateToMoney, onChaseRecorded, onPaid }) {
   const [pickerOpen, setPickerOpen] = useState(false);
 
   // When focusInvoice changes (e.g. after chase), reset the picker
@@ -404,11 +413,11 @@ function MoneyOnTheTable({ focusInvoice, awaitingTotal, allChasedToday, onMarkPa
             <div className="motm-picker-label">How were you paid?</div>
             <div className="motm-picker-grid">
               <button type="button" className="awaiting-job-method-btn awaiting-job-method-bank"
-                onClick={() => { onMarkPaid?.(focusInvoice, 'bank transfer'); setPickerOpen(false); }}>Bank</button>
+                onClick={() => { onMarkPaid?.(focusInvoice, 'bank transfer'); setPickerOpen(false); onPaid?.(`${gbp(focusInvoice.total ?? focusInvoice.amount ?? 0)} marked paid`); }}>Bank</button>
               <button type="button" className="awaiting-job-method-btn awaiting-job-method-cash"
-                onClick={() => { onMarkPaid?.(focusInvoice, 'cash'); setPickerOpen(false); }}>Cash</button>
+                onClick={() => { onMarkPaid?.(focusInvoice, 'cash'); setPickerOpen(false); onPaid?.(`${gbp(focusInvoice.total ?? focusInvoice.amount ?? 0)} marked paid`); }}>Cash</button>
               <button type="button" className="awaiting-job-method-btn awaiting-job-method-card"
-                onClick={() => { onMarkPaid?.(focusInvoice, 'card'); setPickerOpen(false); }}>Card</button>
+                onClick={() => { onMarkPaid?.(focusInvoice, 'card'); setPickerOpen(false); onPaid?.(`${gbp(focusInvoice.total ?? focusInvoice.amount ?? 0)} marked paid`); }}>Card</button>
             </div>
             <button type="button" className="motm-picker-cancel"
               onClick={() => setPickerOpen(false)}>Cancel</button>
