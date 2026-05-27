@@ -4356,6 +4356,135 @@ input[type=number] { -moz-appearance: textfield; }
   100% { background-position: -200% 0; }
 }
 
+/* ── Sign section — force light colour-scheme so OS dark-mode can't bleed in ─ */
+/* The public quote card is intentionally light/white (customer trust).          */
+/* Without this, iOS dark-mode renders the browser-default input as dark,        */
+/* making typed text invisible against the white card.                           */
+.pqv-card {
+  color-scheme: light;
+}
+
+/* Sign section wrapper */
+.pqv-sign-section {
+  margin-top: 28px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border, #e5e5e5);
+}
+
+/* Name row: label stacked above input */
+.pqv-sign-name-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.pqv-sign-name-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+/* Critical: dark text on white card — the reported bug.                    */
+/* 16px font-size prevents iOS Safari auto-zoom on focus.                   */
+.pqv-sign-name-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 13px 14px;
+  font-size: 16px;
+  font-weight: 500;
+  font-family: inherit;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  background: #ffffff;
+  color: #111111;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  -webkit-appearance: none;
+}
+.pqv-sign-name-input::placeholder {
+  color: #9ca3af;
+}
+.pqv-sign-name-input:focus {
+  border-color: #00b386;
+  box-shadow: 0 0 0 3px rgba(0, 179, 134, 0.15);
+}
+
+/* Inline validation error */
+.pqv-sign-error {
+  font-size: 13px;
+  color: #e53e3e;
+  margin: -8px 0 12px;
+}
+
+/* Signature capture preview (shown after drawing) */
+.pqv-sign-preview-img {
+  display: block;
+  max-width: 100%;
+  width: 100%;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #fafafa;
+  margin-top: 8px;
+}
+
+/* Confirm-actions row: Redo + Submit side by side, full-width, min 44px touch */
+.pqv-sign-confirm-actions {
+  display: flex;
+  gap: 12px;
+  margin-top: 20px;
+}
+.pqv-sign-confirm-actions > * {
+  flex: 1;
+  min-height: 44px;
+}
+
+/* btn-ghost and btn-convert are fine as-is; these overrides ensure the      */
+/* ghost reads as "secondary" on the white card (darker border, not just dim) */
+.pqv-sign-btn-redo {
+  border: 1px solid #d1d5db;
+  color: #374151;
+}
+
+.pqv-sign-btn-submit {
+  min-height: 44px;
+}
+
+/* Accepted state: success card */
+.pqv-sign-accepted {
+  margin-top: 28px;
+  padding: 20px 16px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 12px;
+  text-align: center;
+}
+
+.pqv-sign-accepted-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: #065f46;
+  margin: 0 0 6px;
+}
+
+.pqv-sign-accepted-date {
+  font-size: 13px;
+  color: #6b7280;
+  margin: 0 0 16px;
+}
+
+.pqv-sign-accepted-img {
+  display: block;
+  max-width: 220px;
+  width: 100%;
+  margin: 0 auto;
+  border: 1px solid #bbf7d0;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
 /* ── Push permission prompt ────────────────────────────────────────────────── */
 /* Non-blocking card above the bottom nav. Shown once per device, 5 s after   */
 /* sign-in, only when Notification.permission === 'default'.                   */
