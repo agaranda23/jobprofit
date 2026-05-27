@@ -13,7 +13,7 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed }) {
   const [phone, setPhone] = useState('');
   const [amount, setAmount] = useState('');
   const [paymentType, setPaymentType] = useState(null);
-  const [unpaid, setUnpaid] = useState(false);
+  const [alreadyPaid, setAlreadyPaid] = useState(false);
   const [error, setError] = useState('');
   const [retryCount, setRetryCount] = useState(0);
   const recogRef = useRef(null);
@@ -121,7 +121,7 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed }) {
       phone: phone.trim() || null,
       amount: amt,
       paymentType: paymentType || null,
-      paid: !unpaid,
+      paid: alreadyPaid,
       date: new Date().toISOString(),
       createdAt: new Date().toISOString(),
     });
@@ -165,12 +165,31 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed }) {
                 <span className="preview-label">Job</span>
                 <span className="preview-value">{name}</span>
               </div>
-              {customer && (
-                <div className="preview-row">
-                  <span className="preview-label">Customer</span>
-                  <span className="preview-value">{customer}</span>
-                </div>
-              )}
+              <div className="preview-row">
+                <span className="preview-label">Customer</span>
+                {customer
+                  ? <span className="preview-value">{customer}</span>
+                  : <input
+                      type="text"
+                      className="preview-input"
+                      placeholder="Add customer name (optional)"
+                      value={customer}
+                      onChange={e => setCustomer(e.target.value)}
+                      inputMode="text"
+                    />
+                }
+              </div>
+              <div className="preview-row">
+                <span className="preview-label">Phone</span>
+                <input
+                  type="tel"
+                  className="preview-input"
+                  placeholder="07700 900123"
+                  value={phone}
+                  onChange={e => setPhone(e.target.value)}
+                  inputMode="tel"
+                />
+              </div>
               <div className="preview-row">
                 <span className="preview-label">Amount</span>
                 <span className="preview-value preview-amount">£{amount}</span>
@@ -183,8 +202,8 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed }) {
               )}
             </div>
             <label className="unpaid-toggle">
-              <input type="checkbox" checked={unpaid} onChange={e => setUnpaid(e.target.checked)} />
-              <span>Still waiting to be paid</span>
+              <input type="checkbox" checked={alreadyPaid} onChange={e => setAlreadyPaid(e.target.checked)} />
+              <span>Already paid</span>
             </label>
             <button className="btn-primary btn-large" onClick={save} style={{ marginTop: 8 }}>Save job</button>
             <button className="link-btn centered" onClick={() => setStatus('manual')}>Edit details</button>
@@ -208,8 +227,8 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed }) {
               </label>
             </div>
             <label className="unpaid-toggle">
-              <input type="checkbox" checked={unpaid} onChange={e => setUnpaid(e.target.checked)} />
-              <span>Still waiting to be paid</span>
+              <input type="checkbox" checked={alreadyPaid} onChange={e => setAlreadyPaid(e.target.checked)} />
+              <span>Already paid</span>
             </label>
             <div className="modal-actions">
               <button className="btn-secondary" onClick={onClose}>Cancel</button>
