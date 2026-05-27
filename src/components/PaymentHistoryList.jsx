@@ -9,28 +9,31 @@ function formatLongDate(isoDate) {
 }
 
 /**
- * View-only payment history list per PRD §4.3.
- * Phase B scope: list display only. Edit + delete affordances deferred
- * to Phase B.5 — payments.js helpers already support editPayment /
- * deletePayment; the UI surface is what's missing.
+ * Payment history list per PRD §4.3.
+ * Edit + delete affordances wired in Phase B.5.
+ * payments.js helpers (editPayment / deletePayment) are pure — callers handle
+ * persistence via onEditPayment / onDeletePayment callbacks.
  *
  * Self-gating: returns null when no payments.
  * Collapse rule per PRD §4.3:
  *   - Exactly 1 entry → expanded by default
  *   - More than 1 entry → collapsed by default (user taps to expand)
  *
- * Payments are displayed newest-first (most recent at top) — matches the
- * "Last payment" line in PaymentSummaryBlock which uses payments[length-1].
+ * Payments are displayed newest-first (most recent at top).
  * The underlying payments[] is append-order (oldest first); we reverse for
  * display only; storage order is untouched.
  */
-export default function PaymentHistoryList({ job }) {
+export default function PaymentHistoryList({ job, onEditPayment, onDeletePayment }) {
   const payments = job?.payments || [];
   const [expanded, setExpanded] = useState(payments.length === 1);
+  // id of the payment whose overflow menu is open, or null
+  const [openMenuId, setOpenMenuId] = useState(null);
 
   if (payments.length === 0) return null;
 
   const displayPayments = [...payments].reverse();
+
+  const closeMenu = () => setOpenMenuId(null);
 
   return (
     <div className="payment-history">
@@ -53,6 +56,40 @@ export default function PaymentHistoryList({ job }) {
                 <span className="payment-history-amount">{gbp(p.amount)}</span>
                 <span className="payment-history-sep" aria-hidden="true">·</span>
                 <span className="payment-history-method">{p.method}</span>
+                {(onEditPayment || onDeletePayment) && (
+                  <div className="payment-history-menu-wrap">
+                    <button
+                      type="button"
+                      className="payment-history-menu-btn"
+                      aria-label="Payment options"
+                      onClick={() => setOpenMenuId(prev => prev === p.id ? null : p.id)}
+                    >
+                      ···
+                    </button>
+                    {openMenuId === p.id && (
+                      <div className="payment-history-menu">
+                        {onEditPayment && (
+                          <button
+                            type="button"
+                            className="payment-history-menu-item"
+                            onClick={() => { closeMenu(); onEditPayment(p); }}
+                          >
+                            Edit
+                          </button>
+                        )}
+                        {onDeletePayment && (
+                          <button
+                            type="button"
+                            className="payment-history-menu-item payment-history-menu-item--danger"
+                            onClick={() => { closeMenu(); onDeletePayment(p); }}
+                          >
+                            Delete
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
               {p.note && <div className="payment-history-note">"{p.note}"</div>}
             </li>

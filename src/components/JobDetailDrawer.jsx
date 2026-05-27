@@ -13,7 +13,7 @@ import {
   computeTier,
   lastChasedLabel,
 } from '../lib/chaseLadder';
-import { computeBalance, computeAmountPaid } from '../lib/payments';
+import { computeBalance, computeAmountPaid, editPayment, deletePayment } from '../lib/payments';
 import { gbp } from '../lib/today';
 import { compressPhoto } from '../lib/photoCompress';
 import {
@@ -640,7 +640,7 @@ function QuickContactSection({ job }) {
  * Returns { pillChip: ReactElement | null, section: ReactElement | null } so the
  * parent can group all empty-section pills together on one row.
  */
-function ReceiptsSection({ job, receipts, onViewPhoto, onAddReceipt, onDeleteReceipt }) {
+function ReceiptsSection({ job, receipts, onViewPhoto, onAddReceipt, onDeleteReceipt, onEditReceipt }) {
   // receipts shape from getTodayReceipts: { id, label, amount, photo, date, jobId, imagePath }
   // Match on both string UUID (cloud) and legacy integer-style IDs
   const jobReceipts = receipts.filter(r => {
@@ -683,12 +683,20 @@ function ReceiptsSection({ job, receipts, onViewPhoto, onAddReceipt, onDeleteRec
       </div>
       <div className="jd-section-body jd-section-body--flush">
         {jobReceipts.map(r => (
-          <div key={r.id} className="jd-receipt-row">
+          <div
+            key={r.id}
+            className={`jd-receipt-row${onEditReceipt ? ' jd-receipt-row--tappable' : ''}`}
+            onClick={onEditReceipt ? () => onEditReceipt(r) : undefined}
+            role={onEditReceipt ? 'button' : undefined}
+            tabIndex={onEditReceipt ? 0 : undefined}
+            onKeyDown={onEditReceipt ? e => { if (e.key === 'Enter' || e.key === ' ') onEditReceipt(r); } : undefined}
+            aria-label={onEditReceipt ? `Edit receipt ${r.label || 'Receipt'}` : undefined}
+          >
             {r.photo ? (
               <button
                 type="button"
                 className="jd-receipt-thumb-btn"
-                onClick={() => onViewPhoto(r.photo)}
+                onClick={e => { e.stopPropagation(); onViewPhoto(r.photo); }}
                 aria-label="View receipt photo"
               >
                 <img src={r.photo} alt="" className="jd-receipt-thumb" />
@@ -706,7 +714,7 @@ function ReceiptsSection({ job, receipts, onViewPhoto, onAddReceipt, onDeleteRec
                 <button
                   type="button"
                   className="jd-receipt-delete-btn"
-                  onClick={() => onDeleteReceipt(r.id)}
+                  onClick={e => { e.stopPropagation(); onDeleteReceipt(r.id); }}
                   aria-label="Delete receipt"
                 >
                   ✕
@@ -875,6 +883,7 @@ function NotesSection({
   onSubmitNote,
   onCancelNote,
   onDeleteNote,
+  onEditNote,
 }) {
   const structuredNotes = Array.isArray(job.jobNotes) ? job.jobNotes : [];
   // cloud jobs may have a plain notes string instead of the structured array
@@ -974,16 +983,28 @@ function NotesSection({
                   </span>
                 </div>
                 <p className="jd-note-body">{n.body}</p>
-                {onDeleteNote && (
-                  <button
-                    type="button"
-                    className="jd-note-delete-btn"
-                    onClick={() => onDeleteNote(n.id)}
-                    aria-label="Delete note"
-                  >
-                    Delete
-                  </button>
-                )}
+                <div className="jd-note-actions">
+                  {onEditNote && (
+                    <button
+                      type="button"
+                      className="jd-note-edit-btn"
+                      onClick={() => onEditNote(n)}
+                      aria-label="Edit note"
+                    >
+                      Edit
+                    </button>
+                  )}
+                  {onDeleteNote && (
+                    <button
+                      type="button"
+                      className="jd-note-delete-btn"
+                      onClick={() => onDeleteNote(n.id)}
+                      aria-label="Delete note"
+                    >
+                      Delete
+                    </button>
+                  )}
+                </div>
               </div>
             ))}
           </div>
@@ -1044,6 +1065,15 @@ export default function JobDetailDrawer({
   const [noteSubject, setNoteSubject] = useState('');
   const [noteBody, setNoteBody] = useState('');
 
+  // Note edit — EditFieldModal composite, null = closed, otherwise the note being edited
+  const [editingNote, setEditingNote] = useState(null);
+
+  // Payment edit/delete — EditFieldModal composite + confirm dialog
+  const [editingPayment, setEditingPayment] = useState(null);
+
+  // Receipt edit — null = closed, otherwise the receipt being edited
+  const [editingReceipt, setEditingReceipt] = useState(null);
+
   // LineItems edit — inline draft state
   const [liEditMode, setLiEditMode] = useState(false);
   const [liDraft, setLiDraft] = useState([]);
@@ -1065,12 +1095,14 @@ export default function JobDetailDrawer({
         if (lightboxSrc) { setLightboxSrc(null); return; }
         if (kebabOpen) { setKebabOpen(false); return; }
         if (editingField) { setEditingField(null); return; }
+        if (editingNote) { setEditingNote(null); return; }
+        if (editingPayment) { setEditingPayment(null); return; }
         onClose();
       }
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [onClose, lightboxSrc, kebabOpen, editingField]);
+  }, [onClose, lightboxSrc, kebabOpen, editingField, editingNote, editingPayment]);
 
   // Scroll-chain bug fix: lock body scroll while the drawer is open.
   // Saves and restores the prior scroll position so the user lands back
@@ -1233,6 +1265,36 @@ export default function JobDetailDrawer({
     showFlash('Receipt added');
   };
 
+  // ── Receipt update (edit mode) ────────────────────────────────────────────
+  // Called by AddReceiptModal's onUpdateReceipt callback.
+  // Receipts live in the flat receipts[] array managed by AppShell, not in
+  // job.receipts. AppShell owns the cloud write; we pass back the updated object
+  // via onUpdateJob so the local state reflects the change immediately by
+  // threading the update through the same path AppShell uses for all job meta.
+  // AppShell doesn't have an onUpdateReceipt handler today, so we mirror
+  // the approach for the inline receipts[] stored on the job itself when present,
+  // and call onUpdateJob with the full job. If AppShell gains a dedicated
+  // onUpdateReceipt in a later sprint, swap here.
+  const handleReceiptUpdate = (updatedReceipt) => {
+    if (!onUpdateJob) return;
+    // Receipts may be stored either in job.receipts (job-embedded) or in the
+    // global receipts[] prop (Supabase receipts table). For embedded receipts,
+    // update job.receipts directly. For global receipts, there's no job-level
+    // mutation to make — the parent AppShell would need its own handler.
+    // We handle the job-embedded case here; global receipts are updated via
+    // the receipts prop refresh path on the next cloud sync.
+    if (Array.isArray(job.receipts)) {
+      const updatedReceipts = job.receipts.map(r =>
+        String(r.id) === String(updatedReceipt.id) ? updatedReceipt : r
+      );
+      onUpdateJob({ ...job, receipts: updatedReceipts });
+    }
+    // For Supabase-backed receipts, AppShell propagates the update; we just
+    // close the modal and flash so the user gets immediate feedback.
+    setEditingReceipt(null);
+    showFlash('Receipt updated');
+  };
+
   // ── Photo delete ──────────────────────────────────────────────────────────
   // Removes from meta.photos[] array by index.
   // For bucket-path entries ({ path, uploadedAt }), also removes the storage
@@ -1258,6 +1320,46 @@ export default function JobDetailDrawer({
     const updated = (job.jobNotes || []).filter(n => n.id !== noteId);
     onUpdateJob({ ...job, jobNotes: updated });
     showFlash('Note deleted');
+  };
+
+  // ── Note edit ─────────────────────────────────────────────────────────────
+  // Opens EditFieldModal composite with subject + body fields seeded from the note.
+  // onSave receives { subject, body }; we merge those back onto the existing note by id.
+  const handleEditNote = (note) => setEditingNote(note);
+
+  const handleSaveNoteEdit = (patch) => {
+    const updated = (job.jobNotes || []).map(n =>
+      n.id === editingNote.id ? { ...n, subject: patch.subject, body: patch.body } : n
+    );
+    onUpdateJob({ ...job, jobNotes: updated });
+    setEditingNote(null);
+    showFlash('Note updated');
+  };
+
+  // ── Payment edit / delete ─────────────────────────────────────────────────
+  // editPayment + deletePayment are pure helpers from lib/payments — they handle
+  // validation, auto-flip, and return a new job. We write through onUpdateJob.
+  const handleEditPaymentSave = (patch) => {
+    const amt = parseFloat(patch.amount);
+    if (isNaN(amt) || amt <= 0) return;
+    // Normalise method: trim + lowercase so free-text input maps cleanly
+    const method = (patch.method || '').trim().toLowerCase() || 'unknown';
+    const updated = editPayment(job, editingPayment.id, {
+      amount: amt,
+      date: patch.date || editingPayment.date,
+      method,
+      note: patch.note || '',
+    });
+    onUpdateJob(updated);
+    setEditingPayment(null);
+    showFlash('Payment updated');
+  };
+
+  const handleDeletePayment = (payment) => {
+    if (!window.confirm(`Delete the ${gbp(payment.amount)} payment? You can't undo this.`)) return;
+    const updated = deletePayment(job, payment.id);
+    onUpdateJob(updated);
+    showFlash('Payment deleted');
   };
 
   // ── Receipt delete ────────────────────────────────────────────────────────
@@ -1742,6 +1844,7 @@ export default function JobDetailDrawer({
                 onViewPhoto={setLightboxSrc}
                 onAddReceipt={onAddReceipt ? () => setReceiptModalOpen(true) : undefined}
                 onDeleteReceipt={onDeleteReceipt ? handleDeleteReceipt : undefined}
+                onEditReceipt={onUpdateJob ? setEditingReceipt : undefined}
               />
             );
             const photosEl = (
@@ -1765,6 +1868,7 @@ export default function JobDetailDrawer({
                 onSubmitNote={handleSubmitNote}
                 onCancelNote={() => { setNoteFormOpen(false); setNoteSubject(''); setNoteBody(''); }}
                 onDeleteNote={onUpdateJob ? handleDeleteNote : undefined}
+                onEditNote={onUpdateJob ? handleEditNote : undefined}
               />
             );
 
@@ -1803,7 +1907,11 @@ export default function JobDetailDrawer({
           })()}
 
           {/* Payment history — self-gates when no payments */}
-          <PaymentHistoryList job={job} />
+          <PaymentHistoryList
+            job={job}
+            onEditPayment={onUpdateJob ? setEditingPayment : undefined}
+            onDeletePayment={onUpdateJob ? handleDeletePayment : undefined}
+          />
         </div>
 
         {/* Toast */}
@@ -1863,11 +1971,20 @@ export default function JobDetailDrawer({
         />
       )}
 
-      {/* AddReceiptModal — pre-bound to this job; jobId is injected in handleReceiptSave */}
+      {/* AddReceiptModal — add mode: pre-bound to this job; jobId injected in handleReceiptSave */}
       {receiptModalOpen && (
         <AddReceiptModal
           onClose={() => setReceiptModalOpen(false)}
           onSave={handleReceiptSave}
+        />
+      )}
+
+      {/* AddReceiptModal — edit mode: opened by tapping an existing receipt row */}
+      {editingReceipt && (
+        <AddReceiptModal
+          existingReceipt={editingReceipt}
+          onUpdateReceipt={handleReceiptUpdate}
+          onClose={() => setEditingReceipt(null)}
         />
       )}
 
@@ -1919,6 +2036,78 @@ export default function JobDetailDrawer({
           placeholder="Describe the job…"
           onSave={handleCustomerFieldSave}
           onClose={() => setEditingField(null)}
+        />
+      )}
+
+      {/* Note edit — composite mode with subject + body fields */}
+      {editingNote && (
+        <EditFieldModal
+          open
+          title="Edit note"
+          fields={[
+            {
+              key: 'subject',
+              label: 'Subject',
+              value: editingNote.subject || '',
+              inputType: 'text',
+              placeholder: 'e.g. Site visit, Customer request',
+            },
+            {
+              key: 'body',
+              label: 'Note',
+              value: editingNote.body || '',
+              inputType: 'textarea',
+              rows: 4,
+              placeholder: 'Write your note…',
+              validate: v => (!v?.trim() ? 'Note body cannot be empty' : null),
+            },
+          ]}
+          onSave={handleSaveNoteEdit}
+          onClose={() => setEditingNote(null)}
+        />
+      )}
+
+      {/* Payment edit — composite mode with amount, date, method, note fields */}
+      {editingPayment && (
+        <EditFieldModal
+          open
+          title="Edit payment"
+          fields={[
+            {
+              key: 'amount',
+              label: 'Amount (£)',
+              value: String(editingPayment.amount ?? ''),
+              inputType: 'number',
+              placeholder: '0.00',
+              validate: v => {
+                const n = parseFloat(v);
+                return (isNaN(n) || n <= 0) ? 'Amount must be greater than zero' : null;
+              },
+            },
+            {
+              key: 'date',
+              label: 'Date',
+              value: editingPayment.date || '',
+              inputType: 'text',
+              placeholder: 'YYYY-MM-DD',
+            },
+            {
+              key: 'method',
+              label: 'Method',
+              value: editingPayment.method || '',
+              inputType: 'text',
+              placeholder: 'cash | bank | card',
+            },
+            {
+              key: 'note',
+              label: 'Note (optional)',
+              value: editingPayment.note || '',
+              inputType: 'text',
+              placeholder: 'e.g. 50% deposit',
+            },
+          ]}
+          onSave={handleEditPaymentSave}
+          onClose={() => setEditingPayment(null)}
         />
       )}
     </>

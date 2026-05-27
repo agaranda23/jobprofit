@@ -1,19 +1,35 @@
 import { useRef, useState } from 'react';
 import { extractReceipt } from '../lib/receiptOCR';
 
-export default function AddReceiptModal({ onClose, onSave }) {
+/**
+ * AddReceiptModal — add a new receipt or edit an existing one.
+ *
+ * Props:
+ *   onClose           () => void
+ *   onSave            ({ payload, photoFile }) => Promise  — add mode
+ *   existingReceipt   object | undefined  — when present, modal opens in edit mode:
+ *                     seeds all fields from the receipt, calls onUpdateReceipt(updatedReceipt)
+ *                     on save instead of onSave.
+ *   onUpdateReceipt   (updatedReceipt) => void  — required when existingReceipt is provided
+ */
+export default function AddReceiptModal({ onClose, onSave, existingReceipt, onUpdateReceipt }) {
+  const isEditMode = !!existingReceipt;
   const fileRef = useRef(null);
-  const [photo, setPhoto] = useState(null);
-  const [photoFile, setPhotoFile] = useState(null);
-  const [label, setLabel] = useState('');
-  const [amount, setAmount] = useState('');
-  const [vat, setVat] = useState('');
-  const [items, setItems] = useState([]);
-  const [receiptDate, setReceiptDate] = useState(() => {
+
+  // In edit mode, seed from the existing receipt; otherwise use empty defaults.
+  const todayStr = () => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-  });
-  const [invoiceNumber, setInvoiceNumber] = useState('');
+  };
+
+  const [photo, setPhoto] = useState(isEditMode ? (existingReceipt.photo || null) : null);
+  const [photoFile, setPhotoFile] = useState(null);
+  const [label, setLabel] = useState(isEditMode ? (existingReceipt.label || '') : '');
+  const [amount, setAmount] = useState(isEditMode ? String(existingReceipt.amount ?? '') : '');
+  const [vat, setVat] = useState(isEditMode ? String(existingReceipt.vat ?? '') : '');
+  const [items, setItems] = useState(isEditMode ? (existingReceipt.items || []) : []);
+  const [receiptDate, setReceiptDate] = useState(isEditMode ? (existingReceipt.date || todayStr()) : todayStr());
+  const [invoiceNumber, setInvoiceNumber] = useState(isEditMode ? (existingReceipt.invoiceNumber || '') : '');
   const [extracting, setExtracting] = useState(false);
   const [extractError, setExtractError] = useState('');
   const [error, setError] = useState('');
@@ -69,20 +85,40 @@ export default function AddReceiptModal({ onClose, onSave }) {
       // Avoid new Date(yyyy-mm-dd) which interprets as UTC midnight and shifts in non-UTC zones.
       const d = new Date();
       const dateISO = receiptDate || `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-      await onSave({
-        payload: {
-          id: Date.now(),
+
+      if (isEditMode) {
+        // Edit mode — merge changes onto the existing receipt, preserving its id,
+        // jobId, imagePath, and createdAt. If the user didn't pick a new photo,
+        // keep the original; if they did, use the new base64 (cloud re-upload
+        // is not performed here — the AppShell handler can extend this later).
+        const updatedReceipt = {
+          ...existingReceipt,
           label: label.trim() || 'Receipt',
           amount: amt,
           vat: isNaN(vatNum) ? 0 : vatNum,
           items: items.filter(i => i.desc?.trim()),
           invoiceNumber: invoiceNumber.trim() || null,
-          photo, // keep base64 for legacy mirror
           date: dateISO,
-          createdAt: new Date().toISOString(),
-        },
-        photoFile, // raw File for cloud upload
-      });
+          // Only replace photo if user chose a new file
+          ...(photoFile ? { photo } : {}),
+        };
+        onUpdateReceipt(updatedReceipt);
+      } else {
+        await onSave({
+          payload: {
+            id: Date.now(),
+            label: label.trim() || 'Receipt',
+            amount: amt,
+            vat: isNaN(vatNum) ? 0 : vatNum,
+            items: items.filter(i => i.desc?.trim()),
+            invoiceNumber: invoiceNumber.trim() || null,
+            photo, // keep base64 for legacy mirror
+            date: dateISO,
+            createdAt: new Date().toISOString(),
+          },
+          photoFile, // raw File for cloud upload
+        });
+      }
     } catch (e) {
       setError(e?.message || 'Save failed — check connection');
       setSaving(false);
@@ -92,7 +128,7 @@ export default function AddReceiptModal({ onClose, onSave }) {
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal modal-tall" onClick={e => e.stopPropagation()}>
-        <h3 className="modal-title">Add receipt</h3>
+        <h3 className="modal-title">{isEditMode ? 'Edit receipt' : 'Add receipt'}</h3>
 
         <input
           ref={fileRef}
@@ -188,7 +224,7 @@ export default function AddReceiptModal({ onClose, onSave }) {
         <div className="modal-actions">
           <button className="btn-secondary" onClick={onClose} disabled={saving}>Cancel</button>
           <button className="btn-primary" onClick={save} disabled={extracting || saving}>
-            {saving ? 'Saving…' : 'Save receipt'}
+            {saving ? 'Saving…' : isEditMode ? 'Save changes' : 'Save receipt'}
           </button>
         </div>
       </div>
