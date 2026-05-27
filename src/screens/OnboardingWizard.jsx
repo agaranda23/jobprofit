@@ -1,12 +1,14 @@
 /**
- * OnboardingWizard — 5-step required-field wizard (NEW NAV only).
+ * OnboardingWizard — 4-step required-field wizard (NEW NAV only).
  *
  * Steps:
  *  1. Trading name  → profiles.business_name
  *  2. First name    → profiles.first_name
  *  3. Last name     → profiles.last_name
  *  4. Bank details  → profiles.sort_code + profiles.account_number
- *  5. Email         → display-only confirm (lives in auth.users.email — read-only)
+ *
+ * The previous step 5 (email confirmation) was read-only and provided no
+ * value to the user — it only blocked the Finish button. Removed 2026-05-27.
  *
  * Gate behaviour:
  *  - Shown on first app-open (new nav) when first_name or last_name is NULL.
@@ -21,6 +23,7 @@
 
 import { useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { logTelemetry } from '../lib/telemetry';
 
 const STEPS = [
   {
@@ -58,15 +61,6 @@ const STEPS = [
     placeholder: null, // bank step has two sub-inputs
     inputMode: null,
     type: 'bank',
-  },
-  {
-    id: 'email',
-    step: 5,
-    label: 'Email',
-    helper: "This is the email on your account. Edit it in your device settings if needed.",
-    placeholder: null, // pre-filled from auth
-    inputMode: 'email',
-    type: 'email',
   },
 ];
 
@@ -110,7 +104,7 @@ function legacyBizDefaults() {
 }
 
 export default function OnboardingWizard({ session, profile, onComplete }) {
-  const [stepIndex, setStepIndex] = useState(() => firstMissingStep(profile, session));
+  const [stepIndex, setStepIndex] = useState(() => firstMissingStep(profile));
   const [values, setValues] = useState(() => {
     // Profile (cloud) takes priority; legacy localStorage fills gaps.
     const legacy = legacyBizDefaults();
@@ -120,7 +114,6 @@ export default function OnboardingWizard({ session, profile, onComplete }) {
       last_name: profile?.last_name || '',
       sort_code: formatSortCode(profile?.sort_code || legacy.sort_code || ''),
       account_number: (profile?.account_number || legacy.account_number || '').replace(/\D/g, '').slice(0, 8),
-      email: session?.user?.email || '',
     };
   });
   const [bankTouched, setBankTouched] = useState({ sort_code: false, account_number: false });
@@ -138,11 +131,6 @@ export default function OnboardingWizard({ session, profile, onComplete }) {
   function canAdvance() {
     if (step.type === 'bank') {
       return isSortCodeValid(values.sort_code) && isAccountNumberValid(values.account_number);
-    }
-    if (step.type === 'email') {
-      // F-04: email is display-only confirmation; auth session is sufficient.
-      // An empty email (e.g. social-login accounts) must not block Finish.
-      return true;
     }
     return (values[step.id] || '').trim().length > 0;
   }
@@ -190,10 +178,13 @@ export default function OnboardingWizard({ session, profile, onComplete }) {
       // Clear the session flag now that wizard is done
       sessionStorage.removeItem('jp.wizardActive');
 
+      // data can be null if Supabase returns nothing despite a successful upsert —
+      // fall back to the patch we sent so the caller always gets a profile object.
       onComplete(data || patch);
     } catch (e) {
       console.error('Wizard save failed', e);
-      setError('Could not save — check your connection and try again.');
+      logTelemetry('wizard_save_failed', { error: e?.message, step: stepIndex });
+      setError(`Could not save: ${e?.message || 'check your connection and try again'}`);
       setSaving(false);
     }
   }
@@ -225,8 +216,6 @@ export default function OnboardingWizard({ session, profile, onComplete }) {
             onBlur={(field) => setBankTouched(t => ({ ...t, [field]: true }))}
             onSubmit={handleNext}
           />
-        ) : step.type === 'email' ? (
-          <EmailStep value={values.email} onSubmit={handleNext} />
         ) : (
           <input
             className="wizard-input"
@@ -241,9 +230,15 @@ export default function OnboardingWizard({ session, profile, onComplete }) {
             aria-label={step.label}
           />
         )}
-
-        {error && <p className="wizard-error">{error}</p>}
       </div>
+
+      {/* Error sits between body and footer so it's always visible above the
+          Finish button, even when the wizard-body scrolls on small screens. */}
+      {error && (
+        <div className="wizard-error wizard-error--banner" role="alert">
+          {error}
+        </div>
+      )}
 
       <div className="wizard-footer">
         {stepIndex > 0 && (
@@ -327,30 +322,16 @@ function BankStep({ values, touched, onChange, onBlur, onSubmit }) {
   );
 }
 
-function EmailStep({ value, onSubmit }) {
-  return (
-    <input
-      className="wizard-input wizard-input--prefilled"
-      type="email"
-      value={value}
-      readOnly
-      onKeyDown={e => { if (e.key === 'Enter') onSubmit(); }}
-      aria-label="Email — read only, set on account"
-    />
-  );
-}
-
 /**
  * Returns the index of the first wizard step that is still missing data.
- * Falls back to 0 so the user always starts at step 1 if nothing is filled.
+ * Falls back to 0 so the user always starts at step 1 (trading name).
+ * If all 4 required fields are already filled, the wizard should not have
+ * opened — return 0 as a safe default so it starts at the beginning if it does.
  */
-function firstMissingStep(profile, session) {
+function firstMissingStep(profile) {
   if (!profile?.business_name) return 0;
   if (!profile?.first_name) return 1;
   if (!profile?.last_name) return 2;
   if (!profile?.sort_code || !profile?.account_number) return 3;
-  // Email always exists from auth — treat step 5 as confirmation, start there if
-  // all prior steps are done so the user can just hit Finish.
-  if (!session?.user?.email) return 4;
-  return 4; // land on email confirmation step so user sees Finish button
+  return 0;
 }

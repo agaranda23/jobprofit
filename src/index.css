@@ -2216,7 +2216,7 @@ input[type=number] { -moz-appearance: textfield; }
 
 /* ═══════════════════════════════════════════════════════════════
    ONBOARDING WIZARD — nav-redesign-slice-2
-   Full-screen 5-step wizard, new-nav only.
+   Full-screen 4-step wizard, new-nav only.
    ═══════════════════════════════════════════════════════════════ */
 
 .wizard-screen {
@@ -2326,6 +2326,16 @@ input[type=number] { -moz-appearance: textfield; }
   background: rgba(229, 72, 77, 0.08);
   border-radius: 8px;
   padding: 10px 14px;
+}
+
+/* Banner variant — rendered outside .wizard-body so it never scrolls off-screen.
+   Sits between the scrollable body and the pinned footer, always visible. */
+.wizard-error--banner {
+  margin: 0 28px 8px;
+  flex-shrink: 0;
+  max-width: calc(480px - 56px);
+  align-self: center;
+  width: calc(100% - 56px);
 }
 
 .wizard-footer {
