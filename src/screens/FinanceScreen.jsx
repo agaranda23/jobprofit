@@ -419,9 +419,11 @@ function ChaseRow({ entry, onMarkPaid }) {
   return (
     <li className="unpaid-item">
       <div className="unpaid-main">
-        <span className="unpaid-label">{entry.label}</span>
+        <div className="unpaid-name-group">
+          <span className="unpaid-label">{entry.label}</span>
+          {pill && <span className="chase-row-pill">{pill}</span>}
+        </div>
         <span className="unpaid-amount">{amountOutstanding}</span>
-        {pill && <span className="chase-row-pill">{pill}</span>}
       </div>
       {pickerOpen ? (
         <div className="chase-picker">
