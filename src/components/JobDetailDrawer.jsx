@@ -26,6 +26,9 @@ import {
   buildPublicQuoteUrl,
   buildShareMessage,
 } from '../lib/publicQuoteToken';
+import { buildWhatsAppLink } from '../lib/invoiceMessage';
+import { buildQuoteWhatsAppMessage } from '../lib/quoteMessage';
+import { logTelemetry } from '../lib/telemetry';
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -1270,10 +1273,12 @@ export default function JobDetailDrawer({
     showFlash('Quote accepted — signed by customer');
   };
 
-  // ── Send link (Phase G-1) ─────────────────────────────────────────────────
-  // Lazily generates a publicAccessToken on first tap, then opens the Web Share
-  // API with a templated message. Falls back to clipboard copy when Share API
-  // is unavailable (desktop browsers, older iOS).
+  // ── Send link (Phase G-1 / B5) ───────────────────────────────────────────
+  // Lazily generates a publicAccessToken on first tap, then:
+  //   • WhatsApp-first: if the customer has a phone, open wa.me with the quote
+  //     URL and a pre-filled message so WhatsApp opens directly to their chat.
+  //   • Fallback: no phone → Web Share API (OS share sheet).
+  //   • Last resort: no phone AND no Web Share API → clipboard copy.
   const handleSendLink = async () => {
     // Ensure the job has a token — generate one if not
     let token = job.publicAccessToken;
@@ -1285,14 +1290,26 @@ export default function JobDetailDrawer({
       }
     }
 
-    const url = buildPublicQuoteUrl(token);
-    const customerName = job.customer || job.name || '';
-    const businessName = job.businessName || job.business_name || '';
-    const message = buildShareMessage(url, customerName, businessName);
+    const quoteUrl = buildPublicQuoteUrl(token);
+    const phone = resolvePhone(job);
 
+    if (phone) {
+      // WhatsApp-first: open wa.me deep-link with recipient + pre-filled message
+      const message = buildQuoteWhatsAppMessage({ job, biz, quoteUrl });
+      const link = buildWhatsAppLink({ phone, message });
+      window.open(link, '_blank', 'noopener');
+      logTelemetry('quote_send', { channel: 'whatsapp' });
+      return;
+    }
+
+    // No phone — fall back to OS share sheet
     if (navigator.share) {
+      const customerName = job.customer || job.name || '';
+      const businessName = biz?.name || biz?.business_name || job.businessName || job.business_name || '';
+      const shareText = buildShareMessage(quoteUrl, customerName, businessName);
       try {
-        await navigator.share({ title: 'Your quote', text: message, url });
+        await navigator.share({ title: 'Your quote', text: shareText, url: quoteUrl });
+        logTelemetry('quote_send', { channel: 'share' });
         return;
       } catch (err) {
         // User cancelled the share sheet — treat as no-op, not an error
@@ -1301,12 +1318,13 @@ export default function JobDetailDrawer({
       }
     }
 
-    // Clipboard fallback
+    // No phone AND no Web Share API — clipboard copy
     try {
-      await navigator.clipboard.writeText(url);
+      await navigator.clipboard.writeText(quoteUrl);
       showFlash('Link copied — paste it in WhatsApp');
+      logTelemetry('quote_send', { channel: 'clipboard' });
     } catch {
-      showFlash('Could not copy link — share this URL: ' + url);
+      showFlash('Could not copy link — share this URL: ' + quoteUrl);
     }
   };
 
