@@ -1529,6 +1529,17 @@ input[type=number] { -moz-appearance: textfield; }
 .job-card--warn {
   border-color: var(--jp-amber);
 }
+/* Overdue card: left-edge rose stripe per first-pass spec */
+.job-card--overdue {
+  border-left: 3px solid var(--jp-rose);
+}
+/* "N days late" meta tag on overdue cards */
+.job-card-overdue-meta {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--jp-rose);
+  margin-top: 4px;
+}
 .job-card--tappable {
   cursor: pointer;
   transition: opacity 0.12s;
@@ -1599,10 +1610,12 @@ input[type=number] { -moz-appearance: textfield; }
   font-weight: 800;
   flex-shrink: 0;
 }
+.status--lead     { background: #3a2a12; color: var(--jp-amber); }
 .status--quoted   { background: #1e2d4a; color: #93c5fd; }
 .status--active   { background: #1a3a2a; color: var(--jp-green); }
 .status--done     { background: #3a2a12; color: var(--jp-amber); }
 .status--invoiced { background: #2a1a3a; color: #c4b5fd; }
+.status--overdue  { background: #3a1a1a; color: var(--jp-rose); }
 .status--paid     { background: #1a3a2a; color: var(--jp-green); }
 
 /* ── JobsScreen — money-at-risk strip ─────────── */
