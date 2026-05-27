@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import PaymentSummaryBlock from './PaymentSummaryBlock';
 import PaymentHistoryList from './PaymentHistoryList';
 import RecordPaymentModal from './RecordPaymentModal';
@@ -316,9 +316,13 @@ function DetailsSection({
 }
 
 /**
- * ProfitBarSection — read-only stacked bar showing quote / materials / profit / margin.
- * "Materials" here means actual receipts/expenses linked to the job (not the quote lineItems).
- * Hidden entirely when job.quote === 0 (no "0% margin" stub for jobs with no quote).
+ * ProfitBarSection — hero + subline profit display.
+ * "Materials" means actual receipts/expenses linked to the job (not quote lineItems).
+ * Hidden entirely when job quote value is zero.
+ *
+ * Hero:    £{profit} profit · {margin}%   — large, bold, colour-coded by margin
+ * Subline: from £{quote} quote · £{materials} materials — small, muted
+ * Bar:     only shown when materials > 0 (no bar for pure-labour jobs)
  */
 function ProfitBarSection({ job, receipts }) {
   const quote = job.total ?? job.amount ?? 0;
@@ -336,35 +340,27 @@ function ProfitBarSection({ job, receipts }) {
   return (
     <div className="jd-section">
       <div className="jd-section-header">Profit</div>
-      <div className="jd-section-body">
-        <div className="jd-profit-grid">
-          <div className="jd-profit-cell">
-            <div className="jd-profit-label">Quote</div>
-            <div className="jd-profit-value jd-profit-value--quote">{gbp(quote)}</div>
-          </div>
-          <div className="jd-profit-cell">
-            <div className="jd-profit-label">Materials</div>
-            <div className="jd-profit-value jd-profit-value--materials">{gbp(materials)}</div>
-          </div>
-          <div className="jd-profit-cell">
-            <div className="jd-profit-label">Profit</div>
-            <div className="jd-profit-value jd-profit-value--profit">{gbp(profit)}</div>
-          </div>
-          <div className="jd-profit-cell">
-            <div className="jd-profit-label">Margin</div>
-            <div className="jd-profit-value" style={{ color: marginColor }}>{margin}%</div>
-          </div>
+      <div className="jd-section-body jd-profit-hero-body">
+        <div className="jd-profit-hero" style={{ color: marginColor }}>
+          {gbp(profit)} profit · {margin}%
         </div>
-        <div className="jd-profit-bar-track">
-          <div
-            className="jd-profit-bar-fill"
-            style={{ background: `linear-gradient(90deg, var(--danger) ${matPct}%, var(--accent) ${matPct}%)` }}
-          />
+        <div className="jd-profit-subline">
+          from {gbp(quote)} quote · {gbp(materials)} materials
         </div>
-        <div className="jd-profit-bar-labels">
-          <span className="jd-profit-bar-label--materials">Materials {Math.round(matPct)}%</span>
-          <span className="jd-profit-bar-label--profit">Profit {Math.round(100 - matPct)}%</span>
-        </div>
+        {materials > 0 && (
+          <>
+            <div className="jd-profit-bar-track">
+              <div
+                className="jd-profit-bar-fill"
+                style={{ background: `linear-gradient(90deg, var(--danger) ${matPct}%, var(--accent) ${matPct}%)` }}
+              />
+            </div>
+            <div className="jd-profit-bar-labels">
+              <span className="jd-profit-bar-label--materials">Materials {Math.round(matPct)}%</span>
+              <span className="jd-profit-bar-label--profit">Profit {Math.round(100 - matPct)}%</span>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
@@ -410,6 +406,15 @@ function QuoteBreakdownSection({
     const unit = Number(i.cost || i.unitCost || i.price || 0);
     return sum + qty * unit;
   }, 0);
+
+  // In read mode: hide when there is exactly one line item and its value equals
+  // the job total — the header already shows the total so the breakdown adds nothing.
+  const jobTotal = job.total ?? job.amount ?? 0;
+  if (!editMode && items.length === 1 && !onToggleEdit) {
+    const singleQty = Number(items[0].qty || items[0].quantity || 1);
+    const singleUnit = Number(items[0].cost || items[0].unitCost || items[0].price || 0);
+    if (singleQty * singleUnit === jobTotal && jobTotal > 0) return null;
+  }
 
   const draftTotal = Array.isArray(editItems)
     ? editItems.reduce((sum, i) => sum + Number(i.cost || 0), 0)
@@ -560,6 +565,12 @@ function QuickContactSection({ job }) {
  *
  * onDeleteReceipt(id) — optional; when present, each receipt row gets an × button.
  */
+/**
+ * ReceiptsSection renders as a pill chip when there are no receipts (empty state),
+ * or as a full section when at least one receipt exists.
+ * Returns { pillChip: ReactElement | null, section: ReactElement | null } so the
+ * parent can group all empty-section pills together on one row.
+ */
 function ReceiptsSection({ job, receipts, onViewPhoto, onAddReceipt, onDeleteReceipt }) {
   // receipts shape from getTodayReceipts: { id, label, amount, photo, date, jobId, imagePath }
   // Match on both string UUID (cloud) and legacy integer-style IDs
@@ -568,9 +579,24 @@ function ReceiptsSection({ job, receipts, onViewPhoto, onAddReceipt, onDeleteRec
     return String(r.jobId) === String(job.id) || String(r.jobId) === String(job.cloudId);
   });
 
-  // Hide entirely when there's nothing to show and no handler to add one
+  // Nothing to show and no handler — render nothing
   if (jobReceipts.length === 0 && !onAddReceipt) return null;
 
+  // Empty + has handler → pill chip (rendered by parent in the empty-pill row)
+  if (jobReceipts.length === 0 && onAddReceipt) {
+    return (
+      <button
+        type="button"
+        className="jd-pill-chip"
+        onClick={onAddReceipt}
+        aria-label="Add receipt"
+      >
+        + Add receipt
+      </button>
+    );
+  }
+
+  // Has content → full section
   return (
     <div className="jd-section">
       <div className="jd-section-header jd-section-header--with-action">
@@ -586,43 +612,41 @@ function ReceiptsSection({ job, receipts, onViewPhoto, onAddReceipt, onDeleteRec
           </button>
         )}
       </div>
-      {jobReceipts.length > 0 && (
-        <div className="jd-section-body jd-section-body--flush">
-          {jobReceipts.map(r => (
-            <div key={r.id} className="jd-receipt-row">
-              {r.photo ? (
+      <div className="jd-section-body jd-section-body--flush">
+        {jobReceipts.map(r => (
+          <div key={r.id} className="jd-receipt-row">
+            {r.photo ? (
+              <button
+                type="button"
+                className="jd-receipt-thumb-btn"
+                onClick={() => onViewPhoto(r.photo)}
+                aria-label="View receipt photo"
+              >
+                <img src={r.photo} alt="" className="jd-receipt-thumb" />
+              </button>
+            ) : (
+              <div className="jd-receipt-icon" aria-hidden="true">🧾</div>
+            )}
+            <div className="jd-receipt-meta">
+              <div className="jd-receipt-label">{r.label || 'Receipt'}</div>
+              {r.date && <div className="jd-receipt-date">{fmtDate(r.date)}</div>}
+            </div>
+            <div className="jd-receipt-right">
+              <div className="jd-receipt-amount">{gbp(r.amount || 0)}</div>
+              {onDeleteReceipt && (
                 <button
                   type="button"
-                  className="jd-receipt-thumb-btn"
-                  onClick={() => onViewPhoto(r.photo)}
-                  aria-label="View receipt photo"
+                  className="jd-receipt-delete-btn"
+                  onClick={() => onDeleteReceipt(r.id)}
+                  aria-label="Delete receipt"
                 >
-                  <img src={r.photo} alt="" className="jd-receipt-thumb" />
+                  ✕
                 </button>
-              ) : (
-                <div className="jd-receipt-icon" aria-hidden="true">🧾</div>
               )}
-              <div className="jd-receipt-meta">
-                <div className="jd-receipt-label">{r.label || 'Receipt'}</div>
-                {r.date && <div className="jd-receipt-date">{fmtDate(r.date)}</div>}
-              </div>
-              <div className="jd-receipt-right">
-                <div className="jd-receipt-amount">{gbp(r.amount || 0)}</div>
-                {onDeleteReceipt && (
-                  <button
-                    type="button"
-                    className="jd-receipt-delete-btn"
-                    onClick={() => onDeleteReceipt(r.id)}
-                    aria-label="Delete receipt"
-                  >
-                    ✕
-                  </button>
-                )}
-              </div>
             </div>
-          ))}
-        </div>
-      )}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -697,12 +721,32 @@ function PhotoThumb({ entry, index, onViewPhoto, onDeletePhoto }) {
  *
  * onDeletePhoto(idx) — optional; when present, each thumbnail gets an × button.
  */
+/**
+ * PhotosSection renders as a pill chip when there are no photos (empty state),
+ * or as a full section when photos exist.
+ */
 function PhotosSection({ photos, onViewPhoto, onAddPhoto, photoAdding, onDeletePhoto }) {
   const hasPhotos = Array.isArray(photos) && photos.length > 0;
 
-  // Hide entirely when nothing to show and no handler to add
+  // Nothing to show and no handler — render nothing
   if (!hasPhotos && !onAddPhoto) return null;
 
+  // Empty + has handler → pill chip (rendered by parent in the empty-pill row)
+  if (!hasPhotos && onAddPhoto) {
+    return (
+      <button
+        type="button"
+        className="jd-pill-chip"
+        onClick={onAddPhoto}
+        disabled={photoAdding}
+        aria-label="Add photo"
+      >
+        {photoAdding ? 'Adding…' : '+ Add photo'}
+      </button>
+    );
+  }
+
+  // Has content → full section
   return (
     <div className="jd-section">
       <div className="jd-section-header jd-section-header--with-action">
@@ -719,21 +763,19 @@ function PhotosSection({ photos, onViewPhoto, onAddPhoto, photoAdding, onDeleteP
           </button>
         )}
       </div>
-      {hasPhotos && (
-        <div className="jd-section-body">
-          <div className="jd-photos-grid">
-            {photos.map((entry, i) => (
-              <PhotoThumb
-                key={i}
-                entry={entry}
-                index={i}
-                onViewPhoto={onViewPhoto}
-                onDeletePhoto={onDeletePhoto}
-              />
-            ))}
-          </div>
+      <div className="jd-section-body">
+        <div className="jd-photos-grid">
+          {photos.map((entry, i) => (
+            <PhotoThumb
+              key={i}
+              entry={entry}
+              index={i}
+              onViewPhoto={onViewPhoto}
+              onDeletePhoto={onDeletePhoto}
+            />
+          ))}
         </div>
-      )}
+      </div>
     </div>
   );
 }
@@ -772,8 +814,22 @@ function NotesSection({
   const hasContent = structuredNotes.length > 0 || !!plainNotes;
   const canAdd = typeof onOpenNoteForm === 'function';
 
-  // Hide entirely when there's nothing to display and no way to add
+  // Nothing to display and no way to add — render nothing
   if (!hasContent && !canAdd) return null;
+
+  // Empty + has handler + form not open → pill chip (rendered by parent in the empty-pill row)
+  if (!hasContent && canAdd && !noteFormOpen) {
+    return (
+      <button
+        type="button"
+        className="jd-pill-chip"
+        onClick={onOpenNoteForm}
+        aria-label="Add note"
+      >
+        + Add note
+      </button>
+    );
+  }
 
   return (
     <div className="jd-section">
@@ -907,6 +963,8 @@ export default function JobDetailDrawer({
   const [sigPadOpen, setSigPadOpen] = useState(false);
   const [lightboxSrc, setLightboxSrc] = useState(null);
   const [toast, setToast] = useState(null);
+  const [kebabOpen, setKebabOpen] = useState(false);
+  const kebabRef = useRef(null);
 
   // Photo add — hidden file input, ref kept here so the button can trigger it
   const photoInputRef = useRef(null);
@@ -927,17 +985,46 @@ export default function JobDetailDrawer({
   const [schedStart, setSchedStart] = useState('');
   const [schedEnd, setSchedEnd] = useState('');
 
-  // Close on Escape — also closes lightbox if open
+  // Close on Escape — also closes lightbox or kebab if open
   useEffect(() => {
     const onKey = (e) => {
       if (e.key === 'Escape') {
         if (lightboxSrc) { setLightboxSrc(null); return; }
+        if (kebabOpen) { setKebabOpen(false); return; }
         onClose();
       }
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [onClose, lightboxSrc]);
+  }, [onClose, lightboxSrc, kebabOpen]);
+
+  // Scroll-chain bug fix: lock body scroll while the drawer is open.
+  // Saves and restores the prior scroll position so the user lands back
+  // where they were when closing the drawer.
+  useEffect(() => {
+    const scrollY = window.scrollY;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = '';
+      window.scrollTo(0, scrollY);
+    };
+  }, []);
+
+  // Close kebab when clicking outside it
+  useEffect(() => {
+    if (!kebabOpen) return;
+    const onOutside = (e) => {
+      if (kebabRef.current && !kebabRef.current.contains(e.target)) {
+        setKebabOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onOutside);
+    document.addEventListener('touchstart', onOutside, { passive: true });
+    return () => {
+      document.removeEventListener('mousedown', onOutside);
+      document.removeEventListener('touchstart', onOutside);
+    };
+  }, [kebabOpen]);
 
   const status = deriveStatus(job);
   const statusClass = STATUS_CLASS[status] || '';
@@ -945,10 +1032,7 @@ export default function JobDetailDrawer({
   const amount = job.total ?? job.amount;
   const showChase = shouldShowChase(job);
 
-  // Invoice send CTA gating:
-  // - "Send invoice" when the job has never been invoiced (status not Invoiced/Paid,
-  //   and invoiceSentAt is absent).
-  // - "Resend invoice" (secondary link) when invoice was already sent.
+  // Invoice send CTA gating (still used for kebab menu items)
   const invoiceAlreadySent =
     status === 'Invoiced' || status === 'Paid' ||
     !!job.invoiceSentAt || job.status === 'invoice_sent';
@@ -1226,7 +1310,7 @@ export default function JobDetailDrawer({
     }
   };
 
-  // Send link: visible when the job has lineItems but is not yet accepted
+  // Send link: visible when job has lineItems and is not yet accepted (used for kebab too)
   const showSendLink = onUpdateJob &&
     Array.isArray(job.lineItems) && job.lineItems.length > 0 &&
     job.quoteStatus !== 'accepted';
@@ -1241,6 +1325,51 @@ export default function JobDetailDrawer({
       job.quoteStatus === 'sent' ||
       (job.quoteStatus === 'accepted' && (!job.jobStatus || job.jobStatus === 'quote'))
     );
+
+  // ── Stateful primary CTA derivation ──────────────────────────────────────
+  // Maps the job's position in the Get Paid loop to a single primary action.
+  // All handlers are defined above — derivation lives here so handleSendLink
+  // is in scope.
+  const isPaid =
+    job.paid === true ||
+    job.paymentStatus === 'paid' ||
+    job.jobStatus === 'paid' ||
+    job.status === 'paid';
+
+  const isInvoiced =
+    !!job.invoiceSentAt ||
+    job.invoiceStatus === 'invoiced' ||
+    job.status === 'invoice_sent' ||
+    job.status === 'awaiting';
+
+  const isQuoteAccepted =
+    job.quoteStatus === 'accepted' ||
+    (job.jobStatus === 'active' && job.quoteStatus !== 'draft' && job.quoteStatus !== 'sent');
+
+  const isQuoteSent = job.quoteStatus === 'sent';
+
+  let primaryCtaLabel = null;
+  let primaryCtaHandler = null;
+  const primaryCtaClass = 'btn-primary job-detail-cta-primary';
+
+  if (!isPaid) {
+    if (isInvoiced && showChase) {
+      primaryCtaLabel = 'Chase via WhatsApp';
+      primaryCtaHandler = handleChase;
+    } else if (isInvoiced) {
+      primaryCtaLabel = 'Record payment';
+      primaryCtaHandler = () => setPaymentModalOpen(true);
+    } else if (isQuoteAccepted) {
+      primaryCtaLabel = 'Send invoice';
+      primaryCtaHandler = () => setInvoiceModalOpen(true);
+    } else if (isQuoteSent) {
+      primaryCtaLabel = 'Resend quote link';
+      primaryCtaHandler = handleSendLink;
+    } else {
+      primaryCtaLabel = 'Send quote link';
+      primaryCtaHandler = handleSendLink;
+    }
+  }
 
   return (
     <>
@@ -1278,6 +1407,111 @@ export default function JobDetailDrawer({
                 {gbp(amount)}
               </div>
             )}
+
+            {/* Kebab overflow menu — secondary actions */}
+            <div className="jd-kebab-wrap" ref={kebabRef}>
+              <button
+                type="button"
+                className="jd-kebab-btn"
+                onClick={() => setKebabOpen(v => !v)}
+                aria-label="More actions"
+                aria-expanded={kebabOpen}
+                aria-haspopup="menu"
+              >
+                ⋯
+              </button>
+              {kebabOpen && (
+                <div className="jd-kebab-menu" role="menu">
+                  {/* Record payment — always visible when not paid */}
+                  {!isPaid && (
+                    <button
+                      type="button"
+                      className="jd-kebab-item"
+                      role="menuitem"
+                      onClick={() => { setKebabOpen(false); setPaymentModalOpen(true); }}
+                    >
+                      Record payment
+                    </button>
+                  )}
+                  {/* Send invoice / Resend invoice */}
+                  {showSendInvoice && (
+                    <button
+                      type="button"
+                      className="jd-kebab-item"
+                      role="menuitem"
+                      onClick={() => { setKebabOpen(false); setInvoiceModalOpen(true); }}
+                    >
+                      Send invoice
+                    </button>
+                  )}
+                  {showResendInvoice && (
+                    <button
+                      type="button"
+                      className="jd-kebab-item"
+                      role="menuitem"
+                      onClick={() => { setKebabOpen(false); setInvoiceModalOpen(true); }}
+                    >
+                      Resend invoice
+                    </button>
+                  )}
+                  {/* Send / Resend quote link */}
+                  {showSendLink && (
+                    <button
+                      type="button"
+                      className="jd-kebab-item"
+                      role="menuitem"
+                      onClick={() => { setKebabOpen(false); handleSendLink(); }}
+                    >
+                      {job.publicAccessToken ? 'Resend quote link' : 'Send quote link'}
+                    </button>
+                  )}
+                  {/* Chase via WhatsApp */}
+                  {showChase && (
+                    <button
+                      type="button"
+                      className="jd-kebab-item"
+                      role="menuitem"
+                      onClick={() => { setKebabOpen(false); handleChase(); }}
+                    >
+                      Chase via WhatsApp
+                    </button>
+                  )}
+                  {/* Mark Sent (draft quote) */}
+                  {showMarkSent && (
+                    <button
+                      type="button"
+                      className="jd-kebab-item"
+                      role="menuitem"
+                      onClick={() => { setKebabOpen(false); handleMarkSent(); }}
+                    >
+                      Mark as sent
+                    </button>
+                  )}
+                  {/* Accept quote / Convert (pipeline actions) */}
+                  {showAcceptQuote && (
+                    <button
+                      type="button"
+                      className="jd-kebab-item"
+                      role="menuitem"
+                      onClick={() => { setKebabOpen(false); setSigPadOpen(true); }}
+                    >
+                      Accept quote
+                    </button>
+                  )}
+                  {showConvert && (
+                    <button
+                      type="button"
+                      className="jd-kebab-item"
+                      role="menuitem"
+                      onClick={() => { setKebabOpen(false); handleConvert(); }}
+                    >
+                      Convert to job
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+
             <button
               className="job-detail-close"
               onClick={onClose}
@@ -1308,109 +1542,18 @@ export default function JobDetailDrawer({
             }}
           />
 
-          {/* Primary CTA block — mutually exclusive based on invoice state */}
-          {showSendInvoice && (
+          {/* Single stateful primary CTA — one action, the right action for the job's state */}
+          {primaryCtaLabel && primaryCtaHandler && (
             <div className="job-detail-cta-row">
               <button
                 type="button"
-                className="btn-primary job-detail-cta-primary"
-                onClick={() => setInvoiceModalOpen(true)}
+                className={primaryCtaClass}
+                onClick={primaryCtaHandler}
               >
-                Send invoice
+                {primaryCtaLabel}
               </button>
-            </div>
-          )}
-
-          {/* Once invoice is sent: Record payment becomes the primary CTA */}
-          {!showSendInvoice && status !== 'Paid' && (
-            <div className="job-detail-cta-row">
-              <button
-                type="button"
-                className="btn-primary job-detail-cta-primary"
-                onClick={() => setPaymentModalOpen(true)}
-              >
-                Record payment
-              </button>
-            </div>
-          )}
-
-          {/* Resend invoice — secondary, only when invoice already sent and not paid */}
-          {showResendInvoice && (
-            <div className="job-detail-resend-row">
-              <button
-                type="button"
-                className="btn-ghost job-detail-resend-btn"
-                onClick={() => setInvoiceModalOpen(true)}
-              >
-                Resend invoice
-              </button>
-            </div>
-          )}
-
-          {/* Chase CTA — only when unpaid + outstanding > 0 + phone present */}
-          {showChase && (
-            <div className="job-detail-chase-row">
-              <button
-                type="button"
-                className="btn-secondary job-detail-chase-btn"
-                onClick={handleChase}
-              >
-                Chase customer
-              </button>
-              {chasedLabel && (
+              {primaryCtaLabel === 'Chase via WhatsApp' && chasedLabel && (
                 <span className="job-detail-chased-label">{chasedLabel}</span>
-              )}
-            </div>
-          )}
-
-          {/* Pipeline buttons — Mark Sent (draft quote), Accept Quote (sent), Convert (fallback) */}
-          {(showMarkSent || showAcceptQuote || showConvert) && (
-            <div className="job-detail-pipeline-row">
-              {showMarkSent && (
-                <button
-                  type="button"
-                  className="btn-warn"
-                  style={{ flex: 1 }}
-                  onClick={handleMarkSent}
-                >
-                  Mark sent
-                </button>
-              )}
-              {showAcceptQuote && (
-                <button
-                  type="button"
-                  className="btn-convert"
-                  style={{ flex: 1 }}
-                  onClick={() => setSigPadOpen(true)}
-                >
-                  Accept quote
-                </button>
-              )}
-              {showConvert && (
-                <button
-                  type="button"
-                  className="btn-convert"
-                  style={{ flex: 1 }}
-                  onClick={handleConvert}
-                >
-                  Convert to job
-                </button>
-              )}
-            </div>
-          )}
-
-          {/* Send link CTA — share the public quote URL via WhatsApp / clipboard */}
-          {showSendLink && (
-            <div className="job-detail-send-link-row">
-              <button
-                type="button"
-                className="btn-ghost job-detail-send-link-btn"
-                onClick={handleSendLink}
-              >
-                Send quote link
-              </button>
-              {job.publicAccessToken && (
-                <span className="job-detail-send-link-hint">Link already sent</span>
               )}
             </div>
           )}
@@ -1451,15 +1594,6 @@ export default function JobDetailDrawer({
             onDeleteItem={handleDeleteLiItem}
           />
 
-          {/* Receipts (material purchase photos / linked expense records) */}
-          <ReceiptsSection
-            job={job}
-            receipts={receipts}
-            onViewPhoto={setLightboxSrc}
-            onAddReceipt={onAddReceipt ? () => setReceiptModalOpen(true) : undefined}
-            onDeleteReceipt={onDeleteReceipt ? handleDeleteReceipt : undefined}
-          />
-
           {/* Hidden file input for photo capture — rendered here so handlePhotoFiles
               has access to onUpdateJob via closure. The button lives in PhotosSection. */}
           <input
@@ -1473,26 +1607,76 @@ export default function JobDetailDrawer({
             aria-hidden="true"
           />
 
-          <PhotosSection
-            photos={job.photos}
-            onViewPhoto={setLightboxSrc}
-            onAddPhoto={onUpdateJob ? () => photoInputRef.current?.click() : undefined}
-            photoAdding={photoAdding}
-            onDeletePhoto={onUpdateJob ? handleDeletePhoto : undefined}
-          />
+          {/* Receipts / Photos / Notes: render as full sections when they have content,
+              or as inline pill chips when empty. Chips are grouped on one row so they
+              don't each take a full-width block of vertical space. */}
+          {(() => {
+            const receiptsEl = (
+              <ReceiptsSection
+                job={job}
+                receipts={receipts}
+                onViewPhoto={setLightboxSrc}
+                onAddReceipt={onAddReceipt ? () => setReceiptModalOpen(true) : undefined}
+                onDeleteReceipt={onDeleteReceipt ? handleDeleteReceipt : undefined}
+              />
+            );
+            const photosEl = (
+              <PhotosSection
+                photos={job.photos}
+                onViewPhoto={setLightboxSrc}
+                onAddPhoto={onUpdateJob ? () => photoInputRef.current?.click() : undefined}
+                photoAdding={photoAdding}
+                onDeletePhoto={onUpdateJob ? handleDeletePhoto : undefined}
+              />
+            );
+            const notesEl = (
+              <NotesSection
+                job={job}
+                onOpenNoteForm={onUpdateJob ? () => setNoteFormOpen(true) : undefined}
+                noteFormOpen={noteFormOpen}
+                noteSubject={noteSubject}
+                noteBody={noteBody}
+                onNoteSubjectChange={setNoteSubject}
+                onNoteBodyChange={setNoteBody}
+                onSubmitNote={handleSubmitNote}
+                onCancelNote={() => { setNoteFormOpen(false); setNoteSubject(''); setNoteBody(''); }}
+                onDeleteNote={onUpdateJob ? handleDeleteNote : undefined}
+              />
+            );
 
-          <NotesSection
-            job={job}
-            onOpenNoteForm={onUpdateJob ? () => setNoteFormOpen(true) : undefined}
-            noteFormOpen={noteFormOpen}
-            noteSubject={noteSubject}
-            noteBody={noteBody}
-            onNoteSubjectChange={setNoteSubject}
-            onNoteBodyChange={setNoteBody}
-            onSubmitNote={handleSubmitNote}
-            onCancelNote={() => { setNoteFormOpen(false); setNoteSubject(''); setNoteBody(''); }}
-            onDeleteNote={onUpdateJob ? handleDeleteNote : undefined}
-          />
+            // Determine which sections are in "pill chip" mode vs full-section mode.
+            // A section component returns a <button className="jd-pill-chip"> when empty.
+            // We collect all chips and render them in a single row to minimise vertical space.
+            const hasReceiptContent = receipts.some(r =>
+              r.jobId && (String(r.jobId) === String(job.id) || String(r.jobId) === String(job.cloudId))
+            );
+            const hasPhotoContent = Array.isArray(job.photos) && job.photos.length > 0;
+            const hasNoteContent = (Array.isArray(job.jobNotes) && job.jobNotes.length > 0) ||
+              (typeof job.notes === 'string' && job.notes.trim());
+
+            const sections = [];
+
+            // Full sections first
+            if (hasReceiptContent) sections.push(<React.Fragment key="receipts">{receiptsEl}</React.Fragment>);
+            if (hasPhotoContent) sections.push(<React.Fragment key="photos">{photosEl}</React.Fragment>);
+            if (hasNoteContent || noteFormOpen) sections.push(<React.Fragment key="notes">{notesEl}</React.Fragment>);
+
+            // Collect pill chips for empty sections
+            const chips = [];
+            if (!hasReceiptContent && onAddReceipt) chips.push(<React.Fragment key="chip-receipts">{receiptsEl}</React.Fragment>);
+            if (!hasPhotoContent && onUpdateJob) chips.push(<React.Fragment key="chip-photos">{photosEl}</React.Fragment>);
+            if (!hasNoteContent && !noteFormOpen && onUpdateJob) chips.push(<React.Fragment key="chip-notes">{notesEl}</React.Fragment>);
+
+            if (chips.length > 0) {
+              sections.push(
+                <div key="pill-row" className="jd-pill-row">
+                  {chips}
+                </div>
+              );
+            }
+
+            return sections;
+          })()}
 
           {/* Payment history — self-gates when no payments */}
           <PaymentHistoryList job={job} />
