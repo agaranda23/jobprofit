@@ -698,6 +698,7 @@ export default function AppShell() {
               profile={profile}
               onAvatarClick={() => setDrawerOpen(true)}
               onNewJob={openDetailed}
+              onUpdateJob={onUpdateJob}
             />
           )}
 

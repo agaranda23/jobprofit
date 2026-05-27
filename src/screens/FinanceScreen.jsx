@@ -27,7 +27,7 @@
  *   - M2 dev-flag chart preview in AppShell (see AppShell.jsx change)
  */
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import { gbp } from '../lib/today';
 import HeaderAvatar from '../components/HeaderAvatar';
 import CashflowChart from '../components/CashflowChart';
@@ -59,6 +59,12 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
   // chartRange drives which window of data getCashflowByMonth uses.
   // '6m' is the default matching the chart's defaultRange prop.
   const [chartRange, setChartRange] = useState('6m');
+  const [toast, setToast] = useState('');
+
+  const showToast = useCallback((msg) => {
+    setToast(msg);
+    setTimeout(() => setToast(''), 3000);
+  }, []);
 
   const now = new Date();
   const currentMonth = monthKey(now);
@@ -216,6 +222,7 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
                 key={e.id}
                 entry={e}
                 onMarkPaid={onMarkPaid}
+                onPaid={showToast}
               />
             ))}
           </ul>
@@ -342,6 +349,8 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
           </p>
         </div>
       )}
+
+      {toast && <div className="toast toast--finance">{toast}</div>}
     </div>
   );
 }
@@ -388,7 +397,7 @@ function HeroChaseCTA({ entry }) {
 }
 
 // ── ChaseRow — per-job row (preserved verbatim from pre-M3) ─────────────────
-function ChaseRow({ entry, onMarkPaid }) {
+function ChaseRow({ entry, onMarkPaid, onPaid }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [, forceUpdate] = useState(0);
 
@@ -430,15 +439,15 @@ function ChaseRow({ entry, onMarkPaid }) {
           <div className="chase-picker-label">Mark as paid — how?</div>
           <div className="chase-picker-grid">
             <button type="button" className="awaiting-job-method-btn awaiting-job-method-bank"
-              onClick={() => { clearChase(entry.rawId); onMarkPaid?.(entry.rawId); setPickerOpen(false); }}>
+              onClick={() => { clearChase(entry.rawId); onMarkPaid?.(entry.rawId); setPickerOpen(false); onPaid?.(`${gbp(entry.amount)} marked paid`); }}>
               Bank
             </button>
             <button type="button" className="awaiting-job-method-btn awaiting-job-method-cash"
-              onClick={() => { clearChase(entry.rawId); onMarkPaid?.(entry.rawId); setPickerOpen(false); }}>
+              onClick={() => { clearChase(entry.rawId); onMarkPaid?.(entry.rawId); setPickerOpen(false); onPaid?.(`${gbp(entry.amount)} marked paid`); }}>
               Cash
             </button>
             <button type="button" className="awaiting-job-method-btn awaiting-job-method-card"
-              onClick={() => { clearChase(entry.rawId); onMarkPaid?.(entry.rawId); setPickerOpen(false); }}>
+              onClick={() => { clearChase(entry.rawId); onMarkPaid?.(entry.rawId); setPickerOpen(false); onPaid?.(`${gbp(entry.amount)} marked paid`); }}>
               Card
             </button>
           </div>

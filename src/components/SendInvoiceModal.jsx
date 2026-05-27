@@ -25,6 +25,7 @@ import { nextInvoiceNumber } from '../lib/invoiceNumber';
 import { getMissingInvoiceFields } from '../lib/bizValidation';
 import { canSendInvoice, incrementSendCount } from '../lib/plan';
 import { supabase } from '../lib/supabase';
+import { logTelemetry } from '../lib/telemetry';
 
 // Returns true when this browser supports navigator.share() with a files array.
 // Stored as a module-level constant so we don't recalculate on every render.
@@ -93,8 +94,7 @@ export default function SendInvoiceModal({
   // Primary path: wa.me deep-link — opens WhatsApp with invoice text + bank
   // details. Fast, no PDF generation overhead, works on any phone.
   const handleWhatsApp = () => {
-    // TODO: replace console.log with posthog/mixpanel/etc
-    console.log('[telemetry] invoice_send', { channel: 'whatsapp' });
+    logTelemetry('invoice_send', { channel: 'whatsapp' });
     if (!attemptSend()) return;
     const link = buildWhatsAppLink({
       phone: job.customerPhone || job.phone || '',
@@ -108,8 +108,7 @@ export default function SendInvoiceModal({
   // Secondary path: Web Share API with PDF file (modern iOS/Android). Attaches
   // the actual PDF so customers who need a formal document get one.
   const handleSharePDF = async () => {
-    // TODO: replace console.log with posthog/mixpanel/etc
-    console.log('[telemetry] invoice_send', { channel: 'share' });
+    logTelemetry('invoice_send', { channel: 'share' });
     if (!attemptSend()) return;
     setBusy(true);
     try {
@@ -150,8 +149,7 @@ export default function SendInvoiceModal({
   };
 
   const handleDownloadPDF = () => {
-    // TODO: replace console.log with posthog/mixpanel/etc
-    console.log('[telemetry] invoice_send', { channel: 'download' });
+    logTelemetry('invoice_send', { channel: 'download' });
     if (!attemptSend()) return;
     try {
       downloadInvoicePDF({ job, biz, invoiceNumber, dueDate });

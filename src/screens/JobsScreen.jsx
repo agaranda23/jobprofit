@@ -6,17 +6,26 @@
  */
 import { useState } from 'react';
 import HeaderAvatar from '../components/HeaderAvatar';
+import SendInvoiceModal from '../components/SendInvoiceModal';
 
 const STATUS_FILTERS = ['All', 'Quoted', 'Active', 'Done', 'Paid'];
 
-export default function JobsScreen({ jobs = [], session, profile, onAvatarClick, onNewJob }) {
+export default function JobsScreen({ jobs = [], session, profile, onAvatarClick, onNewJob, onUpdateJob }) {
   const [filter, setFilter] = useState('All');
+  // invoiceJob drives the inline SendInvoiceModal from the "Send invoice →" card CTA.
+  const [invoiceJob, setInvoiceJob] = useState(null);
+  const [invoiceToast, setInvoiceToast] = useState('');
 
   const filtered = jobs.filter(j => {
     if (filter === 'All') return true;
     const s = deriveDisplayStatus(j);
     return s === filter;
   });
+
+  const showInvoiceToast = (msg) => {
+    setInvoiceToast(msg);
+    setTimeout(() => setInvoiceToast(''), 2400);
+  };
 
   return (
     <div className="screen jobs-screen">
@@ -55,15 +64,30 @@ export default function JobsScreen({ jobs = [], session, profile, onAvatarClick,
       ) : (
         <ul className="job-list">
           {filtered.map(j => (
-            <JobCard key={j.id || j.cloudId} job={j} />
+            <JobCard key={j.id || j.cloudId} job={j} onSendInvoice={setInvoiceJob} />
           ))}
         </ul>
       )}
+
+      {/* Inline SendInvoiceModal — opened by the "Send invoice →" card CTA */}
+      {invoiceJob && (
+        <SendInvoiceModal
+          job={invoiceJob}
+          biz={{}}
+          profile={profile ?? null}
+          jobs={jobs}
+          onUpdate={onUpdateJob ?? (() => {})}
+          onClose={() => setInvoiceJob(null)}
+          flash={showInvoiceToast}
+        />
+      )}
+
+      {invoiceToast && <div className="toast">{invoiceToast}</div>}
     </div>
   );
 }
 
-function JobCard({ job }) {
+function JobCard({ job, onSendInvoice }) {
   const status = deriveDisplayStatus(job);
   const statusClass = {
     Quoted:   'status--quoted',
@@ -94,6 +118,15 @@ function JobCard({ job }) {
           <span className="job-card-warn">Done — not invoiced ⚠</span>
         )}
       </div>
+      {doneNotInvoiced && onSendInvoice && (
+        <button
+          type="button"
+          className="job-card-send-invoice-btn"
+          onClick={() => onSendInvoice(job)}
+        >
+          Send invoice →
+        </button>
+      )}
     </li>
   );
 }

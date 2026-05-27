@@ -15,6 +15,8 @@
  * TODO(v2): add drag-and-drop rescheduling via HTML5 drag API or @dnd-kit.
  */
 
+import { logTelemetry } from '../lib/telemetry';
+
 const DAY_LABELS  = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -130,9 +132,7 @@ export default function WorkCalendar({ jobs = [], onNewJobOnDate }) {
   const weekLabel = `W/c ${DAY_LABELS[week[0].getDay()]} ${week[0].getDate()} ${MONTH_NAMES[week[0].getMonth()]}`;
 
   const handleAddOnDate = (dateKey) => {
-    // Telemetry
-    // TODO: replace console.log with posthog/mixpanel/etc
-    console.log('[telemetry] calendar_add_tap', { date: dateKey });
+    logTelemetry('calendar_add_tap', { date: dateKey });
     // The brief says "open the existing AddJob modal with date pre-filled".
     // Judgement call: the AddJob modal lives inside App.jsx and isn't yet
     // exposed as a standalone component. For slice 3 we call onNewJobOnDate
