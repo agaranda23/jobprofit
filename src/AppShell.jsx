@@ -97,13 +97,16 @@ function migrateLegacyTodayData() {
 }
 
 function parseViewFromHash() {
-  const { view } = parseHash();
   if (NAV_SLICE_3) {
-    // Slice-3 view set; also map legacy job/schedule routes to 'work'
-    if (view === 'jobs' || view === 'schedule') return 'work';
-    if (view === 'money') return 'finance';
-    return SLICE_3_VIEWS.includes(view) ? view : 'today';
+    // Read the hash directly so slice-3 view names ('work', 'finance', 'settings')
+    // are not filtered out by parseHash(), which only knows legacy TOP_VIEWS.
+    const raw = window.location.hash.replace(/^#\/?/, '').split('/')[0];
+    // Map legacy deep-link aliases that may still appear in the wild
+    if (raw === 'jobs' || raw === 'schedule') return 'work';
+    if (raw === 'money') return 'finance';
+    return SLICE_3_VIEWS.includes(raw) ? raw : 'today';
   }
+  const { view } = parseHash();
   if (NEW_NAV) {
     // Accept new-nav view names; map unknown ones to 'today'
     return NEW_NAV_VIEWS.includes(view) ? view : 'today';
