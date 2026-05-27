@@ -6,14 +6,18 @@
  *
  * Props mirror what AppShell was passing to JobsScreen + ScheduleScreen.
  *
- * Phase 1 pipeline redesign (ported from JobsScreen.jsx — PR #59):
- *  - Status chips: All · Quoted · On · Invoiced · Paid  (Done removed, Active → On)
+ * First-pass pipeline redesign (full spec — all 7 chips):
+ *  - Status chips: All · Lead · Quoted · On · Invoiced · Overdue · Paid
  *  - Default tab: On
  *  - Money-at-risk strip: always rendered above segmented control
- *  - Per-card dual CTAs driven by current status
- *  - Invoiced cards: Mark paid is PRIMARY (real write), Send reminder is secondary
+ *  - Per-card dual CTAs driven by current status (see getStageCTAs)
+ *  - Invoiced cards: Send reminder = PRIMARY, Mark paid = secondary (spec-compliant)
+ *  - Overdue = derived (daysSinceInvoice > 14 && not paid); takes precedence over Invoiced
+ *  - Lead = job.status === 'lead'; Bin it only surfaces on Lead cards
+ *  - Mark complete on On cards opens SendInvoiceModal
+ *  - Overdue cards: left-edge rose stripe + "{N} days late" meta tag
  *
- * Note: JobsScreen.jsx still exists but is never rendered — AppShell line 105 routes
+ * Note: JobsScreen.jsx still exists but is never rendered — AppShell routes
  * 'jobs' → 'work' → WorkScreen. JobsScreen.jsx cleanup is tracked as a follow-up PR.
  */
 import { useState, useCallback } from 'react';
@@ -21,6 +25,7 @@ import WorkCalendar from './WorkCalendar';
 import JobDetailDrawer from '../components/JobDetailDrawer';
 import SendInvoiceModal from '../components/SendInvoiceModal';
 import { logTelemetry } from '../lib/telemetry';
+import { daysSinceInvoice } from '../lib/jobStatus';
 
 const STORAGE_KEY = 'jp.workView';
 
@@ -44,22 +49,34 @@ function persistView(v) {
 
 // ── Status helpers ────────────────────────────────────────────────────────────
 
-// Phase 1 chip set. "Done" removed; "Active" → "On".
-const STATUS_FILTERS = ['All', 'Quoted', 'On', 'Invoiced', 'Paid'];
+// Full first-pass chip set: Lead · Quoted · On · Invoiced · Overdue · Paid
+// Note: 7 chips will wrap onto two rows on a 5.5" phone — this is consistent with
+// the first-pass mockup PRD originally proposed; the user has explicitly chosen the
+// first-pass over the pushback-revised 5-chip version.
+const STATUS_FILTERS = ['All', 'Lead', 'Quoted', 'On', 'Invoiced', 'Overdue', 'Paid'];
 
 /**
- * Map the various status fields used across the app to one of the four
- * Phase 1 display statuses: Quoted | On | Invoiced | Paid.
+ * Map the various status fields used across the app to one of the seven
+ * first-pass display statuses: Lead | Quoted | On | Invoiced | Overdue | Paid.
  *
- *  - 'Active' removed as a display label; active/jobStatus=active → 'On'
- *  - 'Done' removed; complete-but-not-invoiced → 'On' (work is finishing, loop not closed)
+ *  - Lead:    job.status === 'lead' (no other derivation needed)
+ *  - Overdue: daysSinceInvoice > 14 && not paid — TAKES PRECEDENCE over Invoiced
+ *  - Invoiced: invoiced and within 14-day net terms
+ *  - On:      active or complete-but-not-yet-invoiced
+ *  - Paid:    any paid signal
  *
  * Mirrors JobDetailDrawer's own deriveDisplayStatus for On/Invoiced/Paid.
  * If you change this, change it there too (tracked: src/components/JobDetailDrawer.jsx ~L75).
  */
 function deriveDisplayStatus(job) {
+  if (job.status === 'lead') return 'Lead';
   if (job.paid || job.paymentStatus === 'paid' || job.jobStatus === 'paid') return 'Paid';
-  if (job.invoiceStatus === 'invoiced' || job.status === 'invoice_sent') return 'Invoiced';
+  // Overdue must be checked before Invoiced — overdue takes priority in the chip hierarchy
+  if (job.invoiceStatus === 'invoiced' || job.status === 'invoice_sent') {
+    const days = daysSinceInvoice(job);
+    if (days !== null && days > 14) return 'Overdue';
+    return 'Invoiced';
+  }
   // complete-but-not-invoiced → 'On': work is done but the loop hasn't closed (invoice not sent yet)
   if (job.jobStatus === 'complete' || job.status === 'complete') return 'On';
   if (job.jobStatus === 'active' || job.status === 'active') return 'On';
@@ -118,11 +135,19 @@ function calcRiskFigures(jobs) {
 /**
  * Returns { primary, secondary, primaryMod } CTA config per pipeline stage.
  *
- * Invoiced stage CTA hierarchy correction vs JobsScreen.jsx:
- *   Mark paid is PRIMARY (real write, highest-value action gets prominence).
- *   Send reminder is secondary. This is the deliberate fix over the Phase 1 draft.
+ * CTA hierarchy (spec-compliant first-pass):
+ *   Lead:     Send quote (primary) · Bin it (secondary — only on Lead cards)
+ *   Quoted:   Mark accepted (primary) · Nudge customer (secondary)
+ *   On:       Log time (primary) · Mark complete → opens SendInvoiceModal (secondary)
+ *   Invoiced: Send reminder (primary) · Mark paid (secondary)
+ *   Overdue:  Chase now (primary, danger style) · Mark paid (secondary)
+ *   Paid:     View summary (primary) · — (no secondary)
  *
  * Placeholder TODO notes (actions not yet fully wired):
+ *
+ * "Send quote" (Lead) — TODO: wire to the quote-creation flow entry point once a clean
+ *   programmatic entry point exists. Currently opens onNewJob as the closest available
+ *   entry; founders should note this in the PR — a dedicated Lead→Quote flow is a follow-up.
  *
  * "Mark accepted" — TODO: wire to Quote→Job auto-conversion (separate PR).
  *   Currently a no-op; founder can open the job from the drawer to update manually.
@@ -133,11 +158,14 @@ function calcRiskFigures(jobs) {
  * "Log time" — TODO: open JobDetailDrawer on the time tab directly.
  *   No-op for now; tap the job card to open the drawer and log time from there.
  *
- * "Mark complete" — TODO: write status = 'complete' via jobMeta + prompt to send invoice.
- *   No-op for now; tap the job card to open the drawer and mark complete from there.
+ * "Mark complete" — opens SendInvoiceModal with the job pre-filled. Modal handles the
+ *   status update to 'invoiced' when the invoice is sent.
  *
  * "Send reminder" — wired to WhatsApp share-sheet with a payment-reminder message.
  *   TODO: swap for pre-built invoiceMessage template when that function is surfaced here.
+ *
+ * "Chase now" — calls chaseJob(job). Separate from the strip's handleChase so each
+ *   Overdue card can chase its own job (not just the oldest overdue).
  *
  * "Mark paid" — wired to onUpdateJob. Merges paid=true into the job record and writes
  *   to localStorage + cloud via AppShell's onUpdateJob handler.
@@ -145,8 +173,22 @@ function calcRiskFigures(jobs) {
  * "View summary" — TODO: open JobDetailDrawer on the summary tab.
  *   No-op for now; tap the job card to open the drawer.
  */
-function getStageCTAs(status, job, { onSendInvoice, onUpdateJob }) {
+function getStageCTAs(status, job, { onSendInvoice, onUpdateJob, onNewJob }) {
   switch (status) {
+    case 'Lead':
+      return {
+        // TODO: wire to a dedicated Lead→Quote flow when available.
+        // onNewJob is the closest entry point right now.
+        primary: { label: 'Send quote', action: () => onNewJob?.() },
+        secondary: {
+          label: 'Bin it',
+          action: () => {
+            if (!onUpdateJob) return;
+            onUpdateJob({ ...job, status: 'archived' });
+          },
+        },
+      };
+
     case 'Quoted':
       return {
         // TODO: Mark accepted → Quote→Job conversion (separate PR)
@@ -168,22 +210,14 @@ function getStageCTAs(status, job, { onSendInvoice, onUpdateJob }) {
       return {
         // TODO: Log time → open JobDetailDrawer on time tab
         primary: { label: 'Log time', action: () => {} },
-        // TODO: Mark complete → jobMeta write + invoice prompt (separate PR)
-        secondary: { label: 'Mark complete', action: () => {} },
+        // Mark complete opens SendInvoiceModal so the user can send the invoice immediately.
+        secondary: { label: 'Mark complete', action: () => onSendInvoice?.(job) },
       };
 
     case 'Invoiced':
-      // CTA hierarchy: Mark paid is PRIMARY — the real write gets primary prominence.
-      // Send reminder is secondary. This corrects the draft order in JobsScreen.jsx.
+      // Spec-compliant hierarchy: Send reminder = PRIMARY, Mark paid = secondary.
       return {
         primary: {
-          label: 'Mark paid',
-          action: () => {
-            if (!onUpdateJob) return;
-            onUpdateJob({ ...job, paid: true, paymentStatus: 'paid', paidAt: new Date().toISOString() });
-          },
-        },
-        secondary: {
           label: 'Send reminder',
           action: () => {
             const customer = job.customer || job.name || 'your customer';
@@ -192,6 +226,31 @@ function getStageCTAs(status, job, { onSendInvoice, onUpdateJob }) {
               `Hi ${customer}, just a friendly reminder that your invoice for ${amount} is due. Please let me know when payment is on the way. Thanks.`
             );
             window.open(`https://wa.me/?text=${msg}`, '_blank', 'noopener');
+          },
+        },
+        secondary: {
+          label: 'Mark paid',
+          action: () => {
+            if (!onUpdateJob) return;
+            onUpdateJob({ ...job, paid: true, paymentStatus: 'paid', paidAt: new Date().toISOString() });
+          },
+        },
+      };
+
+    case 'Overdue':
+      // Chase now = danger style (rose button). Scoped to THIS job via chaseJob.
+      // Mark paid = secondary. Both actions available per-card so all overdue jobs are actionable.
+      return {
+        primaryMod: 'danger',
+        primary: {
+          label: 'Chase now',
+          action: () => chaseJob(job),
+        },
+        secondary: {
+          label: 'Mark paid',
+          action: () => {
+            if (!onUpdateJob) return;
+            onUpdateJob({ ...job, paid: true, paymentStatus: 'paid', paidAt: new Date().toISOString() });
           },
         },
       };
@@ -208,22 +267,41 @@ function getStageCTAs(status, job, { onSendInvoice, onUpdateJob }) {
   }
 }
 
+/**
+ * Open WhatsApp share-sheet with a chase message for a specific job.
+ * Extracted so both Overdue card CTAs and the money-at-risk strip Chase button
+ * can call the same logic scoped to any individual job.
+ */
+function chaseJob(job) {
+  const customer = job.customer || job.name || 'your customer';
+  const amount = '£' + formatAmount(job.total ?? job.amount);
+  const msg = encodeURIComponent(
+    `Hi ${customer}, just a reminder that your invoice for ${amount} is overdue. Please let me know when payment is on the way. Thanks.`
+  );
+  window.open(`https://wa.me/?text=${msg}`, '_blank', 'noopener');
+}
+
 // ── JobCard (inline) ──────────────────────────────────────────────────────────
 
-function JobCard({ job, onSelect, onSendInvoice, onUpdateJob }) {
+function JobCard({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob }) {
   const status = deriveDisplayStatus(job);
   const statusClass = {
+    Lead:     'status--lead',
     Quoted:   'status--quoted',
     On:       'status--active',   // reuses green pill — "On" is the new "Active"
     Invoiced: 'status--invoiced',
+    Overdue:  'status--overdue',
     Paid:     'status--paid',
   }[status] || 'status--quoted';
 
-  const ctas = getStageCTAs(status, job, { onSendInvoice, onUpdateJob });
+  const isOverdue = status === 'Overdue';
+  const daysLate = isOverdue ? (daysSinceInvoice(job) ?? 0) : 0;
+
+  const ctas = getStageCTAs(status, job, { onSendInvoice, onUpdateJob, onNewJob });
 
   return (
     <li
-      className="job-card job-card--tappable"
+      className={`job-card job-card--tappable${isOverdue ? ' job-card--overdue' : ''}`}
       onClick={() => onSelect?.(job)}
       role="button"
       tabIndex={0}
@@ -234,6 +312,10 @@ function JobCard({ job, onSelect, onSendInvoice, onUpdateJob }) {
         <span className={`job-status-pill ${statusClass}`}>{status[0]}</span>
         <span className="job-card-customer">{job.customer || job.name || 'Unnamed job'}</span>
       </div>
+      {/* Overdue meta-line: "N days late" in rose, bold */}
+      {isOverdue && (
+        <div className="job-card-overdue-meta">{daysLate} days late</div>
+      )}
       {job.summary && (
         <div className="job-card-summary">
           {job.summary.slice(0, 60)}{job.summary.length > 60 ? '…' : ''}
@@ -278,9 +360,11 @@ function JobCard({ job, onSelect, onSendInvoice, onUpdateJob }) {
 function EmptyState({ filter }) {
   const copy = {
     All:      { title: 'No jobs yet', hint: 'Tap + New job to log your first job.' },
+    Lead:     { title: 'No leads yet', hint: 'Got a phone enquiry? Tap + to log it.' },
     Quoted:   { title: 'No quotes out', hint: 'Send a quote and it will appear here.' },
-    On:       { title: 'Nothing on the tools', hint: 'Accept a quote or tap + New job to start a job.' },
+    On:       { title: 'Nothing on the go', hint: "Either you're on holiday or it's time to chase a quote." },
     Invoiced: { title: 'No invoices waiting', hint: 'Mark a job complete and send the invoice.' },
+    Overdue:  { title: 'Nothing overdue', hint: 'Good week.' },
     Paid:     { title: 'No paid jobs yet', hint: 'Paid jobs show here once the money lands.' },
   };
   const { title, hint } = copy[filter] ?? copy.All;
@@ -294,7 +378,7 @@ function EmptyState({ filter }) {
 
 // ── JobsList subview ──────────────────────────────────────────────────────────
 
-function JobsList({ jobs, onJobSelect, onSendInvoice, onUpdateJob }) {
+function JobsList({ jobs, onJobSelect, onSendInvoice, onUpdateJob, onNewJob }) {
   // Default: "On" — surfaces active work immediately on app open.
   const [filter, setFilter] = useState('On');
 
@@ -335,6 +419,7 @@ function JobsList({ jobs, onJobSelect, onSendInvoice, onUpdateJob }) {
               onSelect={onJobSelect}
               onSendInvoice={onSendInvoice}
               onUpdateJob={onUpdateJob}
+              onNewJob={onNewJob}
             />
           ))}
         </ul>
@@ -379,15 +464,10 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddPa
   const riskFigures = calcRiskFigures(jobs);
   const oldestOverdue = riskFigures.overdueJobs[0] ?? null;
 
+  // Strip's Chase button uses chaseJob scoped to the oldest overdue job.
   const handleChase = () => {
     if (!oldestOverdue) return;
-    const customer = oldestOverdue.customer || oldestOverdue.name || 'your customer';
-    const amount = '£' + formatAmount(oldestOverdue.total ?? oldestOverdue.amount);
-    const msg = encodeURIComponent(
-      `Hi ${customer}, just a reminder that your invoice for ${amount} is overdue. Please let me know when payment is on the way. Thanks.`
-    );
-    // WhatsApp universal share-sheet (no phone number = user picks the contact)
-    window.open(`https://wa.me/?text=${msg}`, '_blank', 'noopener');
+    chaseJob(oldestOverdue);
   };
 
   return (
@@ -455,6 +535,7 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddPa
           onJobSelect={setSelectedJob}
           onSendInvoice={setInvoiceJob}
           onUpdateJob={onUpdateJob}
+          onNewJob={onNewJob}
         />
       ) : (
         <WorkCalendar jobs={jobs} onNewJobOnDate={onNewJob} />
