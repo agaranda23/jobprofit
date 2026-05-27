@@ -93,8 +93,6 @@ export default function StageStrip({ jobs, selectedStage, onSelectStage, deriveS
             formatAmount={formatAmount}
           />
         ))}
-        {/* Scroll hint — right-edge chevron */}
-        <span className="stage-strip-hint" aria-hidden="true">›</span>
       </div>
       {/* Connector rail — hairline + dots */}
       <div className="stage-rail" aria-hidden="true">
