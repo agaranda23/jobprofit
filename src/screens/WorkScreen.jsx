@@ -1,29 +1,41 @@
 /**
  * WorkScreen — Jobs tab in slice-3 nav.
  *
- * Merges Job list and calendar into one tab with a segmented control at the top.
- * Last-used subview persists in localStorage under 'jp.workView'.
+ * Stage Strip + Advance Button pipeline redesign (PRD, 2026-05-27).
+ *   Replaces the pill chip row and dual CTAs from the first-pass.
  *
- * Props mirror what AppShell was passing to JobsScreen + ScheduleScreen.
+ * Layout order (top → bottom):
+ *   1. Header (Jobs title + + New job)
+ *   2. Money-at-risk strip (kept from first-pass)
+ *   3. Stage Strip (new) — horizontal scrollable rail of stage tiles with count + £
+ *   4. List/Calendar segmented control + [Show all] toggle
+ *   5. Job list (filtered to selected stage) or Calendar
  *
- * First-pass pipeline redesign (full spec — all 7 chips):
- *  - Status chips: All · Lead · Quoted · On · Invoiced · Overdue · Paid
- *  - Default tab: On
- *  - Money-at-risk strip: always rendered above segmented control
- *  - Per-card dual CTAs driven by current status (see getStageCTAs)
- *  - Invoiced cards: Send reminder = PRIMARY, Mark paid = secondary (spec-compliant)
- *  - Overdue = derived (daysSinceInvoice > 14 && not paid); takes precedence over Invoiced
- *  - Lead = job.status === 'lead'; Bin it only surfaces on Lead cards
- *  - Mark complete on On cards opens SendInvoiceModal
- *  - Overdue cards: left-edge rose stripe + "{N} days late" meta tag
+ * Per-card changes:
+ *   - Single full-width Advance Button (label + action depend on stage)
+ *   - Overflow menu (⋯) for secondary/rare actions
+ *   - Paid cards: no button, replaced by "Paid N days ago" meta line
  *
- * Note: JobsScreen.jsx still exists but is never rendered — AppShell routes
- * 'jobs' → 'work' → WorkScreen. JobsScreen.jsx cleanup is tracked as a follow-up PR.
+ * Overdue exception: Chase now → calls chaseJob(job) — does NOT advance stage.
+ *
+ * Stages: Lead · Quoted · On · Invoiced · Overdue · Paid
+ * "All" moved to [Show all] toggle in header row.
+ *
+ * Data layer ported verbatim from held branch polish/jobs-pipeline-workscreen-port
+ * (merged to main as PR #62, commit 8bee7fb):
+ *   - deriveDisplayStatus — Lead/Overdue/Invoiced/On/Paid derivation
+ *   - chaseJob — WhatsApp share-sheet
+ *   - calcRiskFigures — quoted/invoiced/overdue totals
+ *   - SendInvoiceModal wiring + invoiceJob/setInvoiceJob state
+ *   - paidAt timestamp on Mark paid
+ *
+ * Note: JobsScreen.jsx still exists but is never rendered — cleanup is a follow-up PR.
  */
 import { useState, useCallback } from 'react';
 import WorkCalendar from './WorkCalendar';
 import JobDetailDrawer from '../components/JobDetailDrawer';
 import SendInvoiceModal from '../components/SendInvoiceModal';
+import StageStrip from '../components/StageStrip';
 import { logTelemetry } from '../lib/telemetry';
 import { daysSinceInvoice } from '../lib/jobStatus';
 
@@ -47,37 +59,31 @@ function persistView(v) {
   }
 }
 
-// ── Status helpers ────────────────────────────────────────────────────────────
-
-// Full first-pass chip set: Lead · Quoted · On · Invoiced · Overdue · Paid
-// Note: 7 chips will wrap onto two rows on a 5.5" phone — this is consistent with
-// the first-pass mockup PRD originally proposed; the user has explicitly chosen the
-// first-pass over the pushback-revised 5-chip version.
-const STATUS_FILTERS = ['All', 'Lead', 'Quoted', 'On', 'Invoiced', 'Overdue', 'Paid'];
+// ── Status helpers (ported verbatim from PR #62) ──────────────────────────────
 
 /**
- * Map the various status fields used across the app to one of the seven
- * first-pass display statuses: Lead | Quoted | On | Invoiced | Overdue | Paid.
+ * Derive one of the six pipeline stages from the raw job record.
  *
- *  - Lead:    job.status === 'lead' (no other derivation needed)
- *  - Overdue: daysSinceInvoice > 14 && not paid — TAKES PRECEDENCE over Invoiced
- *  - Invoiced: invoiced and within 14-day net terms
- *  - On:      active or complete-but-not-yet-invoiced
- *  - Paid:    any paid signal
+ *  - Lead:     job.status === 'lead'
+ *  - Paid:     any paid signal (takes priority before invoice checks)
+ *  - Overdue:  invoiced && daysSinceInvoice > 14 (takes priority over Invoiced)
+ *  - Invoiced: invoiced && within net-14 terms
+ *  - On:       active or complete-but-not-yet-invoiced
+ *  - Quoted:   default (quote sent, not yet accepted)
  *
- * Mirrors JobDetailDrawer's own deriveDisplayStatus for On/Invoiced/Paid.
- * If you change this, change it there too (tracked: src/components/JobDetailDrawer.jsx ~L75).
+ * Mirrors JobDetailDrawer's own deriveDisplayStatus (~L75 in that file).
+ * If you change this, change it there too.
  */
 function deriveDisplayStatus(job) {
   if (job.status === 'lead') return 'Lead';
   if (job.paid || job.paymentStatus === 'paid' || job.jobStatus === 'paid') return 'Paid';
-  // Overdue must be checked before Invoiced — overdue takes priority in the chip hierarchy
+  // Overdue must be checked before Invoiced — overdue takes priority
   if (job.invoiceStatus === 'invoiced' || job.status === 'invoice_sent') {
     const days = daysSinceInvoice(job);
     if (days !== null && days > 14) return 'Overdue';
     return 'Invoiced';
   }
-  // complete-but-not-invoiced → 'On': work is done but the loop hasn't closed (invoice not sent yet)
+  // complete-but-not-invoiced → On: work done, invoice not sent yet
   if (job.jobStatus === 'complete' || job.status === 'complete') return 'On';
   if (job.jobStatus === 'active' || job.status === 'active') return 'On';
   return 'Quoted';
@@ -89,14 +95,8 @@ function formatAmount(val) {
 }
 
 /**
- * Calculate the three money-at-risk figures for the strip.
- *
- * - quoted:   total value of jobs in Quoted stage
- * - invoiced: total value of jobs in Invoiced stage
- * - overdue:  subset of invoiced where invoiceDueDate is past today
- *
- * Phase 2 will replace the overdue calc with a server-side aggregate once
- * invoice_sent_at + payment_terms_days are on the jobs schema.
+ * Calculate money-at-risk figures for the strip.
+ * Ported verbatim from PR #62.
  */
 function calcRiskFigures(jobs) {
   const today = new Date();
@@ -126,151 +126,15 @@ function calcRiskFigures(jobs) {
     }
   }
 
-  // Sort oldest due-date first (oldest = most urgent to chase)
+  // Sort oldest first — most urgent to chase
   overdueJobs.sort((a, b) => new Date(a.invoiceDueDate) - new Date(b.invoiceDueDate));
 
   return { quoted, invoiced, overdue, overdueJobs };
 }
 
 /**
- * Returns { primary, secondary, primaryMod } CTA config per pipeline stage.
- *
- * CTA hierarchy (spec-compliant first-pass):
- *   Lead:     Send quote (primary) · Bin it (secondary — only on Lead cards)
- *   Quoted:   Mark accepted (primary) · Nudge customer (secondary)
- *   On:       Log time (primary) · Mark complete → opens SendInvoiceModal (secondary)
- *   Invoiced: Send reminder (primary) · Mark paid (secondary)
- *   Overdue:  Chase now (primary, danger style) · Mark paid (secondary)
- *   Paid:     View summary (primary) · — (no secondary)
- *
- * Placeholder TODO notes (actions not yet fully wired):
- *
- * "Send quote" (Lead) — TODO: wire to the quote-creation flow entry point once a clean
- *   programmatic entry point exists. Currently opens onNewJob as the closest available
- *   entry; founders should note this in the PR — a dedicated Lead→Quote flow is a follow-up.
- *
- * "Mark accepted" — TODO: wire to Quote→Job auto-conversion (separate PR).
- *   Currently a no-op; founder can open the job from the drawer to update manually.
- *
- * "Nudge customer" — wired to WhatsApp share-sheet with a quote-chaser message.
- *   TODO: swap generic message for the actual quote link once quoteMessage.js is surfaced here.
- *
- * "Log time" — TODO: open JobDetailDrawer on the time tab directly.
- *   No-op for now; tap the job card to open the drawer and log time from there.
- *
- * "Mark complete" — opens SendInvoiceModal with the job pre-filled. Modal handles the
- *   status update to 'invoiced' when the invoice is sent.
- *
- * "Send reminder" — wired to WhatsApp share-sheet with a payment-reminder message.
- *   TODO: swap for pre-built invoiceMessage template when that function is surfaced here.
- *
- * "Chase now" — calls chaseJob(job). Separate from the strip's handleChase so each
- *   Overdue card can chase its own job (not just the oldest overdue).
- *
- * "Mark paid" — wired to onUpdateJob. Merges paid=true into the job record and writes
- *   to localStorage + cloud via AppShell's onUpdateJob handler.
- *
- * "View summary" — TODO: open JobDetailDrawer on the summary tab.
- *   No-op for now; tap the job card to open the drawer.
- */
-function getStageCTAs(status, job, { onSendInvoice, onUpdateJob, onNewJob }) {
-  switch (status) {
-    case 'Lead':
-      return {
-        // TODO: wire to a dedicated Lead→Quote flow when available.
-        // onNewJob is the closest entry point right now.
-        primary: { label: 'Send quote', action: () => onNewJob?.() },
-        secondary: {
-          label: 'Bin it',
-          action: () => {
-            if (!onUpdateJob) return;
-            onUpdateJob({ ...job, status: 'archived' });
-          },
-        },
-      };
-
-    case 'Quoted':
-      return {
-        // TODO: Mark accepted → Quote→Job conversion (separate PR)
-        primary: { label: 'Mark accepted', action: () => {} },
-        secondary: {
-          label: 'Nudge customer',
-          action: () => {
-            const customer = job.customer || job.name || 'your customer';
-            const amount = '£' + formatAmount(job.total ?? job.amount);
-            const msg = encodeURIComponent(
-              `Hi ${customer}, just checking you received the quote for ${amount}. Happy to answer any questions.`
-            );
-            window.open(`https://wa.me/?text=${msg}`, '_blank', 'noopener');
-          },
-        },
-      };
-
-    case 'On':
-      return {
-        // TODO: Log time → open JobDetailDrawer on time tab
-        primary: { label: 'Log time', action: () => {} },
-        // Mark complete opens SendInvoiceModal so the user can send the invoice immediately.
-        secondary: { label: 'Mark complete', action: () => onSendInvoice?.(job) },
-      };
-
-    case 'Invoiced':
-      // Spec-compliant hierarchy: Send reminder = PRIMARY, Mark paid = secondary.
-      return {
-        primary: {
-          label: 'Send reminder',
-          action: () => {
-            const customer = job.customer || job.name || 'your customer';
-            const amount = '£' + formatAmount(job.total ?? job.amount);
-            const msg = encodeURIComponent(
-              `Hi ${customer}, just a friendly reminder that your invoice for ${amount} is due. Please let me know when payment is on the way. Thanks.`
-            );
-            window.open(`https://wa.me/?text=${msg}`, '_blank', 'noopener');
-          },
-        },
-        secondary: {
-          label: 'Mark paid',
-          action: () => {
-            if (!onUpdateJob) return;
-            onUpdateJob({ ...job, paid: true, paymentStatus: 'paid', paidAt: new Date().toISOString() });
-          },
-        },
-      };
-
-    case 'Overdue':
-      // Chase now = danger style (rose button). Scoped to THIS job via chaseJob.
-      // Mark paid = secondary. Both actions available per-card so all overdue jobs are actionable.
-      return {
-        primaryMod: 'danger',
-        primary: {
-          label: 'Chase now',
-          action: () => chaseJob(job),
-        },
-        secondary: {
-          label: 'Mark paid',
-          action: () => {
-            if (!onUpdateJob) return;
-            onUpdateJob({ ...job, paid: true, paymentStatus: 'paid', paidAt: new Date().toISOString() });
-          },
-        },
-      };
-
-    case 'Paid':
-      return {
-        // TODO: View summary → open JobDetailDrawer on summary tab
-        primary: { label: 'View summary', action: () => {} },
-        secondary: null,
-      };
-
-    default:
-      return { primary: null, secondary: null };
-  }
-}
-
-/**
  * Open WhatsApp share-sheet with a chase message for a specific job.
- * Extracted so both Overdue card CTAs and the money-at-risk strip Chase button
- * can call the same logic scoped to any individual job.
+ * Used by both Overdue card Advance Button and the money-at-risk strip Chase button.
  */
 function chaseJob(job) {
   const customer = job.customer || job.name || 'your customer';
@@ -281,85 +145,317 @@ function chaseJob(job) {
   window.open(`https://wa.me/?text=${msg}`, '_blank', 'noopener');
 }
 
-// ── JobCard (inline) ──────────────────────────────────────────────────────────
+/** Days since a job was paid, for Paid cards meta line. Returns null if no paidAt. */
+function daysSincePaid(job) {
+  const raw = job.paidAt;
+  if (!raw) return null;
+  const paid = new Date(raw);
+  if (isNaN(paid)) return null;
+  const diff = Date.now() - paid.getTime();
+  return Math.floor(diff / (1000 * 60 * 60 * 24));
+}
 
-function JobCard({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob }) {
+// StageStrip and StageTile live in src/components/StageStrip.jsx (extracted because
+// WorkScreen exceeded 500 lines). deriveDisplayStatus and formatAmount are passed as
+// props to avoid a circular import.
+
+// ── JobOverflowMenu ────────────────────────────────────────────────────────────
+
+const STAGE_ORDER = ['Lead', 'Quoted', 'On', 'Invoiced', 'Overdue', 'Paid'];
+
+/**
+ * JobOverflowMenu — bottom sheet with secondary/rare actions for a job.
+ *
+ * Actions present:
+ *   - Move back to [prev stage]  (all stages with a predecessor)
+ *   - Skip to...                 (stub — "Coming soon" toast in PR 2)
+ *   - Edit job
+ *   - Archive
+ *   - Nudge customer             (Quoted only)
+ *   - Send reminder              (Invoiced only)
+ *   - Bin it                     (Lead only)
+ *
+ * Tap outside or swipe down to dismiss.
+ */
+function JobOverflowMenu({ job, status, onClose, onUpdateJob, onSelect, onToast }) {
+  const stageIdx = STAGE_ORDER.indexOf(status);
+  const prevStage = stageIdx > 0 ? STAGE_ORDER[stageIdx - 1] : null;
+
+  // Map stage name back to a status value onUpdateJob understands
+  function stageToStatus(stage) {
+    const map = {
+      Lead:     'lead',
+      Quoted:   'quoted',
+      On:       'active',
+      Invoiced: 'invoice_sent',
+      Overdue:  'invoice_sent',
+      Paid:     'paid',
+    };
+    return map[stage] ?? stage.toLowerCase();
+  }
+
+  function handleMoveBack() {
+    if (!prevStage || !onUpdateJob) return;
+    const updates = { ...job, status: stageToStatus(prevStage) };
+    // Clear paid fields when moving back from Paid
+    if (status === 'Paid') {
+      updates.paid = false;
+      updates.paymentStatus = '';
+      updates.paidAt = null;
+    }
+    // Clear invoice fields when moving back from Invoiced/Overdue
+    if (status === 'Invoiced' || status === 'Overdue') {
+      updates.invoiceStatus = '';
+    }
+    onUpdateJob(updates);
+    onToast?.(`Moved back to ${prevStage}`);
+    onClose();
+  }
+
+  function handleSkipTo() {
+    // Stub — PR 2 will implement the sub-list picker
+    onToast?.('Coming soon');
+    onClose();
+  }
+
+  function handleEdit() {
+    onSelect?.(job);
+    onClose();
+  }
+
+  function handleArchive() {
+    if (!onUpdateJob) return;
+    onUpdateJob({ ...job, status: 'archived' });
+    onToast?.('Job archived');
+    onClose();
+  }
+
+  function handleNudge() {
+    const customer = job.customer || job.name || 'your customer';
+    const amount = '£' + formatAmount(job.total ?? job.amount);
+    const msg = encodeURIComponent(
+      `Hi ${customer}, just checking you received the quote for ${amount}. Happy to answer any questions.`
+    );
+    window.open(`https://wa.me/?text=${msg}`, '_blank', 'noopener');
+    onClose();
+  }
+
+  function handleReminder() {
+    const customer = job.customer || job.name || 'your customer';
+    const amount = '£' + formatAmount(job.total ?? job.amount);
+    const msg = encodeURIComponent(
+      `Hi ${customer}, just a friendly reminder that your invoice for ${amount} is due. Please let me know when payment is on the way. Thanks.`
+    );
+    window.open(`https://wa.me/?text=${msg}`, '_blank', 'noopener');
+    onClose();
+  }
+
+  function handleBinIt() {
+    if (!onUpdateJob) return;
+    onUpdateJob({ ...job, status: 'archived' });
+    onToast?.('Lead binned');
+    onClose();
+  }
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div className="job-overflow-backdrop" onClick={onClose} aria-hidden="true" />
+      {/* Sheet */}
+      <div className="job-overflow-sheet" role="dialog" aria-label="Job actions">
+        <div className="job-overflow-handle" />
+        <div className="job-overflow-title">
+          {job.customer || job.name || 'Unnamed job'}
+        </div>
+        <div className="job-overflow-actions">
+          {prevStage && (
+            <button type="button" className="job-overflow-item" onClick={handleMoveBack}>
+              Move back to {prevStage}
+            </button>
+          )}
+          <button type="button" className="job-overflow-item" onClick={handleSkipTo}>
+            Skip to…
+          </button>
+          <button type="button" className="job-overflow-item" onClick={handleEdit}>
+            Edit job
+          </button>
+          {status === 'Quoted' && (
+            <button type="button" className="job-overflow-item" onClick={handleNudge}>
+              Nudge customer
+            </button>
+          )}
+          {status === 'Invoiced' && (
+            <button type="button" className="job-overflow-item" onClick={handleReminder}>
+              Send reminder
+            </button>
+          )}
+          <button type="button" className="job-overflow-item job-overflow-item--danger" onClick={handleArchive}>
+            Archive
+          </button>
+          {status === 'Lead' && (
+            <button type="button" className="job-overflow-item job-overflow-item--danger" onClick={handleBinIt}>
+              Bin it
+            </button>
+          )}
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ── JobCard (Stage Strip variant) ─────────────────────────────────────────────
+
+/**
+ * AdvanceButton — full-width stage-aware primary button at the bottom of each job card.
+ *
+ * Stage → label mapping (spec):
+ *   Lead     → Send quote →       (opens onNewJob; TODO: dedicated Lead→Quote flow)
+ *   Quoted   → Move to On →       (sets status active)
+ *   On       → Send invoice →     (opens SendInvoiceModal)
+ *   Invoiced → Mark paid →        (sets paid + paidAt)
+ *   Overdue  → Chase now →        (chaseJob — rose style; does NOT advance stage)
+ *   Paid     → (no button)        (terminal stage; tap card body for detail)
+ */
+function AdvanceButton({ status, job, onNewJob, onSendInvoice, onUpdateJob }) {
+  if (status === 'Paid') return null;
+
+  const isOverdue = status === 'Overdue';
+
+  function handleAdvance(e) {
+    e.stopPropagation();
+    switch (status) {
+      case 'Lead':
+        // TODO: wire to a dedicated Lead→Quote flow when available.
+        onNewJob?.();
+        break;
+      case 'Quoted':
+        onUpdateJob?.({ ...job, status: 'active' });
+        break;
+      case 'On':
+        onSendInvoice?.(job);
+        break;
+      case 'Invoiced':
+        onUpdateJob?.({ ...job, paid: true, paymentStatus: 'paid', paidAt: new Date().toISOString() });
+        break;
+      case 'Overdue':
+        // Overdue exception: chase is the next action, not a stage advance.
+        chaseJob(job);
+        break;
+      default:
+        break;
+    }
+  }
+
+  const labels = {
+    Lead:     'Send quote →',
+    Quoted:   'Move to On →',
+    On:       'Send invoice →',
+    Invoiced: 'Mark paid →',
+    Overdue:  'Chase now →',
+  };
+
+  return (
+    <button
+      type="button"
+      className={`advance-btn${isOverdue ? ' advance-btn--chase' : ''}`}
+      onClick={handleAdvance}
+      aria-label={labels[status]}
+    >
+      {labels[status]}
+    </button>
+  );
+}
+
+function JobCard({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob, onToast }) {
+  const [overflowOpen, setOverflowOpen] = useState(false);
   const status = deriveDisplayStatus(job);
+
   const statusClass = {
     Lead:     'status--lead',
     Quoted:   'status--quoted',
-    On:       'status--active',   // reuses green pill — "On" is the new "Active"
+    On:       'status--active',
     Invoiced: 'status--invoiced',
     Overdue:  'status--overdue',
     Paid:     'status--paid',
   }[status] || 'status--quoted';
 
   const isOverdue = status === 'Overdue';
+  const isPaid = status === 'Paid';
   const daysLate = isOverdue ? (daysSinceInvoice(job) ?? 0) : 0;
-
-  const ctas = getStageCTAs(status, job, { onSendInvoice, onUpdateJob, onNewJob });
+  const daysPaid = isPaid ? daysSincePaid(job) : null;
 
   return (
-    <li
-      className={`job-card job-card--tappable${isOverdue ? ' job-card--overdue' : ''}`}
-      onClick={() => onSelect?.(job)}
-      role="button"
-      tabIndex={0}
-      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') onSelect?.(job); }}
-      aria-label={`View details for ${job.customer || job.name || 'Unnamed job'}`}
-    >
-      <div className="job-card-top">
-        <span className={`job-status-pill ${statusClass}`}>{status[0]}</span>
-        <span className="job-card-customer">{job.customer || job.name || 'Unnamed job'}</span>
-      </div>
-      {/* Overdue meta-line: "N days late" in rose, bold */}
-      {isOverdue && (
-        <div className="job-card-overdue-meta">{daysLate} days late</div>
-      )}
-      {job.summary && (
-        <div className="job-card-summary">
-          {job.summary.slice(0, 60)}{job.summary.length > 60 ? '…' : ''}
+    <>
+      <li
+        className={`job-card job-card--tappable${isOverdue ? ' job-card--overdue' : ''}`}
+        onClick={() => onSelect?.(job)}
+        role="button"
+        tabIndex={0}
+        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') onSelect?.(job); }}
+        aria-label={`View details for ${job.customer || job.name || 'Unnamed job'}`}
+      >
+        <div className="job-card-top">
+          <span className={`job-status-pill ${statusClass}`}>{status[0]}</span>
+          <span className="job-card-customer">{job.customer || job.name || 'Unnamed job'}</span>
         </div>
-      )}
-      <div className="job-card-footer">
-        <span className="job-card-amount">
-          {typeof (job.total ?? job.amount) === 'number'
-            ? '£' + Number(job.total ?? job.amount).toLocaleString('en-GB', { minimumFractionDigits: 0 })
-            : ''}
-        </span>
-      </div>
-      {/* Dual CTAs — primary + optional secondary. stopPropagation so taps don't bubble. */}
-      {(ctas.primary || ctas.secondary) && (
-        <div className="job-card-ctas" onClick={e => e.stopPropagation()}>
-          {ctas.primary && (
-            <button
-              type="button"
-              className={`job-card-cta job-card-cta--primary${ctas.primaryMod ? ` job-card-cta--${ctas.primaryMod}` : ''}`}
-              onClick={ctas.primary.action}
-            >
-              {ctas.primary.label}
-            </button>
-          )}
-          {ctas.secondary && (
-            <button
-              type="button"
-              className="job-card-cta job-card-cta--secondary"
-              onClick={ctas.secondary.action}
-            >
-              {ctas.secondary.label}
-            </button>
+        {isOverdue && (
+          <div className="job-card-overdue-meta">{daysLate} days late</div>
+        )}
+        {job.summary && (
+          <div className="job-card-summary">
+            {job.summary.slice(0, 60)}{job.summary.length > 60 ? '…' : ''}
+          </div>
+        )}
+        <div className="job-card-footer">
+          <span className="job-card-amount">
+            {typeof (job.total ?? job.amount) === 'number'
+              ? '£' + Number(job.total ?? job.amount).toLocaleString('en-GB', { minimumFractionDigits: 0 })
+              : ''}
+          </span>
+          {isPaid && daysPaid !== null && (
+            <span className="job-card-paid-meta">Paid {daysPaid === 0 ? 'today' : `${daysPaid}d ago`}</span>
           )}
         </div>
+        {/* Advance Button + overflow menu row. stopPropagation so taps don't open the drawer. */}
+        {status !== 'Paid' && (
+          <div className="job-card-actions" onClick={e => e.stopPropagation()}>
+            <AdvanceButton
+              status={status}
+              job={job}
+              onNewJob={onNewJob}
+              onSendInvoice={onSendInvoice}
+              onUpdateJob={onUpdateJob}
+            />
+            <button
+              type="button"
+              className="job-overflow-trigger"
+              onClick={e => { e.stopPropagation(); setOverflowOpen(true); }}
+              aria-label="More actions"
+            >
+              ⋯
+            </button>
+          </div>
+        )}
+      </li>
+      {/* Overflow menu — rendered outside the li to avoid stacking-context issues */}
+      {overflowOpen && (
+        <JobOverflowMenu
+          job={job}
+          status={status}
+          onClose={() => setOverflowOpen(false)}
+          onUpdateJob={onUpdateJob}
+          onSelect={onSelect}
+          onToast={onToast}
+        />
       )}
-    </li>
+    </>
   );
 }
 
-// ── Empty state copy per chip (plain trade English) ───────────────────────────
+// ── Empty state copy per stage ────────────────────────────────────────────────
 
-function EmptyState({ filter }) {
+function EmptyState({ stage }) {
   const copy = {
-    All:      { title: 'No jobs yet', hint: 'Tap + New job to log your first job.' },
     Lead:     { title: 'No leads yet', hint: 'Got a phone enquiry? Tap + to log it.' },
     Quoted:   { title: 'No quotes out', hint: 'Send a quote and it will appear here.' },
     On:       { title: 'Nothing on the go', hint: "Either you're on holiday or it's time to chase a quote." },
@@ -367,7 +463,7 @@ function EmptyState({ filter }) {
     Overdue:  { title: 'Nothing overdue', hint: 'Good week.' },
     Paid:     { title: 'No paid jobs yet', hint: 'Paid jobs show here once the money lands.' },
   };
-  const { title, hint } = copy[filter] ?? copy.All;
+  const { title, hint } = copy[stage] ?? { title: 'No jobs', hint: 'Tap + New job to get started.' };
   return (
     <div className="screen-empty">
       <p className="screen-empty-title">{title}</p>
@@ -378,38 +474,15 @@ function EmptyState({ filter }) {
 
 // ── JobsList subview ──────────────────────────────────────────────────────────
 
-function JobsList({ jobs, onJobSelect, onSendInvoice, onUpdateJob, onNewJob }) {
-  // Default: "On" — surfaces active work immediately on app open.
-  const [filter, setFilter] = useState('On');
-
-  const filtered = jobs.filter(j => {
-    if (filter === 'All') return true;
-    return deriveDisplayStatus(j) === filter;
-  });
+function JobsList({ jobs, selectedStage, showAll, onJobSelect, onSendInvoice, onUpdateJob, onNewJob, onToast }) {
+  const filtered = showAll
+    ? jobs
+    : jobs.filter(j => deriveDisplayStatus(j) === selectedStage);
 
   return (
     <>
-      {/* Status filter chips */}
-      <div className="filter-chips" role="group" aria-label="Filter by status">
-        {STATUS_FILTERS.map(f => (
-          <button
-            key={f}
-            className={`filter-chip ${filter === f ? 'filter-chip--active' : ''}`}
-            onClick={() => setFilter(f)}
-          >
-            {f}
-            {f !== 'All' && (
-              <span className="filter-chip-count">
-                {jobs.filter(j => deriveDisplayStatus(j) === f).length || ''}
-              </span>
-            )}
-          </button>
-        ))}
-      </div>
-
-      {/* Job list */}
       {filtered.length === 0 ? (
-        <EmptyState filter={filter} />
+        <EmptyState stage={showAll ? 'All' : selectedStage} />
       ) : (
         <ul className="job-list">
           {filtered.map(j => (
@@ -420,6 +493,7 @@ function JobsList({ jobs, onJobSelect, onSendInvoice, onUpdateJob, onNewJob }) {
               onSendInvoice={onSendInvoice}
               onUpdateJob={onUpdateJob}
               onNewJob={onNewJob}
+              onToast={onToast}
             />
           ))}
         </ul>
@@ -432,11 +506,13 @@ function JobsList({ jobs, onJobSelect, onSendInvoice, onUpdateJob, onNewJob }) {
 
 export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddPayment, onUpdateJob, onAddReceipt, onDeleteReceipt, biz, profile }) {
   const [subview, setSubview] = useState(getPersistedView);
+  const [selectedStage, setSelectedStage] = useState('On');
+  const [showAll, setShowAll] = useState(false);
   // selectedJob drives the JobDetailDrawer — null means closed.
   const [selectedJob, setSelectedJob] = useState(null);
-  // invoiceJob drives the inline SendInvoiceModal from the "Send invoice" card CTA.
+  // invoiceJob drives the SendInvoiceModal from the "Send invoice →" Advance Button.
   const [invoiceJob, setInvoiceJob] = useState(null);
-  const [invoiceToast, setInvoiceToast] = useState('');
+  const [toast, setToast] = useState('');
 
   const switchSubview = useCallback((v) => {
     logTelemetry('work_subview', { subview: v });
@@ -445,26 +521,33 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddPa
   }, []);
 
   // Keep the drawer's job in sync when AppShell refreshes jobs[] after a payment.
-  // Without this the drawer would show stale balance/payments after adding a payment.
   const liveSelectedJob = selectedJob
     ? (jobs.find(j => j.id === selectedJob.id) ?? selectedJob)
     : null;
 
   const handleAddPayment = (job, payload) => {
     onAddPayment?.(job, payload);
-    // liveSelectedJob will update automatically on next render as jobs[] refreshes.
   };
 
-  const showInvoiceToast = (msg) => {
-    setInvoiceToast(msg);
-    setTimeout(() => setInvoiceToast(''), 2400);
+  const showToast = (msg) => {
+    setToast(msg);
+    setTimeout(() => setToast(''), 2400);
   };
 
-  // Money-at-risk strip figures — rendered above segmented control so visible on both subviews.
+  const handleSelectStage = (stage) => {
+    setSelectedStage(stage);
+    setShowAll(false);
+    logTelemetry('stage_strip_select', { stage });
+  };
+
+  const handleToggleShowAll = () => {
+    setShowAll(v => !v);
+  };
+
+  // Money-at-risk strip figures
   const riskFigures = calcRiskFigures(jobs);
   const oldestOverdue = riskFigures.overdueJobs[0] ?? null;
 
-  // Strip's Chase button uses chaseJob scoped to the oldest overdue job.
   const handleChase = () => {
     if (!oldestOverdue) return;
     chaseJob(oldestOverdue);
@@ -480,7 +563,7 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddPa
         </div>
       </div>
 
-      {/* Money-at-risk strip — always rendered; above segmented control so visible on both subviews */}
+      {/* Money-at-risk strip — kept from first-pass */}
       <div className="risk-strip">
         <div className="risk-strip-figures">
           <span className="risk-strip-figure">
@@ -510,21 +593,39 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddPa
         )}
       </div>
 
-      {/* Segmented control */}
-      <div className="work-segments" role="group" aria-label="Switch between list and calendar view">
+      {/* Stage Strip — deriveStatus + formatAmount passed as props (avoids circular import) */}
+      <StageStrip
+        jobs={jobs}
+        selectedStage={selectedStage}
+        onSelectStage={handleSelectStage}
+        deriveStatus={deriveDisplayStatus}
+        formatAmount={formatAmount}
+      />
+
+      {/* Segmented control row + Show all toggle */}
+      <div className="work-controls-row">
+        <div className="work-segments" role="group" aria-label="Switch between list and calendar view">
+          <button
+            className={`work-segment ${subview === 'list' ? 'work-segment--active' : ''}`}
+            onClick={() => switchSubview('list')}
+            aria-pressed={subview === 'list'}
+          >
+            List
+          </button>
+          <button
+            className={`work-segment ${subview === 'calendar' ? 'work-segment--active' : ''}`}
+            onClick={() => switchSubview('calendar')}
+            aria-pressed={subview === 'calendar'}
+          >
+            Calendar
+          </button>
+        </div>
         <button
-          className={`work-segment ${subview === 'list' ? 'work-segment--active' : ''}`}
-          onClick={() => switchSubview('list')}
-          aria-pressed={subview === 'list'}
+          type="button"
+          className={`show-all-toggle${showAll ? ' show-all-toggle--active' : ''}`}
+          onClick={handleToggleShowAll}
         >
-          List
-        </button>
-        <button
-          className={`work-segment ${subview === 'calendar' ? 'work-segment--active' : ''}`}
-          onClick={() => switchSubview('calendar')}
-          aria-pressed={subview === 'calendar'}
-        >
-          Calendar
+          {showAll ? 'Stage view' : 'Show all ⌄'}
         </button>
       </div>
 
@@ -532,16 +633,19 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddPa
       {subview === 'list' ? (
         <JobsList
           jobs={jobs}
+          selectedStage={selectedStage}
+          showAll={showAll}
           onJobSelect={setSelectedJob}
           onSendInvoice={setInvoiceJob}
           onUpdateJob={onUpdateJob}
           onNewJob={onNewJob}
+          onToast={showToast}
         />
       ) : (
         <WorkCalendar jobs={jobs} onNewJobOnDate={onNewJob} />
       )}
 
-      {/* Job detail drawer — renders on top when a job is selected */}
+      {/* Job detail drawer */}
       {liveSelectedJob && (
         <JobDetailDrawer
           job={liveSelectedJob}
@@ -557,7 +661,7 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddPa
         />
       )}
 
-      {/* Inline SendInvoiceModal — opened by the "Send invoice" primary CTA on Invoiced cards */}
+      {/* SendInvoiceModal — opened by Send invoice → Advance Button on On cards */}
       {invoiceJob && (
         <SendInvoiceModal
           job={invoiceJob}
@@ -566,11 +670,11 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddPa
           jobs={jobs}
           onUpdate={onUpdateJob ?? (() => {})}
           onClose={() => setInvoiceJob(null)}
-          flash={showInvoiceToast}
+          flash={showToast}
         />
       )}
 
-      {invoiceToast && <div className="toast">{invoiceToast}</div>}
+      {toast && <div className="toast">{toast}</div>}
     </div>
   );
 }

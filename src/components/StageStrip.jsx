@@ -1,0 +1,110 @@
+/**
+ * StageStrip — horizontal scrollable pipeline rail for the Work tab.
+ *
+ * Renders one StageTile per stage (Lead · Quoted · On · Invoiced · Overdue · Paid)
+ * with job count and total £ at stake. A connector rail (hairline + dots) sits beneath
+ * the tiles to make the pipeline read as a sequence.
+ *
+ * Extracted from WorkScreen.jsx because WorkScreen exceeded 500 lines after the
+ * Stage Strip + Advance Button redesign (PR: polish/jobs-pipeline-stage-strip).
+ *
+ * Props:
+ *   jobs           — full jobs array from AppShell
+ *   selectedStage  — currently active stage string
+ *   onSelectStage  — callback(stage: string)
+ *   deriveStatus   — function(job) → stage string (passed in to avoid a circular import)
+ *   formatAmount   — function(val) → string (passed in for the same reason)
+ */
+import { useRef, useEffect } from 'react';
+
+export const STAGES = ['Lead', 'Quoted', 'On', 'Invoiced', 'Overdue', 'Paid'];
+
+/**
+ * StageTile — one tile in the strip.
+ */
+function StageTile({ stage, count, total, selected, onSelect, tileRef, formatAmount }) {
+  const isOverdue = stage === 'Overdue';
+  const isLead = stage === 'Lead';
+
+  const accentClass = isOverdue
+    ? 'stage-tile--overdue'
+    : isLead
+      ? 'stage-tile--lead'
+      : '';
+
+  const amountText = isLead ? '£—' : '£' + formatAmount(total);
+
+  return (
+    <button
+      ref={tileRef}
+      type="button"
+      className={`stage-tile${selected ? ' stage-tile--selected' : ''}${accentClass ? ' ' + accentClass : ''}`}
+      onClick={() => onSelect(stage)}
+      aria-pressed={selected}
+    >
+      <span className="stage-tile-name">{stage.toUpperCase()}</span>
+      <span className="stage-tile-count">{count} {count === 1 ? 'job' : 'jobs'}</span>
+      <span className="stage-tile-amount">{amountText}</span>
+    </button>
+  );
+}
+
+/**
+ * StageStrip — the full scrollable rail.
+ */
+export default function StageStrip({ jobs, selectedStage, onSelectStage, deriveStatus, formatAmount }) {
+  const scrollRef = useRef(null);
+  const tileRefs = useRef({});
+
+  // Aggregate count + total per stage from the live jobs array
+  const stageMeta = STAGES.reduce((acc, s) => {
+    acc[s] = { count: 0, total: 0 };
+    return acc;
+  }, {});
+
+  for (const j of jobs) {
+    const s = deriveStatus(j);
+    if (stageMeta[s]) {
+      stageMeta[s].count += 1;
+      stageMeta[s].total += Number(j.total ?? j.amount ?? 0) || 0;
+    }
+  }
+
+  // Auto-scroll selected tile into view when selection changes
+  useEffect(() => {
+    const el = tileRefs.current[selectedStage];
+    if (el && scrollRef.current) {
+      el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
+    }
+  }, [selectedStage]);
+
+  return (
+    <div className="stage-strip-wrap">
+      <div className="stage-strip" ref={scrollRef} role="group" aria-label="Filter by pipeline stage">
+        {STAGES.map(s => (
+          <StageTile
+            key={s}
+            stage={s}
+            count={stageMeta[s].count}
+            total={stageMeta[s].total}
+            selected={selectedStage === s}
+            onSelect={onSelectStage}
+            tileRef={el => { tileRefs.current[s] = el; }}
+            formatAmount={formatAmount}
+          />
+        ))}
+        {/* Scroll hint — right-edge chevron */}
+        <span className="stage-strip-hint" aria-hidden="true">›</span>
+      </div>
+      {/* Connector rail — hairline + dots */}
+      <div className="stage-rail" aria-hidden="true">
+        {STAGES.map(s => (
+          <span
+            key={s}
+            className={`stage-rail-dot${s === selectedStage ? ' stage-rail-dot--active' : ''}${s === 'Overdue' ? ' stage-rail-dot--overdue' : ''}${s === 'Lead' ? ' stage-rail-dot--lead' : ''}`}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}

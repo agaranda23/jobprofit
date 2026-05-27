@@ -2645,6 +2645,288 @@ input[type=number] { -moz-appearance: textfield; }
   box-shadow: 0 1px 4px rgba(0,0,0,0.3);
 }
 
+/* Controls row — segmented control + Show all toggle side by side */
+.work-controls-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.work-controls-row .work-segments {
+  flex: 1;
+  margin-bottom: 0;
+}
+.show-all-toggle {
+  flex-shrink: 0;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-dim);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 7px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s;
+}
+.show-all-toggle--active {
+  background: var(--surface-2);
+  color: var(--text);
+  border-color: var(--text-dim);
+}
+
+/* ── Stage Strip ──────────────────────────────── */
+.stage-strip-wrap {
+  margin-bottom: 4px;
+}
+
+.stage-strip {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  padding-bottom: 6px;
+  scroll-snap-type: x mandatory;
+  position: relative;
+}
+.stage-strip::-webkit-scrollbar { display: none; }
+
+/* Right-edge scroll hint */
+.stage-strip-hint {
+  position: sticky;
+  right: 0;
+  align-self: center;
+  padding: 0 4px;
+  font-size: 16px;
+  color: var(--text-dim);
+  pointer-events: none;
+  flex-shrink: 0;
+}
+
+.stage-tile {
+  flex-shrink: 0;
+  scroll-snap-align: start;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  min-width: 72px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, min-width 0.2s;
+  text-align: left;
+}
+.stage-tile--selected {
+  min-width: 88px;
+  background: var(--jp-green);
+  border-color: var(--jp-green);
+}
+/* Overdue tile: rose accent when unselected */
+.stage-tile--overdue .stage-tile-name,
+.stage-tile--overdue .stage-tile-count,
+.stage-tile--overdue .stage-tile-amount {
+  color: var(--jp-rose);
+}
+/* Lead tile: amber accent when unselected */
+.stage-tile--lead .stage-tile-name,
+.stage-tile--lead .stage-tile-count,
+.stage-tile--lead .stage-tile-amount {
+  color: var(--jp-amber);
+}
+/* Override accent colours when tile is selected (always white on green) */
+.stage-tile--selected .stage-tile-name,
+.stage-tile--selected .stage-tile-count,
+.stage-tile--selected .stage-tile-amount {
+  color: #fff;
+}
+
+.stage-tile-name {
+  font-size: 8.5px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: var(--text-dim);
+  line-height: 1;
+}
+.stage-tile-count {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.2;
+}
+.stage-tile-amount {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-dim);
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Connector rail — hairline + dots below the strip */
+.stage-rail {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  position: relative;
+  margin: 0 0 14px 0;
+  padding: 0 4px;
+}
+.stage-rail::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1px;
+  background: var(--border);
+  z-index: 0;
+}
+.stage-rail-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--surface-2);
+  border: 1.5px solid var(--border);
+  position: relative;
+  z-index: 1;
+  flex-shrink: 0;
+  transition: background 0.15s, border-color 0.15s;
+}
+.stage-rail-dot--active {
+  background: var(--jp-green);
+  border-color: var(--jp-green);
+}
+.stage-rail-dot--overdue {
+  border-color: var(--jp-rose);
+}
+.stage-rail-dot--overdue.stage-rail-dot--active {
+  background: var(--jp-rose);
+}
+.stage-rail-dot--lead {
+  border-color: var(--jp-amber);
+}
+.stage-rail-dot--lead.stage-rail-dot--active {
+  background: var(--jp-amber);
+}
+
+/* ── Advance Button ───────────────────────────── */
+.job-card-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  align-items: center;
+}
+
+.advance-btn {
+  flex: 1;
+  padding: 9px 14px;
+  background: var(--jp-green);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  text-align: center;
+  line-height: 1.2;
+  transition: opacity 0.12s;
+}
+.advance-btn:active { opacity: 0.8; }
+/* Overdue: Chase now → rose */
+.advance-btn--chase {
+  background: var(--jp-rose);
+}
+
+/* Paid card meta */
+.job-card-paid-meta {
+  font-size: 12px;
+  color: var(--jp-green);
+  font-weight: 600;
+}
+
+/* ── Overflow menu trigger ────────────────────── */
+.job-overflow-trigger {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: 16px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  line-height: 1;
+}
+.job-overflow-trigger:active { opacity: 0.7; }
+
+/* ── Overflow bottom sheet ────────────────────── */
+.job-overflow-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 200;
+}
+.job-overflow-sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: var(--surface);
+  border-radius: 16px 16px 0 0;
+  padding: 12px 0 max(24px, env(safe-area-inset-bottom)) 0;
+  z-index: 201;
+  animation: sheet-slide-up 0.2s ease;
+}
+@keyframes sheet-slide-up {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+.job-overflow-handle {
+  width: 36px;
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  margin: 0 auto 12px auto;
+}
+.job-overflow-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-dim);
+  padding: 0 20px 10px 20px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.job-overflow-actions {
+  display: flex;
+  flex-direction: column;
+}
+.job-overflow-item {
+  width: 100%;
+  background: none;
+  border: none;
+  text-align: left;
+  padding: 14px 20px;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text);
+  cursor: pointer;
+  line-height: 1.2;
+}
+.job-overflow-item:active { background: var(--surface-2); }
+.job-overflow-item--danger {
+  color: var(--jp-rose);
+}
+
 /* ── WorkCalendar ─────────────────────────────── */
 .work-calendar {
   display: flex;
