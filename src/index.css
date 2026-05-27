@@ -1605,6 +1605,103 @@ input[type=number] { -moz-appearance: textfield; }
 .status--invoiced { background: #2a1a3a; color: #c4b5fd; }
 .status--paid     { background: #1a3a2a; color: var(--jp-green); }
 
+/* ── JobsScreen — money-at-risk strip ─────────── */
+.risk-strip {
+  background: rgba(229, 72, 77, 0.10);
+  border-left: 3px solid var(--jp-rose);
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-bottom: 14px;
+}
+.risk-strip-figures {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.4;
+}
+.risk-strip-value {
+  font-weight: 700;
+}
+.risk-strip-label {
+  color: var(--text-dim);
+  font-weight: 500;
+}
+.risk-strip-sep {
+  color: var(--text-dim);
+  margin: 0 2px;
+}
+.risk-strip-figure--overdue .risk-strip-value {
+  color: var(--jp-rose);
+}
+.risk-strip-chase-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 8px;
+  gap: 10px;
+}
+.risk-strip-chase-hint {
+  font-size: 12px;
+  color: var(--jp-rose);
+  font-weight: 600;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.risk-strip-chase-btn {
+  background: var(--jp-rose);
+  color: #fff;
+  border: none;
+  border-radius: 7px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.risk-strip-chase-btn:active { opacity: 0.8; }
+
+/* ── JobsScreen — per-card dual CTAs ──────────── */
+.job-card-ctas {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+.job-card-cta {
+  padding: 7px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  white-space: nowrap;
+  line-height: 1.2;
+}
+.job-card-cta--primary {
+  background: var(--jp-green);
+  color: #fff;
+}
+.job-card-cta--primary.job-card-cta--danger {
+  background: var(--jp-rose);
+  color: #fff;
+}
+.job-card-cta--primary.job-card-cta--warn {
+  background: var(--jp-amber);
+  color: #fff;
+}
+.job-card-cta--secondary {
+  background: transparent;
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+}
+.job-card-cta:active { opacity: 0.75; }
+
 /* ── ScheduleScreen ───────────────────────────── */
 .schedule-subhead {
   font-size: 14px;
