@@ -107,7 +107,9 @@ export function addTodayJob(payload) {
   const now = new Date();
   const today = localDateString(now);
   const id = payload.legacyId || nextJobId(data.jobs);
-  const amount = Number(payload.amount || 0);
+  // Preserve null/empty amount — don't coerce to 0. A blank amount means
+  // "no price yet" (Lead state). Only parse when something meaningful was passed.
+  const amount = (payload.amount == null || payload.amount === '') ? null : Number(payload.amount);
   const isPaid = payload.paid !== false;
 
   const newJob = {
@@ -118,7 +120,7 @@ export function addTodayJob(payload) {
     email: '',
     date: today,
     summary: payload.name || 'Job',
-    lineItems: [{ desc: payload.name || 'Job', cost: amount }],
+    lineItems: amount != null ? [{ desc: payload.name || 'Job', cost: amount }] : [],
     total: amount,
     quoteStatus: 'accepted',
     jobStatus: isPaid ? 'complete' : 'active',
@@ -278,7 +280,9 @@ export async function addJobToCloud(payload) {
   const user_id = await getUserId();
   if (!user_id) throw new Error('Not signed in');
 
-  const amount = Number(payload.amount || 0);
+  // Preserve null/empty amount — don't coerce to 0. A blank amount means
+  // "no price yet" (Lead state). Only parse when something meaningful was passed.
+  const amount = (payload.amount == null || payload.amount === '') ? null : Number(payload.amount);
   const isPaid = payload.paid !== false;
   const today = localDateString();
 
@@ -294,7 +298,8 @@ export async function addJobToCloud(payload) {
     payment_date: isPaid ? today : null,
     source: payload.source || 'Quick add',
     status: isPaid ? 'paid' : 'lead',
-    line_items: [{ desc: payload.name || 'Job', cost: amount }],
+    // Write empty array when no price — avoid a stray £0 line item
+    line_items: amount != null ? [{ desc: payload.name || 'Job', cost: amount }] : [],
   };
 
   const { data, error } = await supabase

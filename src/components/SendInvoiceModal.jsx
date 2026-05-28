@@ -53,6 +53,9 @@ export default function SendInvoiceModal({
   onUpdate,
   onClose,
   flash,
+  // Optional: called when the user taps "Add price" on the £0 banner.
+  // The drawer passes () => { closeModal; setEditingField('amount') }.
+  onNeedsPrice,
 }) {
   const [invoiceNumber, setInvoiceNumber] = useState(
     () => job.invoiceNumber || nextInvoiceNumber(jobs)
@@ -69,10 +72,15 @@ export default function SendInvoiceModal({
   const isFirstSend = job.status !== 'invoice_sent';
   const missing = getMissingInvoiceFields(biz, profile);
   const message = buildInvoiceWhatsAppMessage({ job, biz, invoiceNumber, dueDate });
+  // Check whether the job has a usable price — treat null AND 0 as "no price".
+  const invAmount = Number(job.total ?? job.amount);
+  const isUnpriced = !invAmount || invAmount <= 0;
 
   // Performs the status transition on first send.
   // Returns false when the paywall should block the send.
   const attemptSend = () => {
+    // Hard-stop backstop for £0 invoices — belt-and-suspenders behind the UI banner.
+    if (isUnpriced) return false;
     if (isFirstSend && !canSendInvoice(profile)) {
       setView('paywall');
       return false;
@@ -221,6 +229,22 @@ export default function SendInvoiceModal({
           </div>
         </div>
 
+        {/* £0 guard — blocking banner when the job has no price */}
+        {isUnpriced && (
+          <div className="invoice-no-price-banner" role="alert">
+            <span>This job has no price yet — add one before sending.</span>
+            {onNeedsPrice && (
+              <button
+                type="button"
+                className="invoice-no-price-add-btn"
+                onClick={onNeedsPrice}
+              >
+                Add price
+              </button>
+            )}
+          </div>
+        )}
+
         {/* Invoice number + due date row */}
         <div className="invoice-fields-row">
           <div className="invoice-field-group">
@@ -260,6 +284,8 @@ export default function SendInvoiceModal({
           type="button"
           className="btn-primary modal-sheet-btn invoice-send-whatsapp"
           onClick={handleWhatsApp}
+          disabled={isUnpriced}
+          aria-disabled={isUnpriced}
         >
           💬 Send via WhatsApp
         </button>
@@ -271,7 +297,7 @@ export default function SendInvoiceModal({
             type="button"
             className="btn-secondary modal-sheet-btn"
             onClick={handleSharePDF}
-            disabled={busy}
+            disabled={busy || isUnpriced}
           >
             {busy ? 'Preparing PDF…' : 'Send with PDF (share sheet)'}
           </button>
@@ -279,6 +305,7 @@ export default function SendInvoiceModal({
             type="button"
             className="btn-ghost modal-sheet-btn"
             onClick={handleDownloadPDF}
+            disabled={isUnpriced}
           >
             Download PDF
           </button>

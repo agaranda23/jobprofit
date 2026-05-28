@@ -40,3 +40,35 @@ export function daysSinceInvoice(job) {
   const ms = Date.now() - new Date(job.invoiceSentAt).getTime();
   return Math.floor(ms / (1000 * 60 * 60 * 24));
 }
+
+// ── Price guard (canonical stage model) ─────────────────────────────────────
+// Used by WorkScreen tile CTAs, StageChipDropdown advance guard, and
+// JobDetailDrawer controls — single definition so the rule can't drift.
+
+/**
+ * Returns true when the job has no usable price.
+ * Both null/undefined AND 0 are treated as "no price".
+ */
+export function needsPrice(job) {
+  const v = job?.total ?? job?.amount;
+  return v == null || Number(v) <= 0;
+}
+
+/**
+ * Maps a canonical stage name to the status fields the DB expects.
+ * Mirrors the stageMap inside StageChipDropdown.moveToStage — extracted here
+ * so the drawer's handleAmountSave can apply a stage advance in a single write.
+ *
+ * Only ADD new stages here; do not rename existing keys.
+ */
+export function stagePatch(stage) {
+  const map = {
+    Lead:     { status: 'lead',         paid: false, invoiceStatus: null },
+    Quoted:   { status: 'quoted',        paid: false, invoiceStatus: null },
+    On:       { status: 'active',        paid: false, invoiceStatus: null },
+    Invoiced: { status: 'invoice_sent',  paid: false, invoiceStatus: 'invoiced' },
+    Overdue:  { status: 'invoice_sent',  paid: false, invoiceStatus: 'invoiced', overdue: true },
+    Paid:     { status: 'paid',          paid: true,  invoiceStatus: 'invoiced', paidAt: new Date().toISOString() },
+  };
+  return map[stage] ?? {};
+}

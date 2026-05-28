@@ -4046,6 +4046,51 @@ input[type=number] { -moz-appearance: textfield; }
   color: var(--jp-green);
   font-variant-numeric: tabular-nums;
 }
+/* Price row button in drawer header — mirrors "+ Add phone" pattern */
+.jd-price-btn {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 2px 0;
+  font-size: inherit;
+}
+.jd-price-btn--add {
+  color: var(--jp-green);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+/* SendInvoiceModal — no price banner */
+.invoice-no-price-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background: rgba(229, 72, 77, 0.12);
+  border: 1px solid rgba(229, 72, 77, 0.35);
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 13px;
+  color: var(--jp-rose, #E5484D);
+  margin: 0 0 12px;
+}
+.invoice-no-price-add-btn {
+  background: none;
+  border: 1px solid var(--jp-rose, #E5484D);
+  border-radius: 6px;
+  color: var(--jp-rose, #E5484D);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.invoice-no-price-add-btn:active { opacity: 0.7; }
+
 .job-detail-close {
   background: none;
   border: none;

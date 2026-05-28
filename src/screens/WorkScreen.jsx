@@ -33,7 +33,7 @@ import JobDetailDrawer from '../components/JobDetailDrawer';
 import SendInvoiceModal from '../components/SendInvoiceModal';
 import StageStrip from '../components/StageStrip';
 import { logTelemetry } from '../lib/telemetry';
-import { daysSinceInvoice } from '../lib/jobStatus';
+import { daysSinceInvoice, needsPrice, stagePatch } from '../lib/jobStatus';
 import {
   computeTier,
   daysPastDue,
@@ -243,7 +243,7 @@ const STAGE_META = {
  * "More actions" is 4 compact chips below a divider.
  * All moveToStage() mapping logic is unchanged.
  */
-function StageChipDropdown({ job, currentStage, onUpdateJob, onSendInvoice, onSelect }) {
+function StageChipDropdown({ job, currentStage, onUpdateJob, onSendInvoice, onSelect, onOpenJob }) {
   const [open, setOpen] = useState(false);
   const chipRef = useRef(null);
   const menuRef = useRef(null);
@@ -278,18 +278,15 @@ function StageChipDropdown({ job, currentStage, onUpdateJob, onSendInvoice, onSe
   function moveToStage(stage) {
     setOpen(false);
     if (!onUpdateJob) return;
-    // Map canonical stage name to the status fields the DB understands.
-    // TODO(stage-cleanup): replace with a canonical `stage` field once the
-    // schema is updated and jobStatus.js is retired.
-    const stageMap = {
-      Lead:     { status: 'lead',         paid: false, invoiceStatus: null },
-      Quoted:   { status: 'quoted',        paid: false, invoiceStatus: null },
-      On:       { status: 'active',        paid: false, invoiceStatus: null },
-      Invoiced: { status: 'invoice_sent',  paid: false, invoiceStatus: 'invoiced' },
-      Overdue:  { status: 'invoice_sent',  paid: false, invoiceStatus: 'invoiced', overdue: true },
-      Paid:     { status: 'paid',          paid: true,  invoiceStatus: 'invoiced', paidAt: new Date().toISOString() },
-    };
-    const patch = stageMap[stage] ?? {};
+    // Guard: un-priced Leads cannot advance forward without a price.
+    // Forward = any stage other than Lead itself.
+    const forwardStages = new Set(['Quoted', 'On', 'Invoiced', 'Overdue', 'Paid']);
+    if (currentStage === 'Lead' && forwardStages.has(stage) && needsPrice(job)) {
+      onOpenJob?.(job, { intent: 'price', targetStage: stage });
+      return;
+    }
+    // stagePatch is the single source of truth (exported from jobStatus.js).
+    const patch = stagePatch(stage);
     onUpdateJob({ ...job, ...patch });
   }
 
@@ -450,15 +447,17 @@ function StageChipDropdown({ job, currentStage, onUpdateJob, onSendInvoice, onSe
  * Stage-appropriate CTA config — wired to real WorkScreen handlers.
  * Invoiced + Overdue use chaseLadder for tiered WhatsApp messages.
  */
-function getStageCTA(stage, job, { onSendInvoice, onUpdateJob, onNewJob, biz }) {
+function getStageCTA(stage, job, { onSendInvoice, onUpdateJob, onNewJob, onOpenJob, biz }) {
   switch (stage) {
     case 'Lead':
       return {
         label: 'Send quote →',
         mod: null,
         phoneBtn: false,
-        // TODO: wire to a dedicated Lead→Quote flow when available.
-        action: () => onNewJob?.(),
+        // Opens this job's drawer with quote intent — if unpriced, the price
+        // field opens automatically; after entering the price, Send quote link
+        // CTA is ready for one deliberate tap.
+        action: () => onOpenJob?.(job, { intent: 'quote' }),
       };
 
     case 'Quoted':
@@ -579,7 +578,7 @@ function deriveMoneySub(job, stage) {
  * The old separate .jt-money row is removed — amount folds into Row 2.
  * deriveMoneySub and deriveTimeSignal are reused unchanged.
  */
-function JobTile({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob, biz }) {
+function JobTile({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJob, biz }) {
   const stage = deriveDisplayStatus(job);
   const isPaid = stage === 'Paid';
 
@@ -589,12 +588,16 @@ function JobTile({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob, biz }) {
   const noteCount = Array.isArray(job.jobNotes) ? job.jobNotes.length : (job.notes ? 1 : 0);
   const moneySub = deriveMoneySub(job, stage);
 
-  const amount = Number(job.total ?? job.amount ?? 0) || 0;
-  const formattedAmount = amount > 0 ? '£' + formatAmount(amount) : '—';
-  const amountMuted = stage === 'Lead' || amount === 0;
+  const rawAmount = job.total ?? job.amount;
+  const amount = rawAmount != null ? Number(rawAmount) : null;
+  const isUnpriced = amount == null || amount <= 0;
+  const formattedAmount = !isUnpriced ? '£' + formatAmount(amount) : null;
+  // Lead with no price gets "No price yet"; other un-priced stages show "—" as before
+  const priceLine = (stage === 'Lead' && isUnpriced) ? 'No price yet' : (formattedAmount ?? '—');
+  const amountMuted = stage === 'Lead' || isUnpriced;
   const amountOverdue = stage === 'Overdue';
 
-  const cta = getStageCTA(stage, job, { onSendInvoice, onUpdateJob, onNewJob, biz });
+  const cta = getStageCTA(stage, job, { onSendInvoice, onUpdateJob, onNewJob, onOpenJob, biz });
   const stageMeta = STAGE_META[stage] || STAGE_META.Lead;
 
   // "Last chased" chip — shown on Invoiced and Overdue tiles after a chase is recorded
@@ -634,6 +637,7 @@ function JobTile({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob, biz }) {
           onUpdateJob={onUpdateJob}
           onSendInvoice={onSendInvoice}
           onSelect={onSelect}
+          onOpenJob={onOpenJob}
         />
       </div>
 
@@ -649,7 +653,7 @@ function JobTile({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob, biz }) {
       </div>
       {/* Row 2b: price on its own line, directly under title */}
       <div className={`jt-price${amountMuted ? ' jt-price--muted' : ''}${amountOverdue ? ' jt-price--overdue' : ''}`}>
-        {formattedAmount}
+        {priceLine}
       </div>
 
       {/* Row 3: one merged signal line — time · money state · counts */}
@@ -740,7 +744,7 @@ function EmptyState({ stage }) {
 
 // ── JobsList subview ──────────────────────────────────────────────────────────
 
-function JobsList({ jobs, selectedStage, showAll, onJobSelect, onSendInvoice, onUpdateJob, onNewJob, biz }) {
+function JobsList({ jobs, selectedStage, showAll, onJobSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJob, biz }) {
   const filtered = showAll
     ? jobs
     : jobs.filter(j => deriveDisplayStatus(j) === selectedStage);
@@ -759,6 +763,7 @@ function JobsList({ jobs, selectedStage, showAll, onJobSelect, onSendInvoice, on
               onSendInvoice={onSendInvoice}
               onUpdateJob={onUpdateJob}
               onNewJob={onNewJob}
+              onOpenJob={onOpenJob}
               biz={biz}
             />
           ))}
@@ -776,6 +781,10 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
   const [showAll, setShowAll] = useState(false);
   // selectedJob drives the JobDetailDrawer — null means closed.
   const [selectedJob, setSelectedJob] = useState(null);
+  // drawerIntent / drawerTargetStage — set when opening the drawer with a goal
+  // (e.g. tile CTA "Send quote →" or stage-advance guard). Cleared after use.
+  const [drawerIntent, setDrawerIntent] = useState(null);
+  const [drawerTargetStage, setDrawerTargetStage] = useState(null);
   // invoiceJob drives the SendInvoiceModal from the "Send invoice →" Advance Button.
   const [invoiceJob, setInvoiceJob] = useState(null);
   const [toast, setToast] = useState('');
@@ -846,6 +855,14 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
   };
 
   const openAddJob = () => setAddJobOpen(true);
+
+  // Opens a job's drawer with an optional intent (e.g. 'quote', 'price').
+  // Called by tile CTAs and the stage-advance guard in StageChipDropdown.
+  const handleOpenJob = (job, opts) => {
+    setSelectedJob(job);
+    setDrawerIntent(opts?.intent ?? null);
+    setDrawerTargetStage(opts?.targetStage ?? null);
+  };
 
   return (
     <div className="screen work-screen">
@@ -957,6 +974,7 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
           onSendInvoice={setInvoiceJob}
           onUpdateJob={onUpdateJob}
           onNewJob={onNewJob}
+          onOpenJob={handleOpenJob}
           biz={biz}
         />
       ) : (
@@ -975,7 +993,10 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
           onAddReceipt={onAddReceipt}
           onDeleteReceipt={onDeleteReceipt}
           onAddPayment={handleAddPayment}
-          onClose={() => setSelectedJob(null)}
+          onClose={() => { setSelectedJob(null); setDrawerIntent(null); setDrawerTargetStage(null); }}
+          intent={drawerIntent}
+          targetStage={drawerTargetStage}
+          onClearIntent={() => { setDrawerIntent(null); setDrawerTargetStage(null); }}
         />
       )}
 
