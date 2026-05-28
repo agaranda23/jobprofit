@@ -5820,12 +5820,12 @@ input[type=number] { -moz-appearance: textfield; }
    color-mix() intentionally NOT used (no confirmed Safari 16.4+ baseline).
    ═══════════════════════════════════════════════════════════════ */
 
-/* --- Tile shell --- */
+/* --- Tile shell (slim redesign 2026-05-28) --- */
 .jt {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 16px;
-  padding: 14px 14px 12px;
+  border-radius: 14px;
+  padding: 9px 12px 9px;
   position: relative;
   /* 4px left rail using canonical stage hue */
   box-shadow: inset 4px 0 0 0 var(--jt-hue, transparent);
@@ -5833,28 +5833,29 @@ input[type=number] { -moz-appearance: textfield; }
 }
 .jt + .jt { margin-top: 0; } /* gap is handled by .job-list gap */
 
-/* --- Header row --- */
+/* --- Row 1: header (avatar + customer + chip) --- */
 .jt-head {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin-bottom: 8px;
+  gap: 7px;
+  margin-bottom: 3px;
 }
+/* Avatar shrunk to 24px (was 32px) */
 .jt-avatar {
-  width: 32px;
-  height: 32px;
+  width: 24px;
+  height: 24px;
   border-radius: 999px;
   background: #2A312F;
   color: #E7EBE9;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 700;
   flex-shrink: 0;
 }
 .jt-customer {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 600;
   color: var(--text);
   line-height: 1.2;
@@ -5865,19 +5866,19 @@ input[type=number] { -moz-appearance: textfield; }
   min-width: 0;
 }
 
-/* --- Stage chip --- */
+/* --- Stage chip (smaller) --- */
 .jt-chip {
-  position: relative;
+  /* chip is no longer the dropdown anchor — menu is portalled to .jt (relative) */
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 5px 8px 5px 10px;
-  min-height: 28px;
+  gap: 3px;
+  padding: 3px 7px 3px 8px;
+  min-height: 22px;
   border-radius: 999px;
   background: var(--chip-fill, var(--jt-fill));
   border: 1px solid var(--chip-ink, var(--jt-ink));
   color: var(--chip-ink, var(--jt-ink));
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -5890,99 +5891,62 @@ input[type=number] { -moz-appearance: textfield; }
 .jt-chip-label { line-height: 1; }
 .jt-chip-caret { display: block; }
 
-/* --- Stage chip dropdown --- */
-.jt-menu {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
-  min-width: 180px;
-  background: #1E2422;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 6px;
-  box-shadow: 0 12px 32px rgba(0,0,0,0.55), 0 2px 4px rgba(0,0,0,0.4);
-  z-index: 50;
-}
-.jt-menu-label {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-dim);
-  padding: 6px 10px 4px;
-}
-.jt-menu-item {
+/* --- Row 2: title + £amount inline --- */
+.jt-title-row {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 10px;
-  border-radius: 8px;
-  color: var(--text);
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  line-height: 1.2;
-  min-height: 44px; /* thumb target */
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 3px;
 }
-.jt-menu-item:hover { background: rgba(255,255,255,0.05); }
-.jt-menu-item--current {
-  background: rgba(255,255,255,0.04);
-}
-.jt-menu-item--current::after {
-  content: "•";
-  margin-left: auto;
-  color: var(--text-dim);
-}
-.jt-menu-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 999px;
-  flex-shrink: 0;
-}
-.jt-menu-divider {
-  height: 1px;
-  background: var(--border);
-  margin: 6px 4px;
-}
-.jt-menu-item--action .jt-menu-dot {
-  display: none;
-}
-.jt-menu-icon {
-  width: 14px;
-  height: 14px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--text-dim);
-  font-size: 13px;
-  flex-shrink: 0;
-}
-.jt-menu-item--danger { color: var(--jp-rose); }
-.jt-menu-item--danger:hover { background: rgba(229,72,77,0.08); }
-.jt-menu-item--danger .jt-menu-icon { color: var(--jp-rose); }
-
-/* --- Job title --- */
 .jt-title {
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 700;
   color: var(--text);
   line-height: 1.25;
-  margin: 0 0 6px;
+  margin: 0;
   letter-spacing: -0.005em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1 1 auto;
+  min-width: 0;
 }
+.jt-title--placeholder {
+  color: var(--text-dim);
+  font-style: italic;
+  font-weight: 400;
+}
+/* £amount folded into title row — smaller than the old standalone money row */
+.jt-amount {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--jp-green);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  flex-shrink: 0;
+}
+.jt-amount--muted   { color: var(--text-dim); }
+.jt-amount--overdue { color: var(--jp-rose); }
 
-/* --- Meta signals row --- */
-.jt-meta {
+/* --- Row 3: merged signal line --- */
+.jt-signals {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 4px 8px;
-  margin-bottom: 10px;
-  font-size: 12px;
+  gap: 0 4px;
+  margin-bottom: 8px;
+  font-size: 11px;
   color: var(--text-dim);
   line-height: 1.3;
-  min-height: 16px;
+  min-height: 14px;
 }
+.jt-signal-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+/* reuse existing meta-item colour modifiers */
 .jt-meta-item {
   display: inline-flex;
   align-items: center;
@@ -5992,34 +5956,168 @@ input[type=number] { -moz-appearance: textfield; }
   color: var(--text-dim);
   font-size: 10px;
 }
-.jt-meta-item--urgent { color: var(--jp-rose); font-weight: 600; }
-.jt-meta-item--warn   { color: var(--jp-amber); font-weight: 600; }
-.jt-meta-item--ok     { color: var(--jp-green); }
-.jt-meta-item--mute   { color: var(--text-dim); }
+.jt-meta-item--urgent,
+.jt-signal--urgent  { color: var(--jp-rose); font-weight: 600; }
+.jt-meta-item--warn,
+.jt-signal--warn    { color: var(--jp-amber); font-weight: 600; }
+.jt-meta-item--ok,
+.jt-signal--ok      { color: var(--jp-green); }
+.jt-meta-item--mute,
+.jt-signal--mute    { color: var(--text-dim); }
 
-/* --- Money row --- */
-.jt-money {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  margin-bottom: 12px;
+/* --- Stage chip dropdown / bottom-sheet --- */
+
+/* Dim backdrop for mobile sheet — fixed, covers full viewport */
+.jt-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  z-index: 99;
 }
-.jt-amount {
-  font-size: 22px;
+
+/* Desktop anchored dropdown */
+.jt-menu--dropdown {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  min-width: 200px;
+  max-height: 70vh;
+  overflow-y: auto;
+  background: #1E2422;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 8px;
+  box-shadow: 0 12px 32px rgba(0,0,0,0.55), 0 2px 4px rgba(0,0,0,0.4);
+  z-index: 100;
+}
+
+/* Mobile bottom-sheet — hidden on desktop, shown on ≤640px */
+.jt-menu--sheet {
+  display: none;
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: #1E2422;
+  border-top: 1px solid var(--border);
+  border-radius: 16px 16px 0 0;
+  padding: 0 12px 24px;
+  box-shadow: 0 -8px 32px rgba(0,0,0,0.55);
+  z-index: 100;
+}
+@media (max-width: 640px) {
+  .jt-menu--dropdown { display: none; }
+  .jt-menu--sheet    { display: block; }
+}
+
+/* Grab handle */
+.jt-sheet-grab {
+  width: 36px;
+  height: 4px;
+  border-radius: 999px;
+  background: #4B5563;
+  margin: 10px auto 8px;
+}
+
+/* Sheet title line */
+.jt-sheet-title {
+  font-size: 12px;
   font-weight: 700;
-  color: var(--jp-green);
-  font-variant-numeric: tabular-nums;
-  letter-spacing: -0.01em;
-}
-.jt-amount--muted   { color: var(--text-dim); }
-.jt-amount--overdue { color: var(--jp-rose); }
-.jt-amount-sub {
-  font-size: 11px;
   color: var(--text-dim);
-  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0 4px 8px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
 }
 
-/* --- CTA row --- */
+.jt-menu-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  padding: 6px 4px 4px;
+}
+
+/* --- One-tap swatch row --- */
+.jt-menu-swatches {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+.jt-swatch {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  font-family: inherit;
+}
+.jt-swatch-dot {
+  width: 100%;
+  height: 30px;
+  border-radius: 8px;
+  background: var(--sw-hue);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.jt-swatch--current .jt-swatch-dot {
+  box-shadow: 0 0 0 2px #fff inset;
+}
+.jt-swatch:hover .jt-swatch-dot { filter: brightness(1.1); }
+.jt-swatch-label {
+  font-size: 8px;
+  font-weight: 700;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  line-height: 1;
+}
+
+/* Bottom-sheet swatches get more vertical room */
+.jt-menu--sheet .jt-swatch-dot {
+  height: 44px;
+}
+
+.jt-menu-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 6px 0;
+}
+
+/* --- Compact action chips row --- */
+.jt-menu-actions {
+  display: flex;
+  gap: 6px;
+}
+.jt-action-chip {
+  flex: 1;
+  background: #23282b;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 6px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text);
+  font-family: inherit;
+  cursor: pointer;
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.jt-action-chip:hover { background: rgba(255,255,255,0.06); }
+.jt-action-chip--danger { color: var(--jp-rose); }
+.jt-action-chip--danger:hover { background: rgba(229,72,77,0.08); }
+
+/* --- CTA row (unchanged) --- */
 .jt-foot {
   display: flex;
   gap: 8px;
