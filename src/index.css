@@ -3037,6 +3037,8 @@ input[type=number] { -moz-appearance: textfield; }
   cursor: pointer;
   white-space: nowrap;
   transition: background 0.15s, color 0.15s;
+  box-sizing: border-box;
+  min-width: 116px;
 }
 .show-all-toggle--active {
   background: var(--surface-2);
