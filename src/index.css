@@ -1284,6 +1284,7 @@ input[type=number] { -moz-appearance: textfield; }
   --jp-green:  #2bc48a;
   --jp-amber:  #f4a024;
   --jp-rose:   #e5484d;
+  --jp-blue:   #3B82F6;
   --jp-navy:   #0f1b2d;
 }
 
@@ -2764,11 +2765,11 @@ input[type=number] { -moz-appearance: textfield; }
 .stage-tile--overdue .stage-tile-amount {
   color: var(--jp-rose);
 }
-/* Lead tile: amber accent when unselected */
+/* Lead tile: blue accent when unselected */
 .stage-tile--lead .stage-tile-name,
 .stage-tile--lead .stage-tile-count,
 .stage-tile--lead .stage-tile-amount {
-  color: var(--jp-amber);
+  color: var(--jp-blue);
 }
 /* Selected tile: near-black on solid green — AA contrast */
 .stage-tile--selected .stage-tile-name,
@@ -2776,19 +2777,19 @@ input[type=number] { -moz-appearance: textfield; }
 .stage-tile--selected .stage-tile-amount {
   color: #0B1220;
 }
-/* Lead selected: amber fill amplifies its own semantic colour */
+/* Lead selected: blue fill with white text (mirrors overdue/rose pattern) */
 .stage-tile--lead.stage-tile--selected {
-  background: var(--jp-amber);
-  border-color: var(--jp-amber);
+  background: var(--jp-blue);
+  border-color: var(--jp-blue);
 }
 .stage-tile--lead.stage-tile--selected .stage-tile-name,
 .stage-tile--lead.stage-tile--selected .stage-tile-count,
 .stage-tile--lead.stage-tile--selected .stage-tile-amount {
-  color: #0B1220;
+  color: #FFFFFF;
 }
 .stage-tile--lead.stage-tile--selected .stage-tile-amount--empty {
-  color: #0B1220;
-  opacity: 0.65;
+  color: #FFFFFF;
+  opacity: 0.7;
 }
 /* Overdue selected: rose fill amplifies its own semantic colour */
 .stage-tile--overdue.stage-tile--selected {
@@ -2888,10 +2889,10 @@ input[type=number] { -moz-appearance: textfield; }
   background: var(--jp-rose);
 }
 .stage-rail-dot--lead {
-  border-color: var(--jp-amber);
+  border-color: var(--jp-blue);
 }
 .stage-rail-dot--lead.stage-rail-dot--active {
-  background: var(--jp-amber);
+  background: var(--jp-blue);
 }
 
 /* ── Advance Button ───────────────────────────── */
