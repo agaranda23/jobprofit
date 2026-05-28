@@ -2394,6 +2394,132 @@ input[type=number] { -moz-appearance: textfield; }
 .money-timeline__item-amount.pos { color: #22c55e; }
 .money-timeline__item-amount.neg { color: #ef4444; }
 
+/* ── Tax Set-Aside card ───────────────────────── */
+.money-tax-setaside {
+  /* extends .money-card */
+}
+.money-tax-setaside__label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 8px;
+}
+.money-tax-setaside__figure {
+  font-size: 36px;
+  font-weight: 800;
+  color: var(--text);
+  letter-spacing: -0.03em;
+  line-height: 1;
+  margin-bottom: 6px;
+}
+.money-tax-setaside__sub {
+  font-size: 13px;
+  color: var(--text-dim);
+  font-weight: 500;
+  margin: 0;
+}
+.money-tax-setaside__empty {
+  font-size: 14px;
+  color: var(--text-dim);
+  margin: 0;
+}
+
+/* ── ProGate — locked-preview wrapper ────────── */
+/* Wraps any card. Blurs only child elements that have the
+   `pro-gate__figure` class, leaving labels/subtitles readable. */
+.pro-gate {
+  position: relative;
+}
+.pro-gate__inner {
+  position: relative;
+}
+.pro-gate__inner .pro-gate__figure {
+  filter: blur(6px);
+  user-select: none;
+  pointer-events: none;
+}
+.pro-gate__lock {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 20px;
+  line-height: 1;
+  pointer-events: none;
+}
+.pro-gate__prompt {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 10px;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.pro-gate__prompt-copy {
+  font-size: 13px;
+  color: var(--text-dim);
+  font-weight: 500;
+  flex: 1;
+  min-width: 0;
+}
+.pro-gate__trial-btn {
+  flex-shrink: 0;
+  padding: 8px 14px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.pro-gate__trial-btn:hover { opacity: 0.88; }
+.pro-gate__trial-btn:active { opacity: 0.75; }
+
+/* ── Today screen — tax pot leak line ──────────── */
+.today-tax-pot-line {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  padding: 0;
+  background: none;
+  border: none;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--accent);
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: transparent;
+  transition: text-decoration-color 0.15s;
+}
+.today-tax-pot-line:hover {
+  text-decoration-color: currentColor;
+}
+.today-tax-pot-line--locked {
+  color: var(--text-dim);
+}
+.today-tax-pot-line__pro-badge {
+  display: inline-block;
+  padding: 1px 6px;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  vertical-align: middle;
+  margin-left: 2px;
+}
+
 /* ── Orientation toast ────────────────────────── */
 .nav-toast {
   position: fixed;
