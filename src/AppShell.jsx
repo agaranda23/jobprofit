@@ -633,6 +633,7 @@ export default function AppShell() {
               jobs={jobs}
               receipts={receipts}
               onNewJob={openDetailed}
+              onAddJob={handleAddJob}
               onAddPayment={onAddPayment}
               onUpdateJob={onUpdateJob}
               onAddReceipt={handleAddReceipt}

@@ -33,6 +33,7 @@
  */
 import { useState, useCallback } from 'react';
 import WorkCalendar from './WorkCalendar';
+import AddJobModal from '../components/AddJobModal';
 import JobDetailDrawer from '../components/JobDetailDrawer';
 import SendInvoiceModal from '../components/SendInvoiceModal';
 import StageStrip from '../components/StageStrip';
@@ -504,7 +505,7 @@ function JobsList({ jobs, selectedStage, showAll, onJobSelect, onSendInvoice, on
 
 // ── WorkScreen (root) ─────────────────────────────────────────────────────────
 
-export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddPayment, onUpdateJob, onAddReceipt, onDeleteReceipt, biz, profile }) {
+export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJob, onAddPayment, onUpdateJob, onAddReceipt, onDeleteReceipt, biz, profile }) {
   const [subview, setSubview] = useState(getPersistedView);
   const [selectedStage, setSelectedStage] = useState('On');
   const [showAll, setShowAll] = useState(false);
@@ -513,6 +514,8 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddPa
   // invoiceJob drives the SendInvoiceModal from the "Send invoice →" Advance Button.
   const [invoiceJob, setInvoiceJob] = useState(null);
   const [toast, setToast] = useState('');
+  // addJobOpen drives the inline AddJobModal — same pattern as TodayScreen.
+  const [addJobOpen, setAddJobOpen] = useState(false);
 
   const switchSubview = useCallback((v) => {
     logTelemetry('work_subview', { subview: v });
@@ -553,13 +556,21 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddPa
     chaseJob(oldestOverdue);
   };
 
+  const handleJobSave = (job) => {
+    setAddJobOpen(false);
+    onAddJob?.(job);
+    showToast('Job saved');
+  };
+
+  const openAddJob = () => setAddJobOpen(true);
+
   return (
     <div className="screen work-screen">
       {/* Header */}
       <div className="screen-header">
         <h1 className="screen-title">Jobs</h1>
         <div className="screen-header-right">
-          <button className="new-btn" onClick={onNewJob}>+ New job</button>
+          <button className="new-btn" onClick={openAddJob}>+ New job</button>
         </div>
       </div>
 
@@ -671,6 +682,14 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddPa
           onUpdate={onUpdateJob ?? (() => {})}
           onClose={() => setInvoiceJob(null)}
           flash={showToast}
+        />
+      )}
+
+      {/* AddJobModal — mounted inline, same pattern as TodayScreen */}
+      {addJobOpen && (
+        <AddJobModal
+          onClose={() => setAddJobOpen(false)}
+          onSave={handleJobSave}
         />
       )}
 
