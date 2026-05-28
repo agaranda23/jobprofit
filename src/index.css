@@ -201,6 +201,51 @@ body { background: var(--bg); color: var(--text); -webkit-font-smoothing: antial
 .nav-tab.active { color: var(--text); }
 .nav-icon { font-size: 18px; }
 
+/* ── Desktop nav — glassmorphism (≥640px only) ────────────────────────────
+   Matches content column width: .screen uses max-width 560px at ≥640px.
+   Mobile stays edge-to-edge and untouched below this breakpoint.
+   backdrop-filter fallback: if blur fails (unlikely on Chrome/Win but safe),
+   the higher-opacity background-color still reads as a distinct surface.
+── */
+@media (min-width: 640px) {
+  .bottom-nav {
+    /* Float above the page floor, centred to match .screen column */
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+    width: 560px;
+    bottom: 18px;
+
+    /* Glass surface */
+    background: rgba(28, 28, 28, 0.72);
+    -webkit-backdrop-filter: blur(14px) saturate(140%);
+    backdrop-filter: blur(14px) saturate(140%);
+
+    /* Border + shape */
+    border-top: none;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 14px;
+    padding: 6px;
+
+    /* Lift */
+    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+  }
+
+  /* Active tab: soft green tile matching PRD spec */
+  .nav-tab {
+    border-radius: 10px;
+    padding: 8px 0 6px;
+    border: 1px solid transparent;
+  }
+  .nav-tab.active {
+    background: rgba(34, 197, 94, 0.14);
+    color: #22c55e;
+    border: 1px solid rgba(34, 197, 94, 0.35);
+    padding: 7px 0 5px; /* 1px less each side to offset the border */
+  }
+  .nav-icon { font-size: 18px; }
+}
+
 /* Modals */
 .modal-backdrop {
   position: fixed;
@@ -408,8 +453,12 @@ body { background: var(--bg); color: var(--text); -webkit-font-smoothing: antial
 }
 .unpaid-toggle input { width: 18px; height: 18px; accent-color: var(--accent); }
 
-/* Make sure bottom nav sits above the legacy App on More */
-.bottom-nav { z-index: 9999 !important; background: #0b0d10 !important; }
+/* Make sure bottom nav sits above the legacy App on More (mobile only — desktop
+   glass override handles its own background at ≥640px) */
+.bottom-nav { z-index: 9999 !important; }
+@media (max-width: 639px) {
+  .bottom-nav { background: #0b0d10 !important; }
+}
 /* Give legacy app room to scroll past the bottom nav */
 body { padding-bottom: 72px; }
 
