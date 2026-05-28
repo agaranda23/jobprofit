@@ -7,7 +7,6 @@ import {
 } from './lib/pushSubscribe.js';
 import TodayScreen from './screens/TodayScreen';
 import HistoryScreen from './screens/HistoryScreen';
-import JobsScreen from './screens/JobsScreen';
 import ScheduleScreen from './screens/ScheduleScreen';
 import FinanceScreen from './screens/FinanceScreen';
 import WorkScreen from './screens/WorkScreen';
@@ -653,6 +652,8 @@ export default function AppShell() {
               profile={profile}
               // No avatar — Settings tab replaces the drawer in slice 3
               // onMarkPaid removed: chase block deleted in Phase 1 Money redesign
+              onGoToJobs={() => navigate('work')}
+              onGoToSettings={() => navigate('settings')}
             />
           )}
 
@@ -697,13 +698,17 @@ export default function AppShell() {
           )}
 
           {view === 'jobs' && (
-            <JobsScreen
+            <WorkScreen
               jobs={jobs}
-              session={session}
-              profile={profile}
-              onAvatarClick={() => setDrawerOpen(true)}
+              receipts={receipts}
               onNewJob={openDetailed}
+              onAddJob={handleAddJob}
+              onAddPayment={onAddPayment}
               onUpdateJob={onUpdateJob}
+              onAddReceipt={handleAddReceipt}
+              onDeleteReceipt={handleDeleteReceipt}
+              biz={null}
+              profile={profile}
             />
           )}
 
@@ -725,6 +730,8 @@ export default function AppShell() {
               profile={profile}
               onAvatarClick={() => setDrawerOpen(true)}
               // onMarkPaid removed: chase block deleted in Phase 1 Money redesign
+              onGoToJobs={() => navigate('jobs')}
+              // onGoToSettings omitted: new-nav has no dedicated settings tab
             />
           )}
 
