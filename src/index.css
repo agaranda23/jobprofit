@@ -5866,13 +5866,21 @@ input[type=number] { -moz-appearance: textfield; }
   min-width: 0;
 }
 
-/* --- Stage chip (smaller) --- */
-.jt-chip {
-  /* chip is no longer the dropdown anchor — menu is portalled to .jt (relative) */
+/* --- Stage label (read-only coloured pill) + ⋯ wrapper --- */
+/* Wrapper: inline flex container; position:relative anchors the desktop dropdown */
+.jt-chip-wrapper {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
-  padding: 3px 7px 3px 8px;
+  gap: 4px;
+  flex-shrink: 0;
+  position: relative;
+}
+
+/* Read-only stage label — same pill look as before, no interactive states */
+.jt-stage-label {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
   min-height: 22px;
   border-radius: 999px;
   background: var(--chip-fill, var(--jt-fill));
@@ -5882,14 +5890,31 @@ input[type=number] { -moz-appearance: textfield; }
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+  user-select: none;
+  pointer-events: none; /* purely decorative — tap goes to ⋯ or the tile */
+}
+
+/* ⋯ overflow button — sole menu trigger */
+.jt-dots {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-dim);
   cursor: pointer;
   flex-shrink: 0;
-  transition: filter 0.12s ease;
-  user-select: none;
+  transition: color 0.12s ease, background 0.12s ease;
+  font-family: inherit;
+  padding: 0;
 }
-.jt-chip:hover { filter: brightness(1.08); }
-.jt-chip-label { line-height: 1; }
-.jt-chip-caret { display: block; }
+.jt-dots:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.06);
+}
 
 /* --- Row 2: title + £amount inline --- */
 .jt-title-row {
