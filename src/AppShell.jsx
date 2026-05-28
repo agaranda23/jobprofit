@@ -756,7 +756,7 @@ export default function AppShell() {
             />
           )}
 
-          <div ref={manageRootRef} style={{ display: view === 'manage' ? 'block' : 'none' }}>
+          <div ref={manageRootRef} className="legacy-manage-root" style={{ display: view === 'manage' ? 'block' : 'none' }}>
             <div className="manage-header">
               <div className="manage-header-top">
                 <h1>Business</h1>

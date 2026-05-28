@@ -1107,11 +1107,14 @@ export default function JobDetailDrawer({
   // Scroll-chain bug fix: lock body scroll while the drawer is open.
   // Saves and restores the prior scroll position so the user lands back
   // where they were when closing the drawer.
+  // overlay-open hides the bottom nav pill so it doesn't paint over the sheet CTA.
   useEffect(() => {
     const scrollY = window.scrollY;
     document.body.style.overflow = 'hidden';
+    document.body.classList.add('overlay-open');
     return () => {
       document.body.style.overflow = '';
+      document.body.classList.remove('overlay-open');
       window.scrollTo(0, scrollY);
     };
   }, []);

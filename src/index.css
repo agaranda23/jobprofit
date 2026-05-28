@@ -78,6 +78,9 @@ button:focus-visible {
   --accent: #22c55e;
   --danger: #ef4444;
   --border: #2a333c;
+  /* Nav clearance: ~64px pill + 12px bottom gap + 12px breathing room + safe-area.
+     Used by .screen padding-bottom and floating elements (toast, push-prompt). */
+  --nav-clearance: calc(88px + env(safe-area-inset-bottom));
 }
 
 body { background: var(--bg); color: var(--text); -webkit-font-smoothing: antialiased; }
@@ -446,10 +449,15 @@ body { background: var(--bg); color: var(--text); -webkit-font-smoothing: antial
 }
 .unpaid-toggle input { width: 18px; height: 18px; accent-color: var(--accent); }
 
-/* Bottom nav must sit above the legacy App on the More screen */
-.bottom-nav { z-index: 9999 !important; }
-/* Give legacy app room to scroll past the bottom nav */
-body { padding-bottom: 72px; }
+/* Nav sits above page content (z-index 10 in the rule block) but below all overlays.
+   Overlay z-index ladder: drawer-backdrop 200, sheets 201, modal-backdrop 300. */
+.bottom-nav { z-index: 100; }
+/* Belt-and-braces: hide the nav entirely when an overlay is open. Toggled by JS
+   (JobDetailDrawer, AddJobModal) via document.body.classList. */
+body.overlay-open .bottom-nav { display: none; }
+/* Legacy manage tree needs its own bottom clearance — scoped so slice-3 screens
+   don't double-count against .screen's --nav-clearance padding. */
+.legacy-manage-root { padding-bottom: var(--nav-clearance); }
 
 /* Full-width fix for Today + History */
 .today-screen {
@@ -681,7 +689,7 @@ body {
 /* Toast */
 .toast {
   position: fixed;
-  bottom: 96px;
+  bottom: calc(var(--nav-clearance) + 8px);
   left: 50%;
   transform: translateX(-50%);
   background: var(--surface-2);
@@ -1448,7 +1456,7 @@ input[type=number] { -moz-appearance: textfield; }
 .screen {
   max-width: 480px;
   margin: 0 auto;
-  padding: 20px 20px 100px;
+  padding: 20px 20px var(--nav-clearance);
   min-height: 100vh;
   box-sizing: border-box;
 }
@@ -5329,7 +5337,7 @@ input[type=number] { -moz-appearance: textfield; }
 /* sign-in, only when Notification.permission === 'default'.                   */
 .push-prompt {
   position: fixed;
-  bottom: 88px; /* sits above the 72px bottom nav + breathing room */
+  bottom: var(--nav-clearance);
   left: 50%;
   transform: translateX(-50%);
   background: var(--surface-2);

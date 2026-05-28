@@ -115,6 +115,12 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Hide the bottom nav pill while the modal is open so it doesn't paint over the CTA.
+  useEffect(() => {
+    document.body.classList.add('overlay-open');
+    return () => { document.body.classList.remove('overlay-open'); };
+  }, []);
+
   const parse = async (text) => {
     try {
       const parsed = await parseJobFromSpeech(text);
