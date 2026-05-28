@@ -58,12 +58,33 @@ function persistView(v) {
 // ── Status helpers (ported verbatim from PR #62) ──────────────────────────────
 
 /**
+ * Canonical overdue check — shared by deriveDisplayStatus AND calcRiskFigures.
+ *
+ * Rule: overdue if invoiceDueDate is set and in the past;
+ *       else fall back to daysSinceInvoice > 14 (net-14 default).
+ *
+ * Both the OVERDUE pipeline card and the banner key off this function so
+ * they are guaranteed to agree.
+ */
+function isOverdue(job) {
+  if (job.invoiceDueDate) {
+    const due = new Date(job.invoiceDueDate);
+    due.setHours(0, 0, 0, 0);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return due < today;
+  }
+  const days = daysSinceInvoice(job);
+  return days !== null && days > 14;
+}
+
+/**
  * Derive one of the six pipeline stages from the raw job record.
  *
  *  - Lead:     job.status === 'lead'
  *  - Paid:     any paid signal (takes priority before invoice checks)
- *  - Overdue:  invoiced && daysSinceInvoice > 14 (takes priority over Invoiced)
- *  - Invoiced: invoiced && within net-14 terms
+ *  - Overdue:  invoiced && (invoiceDueDate past, else daysSinceInvoice > 14)
+ *  - Invoiced: invoiced && not yet overdue
  *  - On:       active or complete-but-not-yet-invoiced
  *  - Quoted:   default (quote sent, not yet accepted)
  *
@@ -75,8 +96,7 @@ function deriveDisplayStatus(job) {
   if (job.paid || job.paymentStatus === 'paid' || job.jobStatus === 'paid') return 'Paid';
   // Overdue must be checked before Invoiced — overdue takes priority
   if (job.invoiceStatus === 'invoiced' || job.status === 'invoice_sent') {
-    const days = daysSinceInvoice(job);
-    if (days !== null && days > 14) return 'Overdue';
+    if (isOverdue(job)) return 'Overdue';
     return 'Invoiced';
   }
   // complete-but-not-invoiced → On: work done, invoice not sent yet
@@ -91,14 +111,15 @@ function formatAmount(val) {
 }
 
 /**
- * Calculate money-at-risk figures for the strip.
- * Ported verbatim from PR #62.
+ * Calculate money-in-flight figures for the banner.
+ *
+ * - invoiced:    sum of jobs whose derived stage === Invoiced
+ * - overdue:     sum of jobs whose derived stage === Overdue (keyed off isOverdue,
+ *                same function deriveDisplayStatus uses — guaranteed to match the card)
+ * - owed:        invoiced + overdue (total money sent out, not yet paid)
+ * - overdueJobs: overdue job records sorted oldest-first (for Chase CTA)
  */
 function calcRiskFigures(jobs) {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  let quoted = 0;
   let invoiced = 0;
   let overdue = 0;
   const overdueJobs = [];
@@ -107,25 +128,24 @@ function calcRiskFigures(jobs) {
     const status = deriveDisplayStatus(j);
     const val = Number(j.total ?? j.amount ?? 0) || 0;
 
-    if (status === 'Quoted') {
-      quoted += val;
-    } else if (status === 'Invoiced') {
+    if (status === 'Invoiced') {
       invoiced += val;
-      if (j.invoiceDueDate) {
-        const due = new Date(j.invoiceDueDate);
-        due.setHours(0, 0, 0, 0);
-        if (due < today) {
-          overdue += val;
-          overdueJobs.push(j);
-        }
-      }
+    } else if (status === 'Overdue') {
+      overdue += val;
+      overdueJobs.push(j);
     }
   }
 
   // Sort oldest first — most urgent to chase
-  overdueJobs.sort((a, b) => new Date(a.invoiceDueDate) - new Date(b.invoiceDueDate));
+  overdueJobs.sort((a, b) => {
+    // Prefer invoiceDueDate for sort; fall back to invoiceSentAt
+    const aDate = a.invoiceDueDate ? new Date(a.invoiceDueDate) : new Date(a.invoiceSentAt ?? 0);
+    const bDate = b.invoiceDueDate ? new Date(b.invoiceDueDate) : new Date(b.invoiceSentAt ?? 0);
+    return aDate - bDate;
+  });
 
-  return { quoted, invoiced, overdue, overdueJobs };
+  const owed = invoiced + overdue;
+  return { invoiced, overdue, owed, overdueJobs };
 }
 
 /**
@@ -637,7 +657,7 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
     setShowAll(v => !v);
   };
 
-  // Money-at-risk strip figures
+  // Money-in-flight banner figures
   const riskFigures = calcRiskFigures(jobs);
   const oldestOverdue = riskFigures.overdueJobs[0] ?? null;
 
@@ -664,35 +684,38 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
         </div>
       </div>
 
-      {/* Money-at-risk strip — kept from first-pass */}
-      <div className="risk-strip">
-        <div className="risk-strip-figures">
-          <span className="risk-strip-figure">
-            <span className="risk-strip-value">£{formatAmount(riskFigures.quoted)}</span>
-            <span className="risk-strip-label"> quoted out</span>
-          </span>
-          <span className="risk-strip-sep">·</span>
-          <span className="risk-strip-figure">
-            <span className="risk-strip-value">£{formatAmount(riskFigures.invoiced)}</span>
-            <span className="risk-strip-label"> invoiced</span>
-          </span>
-          <span className="risk-strip-sep">·</span>
-          <span className={`risk-strip-figure${riskFigures.overdue > 0 ? ' risk-strip-figure--overdue' : ''}`}>
-            <span className="risk-strip-value">£{formatAmount(riskFigures.overdue)}</span>
-            <span className="risk-strip-label"> overdue</span>
-          </span>
-        </div>
-        {riskFigures.overdue > 0 && oldestOverdue && (
-          <div className="risk-strip-chase-row">
-            <span className="risk-strip-chase-hint">
-              {oldestOverdue.customer || oldestOverdue.name || 'Invoice'} · overdue
+      {/* Money-in-flight banner — owed (invoiced + overdue) and overdue at a glance.
+           Hidden when both figures are £0 — nothing to show. */}
+      {(riskFigures.owed > 0 || riskFigures.overdue > 0) && (
+        <div className="risk-strip">
+          <div className="risk-strip-figures">
+            <span className="risk-strip-figure">
+              <span className="risk-strip-value">£{formatAmount(riskFigures.owed)}</span>
+              <span className="risk-strip-label"> owed to you</span>
             </span>
-            <button className="risk-strip-chase-btn" onClick={handleChase} type="button">
-              Chase
-            </button>
+            {riskFigures.overdue > 0 && (
+              <>
+                <span className="risk-strip-sep">·</span>
+                <span className="risk-strip-figure risk-strip-figure--overdue">
+                  <span className="risk-strip-value">£{formatAmount(riskFigures.overdue)}</span>
+                  <span className="risk-strip-label"> overdue</span>
+                </span>
+              </>
+            )}
           </div>
-        )}
-      </div>
+          {riskFigures.overdue > 0 && oldestOverdue && (
+            <div className="risk-strip-chase-row">
+              <span className="risk-strip-chase-hint">
+                {oldestOverdue.customer || oldestOverdue.name || 'Invoice'} · overdue
+              </span>
+              <button className="risk-strip-chase-btn" onClick={handleChase} type="button">
+                Chase
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
 
       {/* Stage Strip — deriveStatus + formatAmount passed as props (avoids circular import) */}
       <StageStrip
