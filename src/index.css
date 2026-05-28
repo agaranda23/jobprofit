@@ -2428,7 +2428,8 @@ input[type=number] { -moz-appearance: textfield; }
 
 /* ── ProGate — locked-preview wrapper ────────── */
 /* Wraps any card. Blurs only child elements that have the
-   `pro-gate__figure` class, leaving labels/subtitles readable. */
+   `pro-gate__figure` class, leaving labels/subtitles readable.
+   The lock badge sits in the top-right corner and never overlaps text. */
 .pro-gate {
   position: relative;
 }
@@ -2440,34 +2441,63 @@ input[type=number] { -moz-appearance: textfield; }
   user-select: none;
   pointer-events: none;
 }
-.pro-gate__lock {
+.pro-gate__lock-badge {
   position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  font-size: 20px;
-  line-height: 1;
+  top: 10px;
+  right: 12px;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 7px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 20px;
   pointer-events: none;
 }
-.pro-gate__prompt {
+.pro-gate__lock-icon {
+  font-size: 10px;
+  line-height: 1;
+  opacity: 0.7;
+}
+.pro-gate__lock-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-dim);
+  letter-spacing: 0.02em;
+  opacity: 0.7;
+}
+
+/* ── UpgradeBanner — one-time upgrade CTA on the Money tab ── */
+/* Rendered once for free users, directly below the Profit hero.
+   Never rendered for Pro users. */
+.upgrade-banner {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  margin-top: 10px;
-  padding: 10px 14px;
+  gap: 12px;
+  padding: 12px 16px;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 12px;
+  margin-bottom: 4px;
 }
-.pro-gate__prompt-copy {
-  font-size: 13px;
-  color: var(--text-dim);
-  font-weight: 500;
+.upgrade-banner__copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
   flex: 1;
   min-width: 0;
 }
-.pro-gate__trial-btn {
+.upgrade-banner__headline {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+.upgrade-banner__sub {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.upgrade-banner__btn {
   flex-shrink: 0;
   padding: 8px 14px;
   background: var(--accent);
@@ -2480,8 +2510,8 @@ input[type=number] { -moz-appearance: textfield; }
   cursor: pointer;
   transition: opacity 0.15s;
 }
-.pro-gate__trial-btn:hover { opacity: 0.88; }
-.pro-gate__trial-btn:active { opacity: 0.75; }
+.upgrade-banner__btn:hover { opacity: 0.88; }
+.upgrade-banner__btn:active { opacity: 0.75; }
 
 /* ── Today screen — tax pot leak line ──────────── */
 .today-tax-pot-line {
