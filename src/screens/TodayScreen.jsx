@@ -5,7 +5,7 @@ import { gbp, todayKey, formatToday } from '../lib/today';
 import { isAwaitingPayment, daysSinceInvoice, deriveStatus } from '../lib/jobStatus';
 import { getChaseState, recordChase } from '../lib/chaseLadder';
 import { isPro } from '../lib/plan';
-import { getMonthSummary, monthKey } from '../lib/cashflow';
+import { getTaxYearSummary } from '../lib/cashflow';
 
 export default function TodayScreen({ jobs = [], receipts = [], onAddJob, onAddReceipt, onOpenDetailed, onChase, onMarkPaid, onJobTap, profile, onNavigateToMoney }) {
   const [jobOpen, setJobOpen] = useState(false);
@@ -69,19 +69,16 @@ export default function TodayScreen({ jobs = [], receipts = [], onAddJob, onAddR
     return { earned, spent, profit: earned - spent, recent: entries, hasEntries: entries.length > 0, unpaidTotal, oldestDays, unpaidCount: unpaidJobs.length, weekProfit, weekCount, avgPerJob, lastWeekAvgPerJob, lastWeekCount, sample14JobCount, projectedIncome, projectedSpend, cushion };
   }, [jobs, receipts, key]);
 
-  // Tax pot: month-to-date set-aside amount, same data as the Money tab card.
+  // Tax pot: year-to-date (UK tax year) set-aside amount.
   // Shown as a single leak line under the week profit line.
   const taxSetAsidePct = Number(profile?.tax_set_aside_pct ?? 20);
-  const monthProfit = useMemo(() => {
-    const mk = monthKey(new Date());
-    return getMonthSummary(jobs, receipts, { month: mk }).profit;
+  const ytdProfit = useMemo(() => {
+    return getTaxYearSummary(jobs, receipts).profit;
   }, [jobs, receipts]);
-  const taxPotAmount = Math.max(0, monthProfit) * taxSetAsidePct / 100;
+  const taxPotAmount = Math.max(0, ytdProfit) * taxSetAsidePct / 100;
   const userIsPro = isPro(profile);
-  // Show the tax pot line only when there is profit to speak of.
-  // For free users: show the teaser (but only when profit > 0).
-  // For pro users: show the real figure (but only when profit > 0).
-  const showTaxPotLine = monthProfit > 0;
+  // Show the tax pot line only when there is YTD profit to speak of.
+  const showTaxPotLine = ytdProfit > 0;
 
   // Flash profit when it changes
   useEffect(() => {
@@ -217,7 +214,7 @@ export default function TodayScreen({ jobs = [], receipts = [], onAddJob, onAddR
               onClick={() => onNavigateToMoney?.()}
               aria-label="View tax set-aside in Money tab"
             >
-              Tax pot: keep back ~{gbp(taxPotAmount)} this month
+              Tax pot: ~{gbp(taxPotAmount)} set aside this tax year
             </button>
           ) : (
             <button

@@ -2177,7 +2177,17 @@ input[type=number] { -moz-appearance: textfield; }
   font-size: 14px;
   color: var(--text-dim);
   font-weight: 500;
+  margin-bottom: 6px;
+}
+.money-hero__ytd-line {
+  font-size: 12px;
+  color: var(--text-dim);
+  font-weight: 500;
   margin-bottom: 14px;
+  opacity: 0.75;
+}
+.money-hero__ytd-line--negative {
+  color: var(--negative, #e05252);
 }
 .money-hero__chase-cta {
   display: inline-flex;
