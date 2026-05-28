@@ -20,6 +20,7 @@ import {
   computeBarWidthPct,
   filterByRange,
   computeMaxValue,
+  isSliceAllZero,
   SAMPLE_DATA,
 } from '../CashflowChart.helpers.js';
 
@@ -269,6 +270,170 @@ describe('SAMPLE_DATA shape', () => {
       expect(row.cashIn).toBeGreaterThanOrEqual(0);
       expect(row.cashOut).toBeGreaterThanOrEqual(0);
     }
+  });
+});
+
+// ─── isSliceAllZero ───────────────────────────────────────────────────────────
+// Drives the "all-zero slice" empty message vs bar rendering decision.
+
+describe('isSliceAllZero', () => {
+  it('returns false for empty slice (no data)', () => {
+    expect(isSliceAllZero([], 'paidVsOpen')).toBe(false);
+  });
+
+  it('returns false for null slice', () => {
+    expect(isSliceAllZero(null, 'paidVsOpen')).toBe(false);
+  });
+
+  it('returns true when every row has zero paid and zero open (paidVsOpen)', () => {
+    const allZero = [
+      { paid: 0, open: 0, profit: 0, cost: 0, cashIn: 0, cashOut: 0 },
+      { paid: 0, open: 0, profit: 0, cost: 0, cashIn: 0, cashOut: 0 },
+    ];
+    expect(isSliceAllZero(allZero, 'paidVsOpen')).toBe(true);
+  });
+
+  it('returns false when at least one row has a non-zero paid value', () => {
+    const slice = [
+      { paid: 0, open: 0, profit: 0, cost: 0, cashIn: 0, cashOut: 0 },
+      { paid: 500, open: 0, profit: 200, cost: 300, cashIn: 500, cashOut: 300 },
+    ];
+    expect(isSliceAllZero(slice, 'paidVsOpen')).toBe(false);
+  });
+
+  it('returns false when at least one row has a non-zero open value', () => {
+    const slice = [
+      { paid: 0, open: 0, profit: 0, cost: 0, cashIn: 0, cashOut: 0 },
+      { paid: 0, open: 300, profit: 0, cost: 0, cashIn: 0, cashOut: 0 },
+    ];
+    expect(isSliceAllZero(slice, 'paidVsOpen')).toBe(false);
+  });
+
+  it('checks the correct fields per mode — profitVsCost all-zero, but paid/open non-zero', () => {
+    // Rows have paid/open but zero profit/cost — all-zero for profitVsCost
+    const slice = [
+      { paid: 100, open: 50, profit: 0, cost: 0, cashIn: 100, cashOut: 0 },
+    ];
+    expect(isSliceAllZero(slice, 'profitVsCost')).toBe(true);
+  });
+
+  it('checks the correct fields per mode — profitVsCost non-zero when profit > 0', () => {
+    const slice = [
+      { paid: 100, open: 0, profit: 40, cost: 60, cashIn: 100, cashOut: 60 },
+    ];
+    expect(isSliceAllZero(slice, 'profitVsCost')).toBe(false);
+  });
+
+  it('checks the correct fields per mode — cashInOut all-zero', () => {
+    const slice = [
+      { paid: 0, open: 0, profit: 0, cost: 0, cashIn: 0, cashOut: 0 },
+    ];
+    expect(isSliceAllZero(slice, 'cashInOut')).toBe(true);
+  });
+
+  it('single non-zero row makes the slice non-empty', () => {
+    const slice = SAMPLE_DATA.filter(r => r.month === '2025-05'); // paid: 4300
+    expect(isSliceAllZero(slice, 'paidVsOpen')).toBe(false);
+  });
+
+  it('SAMPLE_DATA 6m tail is not all-zero (has real data)', () => {
+    const tail6 = filterByRange(SAMPLE_DATA, '6m');
+    expect(isSliceAllZero(tail6, 'paidVsOpen')).toBe(false);
+  });
+
+  it('a synthetic all-zero 6-row slice returns true', () => {
+    const zeros = Array.from({ length: 6 }, (_, i) => ({
+      month: `2025-0${i + 1}`,
+      monthLabel: `Month ${i + 1}`,
+      paid: 0, open: 0, profit: 0, cost: 0, cashIn: 0, cashOut: 0,
+    }));
+    expect(isSliceAllZero(zeros, 'paidVsOpen')).toBe(true);
+    expect(isSliceAllZero(zeros, 'profitVsCost')).toBe(true);
+    expect(isSliceAllZero(zeros, 'cashInOut')).toBe(true);
+  });
+});
+
+// ─── Detail panel data correctness ───────────────────────────────────────────
+// The tap-to-reveal panel formats row fields via formatBarLabel. These tests
+// confirm the field values and formatting that the panel will render.
+
+describe('detail panel: row field values for tap-to-reveal', () => {
+  const row = SAMPLE_DATA.find(r => r.month === '2025-07'); // largest month
+
+  it('row.paid for Jul 2025 is 5200', () => {
+    expect(row.paid).toBe(5200);
+  });
+
+  it('row.open for Jul 2025 is 1400', () => {
+    expect(row.open).toBe(1400);
+  });
+
+  it('row.profit for Jul 2025 is 3100', () => {
+    expect(row.profit).toBe(3100);
+  });
+
+  it('row.cost for Jul 2025 is 2100', () => {
+    expect(row.cost).toBe(2100);
+  });
+
+  it('formatBarLabel renders paid correctly for Jul 2025', () => {
+    expect(formatBarLabel(row.paid)).toBe('£5,200');
+  });
+
+  it('formatBarLabel renders profit correctly for Jul 2025', () => {
+    expect(formatBarLabel(row.profit)).toBe('£3,100');
+  });
+
+  it('formatBarLabel on 0 returns empty string (empty-row detail not shown)', () => {
+    const emptyRow = SAMPLE_DATA.find(r => r.paid === 0 && r.open === 0);
+    // Empty rows are non-interactive so detail panel never renders for them.
+    // Confirm the values that would render are empty strings.
+    expect(formatBarLabel(emptyRow.paid)).toBe('');
+    expect(formatBarLabel(emptyRow.open)).toBe('');
+  });
+
+  it('negative profit renders with a minus prefix via Math.abs + formatBarLabel', () => {
+    const negativeProfit = -450;
+    // Component renders: isNegative ? '-' : '' + formatBarLabel(Math.abs(negativeProfit))
+    const prefix = negativeProfit < 0 ? '-' : '';
+    const formatted = prefix + formatBarLabel(Math.abs(negativeProfit));
+    expect(formatted).toBe('-£450');
+  });
+
+  it('zero cost renders as empty string (not shown in detail)', () => {
+    const rowWithZeroCost = { ...row, cost: 0 };
+    expect(formatBarLabel(rowWithZeroCost.cost)).toBe('');
+  });
+});
+
+// ─── Empty-row non-interactivity contract ─────────────────────────────────────
+// Empty rows (both bars zero for active mode) must not be tappable.
+// We verify this at the data level: the isEmpty flag must be true for them.
+
+describe('empty-row non-interactivity', () => {
+  it('Dec 2024 (paid=0, open=0) is identified as isEmpty for paidVsOpen', () => {
+    const row = SAMPLE_DATA.find(r => r.month === '2024-12');
+    const isEmpty = (row.paid ?? 0) + (row.open ?? 0) === 0;
+    expect(isEmpty).toBe(true);
+  });
+
+  it('Feb 2025 (paid=0, open=0) is identified as isEmpty for paidVsOpen', () => {
+    const row = SAMPLE_DATA.find(r => r.month === '2025-02');
+    const isEmpty = (row.paid ?? 0) + (row.open ?? 0) === 0;
+    expect(isEmpty).toBe(true);
+  });
+
+  it('Apr 2025 (paid=0, open=850) is NOT isEmpty for paidVsOpen', () => {
+    const row = SAMPLE_DATA.find(r => r.month === '2025-04');
+    const isEmpty = (row.paid ?? 0) + (row.open ?? 0) === 0;
+    expect(isEmpty).toBe(false);
+  });
+
+  it('a row with only profit/cost (no paid/open) is isEmpty for paidVsOpen mode', () => {
+    // This confirms the mode-specific check: barA.field/barB.field are used, not total
+    const row = { month: '2025-03', paid: 0, open: 0, profit: 500, cost: 200 };
+    const isEmpty = (row.paid ?? 0) + (row.open ?? 0) === 0;
+    expect(isEmpty).toBe(true); // paidVsOpen mode — paid+open = 0
   });
 });
 

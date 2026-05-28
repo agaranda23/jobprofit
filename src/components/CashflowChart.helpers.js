@@ -102,6 +102,21 @@ export function computeMaxValue(slice, mode) {
   }, 0);
 }
 
+/**
+ * Returns true when every row in the slice has zero for both bars of the given
+ * mode — used by CashflowChart to decide whether to render the "no movement
+ * yet" message instead of a row of bare dashes.
+ *
+ * @param {object[]} slice
+ * @param {'paidVsOpen'|'profitVsCost'|'cashInOut'} mode
+ * @returns {boolean}
+ */
+export function isSliceAllZero(slice, mode) {
+  if (!slice || slice.length === 0) return false;
+  const { a, b } = MODE_BARS[mode] ?? MODE_BARS.paidVsOpen;
+  return slice.every(row => (row[a.field] ?? 0) === 0 && (row[b.field] ?? 0) === 0);
+}
+
 // ─── Sample data ──────────────────────────────────────────────────────────────
 // Matches getCashflowByMonth() return shape (M3 will replace with real data).
 // Used for visual smoke-checking on the dev-flag preview and for tests.

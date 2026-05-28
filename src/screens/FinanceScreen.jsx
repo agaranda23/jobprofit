@@ -342,7 +342,7 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
         <CashflowChart
           data={cashflowData}
           defaultRange="6m"
-          defaultMode="paidVsOpen"
+          defaultMode="profitVsCost"
           onRangeChange={(newRange) => setChartRange(newRange)}
         />
       </div>
