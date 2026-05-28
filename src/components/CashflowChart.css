@@ -180,10 +180,77 @@
   line-height: 1.5;
 }
 
+/* ── Row wrapper (contains tappable row + optional detail panel) ─────────── */
+
+.cashflow-chart__row-wrapper {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Tappable row button — resets button defaults, matches the grid layout */
+
+.cashflow-chart__row--tappable {
+  all: unset;
+  display: grid;
+  grid-template-columns: 72px 1fr 60px;
+  align-items: center;
+  gap: 8px;
+  min-height: 20px;
+  width: 100%;
+  box-sizing: border-box;
+  cursor: pointer;
+  border-radius: 6px;
+  padding: 2px 0;
+  transition: background-color 0.1s;
+}
+
+.cashflow-chart__row--tappable:hover,
+.cashflow-chart__row--tappable:focus-visible {
+  background-color: rgba(0, 0, 0, 0.04);
+  outline: none;
+}
+
+.cashflow-chart__row--tappable:focus-visible {
+  outline: 2px solid var(--cf-green);
+  outline-offset: 2px;
+}
+
+/* ── Month detail panel ──────────────────────────────────────────────────── */
+
+.cashflow-chart__detail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  padding: 8px 4px 6px 80px; /* left-indent aligns under bar track */
+  font-size: 0.8rem;
+  color: var(--cf-empty-color);
+  border-top: 1px solid rgba(0, 0, 0, 0.06);
+  margin-top: 4px;
+}
+
+.cashflow-chart__detail-item {
+  white-space: nowrap;
+}
+
+.cashflow-chart__detail-item--negative .cashflow-chart__detail-value {
+  color: #ef4444;
+}
+
+.cashflow-chart__detail-label {
+  font-weight: 500;
+  color: inherit;
+}
+
+.cashflow-chart__detail-value {
+  font-weight: 600;
+  color: var(--cf-label-color);
+}
+
 /* ── Responsive — narrow viewports (≤360px) ──────────────────────────────── */
 
 @media (max-width: 360px) {
-  .cashflow-chart__row {
+  .cashflow-chart__row,
+  .cashflow-chart__row--tappable {
     grid-template-columns: 60px 1fr 50px;
     gap: 5px;
   }
@@ -194,5 +261,10 @@
 
   .cashflow-chart__total-label {
     font-size: 0.72rem;
+  }
+
+  .cashflow-chart__detail {
+    padding-left: 65px;
+    font-size: 0.75rem;
   }
 }
