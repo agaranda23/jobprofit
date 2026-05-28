@@ -2,31 +2,34 @@
  * FinanceScreen — Money tab (slice-3 nav).
  *
  * Phase 1 — Profit insight redesign.
+ * Phase 2 — Tax Set-Aside card + Pro gating.
  * JTBD: "Am I making money, and have I kept enough for tax?"
  *
  * Top-to-bottom card order:
- *   1. Hero — Profit (this month), big figure, negative state, empty state
- *   2. Cashflow chart — existing CashflowChart (all three modes available via its own selector)
- *   3. Month pace two-up — Paid in (left) + Jobs done (right)
- *   4. Est. Profit/Hour insight card
- *   5. Margin nudge (conditional — only when |delta| >= 10%)
- *   6. Recent transactions — collapsed expandable timeline
+ *   1. Hero — Profit (this month), big figure, negative state, empty state  [FREE]
+ *   2. Tax Set-Aside card                                                    [PRO]
+ *   3. Cashflow chart                                                        [FREE]
+ *   4. Month pace two-up — Paid in (left) + Jobs done (right)               [FREE]
+ *   5. Est. Profit/Hour insight card                                         [PRO]
+ *   6. Margin nudge (conditional — only when |delta| >= 10%)                [PRO]
+ *   7. Recent transactions — collapsed expandable timeline                  [FREE]
  *
- * Removed in Phase 1:
- *   - Outstanding hero + chase block (HeroChaseCTA, ChaseRow components)
- *   - All chaseLadder imports
- *   - getOutstandingSummary usage
- *   - onMarkPaid prop
+ * Pro gating: cards 2, 5, 6 show a locked preview (blurred figure + upgrade
+ * prompt) for free users. The ProGate wrapper in src/components/ProGate.jsx
+ * owns the blur + lock overlay — never duplicate that CSS inline here.
  *
- * Tax Set-Aside card: DEFERRED (later phase).
- * Today leak card: DEFERRED (later phase).
- * Pro gating: NOT in this PR.
+ * Upgrade flow: onUpgrade prop bubbles up to AppShell. The "Start free trial"
+ * button in ProGate calls onUpgrade(). Wiring to a real Stripe/waitlist paywall
+ * is a separate task — today it falls back to the Tally waitlist URL used by
+ * SendInvoiceModal's paywall view.
  */
 
 import { useMemo, useState } from 'react';
 import { gbp } from '../lib/today';
+import { isPro } from '../lib/plan';
 import HeaderAvatar from '../components/HeaderAvatar';
 import CashflowChart from '../components/CashflowChart';
+import ProGate from '../components/ProGate';
 import {
   getCashflowByMonth,
   getMonthSummary,
@@ -40,7 +43,15 @@ import {
 // One nudge max — priority: margin drop (or gain) first.
 const MARGIN_NUDGE_THRESHOLD_PCT = 10;
 
-export default function FinanceScreen({ jobs = [], receipts = [], session, profile, onAvatarClick }) {
+// Upgrade fallback: Tally waitlist. Replace with Stripe checkout when wired.
+// Same URL used by SendInvoiceModal paywall view — single source of truth.
+const PRO_UPGRADE_URL = 'https://tally.so/r/jobprofit-pro-waitlist';
+
+function openUpgrade() {
+  window.open(PRO_UPGRADE_URL, '_blank', 'noopener');
+}
+
+export default function FinanceScreen({ jobs = [], receipts = [], session, profile, onAvatarClick, onUpgrade }) {
   const [timelineOpen, setTimelineOpen] = useState(false);
   // chartRange drives which window of data getCashflowByMonth uses.
   // '6m' is the default matching the chart's defaultRange prop.
@@ -48,8 +59,10 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
 
   const now = new Date();
   const currentMonth = monthKey(now);
-  // Destructure the primitive so the React Compiler can track the exact dep.
+  // Destructure primitives so the React Compiler can track exact deps.
   const hourlyRate = Number(profile?.hourly_rate) || 0;
+  const taxSetAsidePct = Number(profile?.tax_set_aside_pct ?? 20);
+  const userIsPro = isPro(profile);
 
   // ── Derived data ────────────────────────────────────────────────────────────
   const {
@@ -113,7 +126,12 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
       timelineGroups,
       hasActivity,
     };
-  }, [jobs, receipts, chartRange, currentMonth, hourlyRate]);
+  }, [jobs, receipts, chartRange, currentMonth, hourlyRate, profile]);
+
+  // handleUpgrade: stable callback that delegates to the prop if wired, otherwise
+  // falls back to the Tally waitlist URL. Declared after the useMemo so the
+  // React Compiler doesn't trace it into the memo's dep inference.
+  const handleUpgrade = onUpgrade ?? openUpgrade;
 
   // ── Margin nudge: surface only when |delta| >= threshold ────────────────────
   const showMarginNudge = Math.abs(marginTrend.deltaPct) >= MARGIN_NUDGE_THRESHOLD_PCT;
@@ -163,7 +181,26 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
         </div>
       )}
 
-      {/* ── 2. Cashflow chart ─────────────────────────────────────────────── */}
+      {/* ── 2. Tax Set-Aside card (Pro-gated) ────────────────────────────── */}
+      <ProGate locked={!userIsPro} onUpgrade={handleUpgrade}>
+        <div className="money-card money-tax-setaside">
+          <div className="money-tax-setaside__label">Tax set-aside</div>
+          {monthSummary.profit <= 0 ? (
+            <p className="money-tax-setaside__empty">Nothing to set aside yet this month</p>
+          ) : (
+            <>
+              <div className="money-tax-setaside__figure pro-gate__figure">
+                {gbp(Math.max(0, monthSummary.profit) * taxSetAsidePct / 100)}
+              </div>
+              <p className="money-tax-setaside__sub">
+                Roughly {taxSetAsidePct}% of this month&apos;s profit &mdash; keep it back for the taxman
+              </p>
+            </>
+          )}
+        </div>
+      </ProGate>
+
+      {/* ── 3. Cashflow chart ─────────────────────────────────────────────── */}
       <div className="money-card money-card--chart">
         <CashflowChart
           data={cashflowData}
@@ -173,7 +210,7 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
         />
       </div>
 
-      {/* ── 3. Month pace two-up — Paid in + Jobs done ───────────────────── */}
+      {/* ── 4. Month pace two-up — Paid in + Jobs done ───────────────────── */}
       <div className="money-twoUp">
         <div className="money-twoUp__card">
           <div className="money-twoUp__label">Paid in</div>
@@ -185,52 +222,53 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
         </div>
       </div>
 
-      {/* ── 4. Est. Profit/Hour ───────────────────────────────────────────── */}
-      {profitPerHour.value !== null ? (
-        <div className="money-card money-insight money-insight--pph">
-          <div className="money-insight__row">
-            <span className="money-insight__label">Est. Profit/Hour</span>
-            <span className="money-insight__tooltip" title="Based on your default hourly rate. Add hours to a job to make this exact.">
-              &#x24D8;
-            </span>
-          </div>
-          <div className="money-insight__value">
-            {gbp(Math.round(profitPerHour.value))}
-            {profitPerHour.comparisonValue !== null && (
-              <span className={`money-insight__delta money-insight__delta--${profitPerHour.deltaSign}`}>
-                {profitPerHour.deltaSign === 'up' ? ' ▲' : profitPerHour.deltaSign === 'down' ? ' ▼' : ' –'}
-                {' '}{gbp(Math.round(Math.abs(profitPerHour.value - profitPerHour.comparisonValue)))} vs last wk
+      {/* ── 5. Est. Profit/Hour (Pro-gated) ──────────────────────────────── */}
+      <ProGate locked={!userIsPro} onUpgrade={handleUpgrade}>
+        {profitPerHour.value !== null ? (
+          <div className="money-card money-insight money-insight--pph">
+            <div className="money-insight__row">
+              <span className="money-insight__label">Est. Profit/Hour</span>
+              <span className="money-insight__tooltip" title="Based on your default hourly rate. Add hours to a job to make this exact.">
+                &#x24D8;
               </span>
+            </div>
+            <div className="money-insight__value pro-gate__figure">
+              {gbp(Math.round(profitPerHour.value))}
+              {profitPerHour.comparisonValue !== null && (
+                <span className={`money-insight__delta money-insight__delta--${profitPerHour.deltaSign}`}>
+                  {profitPerHour.deltaSign === 'up' ? ' ▲' : profitPerHour.deltaSign === 'down' ? ' ▼' : ' –'}
+                  {' '}{gbp(Math.round(Math.abs(profitPerHour.value - profitPerHour.comparisonValue)))} vs last wk
+                </span>
+              )}
+            </div>
+          </div>
+        ) : (
+          <div className="money-card money-insight money-insight--pph money-insight--empty">
+            <div className="money-insight__row">
+              <span className="money-insight__label">Est. Profit/Hour</span>
+              <span className="money-insight__tooltip" title="Based on your default hourly rate. Add hours to a job to make this exact.">
+                &#x24D8;
+              </span>
+            </div>
+            <p className="money-insight__hint">
+              Set your hourly rate in Settings to unlock this insight.
+            </p>
+          </div>
+        )}
+      </ProGate>
+
+      {/* ── 6. Margin nudge (conditional — single, threshold-gated, Pro-gated) */}
+      {showMarginNudge && (
+        <ProGate locked={!userIsPro} onUpgrade={handleUpgrade}>
+          <div className={`money-card money-nudge money-nudge--${marginTrend.deltaSign}`}>
+            <span className="money-nudge__icon">{marginTrend.deltaSign === 'up' ? '📈' : '📉'}</span>
+            <span className="money-nudge__copy pro-gate__figure">{marginNudgeCopy}</span>
+            {marginTrend.deltaSign !== 'up' && (
+              <span className="money-nudge__caret"> →</span>
             )}
           </div>
-        </div>
-      ) : (
-        <div className="money-card money-insight money-insight--pph money-insight--empty">
-          <div className="money-insight__row">
-            <span className="money-insight__label">Est. Profit/Hour</span>
-            <span className="money-insight__tooltip" title="Based on your default hourly rate. Add hours to a job to make this exact.">
-              &#x24D8;
-            </span>
-          </div>
-          <p className="money-insight__hint">
-            Set your hourly rate in Settings to unlock this insight.
-          </p>
-        </div>
+        </ProGate>
       )}
-
-      {/* ── 5. Margin nudge (conditional — single, threshold-gated) ─────── */}
-      {showMarginNudge && (
-        <div className={`money-card money-nudge money-nudge--${marginTrend.deltaSign}`}>
-          <span className="money-nudge__icon">{marginTrend.deltaSign === 'up' ? '📈' : '📉'}</span>
-          <span className="money-nudge__copy">{marginNudgeCopy}</span>
-          {marginTrend.deltaSign !== 'up' && (
-            <span className="money-nudge__caret"> →</span>
-          )}
-        </div>
-      )}
-
-      {/* ── Tax Set-Aside card — DEFERRED (later phase) ──────────────────── */}
-      {/* ── Today leak card — DEFERRED (later phase) ─────────────────────── */}
 
       {/* ── 6. Recent transactions (demoted — collapsed by default) ──────── */}
       {totalTimelineEntries > 0 && (

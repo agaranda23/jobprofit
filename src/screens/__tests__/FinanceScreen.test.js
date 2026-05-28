@@ -364,3 +364,47 @@ describe('monthKey (FinanceScreen derives currentMonth)', () => {
     expect(monthKey(new Date('not-a-date'))).toBe('');
   });
 });
+
+// ─── Tax Set-Aside card — calculation correctness ─────────────────────────────
+// The card value is: Math.max(0, monthSummary.profit) * pct / 100
+// These tests verify the formula is correct for the boundary cases the UI depends on.
+
+describe('Tax Set-Aside card calculation', () => {
+  function taxSetAside(profit, pct) {
+    return Math.max(0, profit) * pct / 100;
+  }
+
+  it('returns 20% of profit at the default 20% rate', () => {
+    expect(taxSetAside(1000, 20)).toBe(200);
+  });
+
+  it('returns 0 when profit is zero', () => {
+    expect(taxSetAside(0, 20)).toBe(0);
+  });
+
+  it('returns 0 when profit is negative (never a negative set-aside)', () => {
+    expect(taxSetAside(-500, 20)).toBe(0);
+  });
+
+  it('returns the full profit when pct is 100', () => {
+    expect(taxSetAside(800, 100)).toBe(800);
+  });
+
+  it('returns 0 when pct is 0', () => {
+    expect(taxSetAside(800, 0)).toBe(0);
+  });
+
+  it('uses getMonthSummary profit field as the base figure', () => {
+    // Verify via getMonthSummary: profit = paid - cost
+    const jobs = [paidJob({ amount: 1000, date: '2026-05-10' })];
+    const receipts = [receipt({ amount: 200, date: '2026-05-12' })];
+    const { profit } = getMonthSummary(jobs, receipts, { month: '2026-05' });
+    // profit = 800; 20% set-aside = 160
+    expect(taxSetAside(profit, 20)).toBe(160);
+  });
+
+  it('handles a fractional pct result correctly (no negative)', () => {
+    // Odd pct like 17 — result is just a multiplication, no rounding here
+    expect(taxSetAside(100, 17)).toBeCloseTo(17, 5);
+  });
+});

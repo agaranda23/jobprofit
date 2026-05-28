@@ -625,6 +625,8 @@ export default function AppShell() {
               onAddJob={handleAddJob}
               onAddReceipt={handleAddReceipt}
               avatarProps={avatarProps}
+              profile={profile}
+              onNavigateToMoney={() => navigate('finance')}
             />
           )}
 
@@ -689,6 +691,8 @@ export default function AppShell() {
               onAddJob={handleAddJob}
               onAddReceipt={handleAddReceipt}
               avatarProps={avatarProps}
+              profile={profile}
+              onNavigateToMoney={() => navigate('money')}
             />
           )}
 
@@ -745,6 +749,8 @@ export default function AppShell() {
               receipts={receipts}
               onAddJob={handleAddJob}
               onAddReceipt={handleAddReceipt}
+              profile={profile}
+              onNavigateToMoney={() => { setMoreKey(k => k + 1); navigate('manage'); }}
             />
           )}
 

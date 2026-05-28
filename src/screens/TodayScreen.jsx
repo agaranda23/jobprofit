@@ -4,8 +4,10 @@ import AddReceiptModal from '../components/AddReceiptModal';
 import { gbp, todayKey, formatToday } from '../lib/today';
 import { isAwaitingPayment, daysSinceInvoice, deriveStatus } from '../lib/jobStatus';
 import { getChaseState, recordChase } from '../lib/chaseLadder';
+import { isPro } from '../lib/plan';
+import { getMonthSummary, monthKey } from '../lib/cashflow';
 
-export default function TodayScreen({ jobs = [], receipts = [], onAddJob, onAddReceipt, onOpenDetailed, onChase, onMarkPaid, onJobTap }) {
+export default function TodayScreen({ jobs = [], receipts = [], onAddJob, onAddReceipt, onOpenDetailed, onChase, onMarkPaid, onJobTap, profile, onNavigateToMoney }) {
   const [jobOpen, setJobOpen] = useState(false);
   const [receiptOpen, setReceiptOpen] = useState(false);
   const [toast, setToast] = useState('');
@@ -66,6 +68,20 @@ export default function TodayScreen({ jobs = [], receipts = [], onAddJob, onAddR
     const cushion = projectedIncome - projectedSpend;
     return { earned, spent, profit: earned - spent, recent: entries, hasEntries: entries.length > 0, unpaidTotal, oldestDays, unpaidCount: unpaidJobs.length, weekProfit, weekCount, avgPerJob, lastWeekAvgPerJob, lastWeekCount, sample14JobCount, projectedIncome, projectedSpend, cushion };
   }, [jobs, receipts, key]);
+
+  // Tax pot: month-to-date set-aside amount, same data as the Money tab card.
+  // Shown as a single leak line under the week profit line.
+  const taxSetAsidePct = Number(profile?.tax_set_aside_pct ?? 20);
+  const monthProfit = useMemo(() => {
+    const mk = monthKey(new Date());
+    return getMonthSummary(jobs, receipts, { month: mk }).profit;
+  }, [jobs, receipts]);
+  const taxPotAmount = Math.max(0, monthProfit) * taxSetAsidePct / 100;
+  const userIsPro = isPro(profile);
+  // Show the tax pot line only when there is profit to speak of.
+  // For free users: show the teaser (but only when profit > 0).
+  // For pro users: show the real figure (but only when profit > 0).
+  const showTaxPotLine = monthProfit > 0;
 
   // Flash profit when it changes
   useEffect(() => {
@@ -192,6 +208,27 @@ export default function TodayScreen({ jobs = [], receipts = [], onAddJob, onAddR
           <p className="today-week-line">
             This week: <span className="week-profit-inline">{gbp(weekProfit)}</span> across {weekCount} job{weekCount === 1 ? '' : 's'}
           </p>
+        )}
+        {showTaxPotLine && (
+          userIsPro ? (
+            <button
+              type="button"
+              className="today-tax-pot-line"
+              onClick={() => onNavigateToMoney?.()}
+              aria-label="View tax set-aside in Money tab"
+            >
+              Tax pot: keep back ~{gbp(taxPotAmount)} this month
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="today-tax-pot-line today-tax-pot-line--locked"
+              onClick={() => onNavigateToMoney?.()}
+              aria-label="Unlock tax pot — upgrade to Pro"
+            >
+              Tax pot &mdash; see what to keep back &middot; <span className="today-tax-pot-line__pro-badge">Pro</span>
+            </button>
+          )
         )}
       </header>
 

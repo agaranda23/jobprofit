@@ -82,6 +82,13 @@ function validateHourlyRate(v) {
   return null;
 }
 
+function validateTaxSetAsidePct(v) {
+  if (v === '' || v === null || v === undefined) return null; // optional — defaults to 20
+  const n = parseInt(v, 10);
+  if (isNaN(n) || n < 0 || n > 100) return 'Must be a whole number between 0 and 100';
+  return null;
+}
+
 // ── Sub-components ────────────────────────────────────────────────────────────
 
 function SectionCard({ title, children }) {
@@ -392,6 +399,17 @@ export default function SettingsScreen({
     validate: null,
   });
 
+  const openEditTaxSetAside = () => setActiveEdit({
+    modal: 'tax_set_aside_pct',
+    fieldKey: 'tax_set_aside_pct',
+    fieldLabel: 'Tax set-aside %',
+    currentValue: profile?.tax_set_aside_pct ?? 20,
+    inputType: 'number',
+    placeholder: '20',
+    helpText: 'Percentage of monthly profit to ring-fence for tax. Shown on your Money tab.',
+    validate: validateTaxSetAsidePct,
+  });
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
@@ -485,6 +503,11 @@ export default function SettingsScreen({
           label="VAT"
           value={profile?.vat_number ? 'Registered' : 'Not set'}
           onTap={openEditVat}
+        />
+        <Row
+          label="Tax set-aside %"
+          value={`${profile?.tax_set_aside_pct ?? 20}%`}
+          onTap={openEditTaxSetAside}
         />
       </SectionCard>
 
