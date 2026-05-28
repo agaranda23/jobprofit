@@ -3073,28 +3073,31 @@ input[type=number] { -moz-appearance: textfield; }
   flex-shrink: 0;
   transition: background 0.15s, border-color 0.15s;
 }
-.stage-rail-dot--active {
-  background: var(--jp-green);
-  border-color: var(--jp-green);
-}
+/* Lead/Overdue — hollow ring, filled only when active */
 .stage-rail-dot--overdue {
   border-color: var(--jp-rose);
 }
 .stage-rail-dot--overdue.stage-rail-dot--active {
   background: var(--jp-rose);
+  border-color: var(--jp-rose);
 }
 .stage-rail-dot--lead {
   border-color: var(--jp-blue);
 }
 .stage-rail-dot--lead.stage-rail-dot--active {
   background: var(--jp-blue);
+  border-color: var(--jp-blue);
 }
 
-/* Green-family stage dots — always filled with their stage colour */
-.stage-rail-dot--quoted   { background: var(--grn-quoted);   border-color: var(--grn-quoted); }
-.stage-rail-dot--on       { background: var(--grn-on);       border-color: var(--grn-on); }
-.stage-rail-dot--invoiced { background: var(--grn-invoiced); border-color: var(--grn-invoiced); }
-.stage-rail-dot--paid     { background: var(--grn-paid);     border-color: var(--grn-paid); }
+/* Green-family stage dots — hollow ring by default, filled only when active */
+.stage-rail-dot--quoted   { border-color: var(--grn-quoted); }
+.stage-rail-dot--on       { border-color: var(--grn-on); }
+.stage-rail-dot--invoiced { border-color: var(--grn-invoiced); }
+.stage-rail-dot--paid     { border-color: var(--grn-paid); }
+.stage-rail-dot--quoted.stage-rail-dot--active   { background: var(--grn-quoted);   border-color: var(--grn-quoted); }
+.stage-rail-dot--on.stage-rail-dot--active       { background: var(--grn-on);       border-color: var(--grn-on); }
+.stage-rail-dot--invoiced.stage-rail-dot--active { background: var(--grn-invoiced); border-color: var(--grn-invoiced); }
+.stage-rail-dot--paid.stage-rail-dot--active     { background: var(--grn-paid);     border-color: var(--grn-paid); }
 
 /* ── Advance Button ───────────────────────────── */
 .job-card-actions {
