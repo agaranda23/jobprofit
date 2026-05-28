@@ -19,7 +19,7 @@ import { nextInvoiceNumber } from '../../lib/invoiceNumber';
 import { buildInvoiceWhatsAppMessage, buildWhatsAppLink } from '../../lib/invoiceMessage';
 import { getInvoicePDFBlob } from '../../lib/invoicePDF';
 import { getMissingInvoiceFields } from '../../lib/bizValidation';
-import { canSendInvoice } from '../../lib/plan';
+import { canSendInvoice, UNLOCK_PRO_FOR_ALL } from '../../lib/plan';
 
 // ── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -173,12 +173,12 @@ describe('canSendInvoice — paywall gating', () => {
     expect(canSendInvoice(freeProfile())).toBe(true);
   });
 
-  it('free user with 1 send is blocked', () => {
-    expect(canSendInvoice(freeProfile({ invoices_sent_count: 1 }))).toBe(false);
+  it('free user with 1 send follows the override flag (blocked only when limits are on)', () => {
+    expect(canSendInvoice(freeProfile({ invoices_sent_count: 1 }))).toBe(UNLOCK_PRO_FOR_ALL ? true : false);
   });
 
-  it('free user with 5 sends is blocked', () => {
-    expect(canSendInvoice(freeProfile({ invoices_sent_count: 5 }))).toBe(false);
+  it('free user with 5 sends follows the override flag', () => {
+    expect(canSendInvoice(freeProfile({ invoices_sent_count: 5 }))).toBe(UNLOCK_PRO_FOR_ALL ? true : false);
   });
 
   it('pro user is always allowed regardless of send count', () => {
