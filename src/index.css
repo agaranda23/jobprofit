@@ -78,9 +78,12 @@ button:focus-visible {
   --accent: #22c55e;
   --danger: #ef4444;
   --border: #2a333c;
-  /* Nav clearance: ~64px pill + 12px bottom gap + 12px breathing room + safe-area.
+  /* Nav clearance: bar height = 12px top padding + ~40px tab content + 12px bottom padding + safe-area.
+     On a standard device (no notch) this is 64px. On notched iPhones safe-area-inset-bottom
+     (typically 34px) is folded inside the bar's own padding-bottom, so --nav-clearance grows
+     with it and content always stops at the divider.
      Used by .screen padding-bottom and floating elements (toast, push-prompt). */
-  --nav-clearance: calc(88px + env(safe-area-inset-bottom));
+  --nav-clearance: calc(64px + env(safe-area-inset-bottom));
 }
 
 body { background: var(--bg); color: var(--text); -webkit-font-smoothing: antialiased; }
@@ -177,33 +180,30 @@ body { background: var(--bg); color: var(--text); -webkit-font-smoothing: antial
 .recent-amount.pos { color: var(--accent); font-variant-numeric: tabular-nums; }
 .recent-amount.neg { color: var(--danger); font-variant-numeric: tabular-nums; }
 
-/* ── Bottom nav — glass pill at all viewport widths ──────────────────────────
-   Mobile: floats 12px off the floor, 16px insets each side, width: auto.
-   Desktop (>=640px): snaps to 560px fixed width centred to match .screen.
-   backdrop-filter fallback: if blur fails on a low-end device, the
-   rgba background-color still reads as a distinct semi-transparent surface.
+/* ── Bottom nav — solid full-width bar anchored to the bottom edge ────────────
+   Spans the full viewport width (left:0; right:0; bottom:0) with no floating
+   gap, so scrolled content can never bleed underneath it.
+   Safe-area is folded INSIDE the bar's padding-bottom so there is never a
+   transparent strip below the opaque surface on notched iPhones.
+   Desktop (>=640px): remains full-width — the bar is always a floor element.
 ── */
 .bottom-nav {
   position: fixed;
-  /* Mobile: 16px insets keep the pill inside any phone viewport */
-  left: 16px;
-  right: 16px;
+  left: 0;
+  right: 0;
+  bottom: 0;
   width: auto;
-  bottom: calc(12px + env(safe-area-inset-bottom));
   display: flex;
 
-  /* Glass surface */
-  background: rgba(28, 28, 28, 0.72);
-  -webkit-backdrop-filter: blur(14px) saturate(140%);
-  backdrop-filter: blur(14px) saturate(140%);
+  /* Opaque surface — matches --bg token (#0b0d10) so the bar reads as app chrome */
+  background: #0d1014;
 
-  /* Border + shape */
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 14px;
-  padding: 6px;
+  /* 1px top divider — visible separator between content and nav */
+  border-top: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 0;
 
-  /* Lift */
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+  /* Safe-area folded inside: bar is always opaque down to the physical edge */
+  padding: 12px 6px calc(12px + env(safe-area-inset-bottom));
 
   z-index: 10;
 }
@@ -231,16 +231,7 @@ body { background: var(--bg); color: var(--text); -webkit-font-smoothing: antial
 }
 .nav-icon { font-size: 18px; }
 
-/* Desktop: snap to fixed 560px width centred to the content column */
-@media (min-width: 640px) {
-  .bottom-nav {
-    left: 50%;
-    right: auto;
-    width: 560px;
-    transform: translateX(-50%);
-    bottom: 18px;
-  }
-}
+/* Desktop: bar stays full-width — no floating pill to recentre. */
 
 /* Modals */
 .modal-backdrop {
@@ -2395,7 +2386,7 @@ input[type=number] { -moz-appearance: textfield; }
 /* ── Orientation toast ────────────────────────── */
 .nav-toast {
   position: fixed;
-  bottom: 88px;
+  bottom: calc(var(--nav-clearance) + 8px);
   left: 50%;
   transform: translateX(-50%);
   background: var(--surface-2);
