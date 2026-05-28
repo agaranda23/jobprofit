@@ -245,6 +245,7 @@ function mapCloudJobToToday(r) {
     // If meta has no lineItems, fall back to the line_items column or empty array.
     lineItems: cloudMeta.lineItems ?? (Array.isArray(r.line_items) ? r.line_items : []),
     total: cloudMeta.total ?? Number(r.amount || 0),
+    status: cloudMeta.status ?? r.status ?? undefined,
     jobStatus: cloudMeta.jobStatus ?? (r.paid === true ? 'paid' : 'unpaid'),
     paymentStatus: cloudMeta.paymentStatus ?? (r.paid === true ? 'paid' : 'unpaid'),
     quoteStatus: cloudMeta.quoteStatus ?? 'active',
@@ -292,7 +293,7 @@ export async function addJobToCloud(payload) {
     payment_type: payload.paymentType || (isPaid ? 'cash' : null),
     payment_date: isPaid ? today : null,
     source: payload.source || 'Quick add',
-    status: isPaid ? 'complete' : 'active',
+    status: isPaid ? 'paid' : 'lead',
     line_items: [{ desc: payload.name || 'Job', cost: amount }],
   };
 

@@ -81,11 +81,12 @@ function daysSinceDue(job) {
  * has no import from WorkScreen (no circular dep).
  */
 function deriveStatus(job) {
+  if (job.status === 'lead') return 'Lead';
   if (job.paid || job.paymentStatus === 'paid' || job.jobStatus === 'paid') return 'Paid';
   if (job.invoiceStatus === 'invoiced' || job.status === 'invoice_sent') return 'Invoiced';
   if (job.jobStatus === 'complete' || job.status === 'complete') return 'Done';
   if (job.jobStatus === 'active' || job.status === 'active') return 'Active';
-  return 'Quoted';
+  return 'Lead';
 }
 
 /** Formats an ISO date string or YYYY-MM-DD to en-GB display date. Returns '' for falsy. */

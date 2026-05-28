@@ -5924,14 +5924,10 @@ input[type=number] { -moz-appearance: textfield; }
 
 /* --- Row 2: title + £amount inline --- */
 .jt-title-row {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 3px;
+  margin-bottom: 1px;
 }
 .jt-title {
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 700;
   color: var(--text);
   line-height: 1.25;
@@ -5948,17 +5944,18 @@ input[type=number] { -moz-appearance: textfield; }
   font-style: italic;
   font-weight: 400;
 }
-/* £amount folded into title row — smaller than the old standalone money row */
-.jt-amount {
-  font-size: 15px;
+/* £price on its own line, directly under the job title — size ladder: title 15 → price 14 → metadata 11 */
+.jt-price {
+  font-size: 14px;
   font-weight: 800;
   color: var(--jp-green);
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.01em;
-  flex-shrink: 0;
+  line-height: 1.2;
+  margin: 1px 0 3px;
 }
-.jt-amount--muted   { color: var(--text-dim); }
-.jt-amount--overdue { color: var(--jp-rose); }
+.jt-price--muted   { color: var(--text-dim); }
+.jt-price--overdue { color: var(--jp-rose); }
 
 /* --- Row 3: merged signal line --- */
 .jt-signals {

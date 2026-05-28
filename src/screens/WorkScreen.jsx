@@ -113,7 +113,7 @@ function deriveDisplayStatus(job) {
   // complete-but-not-invoiced → On: work done, invoice not sent yet
   if (job.jobStatus === 'complete' || job.status === 'complete') return 'On';
   if (job.jobStatus === 'active' || job.status === 'active') return 'On';
-  return 'Quoted';
+  return 'Lead';
 }
 
 /** Format a number as en-GB integer string (no pence). */
@@ -637,7 +637,7 @@ function JobTile({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob, biz }) {
         />
       </div>
 
-      {/* Row 2: job title + £amount folded inline, baseline-aligned hard right */}
+      {/* Row 2: job title on its own line */}
       <div className="jt-title-row">
         {job.summary ? (
           <h3 className="jt-title">
@@ -646,9 +646,10 @@ function JobTile({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob, biz }) {
         ) : (
           <span className="jt-title jt-title--placeholder">Untitled job</span>
         )}
-        <span className={`jt-amount${amountMuted ? ' jt-amount--muted' : ''}${amountOverdue ? ' jt-amount--overdue' : ''}`}>
-          {formattedAmount}
-        </span>
+      </div>
+      {/* Row 2b: price on its own line, directly under title */}
+      <div className={`jt-price${amountMuted ? ' jt-price--muted' : ''}${amountOverdue ? ' jt-price--overdue' : ''}`}>
+        {formattedAmount}
       </div>
 
       {/* Row 3: one merged signal line — time · money state · counts */}
