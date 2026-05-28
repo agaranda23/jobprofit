@@ -152,6 +152,94 @@ function jobOutstandingAmount(job) {
 // ─── Exported date helpers ───────────────────────────────────────────────────
 
 /**
+ * Returns the start of the UK tax year containing `now`.
+ * Rule: on/after 6 April → 6 April of the current calendar year;
+ *       before 6 April   → 6 April of the previous calendar year.
+ * Time is set to 00:00:00 local.
+ *
+ * Examples:
+ *   2026-05-28 → 2026-04-06
+ *   2026-02-10 → 2025-04-06
+ *   2026-04-06 → 2026-04-06  (on the day — counts as new year)
+ *   2026-04-05 → 2025-04-06  (one day before — still last year)
+ *
+ * @param {Date} [now]
+ * @returns {Date}
+ */
+export function taxYearStart(now = new Date()) {
+  const year = now.getFullYear();
+  const month = now.getMonth(); // 0-based
+  const day = now.getDate();
+  // On or after 6 April (month >= 3, i.e. April=3, and if month === 3 day >= 6)
+  const isOnOrAfterApr6 = month > 3 || (month === 3 && day >= 6);
+  const startYear = isOnOrAfterApr6 ? year : year - 1;
+  return new Date(startYear, 3, 6); // April = month index 3, day 6
+}
+
+/**
+ * Returns a human-readable UK tax year label, e.g. "2026/27".
+ * The label year is the start year / start year + 1 (last two digits).
+ *
+ * @param {Date} [now]
+ * @returns {string} e.g. "2026/27"
+ */
+export function taxYearLabel(now = new Date()) {
+  const start = taxYearStart(now);
+  const startYear = start.getFullYear();
+  const endYearShort = String(startYear + 1).slice(-2);
+  return `${startYear}/${endYearShort}`;
+}
+
+/**
+ * Aggregates jobs and receipts across the current UK tax year up to `now`.
+ * Uses the same paid/earned-date and cost logic as getMonthSummary, so YTD
+ * figures reconcile with monthly ones.
+ *
+ * A paid job earned on taxYearStart(now) counts; one earned on the day before
+ * does not (it belongs to last year).
+ *
+ * @param {object[]} jobs
+ * @param {object[]} receipts
+ * @param {Date} [now]
+ * @returns {{ profit: number, paid: number }}
+ */
+export function getTaxYearSummary(jobs, receipts, now = new Date()) {
+  const safeJobs = Array.isArray(jobs) ? jobs : [];
+  const safeReceipts = Array.isArray(receipts) ? receipts : [];
+
+  const start = taxYearStart(now);
+  // Normalise `now` to end-of-day so today's records are included.
+  const end = new Date(now);
+  end.setHours(23, 59, 59, 999);
+
+  let paid = 0;
+  let cost = 0;
+
+  for (const job of safeJobs) {
+    if (isExcludedJob(job)) continue;
+    if (!isPaidJob(job)) continue;
+    const d = jobEarnedDate(job);
+    if (!d) continue;
+    if (d < start || d > end) continue;
+    paid += jobReceivedAmount(job);
+  }
+
+  for (const receipt of safeReceipts) {
+    if (!receipt) continue;
+    const dateStr = receipt.date || (receipt.createdAt ? receipt.createdAt.slice(0, 10) : null);
+    const d = parseLocalDate(dateStr);
+    if (!d) continue;
+    if (d < start || d > end) continue;
+    cost += Number(receipt.amount || 0);
+  }
+
+  return {
+    profit: paid - cost,
+    paid,
+  };
+}
+
+/**
  * Returns a YYYY-MM key for a date. Uses local timezone.
  * @param {Date} d
  * @returns {string} e.g. '2026-03'

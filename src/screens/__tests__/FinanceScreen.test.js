@@ -27,6 +27,8 @@ import {
   buildDateRange,
   monthKey,
   getOverheadTotal,
+  getTaxYearSummary,
+  taxYearLabel,
 } from '../../lib/cashflow';
 
 // ─── Shared test fixtures ─────────────────────────────────────────────────────
@@ -461,5 +463,51 @@ describe('True Profit card calculation', () => {
     const jobs = [paidJob({ amount: 600, date: '2026-05-10' })];
     const { profit } = getMonthSummary(jobs, [], { month: '2026-05' });
     expect(profit - getOverheadTotal(null)).toBe(profit);
+  });
+});
+
+// ─── YTD Tax Set-Aside card — getTaxYearSummary × pct ────────────────────────
+// Exercises the same formula the updated FinanceScreen Tax Set-Aside card uses:
+//   ytdTaxPot = Math.max(0, ytd.profit) * pct / 100
+// Wired to the real getTaxYearSummary so any helper changes break these tests.
+
+describe('FinanceScreen YTD Tax Set-Aside card', () => {
+  // Tax year 2026/27 starts 2026-04-06. Reference date: 2026-05-20 (TODAY).
+  const NOW = TODAY; // 2026-05-20T10:00:00
+
+  function ytdTaxSetAside(jobs, receipts, pct, ref = NOW) {
+    const { profit } = getTaxYearSummary(jobs, receipts, ref);
+    return Math.max(0, profit) * pct / 100;
+  }
+
+  it('20% of YTD profit for a standard job paid after 6 April', () => {
+    const jobs = [paidJob({ amount: 1000, date: '2026-05-10' })];
+    expect(ytdTaxSetAside(jobs, [], 20)).toBe(200);
+  });
+
+  it('returns 0 when YTD profit is zero', () => {
+    expect(ytdTaxSetAside([], [], 20)).toBe(0);
+  });
+
+  it('returns 0 when YTD profit is negative (never a negative set-aside)', () => {
+    const jobs = [paidJob({ amount: 100, date: '2026-05-10' })];
+    const receipts = [receipt({ amount: 500, date: '2026-05-12' })];
+    expect(ytdTaxSetAside(jobs, receipts, 20)).toBe(0);
+  });
+
+  it('excludes job paid before 6 April from YTD tax pot', () => {
+    // Job dated 2026-04-05 — belongs to 2025/26 tax year
+    const oldJob = paidJob({ amount: 9999, date: '2026-04-05' });
+    const newJob = paidJob({ id: 'j2', amount: 500, date: '2026-04-10' });
+    expect(ytdTaxSetAside([oldJob, newJob], [], 20)).toBe(100); // only newJob counts
+  });
+
+  it('taxYearLabel returns correct label for the reference date', () => {
+    expect(taxYearLabel(NOW)).toBe('2026/27');
+  });
+
+  it('YTD tax pot scales with custom pct (e.g. 25%)', () => {
+    const jobs = [paidJob({ amount: 800, date: '2026-05-10' })];
+    expect(ytdTaxSetAside(jobs, [], 25)).toBe(200);
   });
 });

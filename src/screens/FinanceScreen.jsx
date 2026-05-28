@@ -38,6 +38,8 @@ import ProGate from '../components/ProGate';
 import {
   getCashflowByMonth,
   getMonthSummary,
+  getTaxYearSummary,
+  taxYearLabel,
   getProfitPerHour,
   getMarginTrend,
   buildDateRange,
@@ -98,6 +100,7 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
   const {
     cashflowData,
     monthSummary,
+    ytd,
     profitPerHour,
     marginTrend,
     timelineGroups,
@@ -148,15 +151,26 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
 
     const hasActivity = timelineGroups.length > 0;
 
+    // ── YTD tax-year summary ───────────────────────────────────────────────
+    const ytd = getTaxYearSummary(jobs, receipts, now);
+
     return {
       cashflowData,
       monthSummary,
+      ytd,
       profitPerHour,
       marginTrend,
       timelineGroups,
       hasActivity,
     };
   }, [jobs, receipts, chartRange, currentMonth, hourlyRate, profile]);
+
+
+  // ── YTD-derived values ───────────────────────────────────────────────────────
+  const ytdTaxPot = Math.max(0, ytd.profit) * taxSetAsidePct / 100;
+  const monthTaxPot = Math.max(0, monthSummary.profit) * taxSetAsidePct / 100;
+  const currentTaxYearLabel = taxYearLabel(now);
+  const isYtdProfitNegative = ytd.profit < 0;
 
   // handleUpgrade: stable callback that delegates to the prop if wired, otherwise
   // falls back to the Tally waitlist URL. Declared after the useMemo so the
@@ -208,6 +222,9 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
               ? 'You spent more than came in this month'
               : 'Money in, minus what you spent'}
           </div>
+          <div className={`money-hero__ytd-line${isYtdProfitNegative ? ' money-hero__ytd-line--negative' : ''}`}>
+            {gbp(ytd.profit)} profit so far this tax year
+          </div>
         </div>
       )}
 
@@ -215,19 +232,19 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
       {!userIsPro && <UpgradeBanner onUpgrade={handleUpgrade} />}
 
       {/* ── 3. Tax Set-Aside card (Pro-gated) ────────────────────────────── */}
-      {/* hasValue: only when there is positive profit this month to set aside */}
-      <ProGate locked={!userIsPro} hasValue={monthSummary.profit > 0}>
+      {/* hasValue: only when there is positive YTD profit to set aside */}
+      <ProGate locked={!userIsPro} hasValue={ytd.profit > 0}>
         <div className="money-card money-tax-setaside">
           <div className="money-tax-setaside__label">Tax set-aside</div>
-          {monthSummary.profit <= 0 ? (
-            <p className="money-tax-setaside__empty">Nothing to set aside yet this month</p>
+          {ytd.profit <= 0 ? (
+            <p className="money-tax-setaside__empty">Nothing to set aside yet this tax year</p>
           ) : (
             <>
               <div className="money-tax-setaside__figure pro-gate__figure">
-                {gbp(Math.max(0, monthSummary.profit) * taxSetAsidePct / 100)}
+                {gbp(ytdTaxPot)}
               </div>
               <p className="money-tax-setaside__sub">
-                Roughly {taxSetAsidePct}% of this month&apos;s profit &mdash; keep it back for the taxman
+                For the {currentTaxYearLabel} tax year so far &middot; {gbp(monthTaxPot)} this month
               </p>
             </>
           )}

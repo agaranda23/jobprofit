@@ -10,6 +10,9 @@ import {
   getProfitPerHour,
   getMarginTrend,
   getOverheadTotal,
+  taxYearStart,
+  taxYearLabel,
+  getTaxYearSummary,
 } from '../cashflow.js';
 
 // ─── Fixture builders ────────────────────────────────────────────────────────
@@ -890,5 +893,186 @@ describe('True Profit calculation', () => {
     const { profit } = getMonthSummary(jobs, [], { month: '2026-03' });
     const trueProfit = profit - getOverheadTotal(null);
     expect(trueProfit).toBe(profit);
+  });
+});
+
+// ─── taxYearStart ─────────────────────────────────────────────────────────────
+
+describe('taxYearStart', () => {
+  it('date well within the year (May) → 6 April same year', () => {
+    const now = new Date(2026, 4, 28); // 2026-05-28
+    const start = taxYearStart(now);
+    expect(start.getFullYear()).toBe(2026);
+    expect(start.getMonth()).toBe(3); // April = 3
+    expect(start.getDate()).toBe(6);
+  });
+
+  it('date before 6 April (February) → 6 April prior year', () => {
+    const now = new Date(2026, 1, 10); // 2026-02-10
+    const start = taxYearStart(now);
+    expect(start.getFullYear()).toBe(2025);
+    expect(start.getMonth()).toBe(3);
+    expect(start.getDate()).toBe(6);
+  });
+
+  it('exactly on 6 April → 6 April same year (new tax year starts)', () => {
+    const now = new Date(2026, 3, 6); // 2026-04-06
+    const start = taxYearStart(now);
+    expect(start.getFullYear()).toBe(2026);
+    expect(start.getMonth()).toBe(3);
+    expect(start.getDate()).toBe(6);
+  });
+
+  it('5 April (one day before) → 6 April prior year (still old tax year)', () => {
+    const now = new Date(2026, 3, 5); // 2026-04-05
+    const start = taxYearStart(now);
+    expect(start.getFullYear()).toBe(2025);
+    expect(start.getMonth()).toBe(3);
+    expect(start.getDate()).toBe(6);
+  });
+
+  it('time component is 00:00:00 local', () => {
+    const now = new Date(2026, 4, 1, 15, 30, 0);
+    const start = taxYearStart(now);
+    expect(start.getHours()).toBe(0);
+    expect(start.getMinutes()).toBe(0);
+    expect(start.getSeconds()).toBe(0);
+  });
+});
+
+// ─── taxYearLabel ─────────────────────────────────────────────────────────────
+
+describe('taxYearLabel', () => {
+  it('returns "2026/27" for a date in the 2026/27 tax year', () => {
+    const now = new Date(2026, 4, 28); // 2026-05-28 → tax year starts 2026-04-06
+    expect(taxYearLabel(now)).toBe('2026/27');
+  });
+
+  it('returns "2025/26" for a date before 6 April 2026', () => {
+    const now = new Date(2026, 1, 10); // 2026-02-10 → tax year starts 2025-04-06
+    expect(taxYearLabel(now)).toBe('2025/26');
+  });
+
+  it('returns "2026/27" on 6 April 2026 exactly', () => {
+    const now = new Date(2026, 3, 6); // 2026-04-06
+    expect(taxYearLabel(now)).toBe('2026/27');
+  });
+
+  it('returns "2025/26" on 5 April 2026', () => {
+    const now = new Date(2026, 3, 5); // 2026-04-05
+    expect(taxYearLabel(now)).toBe('2025/26');
+  });
+
+  it('end year is always two digits', () => {
+    const label = taxYearLabel(new Date(2026, 4, 1));
+    expect(label).toMatch(/^\d{4}\/\d{2}$/);
+  });
+});
+
+// ─── getTaxYearSummary ────────────────────────────────────────────────────────
+
+describe('getTaxYearSummary', () => {
+  // Reference: 2026-05-28. Tax year started 2026-04-06.
+
+  const NOW = new Date(2026, 4, 28); // 2026-05-28
+
+  function paidJobTY(overrides = {}) {
+    return {
+      id: overrides.id ?? 'ty-j1',
+      amount: overrides.amount ?? 500,
+      paid: true,
+      date: overrides.date ?? '2026-05-10',
+      ...overrides,
+    };
+  }
+
+  function receiptTY(overrides = {}) {
+    return {
+      id: overrides.id ?? 'ty-r1',
+      amount: overrides.amount ?? 100,
+      date: overrides.date ?? '2026-05-08',
+      ...overrides,
+    };
+  }
+
+  it('includes a paid job dated within the tax year', () => {
+    const jobs = [paidJobTY({ amount: 500, date: '2026-04-10' })];
+    const { paid, profit } = getTaxYearSummary(jobs, [], NOW);
+    expect(paid).toBe(500);
+    expect(profit).toBe(500);
+  });
+
+  it('excludes a paid job dated before the tax year start', () => {
+    const jobs = [paidJobTY({ amount: 999, date: '2026-04-05' })]; // 5 April — last year
+    const { paid } = getTaxYearSummary(jobs, [], NOW);
+    expect(paid).toBe(0);
+  });
+
+  it('includes a job dated exactly on 6 April (first day of tax year)', () => {
+    const jobs = [paidJobTY({ amount: 400, date: '2026-04-06' })];
+    const { paid } = getTaxYearSummary(jobs, [], NOW);
+    expect(paid).toBe(400);
+  });
+
+  it('profit = paid − cost', () => {
+    const jobs = [paidJobTY({ amount: 1000, date: '2026-05-01' })];
+    const receipts = [receiptTY({ amount: 300, date: '2026-04-20' })];
+    const { profit, paid } = getTaxYearSummary(jobs, receipts, NOW);
+    expect(paid).toBe(1000);
+    expect(profit).toBe(700);
+  });
+
+  it('excludes a receipt dated before the tax year start', () => {
+    const jobs = [paidJobTY({ amount: 500, date: '2026-05-01' })];
+    const receipts = [receiptTY({ amount: 200, date: '2026-04-04' })]; // before tax year
+    const { profit } = getTaxYearSummary(jobs, receipts, NOW);
+    // Receipt excluded → profit = 500
+    expect(profit).toBe(500);
+  });
+
+  it('null-safe: non-array inputs return zeros', () => {
+    const result = getTaxYearSummary(null, null, NOW);
+    expect(result.paid).toBe(0);
+    expect(result.profit).toBe(0);
+  });
+
+  it('null-safe: undefined inputs return zeros', () => {
+    const result = getTaxYearSummary(undefined, undefined, NOW);
+    expect(result.paid).toBe(0);
+    expect(result.profit).toBe(0);
+  });
+
+  it('empty arrays return zeros', () => {
+    const result = getTaxYearSummary([], [], NOW);
+    expect(result.paid).toBe(0);
+    expect(result.profit).toBe(0);
+  });
+
+  it('profit can be negative when costs exceed paid', () => {
+    const jobs = [paidJobTY({ amount: 200, date: '2026-05-01' })];
+    const receipts = [receiptTY({ amount: 500, date: '2026-05-05' })];
+    const { profit } = getTaxYearSummary(jobs, receipts, NOW);
+    expect(profit).toBe(-300);
+    expect(profit).toBeLessThan(0);
+  });
+
+  it('excludes cancelled jobs', () => {
+    const jobs = [paidJobTY({ amount: 9999, date: '2026-05-01', status: 'cancelled' })];
+    const { paid } = getTaxYearSummary(jobs, [], NOW);
+    expect(paid).toBe(0);
+  });
+
+  it('sums multiple jobs and receipts within the tax year', () => {
+    const jobs = [
+      paidJobTY({ id: 'j1', amount: 600, date: '2026-04-15' }),
+      paidJobTY({ id: 'j2', amount: 400, date: '2026-05-20' }),
+    ];
+    const receipts = [
+      receiptTY({ id: 'r1', amount: 100, date: '2026-04-20' }),
+      receiptTY({ id: 'r2', amount: 50, date: '2026-05-10' }),
+    ];
+    const { paid, profit } = getTaxYearSummary(jobs, receipts, NOW);
+    expect(paid).toBe(1000);
+    expect(profit).toBe(850);
   });
 });
