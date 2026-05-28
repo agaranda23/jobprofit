@@ -4,6 +4,7 @@ import {
   recordChase,
   clearChase,
   computeTier,
+  daysPastDue,
   buildChaseMessage,
   buildChaseLink,
   lastChasedLabel,
@@ -93,6 +94,32 @@ describe('computeTier', () => {
       firstChasedAt: new Date('2025-01-13T12:00:00Z').toISOString(),
     };
     expect(computeTier(state, fixedNow)).toBe(2);
+  });
+});
+
+// ── daysPastDue — null safety (regression: Money tab blank-screen crash) ──
+// FinanceScreen passes a job-shaped object whose chase state may be absent.
+// A null/undefined arg must never throw — an unguarded read of
+// `job.invoiceDueDate` previously crashed the whole Money tab to a blank screen.
+
+describe('daysPastDue null safety', () => {
+  it('returns 0 for a null job instead of throwing', () => {
+    expect(() => daysPastDue(null)).not.toThrow();
+    expect(daysPastDue(null)).toBe(0);
+  });
+
+  it('returns 0 for an undefined job instead of throwing', () => {
+    expect(() => daysPastDue(undefined)).not.toThrow();
+    expect(daysPastDue(undefined)).toBe(0);
+  });
+
+  it('returns 0 for a job with no invoice dates', () => {
+    expect(daysPastDue({ id: 'j1', amount: 100 })).toBe(0);
+  });
+
+  it('computeTier never throws on a null/undefined job', () => {
+    expect(() => computeTier(null)).not.toThrow();
+    expect(() => computeTier(undefined)).not.toThrow();
   });
 });
 

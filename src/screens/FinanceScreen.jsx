@@ -97,6 +97,8 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
         amount: Number(j.amount || 0),
         paid: j.paid !== false,
         ts: j.createdAt || j.date,
+        invoiceDueDate: j.invoiceDueDate || null,
+        invoiceSentAt: j.invoiceSentAt || null,
       })),
       ...receipts.map(r => ({
         id: 'r' + r.id,
@@ -360,7 +362,7 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
 function HeroChaseCTA({ entry }) {
   const [, forceUpdate] = useState(0);
   const chaseState = getChaseState(entry.rawId);
-  const tier = computeTier(chaseState);
+  const tier = computeTier(entry);
   const name = (entry.customer || entry.label || '').split(' ')[0] || 'there';
   const amountOutstanding = gbp(entry.amount);
   const daysSinceDue = chaseState
@@ -402,7 +404,7 @@ function ChaseRow({ entry, onMarkPaid, onPaid }) {
   const [, forceUpdate] = useState(0);
 
   const chaseState = getChaseState(entry.rawId);
-  const tier = computeTier(chaseState);
+  const tier = computeTier(entry);
   const pill = lastChasedLabel(chaseState);
 
   const name = (entry.customer || entry.label || '').split(' ')[0] || 'there';

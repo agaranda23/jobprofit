@@ -122,6 +122,7 @@ export function isDoubleSendBlocked(jobId, _now = new Date()) {
  * @returns {number}
  */
 export function daysPastDue(job, _now = new Date()) {
+  if (!job) return 0;
   let dueDate;
 
   if (job.invoiceDueDate) {
