@@ -9,6 +9,7 @@ import {
   getOutstandingSummary,
   getProfitPerHour,
   getMarginTrend,
+  getOverheadTotal,
 } from '../cashflow.js';
 
 // ─── Fixture builders ────────────────────────────────────────────────────────
@@ -730,5 +731,164 @@ describe('getMarginTrend', () => {
     const result = getMarginTrend(jobs, [], {}, REF);
     // Only the 1000 job counts; margin should be 100% (no receipts)
     expect(result.thisWeek).toBeCloseTo(100, 1);
+  });
+});
+
+// ─── getOverheadTotal ────────────────────────────────────────────────────────
+
+describe('getOverheadTotal', () => {
+  it('returns 0 for an empty array', () => {
+    expect(getOverheadTotal([])).toBe(0);
+  });
+
+  it('returns 0 for null input (null-safe)', () => {
+    expect(getOverheadTotal(null)).toBe(0);
+  });
+
+  it('returns 0 for undefined input (null-safe)', () => {
+    expect(getOverheadTotal(undefined)).toBe(0);
+  });
+
+  it('returns 0 for a non-array value', () => {
+    expect(getOverheadTotal('not-an-array')).toBe(0);
+    expect(getOverheadTotal(42)).toBe(0);
+    expect(getOverheadTotal({})).toBe(0);
+  });
+
+  it('sums all active items when all are active', () => {
+    const overheads = [
+      { id: '1', name: 'Van', amount: 450, category: 'Vehicle', is_active: true },
+      { id: '2', name: 'Insurance', amount: 280, category: 'Insurance', is_active: true },
+      { id: '3', name: 'Phone', amount: 45, category: 'Phone', is_active: true },
+    ];
+    expect(getOverheadTotal(overheads)).toBe(775);
+  });
+
+  it('excludes items where is_active is explicitly false', () => {
+    const overheads = [
+      { id: '1', name: 'Van', amount: 450, is_active: true },
+      { id: '2', name: 'Insurance', amount: 280, is_active: false },
+      { id: '3', name: 'Phone', amount: 45, is_active: true },
+    ];
+    // Only 450 + 45 = 495
+    expect(getOverheadTotal(overheads)).toBe(495);
+  });
+
+  it('treats is_active undefined as active (opt-out model)', () => {
+    const overheads = [
+      { id: '1', name: 'Van', amount: 300 }, // no is_active field → treated as active
+      { id: '2', name: 'Phone', amount: 50, is_active: undefined },
+    ];
+    expect(getOverheadTotal(overheads)).toBe(350);
+  });
+
+  it('treats is_active null as active (opt-out model)', () => {
+    const overheads = [{ id: '1', name: 'Van', amount: 200, is_active: null }];
+    expect(getOverheadTotal(overheads)).toBe(200);
+  });
+
+  it('ignores non-numeric amounts (treats as 0)', () => {
+    const overheads = [
+      { id: '1', name: 'Bad', amount: 'not-a-number', is_active: true },
+      { id: '2', name: 'Good', amount: 100, is_active: true },
+    ];
+    expect(getOverheadTotal(overheads)).toBe(100);
+  });
+
+  it('handles decimal amounts correctly', () => {
+    const overheads = [
+      { id: '1', amount: 99.99, is_active: true },
+      { id: '2', amount: 0.01, is_active: true },
+    ];
+    expect(getOverheadTotal(overheads)).toBeCloseTo(100, 5);
+  });
+
+  it('returns 0 when all items are inactive', () => {
+    const overheads = [
+      { id: '1', amount: 500, is_active: false },
+      { id: '2', amount: 200, is_active: false },
+    ];
+    expect(getOverheadTotal(overheads)).toBe(0);
+  });
+
+  it('skips null/undefined items in the array without throwing', () => {
+    const overheads = [
+      null,
+      undefined,
+      { id: '1', amount: 100, is_active: true },
+    ];
+    expect(getOverheadTotal(overheads)).toBe(100);
+  });
+});
+
+// ─── True Profit calculation ──────────────────────────────────────────────────
+// True Profit = getMonthSummary(...).profit - getOverheadTotal(overheads)
+// These tests verify the combined calc used by the FinanceScreen True Profit card.
+
+describe('True Profit calculation', () => {
+  function paidJobFx(overrides = {}) {
+    return {
+      id: 'j1',
+      amount: 1000,
+      paid: true,
+      date: '2026-03-10',
+      createdAt: '2026-03-10T09:00:00.000Z',
+      ...overrides,
+    };
+  }
+  function receiptFx(overrides = {}) {
+    return { id: 'r1', amount: 200, date: '2026-03-12', ...overrides };
+  }
+
+  const FROM = new Date(2026, 2, 1);
+  const TO   = new Date(2026, 2, 31);
+
+  it('true profit = paid - materials - overheads (happy path)', () => {
+    const jobs     = [paidJobFx({ amount: 1000 })];
+    const receipts = [receiptFx({ amount: 200 })];
+    const overheads = [
+      { id: 'oh1', amount: 300, is_active: true },
+      { id: 'oh2', amount: 100, is_active: true },
+    ];
+    const { profit } = getMonthSummary(jobs, receipts, { month: '2026-03' });
+    const trueProfit = profit - getOverheadTotal(overheads);
+    // profit = 1000 - 200 = 800; overheads = 400; trueProfit = 400
+    expect(profit).toBe(800);
+    expect(trueProfit).toBe(400);
+  });
+
+  it('true profit can go negative when overheads exceed materials profit', () => {
+    const jobs      = [paidJobFx({ amount: 500 })];
+    const overheads = [{ id: 'oh1', amount: 600, is_active: true }];
+    const { profit } = getMonthSummary(jobs, [], { month: '2026-03' });
+    const trueProfit = profit - getOverheadTotal(overheads);
+    // profit = 500; overheads = 600; trueProfit = -100
+    expect(trueProfit).toBe(-100);
+  });
+
+  it('true profit equals profit when no overheads are set', () => {
+    const jobs = [paidJobFx({ amount: 800 })];
+    const { profit } = getMonthSummary(jobs, [], { month: '2026-03' });
+    const trueProfit = profit - getOverheadTotal([]);
+    expect(trueProfit).toBe(profit);
+  });
+
+  it('inactive overheads do not reduce true profit', () => {
+    const jobs      = [paidJobFx({ amount: 1000 })];
+    const overheads = [
+      { id: 'oh1', amount: 300, is_active: true },
+      { id: 'oh2', amount: 200, is_active: false }, // inactive — excluded
+    ];
+    const { profit } = getMonthSummary(jobs, [], { month: '2026-03' });
+    const trueProfit = profit - getOverheadTotal(overheads);
+    // profit = 1000; active overheads = 300; trueProfit = 700
+    expect(trueProfit).toBe(700);
+  });
+
+  it('null overheads list is safe (treated as empty)', () => {
+    const jobs = [paidJobFx({ amount: 500 })];
+    const { profit } = getMonthSummary(jobs, [], { month: '2026-03' });
+    const trueProfit = profit - getOverheadTotal(null);
+    expect(trueProfit).toBe(profit);
   });
 });

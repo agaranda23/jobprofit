@@ -8,11 +8,12 @@
  * Top-to-bottom card order:
  *   1. Hero — Profit (this month), big figure, negative state, empty state  [FREE]
  *   2. Tax Set-Aside card                                                    [PRO]
- *   3. Cashflow chart                                                        [FREE]
- *   4. Month pace two-up — Paid in (left) + Jobs done (right)               [FREE]
- *   5. Est. Profit/Hour insight card                                         [PRO]
- *   6. Margin nudge (conditional — only when |delta| >= 10%)                [PRO]
- *   7. Recent transactions — collapsed expandable timeline                  [FREE]
+ *   3. True Profit (after running costs) card                               [PRO]
+ *   4. Cashflow chart                                                        [FREE]
+ *   5. Month pace two-up — Paid in (left) + Jobs done (right)               [FREE]
+ *   6. Est. Profit/Hour insight card                                         [PRO]
+ *   7. Margin nudge (conditional — only when |delta| >= 10%)                [PRO]
+ *   8. Recent transactions — collapsed expandable timeline                  [FREE]
  *
  * Pro gating: cards 2, 5, 6 show a locked preview (blurred figure + upgrade
  * prompt) for free users. The ProGate wrapper in src/components/ProGate.jsx
@@ -37,6 +38,7 @@ import {
   getMarginTrend,
   buildDateRange,
   monthKey,
+  getOverheadTotal,
 } from '../lib/cashflow';
 
 // Margin nudge fires only when the absolute delta meets or exceeds this threshold.
@@ -63,6 +65,8 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
   const hourlyRate = Number(profile?.hourly_rate) || 0;
   const taxSetAsidePct = Number(profile?.tax_set_aside_pct ?? 20);
   const userIsPro = isPro(profile);
+  const overheads = Array.isArray(profile?.overheads) ? profile.overheads : [];
+  const overheadTotal = getOverheadTotal(overheads);
 
   // ── Derived data ────────────────────────────────────────────────────────────
   const {
@@ -200,7 +204,35 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
         </div>
       </ProGate>
 
-      {/* ── 3. Cashflow chart ─────────────────────────────────────────────── */}
+      {/* ── 3. True Profit — after running costs (Pro-gated) ────────────── */}
+      <ProGate locked={!userIsPro} onUpgrade={handleUpgrade}>
+        {overheads.length === 0 ? (
+          <div className="money-card money-true-profit money-true-profit--empty">
+            <div className="money-true-profit__label">True profit</div>
+            <p className="money-true-profit__hint">
+              Add your monthly running costs in Settings to see true profit
+            </p>
+          </div>
+        ) : (
+          (() => {
+            const trueProfit = monthSummary.profit - overheadTotal;
+            const isTrueProfitNegative = trueProfit < 0;
+            return (
+              <div className={`money-card money-true-profit${isTrueProfitNegative ? ' money-true-profit--negative' : ''}`}>
+                <div className="money-true-profit__label">True profit</div>
+                <div className={`money-true-profit__figure pro-gate__figure${isTrueProfitNegative ? ' money-twoUp__value--negative' : ''}`}>
+                  {gbp(trueProfit)}
+                </div>
+                <p className="money-true-profit__sub">
+                  After materials and your {gbp(overheadTotal)}/mo running costs
+                </p>
+              </div>
+            );
+          })()
+        )}
+      </ProGate>
+
+      {/* ── 4. Cashflow chart ─────────────────────────────────────────────── */}
       <div className="money-card money-card--chart">
         <CashflowChart
           data={cashflowData}
@@ -210,7 +242,7 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
         />
       </div>
 
-      {/* ── 4. Month pace two-up — Paid in + Jobs done ───────────────────── */}
+      {/* ── 5. Month pace two-up — Paid in + Jobs done ───────────────────── */}
       <div className="money-twoUp">
         <div className="money-twoUp__card">
           <div className="money-twoUp__label">Paid in</div>
@@ -222,7 +254,7 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
         </div>
       </div>
 
-      {/* ── 5. Est. Profit/Hour (Pro-gated) ──────────────────────────────── */}
+      {/* ── 6. Est. Profit/Hour (Pro-gated) ──────────────────────────────── */}
       <ProGate locked={!userIsPro} onUpgrade={handleUpgrade}>
         {profitPerHour.value !== null ? (
           <div className="money-card money-insight money-insight--pph">
@@ -257,7 +289,7 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
         )}
       </ProGate>
 
-      {/* ── 6. Margin nudge (conditional — single, threshold-gated, Pro-gated) */}
+      {/* ── 7. Margin nudge (conditional — single, threshold-gated, Pro-gated) */}
       {showMarginNudge && (
         <ProGate locked={!userIsPro} onUpgrade={handleUpgrade}>
           <div className={`money-card money-nudge money-nudge--${marginTrend.deltaSign}`}>
@@ -270,7 +302,7 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
         </ProGate>
       )}
 
-      {/* ── 6. Recent transactions (demoted — collapsed by default) ──────── */}
+      {/* ── 8. Recent transactions (demoted — collapsed by default) ──────── */}
       {totalTimelineEntries > 0 && (
         <div className="money-card money-timeline">
           <button

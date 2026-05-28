@@ -37,6 +37,8 @@ import {
   subscribe as pushSubscribe,
   unsubscribe as pushUnsubscribe,
 } from '../lib/pushSubscribe.js';
+import { OVERHEAD_CATEGORIES } from '../lib/overheads.js';
+import { getOverheadTotal } from '../lib/cashflow.js';
 
 const APP_VERSION = pkg.version;
 
@@ -257,6 +259,240 @@ function VoiceLanguageSection({ session }) {
       ))}
       {error && <p className="settings-row-error">{error}</p>}
     </>
+  );
+}
+
+// ── MonthlyOverheadsSection ───────────────────────────────────────────────────
+// Available to all users — entering costs is free. The True Profit insight
+// (Money tab) is Pro-gated separately.
+
+function MonthlyOverheadsSection({ overheads, onSave }) {
+  const [items, setItems] = useState(
+    () => (Array.isArray(overheads) ? overheads : [])
+  );
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+  // addState: null | { name, amount, category } — controls the inline add form
+  const [addState, setAddState] = useState(null);
+  const [editId, setEditId] = useState(null);
+  const [editState, setEditState] = useState(null);
+
+  // Keep local items in sync if the parent profile reloads
+  useEffect(() => {
+    setItems(Array.isArray(overheads) ? overheads : []);
+  }, [overheads]);
+
+  const persist = async (next) => {
+    setSaving(true);
+    setError('');
+    try {
+      await onSave({ overheads: next });
+      setItems(next);
+    } catch {
+      setError('Could not save — try again');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleToggleActive = (id) => {
+    const next = items.map(i =>
+      i.id === id ? { ...i, is_active: i.is_active === false ? true : false } : i
+    );
+    persist(next);
+  };
+
+  const handleDelete = (id) => {
+    const next = items.filter(i => i.id !== id);
+    persist(next);
+  };
+
+  const handleAdd = () => {
+    if (!addState) return;
+    const name = (addState.name || '').trim();
+    const amount = parseFloat(addState.amount);
+    if (!name) { setError('Name is required'); return; }
+    if (isNaN(amount) || amount < 0) { setError('Enter a valid amount'); return; }
+    const newItem = {
+      id: crypto.randomUUID(),
+      name,
+      amount,
+      category: addState.category || 'Other',
+      is_active: true,
+    };
+    persist([...items, newItem]).then(() => setAddState(null));
+  };
+
+  const handleEditSave = (id) => {
+    if (!editState) return;
+    const name = (editState.name || '').trim();
+    const amount = parseFloat(editState.amount);
+    if (!name) { setError('Name is required'); return; }
+    if (isNaN(amount) || amount < 0) { setError('Enter a valid amount'); return; }
+    const next = items.map(i =>
+      i.id === id ? { ...i, name, amount, category: editState.category || i.category } : i
+    );
+    persist(next).then(() => { setEditId(null); setEditState(null); });
+  };
+
+  const activeTotal = getOverheadTotal(items);
+  const activeCount = items.filter(i => i.is_active !== false).length;
+
+  return (
+    <div className="overheads-section">
+      {items.length > 0 && (
+        <div className="overheads-summary">
+          {activeCount > 0
+            ? `£${activeTotal.toFixed(2)}/mo across ${activeCount} cost${activeCount === 1 ? '' : 's'}`
+            : 'No active running costs'}
+        </div>
+      )}
+
+      {items.map(item => {
+        const isEditing = editId === item.id;
+        if (isEditing) {
+          return (
+            <div key={item.id} className="overheads-item overheads-item--editing">
+              <input
+                className="overheads-input"
+                placeholder="Name"
+                value={editState.name}
+                onChange={e => setEditState(s => ({ ...s, name: e.target.value }))}
+              />
+              <input
+                className="overheads-input overheads-input--amount"
+                placeholder="£0.00"
+                type="number"
+                min="0"
+                step="0.01"
+                value={editState.amount}
+                onChange={e => setEditState(s => ({ ...s, amount: e.target.value }))}
+              />
+              <select
+                className="overheads-select"
+                value={editState.category}
+                onChange={e => setEditState(s => ({ ...s, category: e.target.value }))}
+              >
+                {OVERHEAD_CATEGORIES.map(c => <option key={c}>{c}</option>)}
+              </select>
+              <div className="overheads-item-actions">
+                <button
+                  type="button"
+                  className="overheads-btn overheads-btn--save"
+                  onClick={() => handleEditSave(item.id)}
+                  disabled={saving}
+                >
+                  Save
+                </button>
+                <button
+                  type="button"
+                  className="overheads-btn overheads-btn--cancel"
+                  onClick={() => { setEditId(null); setEditState(null); setError(''); }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          );
+        }
+        return (
+          <div key={item.id} className={`overheads-item${item.is_active === false ? ' overheads-item--inactive' : ''}`}>
+            <div className="overheads-item-main">
+              <span className="overheads-item-name">{item.name}</span>
+              <span className="overheads-item-category">{item.category}</span>
+            </div>
+            <div className="overheads-item-right">
+              <span className="overheads-item-amount">£{Number(item.amount).toFixed(2)}/mo</span>
+              <button
+                type="button"
+                className={`overheads-toggle${item.is_active === false ? ' overheads-toggle--off' : ' overheads-toggle--on'}`}
+                onClick={() => handleToggleActive(item.id)}
+                disabled={saving}
+                aria-label={item.is_active === false ? 'Activate' : 'Deactivate'}
+              >
+                {item.is_active === false ? 'Off' : 'On'}
+              </button>
+              <button
+                type="button"
+                className="overheads-btn overheads-btn--edit"
+                onClick={() => {
+                  setEditId(item.id);
+                  setEditState({ name: item.name, amount: String(item.amount), category: item.category });
+                  setError('');
+                }}
+                aria-label="Edit"
+              >
+                Edit
+              </button>
+              <button
+                type="button"
+                className="overheads-btn overheads-btn--delete"
+                onClick={() => handleDelete(item.id)}
+                disabled={saving}
+                aria-label="Delete"
+              >
+                ×
+              </button>
+            </div>
+          </div>
+        );
+      })}
+
+      {addState !== null ? (
+        <div className="overheads-add-form">
+          <input
+            className="overheads-input"
+            placeholder="e.g. Van payment"
+            value={addState.name}
+            autoFocus
+            onChange={e => setAddState(s => ({ ...s, name: e.target.value }))}
+          />
+          <input
+            className="overheads-input overheads-input--amount"
+            placeholder="£0.00"
+            type="number"
+            min="0"
+            step="0.01"
+            value={addState.amount}
+            onChange={e => setAddState(s => ({ ...s, amount: e.target.value }))}
+          />
+          <select
+            className="overheads-select"
+            value={addState.category}
+            onChange={e => setAddState(s => ({ ...s, category: e.target.value }))}
+          >
+            {OVERHEAD_CATEGORIES.map(c => <option key={c}>{c}</option>)}
+          </select>
+          <div className="overheads-item-actions">
+            <button
+              type="button"
+              className="overheads-btn overheads-btn--save"
+              onClick={handleAdd}
+              disabled={saving}
+            >
+              Add
+            </button>
+            <button
+              type="button"
+              className="overheads-btn overheads-btn--cancel"
+              onClick={() => { setAddState(null); setError(''); }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          type="button"
+          className="overheads-add-btn"
+          onClick={() => setAddState({ name: '', amount: '', category: 'Other' })}
+        >
+          + Add running cost
+        </button>
+      )}
+
+      {error && <p className="settings-row-error">{error}</p>}
+    </div>
   );
 }
 
@@ -508,6 +744,14 @@ export default function SettingsScreen({
           label="Tax set-aside %"
           value={`${profile?.tax_set_aside_pct ?? 20}%`}
           onTap={openEditTaxSetAside}
+        />
+      </SectionCard>
+
+      {/* Monthly running costs */}
+      <SectionCard title="Monthly running costs">
+        <MonthlyOverheadsSection
+          overheads={Array.isArray(profile?.overheads) ? profile.overheads : []}
+          onSave={handleSave}
         />
       </SectionCard>
 
