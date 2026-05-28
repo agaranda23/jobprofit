@@ -45,6 +45,7 @@ import {
   buildDateRange,
   monthKey,
   getOverheadTotal,
+  getBestWorstJobs,
 } from '../lib/cashflow';
 
 // Margin nudge fires only when the absolute delta meets or exceeds this threshold.
@@ -81,6 +82,57 @@ function UpgradeBanner({ onUpgrade }) {
   );
 }
 
+// Margin colour tokens matching JobDetailDrawer ProfitBarSection thresholds exactly.
+function marginColor(margin) {
+  if (margin >= 30) return 'var(--accent)';
+  if (margin >= 15) return '#f59e0b'; // amber — same warn token used throughout the app
+  return '#ef4444'; // danger
+}
+
+/**
+ * BestWorstCard — display-only card showing highest and lowest-profit jobs
+ * for the current tax year. Tap-to-navigate is a v2 follow-up.
+ */
+function BestWorstCard({ best, worst }) {
+  return (
+    <div className="money-card money-best-worst">
+      <div className="money-best-worst__header">
+        <span className="money-best-worst__label">Best &amp; worst jobs</span>
+        <span className="money-best-worst__sub">this tax year</span>
+      </div>
+      <div className="money-best-worst__rows">
+        {/* Best job row */}
+        <div className="money-best-worst__row">
+          <span className="money-best-worst__tag money-best-worst__tag--best">Best</span>
+          <span className="money-best-worst__job-name pro-gate__figure">{best.label}</span>
+          <span
+            className="money-best-worst__figure pro-gate__figure"
+            style={{ color: marginColor(best.margin) }}
+          >
+            {best.profit >= 0 ? '+' : ''}&pound;{Math.round(Math.abs(best.profit))}
+            <span className="money-best-worst__margin">&nbsp;{best.margin}%</span>
+          </span>
+        </div>
+
+        {/* Worst job row — only when a second qualifying job exists */}
+        {worst && (
+          <div className="money-best-worst__row money-best-worst__row--worst">
+            <span className="money-best-worst__tag money-best-worst__tag--worst">Worst</span>
+            <span className="money-best-worst__job-name pro-gate__figure">{worst.label}</span>
+            <span
+              className="money-best-worst__figure pro-gate__figure"
+              style={{ color: marginColor(worst.margin) }}
+            >
+              {worst.profit >= 0 ? '+' : '-'}&pound;{Math.round(Math.abs(worst.profit))}
+              <span className="money-best-worst__margin">&nbsp;{worst.margin}%</span>
+            </span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function FinanceScreen({ jobs = [], receipts = [], session, profile, onAvatarClick, onUpgrade }) {
   const [timelineOpen, setTimelineOpen] = useState(false);
   // chartRange drives which window of data getCashflowByMonth uses.
@@ -105,6 +157,7 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
     marginTrend,
     timelineGroups,
     hasActivity,
+    bestWorstJobs,
   } = useMemo(() => {
     // ── Cashflow chart data ────────────────────────────────────────────────
     const rangeMap = { '1m': '1M', '3m': '3M', '6m': '6M', '1y': '1Y' };
@@ -154,6 +207,9 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
     // ── YTD tax-year summary ───────────────────────────────────────────────
     const ytd = getTaxYearSummary(jobs, receipts, now);
 
+    // ── Best & worst jobs (current tax year) ──────────────────────────────
+    const bestWorstJobs = getBestWorstJobs(jobs, receipts, now);
+
     return {
       cashflowData,
       monthSummary,
@@ -162,6 +218,7 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
       marginTrend,
       timelineGroups,
       hasActivity,
+      bestWorstJobs,
     };
   }, [jobs, receipts, chartRange, currentMonth, hourlyRate, profile]);
 
@@ -338,7 +395,22 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
         )}
       </ProGate>
 
-      {/* ── 8. Margin nudge (conditional — single, threshold-gated, Pro-gated) */}
+      {/* ── 8. Best & worst jobs (Pro-gated) ─────────────────────────────── */}
+      {/* hasValue: only when there is at least one qualifying completed job */}
+      <ProGate locked={!userIsPro} hasValue={!!bestWorstJobs.best}>
+        {bestWorstJobs.best ? (
+          <BestWorstCard best={bestWorstJobs.best} worst={bestWorstJobs.worst} />
+        ) : (
+          <div className="money-card money-best-worst money-best-worst--empty">
+            <div className="money-best-worst__label">Best &amp; worst jobs</div>
+            <p className="money-best-worst__hint">
+              Log a few completed jobs to see which earn the most.
+            </p>
+          </div>
+        )}
+      </ProGate>
+
+      {/* ── 9. Margin nudge (conditional — single, threshold-gated, Pro-gated) */}
       {/* hasValue is always true here: nudge only renders when showMarginNudge is true,
           which means there is real delta data — the copy is the value being gated. */}
       {showMarginNudge && (
@@ -353,7 +425,7 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
         </ProGate>
       )}
 
-      {/* ── 9. Recent transactions (demoted — collapsed by default) ──────── */}
+      {/* ── 10. Recent transactions (demoted — collapsed by default) ─────── */}
       {totalTimelineEntries > 0 && (
         <div className="money-card money-timeline">
           <button
