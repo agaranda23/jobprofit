@@ -824,6 +824,92 @@ export function getMarginTrend(jobs, receipts, { weeks = 1 } = {}, now = new Dat
   return { thisWeek, lastWeek, deltaPct, deltaSign };
 }
 
+// ─── Data-trust nudge ────────────────────────────────────────────────────────
+
+/**
+ * Returns the single most important data-quality hint for the Money tab, or
+ * null when the data looks complete enough to trust.
+ *
+ * Priority (first match wins):
+ *   1. markPaid  — completed/invoiced jobs with unpaid amounts exist this tax year.
+ *                  Profit is understated because money is sitting in "open".
+ *   2. noCosts   — there IS paid revenue this tax year but zero costs recorded
+ *                  (no receipts in range AND overheads total is zero).
+ *                  Profit may be overstated.
+ *   3. null      — data looks complete enough; show nothing.
+ *
+ * @param {object[]} jobs
+ * @param {object[]} receipts
+ * @param {object}   profile    — expects profile.overheads (JSONB array)
+ * @param {Date}     [now]
+ * @returns {{ type: 'markPaid'|'noCosts', amount?: number, message: string, cta: string } | null}
+ */
+export function getDataTrustHint(jobs, receipts, profile, now = new Date()) {
+  const safeJobs     = Array.isArray(jobs)     ? jobs     : [];
+  const safeReceipts = Array.isArray(receipts) ? receipts : [];
+
+  const start = taxYearStart(now);
+  const end   = new Date(now);
+  end.setHours(23, 59, 59, 999);
+
+  // Status values that mean "work is done but not yet paid"
+  const DONE_STATUSES = new Set(['completed', 'invoiced', 'overdue', 'sent', 'awaiting']);
+
+  // 1. Unpaid completed work this tax year
+  let openAmount = 0;
+  let paidRevenue = 0;
+
+  for (const job of safeJobs) {
+    if (isExcludedJob(job)) continue;
+
+    const d = isPaidJob(job) ? jobEarnedDate(job) : jobIssuedDate(job);
+    if (!d || d < start || d > end) continue;
+
+    if (isPaidJob(job)) {
+      paidRevenue += jobReceivedAmount(job);
+    } else {
+      const status        = (job.status        || job.jobStatus      || '').toLowerCase();
+      const paymentStatus = (job.paymentStatus || '').toLowerCase();
+      const isDone        = DONE_STATUSES.has(status) || DONE_STATUSES.has(paymentStatus);
+      if (isDone) {
+        openAmount += jobOutstandingAmount(job);
+      }
+    }
+  }
+
+  if (openAmount > 0) {
+    return {
+      type:    'markPaid',
+      amount:  openAmount,
+      message: 'Mark jobs paid to see your true profit',
+      cta:     'Go to Jobs',
+    };
+  }
+
+  // 2. Revenue logged but no costs at all
+  if (paidRevenue > 0) {
+    const overheads = Array.isArray(profile?.overheads) ? profile.overheads : [];
+    const hasOverheads = getOverheadTotal(overheads) > 0;
+
+    const hasReceiptsInYear = safeReceipts.some(r => {
+      if (!r) return false;
+      const dateStr = r.date || (r.createdAt ? r.createdAt.slice(0, 10) : null);
+      const d = parseLocalDate(dateStr);
+      return d && d >= start && d <= end;
+    });
+
+    if (!hasOverheads && !hasReceiptsInYear) {
+      return {
+        type:    'noCosts',
+        message: 'No costs logged yet — your profit may look higher than it really is',
+        cta:     'Add your costs',
+      };
+    }
+  }
+
+  return null;
+}
+
 // ─── VAT helpers ─────────────────────────────────────────────────────────────
 
 /**

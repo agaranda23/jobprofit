@@ -29,7 +29,7 @@
  * Tally waitlist URL used by SendInvoiceModal's paywall view.
  */
 
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import { gbp } from '../lib/today';
 import { isPro } from '../lib/plan';
 import HeaderAvatar from '../components/HeaderAvatar';
@@ -48,6 +48,7 @@ import {
   getBestWorstJobs,
   getVatSummary,
   vatQuarterRange,
+  getDataTrustHint,
 } from '../lib/cashflow';
 
 // Margin nudge fires only when the absolute delta meets or exceeds this threshold.
@@ -135,8 +136,9 @@ function BestWorstCard({ best, worst }) {
   );
 }
 
-export default function FinanceScreen({ jobs = [], receipts = [], session, profile, biz, onAvatarClick, onUpgrade }) {
+export default function FinanceScreen({ jobs = [], receipts = [], session, profile, biz, onAvatarClick, onUpgrade, onGoToJobs, onGoToSettings }) {
   const [timelineOpen, setTimelineOpen] = useState(false);
+  const [trustHintDismissed, setTrustHintDismissed] = useState(false);
   // chartRange drives which window of data getCashflowByMonth uses.
   // '6m' is the default matching the chart's defaultRange prop.
   const [chartRange, setChartRange] = useState('6m');
@@ -166,6 +168,7 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
     bestWorstJobs,
     vatSummary,
     vatQuarter,
+    dataTrustHint,
   } = useMemo(() => {
     // ── Cashflow chart data ────────────────────────────────────────────────
     const rangeMap = { '1m': '1M', '3m': '3M', '6m': '6M', '1y': '1Y' };
@@ -222,6 +225,9 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
     const vatSummary = getVatSummary(jobs, receipts, now);
     const vatQuarter = vatQuarterRange(now);
 
+    // ── Data-trust nudge ──────────────────────────────────────────────────
+    const dataTrustHint = getDataTrustHint(jobs, receipts, profile, now);
+
     return {
       cashflowData,
       monthSummary,
@@ -233,6 +239,7 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
       bestWorstJobs,
       vatSummary,
       vatQuarter,
+      dataTrustHint,
     };
   }, [jobs, receipts, chartRange, currentMonth, hourlyRate, profile]);
 
@@ -247,6 +254,17 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
   // falls back to the Tally waitlist URL. Declared after the useMemo so the
   // React Compiler doesn't trace it into the memo's dep inference.
   const handleUpgrade = onUpgrade ?? openUpgrade;
+
+  // handleTrustHintCta: tap-through for the data trust nudge.
+  // markPaid → Jobs tab; noCosts → Settings tab (to add overheads/receipts).
+  const handleTrustHintCta = useCallback(() => {
+    if (!dataTrustHint) return;
+    if (dataTrustHint.type === 'markPaid' && onGoToJobs) {
+      onGoToJobs();
+    } else if (dataTrustHint.type === 'noCosts' && onGoToSettings) {
+      onGoToSettings();
+    }
+  }, [dataTrustHint, onGoToJobs, onGoToSettings]);
 
   // ── Margin nudge: surface only when |delta| >= threshold ────────────────────
   const showMarginNudge = Math.abs(marginTrend.deltaPct) >= MARGIN_NUDGE_THRESHOLD_PCT;
@@ -296,6 +314,33 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
           <div className={`money-hero__ytd-line${isYtdProfitNegative ? ' money-hero__ytd-line--negative' : ''}`}>
             {gbp(ytd.profit)} profit so far this tax year
           </div>
+        </div>
+      )}
+
+      {/* ── 1b. Data trust nudge — shown when data is incomplete, below hero ── */}
+      {dataTrustHint && !trustHintDismissed && (
+        <div className="money-trust-hint" role="note">
+          <span className="money-trust-hint__icon" aria-hidden="true">&#x24D8;</span>
+          <div className="money-trust-hint__body">
+            <span className="money-trust-hint__msg">{dataTrustHint.message}</span>
+            {(dataTrustHint.type === 'markPaid' ? !!onGoToJobs : !!onGoToSettings) && (
+              <button
+                type="button"
+                className="money-trust-hint__cta"
+                onClick={handleTrustHintCta}
+              >
+                {dataTrustHint.cta}
+              </button>
+            )}
+          </div>
+          <button
+            type="button"
+            className="money-trust-hint__dismiss"
+            aria-label="Dismiss"
+            onClick={() => setTrustHintDismissed(true)}
+          >
+            &times;
+          </button>
         </div>
       )}
 
