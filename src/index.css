@@ -174,17 +174,38 @@ body { background: var(--bg); color: var(--text); -webkit-font-smoothing: antial
 .recent-amount.pos { color: var(--accent); font-variant-numeric: tabular-nums; }
 .recent-amount.neg { color: var(--danger); font-variant-numeric: tabular-nums; }
 
-/* Bottom nav */
+/* ── Bottom nav — glass pill at all viewport widths ──────────────────────────
+   Mobile: floats 12px off the floor, 16px insets each side, width: auto.
+   Desktop (>=640px): snaps to 560px fixed width centred to match .screen.
+   backdrop-filter fallback: if blur fails on a low-end device, the
+   rgba background-color still reads as a distinct semi-transparent surface.
+── */
 .bottom-nav {
   position: fixed;
-  bottom: 0; left: 0; right: 0;
+  /* Mobile: 16px insets keep the pill inside any phone viewport */
+  left: 16px;
+  right: 16px;
+  width: auto;
+  bottom: calc(12px + env(safe-area-inset-bottom));
   display: flex;
-  background: rgba(11, 13, 16, 0.92);
-  backdrop-filter: blur(12px);
-  border-top: 1px solid var(--border);
-  padding: 8px 0 calc(8px + env(safe-area-inset-bottom));
+
+  /* Glass surface */
+  background: rgba(28, 28, 28, 0.72);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  backdrop-filter: blur(14px) saturate(140%);
+
+  /* Border + shape */
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 14px;
+  padding: 6px;
+
+  /* Lift */
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
+
   z-index: 10;
 }
+
+/* Tabs */
 .nav-tab {
   flex: 1;
   display: flex;
@@ -192,58 +213,30 @@ body { background: var(--bg); color: var(--text); -webkit-font-smoothing: antial
   align-items: center;
   gap: 4px;
   background: none;
-  border: none;
+  border: 1px solid transparent;
+  border-radius: 10px;
   color: var(--text-dim);
-  padding: 8px;
+  padding: 8px 0 6px;
   font-size: 12px;
   cursor: pointer;
 }
-.nav-tab.active { color: var(--text); }
+.nav-tab.active {
+  background: rgba(34, 197, 94, 0.14);
+  color: #22c55e;
+  border: 1px solid rgba(34, 197, 94, 0.35);
+  padding: 7px 0 5px;
+}
 .nav-icon { font-size: 18px; }
 
-/* ── Desktop nav — glassmorphism (≥640px only) ────────────────────────────
-   Matches content column width: .screen uses max-width 560px at ≥640px.
-   Mobile stays edge-to-edge and untouched below this breakpoint.
-   backdrop-filter fallback: if blur fails (unlikely on Chrome/Win but safe),
-   the higher-opacity background-color still reads as a distinct surface.
-── */
+/* Desktop: snap to fixed 560px width centred to the content column */
 @media (min-width: 640px) {
   .bottom-nav {
-    /* Float above the page floor, centred to match .screen column */
     left: 50%;
     right: auto;
-    transform: translateX(-50%);
     width: 560px;
+    transform: translateX(-50%);
     bottom: 18px;
-
-    /* Glass surface */
-    background: rgba(28, 28, 28, 0.72);
-    -webkit-backdrop-filter: blur(14px) saturate(140%);
-    backdrop-filter: blur(14px) saturate(140%);
-
-    /* Border + shape */
-    border-top: none;
-    border: 1px solid rgba(255, 255, 255, 0.06);
-    border-radius: 14px;
-    padding: 6px;
-
-    /* Lift */
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.45);
   }
-
-  /* Active tab: soft green tile matching PRD spec */
-  .nav-tab {
-    border-radius: 10px;
-    padding: 8px 0 6px;
-    border: 1px solid transparent;
-  }
-  .nav-tab.active {
-    background: rgba(34, 197, 94, 0.14);
-    color: #22c55e;
-    border: 1px solid rgba(34, 197, 94, 0.35);
-    padding: 7px 0 5px; /* 1px less each side to offset the border */
-  }
-  .nav-icon { font-size: 18px; }
 }
 
 /* Modals */
@@ -453,12 +446,8 @@ body { background: var(--bg); color: var(--text); -webkit-font-smoothing: antial
 }
 .unpaid-toggle input { width: 18px; height: 18px; accent-color: var(--accent); }
 
-/* Make sure bottom nav sits above the legacy App on More (mobile only — desktop
-   glass override handles its own background at ≥640px) */
+/* Bottom nav must sit above the legacy App on the More screen */
 .bottom-nav { z-index: 9999 !important; }
-@media (max-width: 639px) {
-  .bottom-nav { background: #0b0d10 !important; }
-}
 /* Give legacy app room to scroll past the bottom nav */
 body { padding-bottom: 72px; }
 
@@ -1284,6 +1273,7 @@ input[type=number] { -moz-appearance: textfield; }
   --jp-green:  #2bc48a;
   --jp-amber:  #f4a024;
   --jp-rose:   #e5484d;
+  --jp-blue:   #3B82F6;
   --jp-navy:   #0f1b2d;
 }
 
@@ -2764,11 +2754,11 @@ input[type=number] { -moz-appearance: textfield; }
 .stage-tile--overdue .stage-tile-amount {
   color: var(--jp-rose);
 }
-/* Lead tile: amber accent when unselected */
+/* Lead tile: blue accent when unselected */
 .stage-tile--lead .stage-tile-name,
 .stage-tile--lead .stage-tile-count,
 .stage-tile--lead .stage-tile-amount {
-  color: var(--jp-amber);
+  color: var(--jp-blue);
 }
 /* Selected tile: near-black on solid green — AA contrast */
 .stage-tile--selected .stage-tile-name,
@@ -2776,19 +2766,19 @@ input[type=number] { -moz-appearance: textfield; }
 .stage-tile--selected .stage-tile-amount {
   color: #0B1220;
 }
-/* Lead selected: amber fill amplifies its own semantic colour */
+/* Lead selected: blue fill with white text (mirrors overdue/rose pattern) */
 .stage-tile--lead.stage-tile--selected {
-  background: var(--jp-amber);
-  border-color: var(--jp-amber);
+  background: var(--jp-blue);
+  border-color: var(--jp-blue);
 }
 .stage-tile--lead.stage-tile--selected .stage-tile-name,
 .stage-tile--lead.stage-tile--selected .stage-tile-count,
 .stage-tile--lead.stage-tile--selected .stage-tile-amount {
-  color: #0B1220;
+  color: #FFFFFF;
 }
 .stage-tile--lead.stage-tile--selected .stage-tile-amount--empty {
-  color: #0B1220;
-  opacity: 0.65;
+  color: #FFFFFF;
+  opacity: 0.7;
 }
 /* Overdue selected: rose fill amplifies its own semantic colour */
 .stage-tile--overdue.stage-tile--selected {
@@ -2888,10 +2878,10 @@ input[type=number] { -moz-appearance: textfield; }
   background: var(--jp-rose);
 }
 .stage-rail-dot--lead {
-  border-color: var(--jp-amber);
+  border-color: var(--jp-blue);
 }
 .stage-rail-dot--lead.stage-rail-dot--active {
-  background: var(--jp-amber);
+  background: var(--jp-blue);
 }
 
 /* ── Advance Button ───────────────────────────── */
