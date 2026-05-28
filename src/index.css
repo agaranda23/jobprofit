@@ -2705,8 +2705,8 @@ input[type=number] { -moz-appearance: textfield; }
   overflow: hidden;
 }
 .stage-tile--selected {
-  background: rgba(43, 196, 138, 0.12);
-  border: 1.5px solid var(--jp-green);
+  background: var(--jp-green);
+  border: 1px solid var(--jp-green);
   font-weight: 600;
 }
 /* Overdue tile: rose accent when unselected */
@@ -2721,13 +2721,19 @@ input[type=number] { -moz-appearance: textfield; }
 .stage-tile--lead .stage-tile-amount {
   color: var(--jp-amber);
 }
-/* Selected tile: text stays in its normal colour (bg is only 12% opacity green) */
-.stage-tile--selected .stage-tile-name {
-  color: var(--jp-green);
-}
+/* Selected tile: near-black on solid green — AA contrast */
+.stage-tile--selected .stage-tile-name,
 .stage-tile--selected .stage-tile-count,
 .stage-tile--selected .stage-tile-amount {
-  color: var(--text);
+  color: #0B1220;
+}
+/* Overdue selected: count keeps rose so urgency survives the green fill */
+.stage-tile--selected.stage-tile--overdue .stage-tile-count {
+  color: var(--jp-rose);
+}
+/* Lead selected: count keeps amber so urgency survives the green fill */
+.stage-tile--selected.stage-tile--lead .stage-tile-count {
+  color: var(--jp-amber);
 }
 
 .stage-tile-name {
@@ -2758,6 +2764,11 @@ input[type=number] { -moz-appearance: textfield; }
   color: var(--text-dim);
   opacity: 0.5;
   font-weight: 400;
+}
+/* Em-dash readable on solid green fill */
+.stage-tile--selected .stage-tile-amount--empty {
+  color: #0B1220;
+  opacity: 0.65;
 }
 
 /* Connector rail — hairline + dots below the strip */
