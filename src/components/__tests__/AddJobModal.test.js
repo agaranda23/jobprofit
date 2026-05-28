@@ -39,9 +39,10 @@ function buildSavePayload({ name, customer, phone, amount, paymentType, alreadyP
   };
 }
 
-// Mirrors addJobToCloud status derivation in src/lib/store.js line 295
+// Mirrors addJobToCloud status derivation in src/lib/store.js
+// New jobs land as 'lead'; already-paid jobs land as 'paid'.
 function deriveStatus(paid) {
-  return paid ? 'complete' : 'active';
+  return paid ? 'paid' : 'lead';
 }
 
 // ---------------------------------------------------------------------------
@@ -54,9 +55,9 @@ describe('B2: paid default', () => {
     expect(job.paid).toBe(false);
   });
 
-  it('new job with alreadyPaid=false derives status:active, enters Get Paid loop', () => {
+  it('new job with alreadyPaid=false derives status:lead, enters Get Paid loop', () => {
     const job = buildSavePayload({ name: 'Kitchen job', amount: '380', alreadyPaid: false });
-    expect(deriveStatus(job.paid)).toBe('active');
+    expect(deriveStatus(job.paid)).toBe('lead');
   });
 
   it('user explicitly ticks "Already paid" → job saves as paid:true', () => {
@@ -64,9 +65,9 @@ describe('B2: paid default', () => {
     expect(job.paid).toBe(true);
   });
 
-  it('user explicitly ticks "Already paid" → status:complete, bypasses Get Paid loop', () => {
+  it('user explicitly ticks "Already paid" → status:paid, bypasses Get Paid loop', () => {
     const job = buildSavePayload({ name: 'Kitchen job', amount: '380', alreadyPaid: true });
-    expect(deriveStatus(job.paid)).toBe('complete');
+    expect(deriveStatus(job.paid)).toBe('paid');
   });
 });
 
