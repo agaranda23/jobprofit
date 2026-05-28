@@ -653,6 +653,8 @@ export default function AppShell() {
               profile={profile}
               // No avatar — Settings tab replaces the drawer in slice 3
               // onMarkPaid removed: chase block deleted in Phase 1 Money redesign
+              onGoToJobs={() => navigate('work')}
+              onGoToSettings={() => navigate('settings')}
             />
           )}
 
@@ -725,6 +727,8 @@ export default function AppShell() {
               profile={profile}
               onAvatarClick={() => setDrawerOpen(true)}
               // onMarkPaid removed: chase block deleted in Phase 1 Money redesign
+              onGoToJobs={() => navigate('jobs')}
+              // onGoToSettings omitted: new-nav has no dedicated settings tab
             />
           )}
 

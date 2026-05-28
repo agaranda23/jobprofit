@@ -33,6 +33,7 @@ import {
   getBestWorstJobs,
   getVatSummary,
   vatQuarterRange,
+  getDataTrustHint,
 } from '../../lib/cashflow';
 
 // ─── Shared test fixtures ─────────────────────────────────────────────────────
@@ -733,5 +734,100 @@ describe('FinanceScreen VAT card: getVatSummary', () => {
     const receipts = [vatReceipt({ vat: 100 })]; // inputVat = 100
     const { netVat } = getVatSummary(jobs, receipts, NOW);
     expect(netVat).toBeLessThan(0);
+  });
+});
+
+// ─── Data trust nudge — getDataTrustHint ─────────────────────────────────────
+
+describe('getDataTrustHint', () => {
+  const NOW = TODAY;
+
+  function dtPaidJob(overrides = {}) {
+    return { id: overrides.id ?? 'dt-p1', amount: overrides.amount ?? 500, paid: true, date: overrides.date ?? '2026-05-10', ...overrides };
+  }
+  function dtDoneUnpaidJob(overrides = {}) {
+    return { id: overrides.id ?? 'dt-u1', amount: overrides.amount ?? 300, paid: false, status: overrides.status ?? 'completed', date: overrides.date ?? '2026-05-05', ...overrides };
+  }
+  function dtReceipt(overrides = {}) {
+    return { id: overrides.id ?? 'dt-r1', amount: overrides.amount ?? 100, date: overrides.date ?? '2026-05-08', ...overrides };
+  }
+
+  it('markPaid: returns hint when completed-but-unpaid jobs exist in tax year', () => {
+    const hint = getDataTrustHint([dtDoneUnpaidJob({ amount: 400 })], [], {}, NOW);
+    expect(hint).not.toBeNull();
+    expect(hint.type).toBe('markPaid');
+    expect(hint.amount).toBe(400);
+    expect(hint.cta).toBe('Go to Jobs');
+    expect(typeof hint.message).toBe('string');
+    expect(hint.message.length).toBeGreaterThan(0);
+  });
+
+  it('markPaid: amount sums across multiple open done-jobs', () => {
+    const jobs = [dtDoneUnpaidJob({ id: 'u1', amount: 200 }), dtDoneUnpaidJob({ id: 'u2', amount: 150, status: 'invoiced' })];
+    const hint = getDataTrustHint(jobs, [], {}, NOW);
+    expect(hint.type).toBe('markPaid');
+    expect(hint.amount).toBe(350);
+  });
+
+  it('markPaid: fires for invoiced, overdue, sent, awaiting statuses', () => {
+    for (const status of ['invoiced', 'overdue', 'sent', 'awaiting']) {
+      const hint = getDataTrustHint([dtDoneUnpaidJob({ id: status, status })], [], {}, NOW);
+      expect(hint?.type).toBe('markPaid');
+    }
+  });
+
+  it('markPaid: does NOT fire for unpaid jobs with status=lead', () => {
+    const jobs = [{ id: 'lead', amount: 999, paid: false, status: 'lead', date: '2026-05-10' }];
+    expect(getDataTrustHint(jobs, [], {}, NOW)).toBeNull();
+  });
+
+  it('markPaid: does NOT fire for jobs outside the current tax year', () => {
+    expect(getDataTrustHint([dtDoneUnpaidJob({ date: '2026-04-05' })], [], {}, NOW)).toBeNull();
+  });
+
+  it('markPaid takes priority over noCosts', () => {
+    const jobs = [dtPaidJob({ id: 'paid' }), dtDoneUnpaidJob({ id: 'open' })];
+    expect(getDataTrustHint(jobs, [], {}, NOW).type).toBe('markPaid');
+  });
+
+  it('noCosts: returns hint when paid revenue exists but no receipts and no overheads', () => {
+    const hint = getDataTrustHint([dtPaidJob({ amount: 600 })], [], {}, NOW);
+    expect(hint?.type).toBe('noCosts');
+    expect(hint.cta).toBe('Add your costs');
+  });
+
+  it('noCosts: suppressed when receipts exist in the tax year', () => {
+    const hint = getDataTrustHint([dtPaidJob({ amount: 600 })], [dtReceipt()], {}, NOW);
+    expect(hint).toBeNull();
+  });
+
+  it('noCosts: suppressed when active overheads exist on profile', () => {
+    const profile = { overheads: [{ id: 'oh1', amount: 200, is_active: true }] };
+    expect(getDataTrustHint([dtPaidJob({ amount: 600 })], [], profile, NOW)).toBeNull();
+  });
+
+  it('noCosts: inactive overheads do NOT suppress the hint', () => {
+    const profile = { overheads: [{ id: 'oh1', amount: 200, is_active: false }] };
+    expect(getDataTrustHint([dtPaidJob({ amount: 600 })], [], profile, NOW)?.type).toBe('noCosts');
+  });
+
+  it('returns null when both receipts and overheads exist alongside paid revenue', () => {
+    const receipts = [dtReceipt()];
+    const profile  = { overheads: [{ id: 'oh1', amount: 50, is_active: true }] };
+    expect(getDataTrustHint([dtPaidJob()], receipts, profile, NOW)).toBeNull();
+  });
+
+  it('returns null when there is no activity at all', () => {
+    expect(getDataTrustHint([], [], {}, NOW)).toBeNull();
+  });
+
+  it('is null-safe: null inputs return null without throwing', () => {
+    expect(() => getDataTrustHint(null, null, null, NOW)).not.toThrow();
+    expect(getDataTrustHint(null, null, null, NOW)).toBeNull();
+  });
+
+  it('is null-safe: undefined inputs return null without throwing', () => {
+    expect(() => getDataTrustHint(undefined, undefined, undefined, NOW)).not.toThrow();
+    expect(getDataTrustHint(undefined, undefined, undefined, NOW)).toBeNull();
   });
 });
