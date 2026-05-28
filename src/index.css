@@ -2709,25 +2709,17 @@ input[type=number] { -moz-appearance: textfield; }
   border: 1px solid var(--jp-green);
   font-weight: 600;
 }
-/* Overdue tile: rose bg + white text when unselected — always loud */
-.stage-tile--overdue:not(.stage-tile--selected) {
-  background: var(--jp-rose);
-  border-color: var(--jp-rose);
+/* Overdue tile: rose accent when unselected */
+.stage-tile--overdue .stage-tile-name,
+.stage-tile--overdue .stage-tile-count,
+.stage-tile--overdue .stage-tile-amount {
+  color: var(--jp-rose);
 }
-.stage-tile--overdue:not(.stage-tile--selected) .stage-tile-name,
-.stage-tile--overdue:not(.stage-tile--selected) .stage-tile-count,
-.stage-tile--overdue:not(.stage-tile--selected) .stage-tile-amount {
-  color: #FFFFFF;
-}
-/* Lead tile: amber bg + near-black text when unselected — always loud */
-.stage-tile--lead:not(.stage-tile--selected) {
-  background: var(--jp-amber);
-  border-color: var(--jp-amber);
-}
-.stage-tile--lead:not(.stage-tile--selected) .stage-tile-name,
-.stage-tile--lead:not(.stage-tile--selected) .stage-tile-count,
-.stage-tile--lead:not(.stage-tile--selected) .stage-tile-amount {
-  color: #0B1220;
+/* Lead tile: amber accent when unselected */
+.stage-tile--lead .stage-tile-name,
+.stage-tile--lead .stage-tile-count,
+.stage-tile--lead .stage-tile-amount {
+  color: var(--jp-amber);
 }
 /* Selected tile: near-black on solid green — AA contrast */
 .stage-tile--selected .stage-tile-name,
@@ -2777,15 +2769,6 @@ input[type=number] { -moz-appearance: textfield; }
 .stage-tile--selected .stage-tile-amount--empty {
   color: #0B1220;
   opacity: 0.65;
-}
-/* Em-dash readable on coloured unselected tiles */
-.stage-tile--lead:not(.stage-tile--selected) .stage-tile-amount--empty {
-  color: #0B1220;
-  opacity: 0.65;
-}
-.stage-tile--overdue:not(.stage-tile--selected) .stage-tile-amount--empty {
-  color: #FFFFFF;
-  opacity: 0.7;
 }
 
 /* Connector rail — hairline + dots below the strip */
