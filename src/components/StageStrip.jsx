@@ -23,17 +23,10 @@ export const STAGES = ['Lead', 'Quoted', 'On', 'Invoiced', 'Overdue', 'Paid'];
  * StageTile — one tile in the strip.
  */
 function StageTile({ stage, count, total, selected, onSelect, tileRef, formatAmount }) {
-  const isOverdue = stage === 'Overdue';
-  const isLead = stage === 'Lead';
-
-  const accentClass = isOverdue
-    ? 'stage-tile--overdue'
-    : isLead
-      ? 'stage-tile--lead'
-      : '';
+  const accentClass = `stage-tile--${stage.toLowerCase()}`;
 
   // Lead has no £ value; £0 reads as a failure state — both render a faint em-dash instead
-  const isEmpty = isLead || total === 0;
+  const isEmpty = stage === 'Lead' || total === 0;
   const amountText = isEmpty ? '—' : '£' + formatAmount(total);
   const amountClass = isEmpty ? 'stage-tile-amount stage-tile-amount--empty' : 'stage-tile-amount';
 
@@ -41,7 +34,7 @@ function StageTile({ stage, count, total, selected, onSelect, tileRef, formatAmo
     <button
       ref={tileRef}
       type="button"
-      className={`stage-tile${selected ? ' stage-tile--selected' : ''}${accentClass ? ' ' + accentClass : ''}`}
+      className={`stage-tile ${accentClass}${selected ? ' stage-tile--selected' : ''}`}
       onClick={() => onSelect(stage)}
       aria-pressed={selected}
     >
@@ -103,7 +96,7 @@ export default function StageStrip({ jobs, selectedStage, onSelectStage, deriveS
         {STAGES.map(s => (
           <div key={s} className="stage-rail-cell">
             <span
-              className={`stage-rail-dot${s === selectedStage && s !== 'Lead' && s !== 'Overdue' ? ' stage-rail-dot--active' : ''}${s === 'Overdue' ? ' stage-rail-dot--overdue' : ''}${s === 'Lead' ? ' stage-rail-dot--lead' : ''}`}
+              className={`stage-rail-dot stage-rail-dot--${s.toLowerCase()}`}
             />
           </div>
         ))}
