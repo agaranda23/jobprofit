@@ -31,6 +31,8 @@ import {
   taxYearLabel,
   getJobProfit,
   getBestWorstJobs,
+  getVatSummary,
+  vatQuarterRange,
 } from '../../lib/cashflow';
 
 // ─── Shared test fixtures ─────────────────────────────────────────────────────
@@ -619,5 +621,117 @@ describe('FinanceScreen Best & worst jobs card: getBestWorstJobs', () => {
       [{ id: 'r', jobId: 'j', amount: 850 }]).margin).toBe(15); // exactly at warn boundary
     expect(getJobProfit({ id: 'j', amount: 1000 },
       [{ id: 'r', jobId: 'j', amount: 860 }]).margin).toBe(14); // just below warn → danger
+  });
+});
+
+// ─── VAT this quarter card — data layer ──────────────────────────────────────
+// Tests the data-layer functions that power the VAT card in FinanceScreen.
+// Card visibility (isVatRegistered flag) is logic in FinanceScreen JSX;
+// these tests cover the pure helpers.
+
+describe('FinanceScreen VAT card: vatQuarterRange', () => {
+  it('returns Q2 quarter for a date in May', () => {
+    const ref = new Date(2026, 4, 20); // 2026-05-20
+    const { start, label } = vatQuarterRange(ref);
+    expect(start.getMonth()).toBe(3); // April
+    expect(start.getDate()).toBe(1);
+    expect(label).toMatch(/Apr/);
+    expect(label).toMatch(/Jun/);
+    expect(label).toMatch(/2026/);
+  });
+
+  it('returns Q1 quarter for a date in January', () => {
+    const ref = new Date(2026, 0, 10);
+    const { start, label } = vatQuarterRange(ref);
+    expect(start.getMonth()).toBe(0); // January
+    expect(label).toMatch(/Jan/);
+  });
+
+  it('end is end-of-day of the reference date', () => {
+    const ref = new Date(2026, 4, 20); // 2026-05-20
+    const { end } = vatQuarterRange(ref);
+    expect(end.getDate()).toBe(20);
+    expect(end.getHours()).toBe(23);
+    expect(end.getSeconds()).toBe(59);
+  });
+});
+
+describe('FinanceScreen VAT card: getVatSummary', () => {
+  // Reference: 2026-05-20 (Q2 Apr–Jun 2026)
+  const NOW = new Date('2026-05-20T10:00:00');
+
+  function vatJob(overrides = {}) {
+    return {
+      id: overrides.id ?? 'fv-j1',
+      amount: overrides.amount ?? 500,
+      paid: true,
+      date: overrides.date ?? '2026-05-10',
+      ...overrides,
+    };
+  }
+
+  function vatReceipt(overrides = {}) {
+    return {
+      id: overrides.id ?? 'fv-r1',
+      amount: overrides.amount ?? 100,
+      vat: overrides.vat ?? 20,
+      date: overrides.date ?? '2026-05-08',
+      ...overrides,
+    };
+  }
+
+  it('outputVat = netSales × 0.2 for a paid in-quarter job', () => {
+    const { outputVat, netSales } = getVatSummary([vatJob({ amount: 1000 })], [], NOW);
+    expect(netSales).toBe(1000);
+    expect(outputVat).toBeCloseTo(200, 10);
+  });
+
+  it('inputVat = sum of receipt.vat for in-quarter receipts', () => {
+    const receipts = [
+      vatReceipt({ vat: 20 }),
+      vatReceipt({ id: 'r2', vat: 30 }),
+    ];
+    const { inputVat } = getVatSummary([], receipts, NOW);
+    expect(inputVat).toBe(50);
+  });
+
+  it('netVat = outputVat - inputVat', () => {
+    const jobs = [vatJob({ amount: 500 })];
+    const receipts = [vatReceipt({ vat: 25 })];
+    const { netVat, outputVat, inputVat } = getVatSummary(jobs, receipts, NOW);
+    expect(netVat).toBeCloseTo(outputVat - inputVat, 10);
+  });
+
+  it('out-of-quarter job (Q1) excluded when NOW is in Q2', () => {
+    const jobs = [vatJob({ amount: 9999, date: '2026-03-20' })]; // Q1
+    const { netSales } = getVatSummary(jobs, [], NOW);
+    expect(netSales).toBe(0);
+  });
+
+  it('unpaid jobs excluded from VAT output', () => {
+    const jobs = [{ id: 'u', amount: 9999, paid: false, date: '2026-05-10' }];
+    const { netSales } = getVatSummary(jobs, [], NOW);
+    expect(netSales).toBe(0);
+  });
+
+  it('receipts without a vat field contribute 0 to inputVat', () => {
+    const receipts = [{ id: 'r1', amount: 100, date: '2026-05-10' }]; // no .vat
+    const { inputVat } = getVatSummary([], receipts, NOW);
+    expect(inputVat).toBe(0);
+  });
+
+  it('null inputs return all zeros (null-safe)', () => {
+    const result = getVatSummary(null, null, NOW);
+    expect(result.netSales).toBe(0);
+    expect(result.outputVat).toBe(0);
+    expect(result.inputVat).toBe(0);
+    expect(result.netVat).toBe(0);
+  });
+
+  it('negative netVat means reclaim is due (inputVat > outputVat)', () => {
+    const jobs = [vatJob({ amount: 100 })]; // outputVat = 20
+    const receipts = [vatReceipt({ vat: 100 })]; // inputVat = 100
+    const { netVat } = getVatSummary(jobs, receipts, NOW);
+    expect(netVat).toBeLessThan(0);
   });
 });

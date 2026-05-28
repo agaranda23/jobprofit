@@ -15,6 +15,9 @@ import {
   getTaxYearSummary,
   getJobProfit,
   getBestWorstJobs,
+  vatQuarterRange,
+  getVatSummary,
+  VAT_RATE,
 } from '../cashflow.js';
 
 // ─── Fixture builders ────────────────────────────────────────────────────────
@@ -1340,5 +1343,258 @@ describe('getBestWorstJobs', () => {
     const result = getBestWorstJobs(jobs, [], NOW);
     expect(result.best).toBeNull();
     expect(result.worst).toBeNull();
+  });
+});
+
+// ─── VAT_RATE constant ────────────────────────────────────────────────────────
+
+describe('VAT_RATE', () => {
+  it('is 0.2 (20%)', () => {
+    expect(VAT_RATE).toBe(0.2);
+  });
+});
+
+// ─── vatQuarterRange ──────────────────────────────────────────────────────────
+
+describe('vatQuarterRange', () => {
+  it('Q1: date in January returns Jan–Mar quarter starting Jan 1', () => {
+    const now = new Date(2026, 0, 15); // 2026-01-15
+    const { start, end, label } = vatQuarterRange(now);
+    expect(start.getMonth()).toBe(0);  // January
+    expect(start.getDate()).toBe(1);
+    expect(start.getFullYear()).toBe(2026);
+    expect(label).toMatch(/Jan/);
+    expect(label).toMatch(/Mar/);
+    expect(label).toMatch(/2026/);
+  });
+
+  it('Q1: date in March returns Jan–Mar quarter', () => {
+    const now = new Date(2026, 2, 31); // 2026-03-31
+    const { start, label } = vatQuarterRange(now);
+    expect(start.getMonth()).toBe(0);
+    expect(label).toMatch(/Jan/);
+    expect(label).toMatch(/Mar/);
+  });
+
+  it('Q2: date in April returns Apr–Jun quarter starting Apr 1', () => {
+    const now = new Date(2026, 3, 1); // 2026-04-01
+    const { start, label } = vatQuarterRange(now);
+    expect(start.getMonth()).toBe(3);  // April
+    expect(start.getDate()).toBe(1);
+    expect(label).toMatch(/Apr/);
+    expect(label).toMatch(/Jun/);
+  });
+
+  it('Q2: date in June returns Apr–Jun quarter', () => {
+    const now = new Date(2026, 5, 28); // 2026-06-28
+    const { start, label } = vatQuarterRange(now);
+    expect(start.getMonth()).toBe(3);
+    expect(label).toMatch(/Apr/);
+    expect(label).toMatch(/Jun/);
+  });
+
+  it('Q3: date in July returns Jul–Sep quarter starting Jul 1', () => {
+    const now = new Date(2026, 6, 10); // 2026-07-10
+    const { start, label } = vatQuarterRange(now);
+    expect(start.getMonth()).toBe(6);  // July
+    expect(start.getDate()).toBe(1);
+    expect(label).toMatch(/Jul/);
+    expect(label).toMatch(/Sep/);
+  });
+
+  it('Q4: date in October returns Oct–Dec quarter starting Oct 1', () => {
+    const now = new Date(2026, 9, 5); // 2026-10-05
+    const { start, label } = vatQuarterRange(now);
+    expect(start.getMonth()).toBe(9);  // October
+    expect(start.getDate()).toBe(1);
+    expect(label).toMatch(/Oct/);
+    expect(label).toMatch(/Dec/);
+  });
+
+  it('Q4: date in December returns Oct–Dec quarter', () => {
+    const now = new Date(2026, 11, 31); // 2026-12-31
+    const { start, label } = vatQuarterRange(now);
+    expect(start.getMonth()).toBe(9);
+    expect(label).toMatch(/Oct/);
+    expect(label).toMatch(/Dec/);
+  });
+
+  it('end is end-of-day of now, not end of quarter', () => {
+    // If now is Apr 15, end should be Apr 15 23:59:59 — not Jun 30
+    const now = new Date(2026, 3, 15); // 2026-04-15
+    const { end } = vatQuarterRange(now);
+    expect(end.getMonth()).toBe(3);      // April, not June
+    expect(end.getDate()).toBe(15);
+    expect(end.getHours()).toBe(23);
+    expect(end.getMinutes()).toBe(59);
+    expect(end.getSeconds()).toBe(59);
+  });
+
+  it('start is local midnight (00:00:00)', () => {
+    const now = new Date(2026, 3, 20, 15, 30);
+    const { start } = vatQuarterRange(now);
+    expect(start.getHours()).toBe(0);
+    expect(start.getMinutes()).toBe(0);
+    expect(start.getSeconds()).toBe(0);
+  });
+
+  it('label includes the year', () => {
+    const now = new Date(2026, 5, 1);
+    const { label } = vatQuarterRange(now);
+    expect(label).toContain('2026');
+  });
+});
+
+// ─── getVatSummary ────────────────────────────────────────────────────────────
+
+describe('getVatSummary', () => {
+  // Reference: 2026-05-28 (Q2: Apr–Jun 2026 started 2026-04-01)
+  const NOW = new Date(2026, 4, 28); // 2026-05-28
+
+  function paidJobQ(overrides = {}) {
+    return {
+      id: overrides.id ?? 'vat-j1',
+      amount: overrides.amount ?? 500,
+      total: overrides.total,
+      paid: true,
+      date: overrides.date ?? '2026-05-10',
+      ...overrides,
+    };
+  }
+
+  function receiptQ(overrides = {}) {
+    return {
+      id: overrides.id ?? 'vat-r1',
+      amount: overrides.amount ?? 100,
+      vat: overrides.vat ?? 20,
+      date: overrides.date ?? '2026-05-08',
+      ...overrides,
+    };
+  }
+
+  it('outputVat = netSales × VAT_RATE for a paid in-quarter job', () => {
+    const jobs = [paidJobQ({ amount: 500, date: '2026-05-10' })];
+    const { outputVat, netSales } = getVatSummary(jobs, [], NOW);
+    expect(netSales).toBe(500);
+    expect(outputVat).toBeCloseTo(500 * 0.2, 10);
+  });
+
+  it('uses job.total when present (prefers total over amount)', () => {
+    const jobs = [paidJobQ({ total: 800, amount: 500, date: '2026-05-10' })];
+    const { netSales } = getVatSummary(jobs, [], NOW);
+    expect(netSales).toBe(800);
+  });
+
+  it('inputVat = sum of receipt.vat for in-quarter receipts', () => {
+    const receipts = [
+      receiptQ({ vat: 20, date: '2026-04-15' }),
+      receiptQ({ id: 'r2', vat: 10, date: '2026-05-01' }),
+    ];
+    const { inputVat } = getVatSummary([], receipts, NOW);
+    expect(inputVat).toBe(30);
+  });
+
+  it('netVat = outputVat − inputVat (positive = owe HMRC)', () => {
+    const jobs = [paidJobQ({ amount: 1000, date: '2026-05-01' })];
+    const receipts = [receiptQ({ vat: 50, date: '2026-05-05' })];
+    const { outputVat, inputVat, netVat } = getVatSummary(jobs, receipts, NOW);
+    expect(netVat).toBeCloseTo(outputVat - inputVat, 10);
+    expect(netVat).toBeCloseTo(1000 * 0.2 - 50, 10);
+  });
+
+  it('netVat is negative when inputVat > outputVat (reclaim scenario)', () => {
+    const jobs = [paidJobQ({ amount: 100, date: '2026-05-01' })];
+    const receipts = [receiptQ({ vat: 500, date: '2026-05-05' })];
+    const { netVat } = getVatSummary(jobs, receipts, NOW);
+    expect(netVat).toBeLessThan(0);
+  });
+
+  it('out-of-quarter paid jobs are excluded from netSales', () => {
+    // Q1 2026 (Jan–Mar) — should be excluded when now is in Q2
+    const jobs = [paidJobQ({ amount: 9999, date: '2026-03-20' })];
+    const { netSales } = getVatSummary(jobs, [], NOW);
+    expect(netSales).toBe(0);
+  });
+
+  it('out-of-quarter receipts are excluded from inputVat', () => {
+    const receipts = [receiptQ({ vat: 999, date: '2026-03-15' })]; // Q1 — excluded
+    const { inputVat } = getVatSummary([], receipts, NOW);
+    expect(inputVat).toBe(0);
+  });
+
+  it('excluded (cancelled) jobs do not contribute to netSales', () => {
+    const jobs = [paidJobQ({ amount: 9999, date: '2026-05-01', status: 'cancelled' })];
+    const { netSales } = getVatSummary(jobs, [], NOW);
+    expect(netSales).toBe(0);
+  });
+
+  it('unpaid jobs do not contribute to netSales', () => {
+    const unpaid = { id: 'u1', amount: 9999, paid: false, date: '2026-05-10' };
+    const { netSales } = getVatSummary([unpaid], [], NOW);
+    expect(netSales).toBe(0);
+  });
+
+  it('receipts with no vat field contribute 0 to inputVat (null-safe)', () => {
+    const receipts = [{ id: 'r1', amount: 100, date: '2026-05-05' }]; // no vat field
+    const { inputVat } = getVatSummary([], receipts, NOW);
+    expect(inputVat).toBe(0);
+  });
+
+  it('receipts with vat=null contribute 0 (null-safe)', () => {
+    const receipts = [receiptQ({ vat: null, date: '2026-05-05' })];
+    const { inputVat } = getVatSummary([], receipts, NOW);
+    expect(inputVat).toBe(0);
+  });
+
+  it('null-safe: non-array jobs returns zeros', () => {
+    const result = getVatSummary(null, null, NOW);
+    expect(result.netSales).toBe(0);
+    expect(result.outputVat).toBe(0);
+    expect(result.inputVat).toBe(0);
+    expect(result.netVat).toBe(0);
+  });
+
+  it('null-safe: undefined inputs return zeros', () => {
+    const result = getVatSummary(undefined, undefined, NOW);
+    expect(result.netSales).toBe(0);
+    expect(result.netVat).toBe(0);
+  });
+
+  it('empty arrays return all-zero result', () => {
+    const result = getVatSummary([], [], NOW);
+    expect(result.outputVat).toBe(0);
+    expect(result.inputVat).toBe(0);
+    expect(result.netVat).toBe(0);
+    expect(result.netSales).toBe(0);
+  });
+
+  it('sums multiple in-quarter paid jobs', () => {
+    const jobs = [
+      paidJobQ({ id: 'j1', amount: 400, date: '2026-04-10' }),
+      paidJobQ({ id: 'j2', amount: 600, date: '2026-05-20' }),
+    ];
+    const { netSales, outputVat } = getVatSummary(jobs, [], NOW);
+    expect(netSales).toBe(1000);
+    expect(outputVat).toBeCloseTo(200, 10);
+  });
+
+  it('uses receipt.createdAt as date fallback when receipt.date is absent', () => {
+    const receipts = [{ id: 'r1', amount: 50, vat: 10, createdAt: '2026-05-10T09:00:00.000Z' }];
+    const { inputVat } = getVatSummary([], receipts, NOW);
+    expect(inputVat).toBe(10);
+  });
+
+  it('Q4 boundary: jobs in Oct are in quarter when now is in Dec', () => {
+    const nowDec = new Date(2026, 11, 15); // 2026-12-15 (Q4)
+    const jobs = [paidJobQ({ amount: 300, date: '2026-10-05' })];
+    const { netSales } = getVatSummary(jobs, [], nowDec);
+    expect(netSales).toBe(300);
+  });
+
+  it('Q4 boundary: jobs in Sep are out-of-quarter when now is in Oct', () => {
+    const nowOct = new Date(2026, 9, 5); // 2026-10-05 (Q4 started)
+    const jobs = [paidJobQ({ amount: 300, date: '2026-09-30' })]; // Q3 — excluded
+    const { netSales } = getVatSummary(jobs, [], nowOct);
+    expect(netSales).toBe(0);
   });
 });

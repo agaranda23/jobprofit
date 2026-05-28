@@ -2436,6 +2436,57 @@ input[type=number] { -moz-appearance: textfield; }
   margin: 0;
 }
 
+/* ── VAT this quarter card ──────────────────── */
+.money-vat {
+  /* extends .money-card */
+}
+.money-vat__header {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.money-vat__label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.money-vat__quarter {
+  font-size: 12px;
+  color: var(--text-dim);
+  font-weight: 500;
+}
+.money-vat__figure {
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--text);
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  margin-bottom: 6px;
+}
+.money-vat__figure--reclaim {
+  color: var(--accent);
+}
+.money-vat__breakdown {
+  font-size: 13px;
+  color: var(--text-dim);
+  font-weight: 500;
+  margin: 0 0 8px;
+}
+.money-vat__empty {
+  font-size: 14px;
+  color: var(--text-dim);
+  margin: 0 0 8px;
+}
+.money-vat__disclaimer {
+  font-size: 11px;
+  color: var(--text-dim);
+  opacity: 0.65;
+  margin: 0;
+}
+
 /* ── ProGate — locked-preview wrapper ────────── */
 /* Wraps any card. Blurs only child elements that have the
    `pro-gate__figure` class, leaving labels/subtitles readable.
