@@ -84,6 +84,10 @@ button:focus-visible {
      with it and content always stops at the divider.
      Used by .screen padding-bottom and floating elements (toast, push-prompt). */
   --nav-clearance: calc(64px + env(safe-area-inset-bottom));
+  /* Shared max-width: content column (.screen) and bottom nav bar reference this
+     so they stay in sync on desktop. On mobile the viewport is narrower than
+     this value, so both fill the viewport naturally. Overridden to 560px at 640px+. */
+  --app-max-width: 480px;
 }
 
 body { background: var(--bg); color: var(--text); -webkit-font-smoothing: antialiased; }
@@ -185,7 +189,9 @@ body { background: var(--bg); color: var(--text); -webkit-font-smoothing: antial
    gap, so scrolled content can never bleed underneath it.
    Safe-area is folded INSIDE the bar's padding-bottom so there is never a
    transparent strip below the opaque surface on notched iPhones.
-   Desktop (>=640px): remains full-width — the bar is always a floor element.
+   Desktop (>=640px): bar is capped at --app-max-width and centered so it
+   aligns with the content column. On mobile (viewport < --app-max-width) the
+   bar fills the viewport naturally — no regression.
 ── */
 .bottom-nav {
   position: fixed;
@@ -193,6 +199,8 @@ body { background: var(--bg); color: var(--text); -webkit-font-smoothing: antial
   right: 0;
   bottom: 0;
   width: auto;
+  max-width: var(--app-max-width);
+  margin-inline: auto;
   display: flex;
 
   /* Opaque surface — matches --bg token (#0b0d10) so the bar reads as app chrome */
@@ -231,7 +239,9 @@ body { background: var(--bg); color: var(--text); -webkit-font-smoothing: antial
 }
 .nav-icon { font-size: 18px; }
 
-/* Desktop: bar stays full-width — no floating pill to recentre. */
+/* Desktop: bar is capped at --app-max-width and centered via margin-inline:auto,
+   matching the .screen content column. On mobile the viewport is narrower so
+   left:0/right:0 + max-width fills the viewport naturally. */
 
 /* Modals */
 .modal-backdrop {
@@ -1445,14 +1455,15 @@ input[type=number] { -moz-appearance: textfield; }
 
 /* ── Screen shell ─────────────────────────────── */
 .screen {
-  max-width: 480px;
+  max-width: var(--app-max-width);
   margin: 0 auto;
   padding: 20px 20px var(--nav-clearance);
   min-height: 100vh;
   box-sizing: border-box;
 }
 @media (min-width: 640px) {
-  .screen { max-width: 560px; }
+  :root { --app-max-width: 560px; }
+  .screen { max-width: var(--app-max-width); }
 }
 
 .screen-header {
