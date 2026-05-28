@@ -7,22 +7,26 @@
  *
  * Top-to-bottom card order:
  *   1. Hero — Profit (this month), big figure, negative state, empty state  [FREE]
- *   2. Tax Set-Aside card                                                    [PRO]
- *   3. True Profit (after running costs) card                               [PRO]
- *   4. Cashflow chart                                                        [FREE]
- *   5. Month pace two-up — Paid in (left) + Jobs done (right)               [FREE]
- *   6. Est. Profit/Hour insight card                                         [PRO]
- *   7. Margin nudge (conditional — only when |delta| >= 10%)                [PRO]
- *   8. Recent transactions — collapsed expandable timeline                  [FREE]
+ *   2. UpgradeBanner — shown ONCE for free users, just below the hero       [FREE]
+ *   3. Tax Set-Aside card                                                    [PRO]
+ *   4. True Profit (after running costs) card                               [PRO]
+ *   5. Cashflow chart                                                        [FREE]
+ *   6. Month pace two-up — Paid in (left) + Jobs done (right)               [FREE]
+ *   7. Est. Profit/Hour insight card                                         [PRO]
+ *   8. Margin nudge (conditional — only when |delta| >= 10%)                [PRO]
+ *   9. Recent transactions — collapsed expandable timeline                  [FREE]
  *
- * Pro gating: cards 2, 5, 6 show a locked preview (blurred figure + upgrade
- * prompt) for free users. The ProGate wrapper in src/components/ProGate.jsx
- * owns the blur + lock overlay — never duplicate that CSS inline here.
+ * Pro gating: ProGate wraps cards 3, 4, 7, 8 and adds a corner lock badge
+ * when the card has a real number (hasValue=true). When the card is in its
+ * empty/setup state (hasValue=false) it renders plain — the setup prompt is
+ * useful to all users and must not look locked.
  *
- * Upgrade flow: onUpgrade prop bubbles up to AppShell. The "Start free trial"
- * button in ProGate calls onUpgrade(). Wiring to a real Stripe/waitlist paywall
- * is a separate task — today it falls back to the Tally waitlist URL used by
- * SendInvoiceModal's paywall view.
+ * UpgradeBanner is rendered once (not inside ProGate) so the upgrade CTA
+ * never repeats for each gated card.
+ *
+ * Upgrade flow: onUpgrade prop bubbles up to AppShell. Wiring to a real
+ * Stripe/waitlist paywall is a separate task — today it falls back to the
+ * Tally waitlist URL used by SendInvoiceModal's paywall view.
  */
 
 import { useMemo, useState } from 'react';
@@ -51,6 +55,28 @@ const PRO_UPGRADE_URL = 'https://tally.so/r/jobprofit-pro-waitlist';
 
 function openUpgrade() {
   window.open(PRO_UPGRADE_URL, '_blank', 'noopener');
+}
+
+/**
+ * UpgradeBanner — rendered ONCE on the Money tab for free users, just below
+ * the profit hero. Never rendered for Pro users.
+ */
+function UpgradeBanner({ onUpgrade }) {
+  return (
+    <div className="upgrade-banner">
+      <div className="upgrade-banner__copy">
+        <span className="upgrade-banner__headline">Unlock your profit insights</span>
+        <span className="upgrade-banner__sub">Tax pot, true profit &amp; profit-per-hour &mdash; £12/mo</span>
+      </div>
+      <button
+        type="button"
+        className="upgrade-banner__btn"
+        onClick={() => onUpgrade?.()}
+      >
+        Start free trial
+      </button>
+    </div>
+  );
 }
 
 export default function FinanceScreen({ jobs = [], receipts = [], session, profile, onAvatarClick, onUpgrade }) {
@@ -185,8 +211,12 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
         </div>
       )}
 
-      {/* ── 2. Tax Set-Aside card (Pro-gated) ────────────────────────────── */}
-      <ProGate locked={!userIsPro} onUpgrade={handleUpgrade}>
+      {/* ── 2. Upgrade banner — shown once for free users, just below hero ── */}
+      {!userIsPro && <UpgradeBanner onUpgrade={handleUpgrade} />}
+
+      {/* ── 3. Tax Set-Aside card (Pro-gated) ────────────────────────────── */}
+      {/* hasValue: only when there is positive profit this month to set aside */}
+      <ProGate locked={!userIsPro} hasValue={monthSummary.profit > 0}>
         <div className="money-card money-tax-setaside">
           <div className="money-tax-setaside__label">Tax set-aside</div>
           {monthSummary.profit <= 0 ? (
@@ -204,8 +234,9 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
         </div>
       </ProGate>
 
-      {/* ── 3. True Profit — after running costs (Pro-gated) ────────────── */}
-      <ProGate locked={!userIsPro} onUpgrade={handleUpgrade}>
+      {/* ── 4. True Profit — after running costs (Pro-gated) ────────────── */}
+      {/* hasValue: only when overheads are configured AND there is profit to show */}
+      <ProGate locked={!userIsPro} hasValue={overheads.length > 0 && monthSummary.profit !== 0}>
         {overheads.length === 0 ? (
           <div className="money-card money-true-profit money-true-profit--empty">
             <div className="money-true-profit__label">True profit</div>
@@ -232,7 +263,7 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
         )}
       </ProGate>
 
-      {/* ── 4. Cashflow chart ─────────────────────────────────────────────── */}
+      {/* ── 5. Cashflow chart ─────────────────────────────────────────────── */}
       <div className="money-card money-card--chart">
         <CashflowChart
           data={cashflowData}
@@ -242,7 +273,7 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
         />
       </div>
 
-      {/* ── 5. Month pace two-up — Paid in + Jobs done ───────────────────── */}
+      {/* ── 6. Month pace two-up — Paid in + Jobs done ───────────────────── */}
       <div className="money-twoUp">
         <div className="money-twoUp__card">
           <div className="money-twoUp__label">Paid in</div>
@@ -254,8 +285,9 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
         </div>
       </div>
 
-      {/* ── 6. Est. Profit/Hour (Pro-gated) ──────────────────────────────── */}
-      <ProGate locked={!userIsPro} onUpgrade={handleUpgrade}>
+      {/* ── 7. Est. Profit/Hour (Pro-gated) ──────────────────────────────── */}
+      {/* hasValue: only when getProfitPerHour returned a real number */}
+      <ProGate locked={!userIsPro} hasValue={profitPerHour.value !== null}>
         {profitPerHour.value !== null ? (
           <div className="money-card money-insight money-insight--pph">
             <div className="money-insight__row">
@@ -289,9 +321,11 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
         )}
       </ProGate>
 
-      {/* ── 7. Margin nudge (conditional — single, threshold-gated, Pro-gated) */}
+      {/* ── 8. Margin nudge (conditional — single, threshold-gated, Pro-gated) */}
+      {/* hasValue is always true here: nudge only renders when showMarginNudge is true,
+          which means there is real delta data — the copy is the value being gated. */}
       {showMarginNudge && (
-        <ProGate locked={!userIsPro} onUpgrade={handleUpgrade}>
+        <ProGate locked={!userIsPro} hasValue={true}>
           <div className={`money-card money-nudge money-nudge--${marginTrend.deltaSign}`}>
             <span className="money-nudge__icon">{marginTrend.deltaSign === 'up' ? '📈' : '📉'}</span>
             <span className="money-nudge__copy pro-gate__figure">{marginNudgeCopy}</span>
@@ -302,7 +336,7 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
         </ProGate>
       )}
 
-      {/* ── 8. Recent transactions (demoted — collapsed by default) ──────── */}
+      {/* ── 9. Recent transactions (demoted — collapsed by default) ──────── */}
       {totalTimelineEntries > 0 && (
         <div className="money-card money-timeline">
           <button
