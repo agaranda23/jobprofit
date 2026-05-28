@@ -5993,9 +5993,11 @@ input[type=number] { -moz-appearance: textfield; }
 /* --- Stage chip dropdown / bottom-sheet --- */
 
 /* Dim backdrop for mobile sheet — fixed, covers full viewport.
+   Hidden on desktop (dropdown closes via click-outside/Escape).
    Must sit above .bottom-nav (z-index 100) so the nav is dimmed
    and the sheet content is fully visible + tappable. */
 .jt-backdrop {
+  display: none;
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.45);
@@ -6037,6 +6039,7 @@ input[type=number] { -moz-appearance: textfield; }
 @media (max-width: 640px) {
   .jt-menu--dropdown { display: none; }
   .jt-menu--sheet    { display: block; }
+  .jt-backdrop       { display: block; }
 }
 
 /* Grab handle */
