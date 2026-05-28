@@ -185,23 +185,24 @@ describe('buildChaseLink — WhatsApp deep-link', () => {
 });
 
 // ── buildChaseMessage — tier content ─────────────────────────────────────────
+// v2 API: { customerName, amount, daysOverdue, tier, amountPaid, ... }
 
 describe('buildChaseMessage — message text by tier', () => {
-  const base = { name: 'Alan', amountOutstanding: '£500', daysSinceDue: 7, amountPaid: 0 };
+  const base = { customerName: 'Alan', amount: '£500', daysOverdue: 7, amountPaid: 0 };
 
   it('tier 1 mentions the outstanding amount', () => {
     const msg = buildChaseMessage({ ...base, tier: 1 });
     expect(msg).toContain('£500');
   });
 
-  it('tier 2 mentions days since due', () => {
+  it('tier 2 mentions days overdue', () => {
     const msg = buildChaseMessage({ ...base, tier: 2 });
-    expect(msg).toContain('7 days');
+    expect(msg).toContain('7 days overdue');
   });
 
-  it('tier 3 is a firmer message and mentions days', () => {
+  it('tier 3 is a firmer message and mentions days overdue', () => {
     const msg = buildChaseMessage({ ...base, tier: 3 });
-    expect(msg).toContain('7 days');
+    expect(msg).toContain('7 days overdue');
   });
 
   it('tier 4 uses tier-3 copy (no separate tier-4 template)', () => {
@@ -210,53 +211,50 @@ describe('buildChaseMessage — message text by tier', () => {
     expect(tier4).toBe(tier3);
   });
 
-  it('uses "there" as safe fallback when name is empty', () => {
-    const msg = buildChaseMessage({ ...base, name: '', tier: 1 });
+  it('uses "there" as safe fallback when customerName is empty', () => {
+    const msg = buildChaseMessage({ ...base, customerName: '', tier: 1 });
     expect(msg).toContain('there');
   });
 });
 
-// ── computeTier — tier from chase state ──────────────────────────────────────
+// ── computeTier — tier from days-past-due ────────────────────────────────────
+// v2 API: computeTier(job, _now) — tier driven by invoiceDueDate, not chase count.
+// Tier 0: pre-due; Tier 1: 0–6 days; Tier 2: 7–13 days; Tier 3: 14+ days.
 
-describe('computeTier — first-chase and tier progression', () => {
-  it('returns tier 1 when state is null (never chased)', () => {
+describe('computeTier — days-past-due tier progression', () => {
+  it('returns tier 1 when job has no invoice due date (daysPastDue safe fallback)', () => {
     expect(computeTier(null)).toBe(1);
+    expect(computeTier({})).toBe(1);
   });
 
-  it('returns tier 1 when chased fewer than 7 days ago', () => {
-    const state = {
-      count: 1,
-      lastChasedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-      firstChasedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-    };
-    expect(computeTier(state)).toBe(1);
+  it('returns tier 1 when invoice is due today (0 days overdue)', () => {
+    const fixedNow = new Date('2025-06-01T12:00:00Z');
+    const job = { invoiceDueDate: '2025-06-01' };
+    expect(computeTier(job, fixedNow)).toBe(1);
   });
 
-  it('returns tier 2 when chased once and >= 7 days ago', () => {
-    const state = {
-      count: 1,
-      lastChasedAt: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString(),
-      firstChasedAt: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString(),
-    };
-    expect(computeTier(state)).toBe(2);
+  it('returns tier 1 when 3 days overdue (within 0–6 day band)', () => {
+    const fixedNow = new Date('2025-06-04T12:00:00Z');
+    const job = { invoiceDueDate: '2025-06-01' };
+    expect(computeTier(job, fixedNow)).toBe(1);
   });
 
-  it('returns tier 3 when chased twice and >= 7 days ago', () => {
-    const state = {
-      count: 2,
-      lastChasedAt: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString(),
-      firstChasedAt: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(),
-    };
-    expect(computeTier(state)).toBe(3);
+  it('returns tier 2 when exactly 7 days overdue', () => {
+    const fixedNow = new Date('2025-06-08T12:00:00Z');
+    const job = { invoiceDueDate: '2025-06-01' };
+    expect(computeTier(job, fixedNow)).toBe(2);
   });
 
-  it('returns tier 4 when chased 3+ times and >= 7 days ago', () => {
-    const state = {
-      count: 3,
-      lastChasedAt: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString(),
-      firstChasedAt: new Date(Date.now() - 22 * 24 * 60 * 60 * 1000).toISOString(),
-    };
-    expect(computeTier(state)).toBe(4);
+  it('returns tier 3 when exactly 14 days overdue', () => {
+    const fixedNow = new Date('2025-06-15T12:00:00Z');
+    const job = { invoiceDueDate: '2025-06-01' };
+    expect(computeTier(job, fixedNow)).toBe(3);
+  });
+
+  it('returns tier 3 for 20+ days overdue (no tier 4 — max is 3)', () => {
+    const fixedNow = new Date('2025-06-21T12:00:00Z');
+    const job = { invoiceDueDate: '2025-06-01' };
+    expect(computeTier(job, fixedNow)).toBe(3);
   });
 });
 

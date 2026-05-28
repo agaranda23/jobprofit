@@ -33,67 +33,54 @@ beforeEach(() => {
 });
 
 // ── computeTier — 5+ cases ────────────────────────────────────────────────
+// computeTier(job, _now) is days-past-due based (v2 API).
+// Tier 0: pre-due; Tier 1: 0–6 days; Tier 2: 7–13 days; Tier 3: 14+ days.
 
 describe('computeTier', () => {
-  it('returns 1 when state is null (never chased)', () => {
-    expect(computeTier(null)).toBe(1);
+  it('returns 1 for a job with no due date (daysPastDue returns 0, which falls in the 0–6 day Tier 1 band)', () => {
+    expect(computeTier({})).toBe(1);
   });
 
-  it('returns 1 when chased once but < 7 days ago', () => {
-    const state = {
-      count: 1,
-      lastChasedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-      firstChasedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
-    };
-    expect(computeTier(state)).toBe(1);
+  it('returns 1 when invoice is due today (0 days overdue)', () => {
+    const fixedNow = new Date('2025-06-01T12:00:00Z');
+    const job = { invoiceDueDate: '2025-06-01' };
+    expect(computeTier(job, fixedNow)).toBe(1);
   });
 
-  it('returns 2 when chased once AND exactly 7 days have passed', () => {
-    const state = {
-      count: 1,
-      lastChasedAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-      firstChasedAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-    };
-    expect(computeTier(state)).toBe(2);
+  it('returns 1 when 3 days overdue (within 0–6 day band)', () => {
+    const fixedNow = new Date('2025-06-04T12:00:00Z');
+    const job = { invoiceDueDate: '2025-06-01' };
+    expect(computeTier(job, fixedNow)).toBe(1);
   });
 
-  it('returns 3 when chased twice AND ≥7 days since last chase', () => {
-    const lastChased = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString();
-    const state = {
-      count: 2,
-      lastChasedAt: lastChased,
-      firstChasedAt: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(),
-    };
-    expect(computeTier(state)).toBe(3);
+  it('returns 2 when exactly 7 days overdue', () => {
+    const fixedNow = new Date('2025-06-08T12:00:00Z');
+    const job = { invoiceDueDate: '2025-06-01' };
+    expect(computeTier(job, fixedNow)).toBe(2);
   });
 
-  it('returns 4 when chased 3+ times AND ≥7 days since last chase', () => {
-    const lastChased = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000).toISOString();
-    const state = {
-      count: 3,
-      lastChasedAt: lastChased,
-      firstChasedAt: new Date(Date.now() - 21 * 24 * 60 * 60 * 1000).toISOString(),
-    };
-    expect(computeTier(state)).toBe(4);
+  it('returns 2 when 10 days overdue (within 7–13 day band)', () => {
+    const fixedNow = new Date('2025-06-11T12:00:00Z');
+    const job = { invoiceDueDate: '2025-06-01' };
+    expect(computeTier(job, fixedNow)).toBe(2);
   });
 
-  it('returns 1 when chased twice but < 7 days since last chase', () => {
-    const state = {
-      count: 2,
-      lastChasedAt: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-      firstChasedAt: new Date(Date.now() - 9 * 24 * 60 * 60 * 1000).toISOString(),
-    };
-    expect(computeTier(state)).toBe(1);
+  it('returns 3 when exactly 14 days overdue', () => {
+    const fixedNow = new Date('2025-06-15T12:00:00Z');
+    const job = { invoiceDueDate: '2025-06-01' };
+    expect(computeTier(job, fixedNow)).toBe(3);
+  });
+
+  it('returns 0 (pre-due) when due date is in the future', () => {
+    const fixedNow = new Date('2025-05-20T12:00:00Z');
+    const job = { invoiceDueDate: '2025-06-01' };
+    expect(computeTier(job, fixedNow)).toBe(0);
   });
 
   it('is injectable with a custom now date (test helper)', () => {
     const fixedNow = new Date('2025-01-20T12:00:00Z');
-    const state = {
-      count: 1,
-      lastChasedAt: new Date('2025-01-13T12:00:00Z').toISOString(), // exactly 7 days before
-      firstChasedAt: new Date('2025-01-13T12:00:00Z').toISOString(),
-    };
-    expect(computeTier(state, fixedNow)).toBe(2);
+    const job = { invoiceDueDate: '2025-01-13' }; // exactly 7 days overdue
+    expect(computeTier(job, fixedNow)).toBe(2);
   });
 });
 
@@ -117,29 +104,32 @@ describe('daysPastDue null safety', () => {
     expect(daysPastDue({ id: 'j1', amount: 100 })).toBe(0);
   });
 
-  it('computeTier never throws on a null/undefined job', () => {
+  it('computeTier never throws on a null/undefined job (returns 1 via daysPastDue safe fallback)', () => {
     expect(() => computeTier(null)).not.toThrow();
     expect(() => computeTier(undefined)).not.toThrow();
+    expect(computeTier(null)).toBe(1);
+    expect(computeTier(undefined)).toBe(1);
   });
 });
 
 // ── buildChaseMessage — 6+ cases (per tier, with/without amountPaid) ──────
+// v2 API: { customerName, amount, daysOverdue, tier, amountPaid, ... }
 
 describe('buildChaseMessage', () => {
-  const base = { name: 'Dave', amountOutstanding: '£350', daysSinceDue: 10, amountPaid: 0 };
+  const base = { customerName: 'Dave', amount: '£350', daysOverdue: 10, amountPaid: 0 };
 
-  it('tier 1: produces friendly reminder without any prefix', () => {
+  it('tier 1: light nudge — mentions the amount and customer name', () => {
     const msg = buildChaseMessage({ ...base, tier: 1 });
-    expect(msg).toContain('just a friendly reminder');
     expect(msg).toContain('Dave');
     expect(msg).toContain('£350');
+    expect(msg).toContain('just checking');
   });
 
-  it('tier 2: names the figure and days outstanding', () => {
+  it('tier 2: firm follow-up — names the figure and days overdue', () => {
     const msg = buildChaseMessage({ ...base, tier: 2 });
-    expect(msg).toContain('just a nudge');
     expect(msg).toContain('£350');
-    expect(msg).toContain('10 days');
+    expect(msg).toContain('10 days overdue');
+    expect(msg).toContain('following up');
   });
 
   it('tier 2 with amountPaid > 0: prepends thanks phrase', () => {
@@ -147,43 +137,45 @@ describe('buildChaseMessage', () => {
     expect(msg).toMatch(/^Thanks for the £100/);
   });
 
-  it('tier 3: asks for payment date confirmation', () => {
+  it('tier 3: final notice — mentions amount and days overdue', () => {
     const msg = buildChaseMessage({ ...base, tier: 3 });
-    expect(msg).toContain('chasing this one more time');
-    expect(msg).toContain('confirm a payment date');
+    expect(msg).toContain('£350');
+    expect(msg).toContain('10 days overdue');
+    expect(msg).toContain('last time');
   });
 
-  it('tier 3 with amountPaid > 0: prepends part-payment thanks', () => {
+  it('tier 3 with amountPaid > 0: prepends part-pay thanks (Thanks for the £N —)', () => {
     const msg = buildChaseMessage({ ...base, tier: 3, amountPaid: 50 });
-    expect(msg).toMatch(/^Thanks for the part-payment/);
+    expect(msg).toMatch(/^Thanks for the £50/);
   });
 
-  it('tier 4+ reuses tier-3 copy (no further escalation)', () => {
+  it('tier 4 is clamped to tier 3 (no further escalation above 3)', () => {
     const tier3msg = buildChaseMessage({ ...base, tier: 3 });
     const tier4msg = buildChaseMessage({ ...base, tier: 4 });
     expect(tier4msg).toBe(tier3msg);
   });
 
-  it('falls back to "there" when name is empty', () => {
-    const msg = buildChaseMessage({ ...base, tier: 1, name: '' });
+  it('falls back to "there" when customerName is empty', () => {
+    const msg = buildChaseMessage({ ...base, tier: 1, customerName: '' });
     expect(msg).toContain('Hi there');
   });
 });
 
 // ── buildChaseLink ────────────────────────────────────────────────────────
+// v2 API: { phone, customerName, amount, daysOverdue, tier, ... }
 
 describe('buildChaseLink', () => {
   it('returns null when phone is empty', () => {
-    expect(buildChaseLink({ phone: '', name: 'Dave', amountOutstanding: '£100', daysSinceDue: 5, tier: 1 })).toBeNull();
+    expect(buildChaseLink({ phone: '', customerName: 'Dave', amount: '£100', daysOverdue: 5, tier: 1 })).toBeNull();
   });
 
   it('strips leading zero and prefixes 44', () => {
-    const url = buildChaseLink({ phone: '07700900123', name: 'Dave', amountOutstanding: '£100', daysSinceDue: 5, tier: 1 });
+    const url = buildChaseLink({ phone: '07700900123', customerName: 'Dave', amount: '£100', daysOverdue: 5, tier: 1 });
     expect(url).toContain('wa.me/447700900123');
   });
 
   it('strips leading + from international numbers', () => {
-    const url = buildChaseLink({ phone: '+447700900123', name: 'Dave', amountOutstanding: '£100', daysSinceDue: 5, tier: 1 });
+    const url = buildChaseLink({ phone: '+447700900123', customerName: 'Dave', amount: '£100', daysOverdue: 5, tier: 1 });
     expect(url).toContain('wa.me/447700900123');
   });
 });
@@ -246,9 +238,9 @@ describe('lastChasedLabel', () => {
     expect(lastChasedLabel(null)).toBeNull();
   });
 
-  it('returns "Last chased today" for same-day chase', () => {
+  it('returns "Chased today" for same-day chase', () => {
     const state = { lastChasedAt: new Date().toISOString() };
-    expect(lastChasedLabel(state)).toBe('Last chased today');
+    expect(lastChasedLabel(state)).toBe('Chased today');
   });
 
   it('returns "Last chased yesterday" for 1-day-ago chase', () => {
