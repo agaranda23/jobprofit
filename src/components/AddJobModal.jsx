@@ -164,12 +164,22 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed }) {
   }
 
   const save = () => {
-    const amt = parseFloat(amount);
-    if (!name.trim() || isNaN(amt) || amt <= 0) {
-      setError('Job name and amount are required');
+    if (!name.trim()) {
+      setError('Job name is required');
       return;
     }
     const isPaid = paymentChip !== 'awaiting';
+    // If a paid chip is selected but no amount entered, block with a clear message.
+    if (isPaid && !amount.trim()) {
+      setError('Add an amount before you can mark this paid');
+      return;
+    }
+    // If something was typed in the amount field, validate it.
+    const amt = amount.trim() ? parseFloat(amount) : null;
+    if (amt !== null && (isNaN(amt) || amt <= 0)) {
+      setError("That amount doesn't look right");
+      return;
+    }
     onSave({
       id: Date.now(),
       name: name.trim(),
@@ -190,6 +200,7 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed }) {
 
   const saveLabel = () => {
     if (paymentChip === 'awaiting') {
+      if (!amount.trim()) return 'Save · add the price later';
       const who = customer.trim() || 'This job';
       return `Save · ${who} goes on the chase list`;
     }

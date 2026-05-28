@@ -17,6 +17,7 @@ import {
   isDoubleSendBlocked,
   lastChasedLabel,
 } from '../lib/chaseLadder';
+import { needsPrice, stagePatch } from '../lib/jobStatus';
 import { computeBalance, computeAmountPaid, editPayment, deletePayment } from '../lib/payments';
 import { gbp } from '../lib/today';
 import { compressPhoto } from '../lib/photoCompress';
@@ -1051,6 +1052,12 @@ export default function JobDetailDrawer({
   onDeleteReceipt,
   onAddPayment,
   onClose,
+  // Optional intent passed by WorkScreen when the drawer is opened with a
+  // specific goal: 'quote' (user tapped "Send quote →" tile CTA) or
+  // 'price' (user tried to advance stage without a price).
+  intent = null,
+  targetStage = null,
+  onClearIntent,
 }) {
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
@@ -1209,6 +1216,40 @@ export default function JobDetailDrawer({
     if (!canonicalMap[fieldKey]) return;
     onUpdateJob({ ...job, [fieldKey]: value || null });
   };
+
+  // ── Price add / edit ─────────────────────────────────────────────────────
+  // Called by EditFieldModal when editingField === 'amount'.
+  const handleAmountSave = (patch) => {
+    if (!onUpdateJob) return;
+    const n = Number(patch.amount);
+    // Build a seed line item if none exist — matches the addJobToCloud convention
+    const existingItems = Array.isArray(job.lineItems) ? job.lineItems.filter(i => i.desc || i.cost > 0) : [];
+    const li = existingItems.length > 0
+      ? existingItems
+      : [{ desc: job.summary || job.customer || job.name || 'Job', cost: n }];
+
+    if (intent === 'price' && targetStage) {
+      // Merge price AND the stage advance into one write
+      const stageLabel = targetStage === 'Paid' ? 'marked paid' : `moved to ${targetStage}`;
+      onUpdateJob({ ...job, amount: n, total: n, lineItems: li, ...stagePatch(targetStage) });
+      showFlash(`Price added · ${stageLabel}`);
+    } else {
+      onUpdateJob({ ...job, amount: n, total: n, lineItems: li });
+      showFlash('Price added');
+    }
+    setEditingField(null);
+    onClearIntent?.();
+  };
+
+  // Auto-open the price entry field when the drawer opens with an intent and
+  // the job still has no price. Clears itself on save or dismiss.
+  useEffect(() => {
+    if (intent && needsPrice(job) && editingField !== 'amount') {
+      setEditingField('amount');
+    }
+    // Only react to intent changes — not every render
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [intent]);
 
   // ── Photo add ─────────────────────────────────────────────────────────────
   // New behaviour: compress → Blob → upload to job-photos bucket (private) →
@@ -1490,6 +1531,11 @@ export default function JobDetailDrawer({
   //   • Fallback: no phone → Web Share API (OS share sheet).
   //   • Last resort: no phone AND no Web Share API → clipboard copy.
   const handleSendLink = async () => {
+    // Guard: price required before sending a quote
+    if (needsPrice(job)) {
+      setEditingField('amount');
+      return;
+    }
     // Ensure the job has a token — generate one if not
     let token = job.publicAccessToken;
     if (!token) {
@@ -1642,10 +1688,23 @@ export default function JobDetailDrawer({
             </div>
           </div>
           <div className="job-detail-header-right">
-            {typeof amount === 'number' && (
-              <div className="job-detail-amount">
-                {gbp(amount)}
-              </div>
+            {/* Price row — tappable; shows "+ Add price" when un-priced */}
+            {onUpdateJob && (
+              <button
+                type="button"
+                className={`jd-price-btn${needsPrice(job) ? ' jd-price-btn--add' : ''}`}
+                onClick={() => setEditingField('amount')}
+                aria-label={needsPrice(job) ? 'Add job price' : 'Edit job price'}
+              >
+                {needsPrice(job)
+                  ? <span className="jd-detail-edit-row-add">+ Add price</span>
+                  : <span className="job-detail-amount">{gbp(Number(job.total ?? job.amount))}</span>
+                }
+                <span className="jd-customer-edit-icon" aria-hidden="true">›</span>
+              </button>
+            )}
+            {!onUpdateJob && typeof amount === 'number' && (
+              <div className="job-detail-amount">{gbp(amount)}</div>
             )}
 
             {/* Kebab overflow menu — secondary actions */}
@@ -1679,7 +1738,11 @@ export default function JobDetailDrawer({
                       type="button"
                       className="jd-kebab-item"
                       role="menuitem"
-                      onClick={() => { setKebabOpen(false); setInvoiceModalOpen(true); }}
+                      onClick={() => {
+                        setKebabOpen(false);
+                        if (needsPrice(job)) { setEditingField('amount'); return; }
+                        setInvoiceModalOpen(true);
+                      }}
                     >
                       Send invoice
                     </button>
@@ -1988,6 +2051,7 @@ export default function JobDetailDrawer({
           onUpdate={onUpdateJob ?? (() => {})}
           onClose={() => setInvoiceModalOpen(false)}
           flash={showFlash}
+          onNeedsPrice={() => { setInvoiceModalOpen(false); setEditingField('amount'); }}
         />
       )}
 
@@ -2056,6 +2120,34 @@ export default function JobDetailDrawer({
           placeholder="Describe the job…"
           onSave={handleCustomerFieldSave}
           onClose={() => setEditingField(null)}
+        />
+      )}
+
+      {/* Amount add/edit — numeric field; opens automatically when intent requires a price */}
+      {editingField === 'amount' && (
+        <EditFieldModal
+          open
+          fieldKey="amount"
+          fieldLabel="Job price (£)"
+          currentValue={needsPrice(job) ? '' : String(Number(job.total ?? job.amount ?? 0))}
+          inputType="number"
+          placeholder="e.g. 380"
+          helpText={
+            intent === 'quote'
+              ? 'Add a price before you can quote this job.'
+              : intent === 'price' && targetStage === 'Paid'
+              ? 'Add a price before you can mark this paid.'
+              : intent === 'price'
+              ? 'Pop a price in first — then this job can move forward.'
+              : 'What you\'re charging for the whole job. You can change it later.'
+          }
+          validate={v => {
+            const n = Number(v);
+            if (!v || isNaN(n) || n <= 0) return 'Enter a price above £0';
+            return null;
+          }}
+          onSave={handleAmountSave}
+          onClose={() => { setEditingField(null); onClearIntent?.(); }}
         />
       )}
 
