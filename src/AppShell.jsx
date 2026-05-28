@@ -649,8 +649,8 @@ export default function AppShell() {
               receipts={receipts}
               session={session}
               profile={profile}
-              onMarkPaid={handleMarkPaid}
               // No avatar — Settings tab replaces the drawer in slice 3
+              // onMarkPaid removed: chase block deleted in Phase 1 Money redesign
             />
           )}
 
@@ -720,7 +720,7 @@ export default function AppShell() {
               session={session}
               profile={profile}
               onAvatarClick={() => setDrawerOpen(true)}
-              onMarkPaid={handleMarkPaid}
+              // onMarkPaid removed: chase block deleted in Phase 1 Money redesign
             />
           )}
 
