@@ -1,6 +1,11 @@
-// Job lifecycle: draft → completed → invoice_sent → awaiting → paid.
+// TODO(stage-cleanup): This file uses a legacy lifecycle model
+// (draft → completed → invoice_sent → awaiting → paid) that disagrees with
+// the canonical stage model used in StageStrip.jsx and JobsScreen.jsx
+// (Lead → Quoted → On → Invoiced → Overdue → Paid).
+// Do NOT use this file for tile rendering or stage display logic.
+// Clean up in a dedicated follow-up PR — do not touch in the tile redesign branch.
 //
-// `deriveStatus(job)` is the single source of truth. New code writes the
+// `deriveStatus(job)` is the single source of truth for legacy code. New code writes the
 // new `status` field; legacy jobs without it fall back to the old fields
 // (paid, paymentStatus, jobStatus, completedAt, invoiceSentAt). This lets
 // PRD #3 ship without migrating existing rows.
