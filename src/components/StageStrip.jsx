@@ -96,7 +96,7 @@ export default function StageStrip({ jobs, selectedStage, onSelectStage, deriveS
         {STAGES.map(s => (
           <div key={s} className="stage-rail-cell">
             <span
-              className={`stage-rail-dot stage-rail-dot--${s.toLowerCase()}`}
+              className={`stage-rail-dot stage-rail-dot--${s.toLowerCase()}${selectedStage === s ? ' stage-rail-dot--active' : ''}`}
             />
           </div>
         ))}
