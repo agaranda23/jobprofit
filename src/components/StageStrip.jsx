@@ -48,7 +48,7 @@ function StageTile({ stage, count, total, selected, onSelect, tileRef, formatAmo
 /**
  * StageStrip — the full scrollable rail.
  */
-export default function StageStrip({ jobs, selectedStage, onSelectStage, deriveStatus, formatAmount }) {
+export default function StageStrip({ jobs, selectedStage, showAll, onSelectStage, deriveStatus, formatAmount }) {
   const scrollRef = useRef(null);
   const tileRefs = useRef({});
 
@@ -83,7 +83,7 @@ export default function StageStrip({ jobs, selectedStage, onSelectStage, deriveS
             stage={s}
             count={stageMeta[s].count}
             total={stageMeta[s].total}
-            selected={selectedStage === s}
+            selected={showAll || selectedStage === s}
             onSelect={onSelectStage}
             tileRef={el => { tileRefs.current[s] = el; }}
             formatAmount={formatAmount}
@@ -96,7 +96,7 @@ export default function StageStrip({ jobs, selectedStage, onSelectStage, deriveS
         {STAGES.map(s => (
           <div key={s} className="stage-rail-cell">
             <span
-              className={`stage-rail-dot stage-rail-dot--${s.toLowerCase()}${selectedStage === s ? ' stage-rail-dot--active' : ''}`}
+              className={`stage-rail-dot stage-rail-dot--${s.toLowerCase()}${(showAll || selectedStage === s) ? ' stage-rail-dot--active' : ''}`}
             />
           </div>
         ))}
