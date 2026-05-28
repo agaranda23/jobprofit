@@ -6,15 +6,33 @@
 //   ALTER TABLE profiles ADD COLUMN invoices_sent_count int DEFAULT 0;
 //   UPDATE profiles SET invoices_sent_count = 0;
 
+// ⚠️ TEMPORARY OVERRIDE — Pro unlocked for EVERYONE while we finish building the
+// paid features so they can be reviewed end-to-end. Because canSendInvoice()
+// short-circuits through isPro(), this ALSO lifts the free invoice-send limit.
+// TO RE-ENABLE the free/Pro split when editing is done: set this back to false.
+// The underlying plan rule is preserved in planAllowsPro() and stays tested.
+export const UNLOCK_PRO_FOR_ALL = true;
+
 /**
- * Returns true when the profile is on a Pro plan.
+ * The real entitlement rule (kept intact for when the override is lifted).
+ * @param {object|null|undefined} profile  - Supabase profiles row
+ * @returns {boolean}
+ */
+export function planAllowsPro(profile) {
+  return profile?.plan === 'pro';
+}
+
+/**
+ * Returns true when the user should see Pro features.
+ * While UNLOCK_PRO_FOR_ALL is true, everyone is treated as Pro.
  * Accepts null/undefined safely — unloaded profiles default to free.
  *
  * @param {object|null|undefined} profile  - Supabase profiles row
  * @returns {boolean}
  */
 export function isPro(profile) {
-  return profile?.plan === 'pro';
+  if (UNLOCK_PRO_FOR_ALL) return true;
+  return planAllowsPro(profile);
 }
 
 /**

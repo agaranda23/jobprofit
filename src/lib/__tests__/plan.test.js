@@ -1,30 +1,51 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { isPro, canSendInvoice, incrementSendCount } from '../plan.js';
+import { isPro, planAllowsPro, canSendInvoice, incrementSendCount, UNLOCK_PRO_FOR_ALL } from '../plan.js';
 
 // ──────────────────────────────────────────────────────────────────────────
-describe('isPro', () => {
+// The real entitlement rule — always valid regardless of the temporary
+// UNLOCK_PRO_FOR_ALL override. When the override is lifted, isPro() reverts to
+// exactly this behaviour.
+describe('planAllowsPro (underlying rule)', () => {
   it('returns true when plan is "pro"', () => {
-    expect(isPro({ plan: 'pro' })).toBe(true);
+    expect(planAllowsPro({ plan: 'pro' })).toBe(true);
   });
 
   it('returns false when plan is "free"', () => {
-    expect(isPro({ plan: 'free' })).toBe(false);
+    expect(planAllowsPro({ plan: 'free' })).toBe(false);
   });
 
   it('returns false when plan is absent', () => {
-    expect(isPro({})).toBe(false);
+    expect(planAllowsPro({})).toBe(false);
   });
 
   it('returns false for null profile', () => {
-    expect(isPro(null)).toBe(false);
+    expect(planAllowsPro(null)).toBe(false);
   });
 
   it('returns false for undefined profile', () => {
-    expect(isPro(undefined)).toBe(false);
+    expect(planAllowsPro(undefined)).toBe(false);
   });
 
   it('is case-sensitive — "Pro" is not pro', () => {
-    expect(isPro({ plan: 'Pro' })).toBe(false);
+    expect(planAllowsPro({ plan: 'Pro' })).toBe(false);
+  });
+});
+
+// isPro() applies the temporary override on top of planAllowsPro. These
+// assertions reference UNLOCK_PRO_FOR_ALL so they stay correct whether the
+// override is on (everyone Pro) or off (free/Pro split) — no edits at revert.
+describe('isPro (with override)', () => {
+  it('pro plan is always Pro', () => {
+    expect(isPro({ plan: 'pro' })).toBe(true);
+  });
+
+  it('free plan follows the override flag', () => {
+    expect(isPro({ plan: 'free' })).toBe(UNLOCK_PRO_FOR_ALL ? true : false);
+  });
+
+  it('null/undefined profile follows the override flag', () => {
+    expect(isPro(null)).toBe(UNLOCK_PRO_FOR_ALL ? true : false);
+    expect(isPro(undefined)).toBe(UNLOCK_PRO_FOR_ALL ? true : false);
   });
 });
 
@@ -34,12 +55,12 @@ describe('canSendInvoice', () => {
     expect(canSendInvoice({ plan: 'free', invoices_sent_count: 0 })).toBe(true);
   });
 
-  it('blocks send when invoices_sent_count is 1 (quota used)', () => {
-    expect(canSendInvoice({ plan: 'free', invoices_sent_count: 1 })).toBe(false);
+  it('over-quota free send follows the override flag (blocked only when limits are on)', () => {
+    expect(canSendInvoice({ plan: 'free', invoices_sent_count: 1 })).toBe(UNLOCK_PRO_FOR_ALL ? true : false);
   });
 
-  it('blocks send when invoices_sent_count is > 1', () => {
-    expect(canSendInvoice({ plan: 'free', invoices_sent_count: 5 })).toBe(false);
+  it('over-quota (count > 1) free send follows the override flag', () => {
+    expect(canSendInvoice({ plan: 'free', invoices_sent_count: 5 })).toBe(UNLOCK_PRO_FOR_ALL ? true : false);
   });
 
   it('allows send for pro regardless of invoices_sent_count', () => {
