@@ -1,3 +1,4 @@
+// TODO(consolidate): JobsScreen + WorkScreen both claim "Jobs" tab — one renders behind NEW_NAV flag, the other behind NAV_SLICE_3. Pick one and delete the other in a separate PR.
 /**
  * JobsScreen — Tab 2 in the new nav.
  *
