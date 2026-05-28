@@ -2727,13 +2727,33 @@ input[type=number] { -moz-appearance: textfield; }
 .stage-tile--selected .stage-tile-amount {
   color: #0B1220;
 }
-/* Overdue selected: count keeps rose so urgency survives the green fill */
-.stage-tile--selected.stage-tile--overdue .stage-tile-count {
-  color: var(--jp-rose);
+/* Lead selected: amber fill amplifies its own semantic colour */
+.stage-tile--lead.stage-tile--selected {
+  background: var(--jp-amber);
+  border-color: var(--jp-amber);
 }
-/* Lead selected: count keeps amber so urgency survives the green fill */
-.stage-tile--selected.stage-tile--lead .stage-tile-count {
-  color: var(--jp-amber);
+.stage-tile--lead.stage-tile--selected .stage-tile-name,
+.stage-tile--lead.stage-tile--selected .stage-tile-count,
+.stage-tile--lead.stage-tile--selected .stage-tile-amount {
+  color: #0B1220;
+}
+.stage-tile--lead.stage-tile--selected .stage-tile-amount--empty {
+  color: #0B1220;
+  opacity: 0.65;
+}
+/* Overdue selected: rose fill amplifies its own semantic colour */
+.stage-tile--overdue.stage-tile--selected {
+  background: var(--jp-rose);
+  border-color: var(--jp-rose);
+}
+.stage-tile--overdue.stage-tile--selected .stage-tile-name,
+.stage-tile--overdue.stage-tile--selected .stage-tile-count,
+.stage-tile--overdue.stage-tile--selected .stage-tile-amount {
+  color: #FFFFFF;
+}
+.stage-tile--overdue.stage-tile--selected .stage-tile-amount--empty {
+  color: #FFFFFF;
+  opacity: 0.7;
 }
 
 .stage-tile-name {
