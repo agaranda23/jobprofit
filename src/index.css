@@ -5992,12 +5992,14 @@ input[type=number] { -moz-appearance: textfield; }
 
 /* --- Stage chip dropdown / bottom-sheet --- */
 
-/* Dim backdrop for mobile sheet — fixed, covers full viewport */
+/* Dim backdrop for mobile sheet — fixed, covers full viewport.
+   Must sit above .bottom-nav (z-index 100) so the nav is dimmed
+   and the sheet content is fully visible + tappable. */
 .jt-backdrop {
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.45);
-  z-index: 99;
+  z-index: 200;
 }
 
 /* Desktop anchored dropdown */
@@ -6016,7 +6018,9 @@ input[type=number] { -moz-appearance: textfield; }
   z-index: 100;
 }
 
-/* Mobile bottom-sheet — hidden on desktop, shown on ≤640px */
+/* Mobile bottom-sheet — hidden on desktop, shown on ≤640px.
+   z-index 201: one above the backdrop (200), well above .bottom-nav (100).
+   padding-bottom clears the device home indicator. */
 .jt-menu--sheet {
   display: none;
   position: fixed;
@@ -6026,9 +6030,9 @@ input[type=number] { -moz-appearance: textfield; }
   background: #1E2422;
   border-top: 1px solid var(--border);
   border-radius: 16px 16px 0 0;
-  padding: 0 12px 24px;
+  padding: 0 12px calc(24px + env(safe-area-inset-bottom));
   box-shadow: 0 -8px 32px rgba(0,0,0,0.55);
-  z-index: 100;
+  z-index: 201;
 }
 @media (max-width: 640px) {
   .jt-menu--dropdown { display: none; }
@@ -6108,6 +6112,10 @@ input[type=number] { -moz-appearance: textfield; }
 /* Bottom-sheet swatches get more vertical room */
 .jt-menu--sheet .jt-swatch-dot {
   height: 44px;
+}
+/* Stage label legibility on the larger mobile sheet — 8px is too small on a phone */
+.jt-menu--sheet .jt-swatch-label {
+  font-size: 10px;
 }
 
 .jt-menu-divider {
