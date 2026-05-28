@@ -231,26 +231,41 @@ const STAGE_META = {
 };
 
 /**
- * StageChipDropdown — coloured chip in the top-right corner of each tile.
- * Tap opens a dropdown: "Move to" (all 6 stages) + "More actions".
- * Replaces the old standalone ⋯ overflow button.
+ * StageChipDropdown — coloured chip that opens a condensed restage menu.
+ *
+ * Desktop (>640px): anchored dropdown with max-height + flip-up-if-clipped.
+ * Mobile (≤640px):  bottom-sheet over a dim backdrop — never buries tiles.
+ *
+ * "Move to" is now a single row of 6 colour swatches (one-tap restage).
+ * "More actions" is 4 compact chips below a divider.
+ * All moveToStage() mapping logic is unchanged.
  */
 function StageChipDropdown({ job, currentStage, onUpdateJob, onSendInvoice, onSelect }) {
   const [open, setOpen] = useState(false);
   const chipRef = useRef(null);
+  const menuRef = useRef(null);
 
+  // Close on outside click / backdrop tap and Escape key
   useEffect(() => {
     if (!open) return;
     function handleClickOutside(e) {
-      if (chipRef.current && !chipRef.current.contains(e.target)) {
+      if (
+        chipRef.current && !chipRef.current.contains(e.target) &&
+        menuRef.current && !menuRef.current.contains(e.target)
+      ) {
         setOpen(false);
       }
     }
+    function handleKeyDown(e) {
+      if (e.key === 'Escape') setOpen(false);
+    }
     document.addEventListener('mousedown', handleClickOutside);
     document.addEventListener('touchstart', handleClickOutside, { passive: true });
+    document.addEventListener('keydown', handleKeyDown);
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
       document.removeEventListener('touchstart', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
     };
   }, [open]);
 
@@ -299,61 +314,121 @@ function StageChipDropdown({ job, currentStage, onUpdateJob, onSendInvoice, onSe
     }
   }
 
+  const customerLabel = job.customer || job.name || 'Job';
+
+  // Shared menu content used in both the dropdown and the bottom-sheet
+  const menuContent = (
+    <>
+      <div className="jt-menu-label">Move to</div>
+      {/* One-tap restage: 6 colour swatches in a single row */}
+      <div className="jt-menu-swatches" role="group" aria-label="Move to stage">
+        {STAGES.map(s => {
+          const sMeta = STAGE_META[s];
+          const isCurrent = s === currentStage;
+          // Short display labels to fit 6 swatches at 375px
+          const shortLabel = { Lead: 'Lead', Quoted: 'Quote', On: 'On', Invoiced: 'Inv', Overdue: 'Over', Paid: 'Paid' }[s] ?? s;
+          return (
+            <button
+              key={s}
+              type="button"
+              className={`jt-swatch${isCurrent ? ' jt-swatch--current' : ''}`}
+              style={{ '--sw-hue': sMeta.hue }}
+              role="menuitem"
+              aria-pressed={isCurrent}
+              onClick={() => moveToStage(s)}
+            >
+              <span className="jt-swatch-dot">
+                {isCurrent && (
+                  <svg width="11" height="11" viewBox="0 0 11 11" fill="none" stroke="#fff" strokeWidth="2" aria-hidden="true">
+                    <path d="M2 5.5l2.5 2.5 4.5-4.5"/>
+                  </svg>
+                )}
+              </span>
+              <span className="jt-swatch-label">{shortLabel}</span>
+            </button>
+          );
+        })}
+      </div>
+      <div className="jt-menu-divider" />
+      {/* Compact action chips */}
+      <div className="jt-menu-actions" role="group" aria-label="More actions">
+        {[
+          { key: 'Edit',      label: 'Edit' },
+          { key: 'Duplicate', label: 'Copy' },
+          { key: 'Archive',   label: 'Archive' },
+          { key: 'Delete',    label: 'Delete', danger: true },
+        ].map(a => (
+          <button
+            key={a.key}
+            type="button"
+            className={`jt-action-chip${a.danger ? ' jt-action-chip--danger' : ''}`}
+            role="menuitem"
+            onClick={() => handleAction(a.key)}
+          >
+            {a.label}
+          </button>
+        ))}
+      </div>
+    </>
+  );
+
   return (
-    <div
-      ref={chipRef}
-      className={`jt-chip jt-chip--${currentStage.toLowerCase()}${open ? ' jt-chip--open' : ''}`}
-      style={{ '--chip-hue': meta.hue, '--chip-fill': meta.fill, '--chip-ink': ink }}
-      onClick={e => { e.stopPropagation(); setOpen(v => !v); }}
-      role="button"
-      aria-haspopup="true"
-      aria-expanded={open}
-      tabIndex={0}
-      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(v => !v); } }}
-    >
-      <span className="jt-chip-label">{currentStage}</span>
-      <svg className="jt-chip-caret" width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
-        <path d="M2 4l3 3 3-3"/>
-      </svg>
+    <>
+      {/* Dim backdrop for mobile bottom-sheet — rendered in document flow via portal-like
+          positioning; tapping it closes the menu */}
+      {open && (
+        <div
+          className="jt-backdrop"
+          aria-hidden="true"
+          onClick={e => { e.stopPropagation(); setOpen(false); }}
+        />
+      )}
+
+      <div
+        ref={chipRef}
+        className={`jt-chip jt-chip--${currentStage.toLowerCase()}${open ? ' jt-chip--open' : ''}`}
+        style={{ '--chip-hue': meta.hue, '--chip-fill': meta.fill, '--chip-ink': ink }}
+        onClick={e => { e.stopPropagation(); setOpen(v => !v); }}
+        role="button"
+        aria-haspopup="true"
+        aria-expanded={open}
+        tabIndex={0}
+        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(v => !v); } }}
+      >
+        <span className="jt-chip-label">{currentStage}</span>
+        <svg className="jt-chip-caret" width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
+          <path d="M2 4l3 3 3-3"/>
+        </svg>
+      </div>
 
       {open && (
-        <div className="jt-menu" role="menu" onClick={e => e.stopPropagation()}>
-          <div className="jt-menu-label">Move to</div>
-          {STAGES.map(s => {
-            const sMeta = STAGE_META[s];
-            return (
-              <div
-                key={s}
-                className={`jt-menu-item${s === currentStage ? ' jt-menu-item--current' : ''}`}
-                role="menuitem"
-                onClick={() => moveToStage(s)}
-              >
-                <span className="jt-menu-dot" style={{ background: sMeta.hue }} />
-                {s}
-              </div>
-            );
-          })}
-          <div className="jt-menu-divider" />
-          <div className="jt-menu-label">More actions</div>
-          {[
-            { key: 'Edit',      label: 'Edit',      icon: '✎' },
-            { key: 'Duplicate', label: 'Duplicate', icon: '⧉' },
-            { key: 'Archive',   label: 'Archive',   icon: '↓' },
-            { key: 'Delete',    label: 'Delete',    icon: '✕', danger: true },
-          ].map(a => (
-            <div
-              key={a.key}
-              className={`jt-menu-item jt-menu-item--action${a.danger ? ' jt-menu-item--danger' : ''}`}
-              role="menuitem"
-              onClick={() => handleAction(a.key)}
-            >
-              <span className="jt-menu-icon">{a.icon}</span>
-              {a.label}
-            </div>
-          ))}
-        </div>
+        <>
+          {/* Desktop anchored dropdown — hidden on mobile via CSS.
+              ref={menuRef} used by click-outside guard on desktop. */}
+          <div
+            ref={menuRef}
+            className="jt-menu jt-menu--dropdown"
+            role="menu"
+            onClick={e => e.stopPropagation()}
+          >
+            {menuContent}
+          </div>
+
+          {/* Mobile bottom-sheet — hidden on desktop via CSS.
+              Backdrop (.jt-backdrop) handles the outside-tap close on mobile
+              so no separate ref needed here. */}
+          <div
+            className="jt-menu jt-menu--sheet"
+            role="menu"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="jt-sheet-grab" aria-hidden="true" />
+            <div className="jt-sheet-title">Move {customerLabel} to</div>
+            {menuContent}
+          </div>
+        </>
       )}
-    </div>
+    </>
   );
 }
 
@@ -480,8 +555,15 @@ function deriveMoneySub(job, stage) {
 }
 
 /**
- * JobTile — new tile design with stage chip, coloured left-rail, and at-a-glance signals.
- * Replaces the old JobCard. Card body tap opens JobDetailDrawer via onSelect.
+ * JobTile — slim 3-row tile (PRD redesign 2026-05-28).
+ *
+ * Row 1 (header):  avatar (24px) · customer name · stage chip (smaller)
+ * Row 2 (title+£): job summary truncated, £amount baseline-aligned right
+ * Row 3 (signals): time signal · money state · photo/note counts (· separated)
+ * CTA row:         full-width, stage-aware, ≥44px, unchanged logic
+ *
+ * The old separate .jt-money row is removed — amount folds into Row 2.
+ * deriveMoneySub and deriveTimeSignal are reused unchanged.
  */
 function JobTile({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob, biz }) {
   const stage = deriveDisplayStatus(job);
@@ -496,6 +578,7 @@ function JobTile({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob, biz }) {
   const amount = Number(job.total ?? job.amount ?? 0) || 0;
   const formattedAmount = amount > 0 ? '£' + formatAmount(amount) : '—';
   const amountMuted = stage === 'Lead' || amount === 0;
+  const amountOverdue = stage === 'Overdue';
 
   const cta = getStageCTA(stage, job, { onSendInvoice, onUpdateJob, onNewJob, biz });
   const stageMeta = STAGE_META[stage] || STAGE_META.Lead;
@@ -503,6 +586,13 @@ function JobTile({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob, biz }) {
   // "Last chased" chip — shown on Invoiced and Overdue tiles after a chase is recorded
   const chaseState = (stage === 'Invoiced' || stage === 'Overdue') ? getChaseState(job.id) : null;
   const chasedChip = lastChasedLabel(chaseState);
+
+  // Build signal line items (Row 3) — separated by · in CSS
+  const signals = [];
+  if (timeSignal) signals.push({ text: timeSignal.text, cls: `jt-signal--${timeSignal.variant}` });
+  if (moneySub)   signals.push({ text: moneySub, cls: 'jt-signal--mute' });
+  if (photoCount > 0) signals.push({ text: null, photoCount });
+  if (noteCount > 0)  signals.push({ text: null, noteCount });
 
   return (
     <li
@@ -512,6 +602,7 @@ function JobTile({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob, biz }) {
         '--jt-fill': stageMeta.fill,
         '--jt-ink': stageMeta.ink || stageMeta.hue,
         opacity: isPaid ? 0.7 : 1,
+        position: 'relative',
       }}
       onClick={() => onSelect?.(job)}
       role="button"
@@ -519,7 +610,7 @@ function JobTile({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob, biz }) {
       onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') onSelect?.(job); }}
       aria-label={`View details for ${job.customer || job.name || 'Unnamed job'}`}
     >
-      {/* Header row: avatar + customer + stage chip */}
+      {/* Row 1: avatar + customer name + stage chip */}
       <div className="jt-head" onClick={e => e.stopPropagation()}>
         <span className="jt-avatar">{initial}</span>
         <span className="jt-customer">{job.customer || job.name || 'Unnamed job'}</span>
@@ -532,53 +623,49 @@ function JobTile({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob, biz }) {
         />
       </div>
 
-      {/* Job title / summary */}
-      {job.summary && (
-        <h3 className="jt-title">
-          {job.summary.slice(0, 72)}{job.summary.length > 72 ? '…' : ''}
-        </h3>
-      )}
-
-      {/* Meta signals row */}
-      <div className="jt-meta">
-        {timeSignal && (
-          <span className={`jt-meta-item jt-meta-item--${timeSignal.variant}`}>
-            {timeSignal.text}
-          </span>
+      {/* Row 2: job title + £amount folded inline, baseline-aligned hard right */}
+      <div className="jt-title-row">
+        {job.summary ? (
+          <h3 className="jt-title">
+            {job.summary.slice(0, 72)}{job.summary.length > 72 ? '…' : ''}
+          </h3>
+        ) : (
+          <span className="jt-title jt-title--placeholder">Untitled job</span>
         )}
-        {photoCount > 0 && (
-          <>
-            {timeSignal && <span className="jt-meta-sep">·</span>}
-            <span className="jt-meta-item">
-              <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
-                <rect x="1.5" y="2.5" width="9" height="7" rx="1"/>
-                <circle cx="6" cy="6" r="1.5"/>
-              </svg>
-              {photoCount}
-            </span>
-          </>
-        )}
-        {noteCount > 0 && (
-          <>
-            {(timeSignal || photoCount > 0) && <span className="jt-meta-sep">·</span>}
-            <span className="jt-meta-item">
-              <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
-                <path d="M2 2h6l2 2v6H2z"/>
-                <path d="M3.5 5h5M3.5 7h5"/>
-              </svg>
-              {noteCount}
-            </span>
-          </>
-        )}
-      </div>
-
-      {/* Money row */}
-      <div className="jt-money">
-        <span className={`jt-amount${amountMuted ? ' jt-amount--muted' : ''}${stage === 'Overdue' ? ' jt-amount--overdue' : ''}`}>
+        <span className={`jt-amount${amountMuted ? ' jt-amount--muted' : ''}${amountOverdue ? ' jt-amount--overdue' : ''}`}>
           {formattedAmount}
         </span>
-        {moneySub && <span className="jt-amount-sub">{moneySub}</span>}
       </div>
+
+      {/* Row 3: one merged signal line — time · money state · counts */}
+      {signals.length > 0 && (
+        <div className="jt-signals">
+          {signals.map((sig, i) => (
+            <span key={i} className="jt-signal-group">
+              {i > 0 && <span className="jt-meta-sep">·</span>}
+              {sig.photoCount != null ? (
+                <span className={`jt-meta-item${sig.cls ? ' ' + sig.cls : ''}`}>
+                  <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+                    <rect x="1.5" y="2.5" width="9" height="7" rx="1"/>
+                    <circle cx="6" cy="6" r="1.5"/>
+                  </svg>
+                  {sig.photoCount}
+                </span>
+              ) : sig.noteCount != null ? (
+                <span className={`jt-meta-item${sig.cls ? ' ' + sig.cls : ''}`}>
+                  <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
+                    <path d="M2 2h6l2 2v6H2z"/>
+                    <path d="M3.5 5h5M3.5 7h5"/>
+                  </svg>
+                  {sig.noteCount}
+                </span>
+              ) : (
+                <span className={`jt-meta-item${sig.cls ? ' ' + sig.cls : ''}`}>{sig.text}</span>
+              )}
+            </span>
+          ))}
+        </div>
+      )}
 
       {/* CTA row — stopPropagation so taps don't open the drawer */}
       {cta && (
