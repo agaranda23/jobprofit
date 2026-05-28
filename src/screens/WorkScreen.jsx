@@ -893,6 +893,7 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
       <StageStrip
         jobs={jobs}
         selectedStage={selectedStage}
+        showAll={showAll}
         onSelectStage={handleSelectStage}
         deriveStatus={deriveDisplayStatus}
         formatAmount={formatAmount}
@@ -941,7 +942,7 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
           className={`show-all-toggle${showAll ? ' show-all-toggle--active' : ''}`}
           onClick={handleToggleShowAll}
         >
-          {showAll ? 'Stage view' : 'Show all ⌄'}
+          {showAll ? 'Stage view' : 'Show all'}
         </button>
       </div>
 
