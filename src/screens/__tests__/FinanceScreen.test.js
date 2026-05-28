@@ -29,6 +29,8 @@ import {
   getOverheadTotal,
   getTaxYearSummary,
   taxYearLabel,
+  getJobProfit,
+  getBestWorstJobs,
 } from '../../lib/cashflow';
 
 // ─── Shared test fixtures ─────────────────────────────────────────────────────
@@ -509,5 +511,113 @@ describe('FinanceScreen YTD Tax Set-Aside card', () => {
   it('YTD tax pot scales with custom pct (e.g. 25%)', () => {
     const jobs = [paidJob({ amount: 800, date: '2026-05-10' })];
     expect(ytdTaxSetAside(jobs, [], 25)).toBe(200);
+  });
+});
+
+// ─── Best & worst jobs card — getBestWorstJobs ─────────────────────────────
+// These tests verify the FinanceScreen Best & worst jobs card data layer.
+// Rendering is exercised on the deploy preview (no testing-library/react here).
+
+describe('FinanceScreen Best & worst jobs card: getBestWorstJobs', () => {
+  // Reference: 2026-05-20 (TODAY), tax year 2026/27 (started 2026-04-06)
+  const NOW = TODAY;
+
+  function doneJob(overrides = {}) {
+    return {
+      id: overrides.id ?? 'bw-j1',
+      name: overrides.name ?? 'Best Worst Job',
+      amount: overrides.amount ?? 500,
+      paid: true,
+      date: overrides.date ?? '2026-05-10',
+      ...overrides,
+    };
+  }
+
+  it('returns { best: null, worst: null } for empty jobs array', () => {
+    const result = getBestWorstJobs([], [], NOW);
+    expect(result.best).toBeNull();
+    expect(result.worst).toBeNull();
+  });
+
+  it('returns { best: null, worst: null } for null/undefined inputs', () => {
+    expect(getBestWorstJobs(null, null, NOW)).toEqual({ best: null, worst: null });
+    expect(getBestWorstJobs(undefined, undefined, NOW)).toEqual({ best: null, worst: null });
+  });
+
+  it('single qualifying job → best is set, worst is null', () => {
+    const jobs = [doneJob({ id: 'solo', amount: 600 })];
+    const result = getBestWorstJobs(jobs, [], NOW);
+    expect(result.best).not.toBeNull();
+    expect(result.best.id).toBe('solo');
+    expect(result.worst).toBeNull();
+  });
+
+  it('two qualifying jobs → best is higher-profit, worst is lower-profit', () => {
+    const jobs = [
+      doneJob({ id: 'small', name: 'Small job', amount: 200 }),
+      doneJob({ id: 'large', name: 'Large job', amount: 800 }),
+    ];
+    const result = getBestWorstJobs(jobs, [], NOW);
+    expect(result.best.id).toBe('large');
+    expect(result.worst.id).toBe('small');
+  });
+
+  it('receipt materials are deducted before ranking (matching by id)', () => {
+    const jobs = [
+      doneJob({ id: 'j1', name: 'With materials', amount: 1000 }),
+      doneJob({ id: 'j2', name: 'No materials',   amount: 600 }),
+    ];
+    // j1 has £800 materials → profit £200; j2 has none → profit £600
+    const receipts = [{ id: 'r1', jobId: 'j1', amount: 800 }];
+    const result = getBestWorstJobs(jobs, receipts, NOW);
+    expect(result.best.id).toBe('j2');  // £600 profit
+    expect(result.worst.id).toBe('j1'); // £200 profit
+  });
+
+  it('excludes cancelled jobs from ranking', () => {
+    const jobs = [
+      doneJob({ id: 'active',    amount: 500 }),
+      doneJob({ id: 'cancelled', amount: 1, status: 'cancelled' }),
+    ];
+    const result = getBestWorstJobs(jobs, [], NOW);
+    expect(result.worst).toBeNull(); // only one qualifies
+  });
+
+  it('excludes jobs with status=lead (work not done)', () => {
+    const jobs = [
+      doneJob({ id: 'done', amount: 500 }),
+      { id: 'lead', name: 'Lead', amount: 400, status: 'lead', date: '2026-05-10' },
+    ];
+    const result = getBestWorstJobs(jobs, [], NOW);
+    expect(result.worst).toBeNull();
+  });
+
+  it('excludes job dated before tax year start (5 April)', () => {
+    const jobs = [
+      doneJob({ id: 'new',  amount: 300, date: '2026-04-10' }), // this tax year
+      doneJob({ id: 'old',  amount: 999, date: '2026-04-05' }), // last tax year
+    ];
+    const result = getBestWorstJobs(jobs, [], NOW);
+    expect(result.best.id).toBe('new');
+    expect(result.worst).toBeNull();
+  });
+
+  it('profit and margin on result entries are numbers, not NaN', () => {
+    const jobs = [doneJob({ amount: 400 })];
+    const result = getBestWorstJobs(jobs, [], NOW);
+    expect(typeof result.best.profit).toBe('number');
+    expect(isNaN(result.best.profit)).toBe(false);
+    expect(typeof result.best.margin).toBe('number');
+    expect(isNaN(result.best.margin)).toBe(false);
+  });
+
+  it('getJobProfit margin colour thresholds: >=30 good, >=15 warn, else danger', () => {
+    // This test pins the thresholds so any change to the formula or card is caught.
+    expect(getJobProfit({ id: 'j', amount: 1000 },
+      [{ id: 'r', jobId: 'j', amount: 700 }]).margin).toBe(30); // exactly at good boundary
+    expect(getJobProfit({ id: 'j', amount: 1000 },
+      [{ id: 'r', jobId: 'j', amount: 850 }]).margin).toBe(15); // exactly at warn boundary
+    expect(getJobProfit({ id: 'j', amount: 1000 },
+      [{ id: 'r', jobId: 'j', amount: 860 }]).margin).toBe(14); // just below warn → danger
   });
 });

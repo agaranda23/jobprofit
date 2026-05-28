@@ -638,6 +638,118 @@ export function getOverheadTotal(overheads) {
   }, 0);
 }
 
+// ─── Per-job profit ──────────────────────────────────────────────────────────
+
+/**
+ * Computes profit, margin, quote, and materials for a single job.
+ * Formula mirrors ProfitBarSection in JobDetailDrawer.jsx exactly —
+ * any change there must be reflected here (and in the tests).
+ *
+ * Receipt matching: a receipt belongs to this job when r.jobId matches either
+ * job.id (local numeric/string id) or job.cloudId (Supabase UUID). Both are
+ * compared as strings to survive mixed number/string shapes.
+ *
+ * @param {object} job
+ * @param {object[]} receipts  — all receipts in the app, not pre-filtered
+ * @returns {{ quote: number, materials: number, profit: number, margin: number }}
+ */
+export function getJobProfit(job, receipts) {
+  if (!job) return { quote: 0, materials: 0, profit: 0, margin: 0 };
+  const safeReceipts = Array.isArray(receipts) ? receipts : [];
+
+  const quote = Number(job.total ?? job.amount ?? 0);
+  const materials = safeReceipts
+    .filter(r => r && r.jobId != null && (
+      String(r.jobId) === String(job.id) ||
+      (job.cloudId != null && String(r.jobId) === String(job.cloudId))
+    ))
+    .reduce((sum, r) => sum + Number(r.amount || 0), 0);
+
+  const profit = quote - materials;
+  const margin = quote > 0 ? Math.round((profit / quote) * 100) : 0;
+
+  return { quote, materials, profit, margin };
+}
+
+/**
+ * Returns the best and worst jobs by profit within the current UK tax year.
+ *
+ * "Qualifying" rule — a job must meet ALL of:
+ *   1. Not excluded (not cancelled / draft — uses isExcludedJob).
+ *   2. Work is done: status signals the job is completed/invoiced/overdue/paid.
+ *      Specifically, a job is "done" when:
+ *        - isPaidJob() is true (paid in full), OR
+ *        - status/jobStatus is one of: completed, invoiced, overdue, sent,
+ *          awaiting (work done, awaiting payment — a real outcome worth ranking).
+ *      Lead and quoted-only stages are excluded — the job hasn't happened yet.
+ *   3. quote > 0 (no revenue means no meaningful margin).
+ *   4. The job's effective date falls within the current tax year:
+ *        >= taxYearStart(now)  AND  <= end-of-day today.
+ *      Date resolution: for paid jobs, the payment/earned date; otherwise the
+ *      issue/created date — same logic as jobEarnedDate / jobIssuedDate.
+ *
+ * @param {object[]} jobs
+ * @param {object[]} receipts
+ * @param {Date} [now]
+ * @returns {{
+ *   best:  { id, label, customer, profit, margin } | null,
+ *   worst: { id, label, customer, profit, margin } | null,
+ * }}
+ */
+export function getBestWorstJobs(jobs, receipts, now = new Date()) {
+  const safeJobs = Array.isArray(jobs) ? jobs : [];
+  const safeReceipts = Array.isArray(receipts) ? receipts : [];
+
+  const start = taxYearStart(now);
+  const end = new Date(now);
+  end.setHours(23, 59, 59, 999);
+
+  // Status values that mean "work is done" (case-insensitive match below)
+  const DONE_STATUSES = new Set(['completed', 'invoiced', 'overdue', 'sent', 'awaiting', 'paid']);
+
+  const qualifying = [];
+
+  for (const job of safeJobs) {
+    if (isExcludedJob(job)) continue;
+
+    // Determine whether work is done
+    const status = (job.status || job.jobStatus || '').toLowerCase();
+    const paymentStatus = (job.paymentStatus || '').toLowerCase();
+    const isDone =
+      isPaidJob(job) ||
+      DONE_STATUSES.has(status) ||
+      DONE_STATUSES.has(paymentStatus);
+
+    if (!isDone) continue;
+
+    const { quote, profit, margin } = getJobProfit(job, safeReceipts);
+    if (quote <= 0) continue;
+
+    // Date filter: use earned date for paid jobs, issued date otherwise
+    const d = isPaidJob(job) ? jobEarnedDate(job) : jobIssuedDate(job);
+    if (!d) continue;
+    if (d < start || d > end) continue;
+
+    qualifying.push({
+      id: job.id,
+      label: job.name || job.customer || job.customerName || 'Job',
+      customer: job.customer || job.customerName || job.name || null,
+      profit,
+      margin,
+    });
+  }
+
+  if (qualifying.length === 0) return { best: null, worst: null };
+
+  // Sort descending by profit
+  qualifying.sort((a, b) => b.profit - a.profit);
+
+  const best = qualifying[0];
+  const worst = qualifying.length > 1 ? qualifying[qualifying.length - 1] : null;
+
+  return { best, worst };
+}
+
 /**
  * Returns week-over-week margin trend.
  * Margin = (paid - cost) / paid * 100, per period.

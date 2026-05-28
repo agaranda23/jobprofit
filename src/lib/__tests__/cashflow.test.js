@@ -13,6 +13,8 @@ import {
   taxYearStart,
   taxYearLabel,
   getTaxYearSummary,
+  getJobProfit,
+  getBestWorstJobs,
 } from '../cashflow.js';
 
 // ─── Fixture builders ────────────────────────────────────────────────────────
@@ -1074,5 +1076,269 @@ describe('getTaxYearSummary', () => {
     const { paid, profit } = getTaxYearSummary(jobs, receipts, NOW);
     expect(paid).toBe(1000);
     expect(profit).toBe(850);
+  });
+});
+
+// ─── getJobProfit ─────────────────────────────────────────────────────────────
+
+describe('getJobProfit', () => {
+  // Reuse the cloud/legacy/receipt fixtures defined above the first describe.
+
+  it('returns zeros for null job (null-safe)', () => {
+    const result = getJobProfit(null, []);
+    expect(result).toEqual({ quote: 0, materials: 0, profit: 0, margin: 0 });
+  });
+
+  it('uses job.total as quote when present', () => {
+    const job = { id: 'j1', total: 1000, amount: 500 };
+    const { quote } = getJobProfit(job, []);
+    expect(quote).toBe(1000);
+  });
+
+  it('falls back to job.amount when job.total is absent', () => {
+    const job = { id: 'j1', amount: 800 };
+    const { quote } = getJobProfit(job, []);
+    expect(quote).toBe(800);
+  });
+
+  it('quote is 0 when both total and amount are absent', () => {
+    const job = { id: 'j1' };
+    const { quote, profit, margin } = getJobProfit(job, []);
+    expect(quote).toBe(0);
+    expect(profit).toBe(0);
+    expect(margin).toBe(0);
+  });
+
+  it('sums only receipts linked by job.id', () => {
+    const job = { id: 'j1', amount: 500 };
+    const receipts = [
+      { id: 'r1', jobId: 'j1', amount: 100 },
+      { id: 'r2', jobId: 'j2', amount: 999 }, // different job — excluded
+    ];
+    const { materials, profit } = getJobProfit(job, receipts);
+    expect(materials).toBe(100);
+    expect(profit).toBe(400);
+  });
+
+  it('also matches receipts linked by job.cloudId', () => {
+    const job = { id: 42, cloudId: 'uuid-cloud-abc', amount: 600 };
+    const receipts = [
+      { id: 'r1', jobId: 'uuid-cloud-abc', amount: 150 },
+    ];
+    const { materials, profit } = getJobProfit(job, receipts);
+    expect(materials).toBe(150);
+    expect(profit).toBe(450);
+  });
+
+  it('matches receipt jobId as number against string job.id (type-coercion)', () => {
+    const job = { id: '7', amount: 300 };
+    const receipts = [{ id: 'r1', jobId: 7, amount: 50 }]; // numeric jobId
+    const { materials } = getJobProfit(job, receipts);
+    expect(materials).toBe(50);
+  });
+
+  it('margin = Math.round(profit / quote * 100)', () => {
+    const job = { id: 'j1', amount: 1000 };
+    const receipts = [{ id: 'r1', jobId: 'j1', amount: 300 }];
+    const { margin } = getJobProfit(job, receipts);
+    // profit = 700, margin = round(700/1000*100) = 70
+    expect(margin).toBe(70);
+  });
+
+  it('margin is 0 when quote is 0 (no divide-by-zero)', () => {
+    const job = { id: 'j1', amount: 0 };
+    const { margin } = getJobProfit(job, []);
+    expect(margin).toBe(0);
+    expect(isNaN(margin)).toBe(false);
+  });
+
+  it('profit is negative when materials exceed quote', () => {
+    const job = { id: 'j1', amount: 200 };
+    const receipts = [{ id: 'r1', jobId: 'j1', amount: 350 }];
+    const { profit, margin } = getJobProfit(job, receipts);
+    expect(profit).toBe(-150);
+    expect(margin).toBeLessThan(0);
+  });
+
+  it('null-safe: non-array receipts treated as empty', () => {
+    const job = { id: 'j1', amount: 500 };
+    expect(() => getJobProfit(job, null)).not.toThrow();
+    expect(() => getJobProfit(job, undefined)).not.toThrow();
+    expect(getJobProfit(job, null).materials).toBe(0);
+  });
+
+  it('null cloudId on job does not match receipts with null jobId', () => {
+    const job = { id: 'j1', cloudId: null, amount: 400 };
+    const receipts = [{ id: 'r1', jobId: null, amount: 100 }];
+    const { materials } = getJobProfit(job, receipts);
+    expect(materials).toBe(0);
+  });
+});
+
+// ─── getBestWorstJobs ─────────────────────────────────────────────────────────
+
+describe('getBestWorstJobs', () => {
+  // Reference date: 2026-05-28 (tax year 2026/27 started 2026-04-06)
+  const NOW = new Date(2026, 4, 28); // 2026-05-28
+
+  function doneJob(overrides = {}) {
+    return {
+      id: overrides.id ?? 'j1',
+      name: overrides.name ?? 'Test Job',
+      amount: overrides.amount ?? 500,
+      paid: true,
+      date: overrides.date ?? '2026-05-10',
+      ...overrides,
+    };
+  }
+
+  it('returns both null when jobs array is empty', () => {
+    const result = getBestWorstJobs([], [], NOW);
+    expect(result.best).toBeNull();
+    expect(result.worst).toBeNull();
+  });
+
+  it('returns both null when jobs is not an array (null-safe)', () => {
+    expect(getBestWorstJobs(null, [], NOW)).toEqual({ best: null, worst: null });
+    expect(getBestWorstJobs(undefined, [], NOW)).toEqual({ best: null, worst: null });
+  });
+
+  it('returns best only (worst=null) when there is exactly one qualifying job', () => {
+    const jobs = [doneJob({ id: 'j1', amount: 400 })];
+    const result = getBestWorstJobs(jobs, [], NOW);
+    expect(result.best).not.toBeNull();
+    expect(result.worst).toBeNull();
+  });
+
+  it('best is highest-profit job, worst is lowest-profit job', () => {
+    const jobs = [
+      doneJob({ id: 'low',  name: 'Cheap Job',  amount: 200 }),
+      doneJob({ id: 'high', name: 'Big Job',    amount: 1000 }),
+      doneJob({ id: 'mid',  name: 'Middle Job', amount: 500 }),
+    ];
+    const result = getBestWorstJobs(jobs, [], NOW);
+    expect(result.best.id).toBe('high');
+    expect(result.worst.id).toBe('low');
+  });
+
+  it('receipts reduce profit for worst-job ranking', () => {
+    // j1: quote 500, materials 400 → profit 100
+    // j2: quote 500, materials 0   → profit 500
+    const jobs = [
+      doneJob({ id: 'j1', name: 'Heavy materials', amount: 500 }),
+      doneJob({ id: 'j2', name: 'No materials',    amount: 500 }),
+    ];
+    const receipts = [{ id: 'r1', jobId: 'j1', amount: 400 }];
+    const result = getBestWorstJobs(jobs, receipts, NOW);
+    expect(result.best.id).toBe('j2');
+    expect(result.worst.id).toBe('j1');
+    expect(result.worst.profit).toBe(100);
+  });
+
+  it('excludes lead-status jobs (not done yet)', () => {
+    const jobs = [
+      doneJob({ id: 'done', amount: 500 }),
+      { id: 'lead', name: 'Lead Job', amount: 400, status: 'lead', date: '2026-05-10' },
+    ];
+    const result = getBestWorstJobs(jobs, [], NOW);
+    expect(result.best.id).toBe('done');
+    expect(result.worst).toBeNull(); // only one qualifying job
+  });
+
+  it('excludes quoted-only jobs', () => {
+    const jobs = [
+      doneJob({ id: 'done', amount: 500 }),
+      { id: 'quoted', name: 'Quoted', amount: 400, status: 'quoted', date: '2026-05-10' },
+    ];
+    const result = getBestWorstJobs(jobs, [], NOW);
+    expect(result.worst).toBeNull();
+  });
+
+  it('excludes cancelled jobs', () => {
+    const jobs = [
+      doneJob({ id: 'done', amount: 500 }),
+      doneJob({ id: 'cancelled', amount: 1, status: 'cancelled' }),
+    ];
+    const result = getBestWorstJobs(jobs, [], NOW);
+    expect(result.best.id).toBe('done');
+    expect(result.worst).toBeNull();
+  });
+
+  it('includes jobs with invoiced status (work done, awaiting payment)', () => {
+    const jobs = [
+      { id: 'j1', name: 'Invoiced', amount: 800, paid: false, status: 'invoiced', date: '2026-05-10' },
+      doneJob({ id: 'j2', amount: 400 }),
+    ];
+    const result = getBestWorstJobs(jobs, [], NOW);
+    expect(result.best.id).toBe('j1');
+    expect(result.worst.id).toBe('j2');
+  });
+
+  it('includes jobs with awaiting paymentStatus', () => {
+    const jobs = [
+      { id: 'j1', name: 'Awaiting', amount: 600, paid: false, paymentStatus: 'awaiting', date: '2026-05-10' },
+      doneJob({ id: 'j2', amount: 300 }),
+    ];
+    const result = getBestWorstJobs(jobs, [], NOW);
+    expect(result.best.id).toBe('j1');
+  });
+
+  it('excludes jobs with quote=0 (no revenue means no ranking)', () => {
+    const jobs = [
+      doneJob({ id: 'has-quote', amount: 500 }),
+      doneJob({ id: 'no-quote',  amount: 0 }),
+    ];
+    const result = getBestWorstJobs(jobs, [], NOW);
+    expect(result.worst).toBeNull(); // only one qualifies
+  });
+
+  it('tax-year boundary: excludes job dated before 6 April', () => {
+    const jobs = [
+      doneJob({ id: 'this-year', amount: 500, date: '2026-04-10' }),
+      doneJob({ id: 'last-year', amount: 9999, date: '2026-04-05' }), // 5 April — last tax year
+    ];
+    const result = getBestWorstJobs(jobs, [], NOW);
+    expect(result.best.id).toBe('this-year');
+    expect(result.worst).toBeNull();
+  });
+
+  it('tax-year boundary: includes job dated exactly 6 April (start day inclusive)', () => {
+    const jobs = [
+      doneJob({ id: 'j1', amount: 300, date: '2026-04-06' }),
+      doneJob({ id: 'j2', amount: 100, date: '2026-05-01' }),
+    ];
+    const result = getBestWorstJobs(jobs, [], NOW);
+    expect(result.best.id).toBe('j1');
+    expect(result.worst.id).toBe('j2');
+  });
+
+  it('result entries include id, label, customer, profit, margin fields', () => {
+    const jobs = [doneJob({ id: 'j1', name: 'Loft conversion', customer: 'Alice', amount: 600 })];
+    const result = getBestWorstJobs(jobs, [], NOW);
+    const { best } = result;
+    expect(best).toHaveProperty('id');
+    expect(best).toHaveProperty('label');
+    expect(best).toHaveProperty('customer');
+    expect(best).toHaveProperty('profit');
+    expect(best).toHaveProperty('margin');
+    expect(best.label).toBe('Loft conversion');
+    expect(best.customer).toBe('Alice');
+  });
+
+  it('label falls back: name → customer → customerName → "Job"', () => {
+    const noNameJob = doneJob({ id: 'j1', amount: 300 });
+    delete noNameJob.name;
+    noNameJob.customer = 'Bob Plumbing';
+    const result = getBestWorstJobs([noNameJob], [], NOW);
+    expect(result.best.label).toBe('Bob Plumbing');
+  });
+
+  it('returns both null when all jobs are outside the tax year', () => {
+    const jobs = [
+      doneJob({ id: 'old', amount: 500, date: '2025-03-01' }), // last tax year
+    ];
+    const result = getBestWorstJobs(jobs, [], NOW);
+    expect(result.best).toBeNull();
+    expect(result.worst).toBeNull();
   });
 });
