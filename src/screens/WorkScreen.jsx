@@ -34,6 +34,17 @@ import SendInvoiceModal from '../components/SendInvoiceModal';
 import StageStrip from '../components/StageStrip';
 import { logTelemetry } from '../lib/telemetry';
 import { daysSinceInvoice } from '../lib/jobStatus';
+import {
+  computeTier,
+  daysPastDue,
+  buildChaseLink,
+  buildPaymentDetails,
+  recordChase,
+  clearChase,
+  isDoubleSendBlocked,
+  getChaseState,
+  lastChasedLabel,
+} from '../lib/chaseLadder';
 
 const STORAGE_KEY = 'jp.workView';
 
@@ -149,16 +160,52 @@ function calcRiskFigures(jobs) {
 }
 
 /**
- * Open WhatsApp share-sheet with a chase message for a specific job.
- * Used by both Overdue card Advance Button and the money-at-risk strip Chase button.
+ * Open WhatsApp share-sheet with a tiered chase message for a specific job.
+ * Tier is derived from days-past-due-date (chaseLadder). Records the chase on open.
+ * Returns false when blocked by 48h double-send guard.
+ *
+ * @param {object} job
+ * @param {object|null} biz  — biz settings from WorkScreen props (may be null)
+ * @returns {boolean} true if the share-sheet was opened
  */
-function chaseJob(job) {
-  const customer = job.customer || job.name || 'your customer';
-  const amount = '£' + formatAmount(job.total ?? job.amount);
-  const msg = encodeURIComponent(
-    `Hi ${customer}, just a reminder that your invoice for ${amount} is overdue. Please let me know when payment is on the way. Thanks.`
-  );
-  window.open(`https://wa.me/?text=${msg}`, '_blank', 'noopener');
+function chaseJobTiered(job, biz = null) {
+  if (isDoubleSendBlocked(job.id)) return false;
+
+  const phone = job.customerPhone || job.phone || job.mobile || '';
+  const outstanding = Number(job.total ?? job.amount ?? 0) || 0;
+  const tier = computeTier(job);
+  const daysOverdue = Math.max(0, daysPastDue(job));
+  const paymentDetails = buildPaymentDetails(biz);
+
+  const link = buildChaseLink({
+    phone,
+    customerName: job.customer || job.name || '',
+    amount: '£' + formatAmount(outstanding),
+    jobSummary: job.summary || '',
+    dueDate: job.invoiceDueDate || null,
+    daysOverdue,
+    tier,
+    amountPaid: 0,
+    paymentDetails,
+    businessName: biz?.name || '',
+    isB2B: false,
+  });
+
+  // link is null when there's no phone — open wa.me without a recipient so the
+  // user can pick the contact manually in WhatsApp.
+  const finalUrl = link ?? `https://wa.me/?text=${encodeURIComponent(
+    [
+      `Hi ${job.customer || job.name || 'there'},`,
+      `just chasing the invoice for £${formatAmount(outstanding)}`,
+      daysOverdue > 0 ? `— now ${daysOverdue} days overdue.` : '.',
+      paymentDetails || '',
+      biz?.name || '',
+    ].filter(Boolean).join(' ')
+  )}`;
+
+  window.open(finalUrl, '_blank', 'noopener');
+  recordChase(job.id);
+  return true;
 }
 
 // StageStrip lives in src/components/StageStrip.jsx (extracted because
@@ -310,11 +357,11 @@ function StageChipDropdown({ job, currentStage, onUpdateJob, onSendInvoice, onSe
   );
 }
 
-/** Stage-appropriate CTA config — wired to real WorkScreen handlers. */
-function getStageCTA(stage, job, { onSendInvoice, onUpdateJob, onNewJob }) {
-  const customer = job.customer || job.name || 'your customer';
-  const amount = '£' + formatAmount(job.total ?? job.amount);
-
+/**
+ * Stage-appropriate CTA config — wired to real WorkScreen handlers.
+ * Invoiced + Overdue use chaseLadder for tiered WhatsApp messages.
+ */
+function getStageCTA(stage, job, { onSendInvoice, onUpdateJob, onNewJob, biz }) {
   switch (stage) {
     case 'Lead':
       return {
@@ -342,31 +389,27 @@ function getStageCTA(stage, job, { onSendInvoice, onUpdateJob, onNewJob }) {
         action: () => { if (onSendInvoice) onSendInvoice(job); },
       };
 
-    case 'Invoiced':
+    case 'Invoiced': {
+      const blocked = isDoubleSendBlocked(job.id);
       return {
-        label: 'Chase payment',
+        label: blocked ? 'Chased today' : 'Chase payment',
         mod: 'ghost',
         phoneBtn: false,
-        action: () => {
-          const msg = encodeURIComponent(
-            `Hi ${customer}, just a friendly reminder that your invoice for ${amount} is due. Please let me know when payment is on the way. Thanks.`
-          );
-          window.open(`https://wa.me/?text=${msg}`, '_blank', 'noopener');
-        },
+        disabled: blocked,
+        action: () => { if (!blocked) chaseJobTiered(job, biz); },
       };
+    }
 
-    case 'Overdue':
+    case 'Overdue': {
+      const blocked = isDoubleSendBlocked(job.id);
       return {
-        label: 'Chase payment →',
-        mod: 'urgent',
-        phoneBtn: true,
-        action: () => {
-          const msg = encodeURIComponent(
-            `Hi ${customer}, your invoice for ${amount} is overdue. Please arrange payment as soon as possible. Thanks.`
-          );
-          window.open(`https://wa.me/?text=${msg}`, '_blank', 'noopener');
-        },
+        label: blocked ? 'Chased today' : 'Chase payment →',
+        mod: blocked ? 'muted' : 'urgent',
+        phoneBtn: !blocked,
+        disabled: blocked,
+        action: () => { if (!blocked) chaseJobTiered(job, biz); },
       };
+    }
 
     case 'Paid':
       return {
@@ -440,7 +483,7 @@ function deriveMoneySub(job, stage) {
  * JobTile — new tile design with stage chip, coloured left-rail, and at-a-glance signals.
  * Replaces the old JobCard. Card body tap opens JobDetailDrawer via onSelect.
  */
-function JobTile({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob }) {
+function JobTile({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob, biz }) {
   const stage = deriveDisplayStatus(job);
   const isPaid = stage === 'Paid';
 
@@ -454,8 +497,12 @@ function JobTile({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob }) {
   const formattedAmount = amount > 0 ? '£' + formatAmount(amount) : '—';
   const amountMuted = stage === 'Lead' || amount === 0;
 
-  const cta = getStageCTA(stage, job, { onSendInvoice, onUpdateJob, onNewJob });
+  const cta = getStageCTA(stage, job, { onSendInvoice, onUpdateJob, onNewJob, biz });
   const stageMeta = STAGE_META[stage] || STAGE_META.Lead;
+
+  // "Last chased" chip — shown on Invoiced and Overdue tiles after a chase is recorded
+  const chaseState = (stage === 'Invoiced' || stage === 'Overdue') ? getChaseState(job.id) : null;
+  const chasedChip = lastChasedLabel(chaseState);
 
   return (
     <li
@@ -540,6 +587,8 @@ function JobTile({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob }) {
             type="button"
             className={`jt-cta${cta.mod ? ` jt-cta--${cta.mod}` : ''}`}
             onClick={cta.action}
+            disabled={!!cta.disabled}
+            aria-disabled={!!cta.disabled}
           >
             {cta.label}
           </button>
@@ -557,6 +606,9 @@ function JobTile({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob }) {
                 <path d="M4 3l2-1 2 3-1.5 1.5a8 8 0 0 0 4 4L12 9l3 2-1 2a2 2 0 0 1-2 1A11 11 0 0 1 3 5a2 2 0 0 1 1-2z"/>
               </svg>
             </button>
+          )}
+          {chasedChip && (
+            <span className="jt-chased-chip">{chasedChip}</span>
           )}
         </div>
       )}
@@ -586,7 +638,7 @@ function EmptyState({ stage }) {
 
 // ── JobsList subview ──────────────────────────────────────────────────────────
 
-function JobsList({ jobs, selectedStage, showAll, onJobSelect, onSendInvoice, onUpdateJob, onNewJob }) {
+function JobsList({ jobs, selectedStage, showAll, onJobSelect, onSendInvoice, onUpdateJob, onNewJob, biz }) {
   const filtered = showAll
     ? jobs
     : jobs.filter(j => deriveDisplayStatus(j) === selectedStage);
@@ -605,6 +657,7 @@ function JobsList({ jobs, selectedStage, showAll, onJobSelect, onSendInvoice, on
               onSendInvoice={onSendInvoice}
               onUpdateJob={onUpdateJob}
               onNewJob={onNewJob}
+              biz={biz}
             />
           ))}
         </ul>
@@ -626,6 +679,8 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
   const [toast, setToast] = useState('');
   // addJobOpen drives the inline AddJobModal — same pattern as TodayScreen.
   const [addJobOpen, setAddJobOpen] = useState(false);
+  // chaseStepIndex — tracks which job to nudge next in the batch-chase flow
+  const [chaseStepIndex, setChaseStepIndex] = useState(0);
 
   const switchSubview = useCallback((v) => {
     logTelemetry('work_subview', { subview: v });
@@ -661,9 +716,25 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
   const riskFigures = calcRiskFigures(jobs);
   const oldestOverdue = riskFigures.overdueJobs[0] ?? null;
 
+  // Batch nudge: overdue jobs that are NOT blocked by the 48h guard
+  const chasableJobs = riskFigures.overdueJobs.filter(j => !isDoubleSendBlocked(j.id));
+
   const handleChase = () => {
     if (!oldestOverdue) return;
-    chaseJob(oldestOverdue);
+    chaseJobTiered(oldestOverdue, biz);
+  };
+
+  // Batch chase: step through chasable jobs one tap at a time.
+  // Each tap opens the correctly-tiered WhatsApp message; the human fires the send.
+  const handleBatchChaseStep = () => {
+    const safeIndex = chaseStepIndex % Math.max(chasableJobs.length, 1);
+    const job = chasableJobs[safeIndex];
+    if (!job) return;
+    const opened = chaseJobTiered(job, biz);
+    if (opened) {
+      setChaseStepIndex(safeIndex + 1);
+      showToast(`Chased ${job.customer || job.name || 'Invoice'}`);
+    }
   };
 
   const handleJobSave = (job) => {
@@ -726,6 +797,26 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
         formatAmount={formatAmount}
       />
 
+      {/* Batch-chase nudge bar — shown on Overdue stage when there are un-chased jobs.
+           Each tap opens the next job's correctly-tiered WhatsApp message one at a time.
+           The app never sends autonomously — the human taps send in WhatsApp. */}
+      {selectedStage === 'Overdue' && !showAll && chasableJobs.length > 0 && (
+        <div className="chase-nudge-bar" role="region" aria-label="Chase nudge">
+          <span className="chase-nudge-text">
+            {chasableJobs.length === 1
+              ? '1 invoice needs chasing'
+              : `${chasableJobs.length} invoices need chasing`}
+          </span>
+          <button
+            type="button"
+            className="chase-nudge-btn"
+            onClick={handleBatchChaseStep}
+          >
+            Chase next →
+          </button>
+        </div>
+      )}
+
       {/* Segmented control row + Show all toggle */}
       <div className="work-controls-row">
         <div className="work-segments" role="group" aria-label="Switch between list and calendar view">
@@ -763,6 +854,7 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
           onSendInvoice={setInvoiceJob}
           onUpdateJob={onUpdateJob}
           onNewJob={onNewJob}
+          biz={biz}
         />
       ) : (
         <WorkCalendar jobs={jobs} onNewJobOnDate={onNewJob} />

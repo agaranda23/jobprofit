@@ -5649,3 +5649,57 @@ input[type=number] { -moz-appearance: textfield; }
 }
 .jt-icon-btn:hover { color: var(--text); }
 .jt-icon-btn svg { display: block; }
+
+/* Disabled Chase CTA state — shown when 48h double-send guard is active */
+.jt-cta:disabled,
+.jt-cta[aria-disabled="true"] {
+  opacity: 0.45;
+  cursor: default;
+  pointer-events: none;
+}
+
+/* "Last chased" chip — appears below CTA row on Invoiced/Overdue tiles after a chase */
+.jt-chased-chip {
+  flex: 0 0 100%;
+  font-size: 11px;
+  color: var(--text-dim);
+  text-align: right;
+  margin-top: -2px;
+  padding-right: 2px;
+}
+
+/* ── Chase nudge bar ──────────────────────────────────────────────────────────
+   Shown at the top of the Overdue stage list when there are unchased invoices.
+   Mobile-first: full-width bar, touch target on the button is ≥44px.         */
+.chase-nudge-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: rgba(229, 72, 77, 0.10);
+  border: 1px solid rgba(229, 72, 77, 0.25);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin: 0 16px 12px;
+}
+.chase-nudge-text {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--jp-rose, #E5484D);
+  flex: 1 1 auto;
+}
+.chase-nudge-btn {
+  flex: 0 0 auto;
+  background: var(--jp-rose, #E5484D);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  min-height: 44px;
+  white-space: nowrap;
+}
+.chase-nudge-btn:active { opacity: 0.8; }

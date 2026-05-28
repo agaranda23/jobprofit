@@ -9,8 +9,12 @@ import EditFieldModal from './EditFieldModal';
 import {
   getChaseState,
   recordChase,
+  clearChase,
   buildChaseLink,
   computeTier,
+  daysPastDue,
+  buildPaymentDetails,
+  isDoubleSendBlocked,
   lastChasedLabel,
 } from '../lib/chaseLadder';
 import { computeBalance, computeAmountPaid, editPayment, deletePayment } from '../lib/payments';
@@ -1149,20 +1153,29 @@ export default function JobDetailDrawer({
   const showResendInvoice = status !== 'Paid' && invoiceAlreadySent;
 
   const chaseState = getChaseState(job.id);
-  const tier = computeTier(chaseState);
+  const tier = computeTier(job);
   const chasedLabel = lastChasedLabel(chaseState);
+  const chaseBlocked = isDoubleSendBlocked(job.id);
+  const daysOverdue = Math.max(0, daysPastDue(job));
 
   const handleChase = () => {
+    if (chaseBlocked) return;
     const phone = resolvePhone(job);
     const outstanding = computeBalance(job);
     const amountPaid = computeAmountPaid(job);
+    const paymentDetails = buildPaymentDetails(biz);
     const link = buildChaseLink({
       phone,
-      name: job.customer || job.name || '',
-      amountOutstanding: gbp(outstanding),
-      daysSinceDue: daysSinceDue(job),
+      customerName: job.customer || job.name || '',
+      amount: gbp(outstanding),
+      jobSummary: job.summary || '',
+      dueDate: job.invoiceDueDate || null,
+      daysOverdue,
       tier,
       amountPaid,
+      paymentDetails,
+      businessName: biz?.name || '',
+      isB2B: false,
     });
     if (!link) return;
     recordChase(job.id);
@@ -1763,6 +1776,7 @@ export default function JobDetailDrawer({
                   method: 'unknown',
                   note: '',
                 });
+                clearChase(job.id);
                 showFlash('Job marked paid');
               }
             }}
@@ -1773,10 +1787,12 @@ export default function JobDetailDrawer({
             <div className="job-detail-cta-row">
               <button
                 type="button"
-                className={primaryCtaClass}
-                onClick={primaryCtaHandler}
+                className={`${primaryCtaClass}${primaryCtaLabel === 'Chase via WhatsApp' && chaseBlocked ? ' btn-primary--disabled' : ''}`}
+                onClick={chaseBlocked && primaryCtaLabel === 'Chase via WhatsApp' ? undefined : primaryCtaHandler}
+                disabled={primaryCtaLabel === 'Chase via WhatsApp' && chaseBlocked}
+                aria-disabled={primaryCtaLabel === 'Chase via WhatsApp' && chaseBlocked}
               >
-                {primaryCtaLabel}
+                {primaryCtaLabel === 'Chase via WhatsApp' && chaseBlocked ? 'Chased today' : primaryCtaLabel}
               </button>
               {primaryCtaLabel === 'Chase via WhatsApp' && chasedLabel && (
                 <span className="job-detail-chased-label">{chasedLabel}</span>
