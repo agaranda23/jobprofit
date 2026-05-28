@@ -3645,6 +3645,179 @@ input[type=number] { -moz-appearance: textfield; }
   line-height: 1;
 }
 
+/* ── True Profit card ─────────────────────────────────────────────────────── */
+.money-true-profit {
+  /* extends .money-card */
+}
+.money-true-profit__label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 8px;
+}
+.money-true-profit__figure {
+  font-size: 36px;
+  font-weight: 800;
+  color: var(--text);
+  letter-spacing: -0.03em;
+  line-height: 1;
+  margin-bottom: 6px;
+}
+.money-true-profit--negative .money-true-profit__figure {
+  color: #ef4444;
+}
+.money-true-profit__sub {
+  font-size: 13px;
+  color: var(--text-dim);
+  font-weight: 500;
+  margin: 0;
+}
+.money-true-profit--empty .money-true-profit__hint {
+  font-size: 14px;
+  color: var(--text-dim);
+  margin: 0;
+}
+
+/* ── Monthly Running Costs (overheads) — SettingsScreen ──────────────────── */
+.overheads-section {
+  padding: 8px 0 4px;
+}
+.overheads-summary {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+  padding: 0 16px 10px;
+}
+.overheads-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.overheads-item:last-of-type { border-bottom: none; }
+.overheads-item--inactive {
+  opacity: 0.5;
+}
+.overheads-item--editing {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+}
+.overheads-item-main {
+  flex: 1;
+  min-width: 0;
+}
+.overheads-item-name {
+  display: block;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.overheads-item-category {
+  display: block;
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+.overheads-item-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.overheads-item-amount {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+}
+.overheads-item-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+.overheads-toggle {
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  background: none;
+}
+.overheads-toggle--on { color: #16a34a; border-color: #16a34a; }
+.overheads-toggle--off { color: var(--text-dim); }
+.overheads-btn {
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  background: none;
+  color: var(--text-dim);
+  transition: background 0.15s;
+}
+.overheads-btn:disabled { opacity: 0.5; cursor: default; }
+.overheads-btn--save { color: var(--accent); border-color: var(--accent); }
+.overheads-btn--delete { color: var(--jp-rose, #ef4444); border-color: transparent; font-size: 16px; padding: 2px 8px; }
+.overheads-btn--edit { color: var(--text-dim); }
+.overheads-btn--cancel { color: var(--text-dim); }
+.overheads-input {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 14px;
+  background: var(--surface);
+  color: var(--text);
+  box-sizing: border-box;
+}
+.overheads-input--amount { max-width: 120px; width: auto; }
+.overheads-select {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 14px;
+  background: var(--surface);
+  color: var(--text);
+  box-sizing: border-box;
+}
+.overheads-add-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 16px;
+}
+.overheads-add-btn {
+  display: block;
+  width: 100%;
+  padding: 12px 16px;
+  background: none;
+  border: none;
+  border-top: 1px solid var(--border);
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--accent);
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.overheads-add-btn:hover { background: var(--surface-2); }
+
 /* ── JobDetailDrawer (bottom sheet) ──────────────────────────────────────── */
 .job-detail-sheet {
   position: fixed;

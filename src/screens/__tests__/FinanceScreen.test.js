@@ -26,6 +26,7 @@ import {
   getCashflowByMonth,
   buildDateRange,
   monthKey,
+  getOverheadTotal,
 } from '../../lib/cashflow';
 
 // ─── Shared test fixtures ─────────────────────────────────────────────────────
@@ -406,5 +407,59 @@ describe('Tax Set-Aside card calculation', () => {
   it('handles a fractional pct result correctly (no negative)', () => {
     // Odd pct like 17 — result is just a multiplication, no rounding here
     expect(taxSetAside(100, 17)).toBeCloseTo(17, 5);
+  });
+});
+
+// ─── True Profit card — calculation via getOverheadTotal ─────────────────────
+// True Profit = getMonthSummary(...).profit - getOverheadTotal(overheads)
+// These tests exercise the same formula the FinanceScreen True Profit card uses.
+
+describe('True Profit card calculation', () => {
+  it('true profit = monthly profit minus active overheads total', () => {
+    const jobs = [paidJob({ amount: 1200, date: '2026-05-10' })];
+    const receipts = [receipt({ amount: 200, date: '2026-05-12' })];
+    const overheads = [
+      { id: 'oh1', amount: 400, is_active: true },
+      { id: 'oh2', amount: 100, is_active: true },
+    ];
+    const { profit } = getMonthSummary(jobs, receipts, { month: '2026-05' });
+    // profit = 1200 - 200 = 1000
+    expect(profit).toBe(1000);
+    const trueProfit = profit - getOverheadTotal(overheads);
+    // trueProfit = 1000 - 500 = 500
+    expect(trueProfit).toBe(500);
+  });
+
+  it('true profit can be negative', () => {
+    const jobs = [paidJob({ amount: 300, date: '2026-05-10' })];
+    const overheads = [{ id: 'oh1', amount: 500, is_active: true }];
+    const { profit } = getMonthSummary(jobs, [], { month: '2026-05' });
+    const trueProfit = profit - getOverheadTotal(overheads);
+    expect(trueProfit).toBe(-200);
+    expect(trueProfit).toBeLessThan(0);
+  });
+
+  it('inactive overheads do not reduce true profit', () => {
+    const jobs = [paidJob({ amount: 800, date: '2026-05-10' })];
+    const overheads = [
+      { id: 'oh1', amount: 300, is_active: true },
+      { id: 'oh2', amount: 9999, is_active: false },
+    ];
+    const { profit } = getMonthSummary(jobs, [], { month: '2026-05' });
+    const trueProfit = profit - getOverheadTotal(overheads);
+    // Only oh1 counts: 800 - 300 = 500
+    expect(trueProfit).toBe(500);
+  });
+
+  it('empty overheads list means true profit equals materials profit', () => {
+    const jobs = [paidJob({ amount: 600, date: '2026-05-10' })];
+    const { profit } = getMonthSummary(jobs, [], { month: '2026-05' });
+    expect(profit - getOverheadTotal([])).toBe(profit);
+  });
+
+  it('null overheads list is null-safe (treated as empty)', () => {
+    const jobs = [paidJob({ amount: 600, date: '2026-05-10' })];
+    const { profit } = getMonthSummary(jobs, [], { month: '2026-05' });
+    expect(profit - getOverheadTotal(null)).toBe(profit);
   });
 });

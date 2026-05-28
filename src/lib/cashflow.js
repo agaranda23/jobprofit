@@ -530,6 +530,27 @@ export function getProfitPerHour(jobs, { hourlyRate, weeks = 1 } = {}, now = new
 }
 
 /**
+ * Returns the total monthly overhead spend for active items.
+ *
+ * An item is active when `is_active` is not explicitly `false`
+ * (undefined / null / true all count as active — opt-out model).
+ *
+ * Non-numeric amounts are ignored (treated as 0).
+ * Non-array input returns 0 rather than throwing.
+ *
+ * @param {Array<{ amount: number, is_active?: boolean }>} overheads
+ * @returns {number}
+ */
+export function getOverheadTotal(overheads) {
+  if (!Array.isArray(overheads)) return 0;
+  return overheads.reduce((sum, item) => {
+    if (!item || item.is_active === false) return sum;
+    const n = Number(item.amount);
+    return sum + (isNaN(n) ? 0 : n);
+  }, 0);
+}
+
+/**
  * Returns week-over-week margin trend.
  * Margin = (paid - cost) / paid * 100, per period.
  * Returns zeros and 'flat' when no paid jobs exist.
