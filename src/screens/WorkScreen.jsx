@@ -231,12 +231,15 @@ const STAGE_META = {
 };
 
 /**
- * StageChipDropdown — coloured chip that opens a condensed restage menu.
+ * StageChipDropdown — read-only stage label + ⋯ overflow trigger.
  *
- * Desktop (>640px): anchored dropdown with max-height + flip-up-if-clipped.
+ * The stage label (coloured pill) is now purely informational — no click handler.
+ * The ⋯ button (top-right of header) is the sole menu trigger.
+ *
+ * Desktop (>640px): anchored dropdown beneath the ⋯ button.
  * Mobile (≤640px):  bottom-sheet over a dim backdrop — never buries tiles.
  *
- * "Move to" is now a single row of 6 colour swatches (one-tap restage).
+ * "Move to" is a single row of 6 colour swatches (one-tap restage).
  * "More actions" is 4 compact chips below a divider.
  * All moveToStage() mapping logic is unchanged.
  */
@@ -374,8 +377,7 @@ function StageChipDropdown({ job, currentStage, onUpdateJob, onSendInvoice, onSe
 
   return (
     <>
-      {/* Dim backdrop for mobile bottom-sheet — rendered in document flow via portal-like
-          positioning; tapping it closes the menu */}
+      {/* Dim backdrop for mobile bottom-sheet — tapping it closes the menu */}
       {open && (
         <div
           className="jt-backdrop"
@@ -384,50 +386,62 @@ function StageChipDropdown({ job, currentStage, onUpdateJob, onSendInvoice, onSe
         />
       )}
 
-      <div
-        ref={chipRef}
-        className={`jt-chip jt-chip--${currentStage.toLowerCase()}${open ? ' jt-chip--open' : ''}`}
-        style={{ '--chip-hue': meta.hue, '--chip-fill': meta.fill, '--chip-ink': ink }}
-        onClick={e => { e.stopPropagation(); setOpen(v => !v); }}
-        role="button"
-        aria-haspopup="true"
-        aria-expanded={open}
-        tabIndex={0}
-        onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(v => !v); } }}
-      >
-        <span className="jt-chip-label">{currentStage}</span>
-        <svg className="jt-chip-caret" width="10" height="10" viewBox="0 0 10 10" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
-          <path d="M2 4l3 3 3-3"/>
-        </svg>
+      {/* Wrapper holds the read-only label + ⋯ trigger; gives the dropdown its anchor */}
+      <div ref={chipRef} className="jt-chip-wrapper">
+        {/* Read-only stage label — coloured pill, no interaction */}
+        <span
+          className={`jt-stage-label jt-stage-label--${currentStage.toLowerCase()}`}
+          style={{ '--chip-hue': meta.hue, '--chip-fill': meta.fill, '--chip-ink': ink }}
+          aria-label={`Stage: ${currentStage}`}
+        >
+          {currentStage}
+        </span>
+
+        {/* ⋯ overflow button — sole menu trigger */}
+        <button
+          type="button"
+          className="jt-dots"
+          aria-label="Job options"
+          aria-haspopup="true"
+          aria-expanded={open}
+          onClick={e => { e.stopPropagation(); setOpen(v => !v); }}
+          onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(v => !v); } }}
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+            <circle cx="8" cy="3" r="1.4"/>
+            <circle cx="8" cy="8" r="1.4"/>
+            <circle cx="8" cy="13" r="1.4"/>
+          </svg>
+        </button>
+
+        {open && (
+          <>
+            {/* Desktop anchored dropdown — hidden on mobile via CSS.
+                ref={menuRef} used by click-outside guard on desktop. */}
+            <div
+              ref={menuRef}
+              className="jt-menu jt-menu--dropdown"
+              role="menu"
+              onClick={e => e.stopPropagation()}
+            >
+              {menuContent}
+            </div>
+
+            {/* Mobile bottom-sheet — hidden on desktop via CSS.
+                Backdrop (.jt-backdrop) handles the outside-tap close on mobile
+                so no separate ref needed here. */}
+            <div
+              className="jt-menu jt-menu--sheet"
+              role="menu"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="jt-sheet-grab" aria-hidden="true" />
+              <div className="jt-sheet-title">Move {customerLabel} to</div>
+              {menuContent}
+            </div>
+          </>
+        )}
       </div>
-
-      {open && (
-        <>
-          {/* Desktop anchored dropdown — hidden on mobile via CSS.
-              ref={menuRef} used by click-outside guard on desktop. */}
-          <div
-            ref={menuRef}
-            className="jt-menu jt-menu--dropdown"
-            role="menu"
-            onClick={e => e.stopPropagation()}
-          >
-            {menuContent}
-          </div>
-
-          {/* Mobile bottom-sheet — hidden on desktop via CSS.
-              Backdrop (.jt-backdrop) handles the outside-tap close on mobile
-              so no separate ref needed here. */}
-          <div
-            className="jt-menu jt-menu--sheet"
-            role="menu"
-            onClick={e => e.stopPropagation()}
-          >
-            <div className="jt-sheet-grab" aria-hidden="true" />
-            <div className="jt-sheet-title">Move {customerLabel} to</div>
-            {menuContent}
-          </div>
-        </>
-      )}
     </>
   );
 }
@@ -557,7 +571,7 @@ function deriveMoneySub(job, stage) {
 /**
  * JobTile — slim 3-row tile (PRD redesign 2026-05-28).
  *
- * Row 1 (header):  avatar (24px) · customer name · stage chip (smaller)
+ * Row 1 (header):  avatar (24px) · customer name · stage label (read-only) · ⋯ button
  * Row 2 (title+£): job summary truncated, £amount baseline-aligned right
  * Row 3 (signals): time signal · money state · photo/note counts (· separated)
  * CTA row:         full-width, stage-aware, ≥44px, unchanged logic
@@ -610,7 +624,7 @@ function JobTile({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob, biz }) {
       onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') onSelect?.(job); }}
       aria-label={`View details for ${job.customer || job.name || 'Unnamed job'}`}
     >
-      {/* Row 1: avatar + customer name + stage chip */}
+      {/* Row 1: avatar + customer name + [stage label (read-only) + ⋯ trigger] */}
       <div className="jt-head" onClick={e => e.stopPropagation()}>
         <span className="jt-avatar">{initial}</span>
         <span className="jt-customer">{job.customer || job.name || 'Unnamed job'}</span>
