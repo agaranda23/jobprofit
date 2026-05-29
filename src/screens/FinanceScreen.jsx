@@ -35,6 +35,7 @@ import { isPro } from '../lib/plan';
 import HeaderAvatar from '../components/HeaderAvatar';
 import CashflowChart from '../components/CashflowChart';
 import ProGate from '../components/ProGate';
+import { startCheckout } from '../lib/billing';
 import {
   getCashflowByMonth,
   getMonthSummary,
@@ -52,12 +53,8 @@ import {
 // One nudge max — priority: margin drop (or gain) first.
 const MARGIN_NUDGE_THRESHOLD_PCT = 10;
 
-// Upgrade fallback: Tally waitlist. Replace with Stripe checkout when wired.
-// Same URL used by SendInvoiceModal paywall view — single source of truth.
-const PRO_UPGRADE_URL = 'https://tally.so/r/jobprofit-pro-waitlist';
-
 function openUpgrade() {
-  window.open(PRO_UPGRADE_URL, '_blank', 'noopener');
+  startCheckout().catch(() => {});
 }
 
 /**

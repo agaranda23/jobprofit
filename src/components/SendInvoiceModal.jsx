@@ -26,6 +26,7 @@ import { getMissingInvoiceFields } from '../lib/bizValidation';
 import { canSendInvoice, incrementSendCount } from '../lib/plan';
 import { supabase } from '../lib/supabase';
 import { logTelemetry } from '../lib/telemetry';
+import { startCheckout } from '../lib/billing';
 
 // Returns true when this browser supports navigator.share() with a files array.
 // Stored as a module-level constant so we don't recalculate on every render.
@@ -68,6 +69,7 @@ export default function SendInvoiceModal({
   });
   const [busy, setBusy] = useState(false);
   const [view, setView] = useState('send'); // 'send' | 'paywall'
+  const [checkoutError, setCheckoutError] = useState(null);
 
   const isFirstSend = job.status !== 'invoice_sent';
   const missing = getMissingInvoiceFields(biz, profile);
@@ -186,15 +188,26 @@ export default function SendInvoiceModal({
             <div className="modal-price">£12<span className="modal-price-period">/month</span></div>
             <div className="modal-price-sub">cancel anytime · early access price</div>
           </div>
-          {/* Waitlist URL is a placeholder — replace with Stripe checkout when wired. */}
-          <a
-            href="https://tally.so/r/jobprofit-pro-waitlist"
-            target="_blank"
-            rel="noopener noreferrer"
+          {checkoutError && (
+            <p className="modal-sheet-error" role="alert">{checkoutError}</p>
+          )}
+          <button
+            type="button"
             className="btn-primary modal-sheet-btn"
+            disabled={busy}
+            onClick={async () => {
+              setBusy(true);
+              setCheckoutError(null);
+              const { error } = await startCheckout();
+              if (error) {
+                setCheckoutError(error);
+                setBusy(false);
+              }
+              // On success startCheckout redirects — nothing else runs
+            }}
           >
-            Get Pro
-          </a>
+            {busy ? 'Loading…' : 'Get Pro'}
+          </button>
           {/* "Not yet" returns to send view, not to job detail */}
           <button
             className="btn-ghost modal-sheet-btn"
