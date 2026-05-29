@@ -113,6 +113,7 @@ function deriveDisplayStatus(job) {
   if (job.status === 'active') return 'On';
   if (job.status === 'complete') return 'On';
   if (job.status === 'invoice_sent') {
+    if (job.overdue === true) return 'Overdue'; // manual override wins over date-driven check
     if (isOverdue(job)) return 'Overdue';
     return 'Invoiced';
   }
@@ -257,7 +258,7 @@ const STAGE_META = {
  * "More actions" is 4 compact chips below a divider.
  * All moveToStage() mapping logic is unchanged.
  */
-function StageChipDropdown({ job, currentStage, onUpdateJob, onSendInvoice, onSelect, onOpenJob, onCopyJob, onArchiveJob, onDeleteJob }) {
+function StageChipDropdown({ job, currentStage, onUpdateJob, onSendInvoice, onSelect, onOpenJob, onCopyJob, onArchiveJob, onDeleteJob, onShowToast }) {
   const [open, setOpen] = useState(false);
   const chipRef = useRef(null);
   const menuRef = useRef(null);
@@ -292,11 +293,19 @@ function StageChipDropdown({ job, currentStage, onUpdateJob, onSendInvoice, onSe
   function moveToStage(stage) {
     setOpen(false);
     if (!onUpdateJob) return;
-    // Guard: a price is required to enter any money-claiming stage,
+    // Guard 1: a price is required to enter any money-claiming stage,
     // regardless of source. On is NOT money-claiming — a job can move
     // to On without a price (work started before pricing was agreed).
     if (requiresPriceForStage(job, stage)) {
       onOpenJob?.(job, { intent: 'price', targetStage: stage });
+      return;
+    }
+    // Guard 2: Overdue is only reachable from Invoiced. Moving to Overdue from
+    // any other stage means no invoice has been sent yet, so the stage is
+    // nonsensical. Swatch is kept tappable (not pointer-events:none) so this
+    // toast fires and teaches the rule.
+    if (stage === 'Overdue' && currentStage !== 'Invoiced') {
+      onShowToast?.('Send the invoice first — Overdue is only for invoiced jobs');
       return;
     }
     // stagePatch is the single source of truth (exported from jobStatus.js).
@@ -336,16 +345,20 @@ function StageChipDropdown({ job, currentStage, onUpdateJob, onSendInvoice, onSe
         {STAGES.map(s => {
           const sMeta = STAGE_META[s];
           const isCurrent = s === currentStage;
+          // Overdue swatch is visually disabled when source stage is not Invoiced —
+          // kept tappable so the guard toast fires and teaches the user the rule.
+          const isOverdueBlocked = s === 'Overdue' && currentStage !== 'Invoiced';
           // Short display labels to fit 6 swatches at 375px
           const shortLabel = { Lead: 'Lead', Quoted: 'Quote', On: 'On', Invoiced: 'Inv', Overdue: 'Over', Paid: 'Paid' }[s] ?? s;
           return (
             <button
               key={s}
               type="button"
-              className={`jt-swatch${isCurrent ? ' jt-swatch--current' : ''}`}
-              style={{ '--sw-hue': sMeta.hue }}
+              className={`jt-swatch${isCurrent ? ' jt-swatch--current' : ''}${isOverdueBlocked ? ' jt-swatch--disabled' : ''}`}
+              style={{ '--sw-hue': sMeta.hue, ...(isOverdueBlocked ? { opacity: 0.35 } : {}) }}
               role="menuitem"
               aria-pressed={isCurrent}
+              aria-disabled={isOverdueBlocked || undefined}
               onClick={() => moveToStage(s)}
             >
               <span className="jt-swatch-dot">
@@ -591,7 +604,7 @@ function deriveMoneySub(job, stage) {
  * Customer demoted to secondary line; falls back: if summary empty, customer
  * becomes the primary label so the tile is never a bare "Untitled job".
  */
-function JobTile({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJob, onCopyJob, onArchiveJob, onDeleteJob, biz }) {
+function JobTile({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJob, onCopyJob, onArchiveJob, onDeleteJob, biz, onShowToast }) {
   const stage = deriveDisplayStatus(job);
   const isPaid = stage === 'Paid';
 
@@ -665,6 +678,7 @@ function JobTile({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJo
           onCopyJob={onCopyJob}
           onArchiveJob={onArchiveJob}
           onDeleteJob={onDeleteJob}
+          onShowToast={onShowToast}
         />
       </div>
 
@@ -765,7 +779,7 @@ function EmptyState({ stage }) {
 
 // ── JobsList subview ──────────────────────────────────────────────────────────
 
-function JobsList({ jobs, selectedStage, showAll, onJobSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJob, onCopyJob, onArchiveJob, onDeleteJob, biz }) {
+function JobsList({ jobs, selectedStage, showAll, onJobSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJob, onCopyJob, onArchiveJob, onDeleteJob, biz, onShowToast }) {
   const filtered = showAll
     ? jobs
     : jobs.filter(j => deriveDisplayStatus(j) === selectedStage);
@@ -789,6 +803,7 @@ function JobsList({ jobs, selectedStage, showAll, onJobSelect, onSendInvoice, on
               onArchiveJob={onArchiveJob}
               onDeleteJob={onDeleteJob}
               biz={biz}
+              onShowToast={onShowToast}
             />
           ))}
         </ul>
@@ -1077,6 +1092,7 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
           onArchiveJob={handleArchiveJob}
           onDeleteJob={handleRequestDeleteJob}
           biz={biz}
+          onShowToast={showToast}
         />
       ) : (
         <WorkCalendar jobs={visibleJobs} onNewJobOnDate={onNewJob} />
