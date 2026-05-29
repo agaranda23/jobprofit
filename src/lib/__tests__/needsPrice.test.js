@@ -112,6 +112,34 @@ describe('stagePatch: returns correct DB fields for each stage', () => {
 });
 
 // ---------------------------------------------------------------------------
+// stagePatch: non-Paid stages must clear residual paid signals (Bug 1 regression guard)
+// ---------------------------------------------------------------------------
+
+describe('stagePatch: non-Paid stages clear residual paid fields', () => {
+  const nonPaidStages = ['Lead', 'Quoted', 'On', 'Invoiced', 'Overdue'];
+
+  for (const stage of nonPaidStages) {
+    it(`${stage} → jobStatus is null (not 'paid')`, () => {
+      expect(stagePatch(stage).jobStatus).toBeNull();
+    });
+
+    it(`${stage} → paymentStatus is null (not 'paid')`, () => {
+      expect(stagePatch(stage).paymentStatus).toBeNull();
+    });
+
+    it(`${stage} → paidAt is null`, () => {
+      expect(stagePatch(stage).paidAt).toBeNull();
+    });
+  }
+
+  it('Paid → does NOT clear paidAt (paidAt should be an ISO string)', () => {
+    const p = stagePatch('Paid');
+    expect(typeof p.paidAt).toBe('string');
+    expect(p.paidAt.length).toBeGreaterThan(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // store.js null-preserving amount logic (mirrored here for unit coverage)
 // ---------------------------------------------------------------------------
 

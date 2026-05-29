@@ -62,12 +62,16 @@ export function needsPrice(job) {
  * Only ADD new stages here; do not rename existing keys.
  */
 export function stagePatch(stage) {
+  // Belt-and-braces: non-Paid stages explicitly clear every subordinate paid
+  // signal (jobStatus, paymentStatus, paidAt) so a job that was previously
+  // Paid cannot render as Paid again via residual fields in deriveDisplayStatus.
+  const cleared = { jobStatus: null, paymentStatus: null, paidAt: null };
   const map = {
-    Lead:     { status: 'lead',         paid: false, invoiceStatus: null },
-    Quoted:   { status: 'quoted',        paid: false, invoiceStatus: null },
-    On:       { status: 'active',        paid: false, invoiceStatus: null },
-    Invoiced: { status: 'invoice_sent',  paid: false, invoiceStatus: 'invoiced' },
-    Overdue:  { status: 'invoice_sent',  paid: false, invoiceStatus: 'invoiced', overdue: true },
+    Lead:     { status: 'lead',         paid: false, invoiceStatus: null, ...cleared },
+    Quoted:   { status: 'quoted',        paid: false, invoiceStatus: null, ...cleared },
+    On:       { status: 'active',        paid: false, invoiceStatus: null, ...cleared },
+    Invoiced: { status: 'invoice_sent',  paid: false, invoiceStatus: 'invoiced', ...cleared },
+    Overdue:  { status: 'invoice_sent',  paid: false, invoiceStatus: 'invoiced', overdue: true, ...cleared },
     Paid:     { status: 'paid',          paid: true,  invoiceStatus: 'invoiced', paidAt: new Date().toISOString() },
   };
   return map[stage] ?? {};

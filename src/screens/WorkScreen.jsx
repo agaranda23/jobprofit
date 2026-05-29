@@ -103,16 +103,29 @@ function isOverdue(job) {
  * If you change this, change it there too.
  */
 function deriveDisplayStatus(job) {
+  // Canonical status field takes priority — short-circuit before any subordinate
+  // field checks so residual jobStatus/paymentStatus from a previous Paid state
+  // cannot override a deliberate stage move.
   if (job.status === 'lead') return 'Lead';
+  if (job.status === 'quoted') return 'Quoted';
+  if (job.status === 'paid') return 'Paid';
+  if (job.status === 'active') return 'On';
+  if (job.status === 'complete') return 'On';
+  if (job.status === 'invoice_sent') {
+    if (isOverdue(job)) return 'Overdue';
+    return 'Invoiced';
+  }
+  // Subordinate field fallbacks — for legacy jobs that pre-date the canonical
+  // status column and for jobs written by older code paths.
   if (job.paid || job.paymentStatus === 'paid' || job.jobStatus === 'paid') return 'Paid';
   // Overdue must be checked before Invoiced — overdue takes priority
-  if (job.invoiceStatus === 'invoiced' || job.status === 'invoice_sent') {
+  if (job.invoiceStatus === 'invoiced') {
     if (isOverdue(job)) return 'Overdue';
     return 'Invoiced';
   }
   // complete-but-not-invoiced → On: work done, invoice not sent yet
-  if (job.jobStatus === 'complete' || job.status === 'complete') return 'On';
-  if (job.jobStatus === 'active' || job.status === 'active') return 'On';
+  if (job.jobStatus === 'complete') return 'On';
+  if (job.jobStatus === 'active') return 'On';
   return 'Lead';
 }
 
