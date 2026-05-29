@@ -33,7 +33,7 @@ import JobDetailDrawer from '../components/JobDetailDrawer';
 import SendInvoiceModal from '../components/SendInvoiceModal';
 import StageStrip from '../components/StageStrip';
 import { logTelemetry } from '../lib/telemetry';
-import { daysSinceInvoice, needsPrice, stagePatch } from '../lib/jobStatus';
+import { daysSinceInvoice, needsPrice, requiresPriceForStage, stagePatch } from '../lib/jobStatus';
 import {
   computeTier,
   daysPastDue,
@@ -291,10 +291,10 @@ function StageChipDropdown({ job, currentStage, onUpdateJob, onSendInvoice, onSe
   function moveToStage(stage) {
     setOpen(false);
     if (!onUpdateJob) return;
-    // Guard: un-priced Leads cannot advance forward without a price.
-    // Forward = any stage other than Lead itself.
-    const forwardStages = new Set(['Quoted', 'On', 'Invoiced', 'Overdue', 'Paid']);
-    if (currentStage === 'Lead' && forwardStages.has(stage) && needsPrice(job)) {
+    // Guard: a price is required to enter any money-claiming stage,
+    // regardless of source. On is NOT money-claiming — a job can move
+    // to On without a price (work started before pricing was agreed).
+    if (requiresPriceForStage(job, stage)) {
       onOpenJob?.(job, { intent: 'price', targetStage: stage });
       return;
     }

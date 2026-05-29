@@ -55,6 +55,22 @@ export function needsPrice(job) {
 }
 
 /**
+ * Stages that claim or display money. Moving into any of these without a price
+ * is a data-integrity error (you'd be quoting, invoicing, or marking paid with
+ * no figure attached). "On" is deliberately excluded — work can start before a
+ * price is agreed and the job can be priced later before invoicing.
+ */
+export const MONEY_STAGES = new Set(['Quoted', 'Invoiced', 'Overdue', 'Paid']);
+
+/**
+ * Returns true when moving to `targetStage` requires a price to be set first.
+ * Source stage is irrelevant — the rule is target-only.
+ */
+export function requiresPriceForStage(job, targetStage) {
+  return needsPrice(job) && MONEY_STAGES.has(targetStage);
+}
+
+/**
  * Maps a canonical stage name to the status fields the DB expects.
  * Mirrors the stageMap inside StageChipDropdown.moveToStage — extracted here
  * so the drawer's handleAmountSave can apply a stage advance in a single write.
