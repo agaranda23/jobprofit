@@ -82,11 +82,19 @@ function daysSinceDue(job) {
  * has no import from WorkScreen (no circular dep).
  */
 function deriveStatus(job) {
+  // Canonical status field takes priority — short-circuit before subordinate
+  // field checks so residual jobStatus/paymentStatus cannot override a stage move.
   if (job.status === 'lead') return 'Lead';
+  if (job.status === 'quoted') return 'Quoted';
+  if (job.status === 'paid') return 'Paid';
+  if (job.status === 'invoice_sent') return 'Invoiced';
+  if (job.status === 'complete') return 'Done';
+  if (job.status === 'active') return 'Active';
+  // Subordinate field fallbacks — legacy jobs that pre-date the canonical status column.
   if (job.paid || job.paymentStatus === 'paid' || job.jobStatus === 'paid') return 'Paid';
-  if (job.invoiceStatus === 'invoiced' || job.status === 'invoice_sent') return 'Invoiced';
-  if (job.jobStatus === 'complete' || job.status === 'complete') return 'Done';
-  if (job.jobStatus === 'active' || job.status === 'active') return 'Active';
+  if (job.invoiceStatus === 'invoiced') return 'Invoiced';
+  if (job.jobStatus === 'complete') return 'Done';
+  if (job.jobStatus === 'active') return 'Active';
   return 'Lead';
 }
 

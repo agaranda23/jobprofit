@@ -55,6 +55,22 @@ export function needsPrice(job) {
 }
 
 /**
+ * Stages that claim or display money. Moving into any of these without a price
+ * is a data-integrity error (you'd be quoting, invoicing, or marking paid with
+ * no figure attached). "On" is deliberately excluded — work can start before a
+ * price is agreed and the job can be priced later before invoicing.
+ */
+export const MONEY_STAGES = new Set(['Quoted', 'Invoiced', 'Overdue', 'Paid']);
+
+/**
+ * Returns true when moving to `targetStage` requires a price to be set first.
+ * Source stage is irrelevant — the rule is target-only.
+ */
+export function requiresPriceForStage(job, targetStage) {
+  return needsPrice(job) && MONEY_STAGES.has(targetStage);
+}
+
+/**
  * Maps a canonical stage name to the status fields the DB expects.
  * Mirrors the stageMap inside StageChipDropdown.moveToStage — extracted here
  * so the drawer's handleAmountSave can apply a stage advance in a single write.
@@ -62,12 +78,16 @@ export function needsPrice(job) {
  * Only ADD new stages here; do not rename existing keys.
  */
 export function stagePatch(stage) {
+  // Belt-and-braces: non-Paid stages explicitly clear every subordinate paid
+  // signal (jobStatus, paymentStatus, paidAt) so a job that was previously
+  // Paid cannot render as Paid again via residual fields in deriveDisplayStatus.
+  const cleared = { jobStatus: null, paymentStatus: null, paidAt: null };
   const map = {
-    Lead:     { status: 'lead',         paid: false, invoiceStatus: null },
-    Quoted:   { status: 'quoted',        paid: false, invoiceStatus: null },
-    On:       { status: 'active',        paid: false, invoiceStatus: null },
-    Invoiced: { status: 'invoice_sent',  paid: false, invoiceStatus: 'invoiced' },
-    Overdue:  { status: 'invoice_sent',  paid: false, invoiceStatus: 'invoiced', overdue: true },
+    Lead:     { status: 'lead',         paid: false, invoiceStatus: null, ...cleared },
+    Quoted:   { status: 'quoted',        paid: false, invoiceStatus: null, ...cleared },
+    On:       { status: 'active',        paid: false, invoiceStatus: null, ...cleared },
+    Invoiced: { status: 'invoice_sent',  paid: false, invoiceStatus: 'invoiced', ...cleared },
+    Overdue:  { status: 'invoice_sent',  paid: false, invoiceStatus: 'invoiced', overdue: true, ...cleared },
     Paid:     { status: 'paid',          paid: true,  invoiceStatus: 'invoiced', paidAt: new Date().toISOString() },
   };
   return map[stage] ?? {};
