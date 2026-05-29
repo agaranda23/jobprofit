@@ -38,6 +38,7 @@ function deriveDisplayStatus(job) {
   if (job.status === 'active') return 'On';
   if (job.status === 'complete') return 'On';
   if (job.status === 'invoice_sent') {
+    if (job.overdue === true) return 'Overdue'; // manual override wins over date-driven check
     if (isOverdue(job)) return 'Overdue';
     return 'Invoiced';
   }
@@ -138,5 +139,28 @@ describe('deriveDisplayStatus: legacy fallback fields (no canonical status)', ()
 
   it('no fields → Lead (fallback)', () => {
     expect(deriveDisplayStatus({})).toBe('Lead');
+  });
+});
+
+// ── Manual overdue flag (Part 1 fix) ─────────────────────────────────────────
+
+describe('deriveDisplayStatus: manual overdue flag', () => {
+  it("status:'invoice_sent', overdue:true → 'Overdue' (manual override wins)", () => {
+    expect(deriveDisplayStatus({ status: 'invoice_sent', overdue: true })).toBe('Overdue');
+  });
+
+  it("status:'invoice_sent', overdue:false → 'Invoiced' (when no date trigger)", () => {
+    // No invoiceDueDate, no daysSinceInvoice fallback (isOverdue returns false in mirror)
+    expect(deriveDisplayStatus({ status: 'invoice_sent', overdue: false })).toBe('Invoiced');
+  });
+
+  it("status:'invoice_sent', overdue:true + past due date → 'Overdue' (flag and date agree)", () => {
+    const pastDate = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    expect(deriveDisplayStatus({ status: 'invoice_sent', overdue: true, invoiceDueDate: pastDate })).toBe('Overdue');
+  });
+
+  it("status:'invoice_sent', overdue:false + past due date → 'Overdue' (date-driven path still works)", () => {
+    const pastDate = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    expect(deriveDisplayStatus({ status: 'invoice_sent', overdue: false, invoiceDueDate: pastDate })).toBe('Overdue');
   });
 });

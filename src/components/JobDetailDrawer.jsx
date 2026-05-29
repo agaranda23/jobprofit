@@ -87,7 +87,7 @@ function deriveStatus(job) {
   if (job.status === 'lead') return 'Lead';
   if (job.status === 'quoted') return 'Quoted';
   if (job.status === 'paid') return 'Paid';
-  if (job.status === 'invoice_sent') return 'Invoiced';
+  if (job.status === 'invoice_sent') return job.overdue === true ? 'Overdue' : 'Invoiced';
   if (job.status === 'complete') return 'Done';
   if (job.status === 'active') return 'Active';
   // Subordinate field fallbacks — legacy jobs that pre-date the canonical status column.

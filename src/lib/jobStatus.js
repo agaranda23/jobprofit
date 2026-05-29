@@ -79,15 +79,18 @@ export function requiresPriceForStage(job, targetStage) {
  */
 export function stagePatch(stage) {
   // Belt-and-braces: non-Paid stages explicitly clear every subordinate paid
-  // signal (jobStatus, paymentStatus, paidAt) so a job that was previously
-  // Paid cannot render as Paid again via residual fields in deriveDisplayStatus.
-  const cleared = { jobStatus: null, paymentStatus: null, paidAt: null };
+  // signal (jobStatus, paymentStatus, paidAt) AND the overdue manual-override
+  // flag so moving a job back from Overdue to Invoiced (or any earlier stage)
+  // does not leave it stranded on the Overdue tile.
+  // Spread order in Overdue entry: ...cleared BEFORE overdue:true so the
+  // explicit true wins (later spread key beats earlier — JS object spread rule).
+  const cleared = { jobStatus: null, paymentStatus: null, paidAt: null, overdue: false };
   const map = {
     Lead:     { status: 'lead',         paid: false, invoiceStatus: null, ...cleared },
     Quoted:   { status: 'quoted',        paid: false, invoiceStatus: null, ...cleared },
     On:       { status: 'active',        paid: false, invoiceStatus: null, ...cleared },
     Invoiced: { status: 'invoice_sent',  paid: false, invoiceStatus: 'invoiced', ...cleared },
-    Overdue:  { status: 'invoice_sent',  paid: false, invoiceStatus: 'invoiced', overdue: true, ...cleared },
+    Overdue:  { status: 'invoice_sent',  paid: false, invoiceStatus: 'invoiced', ...cleared, overdue: true },
     Paid:     { status: 'paid',          paid: true,  invoiceStatus: 'invoiced', paidAt: new Date().toISOString() },
   };
   return map[stage] ?? {};
