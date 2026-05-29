@@ -2560,6 +2560,48 @@ input[type=number] { -moz-appearance: textfield; }
   margin-left: 2px;
 }
 
+/* ── Trial countdown banner ───────────────────── */
+.trial-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 16px;
+  background: var(--surface-2, #1e1e1e);
+  border-bottom: 1px solid var(--border, rgba(255,255,255,0.08));
+  font-size: 13px;
+  color: var(--text-dim, rgba(255,255,255,0.55));
+}
+.trial-banner--urgent {
+  color: var(--text, rgba(255,255,255,0.87));
+  font-weight: 600;
+  border-bottom-color: var(--accent, #646cff);
+}
+.trial-banner__text {
+  flex: 1 1 auto;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.trial-banner__cta {
+  flex: 0 0 auto;
+  background: none;
+  border: 1px solid var(--accent, #646cff);
+  border-radius: 6px;
+  color: var(--accent, #646cff);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s;
+}
+.trial-banner__cta:active {
+  background: var(--accent, #646cff);
+  color: #fff;
+}
+
 /* ── Orientation toast ────────────────────────── */
 .nav-toast {
   position: fixed;
