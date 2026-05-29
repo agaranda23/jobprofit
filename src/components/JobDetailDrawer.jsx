@@ -162,11 +162,9 @@ function DetailsSection({
   onScheduleDateChange,
   onScheduleStartChange,
   onScheduleEndChange,
-  onEditSummary,
   onEditPhone,
   onEditEmail,
 }) {
-  const hasDesc = !!job.summary;
   const hasAddress = !!job.address;
   const hasPhone = !!(job.phone || job.customerPhone || job.mobile);
   const hasEmail = !!(job.email || job.customerEmail);
@@ -177,7 +175,7 @@ function DetailsSection({
   const canEditSchedule = typeof onScheduleEdit === 'function';
   const canEditFields = typeof onEditPhone === 'function';
 
-  const visible = hasDesc || hasAddress || hasPhone || hasEmail || hasDate ||
+  const visible = hasAddress || hasPhone || hasEmail || hasDate ||
     hasScheduled || hasCompleted || hasHours || canEditSchedule || canEditFields;
   if (!visible) return null;
 
@@ -204,24 +202,6 @@ function DetailsSection({
         )}
       </div>
       <div className="jd-section-body">
-        {/* Job description — tappable when edit callback provided */}
-        {canEditFields ? (
-          <button
-            type="button"
-            className="jd-detail-desc-edit-wrap"
-            onClick={onEditSummary}
-            aria-label={hasDesc ? 'Edit job description' : 'Add job description'}
-          >
-            {hasDesc
-              ? <p className="jd-detail-desc" style={{ margin: 0, flex: 1 }}>{job.summary}</p>
-              : <span className="jd-detail-desc-add">+ Add description</span>
-            }
-            <span className="jd-detail-desc-edit-chevron" aria-hidden="true">›</span>
-          </button>
-        ) : (
-          hasDesc && <p className="jd-detail-desc">{job.summary}</p>
-        )}
-
         {hasAddress && (
           <a
             href={`https://maps.google.com/?q=${encodeURIComponent(job.address)}`}
@@ -1150,6 +1130,11 @@ export default function JobDetailDrawer({
   const status = deriveStatus(job);
   const statusClass = STATUS_CLASS[status] || '';
   const displayName = job.customer || job.name || 'Unnamed job';
+  // Only show the customer sub-line when it's present and differs from the job name —
+  // avoids duplicating text when customer_name was defaulted to the job name on creation.
+  const distinctCustomer = (job.customer && job.customer.trim() && job.customer.trim() !== (job.summary || '').trim())
+    ? job.customer.trim()
+    : '';
   const amount = job.total ?? job.amount;
   const showChase = shouldShowChase(job);
 
@@ -1669,21 +1654,38 @@ export default function JobDetailDrawer({
           <div className="job-detail-header-left">
             <span className={`job-status-pill ${statusClass}`}>{status[0]}</span>
             <div className="job-detail-title-block">
+              {/* Heading: job name (summary) — primary, big. Tappable to edit when allowed. */}
               {onUpdateJob ? (
                 <button
                   type="button"
                   className="jd-customer-edit-btn"
-                  onClick={() => setEditingField('name')}
-                  aria-label="Edit customer name"
+                  onClick={() => setEditingField('summary')}
+                  aria-label={job.summary ? 'Edit job name' : 'Add job name'}
                 >
-                  <span className="job-detail-customer">{displayName}</span>
+                  {job.summary
+                    ? <span className="job-detail-customer">{job.summary}</span>
+                    : <span className="jd-detail-edit-row-add">+ Add job name</span>
+                  }
                   <span className="jd-customer-edit-icon" aria-hidden="true">›</span>
                 </button>
               ) : (
-                <div className="job-detail-customer">{displayName}</div>
+                <div className="job-detail-customer">{job.summary || displayName}</div>
               )}
-              {job.summary && (
-                <div className="job-detail-summary">{job.summary}</div>
+              {/* Sub-line: customer — secondary, muted. Tappable to edit when allowed. */}
+              {onUpdateJob ? (
+                <button
+                  type="button"
+                  className="jd-customer-subline-btn"
+                  onClick={() => setEditingField('name')}
+                  aria-label={distinctCustomer ? 'Edit customer' : 'Add customer'}
+                >
+                  {distinctCustomer
+                    ? <span className="job-detail-summary">{distinctCustomer}</span>
+                    : <span className="jd-detail-edit-row-add jd-detail-edit-row-add--sm">+ Add customer</span>
+                  }
+                </button>
+              ) : (
+                distinctCustomer && <div className="job-detail-summary">{distinctCustomer}</div>
               )}
             </div>
           </div>
@@ -1882,7 +1884,6 @@ export default function JobDetailDrawer({
             onScheduleDateChange={setSchedDate}
             onScheduleStartChange={setSchedStart}
             onScheduleEndChange={setSchedEnd}
-            onEditSummary={onUpdateJob ? () => setEditingField('summary') : undefined}
             onEditPhone={onUpdateJob ? () => setEditingField('phone') : undefined}
             onEditEmail={onUpdateJob ? () => setEditingField('email') : undefined}
           />
@@ -2113,11 +2114,10 @@ export default function JobDetailDrawer({
         <EditFieldModal
           open
           fieldKey="summary"
-          fieldLabel="Job description"
+          fieldLabel="Job name"
           currentValue={job.summary || ''}
-          inputType="textarea"
-          rows={4}
-          placeholder="Describe the job…"
+          inputType="text"
+          placeholder="e.g. Kitchen refit, 14 Elm Road"
           onSave={handleCustomerFieldSave}
           onClose={() => setEditingField(null)}
         />

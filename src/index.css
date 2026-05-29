@@ -4034,6 +4034,24 @@ input[type=number] { -moz-appearance: textfield; }
   opacity: 0.6;
   flex-shrink: 0;
 }
+/* Sub-line button in drawer header — customer name (secondary, no chevron) */
+.jd-customer-subline-btn {
+  display: inline-flex;
+  align-items: center;
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+  min-width: 0;
+  -webkit-tap-highlight-color: transparent;
+  margin-top: 1px;
+}
+.jd-customer-subline-btn:active { opacity: 0.6; }
+/* Small variant of the add-row affordance (used in drawer header sub-line) */
+.jd-detail-edit-row-add--sm {
+  font-size: 12px;
+}
 .job-detail-header-right {
   display: flex;
   align-items: center;
@@ -5884,37 +5902,23 @@ input[type=number] { -moz-appearance: textfield; }
 }
 .jt + .jt { margin-top: 0; } /* gap is handled by .job-list gap */
 
-/* --- Row 1: header (avatar + customer + chip) --- */
+/* --- Row 1: header (job name primary + chip) --- */
 .jt-head {
   display: flex;
   align-items: center;
   gap: 7px;
-  margin-bottom: 3px;
+  margin-bottom: 2px;
 }
-/* Avatar shrunk to 24px (was 32px) */
-.jt-avatar {
-  width: 24px;
-  height: 24px;
-  border-radius: 999px;
-  background: #2A312F;
-  color: #E7EBE9;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 11px;
-  font-weight: 700;
-  flex-shrink: 0;
-}
+/* Row 1b: customer secondary line — muted, below the job name */
 .jt-customer {
   font-size: 13px;
-  font-weight: 600;
-  color: var(--text);
+  font-weight: 500;
+  color: var(--text-dim);
   line-height: 1.2;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  flex: 1 1 auto;
-  min-width: 0;
+  margin-bottom: 2px;
 }
 
 /* --- Stage label (read-only coloured pill) + ⋯ wrapper --- */
@@ -5967,10 +5971,8 @@ input[type=number] { -moz-appearance: textfield; }
   background: rgba(255, 255, 255, 0.06);
 }
 
-/* --- Row 2: title + £amount inline --- */
-.jt-title-row {
-  margin-bottom: 1px;
-}
+/* --- Row 1 primary label (job name) — flex child of .jt-head --- */
+/* .jt-title-row wrapper removed; title is now directly in .jt-head */
 .jt-title {
   font-size: 15px;
   font-weight: 700;
@@ -5983,11 +5985,6 @@ input[type=number] { -moz-appearance: textfield; }
   white-space: nowrap;
   flex: 1 1 auto;
   min-width: 0;
-}
-.jt-title--placeholder {
-  color: var(--text-dim);
-  font-style: italic;
-  font-weight: 400;
 }
 /* £price on its own line, directly under the job title — size ladder: title 15 → price 14 → metadata 11 */
 .jt-price {

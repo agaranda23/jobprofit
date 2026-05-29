@@ -570,19 +570,20 @@ function deriveMoneySub(job, stage) {
 /**
  * JobTile — slim 3-row tile (PRD redesign 2026-05-28).
  *
- * Row 1 (header):  avatar (24px) · customer name · stage label (read-only) · ⋯ button
- * Row 2 (title+£): job summary truncated, £amount baseline-aligned right
+ * Row 1 (header):  job name (primary, big) · stage label (read-only) · ⋯ button
+ * Row 1b:          customer name (secondary, muted) — only when non-empty
+ * Row 2 (£):       price on its own line
  * Row 3 (signals): time signal · money state · photo/note counts (· separated)
  * CTA row:         full-width, stage-aware, ≥44px, unchanged logic
  *
- * The old separate .jt-money row is removed — amount folds into Row 2.
- * deriveMoneySub and deriveTimeSignal are reused unchanged.
+ * Avatar circle removed (2026-05-29). Job name promoted to primary label.
+ * Customer demoted to secondary line; falls back: if summary empty, customer
+ * becomes the primary label so the tile is never a bare "Untitled job".
  */
 function JobTile({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJob, biz }) {
   const stage = deriveDisplayStatus(job);
   const isPaid = stage === 'Paid';
 
-  const initial = (job.customer || job.name || '?')[0].toUpperCase();
   const timeSignal = deriveTimeSignal(job, stage);
   const photoCount = Array.isArray(job.photos) ? job.photos.length : 0;
   const noteCount = Array.isArray(job.jobNotes) ? job.jobNotes.length : (job.notes ? 1 : 0);
@@ -596,6 +597,17 @@ function JobTile({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJo
   const priceLine = (stage === 'Lead' && isUnpriced) ? 'No price yet' : (formattedAmount ?? '—');
   const amountMuted = stage === 'Lead' || isUnpriced;
   const amountOverdue = stage === 'Overdue';
+
+  // Primary / secondary label logic:
+  // - If job has a name (summary), it's the big primary line; customer drops to secondary.
+  // - If summary is empty but customer exists, customer becomes the primary so the tile
+  //   never shows "Untitled job" when a recognisable label is available.
+  const jobName = (job.summary || '').trim();
+  const customerName = (job.customer || job.name || '').trim();
+  const primaryLabel = jobName || customerName || 'Untitled job';
+  // Only show customer on the secondary line when it's non-empty AND distinct from the
+  // primary label — prevents duplicating the job name when no separate customer was entered.
+  const secondaryLabel = (jobName && customerName && customerName !== jobName) ? customerName : '';
 
   const cta = getStageCTA(stage, job, { onSendInvoice, onUpdateJob, onNewJob, onOpenJob, biz });
   const stageMeta = STAGE_META[stage] || STAGE_META.Lead;
@@ -625,12 +637,13 @@ function JobTile({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJo
       role="button"
       tabIndex={0}
       onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') onSelect?.(job); }}
-      aria-label={`View details for ${job.customer || job.name || 'Unnamed job'}`}
+      aria-label={`View details for ${primaryLabel}`}
     >
-      {/* Row 1: avatar + customer name + [stage label (read-only) + ⋯ trigger] */}
+      {/* Row 1: job name (primary) + [stage label (read-only) + ⋯ trigger] */}
       <div className="jt-head" onClick={e => e.stopPropagation()}>
-        <span className="jt-avatar">{initial}</span>
-        <span className="jt-customer">{job.customer || job.name || 'Unnamed job'}</span>
+        <h3 className="jt-title">
+          {primaryLabel.slice(0, 72)}{primaryLabel.length > 72 ? '…' : ''}
+        </h3>
         <StageChipDropdown
           job={job}
           currentStage={stage}
@@ -641,16 +654,10 @@ function JobTile({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJo
         />
       </div>
 
-      {/* Row 2: job title on its own line */}
-      <div className="jt-title-row">
-        {job.summary ? (
-          <h3 className="jt-title">
-            {job.summary.slice(0, 72)}{job.summary.length > 72 ? '…' : ''}
-          </h3>
-        ) : (
-          <span className="jt-title jt-title--placeholder">Untitled job</span>
-        )}
-      </div>
+      {/* Row 1b: customer name (secondary) — only shown when non-empty */}
+      {secondaryLabel ? (
+        <div className="jt-customer">{secondaryLabel}</div>
+      ) : null}
       {/* Row 2b: price on its own line, directly under title */}
       <div className={`jt-price${amountMuted ? ' jt-price--muted' : ''}${amountOverdue ? ' jt-price--overdue' : ''}`}>
         {priceLine}
