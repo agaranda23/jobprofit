@@ -823,3 +823,192 @@ export function getMarginTrend(jobs, receipts, { weeks = 1 } = {}, now = new Dat
 
   return { thisWeek, lastWeek, deltaPct, deltaSign };
 }
+
+// ─── Data-trust nudge ────────────────────────────────────────────────────────
+
+/**
+ * Returns the single most important data-quality hint for the Money tab, or
+ * null when the data looks complete enough to trust.
+ *
+ * Priority (first match wins):
+ *   1. markPaid  — completed/invoiced jobs with unpaid amounts exist this tax year.
+ *                  Profit is understated because money is sitting in "open".
+ *   2. noCosts   — there IS paid revenue this tax year but zero costs recorded
+ *                  (no receipts in range AND overheads total is zero).
+ *                  Profit may be overstated.
+ *   3. null      — data looks complete enough; show nothing.
+ *
+ * @param {object[]} jobs
+ * @param {object[]} receipts
+ * @param {object}   profile    — expects profile.overheads (JSONB array)
+ * @param {Date}     [now]
+ * @returns {{ type: 'markPaid'|'noCosts', amount?: number, message: string, cta: string } | null}
+ */
+export function getDataTrustHint(jobs, receipts, profile, now = new Date()) {
+  const safeJobs     = Array.isArray(jobs)     ? jobs     : [];
+  const safeReceipts = Array.isArray(receipts) ? receipts : [];
+
+  const start = taxYearStart(now);
+  const end   = new Date(now);
+  end.setHours(23, 59, 59, 999);
+
+  // Status values that mean "work is done but not yet paid"
+  const DONE_STATUSES = new Set(['completed', 'invoiced', 'overdue', 'sent', 'awaiting']);
+
+  // 1. Unpaid completed work this tax year
+  let openAmount = 0;
+  let paidRevenue = 0;
+
+  for (const job of safeJobs) {
+    if (isExcludedJob(job)) continue;
+
+    const d = isPaidJob(job) ? jobEarnedDate(job) : jobIssuedDate(job);
+    if (!d || d < start || d > end) continue;
+
+    if (isPaidJob(job)) {
+      paidRevenue += jobReceivedAmount(job);
+    } else {
+      const status        = (job.status        || job.jobStatus      || '').toLowerCase();
+      const paymentStatus = (job.paymentStatus || '').toLowerCase();
+      const isDone        = DONE_STATUSES.has(status) || DONE_STATUSES.has(paymentStatus);
+      if (isDone) {
+        openAmount += jobOutstandingAmount(job);
+      }
+    }
+  }
+
+  if (openAmount > 0) {
+    return {
+      type:    'markPaid',
+      amount:  openAmount,
+      message: 'Mark jobs paid to see your true profit',
+      cta:     'Go to Jobs',
+    };
+  }
+
+  // 2. Revenue logged but no costs at all
+  if (paidRevenue > 0) {
+    const overheads = Array.isArray(profile?.overheads) ? profile.overheads : [];
+    const hasOverheads = getOverheadTotal(overheads) > 0;
+
+    const hasReceiptsInYear = safeReceipts.some(r => {
+      if (!r) return false;
+      const dateStr = r.date || (r.createdAt ? r.createdAt.slice(0, 10) : null);
+      const d = parseLocalDate(dateStr);
+      return d && d >= start && d <= end;
+    });
+
+    if (!hasOverheads && !hasReceiptsInYear) {
+      return {
+        type:    'noCosts',
+        message: 'No costs logged yet — your profit may look higher than it really is',
+        cta:     'Add your costs',
+      };
+    }
+  }
+
+  return null;
+}
+
+// ─── VAT helpers ─────────────────────────────────────────────────────────────
+
+/**
+ * VAT rate used throughout the app.
+ * Matches the hardcoded 0.2 in invoiceMessage.js and invoicePDF.js.
+ * If the rate ever changes, update all three locations together.
+ */
+export const VAT_RATE = 0.2;
+
+/**
+ * Returns the start and end of the current UK calendar VAT quarter, plus a
+ * human-readable label.
+ *
+ * Calendar quarters (v1 assumption — cash-accounting basis):
+ *   Q1: Jan–Mar   Q2: Apr–Jun   Q3: Jul–Sep   Q4: Oct–Dec
+ *
+ * Note: HMRC VAT stagger dates vary by business (some quarters start Feb or Mar).
+ * This uses simple calendar quarters for a v1 estimate. The UI carries a
+ * "confirm with your accountant" disclaimer.
+ *
+ * `start` — local midnight of the first day of the quarter.
+ * `end`   — end-of-day of `now` (we only count up to today within the quarter).
+ * `label` — e.g. "Apr–Jun 2026".
+ *
+ * @param {Date} [now]
+ * @returns {{ start: Date, end: Date, label: string }}
+ */
+export function vatQuarterRange(now = new Date()) {
+  const year = now.getFullYear();
+  const month = now.getMonth(); // 0-based
+
+  // Determine quarter start month (0-based): 0, 3, 6, or 9
+  const quarterStartMonth = Math.floor(month / 3) * 3;
+
+  const start = new Date(year, quarterStartMonth, 1); // midnight
+
+  // End = end-of-day today, not end of quarter, so we only count to now
+  const end = new Date(now);
+  end.setHours(23, 59, 59, 999);
+
+  // Quarter end month (0-based) for the label
+  const quarterEndMonth = quarterStartMonth + 2;
+
+  const startName = new Date(year, quarterStartMonth, 1)
+    .toLocaleDateString('en-GB', { month: 'short' });
+  const endName = new Date(year, quarterEndMonth, 1)
+    .toLocaleDateString('en-GB', { month: 'short' });
+  const label = `${startName}–${endName} ${year}`;
+
+  return { start, end, label };
+}
+
+/**
+ * Returns a VAT summary for the current calendar quarter (cash-accounting basis).
+ *
+ * Cash-accounting: VAT is accounted on money actually received (paid jobs), not
+ * on invoices issued. This is the standard basis for most small traders on the
+ * flat-rate or standard scheme. Document this assumption in the UI disclaimer.
+ *
+ * @param {object[]} jobs
+ * @param {object[]} receipts
+ * @param {Date} [now]
+ * @returns {{
+ *   outputVat: number,   — VAT collected on paid sales this quarter
+ *   inputVat:  number,   — VAT reclaimable from receipts this quarter
+ *   netVat:    number,   — outputVat − inputVat (positive = owe HMRC)
+ *   netSales:  number,   — net (ex-VAT) sales this quarter
+ * }}
+ */
+export function getVatSummary(jobs, receipts, now = new Date()) {
+  const safeJobs = Array.isArray(jobs) ? jobs : [];
+  const safeReceipts = Array.isArray(receipts) ? receipts : [];
+
+  const { start, end } = vatQuarterRange(now);
+
+  let netSales = 0;
+
+  for (const job of safeJobs) {
+    if (isExcludedJob(job)) continue;
+    if (!isPaidJob(job)) continue;
+    const d = jobEarnedDate(job);
+    if (!d) continue;
+    if (d < start || d > end) continue;
+    netSales += Number(job.total ?? job.amount ?? 0);
+  }
+
+  let inputVat = 0;
+
+  for (const receipt of safeReceipts) {
+    if (!receipt) continue;
+    const dateStr = receipt.date || (receipt.createdAt ? receipt.createdAt.slice(0, 10) : null);
+    const d = parseLocalDate(dateStr);
+    if (!d) continue;
+    if (d < start || d > end) continue;
+    inputVat += Number(receipt.vat) || 0;
+  }
+
+  const outputVat = netSales * VAT_RATE;
+  const netVat = outputVat - inputVat;
+
+  return { outputVat, inputVat, netVat, netSales };
+}

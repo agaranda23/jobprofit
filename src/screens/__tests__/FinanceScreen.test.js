@@ -31,6 +31,9 @@ import {
   taxYearLabel,
   getJobProfit,
   getBestWorstJobs,
+  getVatSummary,
+  vatQuarterRange,
+  getDataTrustHint,
 } from '../../lib/cashflow';
 
 // ─── Shared test fixtures ─────────────────────────────────────────────────────
@@ -619,5 +622,212 @@ describe('FinanceScreen Best & worst jobs card: getBestWorstJobs', () => {
       [{ id: 'r', jobId: 'j', amount: 850 }]).margin).toBe(15); // exactly at warn boundary
     expect(getJobProfit({ id: 'j', amount: 1000 },
       [{ id: 'r', jobId: 'j', amount: 860 }]).margin).toBe(14); // just below warn → danger
+  });
+});
+
+// ─── VAT this quarter card — data layer ──────────────────────────────────────
+// Tests the data-layer functions that power the VAT card in FinanceScreen.
+// Card visibility (isVatRegistered flag) is logic in FinanceScreen JSX;
+// these tests cover the pure helpers.
+
+describe('FinanceScreen VAT card: vatQuarterRange', () => {
+  it('returns Q2 quarter for a date in May', () => {
+    const ref = new Date(2026, 4, 20); // 2026-05-20
+    const { start, label } = vatQuarterRange(ref);
+    expect(start.getMonth()).toBe(3); // April
+    expect(start.getDate()).toBe(1);
+    expect(label).toMatch(/Apr/);
+    expect(label).toMatch(/Jun/);
+    expect(label).toMatch(/2026/);
+  });
+
+  it('returns Q1 quarter for a date in January', () => {
+    const ref = new Date(2026, 0, 10);
+    const { start, label } = vatQuarterRange(ref);
+    expect(start.getMonth()).toBe(0); // January
+    expect(label).toMatch(/Jan/);
+  });
+
+  it('end is end-of-day of the reference date', () => {
+    const ref = new Date(2026, 4, 20); // 2026-05-20
+    const { end } = vatQuarterRange(ref);
+    expect(end.getDate()).toBe(20);
+    expect(end.getHours()).toBe(23);
+    expect(end.getSeconds()).toBe(59);
+  });
+});
+
+describe('FinanceScreen VAT card: getVatSummary', () => {
+  // Reference: 2026-05-20 (Q2 Apr–Jun 2026)
+  const NOW = new Date('2026-05-20T10:00:00');
+
+  function vatJob(overrides = {}) {
+    return {
+      id: overrides.id ?? 'fv-j1',
+      amount: overrides.amount ?? 500,
+      paid: true,
+      date: overrides.date ?? '2026-05-10',
+      ...overrides,
+    };
+  }
+
+  function vatReceipt(overrides = {}) {
+    return {
+      id: overrides.id ?? 'fv-r1',
+      amount: overrides.amount ?? 100,
+      vat: overrides.vat ?? 20,
+      date: overrides.date ?? '2026-05-08',
+      ...overrides,
+    };
+  }
+
+  it('outputVat = netSales × 0.2 for a paid in-quarter job', () => {
+    const { outputVat, netSales } = getVatSummary([vatJob({ amount: 1000 })], [], NOW);
+    expect(netSales).toBe(1000);
+    expect(outputVat).toBeCloseTo(200, 10);
+  });
+
+  it('inputVat = sum of receipt.vat for in-quarter receipts', () => {
+    const receipts = [
+      vatReceipt({ vat: 20 }),
+      vatReceipt({ id: 'r2', vat: 30 }),
+    ];
+    const { inputVat } = getVatSummary([], receipts, NOW);
+    expect(inputVat).toBe(50);
+  });
+
+  it('netVat = outputVat - inputVat', () => {
+    const jobs = [vatJob({ amount: 500 })];
+    const receipts = [vatReceipt({ vat: 25 })];
+    const { netVat, outputVat, inputVat } = getVatSummary(jobs, receipts, NOW);
+    expect(netVat).toBeCloseTo(outputVat - inputVat, 10);
+  });
+
+  it('out-of-quarter job (Q1) excluded when NOW is in Q2', () => {
+    const jobs = [vatJob({ amount: 9999, date: '2026-03-20' })]; // Q1
+    const { netSales } = getVatSummary(jobs, [], NOW);
+    expect(netSales).toBe(0);
+  });
+
+  it('unpaid jobs excluded from VAT output', () => {
+    const jobs = [{ id: 'u', amount: 9999, paid: false, date: '2026-05-10' }];
+    const { netSales } = getVatSummary(jobs, [], NOW);
+    expect(netSales).toBe(0);
+  });
+
+  it('receipts without a vat field contribute 0 to inputVat', () => {
+    const receipts = [{ id: 'r1', amount: 100, date: '2026-05-10' }]; // no .vat
+    const { inputVat } = getVatSummary([], receipts, NOW);
+    expect(inputVat).toBe(0);
+  });
+
+  it('null inputs return all zeros (null-safe)', () => {
+    const result = getVatSummary(null, null, NOW);
+    expect(result.netSales).toBe(0);
+    expect(result.outputVat).toBe(0);
+    expect(result.inputVat).toBe(0);
+    expect(result.netVat).toBe(0);
+  });
+
+  it('negative netVat means reclaim is due (inputVat > outputVat)', () => {
+    const jobs = [vatJob({ amount: 100 })]; // outputVat = 20
+    const receipts = [vatReceipt({ vat: 100 })]; // inputVat = 100
+    const { netVat } = getVatSummary(jobs, receipts, NOW);
+    expect(netVat).toBeLessThan(0);
+  });
+});
+
+// ─── Data trust nudge — getDataTrustHint ─────────────────────────────────────
+
+describe('getDataTrustHint', () => {
+  const NOW = TODAY;
+
+  function dtPaidJob(overrides = {}) {
+    return { id: overrides.id ?? 'dt-p1', amount: overrides.amount ?? 500, paid: true, date: overrides.date ?? '2026-05-10', ...overrides };
+  }
+  function dtDoneUnpaidJob(overrides = {}) {
+    return { id: overrides.id ?? 'dt-u1', amount: overrides.amount ?? 300, paid: false, status: overrides.status ?? 'completed', date: overrides.date ?? '2026-05-05', ...overrides };
+  }
+  function dtReceipt(overrides = {}) {
+    return { id: overrides.id ?? 'dt-r1', amount: overrides.amount ?? 100, date: overrides.date ?? '2026-05-08', ...overrides };
+  }
+
+  it('markPaid: returns hint when completed-but-unpaid jobs exist in tax year', () => {
+    const hint = getDataTrustHint([dtDoneUnpaidJob({ amount: 400 })], [], {}, NOW);
+    expect(hint).not.toBeNull();
+    expect(hint.type).toBe('markPaid');
+    expect(hint.amount).toBe(400);
+    expect(hint.cta).toBe('Go to Jobs');
+    expect(typeof hint.message).toBe('string');
+    expect(hint.message.length).toBeGreaterThan(0);
+  });
+
+  it('markPaid: amount sums across multiple open done-jobs', () => {
+    const jobs = [dtDoneUnpaidJob({ id: 'u1', amount: 200 }), dtDoneUnpaidJob({ id: 'u2', amount: 150, status: 'invoiced' })];
+    const hint = getDataTrustHint(jobs, [], {}, NOW);
+    expect(hint.type).toBe('markPaid');
+    expect(hint.amount).toBe(350);
+  });
+
+  it('markPaid: fires for invoiced, overdue, sent, awaiting statuses', () => {
+    for (const status of ['invoiced', 'overdue', 'sent', 'awaiting']) {
+      const hint = getDataTrustHint([dtDoneUnpaidJob({ id: status, status })], [], {}, NOW);
+      expect(hint?.type).toBe('markPaid');
+    }
+  });
+
+  it('markPaid: does NOT fire for unpaid jobs with status=lead', () => {
+    const jobs = [{ id: 'lead', amount: 999, paid: false, status: 'lead', date: '2026-05-10' }];
+    expect(getDataTrustHint(jobs, [], {}, NOW)).toBeNull();
+  });
+
+  it('markPaid: does NOT fire for jobs outside the current tax year', () => {
+    expect(getDataTrustHint([dtDoneUnpaidJob({ date: '2026-04-05' })], [], {}, NOW)).toBeNull();
+  });
+
+  it('markPaid takes priority over noCosts', () => {
+    const jobs = [dtPaidJob({ id: 'paid' }), dtDoneUnpaidJob({ id: 'open' })];
+    expect(getDataTrustHint(jobs, [], {}, NOW).type).toBe('markPaid');
+  });
+
+  it('noCosts: returns hint when paid revenue exists but no receipts and no overheads', () => {
+    const hint = getDataTrustHint([dtPaidJob({ amount: 600 })], [], {}, NOW);
+    expect(hint?.type).toBe('noCosts');
+    expect(hint.cta).toBe('Add your costs');
+  });
+
+  it('noCosts: suppressed when receipts exist in the tax year', () => {
+    const hint = getDataTrustHint([dtPaidJob({ amount: 600 })], [dtReceipt()], {}, NOW);
+    expect(hint).toBeNull();
+  });
+
+  it('noCosts: suppressed when active overheads exist on profile', () => {
+    const profile = { overheads: [{ id: 'oh1', amount: 200, is_active: true }] };
+    expect(getDataTrustHint([dtPaidJob({ amount: 600 })], [], profile, NOW)).toBeNull();
+  });
+
+  it('noCosts: inactive overheads do NOT suppress the hint', () => {
+    const profile = { overheads: [{ id: 'oh1', amount: 200, is_active: false }] };
+    expect(getDataTrustHint([dtPaidJob({ amount: 600 })], [], profile, NOW)?.type).toBe('noCosts');
+  });
+
+  it('returns null when both receipts and overheads exist alongside paid revenue', () => {
+    const receipts = [dtReceipt()];
+    const profile  = { overheads: [{ id: 'oh1', amount: 50, is_active: true }] };
+    expect(getDataTrustHint([dtPaidJob()], receipts, profile, NOW)).toBeNull();
+  });
+
+  it('returns null when there is no activity at all', () => {
+    expect(getDataTrustHint([], [], {}, NOW)).toBeNull();
+  });
+
+  it('is null-safe: null inputs return null without throwing', () => {
+    expect(() => getDataTrustHint(null, null, null, NOW)).not.toThrow();
+    expect(getDataTrustHint(null, null, null, NOW)).toBeNull();
+  });
+
+  it('is null-safe: undefined inputs return null without throwing', () => {
+    expect(() => getDataTrustHint(undefined, undefined, undefined, NOW)).not.toThrow();
+    expect(getDataTrustHint(undefined, undefined, undefined, NOW)).toBeNull();
   });
 });
