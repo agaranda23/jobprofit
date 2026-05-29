@@ -799,12 +799,16 @@ function JobsList({ jobs, selectedStage, showAll, onJobSelect, onSendInvoice, on
 
 // ── WorkScreen (root) ─────────────────────────────────────────────────────────
 
-export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJob, onAddPayment, onUpdateJob, onDeleteJob, onAddReceipt, onDeleteReceipt, biz, profile }) {
+export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJob, onAddPayment, onUpdateJob, onDeleteJob, onAddReceipt, onDeleteReceipt, biz, profile, initialJobId }) {
   const [subview, setSubview] = useState(getPersistedView);
   const [selectedStage, setSelectedStage] = useState('On');
   const [showAll, setShowAll] = useState(false);
   // selectedJob drives the JobDetailDrawer — null means closed.
-  const [selectedJob, setSelectedJob] = useState(null);
+  // initialJobId: when set, pre-open the drawer for that job on first render.
+  const [selectedJob, setSelectedJob] = useState(() => {
+    if (!initialJobId) return null;
+    return null; // populated once jobs prop arrives via the useEffect below
+  });
   // drawerIntent / drawerTargetStage — set when opening the drawer with a goal
   // (e.g. tile CTA "Send quote →" or stage-advance guard). Cleared after use.
   const [drawerIntent, setDrawerIntent] = useState(null);
@@ -818,6 +822,17 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
   const [chaseStepIndex, setChaseStepIndex] = useState(0);
   // confirmDeleteJob — job pending hard-delete confirmation; null = modal closed.
   const [confirmDeleteJob, setConfirmDeleteJob] = useState(null);
+
+  // If AppShell navigated here with a specific job to open (e.g. from TodayScreen
+  // card-body tap), find it in the jobs array and pre-open the drawer.
+  // Runs once on mount (initialJobId is fixed for the lifetime of this WorkScreen instance).
+  useEffect(() => {
+    if (!initialJobId || !jobs.length) return;
+    const target = jobs.find(j => String(j.id) === String(initialJobId));
+    if (target) setSelectedJob(target);
+    // Deliberately empty dep array — we only want to run this on first mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jobs]);
 
   const switchSubview = useCallback((v) => {
     logTelemetry('work_subview', { subview: v });

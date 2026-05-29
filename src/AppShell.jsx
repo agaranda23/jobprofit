@@ -140,6 +140,9 @@ export default function AppShell() {
   const [postWizardNav, setPostWizardNav] = useState(null);
   // Push permission prompt: show once per device, dismiss stored in localStorage
   const [pushPromptVisible, setPushPromptVisible] = useState(false);
+  // pendingJobId: when Today navigates to Work with a specific job to open, store
+  // the job ID here so WorkScreen can pre-open the drawer on mount.
+  const [pendingJobId, setPendingJobId] = useState(null);
 
   const manageRootRef = useRef(null);
 
@@ -628,7 +631,7 @@ export default function AppShell() {
               onOpenDetailed={openDetailed}
               onChase={() => navigate('finance')}
               onMarkPaid={onMarkPaidFromToday}
-              onJobTap={() => navigate('work')}
+              onJobTap={(job) => { if (job?.id) setPendingJobId(job.id); navigate('work'); }}
               jobs={jobs}
               receipts={receipts}
               onAddJob={handleAddJob}
@@ -652,6 +655,7 @@ export default function AppShell() {
               onDeleteReceipt={handleDeleteReceipt}
               biz={null}
               profile={profile}
+              initialJobId={pendingJobId}
             />
           )}
 
@@ -697,7 +701,7 @@ export default function AppShell() {
               onOpenDetailed={openDetailed}
               onChase={() => navigate('money')}
               onMarkPaid={onMarkPaidFromToday}
-              onJobTap={() => navigate('jobs')}
+              onJobTap={(job) => { if (job?.id) setPendingJobId(job.id); navigate('jobs'); }}
               jobs={jobs}
               receipts={receipts}
               onAddJob={handleAddJob}
@@ -721,6 +725,7 @@ export default function AppShell() {
               onDeleteReceipt={handleDeleteReceipt}
               biz={null}
               profile={profile}
+              initialJobId={pendingJobId}
             />
           )}
 
