@@ -12,7 +12,7 @@
 // TO RE-ENABLE the free/Pro split when editing is done: set this back to false.
 // The underlying plan rule is preserved in planAllowsPro() and stays tested.
 // NOTE: while this is true, trial banners are also suppressed (see TrialBanner).
-export const UNLOCK_PRO_FOR_ALL = true;
+export const UNLOCK_PRO_FOR_ALL = false;
 
 /**
  * The real entitlement rule (kept intact for when the override is lifted).
