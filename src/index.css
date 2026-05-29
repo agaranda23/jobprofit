@@ -1878,6 +1878,60 @@ input[type=number] { -moz-appearance: textfield; }
 }
 .risk-strip-chase-btn:active { opacity: 0.8; }
 
+/* ── WorkScreen — overdue chase bar (Option C) ───────────────────────────────
+   Replaces the old static risk-strip. Only visible when overdueJobs.length > 0.
+   Single-row, figure-first, action-led. */
+.chase-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: linear-gradient(180deg, #2A1414 0%, #1F0E0E 100%);
+  border: 1px solid #5A2222;
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+  min-height: 44px;
+}
+.chase-bar-left {
+  display: flex;
+  align-items: baseline;
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.chase-bar-amount {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--jp-rose, #e5484d);
+  flex-shrink: 0;
+}
+.chase-bar-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-dim, #a8b3c0);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chase-bar-btn {
+  flex: 0 0 auto;
+  background: var(--jp-rose, #e5484d);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 0 16px;
+  font-size: 13px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  min-height: 44px;
+  white-space: nowrap;
+}
+.chase-bar-btn:active { opacity: 0.8; }
+
 /* ── JobsScreen — per-card dual CTAs ──────────── */
 .job-card-ctas {
   display: flex;

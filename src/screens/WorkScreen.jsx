@@ -894,35 +894,29 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
         </div>
       </div>
 
-      {/* Money-in-flight banner — owed (invoiced + overdue) and overdue at a glance.
-           Hidden when both figures are £0 — nothing to show. */}
-      {(riskFigures.owed > 0 || riskFigures.overdue > 0) && (
-        <div className="risk-strip">
-          <div className="risk-strip-figures">
-            <span className="risk-strip-figure">
-              <span className="risk-strip-value">£{formatAmount(riskFigures.owed)}</span>
-              <span className="risk-strip-label"> owed to you</span>
+      {/* Overdue chase bar — only rendered when at least one job is Overdue.
+           At rest (invoiced but nothing overdue) the StageStrip alone carries that info. */}
+      {riskFigures.overdueJobs.length > 0 && (
+        <div
+          className="chase-bar"
+          role="region"
+          aria-live="polite"
+          aria-label={`${riskFigures.overdueJobs.length === 1 ? '1 overdue invoice' : `${riskFigures.overdueJobs.length} overdue invoices`}`}
+        >
+          <div className="chase-bar-left">
+            <span className="chase-bar-amount">£{formatAmount(riskFigures.overdue)}</span>
+            <span className="chase-bar-label">
+              {' '}overdue · {riskFigures.overdueJobs.length === 1 ? '1 invoice' : `${riskFigures.overdueJobs.length} invoices`}
             </span>
-            {riskFigures.overdue > 0 && (
-              <>
-                <span className="risk-strip-sep">·</span>
-                <span className="risk-strip-figure risk-strip-figure--overdue">
-                  <span className="risk-strip-value">£{formatAmount(riskFigures.overdue)}</span>
-                  <span className="risk-strip-label"> overdue</span>
-                </span>
-              </>
-            )}
           </div>
-          {riskFigures.overdue > 0 && oldestOverdue && (
-            <div className="risk-strip-chase-row">
-              <span className="risk-strip-chase-hint">
-                {oldestOverdue.customer || oldestOverdue.name || 'Invoice'} · overdue
-              </span>
-              <button className="risk-strip-chase-btn" onClick={handleChase} type="button">
-                Chase
-              </button>
-            </div>
-          )}
+          <button
+            type="button"
+            className="chase-bar-btn"
+            onClick={handleBatchChaseStep}
+            aria-label={`Chase ${riskFigures.overdueJobs.length === 1 ? '1 overdue invoice' : `${riskFigures.overdueJobs.length} overdue invoices`}`}
+          >
+            Chase →
+          </button>
         </div>
       )}
 
