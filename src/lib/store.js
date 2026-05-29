@@ -616,6 +616,40 @@ export async function fetchPublicJob(token) {
 }
 
 /**
+ * Hard-deletes a job row from Supabase and removes its localStorage mirror entry.
+ *
+ * The `line_items` jsonb column goes away automatically with the row.
+ * Storage objects referenced by `meta.photos[]` are intentionally NOT removed
+ * here — that cleanup is a separate follow-up task (avoids complicating this PR).
+ *
+ * Falls back to localStorage-only removal when the user is not signed in (demo mode).
+ *
+ * @param {string} jobId – Supabase UUID for the job row
+ * @returns {Promise<void>}
+ */
+export async function deleteJobFromCloud(jobId) {
+  if (!jobId) return;
+
+  const user_id = await getUserId();
+  if (user_id) {
+    const { error } = await supabase
+      .from('jobs')
+      .delete()
+      .eq('id', jobId);
+
+    if (error) {
+      console.error('deleteJobFromCloud failed', error);
+      throw error;
+    }
+  }
+
+  // Mirror: remove from localStorage regardless of cloud outcome
+  const data = read();
+  data.jobs = data.jobs.filter(j => j.cloudId !== jobId && j.id !== jobId);
+  write(data);
+}
+
+/**
  * Deletes a receipt by its cloud UUID (or legacy localStorage ID).
  *
  * Flow:

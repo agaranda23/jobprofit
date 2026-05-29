@@ -515,6 +515,12 @@ export default function AppShell() {
     setJobs(prev => prev.map(j => j.id === updated.id ? updated : j));
   };
 
+  // Removes a hard-deleted job from local state. The cloud row is already gone
+  // (deleteJobFromCloud fired inside WorkScreen before this callback runs).
+  const onDeleteJob = (jobId) => {
+    setJobs(prev => prev.filter(j => j.id !== jobId));
+  };
+
   const handleLinkReceipt = async (jobId) => {
     if (!pendingLink) return;
     try {
@@ -641,6 +647,7 @@ export default function AppShell() {
               onAddJob={handleAddJob}
               onAddPayment={onAddPayment}
               onUpdateJob={onUpdateJob}
+              onDeleteJob={onDeleteJob}
               onAddReceipt={handleAddReceipt}
               onDeleteReceipt={handleDeleteReceipt}
               biz={null}
@@ -709,6 +716,7 @@ export default function AppShell() {
               onAddJob={handleAddJob}
               onAddPayment={onAddPayment}
               onUpdateJob={onUpdateJob}
+              onDeleteJob={onDeleteJob}
               onAddReceipt={handleAddReceipt}
               onDeleteReceipt={handleDeleteReceipt}
               biz={null}
