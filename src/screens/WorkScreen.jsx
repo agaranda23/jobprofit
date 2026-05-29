@@ -605,8 +605,9 @@ function JobTile({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJo
   const jobName = (job.summary || '').trim();
   const customerName = (job.customer || job.name || '').trim();
   const primaryLabel = jobName || customerName || 'Untitled job';
-  // Only show customer on the secondary line when we didn't already use it as primary
-  const secondaryLabel = jobName ? customerName : '';
+  // Only show customer on the secondary line when it's non-empty AND distinct from the
+  // primary label — prevents duplicating the job name when no separate customer was entered.
+  const secondaryLabel = (jobName && customerName && customerName !== jobName) ? customerName : '';
 
   const cta = getStageCTA(stage, job, { onSendInvoice, onUpdateJob, onNewJob, onOpenJob, biz });
   const stageMeta = STAGE_META[stage] || STAGE_META.Lead;

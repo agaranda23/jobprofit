@@ -1130,6 +1130,11 @@ export default function JobDetailDrawer({
   const status = deriveStatus(job);
   const statusClass = STATUS_CLASS[status] || '';
   const displayName = job.customer || job.name || 'Unnamed job';
+  // Only show the customer sub-line when it's present and differs from the job name —
+  // avoids duplicating text when customer_name was defaulted to the job name on creation.
+  const distinctCustomer = (job.customer && job.customer.trim() && job.customer.trim() !== (job.summary || '').trim())
+    ? job.customer.trim()
+    : '';
   const amount = job.total ?? job.amount;
   const showChase = shouldShowChase(job);
 
@@ -1672,15 +1677,15 @@ export default function JobDetailDrawer({
                   type="button"
                   className="jd-customer-subline-btn"
                   onClick={() => setEditingField('name')}
-                  aria-label={displayName !== 'Unnamed job' ? 'Edit customer' : 'Add customer'}
+                  aria-label={distinctCustomer ? 'Edit customer' : 'Add customer'}
                 >
-                  {displayName !== 'Unnamed job'
-                    ? <span className="job-detail-summary">{displayName}</span>
+                  {distinctCustomer
+                    ? <span className="job-detail-summary">{distinctCustomer}</span>
                     : <span className="jd-detail-edit-row-add jd-detail-edit-row-add--sm">+ Add customer</span>
                   }
                 </button>
               ) : (
-                job.summary && <div className="job-detail-summary">{displayName}</div>
+                distinctCustomer && <div className="job-detail-summary">{distinctCustomer}</div>
               )}
             </div>
           </div>
