@@ -863,6 +863,19 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
 
   const openAddJob = () => setAddJobOpen(true);
 
+  // Wraps onUpdateJob to fire a confirmation toast when a job is moved to Paid
+  // via the stage-chip dropdown. JobDetailDrawer has its own showFlash for the
+  // drawer path; this covers the tile path where no other feedback fires.
+  const handleUpdateJob = (updated) => {
+    const prev = jobs.find(j => j.id === updated.id);
+    const becomingPaid = updated.paid === true && !(prev?.paid === true || prev?.paymentStatus === 'paid');
+    if (becomingPaid) {
+      const amt = Number(updated.total ?? updated.amount ?? 0) || 0;
+      showToast(amt > 0 ? `£${formatAmount(amt)} marked paid` : 'Job marked paid');
+    }
+    onUpdateJob?.(updated);
+  };
+
   // Opens a job's drawer with an optional intent (e.g. 'quote', 'price').
   // Called by tile CTAs and the stage-advance guard in StageChipDropdown.
   const handleOpenJob = (job, opts) => {
@@ -979,7 +992,7 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
           showAll={showAll}
           onJobSelect={setSelectedJob}
           onSendInvoice={setInvoiceJob}
-          onUpdateJob={onUpdateJob}
+          onUpdateJob={handleUpdateJob}
           onNewJob={onNewJob}
           onOpenJob={handleOpenJob}
           biz={biz}
