@@ -40,6 +40,7 @@ import {
   deleteReceiptFromCloud,
   updateJobMetaInCloud,
 } from './lib/store';
+import { flipExpiredTrialToFree } from './lib/plan';
 
 // ─── Feature flags ───────────────────────────────────────────────────────────
 // Slice-3 nav (Today / Jobs / Money / Settings) is the default for all users.
@@ -222,6 +223,9 @@ export default function AppShell() {
         if (data.preferred_voice_lang) {
           localStorage.setItem('jp.voiceLang', data.preferred_voice_lang);
         }
+        // If the trial has expired, flip plan to 'free' in the DB so the row
+        // stays clean. Fire-and-forget — never blocks render, never throws.
+        flipExpiredTrialToFree(supabase, userId, data);
       }
     } catch {
       // profiles table may not have first_name/last_name yet — that's fine for slice 1

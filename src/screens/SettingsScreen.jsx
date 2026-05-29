@@ -39,7 +39,7 @@ import {
 } from '../lib/pushSubscribe.js';
 import { OVERHEAD_CATEGORIES } from '../lib/overheads.js';
 import { getOverheadTotal } from '../lib/cashflow.js';
-import { isPro } from '../lib/plan.js';
+import { isPro, isTrialActive, trialDaysLeft, UNLOCK_PRO_FOR_ALL } from '../lib/plan.js';
 import { startCheckout, openBillingPortal } from '../lib/billing.js';
 
 const APP_VERSION = pkg.version;
@@ -771,28 +771,54 @@ export default function SettingsScreen({
 
       {/* Subscription */}
       <SectionCard title="Subscription">
-        <Row
-          label="Current plan"
-          value={isPro(profile) ? 'Pro' : 'Free'}
-          chevron={false}
-        />
-        {isPro(profile) ? (
-          <Row
-            label="Manage billing"
-            onTap={async () => {
-              const { error } = await openBillingPortal();
-              if (error) setSaveToast(error);
-            }}
-          />
+        {/* Trial state — shown only when override is off and user is on an active trial */}
+        {!UNLOCK_PRO_FOR_ALL && isTrialActive(profile) ? (
+          <>
+            <Row
+              label="Current plan"
+              value={`Free trial · ${trialDaysLeft(profile)} day${trialDaysLeft(profile) === 1 ? '' : 's'} left`}
+              chevron={false}
+            />
+            <Row
+              label="Add card to stay Pro"
+              action="£12/mo"
+              onTap={async () => {
+                const { error } = await startCheckout();
+                if (error) setSaveToast(error);
+              }}
+            />
+          </>
+        ) : isPro(profile) ? (
+          <>
+            <Row
+              label="Current plan"
+              value="Pro"
+              chevron={false}
+            />
+            <Row
+              label="Manage billing"
+              onTap={async () => {
+                const { error } = await openBillingPortal();
+                if (error) setSaveToast(error);
+              }}
+            />
+          </>
         ) : (
-          <Row
-            label="Upgrade to Pro"
-            action="£12/mo"
-            onTap={async () => {
-              const { error } = await startCheckout();
-              if (error) setSaveToast(error);
-            }}
-          />
+          <>
+            <Row
+              label="Current plan"
+              value="Free"
+              chevron={false}
+            />
+            <Row
+              label="Upgrade to Pro"
+              action="£12/mo"
+              onTap={async () => {
+                const { error } = await startCheckout();
+                if (error) setSaveToast(error);
+              }}
+            />
+          </>
         )}
       </SectionCard>
 
