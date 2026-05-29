@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import AddJobModal from '../components/AddJobModal';
 import AddReceiptModal from '../components/AddReceiptModal';
+import TrialBanner from '../components/TrialBanner';
 import { gbp, todayKey, formatToday } from '../lib/today';
 import { isAwaitingPayment, daysSinceInvoice, deriveStatus } from '../lib/jobStatus';
 import { getChaseState, recordChase } from '../lib/chaseLadder';
@@ -197,6 +198,7 @@ export default function TodayScreen({ jobs = [], receipts = [], onAddJob, onAddR
 
   return (
     <div className="today-screen">
+      <TrialBanner profile={profile} onError={(msg) => showToast(msg)} />
       <header className="today-header">
         <h1>Today</h1>
         <p className="today-date">{formatToday()}</p>

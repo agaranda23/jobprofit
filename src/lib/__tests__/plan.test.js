@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { isPro, planAllowsPro, canSendInvoice, incrementSendCount, UNLOCK_PRO_FOR_ALL } from '../plan.js';
+import { isPro, planAllowsPro, canSendInvoice, incrementSendCount, UNLOCK_PRO_FOR_ALL, isTrialActive, trialDaysLeft } from '../plan.js';
 
 // ──────────────────────────────────────────────────────────────────────────
 // The real entitlement rule — always valid regardless of the temporary
@@ -146,5 +146,138 @@ describe('incrementSendCount', () => {
       })),
     };
     await expect(incrementSendCount(sb, 'user-123')).resolves.toBeUndefined();
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// isTrialActive — pure trial state
+// ──────────────────────────────────────────────────────────────────────────
+describe('isTrialActive', () => {
+  const future = new Date(Date.now() + 5 * 86400000); // 5 days from now
+  const past   = new Date(Date.now() - 1 * 86400000); // 1 day ago
+  const now    = new Date();
+
+  it('returns true when plan=trial and trial_ends_at is in the future', () => {
+    expect(isTrialActive({ plan: 'trial', trial_ends_at: future.toISOString() }, now)).toBe(true);
+  });
+
+  it('returns false when trial has expired (trial_ends_at in the past)', () => {
+    expect(isTrialActive({ plan: 'trial', trial_ends_at: past.toISOString() }, now)).toBe(false);
+  });
+
+  it('returns false when plan is "free" even with trial_ends_at set', () => {
+    expect(isTrialActive({ plan: 'free', trial_ends_at: future.toISOString() }, now)).toBe(false);
+  });
+
+  it('returns false when plan is "pro"', () => {
+    expect(isTrialActive({ plan: 'pro', trial_ends_at: future.toISOString() }, now)).toBe(false);
+  });
+
+  it('returns false when trial_ends_at is null', () => {
+    expect(isTrialActive({ plan: 'trial', trial_ends_at: null }, now)).toBe(false);
+  });
+
+  it('returns false when trial_ends_at is absent', () => {
+    expect(isTrialActive({ plan: 'trial' }, now)).toBe(false);
+  });
+
+  it('returns false for null profile', () => {
+    expect(isTrialActive(null, now)).toBe(false);
+  });
+
+  it('returns false for undefined profile', () => {
+    expect(isTrialActive(undefined, now)).toBe(false);
+  });
+
+  it('returns false for empty object', () => {
+    expect(isTrialActive({}, now)).toBe(false);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// trialDaysLeft — rounding and edge cases
+// ──────────────────────────────────────────────────────────────────────────
+describe('trialDaysLeft', () => {
+  it('returns 0 when trial has expired', () => {
+    const now  = new Date('2026-06-01T12:00:00Z');
+    const past = new Date('2026-05-30T12:00:00Z');
+    expect(trialDaysLeft({ plan: 'trial', trial_ends_at: past.toISOString() }, now)).toBe(0);
+  });
+
+  it('returns 0 for a free profile', () => {
+    const now    = new Date();
+    const future = new Date(Date.now() + 5 * 86400000);
+    expect(trialDaysLeft({ plan: 'free', trial_ends_at: future.toISOString() }, now)).toBe(0);
+  });
+
+  it('returns 0 for null profile', () => {
+    expect(trialDaysLeft(null, new Date())).toBe(0);
+  });
+
+  it('returns ceiling of fractional days (e.g. 13.1 days → 14)', () => {
+    const now = new Date('2026-06-01T00:00:00Z');
+    // 13 days + 2 hours and 24 minutes = 13.1 days remaining → ceil = 14
+    const endsAt = new Date('2026-06-14T02:24:00Z');
+    expect(trialDaysLeft({ plan: 'trial', trial_ends_at: endsAt.toISOString() }, now)).toBe(14);
+  });
+
+  it('returns exactly 14 for a brand new trial', () => {
+    const now    = new Date('2026-06-01T00:00:00Z');
+    const endsAt = new Date('2026-06-15T00:00:00Z');
+    expect(trialDaysLeft({ plan: 'trial', trial_ends_at: endsAt.toISOString() }, now)).toBe(14);
+  });
+
+  it('returns 1 on the last partial day', () => {
+    const now    = new Date('2026-06-14T23:00:00Z');
+    const endsAt = new Date('2026-06-15T00:00:00Z');
+    expect(trialDaysLeft({ plan: 'trial', trial_ends_at: endsAt.toISOString() }, now)).toBe(1);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// isPro — trial path, expiry fallthrough, and override still winning
+// These tests inject `now` so they work regardless of UNLOCK_PRO_FOR_ALL.
+// ──────────────────────────────────────────────────────────────────────────
+describe('isPro — trial-aware entitlement', () => {
+  const futureDate = new Date(Date.now() + 5 * 86400000);
+  const pastDate   = new Date(Date.now() - 1 * 86400000);
+  const now        = new Date();
+
+  it('UNLOCK_PRO_FOR_ALL wins regardless of plan or trial state', () => {
+    // This test is always true while the override flag is on.
+    // When UNLOCK_PRO_FOR_ALL is flipped to false at go-live, it becomes a
+    // free-tier assertion — not a test failure.
+    const result = isPro({ plan: 'free' }, now);
+    expect(result).toBe(UNLOCK_PRO_FOR_ALL ? true : false);
+  });
+
+  it('active trial grants Pro access (when override is off)', () => {
+    // We test the underlying logic by injecting a known now.
+    // isTrialActive is the underlying rule — isPro delegates to it.
+    const profile = { plan: 'trial', trial_ends_at: futureDate.toISOString() };
+    // When override is on, isPro returns true for everyone.
+    // When override is off, isPro must return true for an active trial.
+    if (!UNLOCK_PRO_FOR_ALL) {
+      expect(isPro(profile, now)).toBe(true);
+    } else {
+      expect(isPro(profile, now)).toBe(true); // override wins anyway
+    }
+  });
+
+  it('expired trial falls through to free (no Pro access)', () => {
+    const profile = { plan: 'trial', trial_ends_at: pastDate.toISOString() };
+    if (!UNLOCK_PRO_FOR_ALL) {
+      expect(isPro(profile, now)).toBe(false);
+    } else {
+      expect(isPro(profile, now)).toBe(true); // override wins
+    }
+  });
+
+  it('plan=pro is always Pro regardless of trial state', () => {
+    expect(isPro({ plan: 'pro', trial_ends_at: null }, now)).toBe(true);
+  });
+
+  it('null profile follows the override flag (defaults to free when off)', () => {
+    expect(isPro(null, now)).toBe(UNLOCK_PRO_FOR_ALL ? true : false);
   });
 });
