@@ -30,7 +30,7 @@
  */
 
 import { useMemo, useState, useCallback } from 'react';
-import { gbp } from '../lib/today';
+import { gbp, todayKey } from '../lib/today';
 import { isPro } from '../lib/plan';
 import HeaderAvatar from '../components/HeaderAvatar';
 import CashflowChart from '../components/CashflowChart';
@@ -142,6 +142,17 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
 
   const now = new Date();
   const currentMonth = monthKey(now);
+
+  // ── Today's Earned / Spent / Profit (relocated from TodayScreen) ─────────────
+  // Shows today's numbers as the top card on Money — same dopamine, one tab away.
+  const todayEarnedSpentProfit = useMemo(() => {
+    const key = todayKey(now);
+    const todayJobs = jobs.filter(j => (j.date || '').slice(0, 10) === key);
+    const todayReceipts = receipts.filter(r => (r.date || '').slice(0, 10) === key);
+    const earned = todayJobs.filter(j => j.paid !== false).reduce((s, j) => s + Number(j.amount || 0), 0);
+    const spent = todayReceipts.reduce((s, r) => s + Number(r.amount || 0), 0);
+    return { earned, spent, profit: earned - spent, hasToday: todayJobs.length > 0 || todayReceipts.length > 0 };
+  }, [jobs, receipts]);
   // Destructure primitives so the React Compiler can track exact deps.
   const hourlyRate = Number(profile?.hourly_rate) || 0;
   const taxSetAsidePct = Number(profile?.tax_set_aside_pct ?? 20);
@@ -287,6 +298,28 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
           </div>
         )}
       </div>
+
+      {/* ── 0. Today — Earned / Spent / Profit (relocated from Today tab) ── */}
+      {/* Shown whenever there is at least one job or receipt today. */}
+      {todayEarnedSpentProfit.hasToday && (
+        <div className="foreman-esp-card">
+          <div className="foreman-esp-row">
+            <span className="foreman-esp-label">Earned today</span>
+            <span className="foreman-esp-value">{gbp(todayEarnedSpentProfit.earned)}</span>
+          </div>
+          <div className="foreman-esp-row">
+            <span className="foreman-esp-label">Spent today</span>
+            <span className="foreman-esp-value">{gbp(todayEarnedSpentProfit.spent)}</span>
+          </div>
+          <hr className="foreman-esp-divider" />
+          <div className="foreman-esp-row">
+            <span className="foreman-esp-profit-label">Profit today</span>
+            <span className={`foreman-esp-profit-value${todayEarnedSpentProfit.profit < 0 ? ' foreman-esp-profit-value--negative' : ''}`}>
+              {gbp(todayEarnedSpentProfit.profit)}
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* ── 1. Hero — Profit this month ──────────────────────────────────── */}
       {isEmptyMonth ? (
