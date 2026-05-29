@@ -1,0 +1,144 @@
+/**
+ * create-checkout — Netlify function
+ *
+ * Creates a Stripe Checkout Session for the JobProfit Pro subscription (£12/mo).
+ * The caller must be authenticated — the Supabase access token is read from the
+ * Authorization header and verified server-side. The user id is NEVER trusted
+ * from the request body.
+ *
+ * POST (no body required — auth token carries the identity)
+ *
+ * Required env vars (set in Netlify dashboard):
+ *   STRIPE_SECRET_KEY       — Stripe dashboard → Developers → API keys → Secret key
+ *   STRIPE_PRICE_ID         — Stripe dashboard → Products → JobProfit Pro → Price ID (price_...)
+ *   VITE_SUPABASE_URL       — already set for the browser build; reused here
+ *   SUPABASE_SERVICE_ROLE_KEY — Supabase → Project Settings → API → service_role
+ *   APP_URL                 — optional; base URL for success/cancel redirects
+ *                             (falls back to the request Origin header)
+ *
+ * Response shapes:
+ *   200  { url }           — Stripe Checkout session URL; redirect the browser here
+ *   400  { error }         — bad request
+ *   401  { error }         — missing or invalid auth token
+ *   500  { error }         — server configuration error
+ *   502  { error }         — Stripe or Supabase call failed
+ */
+
+import Stripe from 'stripe';
+import { createClient } from '@supabase/supabase-js';
+
+const CORS_HEADERS = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  'Content-Type': 'application/json',
+};
+
+function json(statusCode, body) {
+  return { statusCode, headers: CORS_HEADERS, body: JSON.stringify(body) };
+}
+
+export const handler = async function (event) {
+  // Preflight
+  if (event.httpMethod === 'OPTIONS') {
+    return { statusCode: 200, headers: CORS_HEADERS, body: '' };
+  }
+
+  if (event.httpMethod !== 'POST') {
+    return json(405, { error: 'Method not allowed' });
+  }
+
+  // ── 1. Validate env vars ─────────────────────────────────────────────────────
+  const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
+  const stripePriceId   = process.env.STRIPE_PRICE_ID;
+  const supabaseUrl     = process.env.VITE_SUPABASE_URL;
+  const serviceRoleKey  = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!stripeSecretKey || !stripePriceId || !supabaseUrl || !serviceRoleKey) {
+    console.error(
+      'create-checkout: missing env vars.',
+      'STRIPE_SECRET_KEY:', !!stripeSecretKey,
+      'STRIPE_PRICE_ID:', !!stripePriceId,
+      'VITE_SUPABASE_URL:', !!supabaseUrl,
+      'SUPABASE_SERVICE_ROLE_KEY:', !!serviceRoleKey,
+    );
+    return json(500, { error: 'Server configuration error — contact support' });
+  }
+
+  // ── 2. Authenticate the caller via Supabase ──────────────────────────────────
+  // Read the Bearer token from the Authorization header — never trust body params.
+  const authHeader = event.headers?.authorization || event.headers?.Authorization || '';
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
+
+  if (!token) {
+    return json(401, { error: 'Missing authorization token' });
+  }
+
+  // Use the anon/service client just to verify the JWT — we don't need RLS bypass here
+  // for the auth check itself, but we use the service client to fetch the profile after.
+  const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false },
+  });
+
+  let userId, userEmail;
+  try {
+    const { data: { user }, error } = await adminClient.auth.getUser(token);
+    if (error || !user) {
+      return json(401, { error: 'Invalid or expired token' });
+    }
+    userId    = user.id;
+    userEmail = user.email;
+  } catch (err) {
+    console.error('create-checkout: auth.getUser threw', err?.message);
+    return json(401, { error: 'Could not verify token' });
+  }
+
+  // ── 3. Fetch existing profile for stripe_customer_id ────────────────────────
+  let existingCustomerId = null;
+  try {
+    const { data: profile } = await adminClient
+      .from('profiles')
+      .select('stripe_customer_id')
+      .eq('id', userId)
+      .single();
+    existingCustomerId = profile?.stripe_customer_id || null;
+  } catch {
+    // Non-fatal — proceed without a customer id; Stripe will create a new one
+  }
+
+  // ── 4. Build success / cancel URLs ──────────────────────────────────────────
+  // APP_URL env var is preferred so the redirects always land on the production
+  // domain, not whatever Origin the function received (which may be a preview URL).
+  const appBase = (process.env.APP_URL || event.headers?.origin || '').replace(/\/$/, '');
+  const successUrl = `${appBase}/#/settings?upgraded=1`;
+  const cancelUrl  = `${appBase}/#/money`;
+
+  // ── 5. Create Stripe Checkout Session ───────────────────────────────────────
+  const stripe = new Stripe(stripeSecretKey, { apiVersion: '2024-06-20' });
+
+  let session;
+  try {
+    const sessionParams = {
+      mode: 'subscription',
+      line_items: [{ price: stripePriceId, quantity: 1 }],
+      client_reference_id: userId,
+      metadata: { user_id: userId },
+      success_url: successUrl,
+      cancel_url: cancelUrl,
+    };
+
+    if (existingCustomerId) {
+      // Returning customer — reuse their Stripe customer record
+      sessionParams.customer = existingCustomerId;
+    } else {
+      // New customer — pre-fill email so they don't have to type it
+      sessionParams.customer_email = userEmail;
+    }
+
+    session = await stripe.checkout.sessions.create(sessionParams);
+  } catch (err) {
+    console.error('create-checkout: Stripe session create failed', err?.message);
+    return json(502, { error: 'Could not create checkout session — please try again' });
+  }
+
+  return json(200, { url: session.url });
+};

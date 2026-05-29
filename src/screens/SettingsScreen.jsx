@@ -39,6 +39,8 @@ import {
 } from '../lib/pushSubscribe.js';
 import { OVERHEAD_CATEGORIES } from '../lib/overheads.js';
 import { getOverheadTotal } from '../lib/cashflow.js';
+import { isPro } from '../lib/plan.js';
+import { startCheckout, openBillingPortal } from '../lib/billing.js';
 
 const APP_VERSION = pkg.version;
 
@@ -769,8 +771,29 @@ export default function SettingsScreen({
 
       {/* Subscription */}
       <SectionCard title="Subscription">
-        <Row label="Current plan" value="Free" chevron={false} />
-        <PlaceholderRow label="Manage billing" />
+        <Row
+          label="Current plan"
+          value={isPro(profile) ? 'Pro' : 'Free'}
+          chevron={false}
+        />
+        {isPro(profile) ? (
+          <Row
+            label="Manage billing"
+            onTap={async () => {
+              const { error } = await openBillingPortal();
+              if (error) setSaveToast(error);
+            }}
+          />
+        ) : (
+          <Row
+            label="Upgrade to Pro"
+            action="£12/mo"
+            onTap={async () => {
+              const { error } = await startCheckout();
+              if (error) setSaveToast(error);
+            }}
+          />
+        )}
       </SectionCard>
 
       {/* Accountant */}
