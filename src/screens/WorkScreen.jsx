@@ -34,6 +34,7 @@ import SendInvoiceModal from '../components/SendInvoiceModal';
 import StageStrip from '../components/StageStrip';
 import { logTelemetry } from '../lib/telemetry';
 import { daysSinceInvoice, needsPrice, requiresPriceForStage, stagePatch } from '../lib/jobStatus';
+import { deleteJobFromCloud } from '../lib/store';
 import {
   computeTier,
   daysPastDue,
@@ -256,7 +257,7 @@ const STAGE_META = {
  * "More actions" is 4 compact chips below a divider.
  * All moveToStage() mapping logic is unchanged.
  */
-function StageChipDropdown({ job, currentStage, onUpdateJob, onSendInvoice, onSelect, onOpenJob }) {
+function StageChipDropdown({ job, currentStage, onUpdateJob, onSendInvoice, onSelect, onOpenJob, onCopyJob, onArchiveJob, onDeleteJob }) {
   const [open, setOpen] = useState(false);
   const chipRef = useRef(null);
   const menuRef = useRef(null);
@@ -310,17 +311,14 @@ function StageChipDropdown({ job, currentStage, onUpdateJob, onSendInvoice, onSe
         onSelect?.(job);
         break;
       case 'Duplicate':
-        // TODO: duplicate job (separate PR)
+        onCopyJob?.(job);
         break;
       case 'Archive':
-        if (!onUpdateJob) return;
-        onUpdateJob({ ...job, archived: true });
+        onArchiveJob?.(job);
         break;
       case 'Delete':
-        if (!onUpdateJob) return;
-        // Soft-delete: archived + deleted flag. Hard delete needs onDeleteJob prop.
-        // TODO: wire proper hard-delete via onDeleteJob callback (separate PR)
-        onUpdateJob({ ...job, archived: true, deleted: true });
+        // Opens confirmation modal in WorkScreen — hard-delete on confirm.
+        onDeleteJob?.(job);
         break;
       default:
         break;
@@ -593,7 +591,7 @@ function deriveMoneySub(job, stage) {
  * Customer demoted to secondary line; falls back: if summary empty, customer
  * becomes the primary label so the tile is never a bare "Untitled job".
  */
-function JobTile({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJob, biz }) {
+function JobTile({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJob, onCopyJob, onArchiveJob, onDeleteJob, biz }) {
   const stage = deriveDisplayStatus(job);
   const isPaid = stage === 'Paid';
 
@@ -664,6 +662,9 @@ function JobTile({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJo
           onSendInvoice={onSendInvoice}
           onSelect={onSelect}
           onOpenJob={onOpenJob}
+          onCopyJob={onCopyJob}
+          onArchiveJob={onArchiveJob}
+          onDeleteJob={onDeleteJob}
         />
       </div>
 
@@ -764,7 +765,7 @@ function EmptyState({ stage }) {
 
 // ── JobsList subview ──────────────────────────────────────────────────────────
 
-function JobsList({ jobs, selectedStage, showAll, onJobSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJob, biz }) {
+function JobsList({ jobs, selectedStage, showAll, onJobSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJob, onCopyJob, onArchiveJob, onDeleteJob, biz }) {
   const filtered = showAll
     ? jobs
     : jobs.filter(j => deriveDisplayStatus(j) === selectedStage);
@@ -784,6 +785,9 @@ function JobsList({ jobs, selectedStage, showAll, onJobSelect, onSendInvoice, on
               onUpdateJob={onUpdateJob}
               onNewJob={onNewJob}
               onOpenJob={onOpenJob}
+              onCopyJob={onCopyJob}
+              onArchiveJob={onArchiveJob}
+              onDeleteJob={onDeleteJob}
               biz={biz}
             />
           ))}
@@ -795,7 +799,7 @@ function JobsList({ jobs, selectedStage, showAll, onJobSelect, onSendInvoice, on
 
 // ── WorkScreen (root) ─────────────────────────────────────────────────────────
 
-export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJob, onAddPayment, onUpdateJob, onAddReceipt, onDeleteReceipt, biz, profile }) {
+export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJob, onAddPayment, onUpdateJob, onDeleteJob, onAddReceipt, onDeleteReceipt, biz, profile }) {
   const [subview, setSubview] = useState(getPersistedView);
   const [selectedStage, setSelectedStage] = useState('On');
   const [showAll, setShowAll] = useState(false);
@@ -812,6 +816,8 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
   const [addJobOpen, setAddJobOpen] = useState(false);
   // chaseStepIndex — tracks which job to nudge next in the batch-chase flow
   const [chaseStepIndex, setChaseStepIndex] = useState(0);
+  // confirmDeleteJob — job pending hard-delete confirmation; null = modal closed.
+  const [confirmDeleteJob, setConfirmDeleteJob] = useState(null);
 
   const switchSubview = useCallback((v) => {
     logTelemetry('work_subview', { subview: v });
@@ -843,8 +849,13 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
     setShowAll(v => !v);
   };
 
+  // Exclude archived and deleted jobs from every rendered surface in this screen.
+  // This single derivation feeds StageStrip totals, the chase bar, and JobsList
+  // so counts and £ figures all agree.
+  const visibleJobs = jobs.filter(j => !j?.archived && !j?.meta?.archived && !j?.deleted && !j?.meta?.deleted);
+
   // Money-in-flight banner figures
-  const riskFigures = calcRiskFigures(jobs);
+  const riskFigures = calcRiskFigures(visibleJobs);
   const oldestOverdue = riskFigures.overdueJobs[0] ?? null;
 
   // Batch nudge: overdue jobs that are NOT blocked by the 48h guard
@@ -897,6 +908,66 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
     setDrawerTargetStage(opts?.targetStage ?? null);
   };
 
+  // Duplicates a job as a new Lead, carrying customer + price details but
+  // resetting all invoice/payment/date fields. Delegates to onAddJob (AppShell)
+  // so the existing cloud write + localStorage dual-write path is reused.
+  const handleCopyJob = (job) => {
+    const payload = {
+      customer: job.customer || job.name || '',
+      name: job.summary || job.customer || job.name || 'Job',
+      summary: job.summary || '',
+      phone: job.phone || '',
+      email: job.email || '',
+      address: job.address || '',
+      notes: job.notes || '',
+      amount: job.total ?? job.amount ?? null,
+      lineItems: job.lineItems ?? [],
+      // Reset to Lead — no payment, no invoice signals
+      paid: false,
+      status: 'lead',
+      invoiceStatus: null,
+      paidAt: null,
+      invoiceSentAt: null,
+      invoiceDueDate: null,
+      overdue: false,
+      source: 'Copy',
+    };
+    onAddJob?.(payload);
+    showToast('Job copied');
+  };
+
+  // Archives a job by setting meta.archived and stamping meta.archivedAt.
+  // The job stays in the DB — a future "Archived" view will let users restore it.
+  const handleArchiveJob = (job) => {
+    handleUpdateJob({
+      ...job,
+      archived: true,
+      meta: { ...(job.meta || {}), archived: true, archivedAt: new Date().toISOString() },
+    });
+    showToast('Job archived');
+  };
+
+  // Opens the confirmation modal. The actual hard-delete fires on confirm.
+  const handleRequestDeleteJob = (job) => {
+    setConfirmDeleteJob(job);
+  };
+
+  // Confirmed hard-delete — removes the row from Supabase and local state.
+  // Storage objects in meta.photos[] are left for a follow-up cleanup task.
+  const handleConfirmDeleteJob = async () => {
+    const job = confirmDeleteJob;
+    setConfirmDeleteJob(null);
+    if (!job) return;
+    try {
+      await deleteJobFromCloud(job.id);
+      onDeleteJob?.(job.id);
+      showToast('Job deleted');
+    } catch (err) {
+      console.error('handleConfirmDeleteJob failed', err);
+      showToast('Delete failed — try again');
+    }
+  };
+
   return (
     <div className="screen work-screen">
       {/* Header */}
@@ -936,7 +1007,7 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
 
       {/* Stage Strip — deriveStatus + formatAmount passed as props (avoids circular import) */}
       <StageStrip
-        jobs={jobs}
+        jobs={visibleJobs}
         selectedStage={selectedStage}
         showAll={showAll}
         onSelectStage={handleSelectStage}
@@ -994,7 +1065,7 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
       {/* Subview */}
       {subview === 'list' ? (
         <JobsList
-          jobs={jobs}
+          jobs={visibleJobs}
           selectedStage={selectedStage}
           showAll={showAll}
           onJobSelect={setSelectedJob}
@@ -1002,10 +1073,13 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
           onUpdateJob={handleUpdateJob}
           onNewJob={onNewJob}
           onOpenJob={handleOpenJob}
+          onCopyJob={handleCopyJob}
+          onArchiveJob={handleArchiveJob}
+          onDeleteJob={handleRequestDeleteJob}
           biz={biz}
         />
       ) : (
-        <WorkCalendar jobs={jobs} onNewJobOnDate={onNewJob} />
+        <WorkCalendar jobs={visibleJobs} onNewJobOnDate={onNewJob} />
       )}
 
       {/* Job detail drawer */}
@@ -1046,6 +1120,39 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
           onClose={() => setAddJobOpen(false)}
           onSave={handleJobSave}
         />
+      )}
+
+      {/* Confirm-delete modal — minimal inline implementation (no reusable ConfirmModal exists yet) */}
+      {confirmDeleteJob && (
+        <div className="modal-backdrop" onClick={() => setConfirmDeleteJob(null)}>
+          <div
+            className="modal-card"
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="delete-modal-title"
+            aria-describedby="delete-modal-body"
+            onClick={e => e.stopPropagation()}
+          >
+            <h2 id="delete-modal-title" className="modal-card-title">Delete this job?</h2>
+            <p id="delete-modal-body" className="modal-card-body">This can&apos;t be undone.</p>
+            <div className="modal-card-actions">
+              <button
+                type="button"
+                className="modal-btn modal-btn--secondary"
+                onClick={() => setConfirmDeleteJob(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="modal-btn modal-btn--danger"
+                onClick={handleConfirmDeleteJob}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {toast && <div className="toast">{toast}</div>}
