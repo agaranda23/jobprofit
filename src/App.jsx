@@ -24,20 +24,6 @@ const _today = new Date().toISOString().slice(0, 10);
 const _tomorrow = (() => { const d = new Date(); d.setDate(d.getDate() + 1); return d.toISOString().slice(0, 10); })();
 const _now = new Date().toISOString();
 const td = () => new Date().toISOString().slice(0, 10);
-const seedJobs = [
-  { id:"J-0001", customer:"Mrs. Sarah Mitchell", address:"14 Elm Road, Manchester", phone:"07700 900123", email:"sarah.m@email.com", date:"2026-02-10", summary:"Kitchen renovation — strip old units, replaster two walls, fit new kitchen units, vinyl flooring ~20sqm.", lineItems:[{desc:"Strip existing kitchen units",cost:350},{desc:"Replaster two walls",cost:480},{desc:"Fit kitchen units (customer supplied)",cost:650},{desc:"Vinyl flooring (~20sqm)",cost:400},{desc:"Electrician — sockets & cooker point",cost:380},{desc:"Materials",cost:320}], total:2580, quoteStatus:"accepted", jobStatus:"active", invoiceStatus:"invoiced", paymentStatus:"unpaid", paymentDate:"", paymentMethod:"", source:"Checkatrade", jobNotes:[{id:"N-0001",subject:"Access info",body:"Customer supplying all kitchen units. Access via side gate.",date:"2026-02-10T09:30:00"},{id:"N-0002",subject:"Schedule plan",body:"Day 1: Strip and dispose. Day 2-3: Plaster and dry. Day 4: Fit units and flooring.",date:"2026-02-10T10:00:00"}], photos:[], invoiceId:"INV-0002", reminders:[{id:"R-0001",date:"2026-02-24T10:00:00",level:"friendly"}], scheduledDate:_today, scheduledStart:"08:30", scheduledEnd:"16:00", reminderSentAt:null },
-  { id:"J-0002", customer:"Mr. James Turner", address:"7 Oak Avenue, Stockport", phone:"07700 900456", email:"", date:"2026-02-13", summary:"Bathroom refit — remove old suite, tile walls and floor, fit new suite and shower.", lineItems:[{desc:"Remove existing suite and tiles",cost:280},{desc:"Plumbing — fit new suite, reroute pipes",cost:750},{desc:"Tile walls and floor (~18sqm)",cost:620},{desc:"New bathroom suite (supply & fit)",cost:890},{desc:"Materials",cost:410}], total:2950, quoteStatus:"accepted", jobStatus:"complete", invoiceStatus:"invoiced", paymentStatus:"paid", paymentDate:"2026-02-28", paymentMethod:"bank transfer", source:"MyBuilder", jobNotes:[{id:"N-0003",subject:"Access",body:"En-suite. Tight access through bedroom.",date:"2026-02-13T14:00:00"}], photos:[], invoiceId:"INV-0001" },
-  { id:"J-0003", customer:"Mrs. Lisa Patel", address:"22 Birch Lane, Didsbury", phone:"07700 900789", email:"lisa.p@email.com", date:"2026-02-25", summary:"Plaster and paint two bedrooms, repair ceiling crack in hallway.", lineItems:[{desc:"Plaster bedroom 1",cost:320},{desc:"Plaster bedroom 2",cost:320},{desc:"Ceiling crack repair",cost:180},{desc:"Paint — 2 coats all walls & ceilings",cost:480},{desc:"Materials",cost:150}], total:1450, quoteStatus:"accepted", jobStatus:"complete", invoiceStatus:"invoiced", paymentStatus:"paid", paymentDate:_today, paymentMethod:"bank transfer", source:"Rated People", jobNotes:[{id:"N-0004",subject:"Completed",body:"All done. Customer happy. Left touch-up paint under stairs.",date:_now}], photos:[], invoiceId:"INV-0003" },
-  { id:"J-0004", customer:"Mr. Dave Thornton", address:"9 Chapel St, Sale", phone:"07700 900321", email:"dave.t@email.com", date:"2026-02-20", summary:"Fit new consumer unit and add 4 double sockets in garage conversion.", lineItems:[{desc:"Consumer unit supply & fit",cost:650},{desc:"4x double sockets",cost:320},{desc:"Testing & certification",cost:180},{desc:"Materials",cost:200}], total:1350, quoteStatus:"accepted", jobStatus:"complete", invoiceStatus:"invoiced", paymentStatus:"paid", paymentDate:_today, paymentMethod:"cash", source:"Word of mouth", jobNotes:[], photos:[], invoiceId:"INV-0004", scheduledDate:_tomorrow, scheduledStart:"09:00", scheduledEnd:"13:00", reminderSentAt:null },
-];
-const seedExp = [
-  { id:"E-0001", jobId:"J-0001", merchant:"Screwfix", date:"2026-02-11", amount:124.50, vat:24.90, desc:"Plasterboard, adhesive, fixings", photo:null },
-  { id:"E-0002", jobId:"J-0001", merchant:"Toolstation", date:"2026-02-12", amount:86.20, vat:17.24, desc:"Vinyl underlay and adhesive", photo:null },
-  { id:"E-0003", jobId:"J-0002", merchant:"Tile Giant", date:"2026-02-14", amount:312.00, vat:62.40, desc:"Wall and floor tiles", photo:null },
-  { id:"E-0004", jobId:"J-0003", merchant:"Wickes", date:"2026-02-26", amount:95.40, vat:19.08, desc:"Plaster, filler, paint x6 tins", photo:null },
-  { id:"E-0005", jobId:"J-0003", merchant:"Screwfix", date:_today, amount:38.50, vat:7.70, desc:"Dust sheets, masking tape, rollers", photo:null },
-  { id:"E-0006", jobId:"J-0004", merchant:"CEF", date:"2026-02-21", amount:186.00, vat:37.20, desc:"Consumer unit, MCBs, cable", photo:null },
-];
 const seedInvoices = [
   { id:"INV-0001", jobId:"J-0002", number:"INV-0001", status:"paid", created:"2026-02-20", dueDate:"2026-03-06", paidDate:"2026-02-28" },
   { id:"INV-0002", jobId:"J-0001", number:"INV-0002", status:"unpaid", created:"2026-02-15", dueDate:"2026-03-01", paidDate:"" },
@@ -50,16 +36,10 @@ const mkId = p => `${p}-${String(Date.now()).slice(-4)}`;
 const thisMonth = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; };
 const qCol = s => s === "accepted" ? "#16A34A" : s === "sent" ? "#F59E0B" : "#6b7280";
 const qLbl = s => s === "accepted" ? "Accepted" : s === "sent" ? "Sent" : "Draft";
-const pCol = s => s === "paid" ? "#16A34A" : "#F59E0B";
-const pLbl = s => s === "paid" ? "Paid" : "Unpaid";
-const jCol = s => s === "complete" ? "#16A34A" : s === "active" ? "#2563EB" : "#6b7280";
-const jLbl = s => s === "complete" ? "Complete" : s === "active" ? "Active" : "Quote";
 function calcProfit(job, expenses) { const mat = expenses.filter(e => e.jobId === job.id).reduce((s, e) => s + e.amount, 0); return { materials: mat, profit: (job.total??job.amount??0) - mat, margin: (job.total??job.amount??0) > 0 ? Math.round(((job.total??job.amount??0) - mat) / (job.total??job.amount??0) * 100) : 0 }; }
 function fileToB64(f) { return new Promise((r, e) => { const x = new FileReader(); x.onload = () => r(x.result); x.onerror = e; x.readAsDataURL(f); }); }
 function compress(d, mw = 800, q = 0.7) { return new Promise(r => { const i = new Image(); i.onload = () => { const c = document.createElement("canvas"); let w = i.width, h = i.height; if (w > mw) { h = Math.round(h * mw / w); w = mw; } c.width = w; c.height = h; c.getContext("2d").drawImage(i, 0, 0, w, h); r(c.toDataURL("image/jpeg", q)); }; i.src = d; }); }
 function getCustomers(jobs, expenses) { const map = {}; jobs.forEach(j => { const key = (j.customer || '').toLowerCase().trim(); if (!map[key]) map[key] = { name: j.customer, address: j.address, phone: j.phone || "", email: j.email || "", jobs: [], totalRevenue: 0, totalExpenses: 0 }; const jE = expenses.filter(e => e.jobId === j.id).reduce((s, e) => s + e.amount, 0); map[key].jobs.push(j); map[key].totalRevenue += (j.total??j.amount??0); map[key].totalExpenses += jE; if (j.address && !map[key].address) map[key].address = j.address; if (j.phone && !map[key].phone) map[key].phone = j.phone; if (j.email && !map[key].email) map[key].email = j.email; }); return Object.values(map); }
-function nextInvNum(invoices) { const nums = invoices.map(i => parseInt(i.number.replace("INV-", "")) || 0); return `INV-${String(Math.max(0, ...nums) + 1).padStart(4, "0")}`; }
-
 async function aiQuote(text, biz) {
   const sys = `You are a quoting assistant for UK tradespeople (${biz.trade}). Output ONLY valid JSON (no markdown): {"customer":"name or TBC","address":"address or TBC","phone":"phone or empty","email":"email or empty","summary":"1-2 sentence","lineItems":[{"desc":"","cost":number}],"notes":"","total":number}. UK rates, hourly £${biz.hourlyRate}. Materials separate.${biz.vatRegistered ? " Add 20% VAT line." : ""}`;
   try { const r = await fetch("https://api.anthropic.com/v1/messages", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ model: "claude-sonnet-4-20250514", max_tokens: 1000, system: sys, messages: [{ role: "user", content: `Voice note:\n"${text}"` }] }) }); const d = await r.json(); return JSON.parse((d.content || []).map(i => i.text || "").join("").replace(/```json|```/g, "").trim()); } catch { return null; }
@@ -70,28 +50,6 @@ async function aiReceipt(b64raw) {
 }
 function generateInvoiceText(job, biz, inv, showVat) { const vatAmt = showVat ? Math.round((job.total??job.amount??0) * 0.2 * 100) / 100 : 0; const gross = (job.total??job.amount??0) + vatAmt; let t = `INVOICE ${inv.number}\nDate: ${inv.created}\nDue: ${inv.dueDate}\n\nFrom:\n${biz.name}\n${biz.address}\n${biz.phone}\n${biz.email}\n`; if (showVat && biz.vatNumber) t += `VAT: ${biz.vatNumber}\n`; t += `\nTo:\n${job.customer}\n${job.address}\n\nJob: ${job.summary}\n\nBreakdown:\n`; job.lineItems.forEach(i => { t += `  ${i.desc}: ${GBP(i.cost)}\n`; }); t += `\nSubtotal: ${GBP((job.total??job.amount??0))}\n`; if (showVat) t += `VAT (20%): ${GBP(vatAmt)}\n`; t += `TOTAL: ${GBP(gross)}\n`; if (biz.bankDetails) t += `\nBank Details:\n${biz.bankDetails}\n`; t += `\nRef: ${inv.number}`; return t; }
 
-async function generateInvoicePDF(job, biz, inv, showVat) {
-  if (!window.jspdf) { await new Promise((res, rej) => { const s = document.createElement("script"); s.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"; s.onload = res; s.onerror = rej; document.head.appendChild(s); }); }
-  const { jsPDF } = window.jspdf; const doc = new jsPDF();
-  const vatAmt = showVat ? Math.round((job.total??job.amount??0) * 0.2 * 100) / 100 : 0; const gross = (job.total??job.amount??0) + vatAmt;
-  const w = doc.internal.pageSize.getWidth(); let y = 20;
-  if (biz.logoUrl) { try { doc.addImage(biz.logoUrl, "JPEG", 14, y, 30, 30); } catch {} }
-  doc.setFontSize(24); doc.setFont("helvetica", "bold"); doc.setTextColor(30, 58, 138); doc.text("INVOICE", w - 14, y + 8, { align: "right" });
-  doc.setFontSize(11); doc.setFont("helvetica", "normal"); doc.setTextColor(100); doc.text(inv.number, w - 14, y + 16, { align: "right" }); doc.text("Date: " + inv.created, w - 14, y + 22, { align: "right" }); doc.text("Due: " + inv.dueDate, w - 14, y + 28, { align: "right" });
-  y = 55; doc.setFontSize(9); doc.setTextColor(150); doc.text("FROM", 14, y); doc.setFontSize(12); doc.setFont("helvetica", "bold"); doc.setTextColor(30); doc.text(biz.name, 14, y + 7); doc.setFontSize(10); doc.setFont("helvetica", "normal"); doc.setTextColor(80); doc.text(biz.address, 14, y + 13); doc.text(biz.phone + "  •  " + biz.email, 14, y + 19); if (showVat && biz.vatNumber) doc.text("VAT: " + biz.vatNumber, 14, y + 25);
-  const toX = w / 2 + 10; doc.setFontSize(9); doc.setTextColor(150); doc.text("TO", toX, y); doc.setFontSize(12); doc.setFont("helvetica", "bold"); doc.setTextColor(30); doc.text(job.customer, toX, y + 7); doc.setFontSize(10); doc.setFont("helvetica", "normal"); doc.setTextColor(80); doc.text(job.address || "", toX, y + 13); if (job.phone) doc.text(job.phone, toX, y + 19);
-  y = 90; doc.setDrawColor(220); doc.setLineWidth(0.5); doc.line(14, y, w - 14, y);
-  y += 8; doc.setFontSize(9); doc.setTextColor(150); doc.text("JOB DESCRIPTION", 14, y); y += 6; doc.setFontSize(10); doc.setTextColor(60); const sl = doc.splitTextToSize(job.summary, w - 28); doc.text(sl, 14, y); y += sl.length * 5 + 6;
-  doc.setFillColor(30, 58, 138); doc.rect(14, y, w - 28, 8, "F"); doc.setFontSize(9); doc.setFont("helvetica", "bold"); doc.setTextColor(255); doc.text("Description", 18, y + 5.5); doc.text("Amount", w - 18, y + 5.5, { align: "right" }); y += 12;
-  doc.setFont("helvetica", "normal"); doc.setTextColor(60); job.lineItems.forEach((it, i) => { if (i % 2 === 0) { doc.setFillColor(248, 249, 250); doc.rect(14, y - 3.5, w - 28, 7, "F"); } doc.setFontSize(10); doc.text(it.desc, 18, y); doc.text(GBP(it.cost), w - 18, y, { align: "right" }); y += 8; });
-  y += 4; doc.setDrawColor(220); doc.line(w - 80, y, w - 14, y); y += 8; doc.setFontSize(10); doc.setTextColor(80); doc.text("Subtotal:", w - 80, y); doc.text(GBP((job.total??job.amount??0)), w - 18, y, { align: "right" }); if (showVat) { y += 7; doc.text("VAT (20%):", w - 80, y); doc.text(GBP(vatAmt), w - 18, y, { align: "right" }); }
-  y += 3; doc.setDrawColor(30, 58, 138); doc.setLineWidth(1); doc.line(w - 80, y, w - 14, y); y += 9; doc.setFontSize(14); doc.setFont("helvetica", "bold"); doc.setTextColor(30, 58, 138); doc.text("TOTAL DUE:", w - 80, y); doc.text(GBP(gross), w - 18, y, { align: "right" });
-  if (biz.bankDetails) { y += 18; doc.setFontSize(9); doc.setTextColor(150); doc.text("PAYMENT DETAILS", 14, y); y += 6; doc.setFontSize(10); doc.setTextColor(60); doc.setFont("helvetica", "normal"); biz.bankDetails.split("\n").forEach(line => { doc.text(line, 14, y); y += 5; }); y += 2; doc.setFont("helvetica", "bold"); doc.text("Reference: " + inv.number, 14, y); }
-  const fy = doc.internal.pageSize.getHeight() - 15; doc.setFontSize(8); doc.setTextColor(170); doc.setFont("helvetica", "normal"); doc.text(biz.name + "  •  Generated by JobProfit", w / 2, fy, { align: "center" });
-  return doc;
-}
-
-function waInvoiceLink(job, biz, inv, showVat) { const vatAmt = showVat ? Math.round((job.total??job.amount??0) * 0.2 * 100) / 100 : 0; const gross = (job.total??job.amount??0) + vatAmt; let m = "Hi " + (job.customer || '').split(" ").pop() + ",\n\nHere's your invoice:\n\n📄 " + inv.number + "\n📅 " + inv.created + "\n⏰ Due: " + inv.dueDate + "\n\n🔨 " + job.summary + "\n\nTotal: " + GBP((job.total??job.amount??0)) + "\n"; if (showVat) m += "VAT: " + GBP(vatAmt) + "\nTotal inc VAT: " + GBP(gross) + "\n"; if (biz.bankDetails) m += "\nBank details:\n" + biz.bankDetails + "\n"; m += "\nRef: " + inv.number + "\n\nCheers,\n" + biz.name; const phone = (job.phone || "").replace(/\s/g, "").replace(/^0/, "44"); return "https://wa.me/" + phone + "?text=" + encodeURIComponent(m); }
 function smsInvoiceLink(job, biz, inv, showVat) { const vatAmt = showVat ? Math.round((job.total??job.amount??0) * 0.2 * 100) / 100 : 0; const gross = (job.total??job.amount??0) + vatAmt; const m = "Hi, invoice " + inv.number + " for " + (job.summary ?? '').slice(0, 40) + ". Total: " + GBP(showVat ? gross : (job.total??job.amount??0)) + ". Due: " + inv.dueDate + ". Ref: " + inv.number + ". " + biz.name; return "sms:" + (job.phone || "") + "?body=" + encodeURIComponent(m); }
 function emailInvoiceLink(job, biz, inv, showVat) { return "mailto:" + (job.email || "") + "?subject=Invoice " + inv.number + " from " + biz.name + "&body=" + encodeURIComponent(generateInvoiceText(job, biz, inv, showVat)); }
 function waQuoteLink(j) { const phone = (j.phone || "").replace(/\s/g, "").replace(/^0/, "44"); return "https://wa.me/" + phone + "?text=" + encodeURIComponent("Hi " + (j.customer || '').split(" ").pop() + ",\n\nQuote for:\n🔨 " + j.summary + "\n\n💷 Total: " + GBP((j.total??j.amount??0)) + "\n\nLet me know if you'd like to go ahead.\n\nCheers"); }
@@ -358,8 +316,8 @@ function MaterialForm({ jobs, presetJobId, showVat, onSave, onCancel }) {
 }
 
 /* ═══ INSIGHTS CARD ═════════════════════════════════ */
-function InsightsCard({ jobs, expenses, invoices, biz, onGo }) {
-  const today = new Date(); const todayStr = td();
+function InsightsCard({ jobs, expenses, invoices, biz }) {
+  const todayStr = td();
   const d7ago = (() => { const d = new Date(); d.setDate(d.getDate() - 7); return d.toISOString().slice(0, 10); })();
   const d14ago = (() => { const d = new Date(); d.setDate(d.getDate() - 14); return d.toISOString().slice(0, 10); })();
 
@@ -431,7 +389,7 @@ function InsightsCard({ jobs, expenses, invoices, biz, onGo }) {
 
 /* ═══ OVERVIEW ═══════════════════════════════════════ */
 function OverviewTab({ jobs, expenses, invoices, onGo, biz, showVat }) {
-  const mo = thisMonth(); const today = td(); const paid = jobs.filter(j => (j.paymentStatus??(j.paid?'paid':'unpaid')) === "paid"); const unpaid = jobs.filter(j => (j.paymentStatus??(j.paid?'paid':'unpaid')) === "unpaid" && (j.quoteStatus??'accepted') === "accepted");
+  const mo = thisMonth(); const today = td(); const unpaid = jobs.filter(j => (j.paymentStatus??(j.paid?'paid':'unpaid')) === "unpaid" && (j.quoteStatus??'accepted') === "accepted");
   const totUnpaid = unpaid.reduce((s, j) => s + (j.total??j.amount??0), 0); const moPaid = jobs.filter(j => j.paymentDate?.startsWith(mo)).reduce((s, j) => s + (j.total??j.amount??0), 0);
   const moMat = expenses.filter(e => e.date?.startsWith(mo)).reduce((s, e) => s + e.amount, 0); const moProfit = moPaid - moMat;
   const todayPaid = jobs.filter(j => j.paymentDate === today).reduce((s, j) => s + (j.total??j.amount??0), 0);
@@ -497,7 +455,7 @@ function OverviewTab({ jobs, expenses, invoices, onGo, biz, showVat }) {
 }
 
 /* ═══ CUSTOMER DETAIL ════════════════════════════════ */
-function CustomerDetail({ customer, expenses, onBack, onGoJob }) {
+function CustomerDetail({ customer, onBack, onGoJob }) {
   const tp = customer.totalRevenue - customer.totalExpenses;
   return <div><button onClick={onBack} style={{ ...S.ghost, marginBottom: 16 }}><ChvIc d="left" /> Back</button>
     <div style={{ background: T.surface, borderRadius: T.r, padding: 22, border: `1px solid ${T.border}`, marginBottom: 20, boxShadow: T.cardShadow }}><div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 18 }}><div style={{ width: 52, height: 52, borderRadius: "50%", background: T.primaryLight, display: "flex", alignItems: "center", justifyContent: "center" }}><UserIc /></div><div><h2 style={{ fontSize: 20, fontWeight: 800, margin: 0 }}>{customer.name}</h2>{customer.address && <a href={"https://maps.google.com/?q=" + encodeURIComponent(customer.address)} target="_blank" rel="noopener noreferrer" style={{ display: "block", fontSize: 13, color: T.textMed, marginTop: 2, textDecoration: "none" }}>📍 {customer.address}</a>}{customer.phone && <a href={"tel:" + customer.phone} style={{ display: "block", fontSize: 13, color: T.primary, marginTop: 2, textDecoration: "none" }}>📞 {customer.phone}</a>}{customer.email && <a href={"mailto:" + customer.email} style={{ display: "block", fontSize: 13, color: T.primary, marginTop: 2, textDecoration: "none" }}>📧 {customer.email}</a>}</div></div><div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}><Stat label="Jobs" value={customer.jobs.length} color={T.primary} /><Stat label="Revenue" value={GBP(customer.totalRevenue)} /><Stat label="Profit" value={GBP(tp)} color={tp >= 0 ? T.accent : T.danger} /></div></div>
@@ -592,7 +550,7 @@ function ChasePaymentPanel({ job, biz, inv, showVat, onUpdate, flash }) {
 }
 
 /* ═══ JOB DETAIL — Full Pipeline ═════════════════════ */
-function JobDetail({ job, jobs, expenses, invoices, onBack, onUpdate, onDelExp, onAddExp, onAddInvoice, onUpdateInvoice, biz, profile, showVat, onViewCustomer, flash, onAddPayment }) {
+function JobDetail({ job, jobs, expenses, invoices, onBack, onUpdate, onDelExp, onAddExp, onUpdateInvoice, biz, profile, showVat, onViewCustomer, flash, onAddPayment }) {
   const [ed, setEd] = useState(false); const [d, setD] = useState({ ...job }); const [viewPhoto, setViewPhoto] = useState(null);
   const [addingExp, setAddingExp] = useState(false);
   const [noteSubject, setNoteSubject] = useState(""); const [noteBody, setNoteBody] = useState("");
@@ -612,14 +570,12 @@ function JobDetail({ job, jobs, expenses, invoices, onBack, onUpdate, onDelExp, 
   const rmLI = i => setD({ ...d, lineItems: d.lineItems.filter((_, x) => x !== i) });
   const upLI = (i, f, v) => { const li = [...d.lineItems]; li[i] = { ...li[i], [f]: f === "cost" ? Number(v) : v }; setD({ ...d, lineItems: li }); };
   const q = ed ? d : job;
-  const saveNotes = () => {}; /* legacy stub */
   const submitNote = () => { if (!noteBody.trim()) return; const n = { id: mkId("N"), subject: noteSubject.trim() || "Note", body: noteBody.trim(), date: new Date().toISOString() }; onUpdate({ ...job, jobNotes: [...(job.jobNotes || []), n] }); setNoteSubject(""); setNoteBody(""); flash("📝 Note saved"); };
   const deleteNote = (nid) => { onUpdate({ ...job, jobNotes: (job.jobNotes || []).filter(n => n.id !== nid) }); };
   const handleJobPhoto = async e => { const files = Array.from(e.target.files || []); const photos = []; for (const f of files) { try { const raw = await fileToB64(f); const c = await compress(raw); photos.push(c); } catch {} } if (photos.length) onUpdate({ ...job, photos: [...(job.photos || []), ...photos] }); if (photoRef.current) photoRef.current.value = ""; };
   const rmPhoto = i => { const p = [...(job.photos || [])]; p.splice(i, 1); onUpdate({ ...job, photos: p }); };
   const convertToJob = () => { onUpdate({ ...job, quoteStatus: "accepted", jobStatus: "active" }); flash("🔨 Converted to active job"); };
   const markComplete = () => { onUpdate({ ...job, status: 'completed', completedAt: new Date().toISOString(), jobStatus: "complete" }); flash("✅ Ready to invoice"); };
-  const createInvoice = () => { const num = nextInvNum(invoices); const due = new Date(); due.setDate(due.getDate() + 14); const ni = { id: mkId("INV"), jobId: job.id, number: num, status: "unpaid", created: td(), dueDate: due.toISOString().slice(0, 10), paidDate: "" }; onAddInvoice(ni); onUpdate({ ...job, invoiceId: ni.id, invoiceStatus: "invoiced" }); };
   const markPaid = (method) => { onUpdate({ ...job, status: 'paid', paidAt: new Date().toISOString(), paymentMethod: method, paymentStatus: "paid", paymentDate: td(), jobStatus: "complete" }); if (inv) onUpdateInvoice({ ...inv, status: "paid", paidDate: td() }); flash("💷 Paid via " + method); };
   const markUnpaid = () => { onUpdate({ ...job, status: undefined, paidAt: null, paymentMethod: "", paymentStatus: "unpaid", paymentDate: "" }); if (inv) onUpdateInvoice({ ...inv, status: "unpaid", paidDate: "" }); };
   const steps = [{ label: "Quote", done: true }, { label: "Accepted", done: job.quoteStatus === "accepted" }, { label: "Active", done: job.jobStatus === "active" || job.jobStatus === "complete" }, { label: "Invoiced", done: !!inv }, { label: "Paid", done: job.paymentStatus === "paid" }];
@@ -1020,7 +976,7 @@ function loadSavedData() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) return JSON.parse(raw);
-  } catch (e) { /* localStorage may be blocked in artifact sandbox */ }
+  } catch { /* localStorage may be blocked in artifact sandbox */ }
   return null;
 }
 
@@ -1028,7 +984,7 @@ function saveToLocalStorage(data) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     return true;
-  } catch (e) { return false; }
+  } catch { return false; }
 }
 
 async function loadFromWindowStorage() {
@@ -1037,7 +993,7 @@ async function loadFromWindowStorage() {
       const result = await window.storage.get(STORAGE_KEY);
       if (result && result.value) return JSON.parse(result.value);
     }
-  } catch (e) { /* window.storage may not exist outside artifact */ }
+  } catch { /* window.storage may not exist outside artifact */ }
   return null;
 }
 
@@ -1047,7 +1003,7 @@ async function saveToWindowStorage(data) {
       await window.storage.set(STORAGE_KEY, JSON.stringify(data));
       return true;
     }
-  } catch (e) { /* ignore */ }
+  } catch { /* ignore */ }
   return false;
 }
 
