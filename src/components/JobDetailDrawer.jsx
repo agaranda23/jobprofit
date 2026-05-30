@@ -142,8 +142,134 @@ function PhotoLightbox({ src, onClose }) {
 }
 
 /**
- * Details section — job description, address, contact, dates.
+ * SpineBlock — the four facts about the job that answer "who, where, when, scope"
+ * in a single glance before the user scrolls. Sits between the sticky header and
+ * the NextStep card. Design A.
+ *
+ * Tapping the address row opens Google Maps.
+ * Tapping the scheduled row opens the schedule edit (via onScheduleEdit).
+ * Tapping the description row opens an EditFieldModal (via onEditDescription).
+ * All rows degrade gracefully when data is absent.
+ */
+function SpineBlock({ job, onScheduleEdit, onEditAddress, onEditDescription }) {
+  const customer = job.customer || job.name || '';
+  const phone = job.customerPhone || job.phone || job.mobile || '';
+  const address = job.address || '';
+  const hasScheduled = !!job.scheduledDate;
+  const scheduledTime =
+    job.scheduledStart && job.scheduledEnd
+      ? `${job.scheduledStart}–${job.scheduledEnd}`
+      : job.scheduledStart || '';
+  const scheduledDisplay = hasScheduled
+    ? `${fmtDate(job.scheduledDate)}${scheduledTime ? ` · ${scheduledTime}` : ''}`
+    : null;
+  const description = job.description || '';
+
+  return (
+    <div className="jd-spine">
+      {/* Customer + optional phone — who this job is for */}
+      <div className="jd-spine-customer">
+        {customer}
+        {phone && (
+          <span className="jd-spine-phone"> · {phone}</span>
+        )}
+      </div>
+
+      {/* Address — tap to map */}
+      {address ? (
+        <a
+          href={`https://maps.google.com/?q=${encodeURIComponent(address)}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="jd-spine-row jd-spine-row--link"
+          aria-label={`Open ${address} in Maps`}
+        >
+          <span className="jd-spine-icon" aria-hidden="true">📍</span>
+          <span className="jd-spine-val">{address}</span>
+        </a>
+      ) : (
+        onEditAddress ? (
+          <button
+            type="button"
+            className="jd-spine-row jd-spine-row--add"
+            onClick={onEditAddress}
+            aria-label="Add address"
+          >
+            <span className="jd-spine-icon" aria-hidden="true">📍</span>
+            <span className="jd-spine-empty">No address — <span className="jd-spine-add-link">add</span></span>
+          </button>
+        ) : (
+          <div className="jd-spine-row jd-spine-row--muted">
+            <span className="jd-spine-icon" aria-hidden="true">📍</span>
+            <span className="jd-spine-empty">No address</span>
+          </div>
+        )
+      )}
+
+      {/* Scheduled date + time — when the work happens */}
+      {scheduledDisplay ? (
+        <div className="jd-spine-row">
+          <span className="jd-spine-icon" aria-hidden="true">🗓️</span>
+          <span className="jd-spine-val">{scheduledDisplay}</span>
+        </div>
+      ) : (
+        onScheduleEdit ? (
+          <button
+            type="button"
+            className="jd-spine-row jd-spine-row--add"
+            onClick={onScheduleEdit}
+            aria-label="Schedule this job"
+          >
+            <span className="jd-spine-icon" aria-hidden="true">🗓️</span>
+            <span className="jd-spine-empty">Not scheduled — <span className="jd-spine-add-link">add</span></span>
+          </button>
+        ) : (
+          <div className="jd-spine-row jd-spine-row--muted">
+            <span className="jd-spine-icon" aria-hidden="true">🗓️</span>
+            <span className="jd-spine-empty">Not scheduled</span>
+          </div>
+        )
+      )}
+
+      {/* Job scope / description — one-line summary of the work */}
+      {description ? (
+        onEditDescription ? (
+          <button
+            type="button"
+            className="jd-spine-row jd-spine-row--desc jd-spine-row--tappable"
+            onClick={onEditDescription}
+            aria-label="Edit job description"
+          >
+            <span className="jd-spine-icon" aria-hidden="true">📋</span>
+            <span className="jd-spine-val">{description}</span>
+          </button>
+        ) : (
+          <div className="jd-spine-row jd-spine-row--desc">
+            <span className="jd-spine-icon" aria-hidden="true">📋</span>
+            <span className="jd-spine-val">{description}</span>
+          </div>
+        )
+      ) : onEditDescription ? (
+        <button
+          type="button"
+          className="jd-spine-row jd-spine-row--add"
+          onClick={onEditDescription}
+          aria-label="Add job description"
+        >
+          <span className="jd-spine-icon" aria-hidden="true">📋</span>
+          <span className="jd-spine-empty">No description — <span className="jd-spine-add-link">add</span></span>
+        </button>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * Details section — contact (phone + email) + inline schedule edit form.
  * Hidden when there is no renderable content.
+ * NOTE: "Created [date]" moved to ⋯ kebab menu (admin metadata, Design A).
+ * Address and schedule now live in SpineBlock above the fold.
+ * Phone row is the canonical call affordance — the CONTACT card is removed.
  *
  * Schedule edit props (all optional — degrades gracefully when absent):
  *   schedEditMode        – boolean; shows the inline edit form
@@ -156,9 +282,11 @@ function PhotoLightbox({ src, onClose }) {
  *   onScheduleDateChange / onScheduleStartChange / onScheduleEndChange
  *
  * Customer field edit callbacks (all optional — rows degrade to read-only when absent):
- *   onEditSummary  – open EditFieldModal for job description
  *   onEditPhone    – open EditFieldModal for customer phone
  *   onEditEmail    – open EditFieldModal for customer email
+ *
+ * Phone row: tapping the number opens the native tel: action sheet (Call / Text).
+ * The › chevron opens the EditFieldModal. CONTACT card (QuickContactSection) removed.
  */
 function DetailsSection({
   job,
@@ -166,7 +294,6 @@ function DetailsSection({
   schedDate,
   schedStart,
   schedEnd,
-  onScheduleEdit,
   onScheduleCancel,
   onScheduleSave,
   onScheduleDateChange,
@@ -175,78 +302,63 @@ function DetailsSection({
   onEditPhone,
   onEditEmail,
 }) {
-  const hasAddress = !!job.address;
   const hasPhone = !!(job.phone || job.customerPhone || job.mobile);
   const hasEmail = !!(job.email || job.customerEmail);
-  const hasDate = !!(job.date || job.createdAt);
-  const hasScheduled = !!job.scheduledDate;
   const hasCompleted = !!job.completedAt;
   const hasHours = !!(job.hoursEstimate || job.hours);
-  const canEditSchedule = typeof onScheduleEdit === 'function';
   const canEditFields = typeof onEditPhone === 'function';
 
-  const visible = hasAddress || hasPhone || hasEmail || hasDate ||
-    hasScheduled || hasCompleted || hasHours || canEditSchedule || canEditFields;
+  const visible = hasPhone || hasEmail || hasCompleted || hasHours ||
+    schedEditMode || canEditFields;
   if (!visible) return null;
 
   const phone = job.customerPhone || job.phone || job.mobile || '';
   const email = job.email || job.customerEmail || '';
-  const scheduledTime =
-    job.scheduledStart && job.scheduledEnd
-      ? `${job.scheduledStart} – ${job.scheduledEnd}`
-      : job.scheduledStart || '';
 
   return (
     <div className="jd-section">
-      <div className="jd-section-header jd-section-header--with-action">
-        <span>Details</span>
-        {canEditSchedule && !schedEditMode && (
-          <button
-            type="button"
-            className="jd-section-action-btn"
-            onClick={onScheduleEdit}
-            aria-label="Edit schedule"
-          >
-            {hasScheduled ? 'Edit schedule' : '+ Schedule'}
-          </button>
-        )}
-      </div>
+      <div className="jd-section-header">Customer</div>
       <div className="jd-section-body">
-        {hasAddress && (
-          <a
-            href={`https://maps.google.com/?q=${encodeURIComponent(job.address)}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="jd-detail-row jd-detail-link"
-          >
-            <span className="jd-detail-icon">📍</span>
-            <span>{job.address}</span>
-          </a>
-        )}
 
-        {/* Phone — always rendered when edit callback present (shows "+ Add" when empty) */}
+        {/* Phone — tap the number to call (native action sheet).
+            › chevron opens EditFieldModal to change the number. */}
         {(hasPhone || canEditFields) && (
-          canEditFields ? (
-            <button
-              type="button"
-              className="jd-detail-edit-row"
-              onClick={onEditPhone}
-              aria-label={hasPhone ? 'Edit customer phone' : 'Add customer phone'}
-            >
-              <span className="jd-detail-edit-row-left">
-                <span className="jd-detail-icon">📞</span>
-                {hasPhone
-                  ? <span className="jd-detail-edit-row-value">{phone}</span>
-                  : <span className="jd-detail-edit-row-add">+ Add phone</span>
-                }
-              </span>
-              <span className="jd-detail-edit-chevron" aria-hidden="true">›</span>
-            </button>
+          hasPhone ? (
+            <div className="jd-phone-action-row">
+              <span className="jd-detail-icon" aria-hidden="true">📞</span>
+              <a
+                href={`tel:${phone}`}
+                className="jd-phone-action-val"
+                aria-label={`Call ${phone}`}
+              >
+                {phone}
+              </a>
+              {canEditFields && (
+                <button
+                  type="button"
+                  className="jd-phone-action-edit"
+                  onClick={onEditPhone}
+                  aria-label="Edit customer phone"
+                >
+                  ›
+                </button>
+              )}
+            </div>
           ) : (
-            <a href={`tel:${phone}`} className="jd-detail-row jd-detail-link">
-              <span className="jd-detail-icon">📞</span>
-              <span>{phone}</span>
-            </a>
+            canEditFields && (
+              <button
+                type="button"
+                className="jd-detail-edit-row"
+                onClick={onEditPhone}
+                aria-label="Add customer phone"
+              >
+                <span className="jd-detail-edit-row-left">
+                  <span className="jd-detail-icon">📞</span>
+                  <span className="jd-detail-edit-row-add--dim">+ Add phone</span>
+                </span>
+                <span className="jd-detail-edit-chevron" aria-hidden="true">›</span>
+              </button>
+            )
           )
         )}
 
@@ -263,7 +375,7 @@ function DetailsSection({
                 <span className="jd-detail-icon">✉️</span>
                 {hasEmail
                   ? <span className="jd-detail-edit-row-value">{email}</span>
-                  : <span className="jd-detail-edit-row-add">+ Add email</span>
+                  : <span className="jd-detail-edit-row-add--dim">+ Add email</span>
                 }
               </span>
               <span className="jd-detail-edit-chevron" aria-hidden="true">›</span>
@@ -274,21 +386,6 @@ function DetailsSection({
               <span>{email}</span>
             </a>
           )
-        )}
-        {hasDate && (
-          <div className="jd-detail-row">
-            <span className="jd-detail-icon">📅</span>
-            <span>Created {fmtDate(job.date || job.createdAt)}</span>
-          </div>
-        )}
-        {!schedEditMode && hasScheduled && (
-          <div className="jd-detail-row">
-            <span className="jd-detail-icon">🗓️</span>
-            <span>
-              Scheduled {fmtDate(job.scheduledDate)}
-              {scheduledTime ? ` · ${scheduledTime}` : ''}
-            </span>
-          </div>
         )}
         {hasCompleted && (
           <div className="jd-detail-row">
@@ -303,7 +400,7 @@ function DetailsSection({
           </div>
         )}
 
-        {/* Inline schedule edit form */}
+        {/* Inline schedule edit form — triggered from the spine block */}
         {schedEditMode && (
           <div className="jd-schedule-edit-form">
             <div>
@@ -466,12 +563,6 @@ function QuoteBreakdownSection({
   // Hide entirely in read mode when there are no items and no edit handler
   if (items.length === 0 && !onToggleEdit) return null;
 
-  const readTotal = items.reduce((sum, i) => {
-    const qty = Number(i.qty || i.quantity || 1);
-    const unit = Number(i.cost || i.unitCost || i.price || 0);
-    return sum + qty * unit;
-  }, 0);
-
   // In read mode: hide when there is exactly one line item and its value equals
   // the job total — the header already shows the total so the breakdown adds nothing.
   const jobTotal = job.total ?? job.amount ?? 0;
@@ -569,58 +660,17 @@ function QuoteBreakdownSection({
               );
             })
           )}
-          {items.length > 0 && (
-            <div className="jd-line-total">
-              <span className="jd-line-total-label">Total</span>
-              <span className="jd-line-total-value">{gbp(readTotal)}</span>
-            </div>
-          )}
+          {/* Total row removed (Design A): header £ is the canonical total.
+              Duplicate bold total beneath breakdown identified as noise. */}
         </div>
       )}
     </div>
   );
 }
 
-/**
- * QuickContactSection — tap-to-call / sms / email row.
- * Only renders buttons for contact methods that actually exist on the job.
- * Hidden entirely when neither phone nor email is present.
- * WhatsApp is intentionally omitted — it already exists in the Chase CTA.
- */
-function QuickContactSection({ job }) {
-  const phone = job.customerPhone || job.phone || job.mobile || '';
-  const email = job.email || job.customerEmail || '';
-
-  if (!phone && !email) return null;
-
-  return (
-    <div className="jd-section">
-      <div className="jd-section-header">Contact</div>
-      <div className="jd-section-body">
-        <div className="jd-contact-row">
-          {phone && (
-            <a href={`tel:${phone}`} className="jd-contact-btn" aria-label={`Call ${phone}`}>
-              <span aria-hidden="true">📞</span>
-              <span>Call</span>
-            </a>
-          )}
-          {phone && (
-            <a href={`sms:${phone}`} className="jd-contact-btn" aria-label={`Text ${phone}`}>
-              <span aria-hidden="true">💬</span>
-              <span>Text</span>
-            </a>
-          )}
-          {email && (
-            <a href={`mailto:${email}`} className="jd-contact-btn" aria-label={`Email ${email}`}>
-              <span aria-hidden="true">✉️</span>
-              <span>Email</span>
-            </a>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
+// QuickContactSection removed (Design A) — the phone row in DetailsSection
+// (Customer card) is the canonical tap-to-call affordance.
+// The duplicate Call/Text button grid is gone. Space reclaimed.
 
 /**
  * Receipts section — receipts linked to this job via jobId.
@@ -1207,6 +1257,8 @@ export default function JobDetailDrawer({
       customerPhone: 'customerPhone',
       email: 'email',
       summary: 'summary',
+      address: 'address',
+      description: 'description',
     };
     if (!canonicalMap[fieldKey]) return;
     onUpdateJob({ ...job, [fieldKey]: value || null });
@@ -1838,6 +1890,12 @@ export default function JobDetailDrawer({
                       Convert to job
                     </button>
                   )}
+                  {/* Created date — admin metadata. Moved here from Details card (Design A). */}
+                  {(job.date || job.createdAt) && (
+                    <div className="jd-kebab-item jd-kebab-item--meta" role="menuitem" aria-disabled="true">
+                      Created {fmtDate(job.date || job.createdAt)}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1854,9 +1912,17 @@ export default function JobDetailDrawer({
 
         {/* Scrollable body */}
         <div className="job-detail-body">
-          {/* Next Step hero card — the single most-leveraged action for the job's loop state.
-              Sits at the top of the body so it's thumb-reachable without scrolling.
-              Replaces the old bottom-anchored job-detail-cta-row primary CTA. */}
+          {/* Spine block — who / where / when / scope above the fold. Design A.
+              Tapping address → Google Maps. Tapping schedule → inline edit form.
+              Tapping description → EditFieldModal. */}
+          <SpineBlock
+            job={job}
+            onScheduleEdit={onUpdateJob ? handleScheduleEdit : undefined}
+            onEditAddress={onUpdateJob ? () => setEditingField('address') : undefined}
+            onEditDescription={onUpdateJob ? () => setEditingField('description') : undefined}
+          />
+
+          {/* Next Step hero card — the single most-leveraged action for the job's loop state. */}
           {onUpdateJob && (
             <NextStepCard
               content={nextStepContent}
@@ -1889,14 +1955,14 @@ export default function JobDetailDrawer({
           {/* Profit overview — sits above the details so profitability is front-and-centre */}
           <ProfitBarSection job={job} receipts={receipts} />
 
-          {/* Job details (description, address, contact, dates, schedule edit) */}
+          {/* Customer card — phone + email + inline schedule form.
+              Schedule is triggered from the spine block above. */}
           <DetailsSection
             job={job}
             schedEditMode={schedEditMode}
             schedDate={schedDate}
             schedStart={schedStart}
             schedEnd={schedEnd}
-            onScheduleEdit={onUpdateJob ? handleScheduleEdit : undefined}
             onScheduleCancel={handleScheduleCancel}
             onScheduleSave={handleScheduleSave}
             onScheduleDateChange={setSchedDate}
@@ -1905,9 +1971,7 @@ export default function JobDetailDrawer({
             onEditPhone={onUpdateJob ? () => setEditingField('phone') : undefined}
             onEditEmail={onUpdateJob ? () => setEditingField('email') : undefined}
           />
-
-          {/* Quick-contact buttons — below Details since it's contact-related */}
-          <QuickContactSection job={job} />
+          {/* QuickContactSection removed — Design A; phone row in DetailsSection is canonical */}
 
           {/* Quote breakdown — editable line items that make up the job total */}
           <QuoteBreakdownSection
@@ -2136,6 +2200,32 @@ export default function JobDetailDrawer({
           currentValue={job.summary || ''}
           inputType="text"
           placeholder="e.g. Kitchen refit, 14 Elm Road"
+          onSave={handleCustomerFieldSave}
+          onClose={() => setEditingField(null)}
+        />
+      )}
+      {/* Address — spine block tap-to-edit (Design A) */}
+      {editingField === 'address' && (
+        <EditFieldModal
+          open
+          fieldKey="address"
+          fieldLabel="Address"
+          currentValue={job.address || ''}
+          inputType="text"
+          placeholder="e.g. 14 Elm Road, Manchester, M1 1AA"
+          onSave={handleCustomerFieldSave}
+          onClose={() => setEditingField(null)}
+        />
+      )}
+      {/* Description — one-line job scope text, new field, Design A */}
+      {editingField === 'description' && (
+        <EditFieldModal
+          open
+          fieldKey="description"
+          fieldLabel="Job description"
+          currentValue={job.description || ''}
+          inputType="text"
+          placeholder="e.g. Replace bathroom tiling and re-grout — 2 days"
           onSave={handleCustomerFieldSave}
           onClose={() => setEditingField(null)}
         />
