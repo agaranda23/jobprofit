@@ -721,6 +721,115 @@ body {
   padding-top: 6px;
 }
 
+/* ── Micro-log view ─────────────────────────────────────────────────────── */
+
+/* Large £ amount input */
+.aj-micro-amount-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 20px 0 16px;
+}
+.aj-micro-currency {
+  font-size: 36px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1;
+  flex-shrink: 0;
+}
+.aj-micro-amount {
+  flex: 1;
+  font-size: 48px;
+  font-weight: 700;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid var(--border);
+  color: var(--text);
+  outline: none;
+  width: 100%;
+  padding: 4px 0;
+  -moz-appearance: textfield;
+}
+.aj-micro-amount::-webkit-outer-spin-button,
+.aj-micro-amount::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.aj-micro-amount:focus { border-bottom-color: var(--accent); }
+
+/* Slightly wider chip strip in micro view so all 4 chips fit comfortably */
+.aj-chip-strip--micro {
+  gap: 6px;
+  flex-wrap: nowrap;
+}
+.aj-chip-strip--micro .aj-chip {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 4px;
+  font-size: 13px;
+}
+
+/* "Add details" link below Save */
+.aj-details-link {
+  display: block;
+  width: 100%;
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 500;
+  text-align: center;
+  padding: 10px 0 4px;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Subtitle in the details view */
+.aj-details-sub {
+  font-size: 13px;
+  color: var(--text-dim);
+  margin: -4px 0 12px;
+  text-align: center;
+}
+
+/* Mic shortcut icon in the micro-log header */
+.aj-mic-shortcut {
+  background: none;
+  border: none;
+  font-size: 20px;
+  padding: 4px;
+  cursor: pointer;
+  opacity: 0.7;
+  border-radius: 6px;
+}
+.aj-mic-shortcut:active { opacity: 1; transform: scale(0.95); }
+
+/* Offline pill in header */
+.aj-offline-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(251,191,36,0.15);
+  color: #f59e0b;
+  padding: 2px 7px;
+  border-radius: 99px;
+  vertical-align: middle;
+  letter-spacing: 0.02em;
+}
+
+/* Offline hint text */
+.aj-offline-hint {
+  font-size: 13px;
+  color: #f59e0b;
+  background: rgba(251,191,36,0.08);
+  border: 1px solid rgba(251,191,36,0.25);
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin: 0 0 12px;
+  text-align: center;
+}
+
 /* Profit flash on change */
 .profit-value.flash {
   animation: profit-flash 0.9s ease-out;
