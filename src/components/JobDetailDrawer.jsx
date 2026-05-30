@@ -1877,8 +1877,9 @@ export default function JobDetailDrawer({
               </button>
               {kebabOpen && (
                 <div className="jd-kebab-menu" role="menu">
-                  {/* Record payment — always visible when not paid */}
-                  {!isPaid && (
+                  {/* Record payment — only after invoice has been sent (Invoiced / Overdue).
+                      Showing it on Lead/Quoted stages is misleading: nothing to pay yet. */}
+                  {!isPaid && isInvoiced && (
                     <button
                       type="button"
                       className="jd-kebab-item"
