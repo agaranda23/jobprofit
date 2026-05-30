@@ -30,6 +30,9 @@ const META_FIELDS = [
   'amount',     // numeric — kept in sync with total
   // Phase G-1 — public quote share link
   'publicAccessToken', // UUID; lazily generated when trader first taps "Send link"
+  // Review sheet draft flags — set when trader dismisses the sheet without sending
+  'quoteDraft',   // boolean — tile shows amber "Draft ready" meta line
+  'invoiceDraft', // boolean — tile shows amber "Draft ready" meta line
 ];
 
 export function readJobMeta(id) {

@@ -6492,6 +6492,7 @@ input[type=number] { -moz-appearance: textfield; }
 .jt-signal--ok      { color: var(--jp-green); }
 .jt-meta-item--mute,
 .jt-signal--mute    { color: var(--text-dim); }
+.jt-signal--draft   { color: #d97706; font-weight: 600; }
 
 /* --- Stage chip dropdown / bottom-sheet --- */
 
@@ -8041,5 +8042,137 @@ input[type=number] { -moz-appearance: textfield; }
   font-size: 14px;
   color: var(--text-dim);
   flex-shrink: 0;
+}
+
+/* ── Review sheet (feat/review-sheet-draft-and-pdf) ─────────────────────── */
+
+/* Tile draft signal — amber dot + label */
+.jt-signal--draft {
+  color: #d97706; /* amber-600 — matches jp-amber but explicit for tile context */
+  font-weight: 600;
+}
+
+/* Sheet sizing — inherits .modal-sheet shape; adds scroll guard and spacing */
+.rs-sheet {
+  gap: 16px;
+}
+
+/* Sheet title — slightly smaller than the default modal-sheet-title */
+.rs-title {
+  font-size: 16px;
+  line-height: 1.3;
+}
+
+/* Document preview block */
+.rs-preview {
+  background: var(--surface-2);
+  border-radius: 12px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.rs-preview-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.rs-preview-customer {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rs-preview-add-customer {
+  color: var(--text-dim);
+  font-weight: 500;
+}
+
+.rs-preview-total {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  flex-shrink: 0;
+}
+
+.rs-line-items {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+
+.rs-line-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.rs-li-desc {
+  font-size: 14px;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rs-li-cost {
+  font-size: 14px;
+  color: var(--text);
+  flex-shrink: 0;
+}
+
+/* Primary WhatsApp send button — green */
+.rs-send-btn {
+  background: #25d366;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+}
+.rs-send-btn:hover,
+.rs-send-btn:focus-visible {
+  background: #1ebe5c;
+}
+
+/* Auto-chase chip — invoice mode, visual only */
+.rs-autochase-chip {
+  align-self: center;
+  background: var(--surface-2);
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--jp-green, #28b581);
+  letter-spacing: 0.01em;
+}
+
+/* Peer ghost buttons row */
+.rs-peer-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.rs-peer-btn {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 14px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.rs-peer-btn:hover {
+  background: var(--surface-2);
 }
 
