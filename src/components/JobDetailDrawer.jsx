@@ -7,8 +7,13 @@ import AddReceiptModal from './AddReceiptModal';
 import SignaturePad from './SignaturePad';
 import EditFieldModal from './EditFieldModal';
 import NextStepCard from './NextStepCard';
+import CollapsedSectionRow from './CollapsedSectionRow';
+import ProfitRibbon from './ProfitRibbon';
+import ProfitBreakdownSheet from './ProfitBreakdownSheet';
+import MoreDisclosure from './MoreDisclosure';
 import { getDrawerSectionConfig } from '../lib/drawerSectionConfig';
 import { deriveNextStepContent } from '../lib/nextStepContent';
+import { sectionsNeedingAttention } from '../lib/sectionAttention';
 import {
   getChaseState,
   recordChase,
@@ -1162,6 +1167,8 @@ export default function JobDetailDrawer({
   const [toast, setToast] = useState(null);
   const [kebabOpen, setKebabOpen] = useState(false);
   const kebabRef = useRef(null);
+  // Profit breakdown sheet — opened by ribbon tap or viewProfitBreakdown action
+  const [profitSheetOpen, setProfitSheetOpen] = useState(false);
 
   // Stage-aware section expansion — Direction 2.
   // Initialised lazily from getDrawerSectionConfig so the default open/closed
@@ -1780,7 +1787,7 @@ export default function JobDetailDrawer({
     openSigPad:          () => setSigPadOpen(true),
     editPrice:           () => setEditingField('amount'),
     editLineItems:       handleToggleLiEdit,
-    viewProfitBreakdown: () => {},
+    viewProfitBreakdown: () => setProfitSheetOpen(true),
     noop:                () => {},
   };
 
@@ -2020,17 +2027,39 @@ export default function JobDetailDrawer({
               user can override by tapping any collapsed row.
               ──────────────────────────────────────────────────────────────── */}
           {(() => {
-            const sectionConfig = getDrawerSectionConfig(status);
-            const toggleSection = (id) => {
-              setExpandedSections(prev => {
-                const next = new Set(prev);
-                if (next.has(id)) { next.delete(id); } else { next.add(id); }
-                return next;
-              });
-            };
+            // ── Profit derivation (shared by ribbon + section config) ────────
+            const quote = job.total ?? job.amount ?? 0;
+            const materials = receipts
+              .filter(r => r.jobId && (String(r.jobId) === String(job.id) || String(r.jobId) === String(job.cloudId)))
+              .reduce((sum, r) => sum + Number(r.amount || 0), 0);
+            const profit = quote - materials;
+            const margin = quote > 0 ? Math.round((profit / quote) * 100) : 0;
 
-            // ── Re-usable section elements ──────────────────────────────────
+            // ── Attention state (Step 2) ─────────────────────────────────────
+            const attention = sectionsNeedingAttention(job, nextStepContent, receipts);
 
+            // ── One-liner meta strings ───────────────────────────────────────
+            const phone = job.customerPhone || job.phone || job.mobile || '';
+            const email = job.email || job.customerEmail || '';
+            const customer = job.customer || job.name || '';
+            const customerParts = [customer, phone || (email ? 'email only' : null)].filter(Boolean);
+            const customerMeta = customerParts.join(' · ') || null;
+
+            const lineItems = Array.isArray(job.lineItems) ? job.lineItems.filter(i => i.desc || i.cost) : [];
+            const lineCount = lineItems.length;
+            const quoteTotal = job.total ?? job.amount ?? 0;
+            const quoteMeta = lineCount > 0
+              ? `${lineCount} line${lineCount === 1 ? '' : 's'} · ${gbp(quoteTotal)}`
+              : quoteTotal > 0 ? gbp(quoteTotal) : null;
+
+            const jobReceipts = receipts.filter(r =>
+              r.jobId && (String(r.jobId) === String(job.id) || String(r.jobId) === String(job.cloudId))
+            );
+            const costsMeta = jobReceipts.length > 0
+              ? `${gbp(materials)} · ${jobReceipts.length} receipt${jobReceipts.length !== 1 ? 's' : ''}`
+              : 'none logged yet';
+
+            // ── Section elements ─────────────────────────────────────────────
             const nextStepEl = onUpdateJob ? (
               <NextStepCard
                 content={nextStepContent}
@@ -2067,11 +2096,19 @@ export default function JobDetailDrawer({
               />
             );
 
-            const profitEl = (
-              <ProfitBarSection job={job} receipts={receipts} />
-            );
+            // Step 2: profit section renders as ProfitRibbon (not ProfitBarSection)
+            // The ribbon opens ProfitBreakdownSheet on tap.
+            const profitRibbonEl = quote > 0 ? (
+              <ProfitRibbon
+                quote={quote}
+                costs={materials}
+                profit={profit}
+                margin={margin}
+                onTap={() => setProfitSheetOpen(true)}
+              />
+            ) : null;
 
-            const customerEl = (
+            const customerBodyEl = (
               <DetailsSection
                 job={job}
                 onEditPhone={onUpdateJob ? () => setEditingField('phone') : undefined}
@@ -2079,7 +2116,7 @@ export default function JobDetailDrawer({
               />
             );
 
-            const quoteEl = (
+            const quoteBodyEl = (
               <QuoteBreakdownSection
                 job={job}
                 editMode={liEditMode}
@@ -2093,70 +2130,104 @@ export default function JobDetailDrawer({
               />
             );
 
-            // ── Profit one-liner summary ────────────────────────────────────
-            const quote = job.total ?? job.amount ?? 0;
-            const materials = receipts
-              .filter(r => r.jobId && (String(r.jobId) === String(job.id) || String(r.jobId) === String(job.cloudId)))
-              .reduce((sum, r) => sum + Number(r.amount || 0), 0);
-            const profit = quote - materials;
-            const margin = quote > 0 ? Math.round((profit / quote) * 100) : 0;
-            const profitSummary = quote > 0 ? `${gbp(profit)} · ${margin}%` : null;
+            const costsBodyEl = (
+              <ReceiptsSection
+                job={job}
+                receipts={receipts}
+                onViewPhoto={setLightboxSrc}
+                onAddReceipt={onAddReceipt ? () => setReceiptModalOpen(true) : undefined}
+                onDeleteReceipt={onDeleteReceipt ? handleDeleteReceipt : undefined}
+                onEditReceipt={onUpdateJob ? setEditingReceipt : undefined}
+              />
+            );
 
-            // ── Customer one-liner summary ───────────────────────────────────
-            const phone = job.customerPhone || job.phone || job.mobile || '';
-            const email = job.email || job.customerEmail || '';
-            const customer = job.customer || job.name || '';
-            const customerParts = [customer, phone || (email ? 'email only' : null)].filter(Boolean);
-            const customerSummary = customerParts.join(' · ') || null;
-
-            // ── Quote one-liner summary ──────────────────────────────────────
-            const lineItems = Array.isArray(job.lineItems) ? job.lineItems.filter(i => i.desc || i.cost) : [];
-            const lineCount = lineItems.length;
-            const quoteTotal = job.total ?? job.amount ?? 0;
-            const quoteSummary = lineCount > 0
-              ? `${lineCount} line${lineCount === 1 ? '' : 's'} · ${gbp(quoteTotal)}`
-              : quoteTotal > 0 ? gbp(quoteTotal) : null;
-
-            // ── Render per section config ───────────────────────────────────
-            const sectionElements = {
-              nextStep:  { el: nextStepEl,  icon: '→', label: 'Next step',  summary: null          },
-              payment:   { el: paymentEl,   icon: '£', label: 'Payment',    summary: null          },
-              payments:  { el: paymentsEl,  icon: '💳', label: 'Payments',   summary: null          },
-              profit:    { el: profitEl,    icon: '£', label: 'Profit',     summary: profitSummary },
-              customer:  { el: customerEl,  icon: '👤', label: 'Customer',   summary: customerSummary },
-              quote:     { el: quoteEl,     icon: '📋', label: 'Quote',      summary: quoteSummary  },
-            };
-
+            // ── Stage-aware layout rendering ─────────────────────────────────
+            const sectionConfig = getDrawerSectionConfig(status);
             const rendered = [];
 
             for (const { id, display } of sectionConfig) {
               if (display === 'hidden') continue;
 
-              const { el, icon, label, summary } = sectionElements[id] || {};
-              if (!el) continue;
+              if (id === 'nextStep') {
+                if (nextStepEl) rendered.push(<React.Fragment key="nextStep">{nextStepEl}</React.Fragment>);
+                // Profit ribbon always follows the Next Step card when the job has a price
+                if (profitRibbonEl) rendered.push(<React.Fragment key="profit-ribbon">{profitRibbonEl}</React.Fragment>);
+                continue;
+              }
 
-              if (display === 'expanded') {
+              // Skip old profit section — replaced by ribbon above
+              if (id === 'profit') continue;
+
+              if (id === 'payment') {
+                if (display === 'expanded') rendered.push(<React.Fragment key="payment">{paymentEl}</React.Fragment>);
+                continue;
+              }
+
+              if (id === 'payments') {
+                if (display === 'expanded') rendered.push(<React.Fragment key="payments">{paymentsEl}</React.Fragment>);
+                continue;
+              }
+
+              // Quote, Costs, Customer → always CollapsedSectionRow (Step 2)
+              if (id === 'quote') {
+                const defaultExpanded =
+                  display === 'expanded' ||
+                  attention.quote ||
+                  status === 'Lead' ||
+                  status === 'Quoted';
                 rendered.push(
-                  <React.Fragment key={id}>{el}</React.Fragment>
-                );
-              } else {
-                // collapsed
-                const isExpanded = expandedSections.has(id);
-                rendered.push(
-                  <CollapsibleRow
-                    key={id}
-                    id={id}
-                    icon={icon}
-                    title={label}
-                    summary={summary}
-                    expanded={isExpanded}
-                    onToggle={() => toggleSection(id)}
+                  <CollapsedSectionRow
+                    key="quote"
+                    id="quote"
+                    icon="📋"
+                    title="Quote"
+                    meta={quoteMeta}
+                    needsAttention={attention.quote}
+                    defaultExpanded={defaultExpanded}
                   >
-                    {el}
-                  </CollapsibleRow>
+                    {quoteBodyEl}
+                  </CollapsedSectionRow>
                 );
+                continue;
+              }
+
+              if (id === 'customer') {
+                const defaultExpanded =
+                  display === 'expanded' ||
+                  attention.customer;
+                rendered.push(
+                  <CollapsedSectionRow
+                    key="customer"
+                    id="customer"
+                    icon="👤"
+                    title="Customer"
+                    meta={customerMeta}
+                    needsAttention={attention.customer}
+                    defaultExpanded={defaultExpanded}
+                  >
+                    {customerBodyEl}
+                  </CollapsedSectionRow>
+                );
+                continue;
               }
             }
+
+            // Costs section — always rendered as CollapsedSectionRow after the stage-aware ones
+            // Default-expanded at Active stage (cost-log nudge)
+            const costsDefaultExpanded = status === 'Active' || attention.costs;
+            rendered.push(
+              <CollapsedSectionRow
+                key="costs"
+                id="costs"
+                icon="🧰"
+                title="Costs"
+                meta={costsMeta}
+                needsAttention={attention.costs}
+                defaultExpanded={costsDefaultExpanded}
+              >
+                {costsBodyEl}
+              </CollapsedSectionRow>
+            );
 
             return rendered;
           })()}
@@ -2174,20 +2245,10 @@ export default function JobDetailDrawer({
             aria-hidden="true"
           />
 
-          {/* Receipts / Photos / Notes: always outside the stage-aware section config.
-              They render as full sections when they have content, or as inline pill
-              chips when empty. Chips are grouped on one row to minimise vertical space. */}
+          {/* Photos and Notes — behind MoreDisclosure (Step 2).
+              Receipts are now inside the Costs CollapsedSectionRow above.
+              Schedule stays at the spine (SpineBlock). */}
           {(() => {
-            const receiptsEl = (
-              <ReceiptsSection
-                job={job}
-                receipts={receipts}
-                onViewPhoto={setLightboxSrc}
-                onAddReceipt={onAddReceipt ? () => setReceiptModalOpen(true) : undefined}
-                onDeleteReceipt={onDeleteReceipt ? handleDeleteReceipt : undefined}
-                onEditReceipt={onUpdateJob ? setEditingReceipt : undefined}
-              />
-            );
             const photosEl = (
               <PhotosSection
                 photos={job.photos}
@@ -2213,33 +2274,37 @@ export default function JobDetailDrawer({
               />
             );
 
-            const hasReceiptContent = receipts.some(r =>
-              r.jobId && (String(r.jobId) === String(job.id) || String(r.jobId) === String(job.cloudId))
-            );
-            const hasPhotoContent = Array.isArray(job.photos) && job.photos.length > 0;
+            const photoCount = Array.isArray(job.photos) ? job.photos.length : 0;
+            const hasPhotoContent = photoCount > 0;
             const hasNoteContent = (Array.isArray(job.jobNotes) && job.jobNotes.length > 0) ||
               (typeof job.notes === 'string' && job.notes.trim());
 
-            const sections = [];
+            const hasAnyContent = hasPhotoContent || hasNoteContent;
 
-            if (hasReceiptContent) sections.push(<React.Fragment key="receipts">{receiptsEl}</React.Fragment>);
-            if (hasPhotoContent) sections.push(<React.Fragment key="photos">{photosEl}</React.Fragment>);
-            if (hasNoteContent || noteFormOpen) sections.push(<React.Fragment key="notes">{notesEl}</React.Fragment>);
-
-            const chips = [];
-            if (!hasReceiptContent && onAddReceipt) chips.push(<React.Fragment key="chip-receipts">{receiptsEl}</React.Fragment>);
-            if (!hasPhotoContent && onUpdateJob) chips.push(<React.Fragment key="chip-photos">{photosEl}</React.Fragment>);
-            if (!hasNoteContent && !noteFormOpen && onUpdateJob) chips.push(<React.Fragment key="chip-notes">{notesEl}</React.Fragment>);
-
-            if (chips.length > 0) {
-              sections.push(
-                <div key="pill-row" className="jd-pill-row">
-                  {chips}
-                </div>
-              );
+            // Build summary string for the More row
+            const summaryParts = [];
+            if (hasPhotoContent) summaryParts.push(`Photos (${photoCount})`);
+            else if (onUpdateJob) summaryParts.push('Photos');
+            if (hasNoteContent) {
+              const noteCount = Array.isArray(job.jobNotes) ? job.jobNotes.length : 0;
+              summaryParts.push(noteCount > 0 ? `Notes (${noteCount})` : 'Notes');
+            } else if (onUpdateJob) {
+              summaryParts.push('Notes');
             }
+            const moreSummary = summaryParts.join(' · ');
 
-            return sections;
+            // Only render More row when there's something to show or add
+            if (!moreSummary) return null;
+
+            return (
+              <MoreDisclosure
+                summary={moreSummary}
+                hasContent={hasAnyContent || noteFormOpen}
+              >
+                {photosEl}
+                {(hasNoteContent || noteFormOpen || onUpdateJob) && notesEl}
+              </MoreDisclosure>
+            );
           })()}
         </div>
 
@@ -2248,6 +2313,14 @@ export default function JobDetailDrawer({
           <div className="job-detail-toast" role="status">{toast}</div>
         )}
       </div>
+
+      {/* Profit breakdown sheet — Step 2. Two entry points: ribbon tap, viewProfitBreakdown action. */}
+      <ProfitBreakdownSheet
+        open={profitSheetOpen}
+        onClose={() => setProfitSheetOpen(false)}
+        job={job}
+        receipts={receipts}
+      />
 
       {/* Photo lightbox — sits on top of everything */}
       <PhotoLightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />
