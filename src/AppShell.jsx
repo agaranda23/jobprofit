@@ -145,6 +145,12 @@ export default function AppShell() {
   // pendingJobId: when Today navigates to Work with a specific job to open, store
   // the job ID here so WorkScreen can pre-open the drawer on mount.
   const [pendingJobId, setPendingJobId] = useState(null);
+  // workResetKey: bumped on every explicit tab-click to the work/jobs tab.
+  // WorkScreen receives this as its React key, which causes a full remount and
+  // therefore discards any open drawer or modal state. Programmatic navigation
+  // from Today (onJobTap) does NOT bump this key — the drawer-open path must
+  // survive. Only the BottomNav onChange handler bumps it.
+  const [workResetKey, setWorkResetKey] = useState(0);
 
   const manageRootRef = useRef(null);
 
@@ -628,6 +634,40 @@ export default function AppShell() {
     navigate(NAV_SLICE_3 ? 'work' : NEW_NAV ? 'jobs' : 'manage');
   };
 
+  /**
+   * Hard-reset all transient UI state for any tab that has in-tab surfaces
+   * (drawers, modals, pickers). Called exclusively from the BottomNav onChange
+   * handler so that every deliberate tab tap lands on a clean list/screen.
+   *
+   * The Today → Send invoice → pick customer → opens drawer path is NOT affected
+   * because that path calls navigate() directly, bypassing handleTabChange.
+   *
+   * Defined before conditional early returns to keep hook order stable (Rules of Hooks).
+   */
+  const resetTransientUI = useCallback((nextView) => {
+    // Clear the account drawer (new-nav)
+    setDrawerOpen(false);
+    // If the user taps the work/jobs tab directly, bump the reset key so
+    // WorkScreen remounts and discards any open JobDetailDrawer. When navigating
+    // programmatically (e.g. from Today's job-tap), workResetKey stays the same
+    // so the intended drawer-open still fires.
+    const workView = NAV_SLICE_3 ? 'work' : 'jobs';
+    if (nextView === workView) {
+      setWorkResetKey(k => k + 1);
+      // Also clear the pending job so a remounted WorkScreen has no initialJobId.
+      setPendingJobId(null);
+    }
+  }, []);
+
+  /** Handles every explicit BottomNav tab press. Resets transient UI, then navigates.
+   *  Defined before conditional early returns to keep hook order stable (Rules of Hooks). */
+  const handleTabChange = useCallback((nextView) => {
+    resetTransientUI(nextView);
+    // Legacy manage tab still needs its moreKey bump.
+    if (!NAV_SLICE_3 && !NEW_NAV && nextView === 'manage') setMoreKey(k => k + 1);
+    navigate(nextView);
+  }, [resetTransientUI, navigate]);
+
   if (!authReady) {
     return <div className="auth-loading"><div className="ocr-spinner" /></div>;
   }
@@ -666,6 +706,7 @@ export default function AppShell() {
 
           {view === 'work' && (
             <WorkScreen
+              key={workResetKey}
               jobs={jobs}
               receipts={receipts}
               onNewJob={openDetailed}
@@ -709,7 +750,7 @@ export default function AppShell() {
 
           <BottomNav
             view={view}
-            onChange={navigate}
+            onChange={handleTabChange}
             slice3={true}
           />
         </>
@@ -736,6 +777,7 @@ export default function AppShell() {
 
           {view === 'jobs' && (
             <WorkScreen
+              key={workResetKey}
               jobs={jobs}
               receipts={receipts}
               onNewJob={openDetailed}
@@ -776,7 +818,7 @@ export default function AppShell() {
 
           <BottomNav
             view={view}
-            onChange={navigate}
+            onChange={handleTabChange}
             newNav={true}
           />
         </>
@@ -824,7 +866,7 @@ export default function AppShell() {
 
           <BottomNav
             view={view}
-            onChange={(v) => { if (v === 'manage') setMoreKey(k => k + 1); navigate(v); }}
+            onChange={handleTabChange}
           />
         </>
       )}
