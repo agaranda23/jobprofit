@@ -170,8 +170,23 @@ export async function runSync() {
       await markSynced(row.id);
       synced++;
     } catch (err) {
-      console.warn('Offline sync failed for job', row.id, err);
-      failed++;
+      // Postgres unique-violation (code 23505) means the row already exists in
+      // Supabase — a previous sync attempt inserted it but markSynced was never
+      // called (e.g. the app closed between the two awaits, or IndexedDB threw).
+      // Treat this as "already synced" and drain the queue entry so the badge
+      // stops showing a permanently stuck count.
+      const isAlreadySynced =
+        err?.code === '23505' ||          // Supabase/PostgREST error code
+        err?.details?.includes('already exists') ||
+        (typeof err?.message === 'string' && err.message.includes('duplicate key'));
+      if (isAlreadySynced) {
+        console.info('Offline queue: row already in cloud — draining', row.id);
+        await markSynced(row.id).catch(() => {});
+        synced++;
+      } else {
+        console.warn('Offline sync failed for job', row.id, err);
+        failed++;
+      }
     }
   }
 
