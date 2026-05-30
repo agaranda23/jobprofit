@@ -6,6 +6,8 @@ import SendInvoiceModal from './SendInvoiceModal';
 import AddReceiptModal from './AddReceiptModal';
 import SignaturePad from './SignaturePad';
 import EditFieldModal from './EditFieldModal';
+import NextStepCard from './NextStepCard';
+import { deriveNextStepContent } from '../lib/nextStepContent';
 import {
   getChaseState,
   recordChase,
@@ -1593,10 +1595,10 @@ export default function JobDetailDrawer({
       (job.quoteStatus === 'accepted' && (!job.jobStatus || job.jobStatus === 'quote'))
     );
 
-  // ── Stateful primary CTA derivation ──────────────────────────────────────
-  // Maps the job's position in the Get Paid loop to a single primary action.
-  // All handlers are defined above — derivation lives here so handleSendLink
-  // is in scope.
+  // ── Next Step hero card derivation ───────────────────────────────────────
+  // Maps the job's loop position to the content for the NextStepCard hero.
+  // deriveNextStepContent() is a pure function in lib/nextStepContent.js —
+  // all handlers are resolved here via the `nextStepHandlers` map below.
   const isPaid =
     job.paid === true ||
     job.paymentStatus === 'paid' ||
@@ -1615,28 +1617,43 @@ export default function JobDetailDrawer({
 
   const isQuoteSent = job.quoteStatus === 'sent';
 
-  let primaryCtaLabel = null;
-  let primaryCtaHandler = null;
-  const primaryCtaClass = 'btn-primary job-detail-cta-primary';
+  // Profit for the Paid state headline: quote minus all linked receipt costs.
+  const quoteValue = Number(job.total ?? job.amount ?? 0);
+  const receiptCosts = receipts
+    .filter(r => r.jobId && (String(r.jobId) === String(job.id) || String(r.jobId) === String(job.cloudId)))
+    .reduce((sum, r) => sum + Number(r.amount || 0), 0);
+  const profitForCard = quoteValue > 0 ? quoteValue - receiptCosts : null;
 
-  if (!isPaid) {
-    if (isInvoiced && showChase) {
-      primaryCtaLabel = 'Chase via WhatsApp';
-      primaryCtaHandler = handleChase;
-    } else if (isInvoiced) {
-      primaryCtaLabel = 'Record payment';
-      primaryCtaHandler = () => setPaymentModalOpen(true);
-    } else if (isQuoteAccepted) {
-      primaryCtaLabel = 'Send invoice';
-      primaryCtaHandler = () => setInvoiceModalOpen(true);
-    } else if (isQuoteSent) {
-      primaryCtaLabel = 'Resend quote link';
-      primaryCtaHandler = handleSendLink;
-    } else {
-      primaryCtaLabel = 'Send quote link';
-      primaryCtaHandler = handleSendLink;
-    }
-  }
+  const customerFirstName = (job.customer || job.name || '').split(' ')[0];
+
+  const nextStepContent = deriveNextStepContent({
+    status,
+    isPaid,
+    isInvoiced,
+    isQuoteAccepted,
+    isQuoteSent,
+    showChase,
+    chaseBlocked,
+    tier,
+    daysOverdue,
+    customerFirstName,
+    profit: profitForCard,
+  });
+
+  // Action token → handler map. Resolved here so all closures are in scope.
+  const nextStepHandlers = {
+    sendQuoteLink:       handleSendLink,
+    openInvoiceModal:    () => setInvoiceModalOpen(true),
+    openPaymentModal:    () => setPaymentModalOpen(true),
+    handleChase,
+    openReceiptModal:    () => setReceiptModalOpen(true),
+    openPhotoInput:      () => photoInputRef.current?.click(),
+    openSigPad:          () => setSigPadOpen(true),
+    editPrice:           () => setEditingField('amount'),
+    editLineItems:       handleToggleLiEdit,
+    viewProfitBreakdown: () => {},
+    noop:                () => {},
+  };
 
   return (
     <>
@@ -1837,6 +1854,17 @@ export default function JobDetailDrawer({
 
         {/* Scrollable body */}
         <div className="job-detail-body">
+          {/* Next Step hero card — the single most-leveraged action for the job's loop state.
+              Sits at the top of the body so it's thumb-reachable without scrolling.
+              Replaces the old bottom-anchored job-detail-cta-row primary CTA. */}
+          {onUpdateJob && (
+            <NextStepCard
+              content={nextStepContent}
+              handlers={nextStepHandlers}
+              isPaid={isPaid}
+            />
+          )}
+
           {/* Payment summary — self-gates; only renders when there's payment state */}
           <PaymentSummaryBlock
             job={job}
@@ -1855,24 +1883,6 @@ export default function JobDetailDrawer({
               }
             }}
           />
-
-          {/* Single stateful primary CTA — one action, the right action for the job's state */}
-          {primaryCtaLabel && primaryCtaHandler && (
-            <div className="job-detail-cta-row">
-              <button
-                type="button"
-                className={`${primaryCtaClass}${primaryCtaLabel === 'Chase via WhatsApp' && chaseBlocked ? ' btn-primary--disabled' : ''}`}
-                onClick={chaseBlocked && primaryCtaLabel === 'Chase via WhatsApp' ? undefined : primaryCtaHandler}
-                disabled={primaryCtaLabel === 'Chase via WhatsApp' && chaseBlocked}
-                aria-disabled={primaryCtaLabel === 'Chase via WhatsApp' && chaseBlocked}
-              >
-                {primaryCtaLabel === 'Chase via WhatsApp' && chaseBlocked ? 'Chased today' : primaryCtaLabel}
-              </button>
-              {primaryCtaLabel === 'Chase via WhatsApp' && chasedLabel && (
-                <span className="job-detail-chased-label">{chasedLabel}</span>
-              )}
-            </div>
-          )}
 
           {/* ── Content sections ── */}
 
