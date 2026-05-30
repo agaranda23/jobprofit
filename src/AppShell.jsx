@@ -42,6 +42,7 @@ import {
 } from './lib/store';
 import { flipExpiredTrialToFree } from './lib/plan';
 import { enqueueJob, wireOnlineSync } from './lib/offlineQueue';
+import SyncBadge from './components/SyncBadge';
 
 // ─── Feature flags ───────────────────────────────────────────────────────────
 // Slice-3 nav (Today / Jobs / Money / Settings) is the default for all users.
@@ -870,6 +871,9 @@ export default function AppShell() {
           </div>
         </div>
       )}
+
+      {/* ── Offline sync badge — shown when IndexedDB queue has pending rows ── */}
+      <SyncBadge />
 
       {/* ── One-time orientation toast ──────────────────────────────────── */}
       {navToast && (

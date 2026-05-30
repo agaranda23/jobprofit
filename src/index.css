@@ -2854,6 +2854,59 @@ input[type=number] { -moz-appearance: textfield; }
   flex-shrink: 0;
 }
 
+/* ─── Sync badge ─────────────────────────────────────────────────────────────
+   Shown when the offline queue has pending rows. Fixed to the top of the
+   viewport so it's always visible regardless of the active tab. Subtle pill —
+   not alarming. Disappears the moment the queue empties (component unmounts).
+   ─────────────────────────────────────────────────────────────────────────── */
+.sync-badge {
+  position: fixed;
+  top: env(safe-area-inset-top, 0px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 310;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  background: rgba(6, 78, 59, 0.92);
+  color: #10b981;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  letter-spacing: 0.1px;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: opacity 0.2s ease;
+}
+.sync-badge:disabled {
+  cursor: default;
+  opacity: 0.8;
+}
+.sync-badge--syncing {
+  color: #60a5fa;
+  border-color: rgba(96, 165, 250, 0.35);
+  background: rgba(30, 58, 138, 0.92);
+}
+.sync-badge__spinner {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border: 1.5px solid rgba(96, 165, 250, 0.3);
+  border-top-color: #60a5fa;
+  border-radius: 50%;
+  animation: sync-spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes sync-spin {
+  to { transform: rotate(360deg); }
+}
+
 /* ═══════════════════════════════════════════════════════════════
    ONBOARDING WIZARD — nav-redesign-slice-2
    Full-screen 4-step wizard, new-nav only.
