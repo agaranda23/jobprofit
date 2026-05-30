@@ -848,14 +848,16 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
 
   // If AppShell navigated here with a specific job to open (e.g. from TodayScreen
   // card-body tap), find it in the jobs array and pre-open the drawer.
-  // Runs once on mount (initialJobId is fixed for the lifetime of this WorkScreen instance).
+  // Uses an empty dep array: initialJobId is fixed for the lifetime of this
+  // WorkScreen instance (AppShell remounts WorkScreen via key prop when the user
+  // taps the Jobs tab directly). Running on [jobs] would re-open the drawer on
+  // every cloud refresh — that was the stuck-drawer bug.
   useEffect(() => {
     if (!initialJobId || !jobs.length) return;
     const target = jobs.find(j => String(j.id) === String(initialJobId));
     if (target) setSelectedJob(target);
-    // Deliberately empty dep array — we only want to run this on first mount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [jobs]);
+  }, []);
 
   const switchSubview = useCallback((v) => {
     logTelemetry('work_subview', { subview: v });
