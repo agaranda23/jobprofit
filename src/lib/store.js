@@ -286,7 +286,13 @@ export async function addJobToCloud(payload) {
   const isPaid = payload.paid !== false;
   const today = localDateString();
 
+  // Generate a client-side UUID so the offline queue can hold a stable ID
+  // before the row reaches Supabase. Mirrors the pattern used in addReceiptToCloud.
+  // If the caller already supplied an id (e.g. re-sync from queue), reuse it.
+  const jobId = payload.id && typeof payload.id === 'string' ? payload.id : crypto.randomUUID();
+
   const row = {
+    id: jobId,
     user_id,
     customer_name: payload.customer || payload.name || 'Job',
     date: today,
@@ -313,9 +319,11 @@ export async function addJobToCloud(payload) {
     throw error;
   }
 
-  // Dual-write to localStorage for legacy Manage compatibility
+  // Dual-write to localStorage for legacy Manage compatibility.
+  // local id === cloudId === server UUID — no reconciliation needed.
   addTodayJob({
     ...payload,
+    id: data.id,
     cloudId: data.id,
   });
 

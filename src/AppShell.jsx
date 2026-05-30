@@ -41,6 +41,8 @@ import {
   updateJobMetaInCloud,
 } from './lib/store';
 import { flipExpiredTrialToFree } from './lib/plan';
+import { enqueueJob, wireOnlineSync } from './lib/offlineQueue';
+import SyncBadge from './components/SyncBadge';
 
 // ─── Feature flags ───────────────────────────────────────────────────────────
 // Slice-3 nav (Today / Jobs / Money / Settings) is the default for all users.
@@ -182,6 +184,13 @@ export default function AppShell() {
     };
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
+  }, []);
+
+  // Wire the offline-queue sync runner on mount. Idempotent — safe to call here.
+  // Runs an initial flush of any jobs queued in a previous session, then
+  // listens for the 'online' event to retry on reconnect.
+  useEffect(() => {
+    wireOnlineSync();
   }, []);
 
   const refreshFromCloud = useCallback(async () => {
@@ -424,9 +433,22 @@ export default function AppShell() {
       await addJobToCloud(job);
       await refreshFromCloud();
     } catch (e) {
-      console.error('Add job failed', e);
+      console.error('Add job failed — queuing for offline sync', e);
+      // Write locally so the UI reflects the save immediately, then enqueue
+      // for sync when the device is back online. The job.id is a UUID generated
+      // client-side in addJobToCloud (or supplied by the caller), so the queue
+      // can retry the exact same row without creating a duplicate.
       addTodayJob(job);
       setJobs(applyJobMetaToJobs(getTodayJobs()));
+      // Enqueue requires a string UUID. If job.id is a Date.now() integer
+      // (legacy path), generate a fresh UUID for the queue row.
+      const queuePayload = {
+        ...job,
+        id: (job.id && typeof job.id === 'string') ? job.id : crypto.randomUUID(),
+      };
+      enqueueJob(queuePayload).catch(qErr =>
+        console.error('enqueueJob failed', qErr)
+      );
     }
   };
 
@@ -849,6 +871,9 @@ export default function AppShell() {
           </div>
         </div>
       )}
+
+      {/* ── Offline sync badge — shown when IndexedDB queue has pending rows ── */}
+      <SyncBadge />
 
       {/* ── One-time orientation toast ──────────────────────────────────── */}
       {navToast && (

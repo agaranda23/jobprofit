@@ -721,6 +721,115 @@ body {
   padding-top: 6px;
 }
 
+/* ── Micro-log view ─────────────────────────────────────────────────────── */
+
+/* Large £ amount input */
+.aj-micro-amount-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 20px 0 16px;
+}
+.aj-micro-currency {
+  font-size: 36px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1;
+  flex-shrink: 0;
+}
+.aj-micro-amount {
+  flex: 1;
+  font-size: 48px;
+  font-weight: 700;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid var(--border);
+  color: var(--text);
+  outline: none;
+  width: 100%;
+  padding: 4px 0;
+  -moz-appearance: textfield;
+}
+.aj-micro-amount::-webkit-outer-spin-button,
+.aj-micro-amount::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.aj-micro-amount:focus { border-bottom-color: var(--accent); }
+
+/* Slightly wider chip strip in micro view so all 4 chips fit comfortably */
+.aj-chip-strip--micro {
+  gap: 6px;
+  flex-wrap: nowrap;
+}
+.aj-chip-strip--micro .aj-chip {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 4px;
+  font-size: 13px;
+}
+
+/* "Add details" link below Save */
+.aj-details-link {
+  display: block;
+  width: 100%;
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: 500;
+  text-align: center;
+  padding: 10px 0 4px;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+/* Subtitle in the details view */
+.aj-details-sub {
+  font-size: 13px;
+  color: var(--text-dim);
+  margin: -4px 0 12px;
+  text-align: center;
+}
+
+/* Mic shortcut icon in the micro-log header */
+.aj-mic-shortcut {
+  background: none;
+  border: none;
+  font-size: 20px;
+  padding: 4px;
+  cursor: pointer;
+  opacity: 0.7;
+  border-radius: 6px;
+}
+.aj-mic-shortcut:active { opacity: 1; transform: scale(0.95); }
+
+/* Offline pill in header */
+.aj-offline-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  background: rgba(251,191,36,0.15);
+  color: #f59e0b;
+  padding: 2px 7px;
+  border-radius: 99px;
+  vertical-align: middle;
+  letter-spacing: 0.02em;
+}
+
+/* Offline hint text */
+.aj-offline-hint {
+  font-size: 13px;
+  color: #f59e0b;
+  background: rgba(251,191,36,0.08);
+  border: 1px solid rgba(251,191,36,0.25);
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin: 0 0 12px;
+  text-align: center;
+}
+
 /* Profit flash on change */
 .profit-value.flash {
   animation: profit-flash 0.9s ease-out;
@@ -2852,6 +2961,59 @@ input[type=number] { -moz-appearance: textfield; }
   cursor: pointer;
   padding: 2px;
   flex-shrink: 0;
+}
+
+/* ─── Sync badge ─────────────────────────────────────────────────────────────
+   Shown when the offline queue has pending rows. Fixed to the top of the
+   viewport so it's always visible regardless of the active tab. Subtle pill —
+   not alarming. Disappears the moment the queue empties (component unmounts).
+   ─────────────────────────────────────────────────────────────────────────── */
+.sync-badge {
+  position: fixed;
+  top: env(safe-area-inset-top, 0px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 310;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  background: rgba(6, 78, 59, 0.92);
+  color: #10b981;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: inherit;
+  letter-spacing: 0.1px;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  transition: opacity 0.2s ease;
+}
+.sync-badge:disabled {
+  cursor: default;
+  opacity: 0.8;
+}
+.sync-badge--syncing {
+  color: #60a5fa;
+  border-color: rgba(96, 165, 250, 0.35);
+  background: rgba(30, 58, 138, 0.92);
+}
+.sync-badge__spinner {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border: 1.5px solid rgba(96, 165, 250, 0.3);
+  border-top-color: #60a5fa;
+  border-radius: 50%;
+  animation: sync-spin 0.7s linear infinite;
+  flex-shrink: 0;
+}
+@keyframes sync-spin {
+  to { transform: rotate(360deg); }
 }
 
 /* ═══════════════════════════════════════════════════════════════

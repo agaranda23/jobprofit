@@ -30,35 +30,77 @@ function formatDateLabel(isoDate) {
   }
 }
 
+// Auto-name for jobs saved without a job name from the micro-log.
+// e.g. "Job · Fri 30 May"
+function autoJobName() {
+  const d = new Date();
+  return 'Job · ' + d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+}
+
+function isOnline() {
+  return typeof navigator !== 'undefined' ? navigator.onLine : true;
+}
+
 export default function AddJobModal({ onClose, onSave, onOpenDetailed }) {
-  // listening | parsing | confirm | manual
-  const [status, setStatus] = useState('listening');
-  const [transcript, setTranscript] = useState('');
-  const [name, setName] = useState('');
-  const [customer, setCustomer] = useState('');
-  const [phone, setPhone] = useState('');
-  const [amount, setAmount] = useState('');
-  // paymentChip: 'awaiting' | 'cash' | 'bank' | 'card'
+  // 'micro'    — Two-Tap Micro-Log (new default entry)
+  // 'details'  — full Direction A form (reached via "+ Add details" link)
+  // 'listening'| 'parsing' | 'confirm' | 'manual' — voice states within 'details'
+  const [view, setView] = useState('micro');
+
+  // ── Shared field state (micro + details share these) ──────────────────────
+  const [amount, setAmount]           = useState('');
   const [paymentChip, setPaymentChip] = useState('awaiting');
-  const [jobDate, setJobDate] = useState(todayISODate());
-  const [error, setError] = useState('');
-  const [retryCount, setRetryCount] = useState(0);
-  const [moreOpen, setMoreOpen] = useState(false);
-  const [materials, setMaterials] = useState('');
+  const [name, setName]               = useState('');
+  const [customer, setCustomer]       = useState('');
+  const [phone, setPhone]             = useState('');
+  const [jobDate, setJobDate]         = useState(todayISODate());
+  const [materials, setMaterials]     = useState('');
   const [labourHours, setLabourHours] = useState('');
-  const [notes, setNotes] = useState('');
-  const [deposit, setDeposit] = useState('');
-  const [address, setAddress] = useState('');
-  const recogRef = useRef(null);
-  const manualOverride = useRef(false);
-  const hasAutoStarted = useRef(false);
+  const [notes, setNotes]             = useState('');
+  const [deposit, setDeposit]         = useState('');
+  const [address, setAddress]         = useState('');
+  const [error, setError]             = useState('');
+  const [moreOpen, setMoreOpen]       = useState(false);
+
+  // ── Voice state (only active in 'details' view) ───────────────────────────
+  const [voiceStatus, setVoiceStatus] = useState('listening');
+  const [transcript, setTranscript]   = useState('');
+  const [retryCount, setRetryCount]   = useState(0);
+  const recogRef        = useRef(null);
+  const manualOverride  = useRef(false);
+  const hasAutoStarted  = useRef(false);
+
+  // Hide the bottom nav pill while the modal is open.
+  useEffect(() => {
+    document.body.classList.add('overlay-open');
+    return () => { document.body.classList.remove('overlay-open'); };
+  }, []);
+
+  // ── Amount input ref — autofocus on mount ─────────────────────────────────
+  const amountRef = useRef(null);
+  useEffect(() => {
+    if (view === 'micro') {
+      // Small delay so the modal's CSS transition finishes before focusing
+      const t = setTimeout(() => amountRef.current?.focus(), 120);
+      return () => clearTimeout(t);
+    }
+  }, [view]);
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Voice helpers (used when the 'details' view is in listening mode)
+  // ─────────────────────────────────────────────────────────────────────────
 
   const stopListening = () => { try { recogRef.current?.stop(); } catch {} };
 
   const startListening = () => {
     setError('');
     setTranscript('');
-    if (!SR) { setStatus('manual'); return; }
+    if (!SR || !isOnline()) {
+      // Offline or no Speech API — drop straight to manual form
+      setVoiceStatus('manual');
+      if (!isOnline()) setError('No signal — type it instead.');
+      return;
+    }
     try {
       const r = new SR();
       const lang = localStorage.getItem('jp.voiceLang') || 'en-GB';
@@ -76,18 +118,21 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed }) {
       r.onerror = (e) => {
         if (e.error === 'not-allowed') {
           setError('Microphone blocked. Allow it in the address bar then try again.');
-          setStatus('manual');
+          setVoiceStatus('manual');
         } else if (e.error === 'no-speech') {
           setError('Nothing heard — say the job and amount');
-          setStatus('listening');
+          setVoiceStatus('listening');
+        } else if (e.error === 'network') {
+          setError('No signal — type it instead.');
+          setVoiceStatus('manual');
         } else {
           setError(`Mic error: ${e.error}`);
-          setStatus('manual');
+          setVoiceStatus('manual');
         }
       };
       r.onend = () => {
         if (manualOverride.current) { manualOverride.current = false; return; }
-        setStatus(s => {
+        setVoiceStatus(s => {
           if (s === 'listening') {
             const t = (finalText || '').trim();
             if (t) { parse(t); return 'parsing'; }
@@ -99,34 +144,19 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed }) {
       };
       recogRef.current = r;
       r.start();
-      setStatus('listening');
+      setVoiceStatus('listening');
     } catch (err) {
       setError(`Couldn't start mic: ${err.message}`);
-      setStatus('manual');
+      setVoiceStatus('manual');
     }
   };
-
-  // Auto-start mic on mount (hot-mic)
-  useEffect(() => {
-    if (hasAutoStarted.current) return;
-    hasAutoStarted.current = true;
-    startListening();
-    return () => { try { recogRef.current?.abort(); } catch {} };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Hide the bottom nav pill while the modal is open so it doesn't paint over the CTA.
-  useEffect(() => {
-    document.body.classList.add('overlay-open');
-    return () => { document.body.classList.remove('overlay-open'); };
-  }, []);
 
   const parse = async (text) => {
     try {
       const parsed = await parseJobFromSpeech(text);
-      const cleanName = (parsed.name || '').trim();
+      const cleanName     = (parsed.name || '').trim();
       const cleanCustomer = (parsed.customer || '').trim();
-      const cleanAmt = parsed.amount;
+      const cleanAmt      = parsed.amount;
 
       if (cleanAmt == null || isNaN(cleanAmt) || cleanAmt <= 0) {
         if (retryCount < 1) {
@@ -135,23 +165,22 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed }) {
           setTimeout(() => startListening(), 600);
           return;
         }
-        // After one retry drop to manual with what we have
         setName(cleanName);
         setCustomer(cleanCustomer);
         setAmount('');
         if (parsed.paymentType) applyPaymentType(parsed.paymentType);
-        setStatus('manual');
+        setVoiceStatus('manual');
         return;
       }
 
-      setName(cleanName || 'Job');
+      setName(cleanName || autoJobName());
       setCustomer(cleanCustomer);
       setAmount(String(cleanAmt));
       if (parsed.paymentType) applyPaymentType(parsed.paymentType);
       else setPaymentChip('awaiting');
-      setStatus('confirm');
+      setVoiceStatus('confirm');
     } catch {
-      setStatus('manual');
+      setVoiceStatus('manual');
     }
   };
 
@@ -163,42 +192,84 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed }) {
     else setPaymentChip('awaiting');
   }
 
-  const save = () => {
-    if (!name.trim()) {
-      setError('Job name is required');
-      return;
-    }
-    const isPaid = paymentChip !== 'awaiting';
-    // If a paid chip is selected but no amount entered, block with a clear message.
-    if (isPaid && !amount.trim()) {
-      setError('Add an amount before you can mark this paid');
-      return;
-    }
-    // If something was typed in the amount field, validate it.
+  // ─────────────────────────────────────────────────────────────────────────
+  // Save handlers
+  // ─────────────────────────────────────────────────────────────────────────
+
+  // Micro-log save: amount is optional (can be blank = "add price later").
+  // Job name auto-fills to "Job · {day date}". Never blocks the user.
+  const saveMicro = () => {
     const amt = amount.trim() ? parseFloat(amount) : null;
     if (amt !== null && (isNaN(amt) || amt <= 0)) {
       setError("That amount doesn't look right");
       return;
     }
+    const isPaid = paymentChip !== 'awaiting';
+    if (isPaid && amt === null) {
+      setError('Add an amount before you can mark this paid');
+      return;
+    }
+    setError('');
     onSave({
-      id: Date.now(),
-      name: name.trim(),
-      customer: customer.trim() || null,
-      phone: phone.trim() || null,
-      amount: amt,
+      id:          crypto.randomUUID(),
+      name:        autoJobName(),
+      customer:    null,
+      phone:       null,
+      amount:      amt,
       paymentType: isPaid ? paymentChip : null,
-      paid: isPaid,
-      date: jobDate ? new Date(jobDate + 'T12:00:00').toISOString() : new Date().toISOString(),
-      createdAt: new Date().toISOString(),
-      ...(materials.trim() ? { materialsCost: parseFloat(materials) || 0 } : {}),
-      ...(labourHours.trim() ? { labourHours: parseFloat(labourHours) || 0 } : {}),
-      ...(notes.trim() ? { notes: notes.trim() } : {}),
-      ...(deposit.trim() ? { deposit: parseFloat(deposit) || 0 } : {}),
-      ...(address.trim() ? { address: address.trim() } : {}),
+      paid:        isPaid,
+      date:        new Date().toISOString(),
+      createdAt:   new Date().toISOString(),
     });
   };
 
-  const saveLabel = () => {
+  // Details-view save: job name is required only if the user has typed something
+  // in the name field; otherwise falls back to autoJobName().
+  const saveDetails = () => {
+    const resolvedName = name.trim() || autoJobName();
+    const isPaid = paymentChip !== 'awaiting';
+    if (isPaid && !amount.trim()) {
+      setError('Add an amount before you can mark this paid');
+      return;
+    }
+    const amt = amount.trim() ? parseFloat(amount) : null;
+    if (amt !== null && (isNaN(amt) || amt <= 0)) {
+      setError("That amount doesn't look right");
+      return;
+    }
+    setError('');
+    onSave({
+      id:          crypto.randomUUID(),
+      name:        resolvedName,
+      customer:    customer.trim() || null,
+      phone:       phone.trim() || null,
+      amount:      amt,
+      paymentType: isPaid ? paymentChip : null,
+      paid:        isPaid,
+      date:        jobDate ? new Date(jobDate + 'T12:00:00').toISOString() : new Date().toISOString(),
+      createdAt:   new Date().toISOString(),
+      ...(materials.trim()   ? { materialsCost: parseFloat(materials) || 0 } : {}),
+      ...(labourHours.trim() ? { labourHours: parseFloat(labourHours) || 0 } : {}),
+      ...(notes.trim()       ? { notes: notes.trim() } : {}),
+      ...(deposit.trim()     ? { deposit: parseFloat(deposit) || 0 } : {}),
+      ...(address.trim()     ? { address: address.trim() } : {}),
+    });
+  };
+
+  // Auto-start voice only when entering the 'details' view.
+  useEffect(() => {
+    if (view !== 'details') return;
+    if (hasAutoStarted.current) return;
+    hasAutoStarted.current = true;
+    startListening();
+    return () => { try { recogRef.current?.abort(); } catch {} };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view]);
+
+  const chipClass = (id) =>
+    `aj-chip${paymentChip === id ? ' aj-chip--on' : ''}`;
+
+  const detailsSaveLabel = () => {
     if (paymentChip === 'awaiting') {
       if (!amount.trim()) return 'Save · add the price later';
       const who = customer.trim() || 'This job';
@@ -207,253 +278,313 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed }) {
     return `Save · paid by ${paymentChip}`;
   };
 
-  const chipClass = (id) =>
-    `aj-chip${paymentChip === id ? ' aj-chip--on' : ''}`;
+  // ─────────────────────────────────────────────────────────────────────────
+  // Render
+  // ─────────────────────────────────────────────────────────────────────────
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal modal-tall" onClick={e => e.stopPropagation()}>
-        <div className="aj-header">
-          <h3 className="modal-title">Add job</h3>
-          <button className="aj-close-btn" onClick={onClose} aria-label="Close">✕</button>
-        </div>
 
-        {/* ── Listening state ── */}
-        {status === 'listening' && (
+        {/* ══ MICRO-LOG VIEW (default entry) ════════════════════════════════ */}
+        {view === 'micro' && (
           <>
-            <div className="aj-mic-box">
-              <div className="aj-mic-icon">🎤</div>
-              <div className="aj-mic-label">Listening…</div>
-              <div className="aj-mic-sub">Say the job, customer, and amount</div>
-            </div>
-            {transcript && (
-              <div className="aj-transcript">&ldquo;{transcript}&rdquo;</div>
-            )}
-            {!transcript && (
-              <div className="aj-transcript aj-transcript--hint">
-                e.g. &ldquo;Kitchen job Sarah three eighty cash&rdquo;
+            <div className="aj-header">
+              <h3 className="modal-title">
+                Add job
+                {!isOnline() && (
+                  <span className="aj-offline-pill" aria-label="Offline">⚡ Offline</span>
+                )}
+              </h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                {/* Voice shortcut — secondary, not the default */}
+                {SR && isOnline() && (
+                  <button
+                    className="aj-mic-shortcut"
+                    aria-label="Use voice instead"
+                    title="Use voice"
+                    type="button"
+                    onClick={() => {
+                      setView('details');
+                      // hasAutoStarted is still false at this point → voice will auto-start
+                    }}
+                  >
+                    🎤
+                  </button>
+                )}
+                <button className="aj-close-btn" onClick={onClose} aria-label="Close">✕</button>
               </div>
+            </div>
+
+            {!isOnline() && (
+              <p className="aj-offline-hint">No signal — voice off. Type the amount instead.</p>
             )}
+
+            {/* Big amount input */}
+            <div className="aj-micro-amount-wrap">
+              <span className="aj-micro-currency">£</span>
+              <input
+                ref={amountRef}
+                className="aj-micro-amount"
+                type="number"
+                inputMode="decimal"
+                placeholder="0"
+                value={amount}
+                onChange={e => { setAmount(e.target.value); setError(''); }}
+                aria-label="Amount in pounds"
+              />
+            </div>
+
+            {/* Paid-by chip strip */}
+            <div className="aj-chip-label">Got paid?</div>
+            <div className="aj-chip-strip aj-chip-strip--micro">
+              {PAYMENT_CHIPS.map(c => (
+                <button
+                  key={c.id}
+                  type="button"
+                  className={chipClass(c.id)}
+                  onClick={() => setPaymentChip(c.id)}
+                >
+                  {c.label}
+                </button>
+              ))}
+            </div>
+
+            {error && <p className="modal-error">{error}</p>}
+
             <button
-              className="btn-primary"
-              onClick={stopListening}
-              style={{ width: '100%', marginBottom: 8, marginTop: 12 }}
+              className="btn-primary btn-large aj-save-btn"
+              onClick={saveMicro}
             >
-              Done
-            </button>
-            <div className="aj-footer-links">
-              <button
-                className="link-btn"
-                onClick={() => {
-                  manualOverride.current = true;
-                  stopListening();
-                  setStatus('manual');
-                }}
-              >
-                Type instead
-              </button>
-            </div>
-          </>
-        )}
-
-        {/* ── Parsing state ── */}
-        {status === 'parsing' && (
-          <>
-            <div className="aj-mic-box aj-mic-box--parsing">
-              <div className="aj-mic-icon">⏳</div>
-              <div className="aj-mic-label">Understanding…</div>
-            </div>
-            {transcript && (
-              <div className="aj-transcript">&ldquo;{transcript}&rdquo;</div>
-            )}
-          </>
-        )}
-
-        {/* ── Confirm state (voice parsed OK) ── */}
-        {status === 'confirm' && (
-          <>
-            {transcript && (
-              <div className="aj-transcript">&ldquo;{transcript}&rdquo;</div>
-            )}
-
-            {/* When */}
-            <div className="aj-field-row">
-              <span className="aj-field-label">When</span>
-              <input
-                type="date"
-                className="aj-date-input"
-                value={jobDate}
-                onChange={e => setJobDate(e.target.value)}
-                max={todayISODate()}
-              />
-              <span className="aj-date-label">{formatDateLabel(jobDate)}</span>
-            </div>
-
-            <div className="preview-grid">
-              <div className="preview-row">
-                <span className="preview-label">Job</span>
-                <input
-                  type="text"
-                  className="preview-input"
-                  value={name}
-                  onChange={e => setName(e.target.value)}
-                  placeholder="Kitchen renovation"
-                />
-              </div>
-              <div className="preview-row">
-                <span className="preview-label">Customer</span>
-                <input
-                  type="text"
-                  className="preview-input"
-                  value={customer}
-                  onChange={e => setCustomer(e.target.value)}
-                  placeholder="Sarah Mitchell (optional)"
-                />
-              </div>
-              <div className="preview-row">
-                <span className="preview-label">Amount</span>
-                <span className="preview-value preview-amount">£{amount}</span>
-              </div>
-            </div>
-
-            {/* Paid-status chip strip */}
-            <div className="aj-chip-label">Paid by</div>
-            <div className="aj-chip-strip">
-              {PAYMENT_CHIPS.map(c => (
-                <button
-                  key={c.id}
-                  type="button"
-                  className={chipClass(c.id)}
-                  onClick={() => setPaymentChip(c.id)}
-                >
-                  {c.label}
-                </button>
-              ))}
-            </div>
-
-            <button className="btn-primary btn-large aj-save-btn" onClick={save}>
-              {saveLabel()}
+              Save
             </button>
 
-            <div className="aj-footer-links">
-              <button
-                className="link-btn"
-                onClick={() => { setMoreOpen(v => !v); }}
-              >
-                {moreOpen ? 'Less options ⌃' : 'More options ⌄'}
-              </button>
-              <span className="aj-footer-sep">·</span>
-              <button
-                className="link-btn"
-                onClick={() => {
-                  manualOverride.current = true;
-                  setStatus('manual');
-                }}
-              >
-                Edit all fields
-              </button>
-            </div>
-
-            {moreOpen && <MoreOptionsFields
-              materials={materials} setMaterials={setMaterials}
-              labourHours={labourHours} setLabourHours={setLabourHours}
-              notes={notes} setNotes={setNotes}
-              phone={phone} setPhone={setPhone}
-              address={address} setAddress={setAddress}
-              deposit={deposit} setDeposit={setDeposit}
-            />}
+            <button
+              className="aj-details-link"
+              type="button"
+              onClick={() => setView('details')}
+            >
+              + Add details (name, customer, when)
+            </button>
           </>
         )}
 
-        {/* ── Manual (type instead) state ── */}
-        {status === 'manual' && (
+        {/* ══ DETAILS VIEW (full Direction A form) ══════════════════════════ */}
+        {view === 'details' && (
           <>
-            {/* When */}
-            <div className="aj-field-row">
-              <span className="aj-field-label">When</span>
-              <input
-                type="date"
-                className="aj-date-input"
-                value={jobDate}
-                onChange={e => setJobDate(e.target.value)}
-                max={todayISODate()}
-              />
-              <span className="aj-date-label">{formatDateLabel(jobDate)}</span>
+            <div className="aj-header">
+              <h3 className="modal-title">Add details</h3>
+              <button className="aj-close-btn" onClick={onClose} aria-label="Close">✕</button>
             </div>
 
-            <div className="modal-fields">
-              <label>
-                <span>Customer</span>
-                <input
-                  type="text"
-                  value={customer}
-                  onChange={e => setCustomer(e.target.value)}
-                  placeholder="Sarah Mitchell (optional)"
-                />
-              </label>
-              <label>
-                <span>Job</span>
-                <input
-                  type="text"
-                  value={name}
-                  onChange={e => setName(e.target.value)}
-                  placeholder="Kitchen renovation"
-                  autoFocus
-                />
-              </label>
-              <label>
-                <span>Amount (£)</span>
-                <input
-                  type="number"
-                  inputMode="decimal"
-                  value={amount}
-                  onChange={e => setAmount(e.target.value)}
-                  placeholder="380"
-                />
-              </label>
-            </div>
+            <p className="aj-details-sub">Add name, customer, and date</p>
 
-            {/* Paid-status chip strip */}
-            <div className="aj-chip-label">Paid by</div>
-            <div className="aj-chip-strip">
-              {PAYMENT_CHIPS.map(c => (
+            {/* ── Voice: listening state ── */}
+            {voiceStatus === 'listening' && (
+              <>
+                <div className="aj-mic-box">
+                  <div className="aj-mic-icon">🎤</div>
+                  <div className="aj-mic-label">Listening…</div>
+                  <div className="aj-mic-sub">Say the job, customer, and amount</div>
+                </div>
+                {transcript && (
+                  <div className="aj-transcript">&ldquo;{transcript}&rdquo;</div>
+                )}
+                {!transcript && (
+                  <div className="aj-transcript aj-transcript--hint">
+                    e.g. &ldquo;Kitchen job Sarah three eighty cash&rdquo;
+                  </div>
+                )}
                 <button
-                  key={c.id}
-                  type="button"
-                  className={chipClass(c.id)}
-                  onClick={() => setPaymentChip(c.id)}
+                  className="btn-primary"
+                  onClick={stopListening}
+                  style={{ width: '100%', marginBottom: 8, marginTop: 12 }}
                 >
-                  {c.label}
+                  Done
                 </button>
-              ))}
-            </div>
+                <div className="aj-footer-links">
+                  <button
+                    className="link-btn"
+                    onClick={() => {
+                      manualOverride.current = true;
+                      stopListening();
+                      setVoiceStatus('manual');
+                    }}
+                  >
+                    Type instead
+                  </button>
+                </div>
+              </>
+            )}
 
-            <div className="aj-footer-links" style={{ marginTop: 4 }}>
-              <button
-                className="link-btn"
-                onClick={() => { setMoreOpen(v => !v); }}
-              >
-                {moreOpen ? 'Less options ⌃' : 'More options ⌄'}
-              </button>
-            </div>
+            {/* ── Voice: parsing state ── */}
+            {voiceStatus === 'parsing' && (
+              <>
+                <div className="aj-mic-box aj-mic-box--parsing">
+                  <div className="aj-mic-icon">⏳</div>
+                  <div className="aj-mic-label">Understanding…</div>
+                </div>
+                {transcript && (
+                  <div className="aj-transcript">&ldquo;{transcript}&rdquo;</div>
+                )}
+              </>
+            )}
 
-            {moreOpen && <MoreOptionsFields
-              materials={materials} setMaterials={setMaterials}
-              labourHours={labourHours} setLabourHours={setLabourHours}
-              notes={notes} setNotes={setNotes}
-              phone={phone} setPhone={setPhone}
-              address={address} setAddress={setAddress}
-              deposit={deposit} setDeposit={setDeposit}
-            />}
+            {/* ── Voice confirm + manual: shared form body ── */}
+            {(voiceStatus === 'confirm' || voiceStatus === 'manual') && (
+              <>
+                {voiceStatus === 'confirm' && transcript && (
+                  <div className="aj-transcript">&ldquo;{transcript}&rdquo;</div>
+                )}
 
-            <div className="modal-actions" style={{ marginTop: 12 }}>
-              <button className="btn-secondary" onClick={onClose}>Cancel</button>
-              <button className="btn-primary" onClick={save}>Save job</button>
-            </div>
+                {/* When */}
+                <div className="aj-field-row">
+                  <span className="aj-field-label">When</span>
+                  <input
+                    type="date"
+                    className="aj-date-input"
+                    value={jobDate}
+                    onChange={e => setJobDate(e.target.value)}
+                    max={todayISODate()}
+                  />
+                  <span className="aj-date-label">{formatDateLabel(jobDate)}</span>
+                </div>
+
+                {voiceStatus === 'confirm' ? (
+                  <div className="preview-grid">
+                    <div className="preview-row">
+                      <span className="preview-label">Job</span>
+                      <input
+                        type="text"
+                        className="preview-input"
+                        value={name}
+                        onChange={e => setName(e.target.value)}
+                        placeholder="Kitchen renovation"
+                      />
+                    </div>
+                    <div className="preview-row">
+                      <span className="preview-label">Customer</span>
+                      <input
+                        type="text"
+                        className="preview-input"
+                        value={customer}
+                        onChange={e => setCustomer(e.target.value)}
+                        placeholder="Sarah Mitchell (optional)"
+                      />
+                    </div>
+                    <div className="preview-row">
+                      <span className="preview-label">Amount</span>
+                      <span className="preview-value preview-amount">£{amount}</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="modal-fields">
+                    <label>
+                      <span>Job name</span>
+                      <input
+                        type="text"
+                        value={name}
+                        onChange={e => setName(e.target.value)}
+                        placeholder="Kitchen renovation"
+                        autoFocus
+                      />
+                    </label>
+                    <label>
+                      <span>Customer</span>
+                      <input
+                        type="text"
+                        value={customer}
+                        onChange={e => setCustomer(e.target.value)}
+                        placeholder="Sarah Mitchell (optional)"
+                      />
+                    </label>
+                    <label>
+                      <span>Amount (£)</span>
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        value={amount}
+                        onChange={e => setAmount(e.target.value)}
+                        placeholder="380"
+                      />
+                    </label>
+                  </div>
+                )}
+
+                {/* Paid-status chip strip */}
+                <div className="aj-chip-label">Paid by</div>
+                <div className="aj-chip-strip">
+                  {PAYMENT_CHIPS.map(c => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      className={chipClass(c.id)}
+                      onClick={() => setPaymentChip(c.id)}
+                    >
+                      {c.label}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  className="btn-primary btn-large aj-save-btn"
+                  onClick={saveDetails}
+                >
+                  {detailsSaveLabel()}
+                </button>
+
+                <div className="aj-footer-links">
+                  {voiceStatus === 'confirm' && (
+                    <>
+                      <button
+                        className="link-btn"
+                        onClick={() => { setMoreOpen(v => !v); }}
+                      >
+                        {moreOpen ? 'Less options ⌃' : 'More options ⌄'}
+                      </button>
+                      <span className="aj-footer-sep">·</span>
+                      <button
+                        className="link-btn"
+                        onClick={() => {
+                          manualOverride.current = true;
+                          setVoiceStatus('manual');
+                        }}
+                      >
+                        Edit all fields
+                      </button>
+                    </>
+                  )}
+                  {voiceStatus === 'manual' && (
+                    <button
+                      className="link-btn"
+                      onClick={() => { setMoreOpen(v => !v); }}
+                    >
+                      {moreOpen ? 'Less options ⌃' : 'More options ⌄'}
+                    </button>
+                  )}
+                </div>
+
+                {moreOpen && <MoreOptionsFields
+                  materials={materials}     setMaterials={setMaterials}
+                  labourHours={labourHours} setLabourHours={setLabourHours}
+                  notes={notes}             setNotes={setNotes}
+                  phone={phone}             setPhone={setPhone}
+                  address={address}         setAddress={setAddress}
+                  deposit={deposit}         setDeposit={setDeposit}
+                />}
+
+                {voiceStatus === 'manual' && (
+                  <div className="modal-actions" style={{ marginTop: 12 }}>
+                    <button className="btn-secondary" onClick={onClose}>Cancel</button>
+                  </div>
+                )}
+              </>
+            )}
+
+            {error && <p className="modal-error">{error}</p>}
           </>
         )}
 
-        {error && <p className="modal-error">{error}</p>}
       </div>
     </div>
   );
