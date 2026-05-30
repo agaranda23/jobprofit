@@ -3,6 +3,7 @@ import PaymentSummaryBlock from './PaymentSummaryBlock';
 import PaymentHistoryList from './PaymentHistoryList';
 import RecordPaymentModal from './RecordPaymentModal';
 import SendInvoiceModal from './SendInvoiceModal';
+import ReviewSheet from './ReviewSheet';
 import AddReceiptModal from './AddReceiptModal';
 import SignaturePad from './SignaturePad';
 import EditFieldModal from './EditFieldModal';
@@ -1161,6 +1162,8 @@ export default function JobDetailDrawer({
 }) {
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
+  // reviewSheetMode: null = closed, 'quote' | 'invoice' = open in that mode
+  const [reviewSheetMode, setReviewSheetMode] = useState(null);
   const [receiptModalOpen, setReceiptModalOpen] = useState(false);
   const [sigPadOpen, setSigPadOpen] = useState(false);
   const [lightboxSrc, setLightboxSrc] = useState(null);
@@ -1656,63 +1659,14 @@ export default function JobDetailDrawer({
   };
 
   // ── Send link (Phase G-1 / B5) ───────────────────────────────────────────
-  // Lazily generates a publicAccessToken on first tap, then:
-  //   • WhatsApp-first: if the customer has a phone, open wa.me with the quote
-  //     URL and a pre-filled message so WhatsApp opens directly to their chat.
-  //   • Fallback: no phone → Web Share API (OS share sheet).
-  //   • Last resort: no phone AND no Web Share API → clipboard copy.
-  const handleSendLink = async () => {
-    // Guard: price required before sending a quote
+  // Opens the Review sheet (quote mode) rather than firing immediately.
+  // Price guard still blocks as before — no point reviewing an unpriced quote.
+  const handleSendLink = () => {
     if (needsPrice(job)) {
       setEditingField('amount');
       return;
     }
-    // Ensure the job has a token — generate one if not
-    let token = job.publicAccessToken;
-    if (!token) {
-      token = generatePublicAccessToken();
-      // Persist immediately so the token survives if the user closes the drawer
-      if (onUpdateJob) {
-        onUpdateJob({ ...job, publicAccessToken: token });
-      }
-    }
-
-    const quoteUrl = buildPublicQuoteUrl(token);
-    const phone = resolvePhone(job);
-
-    if (phone) {
-      // WhatsApp-first: open wa.me deep-link with recipient + pre-filled message
-      const message = buildQuoteWhatsAppMessage({ job, biz, quoteUrl });
-      const link = buildWhatsAppLink({ phone, message });
-      window.open(link, '_blank', 'noopener');
-      logTelemetry('quote_send', { channel: 'whatsapp' });
-      return;
-    }
-
-    // No phone — fall back to OS share sheet
-    if (navigator.share) {
-      const customerName = job.customer || job.name || '';
-      const businessName = biz?.name || biz?.business_name || job.businessName || job.business_name || '';
-      const shareText = buildShareMessage(quoteUrl, customerName, businessName);
-      try {
-        await navigator.share({ title: 'Your quote', text: shareText, url: quoteUrl });
-        logTelemetry('quote_send', { channel: 'share' });
-        return;
-      } catch (err) {
-        // User cancelled the share sheet — treat as no-op, not an error
-        if (err?.name === 'AbortError') return;
-        // Share failed for another reason — fall through to clipboard
-      }
-    }
-
-    // No phone AND no Web Share API — clipboard copy
-    try {
-      await navigator.clipboard.writeText(quoteUrl);
-      showFlash('Link copied — paste it in WhatsApp');
-      logTelemetry('quote_send', { channel: 'clipboard' });
-    } catch {
-      showFlash('Could not copy link — share this URL: ' + quoteUrl);
-    }
+    setReviewSheetMode('quote');
   };
 
   // Send link: visible when job has lineItems and is not yet accepted (used for kebab too)
@@ -1779,7 +1733,7 @@ export default function JobDetailDrawer({
   // Action token → handler map. Resolved here so all closures are in scope.
   const nextStepHandlers = {
     sendQuoteLink:       handleSendLink,
-    openInvoiceModal:    () => setInvoiceModalOpen(true),
+    openInvoiceModal:    () => setReviewSheetMode('invoice'),
     openPaymentModal:    () => setPaymentModalOpen(true),
     handleChase,
     openReceiptModal:    () => setReceiptModalOpen(true),
@@ -1905,7 +1859,7 @@ export default function JobDetailDrawer({
                       onClick={() => {
                         setKebabOpen(false);
                         if (needsPrice(job)) { setEditingField('amount'); return; }
-                        setInvoiceModalOpen(true);
+                        setReviewSheetMode('invoice');
                       }}
                     >
                       Send invoice
@@ -1916,7 +1870,7 @@ export default function JobDetailDrawer({
                       type="button"
                       className="jd-kebab-item"
                       role="menuitem"
-                      onClick={() => { setKebabOpen(false); setInvoiceModalOpen(true); }}
+                      onClick={() => { setKebabOpen(false); setReviewSheetMode('invoice'); }}
                     >
                       Resend invoice
                     </button>
@@ -2360,7 +2314,24 @@ export default function JobDetailDrawer({
         />
       )}
 
-      {/* SendInvoiceModal — rendered outside the sheet so it sits on top */}
+      {/* ReviewSheet — quote or invoice review before sending.
+          Replaces the direct-fire send paths. SendInvoiceModal below is
+          retained for the paywall view only and is no longer opened by any
+          active caller — it will be removed in a follow-up cleanup PR. */}
+      {reviewSheetMode && (
+        <ReviewSheet
+          mode={reviewSheetMode}
+          job={job}
+          biz={biz ?? {}}
+          jobs={jobs ?? []}
+          onUpdate={onUpdateJob ?? (() => {})}
+          onClose={() => setReviewSheetMode(null)}
+          onDismiss={() => setReviewSheetMode(null)}
+          flash={showFlash}
+        />
+      )}
+
+      {/* SendInvoiceModal — paywall view (no longer opened from the review path) */}
       {invoiceModalOpen && (
         <SendInvoiceModal
           job={job}

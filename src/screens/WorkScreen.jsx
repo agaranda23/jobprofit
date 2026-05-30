@@ -30,7 +30,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import WorkCalendar from './WorkCalendar';
 import AddJobModal from '../components/AddJobModal';
 import JobDetailDrawer from '../components/JobDetailDrawer';
-import SendInvoiceModal from '../components/SendInvoiceModal';
+import ReviewSheet from '../components/ReviewSheet';
 import StageStrip from '../components/StageStrip';
 import { logTelemetry } from '../lib/telemetry';
 import { daysSinceInvoice, requiresPriceForStage, stagePatch } from '../lib/jobStatus';
@@ -647,8 +647,12 @@ function JobTile({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJo
   const chaseState = (stage === 'Invoiced' || stage === 'Overdue') ? getChaseState(job.id) : null;
   const chasedChip = lastChasedLabel(chaseState);
 
+  // Draft flag — shown before other signals when a draft exists
+  const hasDraft = !!(job.quoteDraft || job.invoiceDraft);
+
   // Build signal line items (Row 3) — separated by · in CSS
   const signals = [];
+  if (hasDraft)    signals.push({ text: '● Draft ready', cls: 'jt-signal--draft' });
   if (timeSignal) signals.push({ text: timeSignal.text, cls: `jt-signal--${timeSignal.variant}` });
   if (moneySub)   signals.push({ text: moneySub, cls: 'jt-signal--mute' });
   if (photoCount > 0) signals.push({ text: null, photoCount });
@@ -835,8 +839,8 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
   // (e.g. tile CTA "Send quote →" or stage-advance guard). Cleared after use.
   const [drawerIntent, setDrawerIntent] = useState(null);
   const [drawerTargetStage, setDrawerTargetStage] = useState(null);
-  // invoiceJob drives the SendInvoiceModal from the "Send invoice →" Advance Button.
-  const [invoiceJob, setInvoiceJob] = useState(null);
+  // reviewJob drives the ReviewSheet opened from tile CTAs (Send invoice on On stage).
+  const [reviewJob, setReviewJob] = useState(null);
   const [toast, setToast] = useState('');
   // addJobOpen drives the inline AddJobModal — same pattern as TodayScreen.
   const [addJobOpen, setAddJobOpen] = useState(false);
@@ -1179,7 +1183,7 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
           selectedStage={selectedStage}
           showAll={showAll}
           onJobSelect={setSelectedJob}
-          onSendInvoice={setInvoiceJob}
+          onSendInvoice={setReviewJob}
           onUpdateJob={handleUpdateJob}
           onNewJob={onNewJob}
           onOpenJob={handleOpenJob}
@@ -1212,15 +1216,16 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
         />
       )}
 
-      {/* SendInvoiceModal — opened by Send invoice → Advance Button on On cards */}
-      {invoiceJob && (
-        <SendInvoiceModal
-          job={invoiceJob}
+      {/* ReviewSheet — opened by "Send invoice" tile CTA on On-stage cards */}
+      {reviewJob && (
+        <ReviewSheet
+          mode="invoice"
+          job={reviewJob}
           biz={biz ?? {}}
-          profile={profile ?? null}
           jobs={jobs}
           onUpdate={onUpdateJob ?? (() => {})}
-          onClose={() => setInvoiceJob(null)}
+          onClose={() => setReviewJob(null)}
+          onDismiss={() => setReviewJob(null)}
           flash={showToast}
         />
       )}
