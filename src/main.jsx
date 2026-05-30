@@ -2,6 +2,7 @@ import { StrictMode, lazy, Suspense } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import AppShell from './AppShell.jsx';
+import ErrorBoundary from './components/ErrorBoundary.jsx';
 
 // Phase G-1: public quote route — /q/<token>
 // Loaded lazily so it never inflates the main bundle for authenticated users.
@@ -22,13 +23,15 @@ const publicToken = parsePublicQuoteRoute();
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    {publicToken ? (
-      // Public quote view — no auth gate, no AppShell, code-split
-      <Suspense fallback={<div className="auth-loading"><div className="ocr-spinner" /></div>}>
-        <PublicQuoteView token={publicToken} />
-      </Suspense>
-    ) : (
-      <AppShell />
-    )}
+    <ErrorBoundary>
+      {publicToken ? (
+        // Public quote view — no auth gate, no AppShell, code-split
+        <Suspense fallback={<div className="auth-loading"><div className="ocr-spinner" /></div>}>
+          <PublicQuoteView token={publicToken} />
+        </Suspense>
+      ) : (
+        <AppShell />
+      )}
+    </ErrorBoundary>
   </StrictMode>,
 )
