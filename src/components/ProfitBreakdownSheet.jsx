@@ -286,7 +286,7 @@ export default function ProfitBreakdownSheet({ open, onClose, job, receipts = []
           ) : (
             <div className="jd-pbs-section">
               <div className="jd-pbs-section-header">Costs breakdown</div>
-              <div className="jd-pbs-empty">No receipts logged for this job.</div>
+              <div className="jd-pbs-empty">No costs logged yet.</div>
             </div>
           )}
 
