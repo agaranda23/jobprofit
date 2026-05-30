@@ -11,6 +11,7 @@ export function buildInvoiceWhatsAppMessage({ job, biz, invoiceNumber, dueDate }
   const grossTotal = showVat ? total + Math.round(total * 0.2 * 100) / 100 : total;
   const dueStr = new Date(dueDate).toLocaleDateString('en-GB');
   const summary = (job?.summary || 'Work completed').slice(0, 200);
+  const stripeLink = biz?.stripePaymentLink || biz?.stripe_payment_link || '';
 
   const lines = [
     `Hi ${customer},`,
@@ -23,14 +24,24 @@ export function buildInvoiceWhatsAppMessage({ job, biz, invoiceNumber, dueDate }
     '',
   ];
 
+  // Pay-by-card block — shown only when a Stripe Payment Link is set
+  if (stripeLink) {
+    lines.push(`💳 Pay by card: ${stripeLink}`);
+    lines.push('');
+  }
+
+  // Bank transfer header — relabelled to "Or by bank transfer:" when card option
+  // is present so the two payment methods read as clear alternatives.
+  const bankHeader = stripeLink ? 'Or by bank transfer:' : 'Bank details:';
+
   if (biz?.accountName || biz?.sortCode || biz?.accountNumber) {
-    lines.push('Bank details:');
+    lines.push(bankHeader);
     if (biz.accountName) lines.push(`Name: ${biz.accountName}`);
     if (biz.sortCode) lines.push(`Sort code: ${biz.sortCode}`);
     if (biz.accountNumber) lines.push(`Account: ${biz.accountNumber}`);
     lines.push('');
   } else if (biz?.bankDetails) {
-    lines.push('Bank details:');
+    lines.push(bankHeader);
     lines.push(biz.bankDetails);
     lines.push('');
   }

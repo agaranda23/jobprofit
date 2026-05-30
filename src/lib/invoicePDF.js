@@ -107,11 +107,40 @@ export function generateInvoicePDF({ job, biz, invoiceNumber, dueDate }) {
   afterTable += 6;
   doc.setFontSize(10);
   doc.setTextColor(60);
+
+  // Pay-by-card block — shown only when a Stripe Payment Link is set
+  const stripeLink = biz?.stripePaymentLink || biz?.stripe_payment_link || '';
+  if (stripeLink) {
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(30);
+    doc.text('Pay by card:', 14, afterTable);
+    afterTable += 5;
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(0, 91, 204); // blue for the clickable URL
+    doc.textWithLink(stripeLink, 14, afterTable, { url: stripeLink });
+    doc.setTextColor(60);
+    afterTable += 8;
+  }
+
+  // Bank-transfer header — relabelled when card option is present
+  const bankHeader = stripeLink ? 'Or by bank transfer:' : 'Bank details:';
   if (biz?.accountName || biz?.sortCode || biz?.accountNumber) {
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(30);
+    doc.text(bankHeader, 14, afterTable);
+    afterTable += 5;
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(60);
     if (biz.accountName) { doc.text(`Name: ${biz.accountName}`, 14, afterTable); afterTable += 5; }
     if (biz.sortCode) { doc.text(`Sort code: ${biz.sortCode}`, 14, afterTable); afterTable += 5; }
     if (biz.accountNumber) { doc.text(`Account: ${biz.accountNumber}`, 14, afterTable); afterTable += 5; }
   } else if (biz?.bankDetails) {
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(30);
+    doc.text(bankHeader, 14, afterTable);
+    afterTable += 5;
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(60);
     biz.bankDetails.split('\n').forEach(line => {
       doc.text(line, 14, afterTable);
       afterTable += 5;
@@ -119,6 +148,7 @@ export function generateInvoicePDF({ job, biz, invoiceNumber, dueDate }) {
   }
   afterTable += 4;
   doc.setFont('helvetica', 'bold');
+  doc.setTextColor(30);
   doc.text(`Reference: ${invoiceNumber}`, 14, afterTable);
 
   if (showVat && biz?.vatNumber) {

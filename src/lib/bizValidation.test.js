@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getMissingInvoiceFields } from './bizValidation.js';
+import { getMissingInvoiceFields, isValidStripePaymentLink } from './bizValidation.js';
 
 // Helpers to build minimal valid objects
 const fullProfile = {
@@ -91,5 +91,51 @@ describe('getMissingInvoiceFields', () => {
     const biz = { name: 'Acme', bankDetails: 'Sort: 12-34-56 Acc: 12345678 Joe Smith' };
     const missing = getMissingInvoiceFields(biz, null);
     expect(missing).toEqual([]);
+  });
+});
+
+// ── isValidStripePaymentLink ──────────────────────────────────────────────────
+
+describe('isValidStripePaymentLink', () => {
+  it('returns true for empty string — field is optional', () => {
+    expect(isValidStripePaymentLink('')).toBe(true);
+  });
+
+  it('returns true for null — field is optional', () => {
+    expect(isValidStripePaymentLink(null)).toBe(true);
+  });
+
+  it('returns true for undefined — field is optional', () => {
+    expect(isValidStripePaymentLink(undefined)).toBe(true);
+  });
+
+  it('returns true for a valid https://buy.stripe.com/ URL', () => {
+    expect(isValidStripePaymentLink('https://buy.stripe.com/test_abc123')).toBe(true);
+  });
+
+  it('returns true for a valid https://<subdomain>.stripe.com/ URL', () => {
+    expect(isValidStripePaymentLink('https://checkout.stripe.com/pay/cs_test_123')).toBe(true);
+  });
+
+  it('returns false for http:// (insecure)', () => {
+    expect(isValidStripePaymentLink('http://buy.stripe.com/test_abc123')).toBe(false);
+  });
+
+  it('returns false for a non-Stripe domain', () => {
+    expect(isValidStripePaymentLink('https://paypal.com/pay/123')).toBe(false);
+  });
+
+  it('returns false for a bare stripe.com URL without the subdomain match', () => {
+    // Must be buy.stripe.com or *.stripe.com — bare stripe.com is rejected
+    // because the hostname check requires exactly buy.stripe.com or ends with .stripe.com
+    expect(isValidStripePaymentLink('https://stripe.com/pay/123')).toBe(false);
+  });
+
+  it('returns false for a non-URL string', () => {
+    expect(isValidStripePaymentLink('not-a-url')).toBe(false);
+  });
+
+  it('returns true for whitespace-padded valid URL (trimmed before parsing)', () => {
+    expect(isValidStripePaymentLink('  https://buy.stripe.com/test_abc123  ')).toBe(true);
   });
 });

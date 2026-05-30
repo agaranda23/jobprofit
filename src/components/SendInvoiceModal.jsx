@@ -73,7 +73,14 @@ export default function SendInvoiceModal({
 
   const isFirstSend = job.status !== 'invoice_sent';
   const missing = getMissingInvoiceFields(biz, profile);
-  const message = buildInvoiceWhatsAppMessage({ job, biz, invoiceNumber, dueDate });
+  // Merge the Stripe Payment Link from profile into biz so the lib functions
+  // (invoiceMessage, invoicePDF) can read it regardless of the nav path.
+  // biz may be null in the new-nav flow where only profile is available.
+  const bizWithStripe = {
+    ...(biz || {}),
+    stripePaymentLink: profile?.stripe_payment_link || biz?.stripePaymentLink || '',
+  };
+  const message = buildInvoiceWhatsAppMessage({ job, biz: bizWithStripe, invoiceNumber, dueDate });
   // Check whether the job has a usable price — treat null AND 0 as "no price".
   const invAmount = Number(job.total ?? job.amount);
   const isUnpriced = !invAmount || invAmount <= 0;
@@ -122,7 +129,7 @@ export default function SendInvoiceModal({
     if (!attemptSend()) return;
     setBusy(true);
     try {
-      const blob = getInvoicePDFBlob({ job, biz, invoiceNumber, dueDate });
+      const blob = getInvoicePDFBlob({ job, biz: bizWithStripe, invoiceNumber, dueDate });
       const file = new File([blob], `${invoiceNumber}.pdf`, { type: 'application/pdf' });
       if (canShareFile(file)) {
         await navigator.share({
@@ -134,7 +141,7 @@ export default function SendInvoiceModal({
         onClose();
       } else {
         // Fallback: download PDF + open WhatsApp deep-link with text.
-        downloadInvoicePDF({ job, biz, invoiceNumber, dueDate });
+        downloadInvoicePDF({ job, biz: bizWithStripe, invoiceNumber, dueDate });
         const link = buildWhatsAppLink({
           phone: job.customerPhone || job.phone || '',
           message,
@@ -162,7 +169,7 @@ export default function SendInvoiceModal({
     logTelemetry('invoice_send', { channel: 'download' });
     if (!attemptSend()) return;
     try {
-      downloadInvoicePDF({ job, biz, invoiceNumber, dueDate });
+      downloadInvoicePDF({ job, biz: bizWithStripe, invoiceNumber, dueDate });
       flash('Invoice downloaded');
       onClose();
     } catch {
