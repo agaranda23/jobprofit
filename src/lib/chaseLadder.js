@@ -9,8 +9,9 @@
  * Value shape: { [jobId]: { count, lastChasedAt, firstChasedAt } }
  *
  * Tier is keyed off DAYS PAST DUE DATE (not chase count/lastChasedAt):
- *   Tier 0  — pre-due (surface: fast-follow; template included for completeness)
- *   Tier 1  — 0–6 days overdue  (light)
+ *   Tier 0  — pre-due (heads-up bar when due in 1-2 days)
+ *   'grace' — Day 7: flipped Overdue but within 24h silent window (no chase CTA)
+ *   Tier 1  — 1–6 days overdue  (light; Day 8 is first prompt)
  *   Tier 2  — 7–13 days overdue (firm)
  *   Tier 3  — 14+ days overdue  (final / heavy)
  *
@@ -35,6 +36,14 @@
 const STORAGE_KEY = 'jobprofit:chases:v1';
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const DOUBLE_SEND_WINDOW_MS = 48 * 60 * 60 * 1000; // 48-hour suppression window
+
+/**
+ * Default payment terms used when no explicit invoiceDueDate is set on a job.
+ * Imported by WorkScreen (isOverdue fallback) so chaseLadder and WorkScreen
+ * can never drift independently. Change this constant to shift the net-N
+ * default across the whole app.
+ */
+export const DEFAULT_PAYMENT_TERMS_DAYS = 7;
 
 // ── localStorage helpers ──────────────────────────────────────────────────
 
@@ -113,8 +122,8 @@ export function isDoubleSendBlocked(jobId, _now = new Date()) {
 /**
  * Calculates days past the invoice due date.
  *
- * Priority: invoiceDueDate → invoiceSentAt + 14 days (net-14 fallback,
- * mirrors isOverdue() in WorkScreen). Returns -1 for pre-due jobs,
+ * Priority: invoiceDueDate → invoiceSentAt + DEFAULT_PAYMENT_TERMS_DAYS (net-7 fallback,
+ * mirrors isOverdue() in WorkScreen). Returns negative for pre-due jobs,
  * 0 for due-today, positive for overdue.
  *
  * @param {object} job
@@ -131,7 +140,7 @@ export function daysPastDue(job, _now = new Date()) {
   } else if (job.invoiceSentAt) {
     dueDate = new Date(job.invoiceSentAt);
     dueDate.setHours(0, 0, 0, 0);
-    dueDate.setDate(dueDate.getDate() + 14); // net-14 default
+    dueDate.setDate(dueDate.getDate() + DEFAULT_PAYMENT_TERMS_DAYS); // net-7 default
   } else {
     return 0;
   }
@@ -142,24 +151,44 @@ export function daysPastDue(job, _now = new Date()) {
 }
 
 /**
+ * Returns days until the invoice is due (positive = future, 0 = due today, negative = past).
+ * Mirrors daysPastDue with sign flipped for pre-due display use.
+ *
+ * @param {object} job
+ * @param {Date} [_now]
+ * @returns {number}
+ */
+export function daysUntilDue(job, _now = new Date()) {
+  // Using Math.trunc to avoid returning -0 when daysPastDue returns 0 (due today).
+  const dpd = daysPastDue(job, _now);
+  return dpd === 0 ? 0 : -dpd;
+}
+
+/**
  * Computes the chase tier from the job's overdue age.
  * Tier is driven by days-past-due only. chase count/lastChasedAt are used
  * exclusively by isDoubleSendBlocked (48h suppression window).
  *
- * Tier 0 — pre-due
- * Tier 1 — 0–6 days overdue  (light)
- * Tier 2 — 7–13 days overdue (firm)
- * Tier 3 — 14+ days overdue  (final/heavy)
+ * Tier 0  — pre-due (daysPastDue < 0)
+ * 'grace' — daysPastDue in [0, 1): just flipped Overdue, 24h silent window.
+ *           Stage tile reads Overdue; chase bar stays silent. Non-actionable.
+ * Tier 1  — daysPastDue in [1, 7)  — light nudge (Day 8 is first chase prompt)
+ * Tier 2  — daysPastDue in [7, 14) — firm follow-up
+ * Tier 3  — daysPastDue >= 14      — final / heavy
+ *
+ * Callers must handle 'grace' as a non-actionable sentinel — never pass it
+ * directly to buildChaseMessage (which expects a numeric tier 0-3).
  *
  * @param {object} job
  * @param {Date} [_now]
- * @returns {number} tier 0–3
+ * @returns {number|'grace'}
  */
 export function computeTier(job, _now = new Date()) {
   const days = daysPastDue(job, _now);
   if (days >= 14) return 3;
   if (days >= 7) return 2;
-  if (days >= 0) return 1;
+  if (days >= 1) return 1;
+  if (days >= 0) return 'grace'; // just flipped Overdue — 24h silent window
   return 0; // pre-due
 }
 
@@ -207,14 +236,14 @@ function fmtDate(raw) {
 /**
  * Builds the approved tiered chase message.
  *
- * Approved copy: founder sign-off 2026-05-28.
+ * Approved copy: founder sign-off 2026-05-30.
  *
  * Omission rules (clean degradation):
- *   - {jobSummary}       → omitted (with surrounding parens) when blank
- *   - {paymentDetails}   → clause omitted entirely when blank
- *   - {businessName}     → falls back to '' (no trailing newline emitted)
- *   - part-pay prefix    → applied to Tier 2 AND Tier 3 when amountPaid > 0
- *   - isB2B              → hard-defaults false; B2B legal copy never emitted
+ *   - {jobSummary}       -> omitted (with surrounding parens) when blank
+ *   - {paymentDetails}   -> clause omitted entirely when blank
+ *   - {businessName}     -> falls back to '' (no trailing newline emitted)
+ *   - part-pay prefix    -> applied to Tier 2 AND Tier 3 when amountPaid > 0
+ *   - isB2B              -> hard-defaults false; B2B legal copy never emitted
  *                          without an explicit customer tag (see lib flags)
  *
  * @param {{
@@ -255,20 +284,20 @@ export function buildChaseMessage({
 
   switch (effectiveTier) {
     case 0: {
-      // Tier 0: pre-due reminder (template only — SURFACE is a fast-follow PR)
+      // Tier 0: pre-due heads-up — surfaces in amber bar when due in 1-2 days
       const duePart = dueDateStr ? ` is due on ${dueDateStr}` : '';
       return `Hi ${name}, quick heads-up — the invoice for ${amount}${jobClause}${duePart}. No action needed yet, just wanted it on your radar.${payLine}${bizLine}`;
     }
 
     case 1: {
-      // Tier 1: light nudge — 0–6 days overdue
+      // Tier 1: light nudge — 1-6 days overdue (Day 8 is first prompt post-grace)
       const landedPart = dueDateStr ? ` — it was due ${dueDateStr}` : '';
-      return `Hi ${name}, just checking the invoice for ${amount}${jobClause} has landed okay${landedPart}. Let me know if you need me to resend anything.${payLine}${bizLine}`;
+      return `Hi ${name}, just checking the invoice for ${amount}${jobClause} is on your radar${landedPart}. Let me know if you need me to resend anything.${payLine}${bizLine}`;
     }
 
     case 2: {
-      // Tier 2: firm follow-up — 7–13 days overdue
-      return `${partPayPrefix}Hi ${name}, following up on the invoice for ${amount}${jobClause} — it's now ${daysOverdue} days overdue. Could you let me know when you're expecting to get that across? Happy to resend the details if useful.${payLine}${bizLine}`;
+      // Tier 2: firm follow-up — 7-13 days overdue
+      return `${partPayPrefix}Hi ${name}, following up on the invoice for ${amount}${jobClause} — it's now ${daysOverdue} days overdue. Could you let me know when you're expecting to get that across?${payLine}${bizLine}`;
     }
 
     case 3: {
@@ -279,7 +308,7 @@ export function buildChaseMessage({
         return `${partPayPrefix}Hi ${name}, this is a final reminder that the invoice for ${amount}${jobClause} is now ${daysOverdue} days overdue. Under the Late Payment of Commercial Debts Act 1998 interest and compensation may now apply. Please arrange payment${payInline} or contact me today. If I don't receive payment or a confirmed date by end of this week I'll be taking further steps.${bizLine}`;
       }
       // Tier 3-B2C (homeowner / DEFAULT)
-      return `${partPayPrefix}Hi ${name}, I need to chase this one last time — the invoice for ${amount}${jobClause} is now ${daysOverdue} days overdue. If there's a problem at your end, give me a ring and we'll sort it. If I don't hear back this week I'll need to follow this up more formally.${payLine}${bizLine}`;
+      return `${partPayPrefix}Hi ${name}, last one from me on this — the invoice for ${amount}${jobClause} is now ${daysOverdue} days overdue. If there's a problem at your end, give me a ring and we'll sort it. If I don't hear back this week I'll need to follow this up more formally.${payLine}${bizLine}`;
     }
 
     default:

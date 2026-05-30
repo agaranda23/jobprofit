@@ -219,21 +219,22 @@ describe('buildChaseMessage — message text by tier', () => {
 
 // ── computeTier — tier from days-past-due ────────────────────────────────────
 // v2 API: computeTier(job, _now) — tier driven by invoiceDueDate, not chase count.
-// Tier 0: pre-due; Tier 1: 0–6 days; Tier 2: 7–13 days; Tier 3: 14+ days.
+// 'grace': [0, 1) days past due — just flipped Overdue, 24h silent window.
+// Tier 1: [1, 7). Tier 2: [7, 14). Tier 3: 14+. Tier 0: pre-due.
 
 describe('computeTier — days-past-due tier progression', () => {
-  it('returns tier 1 when job has no invoice due date (daysPastDue safe fallback)', () => {
-    expect(computeTier(null)).toBe(1);
-    expect(computeTier({})).toBe(1);
+  it('returns "grace" when job has no invoice due date (daysPastDue 0 fallback -> grace)', () => {
+    expect(computeTier(null)).toBe('grace');
+    expect(computeTier({})).toBe('grace');
   });
 
-  it('returns tier 1 when invoice is due today (0 days overdue)', () => {
+  it('returns "grace" when invoice is due today (0 days overdue — 24h silent window)', () => {
     const fixedNow = new Date('2025-06-01T12:00:00Z');
     const job = { invoiceDueDate: '2025-06-01' };
-    expect(computeTier(job, fixedNow)).toBe(1);
+    expect(computeTier(job, fixedNow)).toBe('grace');
   });
 
-  it('returns tier 1 when 3 days overdue (within 0–6 day band)', () => {
+  it('returns tier 1 when 3 days overdue (within 1-6 day band)', () => {
     const fixedNow = new Date('2025-06-04T12:00:00Z');
     const job = { invoiceDueDate: '2025-06-01' };
     expect(computeTier(job, fixedNow)).toBe(1);

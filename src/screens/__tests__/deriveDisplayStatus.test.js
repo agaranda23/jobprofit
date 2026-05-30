@@ -16,6 +16,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { DEFAULT_PAYMENT_TERMS_DAYS } from '../../lib/chaseLadder.js';
 
 // ── Mirror of WorkScreen.deriveDisplayStatus (keep in sync) ──────────────────
 // Canonical status first; subordinate field fallbacks for legacy records.
@@ -27,7 +28,7 @@ function isOverdue(job) {
     today.setHours(0, 0, 0, 0);
     return due < today;
   }
-  // Simplified fallback: daysSinceInvoice > 14 — not needed for the tested paths
+  // Simplified fallback: daysSinceInvoice > DEFAULT_PAYMENT_TERMS_DAYS (net-7) — not needed for the tested paths
   return false;
 }
 
@@ -162,5 +163,25 @@ describe('deriveDisplayStatus: manual overdue flag', () => {
   it("status:'invoice_sent', overdue:false + past due date → 'Overdue' (date-driven path still works)", () => {
     const pastDate = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
     expect(deriveDisplayStatus({ status: 'invoice_sent', overdue: false, invoiceDueDate: pastDate })).toBe('Overdue');
+  });
+});
+
+// ── DEFAULT_PAYMENT_TERMS_DAYS: shared net-N constant ─────────────────────────
+// Verifies the constant is net-7 and that the invoiceDueDate date path honours
+// explicit due dates regardless of the terms days value.
+
+describe('DEFAULT_PAYMENT_TERMS_DAYS: shared net-N constant', () => {
+  it('equals 7 (net-7 default, shared between chaseLadder and WorkScreen isOverdue)', () => {
+    expect(DEFAULT_PAYMENT_TERMS_DAYS).toBe(7);
+  });
+
+  it('isOverdue date path: a past invoiceDueDate always triggers Overdue regardless of terms days', () => {
+    const pastDate = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    expect(deriveDisplayStatus({ status: 'invoice_sent', invoiceDueDate: pastDate })).toBe('Overdue');
+  });
+
+  it('isOverdue date path: a future invoiceDueDate never triggers Overdue (commercial net-30 guard)', () => {
+    const futureDate = new Date(Date.now() + 20 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10);
+    expect(deriveDisplayStatus({ status: 'invoice_sent', invoiceDueDate: futureDate })).toBe('Invoiced');
   });
 });

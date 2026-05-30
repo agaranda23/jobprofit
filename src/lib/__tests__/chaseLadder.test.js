@@ -5,9 +5,11 @@ import {
   clearChase,
   computeTier,
   daysPastDue,
+  daysUntilDue,
   buildChaseMessage,
   buildChaseLink,
   lastChasedLabel,
+  DEFAULT_PAYMENT_TERMS_DAYS,
 } from '../chaseLadder.js';
 
 // ── localStorage mock ─────────────────────────────────────────────────────
@@ -32,23 +34,39 @@ beforeEach(() => {
   vi.clearAllMocks();
 });
 
-// ── computeTier — 5+ cases ────────────────────────────────────────────────
-// computeTier(job, _now) is days-past-due based (v2 API).
-// Tier 0: pre-due; Tier 1: 0–6 days; Tier 2: 7–13 days; Tier 3: 14+ days.
+// ── computeTier — thresholds and grace window ─────────────────────────────
+// computeTier(job, _now) is days-past-due based.
+// 'grace': daysPastDue in [0, 1) — just flipped Overdue, chase bar silent
+// Tier 1:  daysPastDue in [1, 7)  — light (Day 8 is first chase prompt)
+// Tier 2:  daysPastDue in [7, 14) — firm
+// Tier 3:  daysPastDue >= 14      — final
+// Tier 0:  daysPastDue < 0        — pre-due
 
 describe('computeTier', () => {
-  it('returns 1 for a job with no due date (daysPastDue returns 0, which falls in the 0–6 day Tier 1 band)', () => {
-    expect(computeTier({})).toBe(1);
+  it('returns "grace" for a job with no due date (daysPastDue returns 0, falls in grace band)', () => {
+    expect(computeTier({})).toBe('grace');
   });
 
-  it('returns 1 when invoice is due today (0 days overdue)', () => {
+  it('returns "grace" when invoice is due today (0 days overdue — within 24h silent window)', () => {
     const fixedNow = new Date('2025-06-01T12:00:00Z');
+    const job = { invoiceDueDate: '2025-06-01' };
+    expect(computeTier(job, fixedNow)).toBe('grace');
+  });
+
+  it('returns 1 when 1 day overdue (Day 8 — grace window cleared, first chase prompt)', () => {
+    const fixedNow = new Date('2025-06-02T12:00:00Z');
     const job = { invoiceDueDate: '2025-06-01' };
     expect(computeTier(job, fixedNow)).toBe(1);
   });
 
-  it('returns 1 when 3 days overdue (within 0–6 day band)', () => {
+  it('returns 1 when 3 days overdue (within 1-6 day band)', () => {
     const fixedNow = new Date('2025-06-04T12:00:00Z');
+    const job = { invoiceDueDate: '2025-06-01' };
+    expect(computeTier(job, fixedNow)).toBe(1);
+  });
+
+  it('returns 1 when 6 days overdue (top of Tier 1 band)', () => {
+    const fixedNow = new Date('2025-06-07T12:00:00Z');
     const job = { invoiceDueDate: '2025-06-01' };
     expect(computeTier(job, fixedNow)).toBe(1);
   });
@@ -59,7 +77,7 @@ describe('computeTier', () => {
     expect(computeTier(job, fixedNow)).toBe(2);
   });
 
-  it('returns 2 when 10 days overdue (within 7–13 day band)', () => {
+  it('returns 2 when 10 days overdue (within 7-13 day band)', () => {
     const fixedNow = new Date('2025-06-11T12:00:00Z');
     const job = { invoiceDueDate: '2025-06-01' };
     expect(computeTier(job, fixedNow)).toBe(2);
@@ -73,6 +91,12 @@ describe('computeTier', () => {
 
   it('returns 0 (pre-due) when due date is in the future', () => {
     const fixedNow = new Date('2025-05-20T12:00:00Z');
+    const job = { invoiceDueDate: '2025-06-01' };
+    expect(computeTier(job, fixedNow)).toBe(0);
+  });
+
+  it('returns 0 (pre-due) when due date is 2 days away — Tier 0 pre-due window', () => {
+    const fixedNow = new Date('2025-05-30T12:00:00Z');
     const job = { invoiceDueDate: '2025-06-01' };
     expect(computeTier(job, fixedNow)).toBe(0);
   });
@@ -104,11 +128,71 @@ describe('daysPastDue null safety', () => {
     expect(daysPastDue({ id: 'j1', amount: 100 })).toBe(0);
   });
 
-  it('computeTier never throws on a null/undefined job (returns 1 via daysPastDue safe fallback)', () => {
+  it('computeTier never throws on a null/undefined job (returns "grace" via daysPastDue 0 fallback)', () => {
     expect(() => computeTier(null)).not.toThrow();
     expect(() => computeTier(undefined)).not.toThrow();
-    expect(computeTier(null)).toBe(1);
-    expect(computeTier(undefined)).toBe(1);
+    expect(computeTier(null)).toBe('grace');
+    expect(computeTier(undefined)).toBe('grace');
+  });
+});
+
+// ── DEFAULT_PAYMENT_TERMS_DAYS — net-7 constant ───────────────────────────
+
+describe('DEFAULT_PAYMENT_TERMS_DAYS', () => {
+  it('is exported and equals 7 (net-7 default)', () => {
+    expect(DEFAULT_PAYMENT_TERMS_DAYS).toBe(7);
+  });
+
+  it('daysPastDue uses net-7 fallback when no invoiceDueDate is set', () => {
+    // Invoice sent exactly 7 days ago -> daysPastDue = 0 (due today)
+    const invoiceSentAt = new Date('2025-06-01T00:00:00Z').toISOString();
+    const job = { invoiceSentAt };
+    const now = new Date('2025-06-08T12:00:00Z'); // 7 days after send
+    expect(daysPastDue(job, now)).toBe(0);
+  });
+
+  it('daysPastDue net-7 fallback: 8 days after send -> 1 day past due', () => {
+    const invoiceSentAt = new Date('2025-06-01T00:00:00Z').toISOString();
+    const job = { invoiceSentAt };
+    const now = new Date('2025-06-09T12:00:00Z'); // 8 days after send
+    expect(daysPastDue(job, now)).toBe(1);
+  });
+
+  it('daysPastDue with explicit invoiceDueDate is NOT affected by DEFAULT_PAYMENT_TERMS_DAYS', () => {
+    // net-30 commercial job: due 30 days after invoiceSentAt
+    const invoiceSentAt = new Date('2025-06-01T00:00:00Z').toISOString();
+    const invoiceDueDate = '2025-07-01'; // 30 days later
+    const job = { invoiceSentAt, invoiceDueDate };
+    const now = new Date('2025-06-09T12:00:00Z'); // 8 days after send — would be overdue net-7
+    expect(daysPastDue(job, now)).toBeLessThan(0); // still pre-due (honoured explicit date)
+  });
+});
+
+// ── daysUntilDue ──────────────────────────────────────────────────────────
+
+describe('daysUntilDue', () => {
+  it('returns positive when due date is in the future', () => {
+    const job = { invoiceDueDate: '2025-06-10' };
+    const now = new Date('2025-06-08T12:00:00Z');
+    expect(daysUntilDue(job, now)).toBe(2);
+  });
+
+  it('returns 0 when due today', () => {
+    const job = { invoiceDueDate: '2025-06-08' };
+    const now = new Date('2025-06-08T12:00:00Z');
+    expect(daysUntilDue(job, now)).toEqual(0);
+  });
+
+  it('returns negative when already past due', () => {
+    const job = { invoiceDueDate: '2025-06-01' };
+    const now = new Date('2025-06-08T12:00:00Z');
+    expect(daysUntilDue(job, now)).toBe(-7);
+  });
+
+  it('returns 1 when due tomorrow (pre-due amber bar window)', () => {
+    const job = { invoiceDueDate: '2025-06-09' };
+    const now = new Date('2025-06-08T12:00:00Z');
+    expect(daysUntilDue(job, now)).toBe(1);
   });
 });
 
@@ -118,11 +202,20 @@ describe('daysPastDue null safety', () => {
 describe('buildChaseMessage', () => {
   const base = { customerName: 'Dave', amount: '£350', daysOverdue: 10, amountPaid: 0 };
 
-  it('tier 1: light nudge — mentions the amount and customer name', () => {
+  it('tier 0: pre-due heads-up — mentions the amount and no-action framing', () => {
+    const msg = buildChaseMessage({ ...base, tier: 0, dueDate: '2025-06-15' });
+    expect(msg).toContain('Dave');
+    expect(msg).toContain('£350');
+    expect(msg).toContain('No action needed yet');
+  });
+
+  it('tier 1: light nudge — "is on your radar" (not "has landed okay")', () => {
     const msg = buildChaseMessage({ ...base, tier: 1 });
     expect(msg).toContain('Dave');
     expect(msg).toContain('£350');
     expect(msg).toContain('just checking');
+    expect(msg).toContain('is on your radar');
+    expect(msg).not.toContain('has landed okay');
   });
 
   it('tier 2: firm follow-up — names the figure and days overdue', () => {
@@ -132,16 +225,22 @@ describe('buildChaseMessage', () => {
     expect(msg).toContain('following up');
   });
 
+  it('tier 2: does NOT contain "Happy to resend the details if useful"', () => {
+    const msg = buildChaseMessage({ ...base, tier: 2 });
+    expect(msg).not.toContain('Happy to resend the details if useful');
+  });
+
   it('tier 2 with amountPaid > 0: prepends thanks phrase', () => {
     const msg = buildChaseMessage({ ...base, tier: 2, amountPaid: 100 });
     expect(msg).toMatch(/^Thanks for the £100/);
   });
 
-  it('tier 3: final notice — mentions amount and days overdue', () => {
+  it('tier 3: final notice — "last one from me on this" (not "I need to chase this one last time")', () => {
     const msg = buildChaseMessage({ ...base, tier: 3 });
     expect(msg).toContain('£350');
     expect(msg).toContain('10 days overdue');
-    expect(msg).toContain('last time');
+    expect(msg).toContain('last one from me on this');
+    expect(msg).not.toContain('I need to chase this one last time');
   });
 
   it('tier 3 with amountPaid > 0: prepends part-pay thanks (Thanks for the £N —)', () => {

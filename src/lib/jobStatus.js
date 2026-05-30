@@ -1,9 +1,17 @@
+// DEFAULT_PAYMENT_TERMS_DAYS is the single source of truth for net-N default.
+// Imported from chaseLadder.js so isOverdue (WorkScreen) and daysPastDue (chaseLadder)
+// can never drift independently when the default changes.
+import { DEFAULT_PAYMENT_TERMS_DAYS } from './chaseLadder.js';
+
+// Re-export so callers can reference it from jobStatus if they prefer.
+export { DEFAULT_PAYMENT_TERMS_DAYS };
+
 // TODO(stage-cleanup): This file uses a legacy lifecycle model
-// (draft → completed → invoice_sent → awaiting → paid) that disagrees with
+// (draft -> completed -> invoice_sent -> awaiting -> paid) that disagrees with
 // the canonical stage model used in StageStrip.jsx and JobsScreen.jsx
-// (Lead → Quoted → On → Invoiced → Overdue → Paid).
+// (Lead -> Quoted -> On -> Invoiced -> Overdue -> Paid).
 // Do NOT use this file for tile rendering or stage display logic.
-// Clean up in a dedicated follow-up PR — do not touch in the tile redesign branch.
+// Clean up in a dedicated follow-up PR -- do not touch in the tile redesign branch.
 //
 // `deriveStatus(job)` is the single source of truth for legacy code. New code writes the
 // new `status` field; legacy jobs without it fall back to the old fields
@@ -41,9 +49,9 @@ export function daysSinceInvoice(job) {
   return Math.floor(ms / (1000 * 60 * 60 * 24));
 }
 
-// ── Price guard (canonical stage model) ─────────────────────────────────────
+// -- Price guard (canonical stage model) ------------------------------------
 // Used by WorkScreen tile CTAs, StageChipDropdown advance guard, and
-// JobDetailDrawer controls — single definition so the rule can't drift.
+// JobDetailDrawer controls -- single definition so the rule can't drift.
 
 /**
  * Returns true when the job has no usable price.
@@ -57,14 +65,14 @@ export function needsPrice(job) {
 /**
  * Stages that claim or display money. Moving into any of these without a price
  * is a data-integrity error (you'd be quoting, invoicing, or marking paid with
- * no figure attached). "On" is deliberately excluded — work can start before a
+ * no figure attached). "On" is deliberately excluded -- work can start before a
  * price is agreed and the job can be priced later before invoicing.
  */
 export const MONEY_STAGES = new Set(['Quoted', 'Invoiced', 'Overdue', 'Paid']);
 
 /**
  * Returns true when moving to `targetStage` requires a price to be set first.
- * Source stage is irrelevant — the rule is target-only.
+ * Source stage is irrelevant -- the rule is target-only.
  */
 export function requiresPriceForStage(job, targetStage) {
   return needsPrice(job) && MONEY_STAGES.has(targetStage);
@@ -72,7 +80,7 @@ export function requiresPriceForStage(job, targetStage) {
 
 /**
  * Maps a canonical stage name to the status fields the DB expects.
- * Mirrors the stageMap inside StageChipDropdown.moveToStage — extracted here
+ * Mirrors the stageMap inside StageChipDropdown.moveToStage -- extracted here
  * so the drawer's handleAmountSave can apply a stage advance in a single write.
  *
  * Only ADD new stages here; do not rename existing keys.
@@ -83,7 +91,7 @@ export function stagePatch(stage) {
   // flag so moving a job back from Overdue to Invoiced (or any earlier stage)
   // does not leave it stranded on the Overdue tile.
   // Spread order in Overdue entry: ...cleared BEFORE overdue:true so the
-  // explicit true wins (later spread key beats earlier — JS object spread rule).
+  // explicit true wins (later spread key beats earlier -- JS object spread rule).
   const cleared = { jobStatus: null, paymentStatus: null, paidAt: null, overdue: false };
   const map = {
     Lead:     { status: 'lead',         paid: false, invoiceStatus: null, ...cleared },

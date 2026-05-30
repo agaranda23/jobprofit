@@ -38,13 +38,16 @@ import { deleteJobFromCloud } from '../lib/store';
 import {
   computeTier,
   daysPastDue,
+  daysUntilDue,
   buildChaseLink,
+  buildChaseMessage,
   buildPaymentDetails,
   recordChase,
   clearChase,
   isDoubleSendBlocked,
   getChaseState,
   lastChasedLabel,
+  DEFAULT_PAYMENT_TERMS_DAYS,
 } from '../lib/chaseLadder';
 
 const STORAGE_KEY = 'jp.workView';
@@ -73,7 +76,8 @@ function persistView(v) {
  * Canonical overdue check — shared by deriveDisplayStatus AND calcRiskFigures.
  *
  * Rule: overdue if invoiceDueDate is set and in the past;
- *       else fall back to daysSinceInvoice > 14 (net-14 default).
+ *       else fall back to daysSinceInvoice > DEFAULT_PAYMENT_TERMS_DAYS (net-7 default,
+ *       sourced from chaseLadder.js so both never drift independently).
  *
  * Both the OVERDUE pipeline card and the banner key off this function so
  * they are guaranteed to agree.
@@ -87,7 +91,7 @@ function isOverdue(job) {
     return due < today;
   }
   const days = daysSinceInvoice(job);
-  return days !== null && days > 14;
+  return days !== null && days > DEFAULT_PAYMENT_TERMS_DAYS;
 }
 
 /**
@@ -95,7 +99,7 @@ function isOverdue(job) {
  *
  *  - Lead:     job.status === 'lead'
  *  - Paid:     any paid signal (takes priority before invoice checks)
- *  - Overdue:  invoiced && (invoiceDueDate past, else daysSinceInvoice > 14)
+ *  - Overdue:  invoiced && (invoiceDueDate past, else daysSinceInvoice > DEFAULT_PAYMENT_TERMS_DAYS)
  *  - Invoiced: invoiced && not yet overdue
  *  - On:       active or complete-but-not-yet-invoiced
  *  - Quoted:   default (quote sent, not yet accepted)
@@ -183,12 +187,16 @@ function calcRiskFigures(jobs) {
  * @param {object|null} biz  — biz settings from WorkScreen props (may be null)
  * @returns {boolean} true if the share-sheet was opened
  */
-function chaseJobTiered(job, biz = null) {
+function chaseJobTiered(job, biz = null, forceTier = null) {
   if (isDoubleSendBlocked(job.id)) return false;
 
   const phone = job.customerPhone || job.phone || job.mobile || '';
   const outstanding = Number(job.total ?? job.amount ?? 0) || 0;
-  const tier = computeTier(job);
+  const rawTier = forceTier !== null ? forceTier : computeTier(job);
+
+  // Grace window: job just flipped Overdue — 24h silent period, no chase surfaced.
+  if (rawTier === 'grace') return false;
+  const tier = rawTier;
   const daysOverdue = Math.max(0, daysPastDue(job));
   const paymentDetails = buildPaymentDetails(biz);
 
@@ -888,12 +896,63 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
   const riskFigures = calcRiskFigures(visibleJobs);
   const oldestOverdue = riskFigures.overdueJobs[0] ?? null;
 
+  // Pre-due jobs: Invoiced (not yet Overdue), due in 1-2 days — the Day 5
+  // window for a net-7 invoice. Drives the amber pre-due bar when no overdue
+  // jobs exist. Sorted oldest-first (soonest due first).
+  const preDueJobs = visibleJobs
+    .filter(j => {
+      if (deriveDisplayStatus(j) !== 'Invoiced') return false;
+      const d = daysUntilDue(j);
+      return d >= 1 && d <= 2;
+    })
+    .sort((a, b) => {
+      const aDate = a.invoiceDueDate ? new Date(a.invoiceDueDate) : new Date(a.invoiceSentAt ?? 0);
+      const bDate = b.invoiceDueDate ? new Date(b.invoiceDueDate) : new Date(b.invoiceSentAt ?? 0);
+      return aDate - bDate;
+    });
+
   // Batch nudge: overdue jobs that are NOT blocked by the 48h guard
   const chasableJobs = riskFigures.overdueJobs.filter(j => !isDoubleSendBlocked(j.id));
 
   const handleChase = () => {
     if (!oldestOverdue) return;
     chaseJobTiered(oldestOverdue, biz);
+  };
+
+  // Pre-due heads-up: opens the Tier 0 WhatsApp message for the oldest pre-due job.
+  const handlePreDueChase = () => {
+    const job = preDueJobs[0];
+    if (!job) return;
+    const phone = job.customerPhone || job.phone || job.mobile || '';
+    const outstanding = Number(job.total ?? job.amount ?? 0) || 0;
+    const paymentDetails = buildPaymentDetails(biz);
+    const link = buildChaseLink({
+      phone,
+      customerName: job.customer || job.name || '',
+      amount: '£' + formatAmount(outstanding),
+      jobSummary: job.summary || '',
+      dueDate: job.invoiceDueDate || null,
+      daysOverdue: 0,
+      tier: 0,
+      amountPaid: 0,
+      paymentDetails,
+      businessName: biz?.name || '',
+      isB2B: false,
+    });
+    const finalUrl = link ?? `https://wa.me/?text=${encodeURIComponent(
+      buildChaseMessage({
+        customerName: job.customer || job.name || '',
+        amount: '£' + formatAmount(outstanding),
+        jobSummary: job.summary || '',
+        dueDate: job.invoiceDueDate || null,
+        daysOverdue: 0,
+        tier: 0,
+        paymentDetails,
+        businessName: biz?.name || '',
+        isB2B: false,
+      })
+    )}`;
+    window.open(finalUrl, '_blank', 'noopener');
   };
 
   // Batch chase: step through chasable jobs one tap at a time.
@@ -1008,9 +1067,11 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
         </div>
       </div>
 
-      {/* Overdue chase bar — only rendered when at least one job is Overdue.
-           At rest (invoiced but nothing overdue) the StageStrip alone carries that info. */}
-      {riskFigures.overdueJobs.length > 0 && (
+      {/* Chase bar — three mutually exclusive states (overdue wins over pre-due):
+           1. Red: one or more invoices past due.
+           2. Amber: no overdue invoices, but at least one due in 1-2 days.
+           3. Nothing: at rest — StageStrip carries all money-in-flight info. */}
+      {riskFigures.overdueJobs.length > 0 ? (
         <div
           className="chase-bar"
           role="region"
@@ -1032,7 +1093,32 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
             Chase →
           </button>
         </div>
-      )}
+      ) : preDueJobs.length > 0 ? (
+        <div
+          className="chase-bar chase-bar--predue"
+          role="region"
+          aria-live="polite"
+          aria-label={preDueJobs.length === 1
+            ? `${preDueJobs[0].customer || preDueJobs[0].name || 'Invoice'}'s invoice due in ${daysUntilDue(preDueJobs[0])} days`
+            : `${preDueJobs.length} invoices due soon`}
+        >
+          <div className="chase-bar-left">
+            <span className="chase-bar-label chase-bar-label--predue">
+              {preDueJobs.length === 1
+                ? `${preDueJobs[0].customer || preDueJobs[0].name || 'Invoice'}'s invoice due in ${daysUntilDue(preDueJobs[0])} ${daysUntilDue(preDueJobs[0]) === 1 ? 'day' : 'days'}`
+                : `${preDueJobs.length} invoices due soon`}
+            </span>
+          </div>
+          <button
+            type="button"
+            className="chase-bar-btn chase-bar-btn--predue"
+            onClick={handlePreDueChase}
+            aria-label="Send heads-up"
+          >
+            Send heads-up →
+          </button>
+        </div>
+      ) : null}
 
 
       {/* Stage Strip — deriveStatus + formatAmount passed as props (avoids circular import) */}
