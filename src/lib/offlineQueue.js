@@ -61,56 +61,6 @@ export function subscribe(callback) {
   return () => _subscribers.delete(callback);
 }
 
-// ─── Error state ─────────────────────────────────────────────────────────────
-// Tracks the last sync failure so SyncBadge can surface a "stuck" state when
-// the queue has entries AND the last attempt failed more than 60s ago.
-//
-// These are module-level vars (not stored in IndexedDB) — they reset when the
-// page reloads, which is fine: a fresh load triggers runSync() automatically
-// and either succeeds (badge gone) or sets lastError again within seconds.
-
-let _lastError = null;      // Error object from the most recent failed runSync
-let _lastAttemptAt = null;  // Date.now() timestamp of the most recent runSync call
-
-const _errorSubscribers = new Set();
-
-function _notifyErrorState() {
-  _errorSubscribers.forEach(cb => {
-    try { cb({ lastError: _lastError, lastAttemptAt: _lastAttemptAt }); } catch {}
-  });
-}
-
-/**
- * Subscribe to error-state changes ({ lastError, lastAttemptAt }).
- * Fires immediately with current state so callers can initialise.
- * Returns an unsubscribe function.
- */
-export function subscribeToErrorState(callback) {
-  _errorSubscribers.add(callback);
-  try { callback({ lastError: _lastError, lastAttemptAt: _lastAttemptAt }); } catch {}
-  return () => _errorSubscribers.delete(callback);
-}
-
-/**
- * Removes a single entry from the queue by id (user-initiated discard).
- * Does NOT attempt a cloud write — the entry is silently dropped.
- */
-export async function discardEntry(id) {
-  const db = await openDB();
-  await new Promise((resolve, reject) => {
-    const tx    = db.transaction(STORE_NAME, 'readwrite');
-    const store = tx.objectStore(STORE_NAME);
-    const req   = store.delete(id);
-    req.onsuccess = () => resolve();
-    req.onerror   = (e) => reject(e.target.error);
-  });
-  // Clear error state — discarding the entry resolves the stuck condition.
-  _lastError     = null;
-  _lastAttemptAt = null;
-  _notify();
-  _notifyErrorState();
-}
-
 // ─── Read ─────────────────────────────────────────────────────────────────────
 
 /**
@@ -207,7 +157,6 @@ export async function runSync() {
   if (pending.length === 0) return { synced: 0, failed: 0 };
 
   _setSyncing(true);
-  _lastAttemptAt = Date.now();
   let synced = 0;
   let failed = 0;
 
@@ -236,16 +185,12 @@ export async function runSync() {
         synced++;
       } else {
         console.warn('Offline sync failed for job', row.id, err);
-        _lastError = err;
         failed++;
       }
     }
   }
 
-  // Clear lastError if everything drained successfully.
-  if (failed === 0) _lastError = null;
   _setSyncing(false);
-  _notifyErrorState();
   return { synced, failed };
 }
 
