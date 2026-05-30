@@ -7,6 +7,7 @@ import AddReceiptModal from './AddReceiptModal';
 import SignaturePad from './SignaturePad';
 import EditFieldModal from './EditFieldModal';
 import NextStepCard from './NextStepCard';
+import { getDrawerSectionConfig } from '../lib/drawerSectionConfig';
 import { deriveNextStepContent } from '../lib/nextStepContent';
 import {
   getChaseState,
@@ -265,40 +266,20 @@ function SpineBlock({ job, onScheduleEdit, onEditAddress, onEditDescription }) {
 }
 
 /**
- * Details section — contact (phone + email) + inline schedule edit form.
- * Hidden when there is no renderable content.
- * NOTE: "Created [date]" moved to ⋯ kebab menu (admin metadata, Design A).
- * Address and schedule now live in SpineBlock above the fold.
- * Phone row is the canonical call affordance — the CONTACT card is removed.
+ * Details section — contact (phone + email) only. Schedule edit was moved to
+ * an inline block in the drawer body so it is clearly adjacent to the spine row
+ * that triggers it, and never appears inside the Customer card unexpectedly.
  *
- * Schedule edit props (all optional — degrades gracefully when absent):
- *   schedEditMode        – boolean; shows the inline edit form
- *   schedDate            – draft scheduledDate (YYYY-MM-DD)
- *   schedStart           – draft scheduledStart (HH:MM)
- *   schedEnd             – draft scheduledEnd (HH:MM)
- *   onScheduleEdit       – open edit form
- *   onScheduleCancel     – discard and close
- *   onScheduleSave       – persist via onUpdateJob and close
- *   onScheduleDateChange / onScheduleStartChange / onScheduleEndChange
+ * NOTE: "Created [date]" moved to ⋯ kebab menu (admin metadata, Design A).
+ * Address and schedule live in SpineBlock above the fold.
+ * Phone row is the canonical call affordance — the CONTACT card is removed.
  *
  * Customer field edit callbacks (all optional — rows degrade to read-only when absent):
  *   onEditPhone    – open EditFieldModal for customer phone
  *   onEditEmail    – open EditFieldModal for customer email
- *
- * Phone row: tapping the number opens the native tel: action sheet (Call / Text).
- * The › chevron opens the EditFieldModal. CONTACT card (QuickContactSection) removed.
  */
 function DetailsSection({
   job,
-  schedEditMode,
-  schedDate,
-  schedStart,
-  schedEnd,
-  onScheduleCancel,
-  onScheduleSave,
-  onScheduleDateChange,
-  onScheduleStartChange,
-  onScheduleEndChange,
   onEditPhone,
   onEditEmail,
 }) {
@@ -308,8 +289,7 @@ function DetailsSection({
   const hasHours = !!(job.hoursEstimate || job.hours);
   const canEditFields = typeof onEditPhone === 'function';
 
-  const visible = hasPhone || hasEmail || hasCompleted || hasHours ||
-    schedEditMode || canEditFields;
+  const visible = hasPhone || hasEmail || hasCompleted || hasHours || canEditFields;
   if (!visible) return null;
 
   const phone = job.customerPhone || job.phone || job.mobile || '';
@@ -400,56 +380,6 @@ function DetailsSection({
           </div>
         )}
 
-        {/* Inline schedule edit form — triggered from the spine block */}
-        {schedEditMode && (
-          <div className="jd-schedule-edit-form">
-            <div>
-              <div className="jd-schedule-edit-label">Date</div>
-              <input
-                type="date"
-                className="jd-schedule-edit-input"
-                value={schedDate || ''}
-                onChange={e => onScheduleDateChange(e.target.value)}
-                aria-label="Scheduled date"
-              />
-            </div>
-            <div>
-              <div className="jd-schedule-edit-label">Time (optional)</div>
-              <div className="jd-schedule-edit-time-row">
-                <input
-                  type="time"
-                  className="jd-schedule-edit-input"
-                  value={schedStart || ''}
-                  onChange={e => onScheduleStartChange(e.target.value)}
-                  aria-label="Start time"
-                  placeholder="Start"
-                />
-                <input
-                  type="time"
-                  className="jd-schedule-edit-input"
-                  value={schedEnd || ''}
-                  onChange={e => onScheduleEndChange(e.target.value)}
-                  aria-label="End time"
-                  placeholder="End"
-                />
-              </div>
-            </div>
-            <div className="jd-schedule-edit-footer">
-              <button type="button" className="btn-ghost" onClick={onScheduleCancel}>
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="btn-primary"
-                onClick={onScheduleSave}
-                disabled={!schedDate}
-              >
-                Save
-              </button>
-            </div>
-          </div>
-        )}
-
         {/* Accepted signature — read-only thumbnail shown after quote acceptance */}
         {job.acceptedSignature && (
           <div className="sig-accepted-card">
@@ -472,6 +402,78 @@ function DetailsSection({
             )}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * ScheduleEditForm — inline schedule date/time editor.
+ *
+ * Moved out of DetailsSection (bug #4 fix) so it is a sibling of SpineBlock
+ * in the drawer body rather than being nested inside the Customer card.
+ * This means it is visually adjacent to the spine row that triggers it, and
+ * cannot appear as a bare "Date" label in an unrelated card context.
+ *
+ * Only rendered when schedEditMode is true.
+ */
+function ScheduleEditForm({
+  schedEditMode,
+  schedDate,
+  schedStart,
+  schedEnd,
+  onScheduleCancel,
+  onScheduleSave,
+  onScheduleDateChange,
+  onScheduleStartChange,
+  onScheduleEndChange,
+}) {
+  if (!schedEditMode) return null;
+  return (
+    <div className="jd-schedule-edit-form">
+      <div>
+        <div className="jd-schedule-edit-label">Date</div>
+        <input
+          type="date"
+          className="jd-schedule-edit-input"
+          value={schedDate || ''}
+          onChange={e => onScheduleDateChange(e.target.value)}
+          aria-label="Scheduled date"
+        />
+      </div>
+      <div>
+        <div className="jd-schedule-edit-label">Time (optional)</div>
+        <div className="jd-schedule-edit-time-row">
+          <input
+            type="time"
+            className="jd-schedule-edit-input"
+            value={schedStart || ''}
+            onChange={e => onScheduleStartChange(e.target.value)}
+            aria-label="Start time"
+            placeholder="Start"
+          />
+          <input
+            type="time"
+            className="jd-schedule-edit-input"
+            value={schedEnd || ''}
+            onChange={e => onScheduleEndChange(e.target.value)}
+            aria-label="End time"
+            placeholder="End"
+          />
+        </div>
+      </div>
+      <div className="jd-schedule-edit-footer">
+        <button type="button" className="btn-ghost" onClick={onScheduleCancel}>
+          Cancel
+        </button>
+        <button
+          type="button"
+          className="btn-primary"
+          onClick={onScheduleSave}
+          disabled={!schedDate}
+        >
+          Save
+        </button>
       </div>
     </div>
   );
@@ -1060,6 +1062,59 @@ function NotesSection({
   );
 }
 
+/**
+ * CollapsibleRow — a tap-to-expand one-liner summary for a drawer section.
+ *
+ * Used in stage-aware Direction 2 layout to collapse sections that aren't
+ * the focus at the current stage (e.g. Profit on Invoiced, Customer on all
+ * stages, Quote on Invoiced/Paid).
+ *
+ * Props:
+ *   id         – unique id; used for aria-controls on the trigger button
+ *   icon       – emoji or single character icon (14px, left side)
+ *   title      – section name (e.g. "Profit", "Customer", "Quote")
+ *   summary    – one-line summary text (e.g. "£333 · 100% margin")
+ *   expanded   – boolean from parent expandedSections Set
+ *   onToggle   – called when the row is tapped; parent updates expandedSections
+ *   children   – full section content rendered when expanded
+ */
+function CollapsibleRow({ id, icon, title, summary, expanded, onToggle, children }) {
+  const panelId = `jd-collapse-panel-${id}`;
+  const triggerId = `jd-collapse-trigger-${id}`;
+
+  return (
+    <div className="jd-collapsible">
+      <button
+        id={triggerId}
+        type="button"
+        className="jd-collapsible-row"
+        onClick={onToggle}
+        aria-expanded={expanded}
+        aria-controls={panelId}
+      >
+        <span className="jd-collapsible-icon" aria-hidden="true">{icon}</span>
+        <span className="jd-collapsible-title">{title}</span>
+        {!expanded && summary && (
+          <span className="jd-collapsible-summary">{summary}</span>
+        )}
+        <span className="jd-collapsible-chev" aria-hidden="true">
+          {expanded ? '▴' : '›'}
+        </span>
+      </button>
+      {expanded && (
+        <div
+          id={panelId}
+          role="region"
+          aria-labelledby={triggerId}
+          className="jd-collapsible-panel"
+        >
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main component ────────────────────────────────────────────────────────
 
 /**
@@ -1107,6 +1162,28 @@ export default function JobDetailDrawer({
   const [toast, setToast] = useState(null);
   const [kebabOpen, setKebabOpen] = useState(false);
   const kebabRef = useRef(null);
+
+  // Stage-aware section expansion — Direction 2.
+  // Initialised lazily from getDrawerSectionConfig so the default open/closed
+  // state is always correct for the job's current stage without a useEffect.
+  // The user can tap any collapsed row to expand it; tapping again collapses it.
+  const [expandedSections, setExpandedSections] = useState(() => {
+    const initialStatus = (() => {
+      if (job.status === 'lead') return 'Lead';
+      if (job.status === 'quoted') return 'Quoted';
+      if (job.status === 'paid') return 'Paid';
+      if (job.status === 'invoice_sent') return job.overdue === true ? 'Overdue' : 'Invoiced';
+      if (job.status === 'complete') return 'Done';
+      if (job.status === 'active') return 'Active';
+      if (job.paid || job.paymentStatus === 'paid' || job.jobStatus === 'paid') return 'Paid';
+      if (job.invoiceStatus === 'invoiced') return 'Invoiced';
+      if (job.jobStatus === 'complete') return 'Done';
+      if (job.jobStatus === 'active') return 'Active';
+      return 'Lead';
+    })();
+    const config = getDrawerSectionConfig(initialStatus);
+    return new Set(config.filter(s => s.display === 'expanded').map(s => s.id));
+  });
 
   // Photo add — hidden file input, ref kept here so the button can trigger it
   const photoInputRef = useRef(null);
@@ -1913,7 +1990,7 @@ export default function JobDetailDrawer({
         {/* Scrollable body */}
         <div className="job-detail-body">
           {/* Spine block — who / where / when / scope above the fold. Design A.
-              Tapping address → Google Maps. Tapping schedule → inline edit form.
+              Tapping address → Google Maps. Tapping schedule → inline edit form (below).
               Tapping description → EditFieldModal. */}
           <SpineBlock
             job={job}
@@ -1922,43 +1999,9 @@ export default function JobDetailDrawer({
             onEditDescription={onUpdateJob ? () => setEditingField('description') : undefined}
           />
 
-          {/* Next Step hero card — the single most-leveraged action for the job's loop state. */}
-          {onUpdateJob && (
-            <NextStepCard
-              content={nextStepContent}
-              handlers={nextStepHandlers}
-              isPaid={isPaid}
-            />
-          )}
-
-          {/* Payment summary — self-gates; only renders when there's payment state */}
-          <PaymentSummaryBlock
-            job={job}
-            onRecordPayment={() => setPaymentModalOpen(true)}
-            onMarkAsPaid={() => {
-              const balance = computeBalance(job);
-              if (balance > 0) {
-                onAddPayment(job, {
-                  amount: balance,
-                  date: new Date().toISOString().slice(0, 10),
-                  method: 'unknown',
-                  note: '',
-                });
-                clearChase(job.id);
-                showFlash('Job marked paid');
-              }
-            }}
-          />
-
-          {/* ── Content sections ── */}
-
-          {/* Profit overview — sits above the details so profitability is front-and-centre */}
-          <ProfitBarSection job={job} receipts={receipts} />
-
-          {/* Customer card — phone + email + inline schedule form.
-              Schedule is triggered from the spine block above. */}
-          <DetailsSection
-            job={job}
+          {/* Schedule edit form — rendered adjacent to SpineBlock, NOT inside Customer card.
+              Bug #4 fix: the date input no longer appears inside DetailsSection. */}
+          <ScheduleEditForm
             schedEditMode={schedEditMode}
             schedDate={schedDate}
             schedStart={schedStart}
@@ -1968,23 +2011,154 @@ export default function JobDetailDrawer({
             onScheduleDateChange={setSchedDate}
             onScheduleStartChange={setSchedStart}
             onScheduleEndChange={setSchedEnd}
-            onEditPhone={onUpdateJob ? () => setEditingField('phone') : undefined}
-            onEditEmail={onUpdateJob ? () => setEditingField('email') : undefined}
           />
-          {/* QuickContactSection removed — Design A; phone row in DetailsSection is canonical */}
 
-          {/* Quote breakdown — editable line items that make up the job total */}
-          <QuoteBreakdownSection
-            job={job}
-            editMode={liEditMode}
-            editItems={liDraft}
-            onToggleEdit={onUpdateJob ? handleToggleLiEdit : undefined}
-            onCancelEdit={handleCancelLiEdit}
-            onSaveEdit={handleSaveLiEdit}
-            onUpdateItem={handleUpdateLiItem}
-            onAddItem={handleAddLiItem}
-            onDeleteItem={handleDeleteLiItem}
-          />
+          {/* ── Stage-aware section layout (Direction 2) ──────────────────────
+              getDrawerSectionConfig drives which sections are expanded / collapsed
+              / hidden for the current stage. expandedSections is a Set that the
+              user can override by tapping any collapsed row.
+              ──────────────────────────────────────────────────────────────── */}
+          {(() => {
+            const sectionConfig = getDrawerSectionConfig(status);
+            const toggleSection = (id) => {
+              setExpandedSections(prev => {
+                const next = new Set(prev);
+                if (next.has(id)) { next.delete(id); } else { next.add(id); }
+                return next;
+              });
+            };
+
+            // ── Re-usable section elements ──────────────────────────────────
+
+            const nextStepEl = onUpdateJob ? (
+              <NextStepCard
+                content={nextStepContent}
+                handlers={nextStepHandlers}
+                isPaid={isPaid}
+              />
+            ) : null;
+
+            const paymentEl = (
+              <PaymentSummaryBlock
+                job={job}
+                onRecordPayment={() => setPaymentModalOpen(true)}
+                onMarkAsPaid={() => {
+                  const balance = computeBalance(job);
+                  if (balance > 0) {
+                    onAddPayment(job, {
+                      amount: balance,
+                      date: new Date().toISOString().slice(0, 10),
+                      method: 'unknown',
+                      note: '',
+                    });
+                    clearChase(job.id);
+                    showFlash('Job marked paid');
+                  }
+                }}
+              />
+            );
+
+            const paymentsEl = (
+              <PaymentHistoryList
+                job={job}
+                onEditPayment={onUpdateJob ? setEditingPayment : undefined}
+                onDeletePayment={onUpdateJob ? handleDeletePayment : undefined}
+              />
+            );
+
+            const profitEl = (
+              <ProfitBarSection job={job} receipts={receipts} />
+            );
+
+            const customerEl = (
+              <DetailsSection
+                job={job}
+                onEditPhone={onUpdateJob ? () => setEditingField('phone') : undefined}
+                onEditEmail={onUpdateJob ? () => setEditingField('email') : undefined}
+              />
+            );
+
+            const quoteEl = (
+              <QuoteBreakdownSection
+                job={job}
+                editMode={liEditMode}
+                editItems={liDraft}
+                onToggleEdit={onUpdateJob ? handleToggleLiEdit : undefined}
+                onCancelEdit={handleCancelLiEdit}
+                onSaveEdit={handleSaveLiEdit}
+                onUpdateItem={handleUpdateLiItem}
+                onAddItem={handleAddLiItem}
+                onDeleteItem={handleDeleteLiItem}
+              />
+            );
+
+            // ── Profit one-liner summary ────────────────────────────────────
+            const quote = job.total ?? job.amount ?? 0;
+            const materials = receipts
+              .filter(r => r.jobId && (String(r.jobId) === String(job.id) || String(r.jobId) === String(job.cloudId)))
+              .reduce((sum, r) => sum + Number(r.amount || 0), 0);
+            const profit = quote - materials;
+            const margin = quote > 0 ? Math.round((profit / quote) * 100) : 0;
+            const profitSummary = quote > 0 ? `${gbp(profit)} · ${margin}%` : null;
+
+            // ── Customer one-liner summary ───────────────────────────────────
+            const phone = job.customerPhone || job.phone || job.mobile || '';
+            const email = job.email || job.customerEmail || '';
+            const customer = job.customer || job.name || '';
+            const customerParts = [customer, phone || (email ? 'email only' : null)].filter(Boolean);
+            const customerSummary = customerParts.join(' · ') || null;
+
+            // ── Quote one-liner summary ──────────────────────────────────────
+            const lineItems = Array.isArray(job.lineItems) ? job.lineItems.filter(i => i.desc || i.cost) : [];
+            const lineCount = lineItems.length;
+            const quoteTotal = job.total ?? job.amount ?? 0;
+            const quoteSummary = lineCount > 0
+              ? `${lineCount} line${lineCount === 1 ? '' : 's'} · ${gbp(quoteTotal)}`
+              : quoteTotal > 0 ? gbp(quoteTotal) : null;
+
+            // ── Render per section config ───────────────────────────────────
+            const sectionElements = {
+              nextStep:  { el: nextStepEl,  icon: '→', label: 'Next step',  summary: null          },
+              payment:   { el: paymentEl,   icon: '£', label: 'Payment',    summary: null          },
+              payments:  { el: paymentsEl,  icon: '💳', label: 'Payments',   summary: null          },
+              profit:    { el: profitEl,    icon: '£', label: 'Profit',     summary: profitSummary },
+              customer:  { el: customerEl,  icon: '👤', label: 'Customer',   summary: customerSummary },
+              quote:     { el: quoteEl,     icon: '📋', label: 'Quote',      summary: quoteSummary  },
+            };
+
+            const rendered = [];
+
+            for (const { id, display } of sectionConfig) {
+              if (display === 'hidden') continue;
+
+              const { el, icon, label, summary } = sectionElements[id] || {};
+              if (!el) continue;
+
+              if (display === 'expanded') {
+                rendered.push(
+                  <React.Fragment key={id}>{el}</React.Fragment>
+                );
+              } else {
+                // collapsed
+                const isExpanded = expandedSections.has(id);
+                rendered.push(
+                  <CollapsibleRow
+                    key={id}
+                    id={id}
+                    icon={icon}
+                    title={label}
+                    summary={summary}
+                    expanded={isExpanded}
+                    onToggle={() => toggleSection(id)}
+                  >
+                    {el}
+                  </CollapsibleRow>
+                );
+              }
+            }
+
+            return rendered;
+          })()}
 
           {/* Hidden file input for photo capture — rendered here so handlePhotoFiles
               has access to onUpdateJob via closure. The button lives in PhotosSection. */}
@@ -1999,9 +2173,9 @@ export default function JobDetailDrawer({
             aria-hidden="true"
           />
 
-          {/* Receipts / Photos / Notes: render as full sections when they have content,
-              or as inline pill chips when empty. Chips are grouped on one row so they
-              don't each take a full-width block of vertical space. */}
+          {/* Receipts / Photos / Notes: always outside the stage-aware section config.
+              They render as full sections when they have content, or as inline pill
+              chips when empty. Chips are grouped on one row to minimise vertical space. */}
           {(() => {
             const receiptsEl = (
               <ReceiptsSection
@@ -2038,9 +2212,6 @@ export default function JobDetailDrawer({
               />
             );
 
-            // Determine which sections are in "pill chip" mode vs full-section mode.
-            // A section component returns a <button className="jd-pill-chip"> when empty.
-            // We collect all chips and render them in a single row to minimise vertical space.
             const hasReceiptContent = receipts.some(r =>
               r.jobId && (String(r.jobId) === String(job.id) || String(r.jobId) === String(job.cloudId))
             );
@@ -2050,12 +2221,10 @@ export default function JobDetailDrawer({
 
             const sections = [];
 
-            // Full sections first
             if (hasReceiptContent) sections.push(<React.Fragment key="receipts">{receiptsEl}</React.Fragment>);
             if (hasPhotoContent) sections.push(<React.Fragment key="photos">{photosEl}</React.Fragment>);
             if (hasNoteContent || noteFormOpen) sections.push(<React.Fragment key="notes">{notesEl}</React.Fragment>);
 
-            // Collect pill chips for empty sections
             const chips = [];
             if (!hasReceiptContent && onAddReceipt) chips.push(<React.Fragment key="chip-receipts">{receiptsEl}</React.Fragment>);
             if (!hasPhotoContent && onUpdateJob) chips.push(<React.Fragment key="chip-photos">{photosEl}</React.Fragment>);
@@ -2071,13 +2240,6 @@ export default function JobDetailDrawer({
 
             return sections;
           })()}
-
-          {/* Payment history — self-gates when no payments */}
-          <PaymentHistoryList
-            job={job}
-            onEditPayment={onUpdateJob ? setEditingPayment : undefined}
-            onDeletePayment={onUpdateJob ? handleDeletePayment : undefined}
-          />
         </div>
 
         {/* Toast */}

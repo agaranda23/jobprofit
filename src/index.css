@@ -7278,3 +7278,89 @@ input[type=number] { -moz-appearance: textfield; }
   margin-top: 2px;
 }
 
+/* ── Bug #1 fix: header container overflow ─────────────────────────────────
+   The sticky-header customer sub-line (jd-customer-subline-btn) was bleeding
+   past the header's border-bottom into the spine block beneath it.
+   overflow: hidden on the header clips any child that grows beyond the padding
+   box, making the boundary deterministic at all viewport widths.
+   ────────────────────────────────────────────────────────────────────────── */
+
+.job-detail-header {
+  overflow: hidden;
+}
+
+/* ── Direction 2: CollapsibleRow ───────────────────────────────────────────
+   Tap-to-expand one-liner row for sections that are collapsed by default at
+   the current job stage. Min tap target 44 px (mobile-first). 375 px first.
+   ────────────────────────────────────────────────────────────────────────── */
+
+.jd-collapsible {
+  border-top: 1px solid var(--border);
+}
+
+.jd-collapsible-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  -webkit-tap-highlight-color: transparent;
+  color: var(--text);
+}
+
+.jd-collapsible-row:active {
+  opacity: 0.65;
+}
+
+.jd-collapsible-icon {
+  font-size: 14px;
+  width: 18px;
+  text-align: center;
+  flex-shrink: 0;
+  color: var(--text-dim);
+}
+
+.jd-collapsible-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  flex-shrink: 0;
+}
+
+.jd-collapsible-summary {
+  font-size: 13px;
+  color: var(--text-dim);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-left: 4px;
+}
+
+.jd-collapsible-chev {
+  font-size: 14px;
+  color: var(--text-dim);
+  flex-shrink: 0;
+  margin-left: auto;
+  line-height: 1;
+}
+
+.jd-collapsible-panel {
+  padding-bottom: 8px;
+}
+
+/* Remove the top border from the section inside a collapsible panel since
+   the collapsible row itself provides the visual separator. */
+.jd-collapsible-panel > .jd-section:first-child,
+.jd-collapsible-panel > .payment-summary:first-child,
+.jd-collapsible-panel > .payment-history:first-child {
+  border-top: none;
+}
+
