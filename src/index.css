@@ -3016,6 +3016,35 @@ input[type=number] { -moz-appearance: textfield; }
   to { transform: rotate(360deg); }
 }
 
+/* Stuck state — red pill with danger palette */
+.sync-badge--stuck {
+  border-color: rgba(239, 68, 68, 0.35);
+  background: rgba(239, 68, 68, 0.18);
+  color: #ef4444;
+}
+
+/* Modal overlay — shared by SyncBadge action sheet and confirm dialogs */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 20px;
+}
+
+/* Action sheet buttons stacked on mobile */
+.sync-stuck-actions {
+  flex-direction: column;
+  gap: 8px;
+}
+.sync-stuck-actions .modal-btn {
+  width: 100%;
+  text-align: center;
+}
+
 /* ═══════════════════════════════════════════════════════════════
    ONBOARDING WIZARD — nav-redesign-slice-2
    Full-screen 4-step wizard, new-nav only.
