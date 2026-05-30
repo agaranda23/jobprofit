@@ -1976,6 +1976,24 @@ input[type=number] { -moz-appearance: textfield; }
 }
 .chase-bar-btn:active { opacity: 0.8; }
 
+/* Pre-due amber variant — overrides only colour tokens; layout identical to red bar */
+.chase-bar--predue {
+  background: linear-gradient(180deg, #2A2200 0%, #1F1900 100%);
+  border-color: #5A4400;
+}
+.chase-bar-label--predue {
+  color: var(--text-secondary, #c8b87a);
+  font-size: 13px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.chase-bar-btn--predue {
+  background: #C28B00;
+}
+.chase-bar-btn--predue:active { opacity: 0.8; }
+
 /* ── JobsScreen — per-card dual CTAs ──────────── */
 .job-card-ctas {
   display: flex;
@@ -7086,5 +7104,177 @@ input[type=number] { -moz-appearance: textfield; }
 
 .nsc-micro-btn:active {
   opacity: 0.7;
+}
+
+/* ── Design A: Visual discipline overrides ─────────────────────────────────
+   Rule: green = primary CTA + bold money amounts ONLY.
+   All inline "add" prompts and section header action links → var(--text-dim).
+   ────────────────────────────────────────────────────────────────────────── */
+
+/* Section header action buttons (Edit, + Add receipt) — dim, not green */
+.jd-section-action-btn {
+  color: var(--text-dim);
+}
+
+/* Inline "add" prompts in Details body — dim, not green */
+.jd-detail-edit-row-add {
+  color: var(--text-dim);
+}
+.jd-detail-desc-add {
+  color: var(--text-dim);
+}
+
+/* New dim "add" class used in redesigned Customer card phone/email rows */
+.jd-detail-edit-row-add--dim {
+  color: var(--text-dim);
+  font-style: italic;
+}
+
+/* ── Design A: Job detail spine block ──────────────────────────────────────
+   Above-the-fold: who · where · when · scope.
+   Between sticky header and the NextStep card.
+   ────────────────────────────────────────────────────────────────────────── */
+
+.jd-spine {
+  padding: 12px 14px 10px;
+  background: var(--surface-2, var(--surface));
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.jd-spine-customer {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+  line-height: 1.35;
+  padding-bottom: 2px;
+}
+
+.jd-spine-phone {
+  font-weight: 400;
+  color: var(--text-dim);
+}
+
+.jd-spine-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--text);
+  min-height: 28px;
+  background: none;
+  border: none;
+  padding: 2px 0;
+  text-align: left;
+  width: 100%;
+  -webkit-tap-highlight-color: transparent;
+  text-decoration: none;
+  cursor: default;
+  font-family: inherit;
+}
+
+.jd-spine-row--link,
+.jd-spine-row--tappable,
+.jd-spine-row--add {
+  cursor: pointer;
+  min-height: 36px;
+}
+.jd-spine-row--link:active,
+.jd-spine-row--tappable:active,
+.jd-spine-row--add:active {
+  opacity: 0.65;
+}
+
+.jd-spine-icon {
+  flex-shrink: 0;
+  width: 18px;
+  text-align: center;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.jd-spine-val {
+  flex: 1;
+  min-width: 0;
+  color: var(--text);
+  line-height: 1.4;
+}
+
+.jd-spine-empty {
+  color: var(--text-dim);
+  font-style: italic;
+}
+
+/* Subtle inline "add" link — NOT green */
+.jd-spine-add-link {
+  color: var(--text-dim);
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 2px;
+}
+
+.jd-spine-row--desc .jd-spine-val {
+  color: var(--text-dim);
+  font-size: 13px;
+}
+
+/* ── Design A: Phone action row (Customer card) ─────────────────────────────
+   Phone number = tel: link (native action sheet). › = EditFieldModal.
+   ────────────────────────────────────────────────────────────────────────── */
+
+.jd-phone-action-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  min-height: 44px;
+  padding: 4px 0;
+}
+
+.jd-phone-action-val {
+  flex: 1;
+  min-width: 0;
+  color: var(--text);
+  text-decoration: none;
+  font-size: 14px;
+  -webkit-tap-highlight-color: transparent;
+}
+.jd-phone-action-val:active { opacity: 0.65; }
+
+.jd-phone-action-edit {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 18px;
+  color: var(--text-dim);
+  cursor: pointer;
+  line-height: 1;
+  -webkit-tap-highlight-color: transparent;
+  opacity: 0.6;
+  min-width: 36px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: inherit;
+}
+.jd-phone-action-edit:active { opacity: 1; }
+
+/* ── Design A: Kebab meta item — non-interactive, muted ────────────────────
+   "Created [date]" moved from Details card to ⋯ menu.
+   ────────────────────────────────────────────────────────────────────────── */
+
+.jd-kebab-item--meta {
+  font-size: 12px;
+  color: var(--text-dim);
+  font-style: italic;
+  cursor: default;
+  pointer-events: none;
+  opacity: 0.7;
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+  margin-top: 2px;
 }
 
