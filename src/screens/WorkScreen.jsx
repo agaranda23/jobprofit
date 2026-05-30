@@ -33,7 +33,7 @@ import JobDetailDrawer from '../components/JobDetailDrawer';
 import SendInvoiceModal from '../components/SendInvoiceModal';
 import StageStrip from '../components/StageStrip';
 import { logTelemetry } from '../lib/telemetry';
-import { daysSinceInvoice, needsPrice, requiresPriceForStage, stagePatch } from '../lib/jobStatus';
+import { daysSinceInvoice, requiresPriceForStage, stagePatch } from '../lib/jobStatus';
 import { deleteJobFromCloud } from '../lib/store';
 import {
   computeTier,
@@ -43,7 +43,6 @@ import {
   buildChaseMessage,
   buildPaymentDetails,
   recordChase,
-  clearChase,
   isDoubleSendBlocked,
   getChaseState,
   lastChasedLabel,
@@ -896,8 +895,6 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
 
   // Money-in-flight banner figures
   const riskFigures = calcRiskFigures(visibleJobs);
-  const oldestOverdue = riskFigures.overdueJobs[0] ?? null;
-
   // Pre-due jobs: Invoiced (not yet Overdue), due in 1-2 days — the Day 5
   // window for a net-7 invoice. Drives the amber pre-due bar when no overdue
   // jobs exist. Sorted oldest-first (soonest due first).
@@ -915,11 +912,6 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
 
   // Batch nudge: overdue jobs that are NOT blocked by the 48h guard
   const chasableJobs = riskFigures.overdueJobs.filter(j => !isDoubleSendBlocked(j.id));
-
-  const handleChase = () => {
-    if (!oldestOverdue) return;
-    chaseJobTiered(oldestOverdue, biz);
-  };
 
   // Pre-due heads-up: opens the Tier 0 WhatsApp message for the oldest pre-due job.
   const handlePreDueChase = () => {
