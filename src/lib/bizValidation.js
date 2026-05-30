@@ -18,6 +18,26 @@ function isFilled(v) {
   return typeof v === 'string' && v.trim().length > 0;
 }
 
+// Returns true when value is a valid Stripe Payment Link URL (or empty/null).
+// Accepts:
+//   - empty string, null, undefined — the field is optional
+//   - https://buy.stripe.com/...
+//   - https://<anything>.stripe.com/...
+// Rejects:
+//   - http:// (insecure)
+//   - non-Stripe domains
+//   - bare domain without a path
+export function isValidStripePaymentLink(value) {
+  if (!value || value.trim() === '') return true;
+  try {
+    const url = new URL(value.trim());
+    if (url.protocol !== 'https:') return false;
+    return url.hostname === 'buy.stripe.com' || url.hostname.endsWith('.stripe.com');
+  } catch {
+    return false;
+  }
+}
+
 // Prefer the profile value; fall back to the biz value.
 function prefer(profileVal, bizVal) {
   return isFilled(profileVal) ? profileVal : bizVal;

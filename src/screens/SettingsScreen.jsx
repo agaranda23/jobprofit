@@ -41,6 +41,7 @@ import { OVERHEAD_CATEGORIES } from '../lib/overheads.js';
 import { getOverheadTotal } from '../lib/cashflow.js';
 import { isPro, isTrialActive, trialDaysLeft, UNLOCK_PRO_FOR_ALL } from '../lib/plan.js';
 import { startCheckout, openBillingPortal } from '../lib/billing.js';
+import { isValidStripePaymentLink } from '../lib/bizValidation.js';
 
 const APP_VERSION = pkg.version;
 
@@ -648,6 +649,16 @@ export default function SettingsScreen({
     validate: validateTaxSetAsidePct,
   });
 
+  const openEditStripeLink = () => setActiveEdit({
+    modal: 'stripe_payment_link',
+    fieldKey: 'stripe_payment_link',
+    fieldLabel: 'Stripe Payment Link',
+    currentValue: profile?.stripe_payment_link || '',
+    placeholder: 'https://buy.stripe.com/...',
+    helpText: 'Paste your Stripe Payment Link here. Customers tap to pay by card on every invoice.',
+    validate: (v) => isValidStripePaymentLink(v) ? null : 'Must be a valid https://buy.stripe.com/... URL',
+  });
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
@@ -746,6 +757,11 @@ export default function SettingsScreen({
           label="Tax set-aside %"
           value={`${profile?.tax_set_aside_pct ?? 20}%`}
           onTap={openEditTaxSetAside}
+        />
+        <Row
+          label="Card payment link"
+          value={profile?.stripe_payment_link ? 'Set' : 'Not set'}
+          onTap={openEditStripeLink}
         />
       </SectionCard>
 
