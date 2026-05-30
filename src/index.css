@@ -6804,8 +6804,8 @@ input[type=number] { -moz-appearance: textfield; }
 /* ── One Prompt card ────────────────────────────────────────────────────────── */
 
 .foreman-prompt-card {
-  background: #131C2D;
-  border: 1px solid #1F2B44;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 12px;
   margin: 16px 16px 12px;
   padding: 20px 20px 16px;
@@ -6923,8 +6923,8 @@ input[type=number] { -moz-appearance: textfield; }
   margin-bottom: 6px;
 }
 .foreman-picker-btn {
-  background: #1F2B44;
-  border: 1px solid #2B3A55;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
   border-radius: 8px;
   color: #E5E7EB;
   font-size: 13px;
@@ -6950,8 +6950,8 @@ input[type=number] { -moz-appearance: textfield; }
 /* ── Empty state ────────────────────────────────────────────────────────────── */
 
 .foreman-empty-card {
-  background: #131C2D;
-  border: 1px solid #1F2B44;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 12px;
   margin: 16px 16px 12px;
   padding: 28px 20px 20px;
@@ -6995,7 +6995,7 @@ input[type=number] { -moz-appearance: textfield; }
 
 .foreman-empty-secondary {
   background: transparent;
-  border: 1px solid #2B3A55;
+  border: 1px solid var(--border);
   border-radius: 10px;
   color: #E5E7EB;
   font-size: 14px;
@@ -7023,8 +7023,8 @@ input[type=number] { -moz-appearance: textfield; }
   align-items: center;
   justify-content: center;
   gap: 6px;
-  background: #131C2D;
-  border: 1px solid #1F2B44;
+  background: var(--surface);
+  border: 1px solid var(--border);
   border-radius: 10px;
   color: #E5E7EB;
   font-size: 13px;

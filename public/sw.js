@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v14';
+const CACHE_NAME = 'jobprofit-v15';
 const PRECACHE = [
   '/',
   '/index.html',
