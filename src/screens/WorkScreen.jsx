@@ -1195,14 +1195,14 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
       ) : null}
 
 
-      {/* Stage Strip — deriveStatus + formatAmount passed as props (avoids circular import).
-           onSelectAll fires when the "All" leading segment is tapped. */}
+      {/* Stage Strip — 6 equal segments, no "All" tile. "Show all" lives in the
+           controls row below. deriveStatus + formatAmount passed as props to avoid
+           a circular import. */}
       <StageStrip
         jobs={visibleJobs}
         selectedStage={selectedStage}
         showAll={showAll}
         onSelectStage={handleSelectStage}
-        onSelectAll={handleSelectAll}
         deriveStatus={deriveDisplayStatus}
         formatAmount={formatAmount}
       />
@@ -1256,7 +1256,9 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
         )}
       </div>
 
-      {/* List/Calendar segmented control — view mode axis, independent of stage filter */}
+      {/* Controls row: List/Calendar toggle (left) + Show all pill (right).
+           Show all activates showAll mode (all stages visible at once).
+           Tapping any stage tile exits show-all and filters to that stage. */}
       <div className="work-controls-row">
         <div className="work-segments" role="group" aria-label="Switch between list and calendar view">
           <button
@@ -1274,6 +1276,14 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
             Calendar
           </button>
         </div>
+        <button
+          type="button"
+          className={`show-all-pill${showAll ? ' show-all-pill--active' : ''}`}
+          onClick={handleSelectAll}
+          aria-pressed={showAll}
+        >
+          All
+        </button>
       </div>
 
       {/* Subview */}
