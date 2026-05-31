@@ -10254,3 +10254,223 @@ input[type=number] { -moz-appearance: textfield; }
   line-height: 1;
 }
 .pay-now-nudge__dismiss:active { opacity: 0.7; }
+
+/* ── Deposit picker (Settings + quote builder) ─────────────────────────── */
+/* Mobile-first: buttons fill width on small screens, wrap naturally */
+.settings-row--deposit {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 12px 16px;
+  cursor: default;
+}
+.deposit-picker {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  width: 100%;
+}
+.deposit-picker-btn {
+  flex: 1 1 auto;
+  min-width: 52px;
+  padding: 8px 4px;
+  border-radius: 8px;
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+  min-height: 40px;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.deposit-picker-btn:disabled { opacity: 0.5; cursor: default; }
+.deposit-picker-btn--active {
+  background: var(--jp-green);
+  color: #fff;
+  border-color: var(--jp-green);
+}
+.deposit-picker-btn:not(:disabled):not(.deposit-picker-btn--active):active {
+  background: var(--surface-2);
+}
+.deposit-custom-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+}
+.deposit-custom-input {
+  width: 72px;
+  padding: 8px 10px;
+  border: 1.5px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 600;
+  text-align: right;
+}
+.deposit-custom-input:focus {
+  outline: none;
+  border-color: var(--jp-green);
+}
+.deposit-custom-suffix {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+/* Deposit row in quote builder (same picker widget, different container) */
+.quote-deposit-row {
+  padding: 12px 0;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.quote-deposit-row-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.quote-deposit-amount-hint {
+  font-size: 12px;
+  color: var(--jp-green);
+  font-weight: 600;
+}
+
+/* ── Deposit badge in job drawer / job cards ───────────────────────────── */
+.deposit-paid-badge {
+  background: var(--amber-soft, #FFF3CD);
+  border: 1px solid var(--amber-border, #FFC107);
+  border-radius: 10px;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 8px;
+}
+.deposit-paid-badge__title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--amber-dark, #856404);
+}
+.deposit-paid-badge__meta {
+  font-size: 12px;
+  color: var(--amber-dark, #856404);
+}
+.deposit-balance-due {
+  font-size: 13px;
+  color: var(--text-secondary);
+  padding: 4px 0 8px;
+}
+
+/* ── Customer quote page deposit section ───────────────────────────────── */
+.pqv-deposit-block {
+  background: #D6F5E6;
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin: 8px 0 4px;
+}
+.pqv-deposit-block-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 14px;
+  font-weight: 700;
+  color: #086B45;
+}
+.pqv-deposit-block-sub {
+  font-size: 12px;
+  color: #086B45;
+  margin-top: 2px;
+}
+.pqv-btn-deposit {
+  display: block;
+  width: 100%;
+  padding: 14px;
+  background: #2BC48A;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  text-align: center;
+  margin-top: 10px;
+  min-height: 52px;
+}
+.pqv-btn-deposit:disabled { opacity: 0.6; cursor: default; }
+.pqv-btn-deposit:active { opacity: 0.85; }
+.pqv-btn-no-deposit {
+  display: block;
+  width: 100%;
+  padding: 12px;
+  background: transparent;
+  color: #374151;
+  border: 1.5px solid #D1D5DB;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+  margin-top: 8px;
+  min-height: 48px;
+}
+.pqv-btn-no-deposit:active { opacity: 0.7; }
+.pqv-deposit-success {
+  background: #D6F5E6;
+  border: 1px solid #2BC48A;
+  border-radius: 10px;
+  padding: 14px;
+  text-align: center;
+  margin-top: 8px;
+}
+.pqv-deposit-success-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #086B45;
+  margin-bottom: 4px;
+}
+.pqv-deposit-success-body {
+  font-size: 13px;
+  color: #086B45;
+}
+.pqv-deposit-cancelled {
+  background: #FFF3CD;
+  border: 1px solid #FFC107;
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 13px;
+  color: #856404;
+  text-align: center;
+  margin-bottom: 8px;
+}
+
+/* ── Accepted status pill variants (job card list) ─────────────────────── */
+.status-pill--accepted-deposit {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #D6F5E6;
+  color: #086B45;
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 700;
+}
+.status-pill--accepted-no-deposit {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #F3F4F6;
+  color: #6B7280;
+  border-radius: 6px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 700;
+}

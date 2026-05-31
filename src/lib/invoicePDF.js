@@ -316,6 +316,32 @@ function drawPayNowRow(doc, { amount, payNowUrl, qrDataUrl }, startY) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**
+ * Draws a deposit-paid deduction row in the totals area.
+ * Returns the new y position after the row.
+ *
+ * @param {object} doc       — jsPDF instance
+ * @param {number} depositPence — deposit amount in pence
+ * @param {number} startY
+ */
+function drawDepositRow(doc, depositPence, startY) {
+  const w = doc.internal.pageSize.getWidth();
+  const panelX = w - MARGIN - 80;
+  const valX = w - MARGIN - 4;
+  const labelX = panelX + 6;
+  const depositGbp = (depositPence / 100).toFixed(2);
+
+  let y = startY + 2;
+
+  doc.setFontSize(9.5);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(...BRAND_GREEN);
+  doc.text('Deposit paid', labelX, y);
+  doc.text(`−£${depositGbp}`, valX, y, { align: 'right' }); // −£
+
+  return y + 8;
+}
+
+/**
  * Generates an invoice PDF.
  *
  * @param {object} args
@@ -327,14 +353,16 @@ function drawPayNowRow(doc, { amount, payNowUrl, qrDataUrl }, startY) {
  *   draws the Pay-now button + QR row directly under the Total Due line (wireframe 4.4).
  *   When absent or empty, falls back to the legacy stripePaymentLink in biz (plain text link).
  *   Set to empty string when not connected — the PDF renders as before with bank details only.
+ *   When a deposit was paid, payNowUrl should be for the BALANCE (not gross).
+ * @param {number} [args.depositPaidPence] — when set, shows a green "Deposit paid −£X" row
+ *   and the Pay-now button (if present) covers the balance only. Defaults to 0 (no deposit).
  * @returns {Promise<jsPDF>} — async because QR code generation is async.
  */
-export async function generateInvoicePDF({ job, biz, invoiceNumber, dueDate, payNowUrl = '' }) {
+export async function generateInvoicePDF({ job, biz, invoiceNumber, dueDate, payNowUrl = '', depositPaidPence = 0 }) {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   const w = doc.internal.pageSize.getWidth();
 
   // Pre-generate QR code data URL while other work proceeds.
-  // generateInvoicePDF is now async; callers that were previously sync must await it.
   let qrDataUrl = null;
   if (payNowUrl) {
     try {
@@ -374,22 +402,54 @@ export async function generateInvoicePDF({ job, biz, invoiceNumber, dueDate, pay
   // ── Line items ────────────────────────────────────────────────────────
   y = drawLineItems(doc, job, y + 2) + 4;
 
-  // ── Totals ────────────────────────────────────────────────────────────
+  // ── Totals (gross) ────────────────────────────────────────────────────
   const subtotal = job?.total ?? job?.amount ?? 0;
+  const showVat = !!biz?.vatRegistered;
+  const vat = showVat ? Math.round(subtotal * 0.2 * 100) / 100 : 0;
+  const grossTotal = subtotal + vat;
+
+  // When a deposit was paid, re-label the totals row as "Subtotal" and
+  // show the deposit deduction + balance separately. Otherwise "TOTAL DUE".
+  const hasDeposit = depositPaidPence > 0;
   y = drawTotals(doc, {
     subtotal,
-    showVat:   !!biz?.vatRegistered,
+    showVat,
     vatNumber: biz?.vatNumber,
-    totalLabel: 'TOTAL DUE',
+    totalLabel: hasDeposit ? 'Subtotal' : 'TOTAL DUE',
   }, y);
 
+  // ── Deposit deduction row (PR 4) ──────────────────────────────────────
+  if (hasDeposit) {
+    y = drawDepositRow(doc, depositPaidPence, y);
+
+    // Balance due row
+    const balanceGbp = Math.max(0, grossTotal - depositPaidPence / 100);
+    const w2 = doc.internal.pageSize.getWidth();
+    const panelX = w2 - MARGIN - 80;
+    const valX = w2 - MARGIN - 4;
+    const labelX = panelX + 6;
+
+    // Green rule above balance
+    doc.setDrawColor(...BRAND_GREEN);
+    doc.setLineWidth(0.5);
+    doc.line(panelX + 4, y, w2 - MARGIN - 4, y);
+    y += 7;
+
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(...DARK);
+    doc.text('BALANCE DUE', labelX, y);
+    doc.text(`£${balanceGbp.toFixed(2)}`, valX, y, { align: 'right' }); // £
+    y += 8;
+  }
+
   // ── Pay-now button + QR (Section 2.1, wireframe 4.4) ──────────────────
-  // Rendered directly under Total Due when the trader is connected and
-  // a token URL was generated. Falls through to the legacy link if not.
+  // When deposit is set, the payNowUrl is for the balance; the button
+  // label reflects the balance amount.
   if (payNowUrl) {
-    const showVat = !!biz?.vatRegistered;
-    const vat = showVat ? Math.round(subtotal * 0.2 * 100) / 100 : 0;
-    const displayAmount = subtotal + vat;
+    const displayAmount = hasDeposit
+      ? Math.max(0, grossTotal - depositPaidPence / 100)
+      : grossTotal;
     y = drawPayNowRow(doc, { amount: displayAmount, payNowUrl, qrDataUrl }, y);
     y += 4;
   }
@@ -524,6 +584,30 @@ export function generateQuotePDF({ job, biz }) {
     vatNumber: biz?.vatNumber,
     totalLabel: 'QUOTE TOTAL',
   }, y);
+
+  // ── Deposit row (PR 4) — shown when deposit_percent > 0 ──────────────
+  // Placed between the total and the signature area so the customer sees
+  // the deposit amount before they sign.
+  const depositPercent = Number(job?.deposit_percent ?? 0);
+  if (depositPercent > 0) {
+    const showVat = !!biz?.vatRegistered;
+    const vat = showVat ? Math.round(subtotal * 0.2 * 100) / 100 : 0;
+    const grossTotal = subtotal + vat;
+    const depositAmount = Math.round(grossTotal * (depositPercent / 100) * 100) / 100;
+
+    // Green highlighted deposit row
+    const w = doc.internal.pageSize.getWidth();
+    const panelX = MARGIN;
+    const panelW = w - MARGIN * 2;
+    doc.setFillColor(214, 245, 230); // #D6F5E6
+    doc.roundedRect(panelX, y + 2, panelW, 16, 2, 2, 'F');
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(8, 107, 69); // #086B45
+    doc.text(`Deposit (${depositPercent}%) · £${depositAmount.toFixed(2)} · Locks in your slot`, panelX + 6, y + 12);
+    y += 22;
+  }
 
   // ── Accepted signature — embed when present ───────────────────────────
   if (job?.acceptedSignature) {

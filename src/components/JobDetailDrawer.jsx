@@ -1382,6 +1382,61 @@ function CollapsibleRow({ id, icon, title, summary, expanded, onToggle, children
   );
 }
 
+// ── DepositPaidBadge ──────────────────────────────────────────────────────
+
+/**
+ * DepositPaidBadge — amber-toned badge shown in the drawer when a job has a
+ * paid deposit. Renders above the main payment block (PR 4).
+ *
+ * Props:
+ *   job              — full job object (uses deposit_paid_at, deposit_amount_pence)
+ *   depositToken     — invoice_payment_tokens row for the deposit (may be null)
+ *   totalAmount      — job gross total (pounds, number)
+ */
+function DepositPaidBadge({ job, depositToken, totalAmount }) {
+  if (!job?.deposit_paid_at) return null;
+
+  const depositPence = job.deposit_amount_pence || depositToken?.amount_pence || 0;
+  const depositGbp = depositPence > 0 ? gbp(depositPence / 100) : '';
+  const balanceGbp = depositPence > 0 ? gbp(Math.max(0, totalAmount - depositPence / 100)) : '';
+
+  let dateLabel = '';
+  try {
+    const d = new Date(job.deposit_paid_at);
+    dateLabel = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) +
+      ' ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: true });
+  } catch { /* silently skip */ }
+
+  const receiptUrl = depositToken?.receipt_url ?? null;
+  const paymentIntentId = depositToken?.stripe_payment_intent_id ?? null;
+  const stripePaymentUrl = paymentIntentId
+    ? `https://dashboard.stripe.com/payments/${paymentIntentId}`
+    : 'https://dashboard.stripe.com/payments';
+
+  return (
+    <div className="deposit-paid-badge">
+      <div className="deposit-paid-badge__title">
+        Deposit paid{depositGbp ? ` · ${depositGbp}` : ''}
+      </div>
+      <div className="deposit-paid-badge__meta">
+        Card{dateLabel ? ` · ${dateLabel}` : ''}
+        {receiptUrl && (
+          <> &middot; <a href={receiptUrl} target="_blank" rel="noopener noreferrer"
+            style={{ color: 'inherit', textDecoration: 'underline' }}>Receipt</a></>
+        )}
+        {' '}&middot;{' '}
+        <a href={stripePaymentUrl} target="_blank" rel="noopener noreferrer"
+          style={{ color: 'inherit', textDecoration: 'underline' }}>Refund &#x2197;</a>
+      </div>
+      {balanceGbp && (
+        <div className="deposit-balance-due">
+          Balance due on completion: <strong>{balanceGbp}</strong>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── CardPaymentBlock ──────────────────────────────────────────────────────
 
 /**
@@ -1712,6 +1767,7 @@ export default function JobDetailDrawer({
           .from('invoice_payment_tokens')
           .select('status, paid_at, amount_pence, fee_pence, net_pence, receipt_url, refunded_amount_pence, stripe_payment_intent_id')
           .eq('invoice_id', job.id)
+          .eq('kind', 'invoice')
           .in('status', ['paid', 'refunded'])
           .order('paid_at', { ascending: false })
           .limit(1)
@@ -1725,6 +1781,41 @@ export default function JobDetailDrawer({
     fetchToken();
     return () => { cancelled = true; };
   }, [job?.id, job?.card_paid_at]);
+
+  // Fetch the deposit token row when the job has deposit_paid_at set (PR 4).
+  // Drives the DepositPaidBadge. Must sit before any early return (hooks rule).
+  const [depositToken, setDepositToken] = useState(null);
+
+  useEffect(() => {
+    if (!job?.deposit_paid_at || !job?.id) return;
+    let cancelled = false;
+
+    async function fetchDepositToken() {
+      try {
+        // Prefer the FK from deposit_payment_token_id when available;
+        // fall back to querying by quote_id + kind.
+        let query = supabase
+          .from('invoice_payment_tokens')
+          .select('status, paid_at, amount_pence, fee_pence, net_pence, receipt_url, refunded_amount_pence, stripe_payment_intent_id')
+          .eq('kind', 'deposit')
+          .in('status', ['paid', 'refunded']);
+
+        if (job.deposit_payment_token_id) {
+          query = query.eq('id', job.deposit_payment_token_id);
+        } else {
+          query = query.eq('quote_id', job.id).order('paid_at', { ascending: false }).limit(1);
+        }
+
+        const { data, error } = await query.single();
+        if (!cancelled && !error && data) setDepositToken(data);
+      } catch {
+        // Non-fatal
+      }
+    }
+
+    fetchDepositToken();
+    return () => { cancelled = true; };
+  }, [job?.id, job?.deposit_paid_at, job?.deposit_payment_token_id]);
 
   const status = deriveStatus(job);
   const statusClass = STATUS_CLASS[status] || '';
@@ -2612,6 +2703,20 @@ export default function JobDetailDrawer({
 
               if (id === 'payment') {
                 if (display === 'expanded') {
+                  // Deposit paid badge (PR 4) — shown above any payment block
+                  // when the job has a paid deposit. Amber-toned, not green —
+                  // signals partial / front-of-funnel payment, not full payment.
+                  if (job.deposit_paid_at) {
+                    rendered.push(
+                      <DepositPaidBadge
+                        key="deposit-paid-badge"
+                        job={job}
+                        depositToken={depositToken}
+                        totalAmount={Number(job.total ?? job.amount ?? 0)}
+                      />
+                    );
+                  }
+
                   // Card payment block — shown above the manual payment summary when
                   // job.card_paid_at is set (webhook-reconciled card payment).
                   // Brief Section 2.4 / wireframe 4.5.
@@ -2623,8 +2728,10 @@ export default function JobDetailDrawer({
                         token={cardPaymentToken}
                       />
                     );
-                  } else {
+                  } else if (!job.deposit_paid_at || isPaid) {
                     // Manual payment path — existing PaymentSummaryBlock + View receipt.
+                    // When deposit is paid but invoice not yet sent/paid, skip the manual
+                    // payment summary (no invoice yet). Show it once the job reaches invoiced/paid.
                     rendered.push(<React.Fragment key="payment">{paymentEl}</React.Fragment>);
                     if (isPaid && onViewReceipt) {
                       rendered.push(

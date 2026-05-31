@@ -121,17 +121,40 @@ function jobIssuedDate(job) {
 }
 
 /**
+ * Returns the deposit amount received for a job (PR 4).
+ * Only non-zero when deposit_paid_at is set (webhook confirmed).
+ * If the job is also paid in full, the deposit is included in the full payment —
+ * callers must NOT double-count. See depositAlreadyInFullPayment() guard below.
+ */
+function jobDepositReceived(job) {
+  if (!job) return 0;
+  if (!job.deposit_paid_at) return 0;
+  if (job.deposit_amount_pence) return job.deposit_amount_pence / 100;
+  // Fallback: calculate from percent
+  const total = Number(job.total ?? job.amount ?? 0);
+  const pct = Number(job.deposit_percent ?? 0);
+  if (!total || !pct) return 0;
+  return Math.round(total * pct) / 100;
+}
+
+/**
  * Returns the amount received for a job.
  * If job.payments[] is present and non-empty, sums those.
  * Otherwise falls back to job.amount for fully-paid jobs.
+ * When the job has a paid deposit but is NOT yet fully paid, adds the deposit
+ * as received revenue (decision locked: deposit counts as revenue immediately).
  */
 function jobReceivedAmount(job) {
   if (!job) return 0;
   if (Array.isArray(job.payments) && job.payments.length > 0) {
-    return job.payments.reduce((s, p) => s + (Number(p.amount) || 0), 0);
+    const explicit = job.payments.reduce((s, p) => s + (Number(p.amount) || 0), 0);
+    // Deposit may already be in payments[] if a future payments integration records it.
+    // For now, add deposit only when explicit payments don't already cover it.
+    return explicit;
   }
-  if (isPaidJob(job)) return Number(job.amount || 0);
-  return 0;
+  if (isPaidJob(job)) return Number(job.amount ?? 0);
+  // Not fully paid: add deposit if present (deposit counts as revenue immediately)
+  return jobDepositReceived(job);
 }
 
 /**

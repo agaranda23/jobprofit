@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v21';  // bumped from v20: Stripe Connect webhook reconcile + paid-by-card drawer (PR 3/3)
+const CACHE_NAME = 'jobprofit-v22';  // bumped from v21: deposit on acceptance (PR 4/4)
 const PRECACHE = [
   '/',
   '/index.html',

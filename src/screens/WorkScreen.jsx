@@ -733,8 +733,18 @@ function JobTile({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJo
   const hasDraft = !!(job.quoteDraft || job.invoiceDraft);
 
   // Accepted-quote signal — shown on Quoted/On tiles when the customer has signed
-  const isAccepted = job.quoteStatus === 'accepted' && !!job.acceptedAt;
+  // Accepted-quote signals — two variants (PR 4):
+  //   deposit paid:  "Accepted · deposit £135" (green pill)
+  //   no deposit:    "Accepted · no deposit"    (grey pill)
+  //   not accepted:  no accepted signal
+  const isAccepted = (job.quoteStatus === 'accepted' || !!job.deposit_paid_at) && !!job.acceptedAt;
   const acceptedByName = (job.acceptedName || '').trim();
+  const depositPaidOnAcceptance = !!job.deposit_paid_at;
+  const depositAmountGbp = job.deposit_amount_pence > 0
+    ? `£${(job.deposit_amount_pence / 100).toFixed(0)}`
+    : (job.deposit_percent > 0 && (job.total ?? job.amount))
+      ? `£${Math.round((job.total ?? job.amount) * job.deposit_percent / 100)}`
+      : '';
 
   // Part-paid chip — shown on Invoiced/Overdue tiles when money has been received
   // but the balance hasn't cleared. Uses computeAmountPaid + computeBalance from
@@ -766,8 +776,18 @@ function JobTile({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJo
     signalCandidates.push({ text: cardPaidLabel, cls: 'jt-signal--ok' });
   }
   if (isAccepted) {
-    const acceptedText = acceptedByName ? `Accepted by ${acceptedByName}` : 'Quote accepted';
-    signalCandidates.push({ text: acceptedText, cls: 'jt-signal--accepted' });
+    let acceptedText;
+    if (depositPaidOnAcceptance && depositAmountGbp) {
+      // Accepted with deposit paid — green, shows amount
+      acceptedText = `Accepted · deposit ${depositAmountGbp}`;
+    } else if (isAccepted && !depositPaidOnAcceptance && (job.deposit_percent ?? 0) > 0) {
+      // Accepted but no deposit (customer chose "Accept without deposit")
+      acceptedText = acceptedByName ? `Accepted · no deposit` : 'Accepted · no deposit';
+    } else {
+      acceptedText = acceptedByName ? `Accepted by ${acceptedByName}` : 'Quote accepted';
+    }
+    const cls = depositPaidOnAcceptance ? 'jt-signal--ok' : 'jt-signal--accepted';
+    signalCandidates.push({ text: acceptedText, cls });
   }
   if (partPaid) {
     signalCandidates.push({ text: partPaidLabel, cls: 'jt-signal--partpaid' });
