@@ -954,10 +954,12 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
   const handleSelectStage = (stage) => {
     setSelectedStage(stage);
     setShowAll(false);
+    setSearchQuery(''); // tapping a stage tab means "done searching, show this tab"
     logTelemetry('stage_strip_select', { stage });
   };
 
   const handleToggleShowAll = () => {
+    setSearchQuery(''); // resuming stage browsing — clear any active search
     setShowAll(v => !v);
   };
 
@@ -1222,7 +1224,7 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
       <div className="jobs-search-wrap">
         <input
           type="search"
-          className="jobs-search"
+          className={`jobs-search${searchQuery ? ' jobs-search--has-value' : ''}`}
           placeholder="Search name, job or street"
           value={searchQuery}
           onChange={e => setSearchQuery(e.target.value)}
@@ -1232,6 +1234,19 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
           autoCapitalize="off"
           spellCheck="false"
         />
+        {searchQuery && (
+          <button
+            type="button"
+            className="jobs-search-clear"
+            aria-label="Clear search"
+            onClick={() => setSearchQuery('')}
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+              <line x1="4" y1="4" x2="12" y2="12"/>
+              <line x1="12" y1="4" x2="4" y2="12"/>
+            </svg>
+          </button>
+        )}
       </div>
 
       {/* Segmented control row + Show all toggle */}
