@@ -10521,6 +10521,11 @@ input[type=number] { -moz-appearance: textfield; }
   padding: 2px 0;
   background: none;
   border: none;
+  /* box-sizing + min-width: 0 prevent <button>/<a> rows from exceeding the
+     card width on mobile — without these, intrinsic-size layout ignores
+     width:100% and flex-child shrink doesn't apply. Fix: overflow at 375px. */
+  box-sizing: border-box;
+  min-width: 0;
   width: 100%;
   text-align: left;
   color: var(--text);
@@ -10560,6 +10565,8 @@ input[type=number] { -moz-appearance: textfield; }
   flex: 1;
   font-size: 14px;
   color: var(--text-dim);
+  /* min-width: 0 lets the label shrink below its content size in flex context */
+  min-width: 0;
 }
 .jd-card-row-edit {
   font-size: 18px;
