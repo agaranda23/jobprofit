@@ -7186,11 +7186,12 @@ input[type=number] { -moz-appearance: textfield; }
   z-index: 200;
 }
 
-/* Desktop anchored dropdown */
+/* Desktop anchored dropdown — portalled to document.body.
+   position:fixed + top/right set via inline style from getBoundingClientRect()
+   so it escapes any tile stacking context. z-index sits above all job tiles,
+   the bottom nav (100), and the backdrop (200). */
 .jt-menu--dropdown {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
+  position: fixed;
   min-width: 200px;
   max-height: 70vh;
   overflow-y: auto;
@@ -7199,7 +7200,7 @@ input[type=number] { -moz-appearance: textfield; }
   border-radius: 12px;
   padding: 8px;
   box-shadow: 0 12px 32px rgba(0,0,0,0.55), 0 2px 4px rgba(0,0,0,0.4);
-  z-index: 100;
+  z-index: 600;
 }
 
 /* Mobile bottom-sheet — hidden on desktop, shown on ≤640px.

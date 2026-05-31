@@ -27,6 +27,7 @@
  * the other behind NAV_SLICE_3. Pick one and delete the other in a separate PR.
  */
 import { useState, useCallback, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import WorkCalendar from './WorkCalendar';
 import AddJobModal from '../components/AddJobModal';
 import JobDetailDrawer from '../components/JobDetailDrawer';
@@ -282,6 +283,8 @@ function StageChipDropdown({ job, currentStage, onUpdateJob, onSendInvoice, onSe
   const [open, setOpen] = useState(false);
   const chipRef = useRef(null);
   const menuRef = useRef(null);
+  const dotsRef = useRef(null);
+  const [menuPos, setMenuPos] = useState({ top: 0, right: 0 });
 
   // Close on outside click / backdrop tap and Escape key
   useEffect(() => {
@@ -440,13 +443,33 @@ function StageChipDropdown({ job, currentStage, onUpdateJob, onSendInvoice, onSe
 
         {/* ⋯ overflow button — sole menu trigger */}
         <button
+          ref={dotsRef}
           type="button"
           className="jt-dots"
           aria-label="Job options"
           aria-haspopup="true"
           aria-expanded={open}
-          onClick={e => { e.stopPropagation(); setOpen(v => !v); }}
-          onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setOpen(v => !v); } }}
+          onClick={e => {
+            e.stopPropagation();
+            if (!open && dotsRef.current) {
+              // Anchor dropdown to the button's viewport rect.
+              // Portal renders into body so fixed positioning is safe across
+              // any stacking context created by parent tiles.
+              const r = dotsRef.current.getBoundingClientRect();
+              setMenuPos({ top: r.bottom + 6, right: window.innerWidth - r.right });
+            }
+            setOpen(v => !v);
+          }}
+          onKeyDown={e => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              if (!open && dotsRef.current) {
+                const r = dotsRef.current.getBoundingClientRect();
+                setMenuPos({ top: r.bottom + 6, right: window.innerWidth - r.right });
+              }
+              setOpen(v => !v);
+            }
+          }}
         >
           <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
             <circle cx="8" cy="3" r="1.4"/>
@@ -457,16 +480,23 @@ function StageChipDropdown({ job, currentStage, onUpdateJob, onSendInvoice, onSe
 
         {open && (
           <>
-            {/* Desktop anchored dropdown — hidden on mobile via CSS.
-                ref={menuRef} used by click-outside guard on desktop. */}
-            <div
-              ref={menuRef}
-              className="jt-menu jt-menu--dropdown"
-              role="menu"
-              onClick={e => e.stopPropagation()}
-            >
-              {menuContent}
-            </div>
+            {/* Desktop dropdown — portalled to body so it escapes any stacking
+                context created by sibling tiles (each .jt has position:relative).
+                Without the portal, tile N+1 in the DOM paints over the dropdown
+                from tile N even when z-index is set, because sibling stacking
+                contexts are ordered by DOM position, not z-index value. */}
+            {createPortal(
+              <div
+                ref={menuRef}
+                className="jt-menu jt-menu--dropdown"
+                role="menu"
+                style={{ top: menuPos.top, right: menuPos.right }}
+                onClick={e => e.stopPropagation()}
+              >
+                {menuContent}
+              </div>,
+              document.body
+            )}
 
             {/* Mobile bottom-sheet — hidden on desktop via CSS.
                 Backdrop (.jt-backdrop) handles the outside-tap close on mobile
