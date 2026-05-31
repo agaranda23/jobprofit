@@ -5,7 +5,11 @@
  * for a deposit payment (PR 4 — deposit on acceptance).
  *
  * Mirrors create-invoice-payment-link.js with these key differences:
- *   - Input: { quoteId } (the job UUID for the quote)
+ *   - Input: { quoteId } (authenticated, trader-initiated) OR
+ *            { publicQuoteToken } (unauthenticated, customer-facing)
+ *     publicQuoteToken is the UUID stored in job.meta.publicAccessToken —
+ *     possession of the token is the authorisation (URL-as-capability).
+ *     When quoteId is supplied, a Bearer token IS required (trader flow).
  *   - Validates: deposit_percent > 0 and deposit not already paid
  *   - Checkout Session metadata: jp_type = 'deposit'
  *   - Product name: "Deposit for: <description> (X% of £<total>)"
@@ -91,39 +95,75 @@ export const handler = async function (event) {
 
   // ── 2. Parse and validate body ───────────────────────────────────────────────
   let quoteId;
+  let publicQuoteToken;
   try {
     const body = JSON.parse(event.body || '{}');
     quoteId = body.quoteId;
+    publicQuoteToken = body.publicQuoteToken;
   } catch {
     return json(400, { error: 'Invalid request body' });
   }
 
-  if (!quoteId || typeof quoteId !== 'string') {
-    return json(400, { error: 'quoteId is required' });
-  }
-
-  // ── 3. Authenticate the caller via Supabase ──────────────────────────────────
-  const authHeader = event.headers?.authorization || event.headers?.Authorization || '';
-  const authToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
-
-  if (!authToken) {
-    return json(401, { error: 'Missing authorization token' });
+  if (!quoteId && !publicQuoteToken) {
+    return json(400, { error: 'quoteId or publicQuoteToken is required' });
   }
 
   const adminClient = createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false },
   });
 
-  let userId;
-  try {
-    const { data: { user }, error } = await adminClient.auth.getUser(authToken);
-    if (error || !user) {
-      return json(401, { error: 'Invalid or expired token' });
+  // ── 3. Authorise — two paths ─────────────────────────────────────────────────
+  // Path A: trader flow (Bearer token + quoteId) — existing pattern.
+  // Path B: customer flow (publicQuoteToken only) — URL-as-capability, same model
+  //         as pay-redirect.js and publicQuoteToken.js. No Bearer token needed.
+  let userId; // the trader's user_id — resolved in both paths
+
+  let job; // resolved early in Path B since we look up by token
+
+  if (publicQuoteToken) {
+    // Path B — public token path (customer-facing quote page)
+    // Validate shape: must be a UUID v4
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    if (!UUID_RE.test(publicQuoteToken)) {
+      return json(400, { error: 'Invalid publicQuoteToken format' });
     }
-    userId = user.id;
-  } catch (err) {
-    console.error('create-deposit-payment-link: auth.getUser threw', err?.message);
-    return json(401, { error: 'Could not verify token' });
+
+    try {
+      const { data, error } = await adminClient
+        .from('jobs')
+        .select('id, user_id, amount, total, summary, name, customer, customerName, meta, deposit_percent, deposit_amount_pence, deposit_paid_at')
+        .eq('meta->>publicAccessToken', publicQuoteToken)
+        .single();
+
+      if (error || !data) {
+        return json(404, { error: 'Quote not found — the link may be invalid or expired' });
+      }
+      job = data;
+      userId = data.user_id;
+      quoteId = data.id;
+    } catch (err) {
+      console.error('create-deposit-payment-link: public token lookup threw', err?.message);
+      return json(502, { error: 'Could not retrieve quote' });
+    }
+  } else {
+    // Path A — authenticated trader flow (Bearer token)
+    const authHeader = event.headers?.authorization || event.headers?.Authorization || '';
+    const authToken = authHeader.startsWith('Bearer ') ? authHeader.slice(7).trim() : '';
+
+    if (!authToken) {
+      return json(401, { error: 'Missing authorization token' });
+    }
+
+    try {
+      const { data: { user }, error } = await adminClient.auth.getUser(authToken);
+      if (error || !user) {
+        return json(401, { error: 'Invalid or expired token' });
+      }
+      userId = user.id;
+    } catch (err) {
+      console.error('create-deposit-payment-link: auth.getUser threw', err?.message);
+      return json(401, { error: 'Could not verify token' });
+    }
   }
 
   // ── 4. Fetch the trader's profile ────────────────────────────────────────────
@@ -154,23 +194,25 @@ export const handler = async function (event) {
 
   const stripeUserId = profile.stripe_user_id;
 
-  // ── 6. Fetch the quote (job record) — must belong to this trader ──────────────
-  let job;
-  try {
-    const { data, error } = await adminClient
-      .from('jobs')
-      .select('id, amount, total, summary, name, customer, customerName, meta, deposit_percent, deposit_amount_pence, deposit_paid_at')
-      .eq('id', quoteId)
-      .eq('user_id', userId)
-      .single();
+  // ── 6. Fetch the quote (job record) — only needed for Path A ─────────────────
+  // In Path B, job was already fetched during token validation above.
+  if (!job) {
+    try {
+      const { data, error } = await adminClient
+        .from('jobs')
+        .select('id, amount, total, summary, name, customer, customerName, meta, deposit_percent, deposit_amount_pence, deposit_paid_at')
+        .eq('id', quoteId)
+        .eq('user_id', userId)
+        .single();
 
-    if (error || !data) {
-      return json(404, { error: 'Quote not found or does not belong to you' });
+      if (error || !data) {
+        return json(404, { error: 'Quote not found or does not belong to you' });
+      }
+      job = data;
+    } catch (err) {
+      console.error('create-deposit-payment-link: job fetch threw', err?.message);
+      return json(502, { error: 'Could not retrieve quote' });
     }
-    job = data;
-  } catch (err) {
-    console.error('create-deposit-payment-link: job fetch threw', err?.message);
-    return json(502, { error: 'Could not retrieve quote' });
   }
 
   // ── 7. Validate the quote has a deposit configured ───────────────────────────

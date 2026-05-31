@@ -75,6 +75,7 @@ vi.mock('stripe', () => {
 
 let mockTokenSelectResult  = { data: null };  // default: token not found
 let mockProfileSelectResult = { data: { stripe_user_id: FAKE_ACCOUNT_ID } };
+let mockJobSelectResult    = { data: null };  // default: job not found
 let mockUpdateResult       = { error: null };
 
 // Track calls to verify idempotency and mutation behaviour
@@ -126,6 +127,7 @@ function buildAdminClient() {
       }
       if (table === 'jobs') {
         return {
+          select: () => makeSelectChain(mockJobSelectResult),
           update: (data) => {
             jobUpdateCalls.push({ table, data });
             return { eq: () => mockUpdateResult };
@@ -227,6 +229,7 @@ beforeEach(() => {
   profileUpdateCalls = [];
   mockTokenSelectResult   = { data: null };
   mockProfileSelectResult = { data: { stripe_user_id: FAKE_ACCOUNT_ID } };
+  mockJobSelectResult     = { data: null };
   mockUpdateResult        = { error: null };
   mockConstructEvent.mockReset();
   mockPiRetrieve.mockReset();
@@ -477,5 +480,172 @@ describe('J. Method guard', () => {
   it('returns 405 for GET requests', async () => {
     const res = await handler(buildEvent({ httpMethod: 'GET' }));
     expect(res.statusCode).toBe(405);
+  });
+});
+
+// ── K. Deposit completed — happy path ─────────────────────────────────────────
+
+describe('K. checkout.session.completed with jp_type=deposit', () => {
+  const FAKE_DEPOSIT_TOKEN = 'dep-tok-abc123';
+  const FAKE_QUOTE_ID      = 'quote-uuid-999';
+  const FAKE_DEPOSIT_META  = {
+    jp_type:                  'deposit',
+    jobprofit_deposit_token:  FAKE_DEPOSIT_TOKEN,
+    jobprofit_quote_id:       FAKE_QUOTE_ID,
+    jobprofit_trader_user_id: FAKE_TRADER_ID,
+    jobprofit_deposit_percent: '25',
+  };
+
+  function makeDepositSession(overrides = {}) {
+    return {
+      id:             FAKE_SESSION_ID,
+      payment_intent: FAKE_PI_ID,
+      metadata:       { ...FAKE_DEPOSIT_META, ...overrides },
+    };
+  }
+
+  function makeDepositTokenRow(overrides = {}) {
+    return {
+      id:             'deposit-token-row-1',
+      token:          FAKE_DEPOSIT_TOKEN,
+      kind:           'deposit',
+      invoice_id:     FAKE_QUOTE_ID,
+      quote_id:       FAKE_QUOTE_ID,
+      trader_user_id: FAKE_TRADER_ID,
+      amount_pence:   13500, // 25% of £540
+      status:         'pending',
+      ...overrides,
+    };
+  }
+
+  it('K1: marks deposit token paid with fee/net/receipt_url', async () => {
+    mockTokenSelectResult = { data: makeDepositTokenRow() };
+    mockJobSelectResult   = {
+      data: {
+        id:       FAKE_QUOTE_ID,
+        user_id:  FAKE_TRADER_ID,
+        meta:     {},
+        summary:  'Bathroom re-tile',
+      },
+    };
+
+    mockConstructEvent.mockReturnValue(
+      makeStripeEvent('checkout.session.completed', makeDepositSession()),
+    );
+
+    const res = await handler(buildEvent());
+    expect(res.statusCode).toBe(200);
+    // Token update should have status='paid'
+    const tokenUpdate = tokenUpdateCalls.find(c => c.data.status === 'paid');
+    expect(tokenUpdate).toBeTruthy();
+    expect(tokenUpdate.data.fee_pence).toBe(830);
+    expect(tokenUpdate.data.net_pence).toBe(53170);
+    expect(tokenUpdate.data.receipt_url).toBe(FAKE_RECEIPT_URL);
+  });
+
+  it('K2: deposit token row has kind=deposit correctly checked', async () => {
+    // Deposit row with kind='deposit' — should be found and processed
+    mockTokenSelectResult = { data: makeDepositTokenRow({ kind: 'deposit' }) };
+    mockJobSelectResult   = {
+      data: {
+        id:      FAKE_QUOTE_ID,
+        user_id: FAKE_TRADER_ID,
+        meta:    {},
+        summary: 'Patio job',
+      },
+    };
+
+    mockConstructEvent.mockReturnValue(
+      makeStripeEvent('checkout.session.completed', makeDepositSession()),
+    );
+
+    const res = await handler(buildEvent());
+    expect(res.statusCode).toBe(200);
+  });
+
+  it('K3: idempotent — already-paid deposit token returns 200 without mutations', async () => {
+    mockTokenSelectResult = { data: makeDepositTokenRow({ status: 'paid' }) };
+
+    mockConstructEvent.mockReturnValue(
+      makeStripeEvent('checkout.session.completed', makeDepositSession()),
+    );
+
+    const initialTokenUpdates = tokenUpdateCalls.length;
+    const res = await handler(buildEvent());
+    expect(res.statusCode).toBe(200);
+    // No new token update should have been pushed
+    expect(tokenUpdateCalls.length).toBe(initialTokenUpdates);
+  });
+});
+
+// ── L. Deposit refund ─────────────────────────────────────────────────────────
+
+describe('L. charge.refunded with kind=deposit', () => {
+  it('L1: full deposit refund — clears deposit_paid_at on job, token becomes refunded', async () => {
+    mockTokenSelectResult = {
+      data: {
+        id:                       'deposit-token-row-2',
+        kind:                     'deposit',
+        quote_id:                 'quote-uuid-ref',
+        invoice_id:               'quote-uuid-ref',
+        trader_user_id:           FAKE_TRADER_ID,
+        stripe_payment_intent_id: FAKE_PI_ID,
+        amount_pence:             13500,
+        status:                   'paid',
+      },
+    };
+
+    const charge = {
+      id: 'ch_fake',
+      payment_intent: FAKE_PI_ID,
+      amount: 13500,
+      amount_refunded: 13500,
+    };
+
+    mockConstructEvent.mockReturnValue(
+      makeStripeEvent('charge.refunded', charge),
+    );
+
+    const res = await handler(buildEvent({ type: 'charge.refunded' }));
+    expect(res.statusCode).toBe(200);
+    // Token update: status='refunded'
+    const tokenRefund = tokenUpdateCalls.find(c => c.data.status === 'refunded');
+    expect(tokenRefund).toBeTruthy();
+    // Job update: deposit_paid_at cleared
+    const jobDepositClear = jobUpdateCalls.find(c => c.data.deposit_paid_at === null);
+    expect(jobDepositClear).toBeTruthy();
+  });
+
+  it('L2: partial deposit refund — refunded_amount_pence updated, no job mutation', async () => {
+    mockTokenSelectResult = {
+      data: {
+        id:                       'deposit-token-row-3',
+        kind:                     'deposit',
+        quote_id:                 'quote-uuid-partial',
+        invoice_id:               'quote-uuid-partial',
+        trader_user_id:           FAKE_TRADER_ID,
+        stripe_payment_intent_id: FAKE_PI_ID,
+        amount_pence:             13500,
+        status:                   'paid',
+      },
+    };
+
+    const charge = {
+      id: 'ch_partial',
+      payment_intent: FAKE_PI_ID,
+      amount: 13500,
+      amount_refunded: 5000, // partial
+    };
+
+    mockConstructEvent.mockReturnValue(
+      makeStripeEvent('charge.refunded', charge),
+    );
+
+    const res = await handler(buildEvent({ type: 'charge.refunded' }));
+    expect(res.statusCode).toBe(200);
+    // Token update: only refunded_amount_pence, no status change to 'refunded'
+    const partialRefund = tokenUpdateCalls.find(c => c.data.refunded_amount_pence === 5000);
+    expect(partialRefund).toBeTruthy();
+    expect(tokenUpdateCalls.some(c => c.data.status === 'refunded')).toBe(false);
   });
 });
