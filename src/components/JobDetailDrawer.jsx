@@ -29,6 +29,7 @@ import {
 import { needsPrice, stagePatch } from '../lib/jobStatus';
 import { computeBalance, computeAmountPaid, editPayment, deletePayment } from '../lib/payments';
 import { gbp } from '../lib/today';
+import { supabase } from '../lib/supabase';
 import { compressPhoto } from '../lib/photoCompress';
 import {
   isLegacyPhoto,
@@ -1541,6 +1542,49 @@ export default function JobDetailDrawer({
     };
   }, [kebabOpen]);
 
+  // Pre-fetch Pay-now URL when the drawer opens for a chase-eligible job belonging
+  // to a connected trader. Fires once on drawer mount (job.id is stable for the
+  // lifetime of a single drawer instance). The URL is available long before the
+  // user taps the Chase button. Falls back to '' on any error so chase still works.
+  const isDrawerConnected = profile?.stripe_connect_status === 'connected' && !!profile?.stripe_user_id;
+  const [payNowUrl, setPayNowUrl] = useState('');
+
+  useEffect(() => {
+    if (!isDrawerConnected || !job?.id) return;
+    // Only prefetch for chase-eligible statuses — avoids a pointless network call
+    // for Lead / Quoted / On / Paid jobs that will never show the Chase button.
+    const s = deriveStatus(job);
+    if (s !== 'Invoiced' && s !== 'Overdue') return;
+    if (!Number(job.total ?? job.amount ?? 0)) return;
+
+    let cancelled = false;
+
+    async function prefetch() {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.access_token || cancelled) return;
+        const res = await fetch('/.netlify/functions/create-invoice-payment-link', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ invoiceId: job.id }),
+        });
+        if (!res.ok || cancelled) return;
+        const { payUrl } = await res.json();
+        if (!cancelled && payUrl) setPayNowUrl(payUrl);
+      } catch (err) {
+        console.warn('JobDetailDrawer: pay-now prefetch failed', err?.message);
+        // falls back to '' — chase proceeds without Pay-now line
+      }
+    }
+
+    prefetch();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDrawerConnected, job?.id]);
+
   const status = deriveStatus(job);
   const statusClass = STATUS_CLASS[status] || '';
   const displayName = job.customer || job.name || 'Unnamed job';
@@ -1583,6 +1627,7 @@ export default function JobDetailDrawer({
       paymentDetails,
       businessName: biz?.name || '',
       isB2B: !!job.isBusinessCustomer,
+      payNowUrl,
     });
     if (!link) return;
     recordChase(job.id);

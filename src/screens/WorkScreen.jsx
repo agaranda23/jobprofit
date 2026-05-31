@@ -53,6 +53,7 @@ import {
   lastChasedLabel,
   DEFAULT_PAYMENT_TERMS_DAYS,
 } from '../lib/chaseLadder';
+import { supabase } from '../lib/supabase';
 
 const STORAGE_KEY = 'jp.workView';
 const FILTER_STORAGE_KEY = 'jp.workscreen.filter.v1';
@@ -216,9 +217,11 @@ function calcRiskFigures(jobs) {
  *
  * @param {object} job
  * @param {object|null} biz  — biz settings from WorkScreen props (may be null)
+ * @param {number|null} forceTier
+ * @param {string} payNowUrl  — pre-fetched Pay-now URL for connected traders (empty = skip)
  * @returns {boolean} true if the share-sheet was opened
  */
-function chaseJobTiered(job, biz = null, forceTier = null) {
+function chaseJobTiered(job, biz = null, forceTier = null, payNowUrl = '') {
   if (isDoubleSendBlocked(job.id)) return false;
 
   const phone = job.customerPhone || job.phone || job.mobile || '';
@@ -243,6 +246,7 @@ function chaseJobTiered(job, biz = null, forceTier = null) {
     paymentDetails,
     businessName: biz?.name || '',
     isB2B: false,
+    payNowUrl,
   });
 
   // link is null when there's no phone — open wa.me without a recipient so the
@@ -1010,6 +1014,75 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
     }
   }, [selectedStage, showAll]);
 
+  // Pre-fetch Pay-now URLs for chase-eligible jobs when the trader is connected.
+  // Fires on mount (and whenever jobs or connect status changes). By the time
+  // the user taps Chase, the URL is already in the map — no perceptible delay.
+  // create-invoice-payment-link is idempotent: same invoice → same token if
+  // still pending, so calling it for N jobs on mount is safe and cheap.
+  // On error, we silently skip — chase falls back to the bare message.
+  const isConnected = profile?.stripe_connect_status === 'connected' && !!profile?.stripe_user_id;
+  const [payNowUrls, setPayNowUrls] = useState(() => new Map());
+
+  useEffect(() => {
+    if (!isConnected || !jobs.length) return;
+    let cancelled = false;
+
+    async function prefetchAll() {
+      let accessToken;
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.access_token || cancelled) return;
+        accessToken = session.access_token;
+      } catch {
+        return; // can't get token — skip silently
+      }
+
+      // Chase-eligible: overdue or invoiced jobs that have a non-zero amount.
+      // Pre-due (tier 0) jobs are included via 'Invoiced' so handlePreDueChase
+      // also gets a Pay-now URL.
+      const eligible = jobs.filter(j => {
+        const s = deriveDisplayStatus(j);
+        return (s === 'Overdue' || s === 'Invoiced') && Number(j.total ?? j.amount ?? 0) > 0;
+      });
+
+      const results = await Promise.allSettled(
+        eligible.map(async (j) => {
+          try {
+            const res = await fetch('/.netlify/functions/create-invoice-payment-link', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${accessToken}`,
+              },
+              body: JSON.stringify({ invoiceId: j.id }),
+            });
+            if (!res.ok) return null;
+            const { payUrl } = await res.json();
+            return payUrl ? { id: j.id, payUrl } : null;
+          } catch {
+            return null;
+          }
+        }),
+      );
+
+      if (cancelled) return;
+
+      setPayNowUrls(prev => {
+        const next = new Map(prev);
+        results.forEach(r => {
+          if (r.status === 'fulfilled' && r.value) {
+            next.set(r.value.id, r.value.payUrl);
+          }
+        });
+        return next;
+      });
+    }
+
+    prefetchAll();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isConnected, jobs]);
+
   const switchSubview = useCallback((v) => {
     logTelemetry('work_subview', { subview: v });
     setSubview(v);
@@ -1093,6 +1166,7 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
       paymentDetails,
       businessName: biz?.name || '',
       isB2B: false,
+      payNowUrl: payNowUrls.get(job.id) ?? '',
     });
     const finalUrl = link ?? `https://wa.me/?text=${encodeURIComponent(
       buildChaseMessage({
@@ -1116,7 +1190,7 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
     const safeIndex = chaseStepIndex % Math.max(chasableJobs.length, 1);
     const job = chasableJobs[safeIndex];
     if (!job) return;
-    const opened = chaseJobTiered(job, biz);
+    const opened = chaseJobTiered(job, biz, null, payNowUrls.get(job.id) ?? '');
     if (opened) {
       setChaseStepIndex(safeIndex + 1);
       showToast(`Chased ${job.customer || job.name || 'Invoice'}`);
