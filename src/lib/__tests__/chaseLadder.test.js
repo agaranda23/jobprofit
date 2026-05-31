@@ -254,6 +254,40 @@ describe('buildChaseMessage', () => {
     expect(tier4msg).toBe(tier3msg);
   });
 
+  // ── B2B isBusinessCustomer flag (Ticket B) ────────────────────────────────
+
+  it('tier 3 B2C (isB2B false, default): uses consumer copy, NO statutory-interest clause', () => {
+    const msg = buildChaseMessage({ ...base, tier: 3, isB2B: false });
+    expect(msg).toContain('last one from me on this');
+    expect(msg).not.toContain('Late Payment of Commercial Debts');
+    expect(msg).not.toContain('interest and compensation');
+  });
+
+  it('tier 3 B2B (isB2B true): emits statutory-interest copy, NOT consumer copy', () => {
+    const msg = buildChaseMessage({ ...base, tier: 3, isB2B: true });
+    expect(msg).toContain('Late Payment of Commercial Debts Act 1998');
+    expect(msg).toContain('interest and compensation');
+    expect(msg).not.toContain('last one from me on this');
+  });
+
+  it('tier 3 B2B: still includes the amount and days overdue', () => {
+    const msg = buildChaseMessage({ ...base, tier: 3, isB2B: true });
+    expect(msg).toContain('£350');
+    expect(msg).toContain('10 days overdue');
+  });
+
+  it('tier 3 B2B: omitting isB2B defaults to B2C (safe for homeowners)', () => {
+    const msg = buildChaseMessage({ ...base, tier: 3 });
+    expect(msg).not.toContain('Late Payment of Commercial Debts');
+  });
+
+  it('tier 3 B2B: statutory copy is ONLY emitted at tier 3, not tier 1 or tier 2', () => {
+    const msg1 = buildChaseMessage({ ...base, tier: 1, isB2B: true });
+    const msg2 = buildChaseMessage({ ...base, tier: 2, isB2B: true });
+    expect(msg1).not.toContain('Late Payment of Commercial Debts');
+    expect(msg2).not.toContain('Late Payment of Commercial Debts');
+  });
+
   it('falls back to "there" when customerName is empty', () => {
     const msg = buildChaseMessage({ ...base, tier: 1, customerName: '' });
     expect(msg).toContain('Hi there');
