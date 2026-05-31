@@ -3632,12 +3632,14 @@ input[type=number] { -moz-appearance: textfield; }
   color: #0B1220;
 }
 
-/* Tile typography — tuned for ~50px cells at 360px viewport (7 equal segments).
-   Name uses tight letter-spacing + clipping so INVOICED never overflows. */
+/* Tile typography — 7 equal segments at 360px each cell is ~44.5px wide, ~40.5px text area.
+   Name: 9px at -0.04em letter-spacing is the largest uniform size at which "INVOICED"
+   and "OVERDUE" (8 chars each) sit within the cell at 360px without touching neighbours.
+   Count + amount are secondary — intentionally smaller so the name reads first. */
 .stage-tile-name {
-  font-size: 8.5px;
+  font-size: 9px;
   font-weight: 800;
-  letter-spacing: 0.04em;
+  letter-spacing: -0.04em;
   color: var(--text-dim);
   line-height: 1;
   white-space: nowrap;
@@ -3646,7 +3648,7 @@ input[type=number] { -moz-appearance: textfield; }
   max-width: 100%;
 }
 .stage-tile-count {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
   color: var(--text);
   line-height: 1.2;
@@ -3656,7 +3658,7 @@ input[type=number] { -moz-appearance: textfield; }
   max-width: 100%;
 }
 .stage-tile-amount {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
   color: var(--text-dim);
   line-height: 1.2;
