@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v14';
+const CACHE_NAME = 'jobprofit-v15';  // bumped from v14
 const PRECACHE = [
   '/',
   '/index.html',
@@ -62,17 +62,73 @@ self.addEventListener('notificationclick', (event) => {
 });
 
 // ── Fetch (caching) ───────────────────────────────────────────────────────────
+//
+// Routing logic (priority order):
+//
+//   1. Anthropic AI API — bypass SW entirely (keys stay off-device; no cache).
+//
+//   2. Supabase writes (POST / PATCH / PUT / DELETE) — bypass SW entirely.
+//      These must reach the server or be queued by offlineQueue.js — never
+//      served from cache. Caching a failed write response would be dangerous.
+//
+//   3. Supabase GET reads — network-first with cache fallback.
+//      Fresh data when online; last-known rows when offline.
+//      Cache key is the full URL so different queries cache independently.
+//
+//   4. Everything else (app shell, JS chunks, CSS, icons) — stale-while-
+//      revalidate: serve cache immediately, update in background.
+
 self.addEventListener('fetch', event => {
-  // Network-first for API calls, cache-first for assets
-  if (event.request.url.includes('api.anthropic.com')) {
-    event.respondWith(fetch(event.request));
+  const { request } = event;
+  const url = request.url;
+
+  // ── 1. Anthropic bypass ───────────────────────────────────────────────────
+  if (url.includes('api.anthropic.com')) {
+    event.respondWith(fetch(request));
     return;
   }
+
+  // ── 2. Supabase writes — bypass (never cache) ─────────────────────────────
+  const isSupabase = url.includes('supabase.co');
+  const isMutating = ['POST', 'PATCH', 'PUT', 'DELETE'].includes(request.method);
+  if (isSupabase && isMutating) {
+    event.respondWith(fetch(request));
+    return;
+  }
+
+  // ── 3. Supabase GET reads — network-first, cache fallback ─────────────────
+  if (isSupabase && request.method === 'GET') {
+    event.respondWith(
+      fetch(request)
+        .then(response => {
+          // Only cache successful, non-opaque responses
+          if (response.ok && response.type !== 'opaque') {
+            const clone = response.clone();
+            caches.open(CACHE_NAME).then(cache => cache.put(request, clone));
+          }
+          return response;
+        })
+        .catch(async () => {
+          // Network failed — serve cached version if available
+          const cached = await caches.match(request);
+          if (cached) return cached;
+          // No cached copy — return a minimal 503 so callers see a real error
+          // rather than a hanging promise. offlineQueue.js handles the retry.
+          return new Response(
+            JSON.stringify({ error: 'offline', message: 'No cached data available' }),
+            { status: 503, headers: { 'Content-Type': 'application/json' } }
+          );
+        })
+    );
+    return;
+  }
+
+  // ── 4. App shell & assets — stale-while-revalidate ───────────────────────
   event.respondWith(
-    caches.match(event.request).then(cached => {
-      const fetched = fetch(event.request).then(response => {
+    caches.match(request).then(cached => {
+      const fetched = fetch(request).then(response => {
         const clone = response.clone();
-        caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+        caches.open(CACHE_NAME).then(cache => cache.put(request, clone));
         return response;
       }).catch(() => cached);
       return cached || fetched;
