@@ -10043,3 +10043,132 @@ input[type=number] { -moz-appearance: textfield; }
   font-weight: 600;
   cursor: pointer;
 }
+
+/* ── SendInvoiceModal: Pay-now connect prompt (Section 1.3 a) ── */
+.invoice-connect-prompt {
+  background: rgba(43, 196, 138, 0.1);
+  border: 1px solid rgba(43, 196, 138, 0.35);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin: 0 0 14px;
+  font-size: 13.5px;
+  color: var(--text);
+  line-height: 1.45;
+}
+.invoice-connect-prompt__body {
+  margin-bottom: 10px;
+}
+.invoice-connect-prompt__actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.invoice-connect-prompt__setup {
+  background: var(--accent, #2bc48a);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 7px 16px;
+  min-height: 36px;
+  cursor: pointer;
+}
+.invoice-connect-prompt__setup:active { opacity: 0.8; }
+.invoice-connect-prompt__dismiss {
+  background: none;
+  border: none;
+  font-size: 13px;
+  color: var(--text-muted, #808080);
+  cursor: pointer;
+  padding: 4px 2px;
+  min-height: 36px;
+}
+.invoice-connect-prompt__dismiss:active { opacity: 0.7; }
+
+/* ── FinanceScreen: Pay-now Money banner (Section 1.3 b) ── */
+.pay-now-money-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(43, 196, 138, 0.1);
+  border: 1px solid rgba(43, 196, 138, 0.3);
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin: 0 0 12px;
+  font-size: 13.5px;
+  color: var(--text);
+}
+.pay-now-money-banner__copy {
+  flex: 1;
+  line-height: 1.4;
+}
+.pay-now-money-banner__setup {
+  background: none;
+  border: none;
+  color: var(--accent, #2bc48a);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  min-height: 44px;
+  padding: 0 4px;
+}
+.pay-now-money-banner__setup:active { opacity: 0.7; }
+.pay-now-money-banner__dismiss {
+  background: none;
+  border: none;
+  color: var(--text-muted, #808080);
+  font-size: 17px;
+  cursor: pointer;
+  padding: 0 2px;
+  min-height: 44px;
+  line-height: 1;
+}
+.pay-now-money-banner__dismiss:active { opacity: 0.7; }
+
+/* ── TodayScreen: Pay-now soft nudge (Section 1.3 c) ── */
+.pay-now-nudge {
+  position: fixed;
+  bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+  left: 16px;
+  right: 16px;
+  background: var(--surface, #fff);
+  border: 1px solid rgba(43, 196, 138, 0.4);
+  border-radius: 12px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  font-size: 13.5px;
+  color: var(--text);
+  z-index: 200;
+}
+.pay-now-nudge__copy {
+  flex: 1;
+  line-height: 1.4;
+}
+.pay-now-nudge__setup {
+  background: none;
+  border: none;
+  color: var(--accent, #2bc48a);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0;
+  min-height: 44px;
+}
+.pay-now-nudge__setup:active { opacity: 0.7; }
+.pay-now-nudge__dismiss {
+  background: none;
+  border: none;
+  color: var(--text-muted, #808080);
+  font-size: 18px;
+  cursor: pointer;
+  padding: 0 2px;
+  min-height: 44px;
+  line-height: 1;
+}
+.pay-now-nudge__dismiss:active { opacity: 0.7; }

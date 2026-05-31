@@ -959,7 +959,7 @@ function JobsList({ jobs, selectedStage, showAll, searchQuery, onJobSelect, onSe
 
 // ── WorkScreen (root) ─────────────────────────────────────────────────────────
 
-export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJob, onAddPayment, onUpdateJob, onDeleteJob, onAddReceipt, onDeleteReceipt, biz, profile, initialJobId }) {
+export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJob, onAddPayment, onUpdateJob, onDeleteJob, onAddReceipt, onDeleteReceipt, biz, profile, initialJobId, onNavigateToCardPayments }) {
   const [subview, setSubview] = useState(getPersistedView);
   const [selectedStage, setSelectedStage] = useState(() => getPersistedFilter().selectedStage);
   const [showAll, setShowAll] = useState(() => getPersistedFilter().showAll);
@@ -1415,6 +1415,7 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
             targetStage={drawerTargetStage}
             onClearIntent={() => { setDrawerIntent(null); setDrawerTargetStage(null); }}
             onViewReceipt={setReceiptJob}
+            onNavigateToCardPayments={onNavigateToCardPayments}
           />
         </DrawerErrorBoundary>
       )}

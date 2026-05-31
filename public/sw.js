@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v19';  // bumped from v18: Stripe Connect CardPaymentsScreen + Settings Get paid section
+const CACHE_NAME = 'jobprofit-v20';  // bumped from v19: Stripe Connect Pay-now links + invoice surfaces (PR 2/3)
 const PRECACHE = [
   '/',
   '/index.html',

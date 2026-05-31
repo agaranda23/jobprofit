@@ -104,13 +104,27 @@ export const handler = async function (event) {
     return json(502, { error: 'Could not retrieve profile' });
   }
 
-  // ── 4. Count active Pay-now links ────────────────────────────────────────────
-  // TODO PR2: query invoice_payment_tokens for active count before disconnecting.
-  // For PR 1 the table doesn't exist yet — return 0 so the frontend renders the
-  // base copy ("You can disconnect any time. New invoices won't include a
-  // Pay-now button until you reconnect."). PR 2 will replace this with a real
-  // count and show the warning copy when count > 0.
-  const activeLinkCount = 0;
+  // ── 4. Count active Pay-now links (PR 2: real query against invoice_payment_tokens) ──
+  // Returns the number of invoice payment tokens that are still pending (not paid,
+  // not expired, not cancelled) and haven't passed their stored expiry. The frontend
+  // uses this count to show the warning copy in the disconnect confirm sheet when
+  // count > 0: "X invoice[s] still have an active Pay-now link..."
+  let activeLinkCount = 0;
+  try {
+    const { count, error: countError } = await adminClient
+      .from('invoice_payment_tokens')
+      .select('id', { count: 'exact', head: true })
+      .eq('trader_user_id', userId)
+      .eq('status', 'pending')
+      .gt('expires_at', new Date().toISOString());
+
+    if (!countError && typeof count === 'number') {
+      activeLinkCount = count;
+    }
+  } catch {
+    // Non-fatal — if the count fails, we show 0 (base copy). Better to
+    // allow the disconnect than to block it on a non-critical query.
+  }
 
   // ── 5. Deauthorise via Stripe OAuth ─────────────────────────────────────────
   const stripe = new Stripe(stripeSecretKey, { apiVersion: '2024-06-20' });

@@ -1,5 +1,6 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import QRCode from 'qrcode';
 
 // Generates an invoice PDF for the new Get Paid workflow. Distinct from
 // the legacy generateInvoicePDF in App.jsx (which uses window.jspdf and
@@ -264,13 +265,88 @@ function drawFooter(doc, biz, label = '') {
   doc.text(text, w / 2, footerY, { align: 'center' });
 }
 
+// ── Pay-now button + QR helper (Section 2.1, wireframe 4.4) ─────────────────
+// Only called when the trader is connected AND a payNowUrl was generated.
+// Returns the new y position after drawing the row.
+// qrDataUrl must be a pre-generated PNG data URL (from QRCode.toDataURL).
+
+function drawPayNowRow(doc, { amount, payNowUrl, qrDataUrl }, startY) {
+  const w = doc.internal.pageSize.getWidth();
+  const PAYNOW_ACCENT = [43, 196, 138]; // brand green (#2bc48a)
+  const QR_SIZE = 22; // mm
+  const BTN_H = 12;
+  const BTN_W = w - MARGIN * 2 - QR_SIZE - 6; // content width minus QR and gap
+  const rowY = startY + 4;
+
+  // Button background (rounded rectangle approximated with rect)
+  doc.setFillColor(...PAYNOW_ACCENT);
+  doc.roundedRect(MARGIN, rowY, BTN_W, BTN_H, 3, 3, 'F');
+
+  // Button label
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(255, 255, 255);
+  const btnLabel = `Pay £${amount.toFixed(2)} by card`;
+  doc.text(btnLabel, MARGIN + BTN_W / 2, rowY + 7.5, { align: 'center' });
+
+  // "Powered by Stripe · Secure" subtitle
+  doc.setFontSize(7.5);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(...LIGHT);
+  doc.text('Powered by Stripe  ·  Secure card payment', MARGIN + BTN_W / 2, rowY + BTN_H + 5, { align: 'center' });
+
+  // QR code (right edge of the row)
+  const qrX = MARGIN + BTN_W + 6;
+  if (qrDataUrl) {
+    try {
+      doc.addImage(qrDataUrl, 'PNG', qrX, rowY - 2, QR_SIZE, QR_SIZE);
+    } catch {
+      // QR decode failed — skip silently. Button-only fallback is fine.
+    }
+  }
+
+  // Make the button area a clickable link (PDF viewers honour this)
+  doc.link(MARGIN, rowY, BTN_W, BTN_H, { url: payNowUrl });
+
+  return rowY + QR_SIZE + 4;
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // INVOICE
 // ═══════════════════════════════════════════════════════════════════════════
 
-export function generateInvoicePDF({ job, biz, invoiceNumber, dueDate }) {
+/**
+ * Generates an invoice PDF.
+ *
+ * @param {object} args
+ * @param {object} args.job
+ * @param {object} args.biz
+ * @param {string} args.invoiceNumber
+ * @param {string} args.dueDate
+ * @param {string} [args.payNowUrl] — when provided (trader connected + token generated),
+ *   draws the Pay-now button + QR row directly under the Total Due line (wireframe 4.4).
+ *   When absent or empty, falls back to the legacy stripePaymentLink in biz (plain text link).
+ *   Set to empty string when not connected — the PDF renders as before with bank details only.
+ * @returns {Promise<jsPDF>} — async because QR code generation is async.
+ */
+export async function generateInvoicePDF({ job, biz, invoiceNumber, dueDate, payNowUrl = '' }) {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   const w = doc.internal.pageSize.getWidth();
+
+  // Pre-generate QR code data URL while other work proceeds.
+  // generateInvoicePDF is now async; callers that were previously sync must await it.
+  let qrDataUrl = null;
+  if (payNowUrl) {
+    try {
+      qrDataUrl = await QRCode.toDataURL(payNowUrl, {
+        width: 128,
+        margin: 1,
+        color: { dark: '#141414', light: '#ffffff' },
+      });
+    } catch {
+      // QR generation failed — continue without it. The button still renders.
+    }
+  }
 
   // ── Header ──────────────────────────────────────────────────────────────
   let y = drawHeader(doc, biz);
@@ -307,6 +383,17 @@ export function generateInvoicePDF({ job, biz, invoiceNumber, dueDate }) {
     totalLabel: 'TOTAL DUE',
   }, y);
 
+  // ── Pay-now button + QR (Section 2.1, wireframe 4.4) ──────────────────
+  // Rendered directly under Total Due when the trader is connected and
+  // a token URL was generated. Falls through to the legacy link if not.
+  if (payNowUrl) {
+    const showVat = !!biz?.vatRegistered;
+    const vat = showVat ? Math.round(subtotal * 0.2 * 100) / 100 : 0;
+    const displayAmount = subtotal + vat;
+    y = drawPayNowRow(doc, { amount: displayAmount, payNowUrl, qrDataUrl }, y);
+    y += 4;
+  }
+
   // ── Payment details ───────────────────────────────────────────────────
   y += 4;
   rule(doc, y);
@@ -318,8 +405,11 @@ export function generateInvoicePDF({ job, biz, invoiceNumber, dueDate }) {
   doc.text('PAYMENT DETAILS', MARGIN, y);
   y += 7;
 
-  // Pay-by-card block — shown only when a Stripe Payment Link is set
-  const stripeLink = biz?.stripePaymentLink || biz?.stripe_payment_link || '';
+  // Legacy pay-by-card block — shown when payNowUrl is absent but the trader
+  // has a manually-entered static payment link in their Settings. Kept per brief
+  // decision from founder call: the legacy static link row stays in Settings.
+  // When payNowUrl is set, we skip the legacy link (the button above is the CTA).
+  const stripeLink = !payNowUrl ? (biz?.stripePaymentLink || biz?.stripe_payment_link || '') : '';
   if (stripeLink) {
     doc.setFontSize(9.5);
     doc.setFont('helvetica', 'bold');
@@ -334,7 +424,7 @@ export function generateInvoicePDF({ job, biz, invoiceNumber, dueDate }) {
   }
 
   // Bank transfer block
-  const bankHeader = stripeLink ? 'Or pay by bank transfer:' : 'Bank details:';
+  const bankHeader = (stripeLink || payNowUrl) ? 'Or pay by bank transfer:' : 'Bank details:';
   const hasBankFields = biz?.accountName || biz?.sortCode || biz?.accountNumber;
 
   if (hasBankFields || biz?.bankDetails) {
@@ -375,13 +465,13 @@ export function generateInvoicePDF({ job, biz, invoiceNumber, dueDate }) {
   return doc;
 }
 
-export function downloadInvoicePDF(args) {
-  const doc = generateInvoicePDF(args);
+export async function downloadInvoicePDF(args) {
+  const doc = await generateInvoicePDF(args);
   doc.save(`${args.invoiceNumber}.pdf`);
 }
 
-export function getInvoicePDFBlob(args) {
-  const doc = generateInvoicePDF(args);
+export async function getInvoicePDFBlob(args) {
+  const doc = await generateInvoicePDF(args);
   return doc.output('blob');
 }
 

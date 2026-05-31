@@ -732,6 +732,7 @@ export default function AppShell() {
               avatarProps={avatarProps}
               profile={profile}
               onNavigateToMoney={() => navigate('finance')}
+              onNavigateToCardPayments={() => setSettingsSubView('card-payments')}
             />
           )}
 
@@ -750,6 +751,7 @@ export default function AppShell() {
               biz={null}
               profile={profile}
               initialJobId={pendingJobId}
+              onNavigateToCardPayments={() => setSettingsSubView('card-payments')}
             />
           )}
 
@@ -763,6 +765,7 @@ export default function AppShell() {
               // onMarkPaid removed: chase block deleted in Phase 1 Money redesign
               onGoToJobs={() => navigate('work')}
               onGoToSettings={() => navigate('settings')}
+              onNavigateToCardPayments={() => { navigate('settings'); setSettingsSubView('card-payments'); }}
             />
           )}
 
@@ -825,6 +828,7 @@ export default function AppShell() {
               avatarProps={avatarProps}
               profile={profile}
               onNavigateToMoney={() => navigate('money')}
+              onNavigateToCardPayments={() => setSettingsSubView('card-payments')}
             />
           )}
 
@@ -843,6 +847,7 @@ export default function AppShell() {
               biz={null}
               profile={profile}
               initialJobId={pendingJobId}
+              onNavigateToCardPayments={() => setSettingsSubView('card-payments')}
             />
           )}
 
@@ -893,6 +898,7 @@ export default function AppShell() {
               onAddReceipt={handleAddReceipt}
               profile={profile}
               onNavigateToMoney={() => { setMoreKey(k => k + 1); navigate('manage'); }}
+              onNavigateToCardPayments={() => setSettingsSubView('card-payments')}
             />
           )}
 

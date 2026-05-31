@@ -1423,6 +1423,9 @@ export default function JobDetailDrawer({
   // Kept as an optional prop so the drawer degrades gracefully if
   // a parent doesn't wire it (e.g. TodayScreen).
   onViewReceipt,
+  // Optional: called when the trader taps "Set up" in the Send Invoice connect prompt.
+  // AppShell passes () => setSettingsSubView('card-payments').
+  onNavigateToCardPayments,
 }) {
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
@@ -2687,6 +2690,7 @@ export default function JobDetailDrawer({
           onClose={() => setInvoiceModalOpen(false)}
           flash={showFlash}
           onNeedsPrice={() => { setInvoiceModalOpen(false); setEditingField('amount'); }}
+          onNavigateToCardPayments={onNavigateToCardPayments}
         />
       )}
 

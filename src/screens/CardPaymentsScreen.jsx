@@ -101,14 +101,16 @@ async function disconnectStripe() {
 /**
  * Confirmation bottom sheet shown when the trader taps "Disconnect Stripe".
  *
- * For PR 1, activeLinkCount is always 0 so we render the base copy.
- * PR 2 TODO: when activeLinkCount > 0, render the full warning:
+ * activeLinkCount is fetched from the disconnect endpoint (PR 2). When > 0,
+ * renders the full warning per brief decision #5 (locked 2026-05-31):
  *   "X invoice[s] still have an active Pay-now link. They'll keep working
  *    until paid or until they expire. New invoices won't include a Pay-now
  *    button until you reconnect."
  */
-function DisconnectSheet({ onConfirm, onCancel, confirming }) {
-  // TODO PR2: accept activeLinkCount prop and render warning copy when > 0
+function DisconnectSheet({ onConfirm, onCancel, confirming, activeLinkCount = 0 }) {
+  const hasActiveLinks = activeLinkCount > 0;
+  const linkWord = activeLinkCount === 1 ? 'invoice' : 'invoices';
+
   return (
     <div
       className="modal-backdrop"
@@ -122,11 +124,21 @@ function DisconnectSheet({ onConfirm, onCancel, confirming }) {
         onClick={e => e.stopPropagation()}
       >
         <h2 className="card-payments-sheet__title">Disconnect Stripe?</h2>
-        <p className="card-payments-sheet__body">
-          You can disconnect any time. New invoices won&rsquo;t include a Pay-now
-          button until you reconnect.
-        </p>
-        {/* TODO PR2: show active-link count + warning copy when count > 0 */}
+
+        {hasActiveLinks ? (
+          <p className="card-payments-sheet__body">
+            {activeLinkCount} {linkWord} still {activeLinkCount === 1 ? 'has' : 'have'} an active
+            Pay-now link. {activeLinkCount === 1 ? 'It' : 'They'}&rsquo;ll keep working until paid
+            or until {activeLinkCount === 1 ? 'it expires' : 'they expire'}. New invoices won&rsquo;t
+            include a Pay-now button until you reconnect.
+          </p>
+        ) : (
+          <p className="card-payments-sheet__body">
+            You can disconnect any time. New invoices won&rsquo;t include a Pay-now
+            button until you reconnect.
+          </p>
+        )}
+
         <button
           type="button"
           className="card-payments-sheet__confirm"
@@ -152,11 +164,14 @@ function DisconnectSheet({ onConfirm, onCancel, confirming }) {
 
 export default function CardPaymentsScreen({ profile, onBack, onProfileUpdate }) {
   // All hooks must sit above any conditional return — see feedback_react_hooks_before_early_returns.md
-  const [connecting, setConnecting]         = useState(false);
-  const [connectError, setConnectError]     = useState('');
-  const [showDisconnect, setShowDisconnect] = useState(false);
-  const [disconnecting, setDisconnecting]   = useState(false);
+  const [connecting, setConnecting]           = useState(false);
+  const [connectError, setConnectError]       = useState('');
+  const [showDisconnect, setShowDisconnect]   = useState(false);
+  const [disconnecting, setDisconnecting]     = useState(false);
   const [disconnectError, setDisconnectError] = useState('');
+  // activeLinkCount: fetched just before the disconnect sheet opens so the
+  // warning copy is accurate at the moment the trader decides to disconnect.
+  const [activeLinkCount, setActiveLinkCount] = useState(0);
 
   const isConnected = profile?.stripe_connect_status === 'connected' && !!profile?.stripe_user_id;
 
@@ -181,6 +196,32 @@ export default function CardPaymentsScreen({ profile, onBack, onProfileUpdate })
     }
   };
 
+  const handleDisconnectOpen = async () => {
+    setDisconnectError('');
+    // Pre-fetch activeLinkCount before showing the sheet so the warning copy
+    // is accurate. We call connect-disconnect speculatively here but we don't
+    // actually disconnect — the count comes back in the 200 response preview.
+    // Simpler: we run the real disconnect only on confirm. For the count we
+    // do a lightweight direct Supabase query from the client instead. The
+    // client can only SELECT their own rows (RLS: trader_user_id = auth.uid()).
+    // We use the count from the Supabase realtime client so no extra function is needed.
+    try {
+      const { supabase: sb } = await import('../lib/supabase.js');
+      const { data: { session } } = await sb.auth.getSession();
+      if (session) {
+        const { count } = await sb
+          .from('invoice_payment_tokens')
+          .select('id', { count: 'exact', head: true })
+          .eq('status', 'pending')
+          .gt('expires_at', new Date().toISOString());
+        setActiveLinkCount(count ?? 0);
+      }
+    } catch {
+      setActiveLinkCount(0);
+    }
+    setShowDisconnect(true);
+  };
+
   const handleDisconnectConfirm = async () => {
     if (disconnecting) return;
     setDisconnecting(true);
@@ -192,6 +233,7 @@ export default function CardPaymentsScreen({ profile, onBack, onProfileUpdate })
       return;
     }
     setShowDisconnect(false);
+    setActiveLinkCount(0);
     // Notify parent to reload the profile so the screen flips to not-connected
     onProfileUpdate?.({
       stripe_user_id: null,
@@ -248,7 +290,7 @@ export default function CardPaymentsScreen({ profile, onBack, onProfileUpdate })
             <button
               type="button"
               className="card-payments-screen__disconnect-link"
-              onClick={() => { setDisconnectError(''); setShowDisconnect(true); }}
+              onClick={handleDisconnectOpen}
             >
               Disconnect Stripe
             </button>
@@ -315,6 +357,7 @@ export default function CardPaymentsScreen({ profile, onBack, onProfileUpdate })
           onConfirm={handleDisconnectConfirm}
           onCancel={() => setShowDisconnect(false)}
           confirming={disconnecting}
+          activeLinkCount={activeLinkCount}
         />
       )}
     </div>

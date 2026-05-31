@@ -9,6 +9,15 @@
  *     useful when the customer needs a formal document).
  *   - PDF download (for manual attachment or filing).
  *
+ * Pay-now Connect prompt (Section 1.3 a, brief 2026-05-31):
+ *   - If trader is NOT connected to Stripe: slim banner at top of modal.
+ *     "Not now" dismisses for this invoice only (component-local state).
+ *     "Set up" calls onNavigateToCardPayments.
+ *     Send button still reads "Send invoice" — invoice sends as today.
+ *   - If trader IS connected: Pay-now link is generated on modal open,
+ *     prepended to all message paths. Button reads "Send invoice with Pay-now".
+ *     Never blocks the send if the link fails to generate — falls back gracefully.
+ *
  * Props:
  *   job         – full job object
  *   biz         – business settings object (name, bank details, VAT flag, etc.)
@@ -17,8 +26,9 @@
  *   onUpdate(updatedJob) – persists the job update (sets invoiceSentAt, etc.)
  *   onClose()   – close the modal
  *   flash(msg)  – toast callback from the parent drawer
+ *   onNavigateToCardPayments() – optional; called when trader taps "Set up" in connect prompt
  */
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { getInvoicePDFBlob, downloadInvoicePDF } from '../lib/invoicePDF';
 import { buildInvoiceWhatsAppMessage, buildWhatsAppLink } from '../lib/invoiceMessage';
 import { nextInvoiceNumber } from '../lib/invoiceNumber';
@@ -57,6 +67,9 @@ export default function SendInvoiceModal({
   // Optional: called when the user taps "Add price" on the £0 banner.
   // The drawer passes () => { closeModal; setEditingField('amount') }.
   onNeedsPrice,
+  // Optional: called when the trader taps "Set up" in the connect prompt.
+  // Typically navigates to Settings → Card payments.
+  onNavigateToCardPayments,
 }) {
   const [invoiceNumber, setInvoiceNumber] = useState(
     () => job.invoiceNumber || nextInvoiceNumber(jobs)
@@ -71,14 +84,76 @@ export default function SendInvoiceModal({
   const [view, setView] = useState('send'); // 'send' | 'paywall'
   const [checkoutError, setCheckoutError] = useState(null);
 
+  // ── Pay-now state ────────────────────────────────────────────────────────────
+  // isConnected: true when the trader has a connected Stripe account.
+  const isConnected = profile?.stripe_connect_status === 'connected' && !!profile?.stripe_user_id;
+
+  // payNowUrl: the generated Pay-now URL for connected traders. Populated on
+  // mount via the create-invoice-payment-link function. Empty string = not yet
+  // generated or generation failed. Never blocks the send.
+  const [payNowUrl, setPayNowUrl]           = useState('');
+  const [payNowLoading, setPayNowLoading]   = useState(false);
+
+  // connectBannerDismissed: "Not now" in the connect prompt hides it for this
+  // modal session only. Intentionally component-local (not persisted) so the
+  // trader sees it again next time they open Send Invoice.
+  const [connectBannerDismissed, setConnectBannerDismissed] = useState(false);
+
+  // All hooks above — no early returns until after this point (PR #125 lesson).
+
+  // Generate a Pay-now link when the modal opens for connected traders.
+  // Fire-and-forget: if it fails, the modal still renders and the send path
+  // falls back to the existing bank-transfer-only message.
+  useEffect(() => {
+    if (!isConnected || !job?.id) return;
+    let cancelled = false;
+
+    async function generate() {
+      setPayNowLoading(true);
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.access_token || cancelled) return;
+
+        const res = await fetch('/.netlify/functions/create-invoice-payment-link', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({ invoiceId: job.id }),
+        });
+
+        if (!res.ok || cancelled) return;
+        const { payUrl } = await res.json();
+        if (!cancelled && payUrl) setPayNowUrl(payUrl);
+      } catch {
+        // Silently skip — falls back to bank transfer only.
+      } finally {
+        if (!cancelled) setPayNowLoading(false);
+      }
+    }
+
+    generate();
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isConnected, job?.id]);
+
   const isFirstSend = job.status !== 'invoice_sent';
   const missing = getMissingInvoiceFields(biz, profile);
   // Merge the Stripe Payment Link from profile into biz so the lib functions
   // (invoiceMessage, invoicePDF) can read it regardless of the nav path.
   // biz may be null in the new-nav flow where only profile is available.
+  // When the trader is connected and a Pay-now URL was generated, we use that
+  // as the stripePaymentLink so the invoiceMessage lib injects it naturally
+  // into the WhatsApp template (see invoiceMessage.js — it already handles this field).
+  const effectivePaymentLink =
+    (isConnected && payNowUrl)
+      ? payNowUrl
+      : (profile?.stripe_payment_link || biz?.stripePaymentLink || '');
+
   const bizWithStripe = {
     ...(biz || {}),
-    stripePaymentLink: profile?.stripe_payment_link || biz?.stripePaymentLink || '',
+    stripePaymentLink: effectivePaymentLink,
   };
   const message = buildInvoiceWhatsAppMessage({ job, biz: bizWithStripe, invoiceNumber, dueDate });
   // Check whether the job has a usable price — treat null AND 0 as "no price".
@@ -129,7 +204,8 @@ export default function SendInvoiceModal({
     if (!attemptSend()) return;
     setBusy(true);
     try {
-      const blob = getInvoicePDFBlob({ job, biz: bizWithStripe, invoiceNumber, dueDate });
+      // getInvoicePDFBlob is now async (generates QR code if payNowUrl is set).
+      const blob = await getInvoicePDFBlob({ job, biz: bizWithStripe, invoiceNumber, dueDate, payNowUrl });
       const file = new File([blob], `${invoiceNumber}.pdf`, { type: 'application/pdf' });
       if (canShareFile(file)) {
         await navigator.share({
@@ -141,7 +217,7 @@ export default function SendInvoiceModal({
         onClose();
       } else {
         // Fallback: download PDF + open WhatsApp deep-link with text.
-        downloadInvoicePDF({ job, biz: bizWithStripe, invoiceNumber, dueDate });
+        await downloadInvoicePDF({ job, biz: bizWithStripe, invoiceNumber, dueDate, payNowUrl });
         const link = buildWhatsAppLink({
           phone: job.customerPhone || job.phone || '',
           message,
@@ -165,11 +241,12 @@ export default function SendInvoiceModal({
     setBusy(false);
   };
 
-  const handleDownloadPDF = () => {
+  const handleDownloadPDF = async () => {
     logTelemetry('invoice_send', { channel: 'download' });
     if (!attemptSend()) return;
     try {
-      downloadInvoicePDF({ job, biz: bizWithStripe, invoiceNumber, dueDate });
+      // downloadInvoicePDF is now async (QR code generation).
+      await downloadInvoicePDF({ job, biz: bizWithStripe, invoiceNumber, dueDate, payNowUrl });
       flash('Invoice downloaded');
       onClose();
     } catch {
@@ -236,6 +313,35 @@ export default function SendInvoiceModal({
           <button className="modal-sheet-close" onClick={onClose} aria-label="Close">✕</button>
         </div>
 
+        {/* Pay-now connect prompt (Section 1.3 a) — shown when not connected and
+            the trader hasn't dismissed it for this invoice session yet */}
+        {!isConnected && !connectBannerDismissed && !isUnpriced && (
+          <div className="invoice-connect-prompt" role="note">
+            <div className="invoice-connect-prompt__body">
+              <strong>Add a Pay-now button?</strong> Your customer can pay by card straight
+              from the invoice. Takes 5 min.
+            </div>
+            <div className="invoice-connect-prompt__actions">
+              {onNavigateToCardPayments && (
+                <button
+                  type="button"
+                  className="invoice-connect-prompt__setup"
+                  onClick={() => { onClose(); onNavigateToCardPayments(); }}
+                >
+                  Set up
+                </button>
+              )}
+              <button
+                type="button"
+                className="invoice-connect-prompt__dismiss"
+                onClick={() => setConnectBannerDismissed(true)}
+              >
+                Not now
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Job summary card */}
         <div className="invoice-preview-card">
           <div className="invoice-preview-name">{job.customer || job.name}</div>
@@ -299,15 +405,18 @@ export default function SendInvoiceModal({
           </div>
         )}
 
-        {/* Primary CTA — WhatsApp deep-link (fast, no PDF overhead) */}
+        {/* Primary CTA — WhatsApp deep-link (fast, no PDF overhead).
+            Label changes when connected + Pay-now URL is ready (per brief 1.4). */}
         <button
           type="button"
           className="btn-primary modal-sheet-btn invoice-send-whatsapp"
           onClick={handleWhatsApp}
-          disabled={isUnpriced}
+          disabled={isUnpriced || (isConnected && payNowLoading)}
           aria-disabled={isUnpriced}
         >
-          💬 Send via WhatsApp
+          {isConnected && payNowUrl
+            ? '💬 Send invoice with Pay-now'
+            : '💬 Send via WhatsApp'}
         </button>
 
         {/* More ways to send — secondary options, always visible */}

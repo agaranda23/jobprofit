@@ -336,6 +336,7 @@ export function buildChaseMessage({
  *   paymentDetails?: string,
  *   businessName?: string,
  *   isB2B?: boolean,
+ *   payNowUrl?: string,
  * }} params
  * @returns {string|null}
  */
@@ -343,8 +344,28 @@ export function buildChaseLink({ phone, ...msgParams }) {
   const cleaned = (phone || '').replace(/\s/g, '').replace(/^0/, '44').replace(/^\+/, '');
   if (!cleaned) return null;
 
-  const msg = buildChaseMessage(msgParams);
+  const msg = buildChaseMessageWithPayNow(msgParams);
   return `https://wa.me/${cleaned}?text=${encodeURIComponent(msg)}`;
+}
+
+/**
+ * Wraps buildChaseMessage to prepend a Pay-now line above the tier copy
+ * when the trader is connected and a payNowUrl is provided.
+ *
+ * Brief Section 2.2: "The Pay-now link sits above the existing chase copy,
+ * because in WhatsApp the link preview renders at the top of the message
+ * bubble and that's the tap target."
+ *
+ * When payNowUrl is absent or empty, returns buildChaseMessage output unchanged
+ * so no regression for unconnected traders.
+ *
+ * @param {{ payNowUrl?: string, [key: string]: any }} params — same shape as buildChaseMessage + payNowUrl
+ * @returns {string}
+ */
+export function buildChaseMessageWithPayNow({ payNowUrl = '', ...msgParams }) {
+  const baseMessage = buildChaseMessage(msgParams);
+  if (!payNowUrl) return baseMessage;
+  return `Pay by card here: ${payNowUrl}\n\n${baseMessage}`;
 }
 
 // ── Display helpers ───────────────────────────────────────────────────────

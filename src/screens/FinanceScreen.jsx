@@ -133,12 +133,37 @@ function BestWorstCard({ best, worst }) {
   );
 }
 
-export default function FinanceScreen({ jobs = [], receipts = [], session, profile, biz, onAvatarClick, onUpgrade, onGoToJobs, onGoToSettings }) {
+export default function FinanceScreen({ jobs = [], receipts = [], session, profile, biz, onAvatarClick, onUpgrade, onGoToJobs, onGoToSettings, onNavigateToCardPayments }) {
   const [timelineOpen, setTimelineOpen] = useState(false);
   const [trustHintDismissed, setTrustHintDismissed] = useState(false);
   // chartRange drives which window of data getCashflowByMonth uses.
   // '6m' is the default matching the chart's defaultRange prop.
   const [chartRange, setChartRange] = useState('6m');
+
+  // ── Pay-now Money banner (Section 1.3 b) ────────────────────────────────────
+  // Shown when: trader is not connected to Stripe AND has 2+ unpaid invoices.
+  // Dismissible: persists 14 days via localStorage.
+  // All hooks must precede any conditional return.
+  const [payNowBannerDismissed, setPayNowBannerDismissed] = useState(() => {
+    try {
+      const ts = localStorage.getItem('pay_now_money_banner_dismissed_at');
+      if (!ts) return false;
+      const dismissedAt = new Date(ts);
+      const fourteenDays = 14 * 24 * 60 * 60 * 1000;
+      return (Date.now() - dismissedAt.getTime()) < fourteenDays;
+    } catch {
+      return false;
+    }
+  });
+
+  const handlePayNowBannerDismiss = useCallback(() => {
+    setPayNowBannerDismissed(true);
+    try {
+      localStorage.setItem('pay_now_money_banner_dismissed_at', new Date().toISOString());
+    } catch {
+      // localStorage unavailable (incognito / full) — dismiss in-memory only
+    }
+  }, []);
 
   const now = new Date();
   const currentMonth = monthKey(now);
@@ -549,6 +574,40 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
       {/* ── 4. True Profit — relocated into the hero card above.
               The standalone card has been removed to avoid duplication.
               All three states (Pro/free/no-overheads) are handled inside the hero. */}
+
+      {/* ── Pay-now Money banner (Section 1.3 b) ─────────────────────────── */}
+      {/* Shown when: not connected to Stripe AND 2+ unpaid invoices AND not dismissed in last 14 days. */}
+      {(() => {
+        const isConnected = profile?.stripe_connect_status === 'connected' && !!profile?.stripe_user_id;
+        if (isConnected || payNowBannerDismissed || !onNavigateToCardPayments) return null;
+        const unpaidCount = jobs.filter(j => {
+          const s = j.status || '';
+          return s === 'invoice_sent' || s === 'awaiting';
+        }).length;
+        if (unpaidCount < 2) return null;
+        return (
+          <div className="pay-now-money-banner" role="note">
+            <span className="pay-now-money-banner__copy">
+              {unpaidCount} {unpaidCount === 1 ? 'invoice' : 'invoices'} waiting. Add a Pay-now button to chase faster.
+            </span>
+            <button
+              type="button"
+              className="pay-now-money-banner__setup"
+              onClick={onNavigateToCardPayments}
+            >
+              Set up
+            </button>
+            <button
+              type="button"
+              className="pay-now-money-banner__dismiss"
+              aria-label="Dismiss"
+              onClick={handlePayNowBannerDismiss}
+            >
+              &times;
+            </button>
+          </div>
+        );
+      })()}
 
       {/* ── 5. Cashflow chart ─────────────────────────────────────────────── */}
       <div className="money-card money-card--chart">

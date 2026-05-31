@@ -144,10 +144,12 @@ export default function ReviewSheet({
   };
 
   // ── Invoice: PDF download ──────────────────────────────────────────────────
-  const handleInvoiceDownloadPDF = () => {
+  // downloadInvoicePDF is now async (QR code generation when payNowUrl is set).
+  // ReviewSheet doesn't have a payNowUrl — omitting it renders the PDF as before.
+  const handleInvoiceDownloadPDF = async () => {
     logTelemetry('invoice_send', { channel: 'download', source: 'review_sheet' });
     try {
-      downloadInvoicePDF({ job, biz, invoiceNumber, dueDate });
+      await downloadInvoicePDF({ job, biz, invoiceNumber, dueDate });
       flash?.('Saved to Files. Share it however you like.');
     } catch {
       flash?.('PDF failed — check Settings for business details');

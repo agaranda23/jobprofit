@@ -65,6 +65,7 @@ export default function TodayScreen({
   onMarkPaid,
   onJobTap,
   onNavigateToMoney,
+  onNavigateToCardPayments,
   profile,
 }) {
   const [jobOpen, setJobOpen] = useState(false);
@@ -86,6 +87,12 @@ export default function TodayScreen({
   // this session. Kept in component state so it is lost on reload — the real persistence
   // is acceptedSeenAt written to the jobMeta side-channel.
   const [dismissedAcceptedIds, setDismissedAcceptedIds] = useState(() => new Set());
+  // payNowNudgeDismissed: session-level flag so the Pay-now soft prompt
+  // (Section 1.3 c) doesn't re-appear if dismissed once during this session.
+  const [payNowNudgeDismissed, setPayNowNudgeDismissed] = useState(false);
+  // showPayNowNudge: set to true after a job is saved as completed when the trader
+  // is not connected to Stripe. Cleared when dismissed or session ends.
+  const [showPayNowNudge, setShowPayNowNudge] = useState(false);
 
   const now = new Date();
 
@@ -101,6 +108,15 @@ export default function TodayScreen({
     // it landed in the pipeline and can be sent later.
     const isDraftQuote = payload?.quoteStatus === 'draft';
     showToast(isDraftQuote ? 'Quote saved as draft' : 'Job saved');
+
+    // Pay-now soft prompt (Section 1.3 c): surface when the trader saves a
+    // completed job and hasn't connected to Stripe yet. Non-blocking, session only.
+    const isConnected = profile?.stripe_connect_status === 'connected' && !!profile?.stripe_user_id;
+    const isCompleted = payload?.status === 'completed' || payload?.status === 'active';
+    if (!isConnected && isCompleted && !payNowNudgeDismissed && onNavigateToCardPayments) {
+      setShowPayNowNudge(true);
+    }
+
     try { await onAddJob?.(payload); } catch { showToast('Saved offline — will sync'); }
   };
 
@@ -558,6 +574,38 @@ export default function TodayScreen({
       )}
 
       {toast && <div className="toast" role="status">{toast}</div>}
+
+      {/* Pay-now soft prompt (Section 1.3 c) — shown after job completion when not connected.
+          Not modal, not blocking. Dismissed for this session when trader taps the X. */}
+      {showPayNowNudge && !payNowNudgeDismissed && (
+        <div className="pay-now-nudge" role="status">
+          <span className="pay-now-nudge__copy">
+            Pay-now button available{' '}
+            <button
+              type="button"
+              className="pay-now-nudge__setup"
+              onClick={() => {
+                setShowPayNowNudge(false);
+                setPayNowNudgeDismissed(true);
+                onNavigateToCardPayments?.();
+              }}
+            >
+              Set up
+            </button>
+          </span>
+          <button
+            type="button"
+            className="pay-now-nudge__dismiss"
+            aria-label="Dismiss"
+            onClick={() => {
+              setShowPayNowNudge(false);
+              setPayNowNudgeDismissed(true);
+            }}
+          >
+            &times;
+          </button>
+        </div>
+      )}
     </div>
   );
 }
