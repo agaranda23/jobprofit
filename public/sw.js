@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v16';  // bumped from v15: fix customer-name save + remove status pill avatar
+const CACHE_NAME = 'jobprofit-v17';  // bumped from v16: fix job-name leaking into customer + remove header chevron
 const PRECACHE = [
   '/',
   '/index.html',
