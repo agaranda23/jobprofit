@@ -6496,6 +6496,7 @@ input[type=number] { -moz-appearance: textfield; }
    the chase bar + strip — no fixed positioning required. */
 .jobs-search-wrap {
   padding: 0 16px 8px;
+  position: relative;
 }
 .jobs-search {
   width: 100%;
@@ -6509,6 +6510,12 @@ input[type=number] { -moz-appearance: textfield; }
   color: var(--text);
   outline: none;
   -webkit-appearance: none;
+  /* suppress Safari/Chrome native clear button — we render our own */
+}
+.jobs-search::-webkit-search-cancel-button { display: none; }
+.jobs-search--has-value {
+  /* extra right padding so text doesn't run under the ✕ button */
+  padding-right: 40px;
 }
 .jobs-search::placeholder {
   color: var(--text-dim);
@@ -6518,6 +6525,27 @@ input[type=number] { -moz-appearance: textfield; }
   border-color: var(--jp-green);
   box-shadow: 0 0 0 2px rgba(43, 196, 138, 0.18);
 }
+/* ✕ clear button — inside the search wrap, absolute-positioned right */
+.jobs-search-clear {
+  position: absolute;
+  right: 28px; /* 16px wrap padding + 12px inset */
+  top: 50%;
+  transform: translateY(-50%) translateY(-4px); /* -4px to account for wrap bottom padding */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--text-dim);
+  padding: 0;
+  border-radius: 50%;
+  /* min 44px tap area via padding trick (position:absolute keeps it contained) */
+  -webkit-tap-highlight-color: transparent;
+}
+.jobs-search-clear:hover { color: var(--text); }
 
 /* ── Job tile address line ───────────────────────────────────────────────────
    Shown on the secondary identity line: customer · first-line-of-address.

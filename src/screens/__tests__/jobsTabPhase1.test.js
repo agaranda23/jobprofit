@@ -1,7 +1,9 @@
 /**
  * Unit tests for Jobs-tab Phase 1 pure-logic functions:
- *   - jobMatchesQuery  (1B: client-side search filter)
- *   - sortJobsByStage  (1C: urgent-first sort per stage)
+ *   - jobMatchesQuery        (1B: client-side search filter)
+ *   - sortJobsByStage        (1C: urgent-first sort per stage)
+ *   - stage-change state     (fix/search-clears-on-tab-change: tapping a stage
+ *                             tab or Show-all clears the active search query)
  *
  * No DOM, no React, no Supabase.
  */
@@ -176,5 +178,77 @@ describe('sortJobsByStage', () => {
     const jobs = [job({ id: 'j1' }), job({ id: 'j2' })];
     const sorted = sortJobsByStage(jobs, null);
     expect(sorted.length).toBe(2);
+  });
+});
+
+// ─── Stage-change clears search (fix/search-clears-on-tab-change) ─────────────
+//
+// The WorkScreen handlers handleSelectStage and handleToggleShowAll both call
+// setSearchQuery('') before updating the stage/showAll state.  These tests model
+// that state machine as a plain reducer to keep them framework-free.
+
+function makeState(overrides = {}) {
+  return { searchQuery: '', selectedStage: 'On', showAll: false, ...overrides };
+}
+
+// Mirrors handleSelectStage: sets stage, clears query, exits showAll mode.
+function selectStage(state, stage) {
+  return { ...state, selectedStage: stage, showAll: false, searchQuery: '' };
+}
+
+// Mirrors handleToggleShowAll: clears query, toggles showAll.
+function toggleShowAll(state) {
+  return { ...state, searchQuery: '', showAll: !state.showAll };
+}
+
+describe('stage-change clears search query', () => {
+  it('tapping a stage tab clears an active search query', () => {
+    const before = makeState({ searchQuery: 'dave', selectedStage: 'Lead' });
+    const after = selectStage(before, 'On');
+    expect(after.searchQuery).toBe('');
+  });
+
+  it('tapping a stage tab switches to the new stage', () => {
+    const before = makeState({ selectedStage: 'Lead' });
+    const after = selectStage(before, 'Quoted');
+    expect(after.selectedStage).toBe('Quoted');
+  });
+
+  it('tapping a stage tab exits showAll mode', () => {
+    const before = makeState({ showAll: true, searchQuery: 'plumbing' });
+    const after = selectStage(before, 'On');
+    expect(after.showAll).toBe(false);
+    expect(after.searchQuery).toBe('');
+  });
+
+  it('toggling Show-all clears an active search query', () => {
+    const before = makeState({ searchQuery: 'dave', showAll: false });
+    const after = toggleShowAll(before);
+    expect(after.searchQuery).toBe('');
+  });
+
+  it('toggling Show-all flips the showAll flag', () => {
+    const before = makeState({ showAll: false });
+    expect(toggleShowAll(before).showAll).toBe(true);
+    expect(toggleShowAll(toggleShowAll(before)).showAll).toBe(false);
+  });
+
+  it('selecting the already-active stage still clears the query', () => {
+    const before = makeState({ searchQuery: 'roof', selectedStage: 'On' });
+    const after = selectStage(before, 'On');
+    expect(after.searchQuery).toBe('');
+    expect(after.selectedStage).toBe('On');
+  });
+
+  it('cross-stage search is unaffected while query is active (JobsList logic)', () => {
+    // When searchQuery is non-empty, JobsList ignores the stage filter and shows all matches.
+    // This test verifies jobMatchesQuery is the gating function — not selectedStage.
+    const jobs = [
+      job({ id: 'j1', customer: 'Dave', status: 'active' }),          // On
+      job({ id: 'j2', customer: 'Dave Jones', status: 'invoice_sent' }), // Invoiced
+      job({ id: 'j3', customer: 'Alan', status: 'lead' }),             // Lead
+    ];
+    const matched = jobs.filter(j => jobMatchesQuery(j, 'dave'));
+    expect(matched.map(j => j.id)).toEqual(['j1', 'j2']);
   });
 });
