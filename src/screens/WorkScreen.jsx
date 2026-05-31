@@ -650,8 +650,16 @@ function JobTile({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJo
   // Draft flag — shown before other signals when a draft exists
   const hasDraft = !!(job.quoteDraft || job.invoiceDraft);
 
+  // Accepted-quote signal — shown on Quoted/On tiles when the customer has signed
+  const isAccepted = job.quoteStatus === 'accepted' && !!job.acceptedAt;
+  const acceptedByName = (job.acceptedName || '').trim();
+
   // Build signal line items (Row 3) — separated by · in CSS
   const signals = [];
+  if (isAccepted) {
+    const acceptedText = acceptedByName ? `Accepted by ${acceptedByName}` : 'Quote accepted';
+    signals.push({ text: acceptedText, cls: 'jt-signal--accepted' });
+  }
   if (hasDraft)    signals.push({ text: '● Draft ready', cls: 'jt-signal--draft' });
   if (timeSignal) signals.push({ text: timeSignal.text, cls: `jt-signal--${timeSignal.variant}` });
   if (moneySub)   signals.push({ text: moneySub, cls: 'jt-signal--mute' });

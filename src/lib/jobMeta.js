@@ -38,6 +38,9 @@ const META_FIELDS = [
   'invoiceDraft', // boolean — tile shows amber "Draft ready" meta line
   // B2B flag — enables statutory late-payment interest copy at Tier 3 chase
   'isBusinessCustomer', // boolean — trader marks this as a commercial (B2B) customer
+  // Phase G-3 — accepted-quote in-app notification
+  'acceptedSeenAt', // ISO timestamp; set when trader first views this accepted quote
+  'acceptedName',   // customer name stored by accept-quote Netlify function (mirrored here)
 ];
 
 export function readJobMeta(id) {

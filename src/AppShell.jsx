@@ -130,7 +130,8 @@ export default function AppShell() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   // First-open toast for users seeing the new nav for the first time
   const [navToast, setNavToast] = useState(null);
-  // Realtime event toast — e.g. "Customer signed quote — <name>"
+  // Realtime event toast — shape: { message: string, jobId: string|null } | null
+  // jobId lets the trader tap the toast to jump straight to that job.
   const [realtimeToast, setRealtimeToast] = useState(null);
   // Ref holding the most recent jobs array so the Realtime handler can compare
   // previous acceptedSignature state without a stale closure.
@@ -349,12 +350,16 @@ export default function AppShell() {
           const prev = jobsRef.current.find(j => j.id === incoming.id);
           const prevHadSig = !!(prev?.acceptedSignature);
           if (!prevHadSig) {
-            const customerName = incoming.customer_name || prev?.name || 'Customer';
-            setRealtimeToast(`Customer signed quote — ${customerName}`);
-            const t = setTimeout(() => setRealtimeToast(null), 6000);
-            // Cleanup is handled via the outer effect's return; the timeout id
-            // is intentionally not tracked here because the toast message itself
-            // is short-lived and a stale clear is harmless.
+            const customerName = incomingMeta.acceptedName || incoming.customer_name || prev?.customer || prev?.name || 'Customer';
+            const amount = Number(prev?.total ?? prev?.amount ?? incomingMeta.total ?? 0) || 0;
+            const amountStr = amount > 0
+              ? ` · £${amount.toLocaleString('en-GB', { minimumFractionDigits: 0 })}`
+              : '';
+            setRealtimeToast({
+              message: `${customerName} accepted your quote${amountStr}`,
+              jobId: incoming.id || null,
+            });
+            const t = setTimeout(() => setRealtimeToast(null), 8000);
             void t;
           }
         }
@@ -928,11 +933,37 @@ export default function AppShell() {
         </div>
       )}
 
-      {/* ── Realtime event toast (e.g. remote signature) ─────────────────── */}
+      {/* ── Realtime event toast — quote accepted (app open when customer signed) ── */}
+      {/* Tapping navigates to the job in the Jobs tab. ✕ dismisses without nav. */}
       {realtimeToast && (
-        <div className="nav-toast nav-toast--realtime" role="status" aria-live="polite">
-          {realtimeToast}
-          <button className="nav-toast-close" onClick={() => setRealtimeToast(null)} aria-label="Dismiss">✕</button>
+        <div
+          className="nav-toast nav-toast--realtime nav-toast--accepted"
+          role="status"
+          aria-live="polite"
+        >
+          <button
+            type="button"
+            className="nav-toast-body"
+            onClick={() => {
+              setRealtimeToast(null);
+              if (realtimeToast.jobId) {
+                setPendingJobId(realtimeToast.jobId);
+                navigate(NAV_SLICE_3 ? 'work' : NEW_NAV ? 'jobs' : 'today');
+              }
+            }}
+            aria-label={`${realtimeToast.message} — tap to view job`}
+          >
+            <span className="nav-toast-check" aria-hidden="true">&#10003;</span>
+            {realtimeToast.message}
+          </button>
+          <button
+            type="button"
+            className="nav-toast-close"
+            onClick={() => setRealtimeToast(null)}
+            aria-label="Dismiss"
+          >
+            &#x2715;
+          </button>
         </div>
       )}
 

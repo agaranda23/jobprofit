@@ -27,6 +27,7 @@ import { gbp, todayKey, formatToday } from '../lib/today';
 import { isAwaitingPayment, deriveStatus } from '../lib/jobStatus';
 import { daysPastDue, getChaseState, recordChase, buildChaseMessage, computeTier, buildPaymentDetails } from '../lib/chaseLadder';
 import { writeJobMeta, extractJobMeta } from '../lib/jobMeta';
+import { getNewlyAcceptedJobs, buildAcceptedLabel, formatAcceptedDate } from '../lib/acceptedNotification';
 
 // ── Snooze storage (localStorage, 24h per tap) ────────────────────────────────
 const SNOOZE_KEY = 'jobprofit:snooze:v1';
@@ -223,6 +224,10 @@ export default function TodayScreen({
   const [invoicePickerOpen, setInvoicePickerOpen] = useState(false);
   // markPaidPickerJob: which job's payment-method picker is open (null = closed)
   const [markPaidPickerJob, setMarkPaidPickerJob] = useState(null);
+  // dismissedAcceptedIds: set of job IDs whose accepted banner the trader has dismissed
+  // this session. Kept in component state so it is lost on reload — the real persistence
+  // is acceptedSeenAt written to the jobMeta side-channel.
+  const [dismissedAcceptedIds, setDismissedAcceptedIds] = useState(() => new Set());
 
   const now = new Date();
 
@@ -268,6 +273,13 @@ export default function TodayScreen({
     const weekSpent = weekReceipts.reduce((s, r) => s + Number(r.amount || 0), 0);
     return { weekProfit: weekEarned - weekSpent, weekCount: weekJobs.length };
   }, [jobs, receipts]);
+
+  // ── Newly accepted quotes — unseen on this device (persistent banner) ──────────
+  // Filtered to exclude any jobs the trader has already dismissed this session
+  // (dismissedAcceptedIds is the in-memory fast-path; acceptedSeenAt is the durable path).
+  const newlyAcceptedJobs = useMemo(() => {
+    return getNewlyAcceptedJobs(jobs).filter(j => !dismissedAcceptedIds.has(j.id));
+  }, [jobs, dismissedAcceptedIds]);
 
   // ── Unsent-invoice eligible jobs (for Send Invoice pivot picker) ──────────────
   const uninvoicedJobs = useMemo(() => {
@@ -373,6 +385,26 @@ export default function TodayScreen({
     if (job) onJobTap?.(job);
   }, [onJobTap]);
 
+  // ── Accepted-quote banner handlers ────────────────────────────────────────────
+  // Dismiss: marks the job as seen in the jobMeta side-channel and clears the
+  // banner for this device. Does NOT sync to Supabase — acceptedSeenAt is a
+  // local-only acknowledgement flag (see acceptedNotification.js for rationale).
+  const handleAcceptedDismiss = useCallback((job) => {
+    const seenAt = new Date().toISOString();
+    writeJobMeta(job.id, extractJobMeta({ ...job, acceptedSeenAt: seenAt }));
+    setDismissedAcceptedIds(prev => {
+      const next = new Set(prev);
+      next.add(job.id);
+      return next;
+    });
+  }, []);
+
+  // Tap-to-view: marks seen AND navigates to the job.
+  const handleAcceptedTap = useCallback((job) => {
+    handleAcceptedDismiss(job);
+    if (job) onJobTap?.(job);
+  }, [handleAcceptedDismiss, onJobTap]);
+
   // ── Send Invoice pivot: open picker or toast ──────────────────────────────────
   const handleSendInvoicePivot = () => {
     if (uninvoicedJobs.length === 0) {
@@ -395,6 +427,43 @@ export default function TodayScreen({
       </header>
 
       <div className="foreman-divider" />
+
+      {/* ── Accepted-quote banner (persistent until acknowledged) ─────────── */}
+      {/* Shown above the foreman prompt so the trader cannot miss it on first open
+          after a customer signs. Each row is independently dismissible. Tapping
+          the row body navigates to the job AND marks it as seen. The "Got it"
+          button marks as seen without navigating. */}
+      {newlyAcceptedJobs.length > 0 && (
+        <section className="accepted-banner" aria-label="Accepted quotes">
+          {newlyAcceptedJobs.map((job) => (
+            <div key={job.id} className="accepted-banner__row">
+              <button
+                type="button"
+                className="accepted-banner__body"
+                onClick={() => handleAcceptedTap(job)}
+                aria-label={`${buildAcceptedLabel(job)} — tap to open job`}
+              >
+                <span className="accepted-banner__icon" aria-hidden="true">&#10003;</span>
+                <span className="accepted-banner__text">
+                  <span className="accepted-banner__label">{buildAcceptedLabel(job)}</span>
+                  {job.acceptedAt && (
+                    <span className="accepted-banner__date">{formatAcceptedDate(job.acceptedAt)}</span>
+                  )}
+                </span>
+                <span className="accepted-banner__open" aria-hidden="true">&#8250;</span>
+              </button>
+              <button
+                type="button"
+                className="accepted-banner__dismiss"
+                onClick={(e) => { e.stopPropagation(); handleAcceptedDismiss(job); }}
+                aria-label="Dismiss notification"
+              >
+                Got it
+              </button>
+            </div>
+          ))}
+        </section>
+      )}
 
       {/* ── One Prompt card (or empty state) ──────────────────────────────── */}
       {tier < 5 && promptJob ? (
