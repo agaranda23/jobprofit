@@ -1917,10 +1917,10 @@ input[type=number] { -moz-appearance: textfield; }
   width: 100%;
   margin-top: 12px;
   padding: 14px;
-  background: var(--jp-green);
+  background: var(--accent);
   border: none;
   border-radius: 10px;
-  color: #0b1f10;
+  color: #0B0F17;
   font-size: 15px;
   font-weight: 700;
   cursor: pointer;
@@ -1946,8 +1946,8 @@ input[type=number] { -moz-appearance: textfield; }
 
 /* ── JobsScreen ───────────────────────────────── */
 .new-btn {
-  background: var(--jp-green);
-  color: #0b1f10;
+  background: var(--accent);
+  color: #0B0F17;
   border: none;
   padding: 8px 14px;
   border-radius: 8px;
@@ -2249,8 +2249,8 @@ input[type=number] { -moz-appearance: textfield; }
   line-height: 1.2;
 }
 .job-card-cta--primary {
-  background: var(--jp-green);
-  color: #fff;
+  background: var(--accent);
+  color: #0B0F17;
 }
 .job-card-cta--primary.job-card-cta--danger {
   background: var(--jp-rose);
@@ -3488,8 +3488,8 @@ input[type=number] { -moz-appearance: textfield; }
 .wizard-next-btn {
   flex: 1;
   padding: 16px;
-  background: var(--jp-green);
-  color: #0b1f10;
+  background: var(--accent);
+  color: #0B0F17;
   border: none;
   border-radius: 12px;
   font-size: 17px;
@@ -3990,8 +3990,8 @@ input[type=number] { -moz-appearance: textfield; }
 .advance-btn {
   flex: 1;
   padding: 9px 14px;
-  background: var(--jp-green);
-  color: #fff;
+  background: var(--accent);
+  color: #0B0F17;
   border: none;
   border-radius: 8px;
   font-size: 13px;
@@ -7426,8 +7426,8 @@ input[type=number] { -moz-appearance: textfield; }
 }
 .jt-cta {
   flex: 1 1 auto;
-  background: var(--jp-green);
-  color: #fff;
+  background: var(--accent);
+  color: #0B0F17;
   border: none;
   border-radius: 10px;
   padding: 12px 14px;
@@ -7570,7 +7570,7 @@ input[type=number] { -moz-appearance: textfield; }
 }
 
 .foreman-date {
-  font-size: 22px;
+  font-size: 32px;
   font-weight: 700;
   color: var(--text, #f5f7fa);
   margin: 0;

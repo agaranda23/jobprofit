@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v22';  // bumped from v21: deposit on acceptance (PR 4/4)
+const CACHE_NAME = 'jobprofit-v23';  // bumped from v22: CTA green unification + Today header cleanup
 const PRECACHE = [
   '/',
   '/index.html',
