@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v28';  // bumped from v27: fix CollapsedSectionRow button viewport overflow at 375px
+const CACHE_NAME = 'jobprofit-v29';  // bumped from v28: global box-sizing reset + align jd-csr card edges
 const PRECACHE = [
   '/',
   '/index.html',
