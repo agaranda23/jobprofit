@@ -54,16 +54,13 @@ button:focus-visible {
   outline: 4px auto -webkit-focus-ring-color;
 }
 
+/* Vite scaffold default light-mode block — neutralised. The app manages its own
+   light/dark tokens via data-theme on <html> (see [data-theme="light"] block below).
+   We override the Vite defaults here so the OS colour scheme cannot override
+   the user's explicit theme choice. */
 @media (prefers-color-scheme: light) {
   :root {
-    color: #213547;
-    background-color: #ffffff;
-  }
-  a:hover {
-    color: #747bff;
-  }
-  button {
-    background-color: #f9f9f9;
+    /* intentionally left empty — theme is controlled via data-theme */
   }
 }
 
@@ -90,6 +87,104 @@ button:focus-visible {
      this value, so both fill the viewport naturally. Overridden to 560px at 640px+. */
   --app-max-width: 480px;
 }
+
+/* ── Light theme token overrides ────────────────────────────────────────────
+   :root stays as the DARK default (no regression for existing users).
+   [data-theme="light"] is set on <html> by the theme controller when the
+   user picks Light or System resolves to light.
+
+   Light palette is an extension of the .pqv-card forced-light block
+   (which must continue to work independently — it never reads data-theme).
+   Brand green (#00b386) is slightly deeper than the dark accent (#34d672)
+   so it reads at an accessible contrast ratio on a white background.
+
+   Status badge backgrounds use light-mode tints (e.g. pale amber on white)
+   rather than dark-mode tints (near-black background) — overridden below.
+   ──────────────────────────────────────────────────────────────────────── */
+[data-theme="light"] {
+  color-scheme: light;
+
+  /* Core backgrounds */
+  --bg:          #f9fafb;
+  --surface:     #ffffff;
+  --surface-2:   #f3f4f6;
+
+  /* Text */
+  --text:        #111827;
+  --text-dim:    #6b7280;
+
+  /* Brand accent — deeper than dark-mode green so it reads on white */
+  --accent:      #00a86b;
+  --accent-pressed: #007a4d;
+
+  /* Semantic */
+  --danger:      #dc2626;
+  --border:      #e5e7eb;
+
+  /* Brand palette — light-legible variants */
+  --jp-green:    #00a86b;
+  --jp-amber:    #d97706;
+  --jp-rose:     #dc2626;
+  --jp-blue:     #2563eb;
+  --jp-navy:     #e8f0fe;  /* used as a surface tint on the finance card */
+
+  /* Stage strip gradient — already light-readable; keep same values */
+  --grn-quoted:   #B3F0D5;
+  --grn-on:       #5FD9A6;
+  --grn-invoiced: #28B581;
+  --grn-paid:     #0E6B43;
+
+  /* Cashflow chart tokens */
+  --cf-green:     #00a86b;
+  --cf-red:       #dc2626;
+  --cf-amber:     #d97706;
+  --cf-navy:      #2563eb;
+  --cf-track-bg:  rgba(0, 0, 0, 0.06);
+  --cf-empty-color: #9ca3af;
+}
+
+/* Status badge backgrounds in light mode — tints on white rather than
+   near-black tints that read poorly on a light surface. */
+[data-theme="light"] .status--lead     { background: #fef3c7; color: #92400e; }
+[data-theme="light"] .status--quoted   { background: #dbeafe; color: #1e40af; }
+[data-theme="light"] .status--active   { background: #d1fae5; color: #065f46; }
+[data-theme="light"] .status--done     { background: #fef3c7; color: #92400e; }
+[data-theme="light"] .status--invoiced { background: #ede9fe; color: #4c1d95; }
+[data-theme="light"] .status--overdue  { background: #fee2e2; color: #991b1b; }
+[data-theme="light"] .status--paid     { background: #d1fae5; color: #065f46; }
+
+/* Bottom nav gets a white-surface treatment in light mode instead of the
+   hardcoded near-black #0d1014 value in .bottom-nav. */
+[data-theme="light"] .bottom-nav {
+  background: #ffffff;
+  border-top: 1px solid #e5e7eb;
+}
+
+/* Unpaid chip — dark amber tint reads poorly on light bg */
+[data-theme="light"] .unpaid-chip {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+/* Work-segment active state box-shadow is tuned for dark — lighten for light */
+[data-theme="light"] .work-segment--active {
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+}
+
+/* Toast box-shadow: the heavy rgba(0,0,0,0.4) blur looks odd on light bg */
+[data-theme="light"] .toast {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+
+/* action-secondary hover is hardcoded to a near-dark hex — swap to token */
+[data-theme="light"] .action-secondary:hover {
+  background: var(--surface-2);
+}
+
+/* Awaiting-job / chase-row amber border accent: the #f59e0b40 semi-transparent
+   value still reads fine on light, but the border-left accent needs the
+   light-mode amber token. No override needed — var(--jp-amber) already
+   points to the corrected value above. */
 
 body { background: var(--bg); color: var(--text); -webkit-font-smoothing: antialiased; }
 
@@ -4309,6 +4404,56 @@ input[type=number] { -moz-appearance: textfield; }
   color: var(--text-dim);
   line-height: 1;
   opacity: 0.65;
+}
+
+/* ── Settings — theme picker ─────────────────────────────────────────────── */
+
+/* Wrapper sits inside the settings-row padding area */
+.theme-picker {
+  display: flex;
+  gap: 0;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 3px;
+  flex-shrink: 0;
+}
+
+/* Each option mirrors .work-segment exactly */
+.theme-option {
+  flex: 1;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  padding: 7px 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.theme-option--active {
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+}
+
+/* In light mode the active segment needs a subtler shadow */
+[data-theme="light"] .theme-option--active {
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+}
+
+/* Row that holds the label + picker side by side */
+.settings-row--theme {
+  align-items: center;
+  gap: 12px;
 }
 
 /* ── Chase list modal (Settings → Chase reminders) ───────────────────────── */
