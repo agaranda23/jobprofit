@@ -1382,6 +1382,117 @@ function CollapsibleRow({ id, icon, title, summary, expanded, onToggle, children
   );
 }
 
+// ── CardPaymentBlock ──────────────────────────────────────────────────────
+
+/**
+ * CardPaymentBlock — shown in the drawer when a job was paid by card via Stripe.
+ * Brief Section 2.4 / wireframe 4.5.
+ *
+ * Props:
+ *   job   — the full job object (uses job.card_paid_at, job.total)
+ *   token — the invoice_payment_tokens row fetched from Supabase (may be null
+ *            while loading or if the webhook hasn't completed yet)
+ *
+ * Refunded state (full):  "Refunded · £540.00"
+ * Refunded state (partial): "Paid · £540.00 (refunded £100.00)"
+ * Paid state: "Paid in full · £540.00" + fee breakdown + buttons
+ *
+ * [Receipt] — links to Stripe-hosted receipt URL (opens new tab).
+ * [Refund]  — deep-links to Stripe dashboard payment page per brief decision #4.
+ *             No in-app refund UI in v1.
+ */
+function CardPaymentBlock({ job, token }) {
+  const grossPence = token?.amount_pence ?? Math.round((Number(job.total ?? job.amount ?? 0)) * 100);
+  const feePence   = token?.fee_pence ?? 0;
+  const netPence   = token?.net_pence ?? 0;
+  const receiptUrl = token?.receipt_url ?? null;
+  const refundedPence = token?.refunded_amount_pence ?? 0;
+  const isFullRefund = token?.status === 'refunded';
+  const isPartialRefund = !isFullRefund && refundedPence > 0;
+  const paymentIntentId = token?.stripe_payment_intent_id ?? null;
+
+  const grossGbp   = gbp(grossPence / 100);
+  const feeGbp     = feePence > 0 ? gbp(feePence / 100) : null;
+  const netGbp     = netPence > 0 ? gbp(netPence / 100) : null;
+  const refundedGbp = gbp(refundedPence / 100);
+
+  // Format the payment timestamp from card_paid_at or token.paid_at
+  const rawTs = token?.paid_at || job.card_paid_at;
+  let dateLabel = '';
+  if (rawTs) {
+    try {
+      const d = new Date(rawTs);
+      dateLabel = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) +
+        ', ' + d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: true });
+    } catch {
+      dateLabel = '';
+    }
+  }
+
+  const stripePaymentUrl = paymentIntentId
+    ? `https://dashboard.stripe.com/payments/${paymentIntentId}`
+    : 'https://dashboard.stripe.com/payments';
+
+  return (
+    <div className="jd-card-payment-block">
+      {isFullRefund ? (
+        <div className="jd-card-payment-status jd-card-payment-status--refunded">
+          Refunded · {grossGbp}
+        </div>
+      ) : (
+        <div className="jd-card-payment-status jd-card-payment-status--paid">
+          Paid in full · {grossGbp}
+          {isPartialRefund && (
+            <span className="jd-card-payment-partial-refund"> (refunded {refundedGbp})</span>
+          )}
+        </div>
+      )}
+
+      <div className="jd-card-payment-meta">
+        Card payment{dateLabel ? ` · ${dateLabel}` : ''}
+      </div>
+
+      {feeGbp && netGbp && !isFullRefund && (
+        <div className="jd-card-payment-fee-line">
+          Stripe fee: {feeGbp} · Net to you: {netGbp}
+        </div>
+      )}
+
+      <div className="jd-card-payment-actions">
+        {receiptUrl && (
+          <a
+            href={receiptUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="jd-card-payment-btn"
+            aria-label="View Stripe receipt"
+          >
+            Receipt
+          </a>
+        )}
+        <a
+          href={stripePaymentUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="jd-card-payment-btn jd-card-payment-btn--secondary"
+          aria-label="Issue refund on Stripe dashboard (opens new tab)"
+        >
+          Refund &#x2197;
+        </a>
+      </div>
+
+      {/* Chase stopped line — brief Section 2.4: "Chase stopped — paid in full"
+          so the trader trusts the auto-reconcile worked. Shown below the block,
+          not hidden, per the brief (don't hide chase tab, show stopped state). */}
+      {!isFullRefund && (
+        <div className="jd-card-payment-chase-stopped" aria-live="polite">
+          Chase stopped — paid in full
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Main component ────────────────────────────────────────────────────────
 
 /**
@@ -1584,6 +1695,36 @@ export default function JobDetailDrawer({
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isDrawerConnected, job?.id]);
+
+  // Fetch the card payment token row when the job has card_paid_at set.
+  // This drives the paid-by-card block in the drawer (brief Section 2.4).
+  // Hooks must sit before any early return — hooks rule binding (PR #125).
+  const [cardPaymentToken, setCardPaymentToken] = useState(null);
+
+  useEffect(() => {
+    // Only fetch when the job was paid by card (card_paid_at is the canonical signal).
+    if (!job?.card_paid_at || !job?.id) return;
+    let cancelled = false;
+
+    async function fetchToken() {
+      try {
+        const { data, error } = await supabase
+          .from('invoice_payment_tokens')
+          .select('status, paid_at, amount_pence, fee_pence, net_pence, receipt_url, refunded_amount_pence, stripe_payment_intent_id')
+          .eq('invoice_id', job.id)
+          .in('status', ['paid', 'refunded'])
+          .order('paid_at', { ascending: false })
+          .limit(1)
+          .single();
+        if (!cancelled && !error && data) setCardPaymentToken(data);
+      } catch {
+        // Non-fatal — drawer renders without card block; no user action needed.
+      }
+    }
+
+    fetchToken();
+    return () => { cancelled = true; };
+  }, [job?.id, job?.card_paid_at]);
 
   const status = deriveStatus(job);
   const statusClass = STATUS_CLASS[status] || '';
@@ -2471,21 +2612,33 @@ export default function JobDetailDrawer({
 
               if (id === 'payment') {
                 if (display === 'expanded') {
-                  rendered.push(<React.Fragment key="payment">{paymentEl}</React.Fragment>);
-                  // "View receipt" — shown only on paid jobs when the parent provides the handler.
-                  // Fires the same ReceiptModal used by the tile-CTA path (no duplicate logic).
-                  if (isPaid && onViewReceipt) {
+                  // Card payment block — shown above the manual payment summary when
+                  // job.card_paid_at is set (webhook-reconciled card payment).
+                  // Brief Section 2.4 / wireframe 4.5.
+                  if (job.card_paid_at) {
                     rendered.push(
-                      <div key="view-receipt-btn" className="jd-view-receipt-wrap">
-                        <button
-                          type="button"
-                          className="jd-view-receipt-btn"
-                          onClick={() => onViewReceipt(job)}
-                        >
-                          View receipt
-                        </button>
-                      </div>
+                      <CardPaymentBlock
+                        key="card-payment-block"
+                        job={job}
+                        token={cardPaymentToken}
+                      />
                     );
+                  } else {
+                    // Manual payment path — existing PaymentSummaryBlock + View receipt.
+                    rendered.push(<React.Fragment key="payment">{paymentEl}</React.Fragment>);
+                    if (isPaid && onViewReceipt) {
+                      rendered.push(
+                        <div key="view-receipt-btn" className="jd-view-receipt-wrap">
+                          <button
+                            type="button"
+                            className="jd-view-receipt-btn"
+                            onClick={() => onViewReceipt(job)}
+                          >
+                            View receipt
+                          </button>
+                        </div>
+                      );
+                    }
                   }
                 }
                 continue;

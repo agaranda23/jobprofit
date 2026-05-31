@@ -5460,6 +5460,88 @@ input[type=number] { -moz-appearance: textfield; }
   color: var(--text, #fff);
 }
 
+/* ── Card payment block (PR 3 — stripe-connect-webhook reconcile) ────────── */
+/* Brief Section 2.4 / wireframe 4.5. Shown above line items when job.card_paid_at is set. */
+
+.jd-card-payment-block {
+  margin: 0 16px 12px;
+  padding: 14px 16px;
+  background: var(--surface-2, #1a2a1e);
+  border: 1px solid var(--accent, #28B581);
+  border-radius: 12px;
+}
+
+.jd-card-payment-status {
+  font-size: 15px;
+  font-weight: 600;
+  margin-bottom: 3px;
+}
+
+.jd-card-payment-status--paid {
+  color: var(--accent, #28B581);
+}
+
+.jd-card-payment-status--refunded {
+  color: var(--text-muted, #888);
+}
+
+.jd-card-payment-partial-refund {
+  font-weight: 400;
+  color: var(--text-muted, #888);
+  font-size: 13px;
+}
+
+.jd-card-payment-meta {
+  font-size: 13px;
+  color: var(--text-muted, #888);
+  margin-bottom: 4px;
+}
+
+.jd-card-payment-fee-line {
+  font-size: 13px;
+  color: var(--text-muted, #888);
+  margin-bottom: 12px;
+}
+
+.jd-card-payment-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.jd-card-payment-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 18px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+  background: var(--accent, #28B581);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+}
+
+.jd-card-payment-btn:active {
+  opacity: 0.85;
+}
+
+.jd-card-payment-btn--secondary {
+  background: var(--surface-3, #2a2a2a);
+  color: var(--text, #fff);
+}
+
+.jd-card-payment-chase-stopped {
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--text-muted, #888);
+  padding-top: 10px;
+  border-top: 1px solid var(--border, #333);
+}
+
 /* ── Photos ── */
 
 .jd-photos-grid {
