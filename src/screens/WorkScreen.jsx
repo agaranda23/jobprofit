@@ -55,6 +55,10 @@ import {
 } from '../lib/chaseLadder';
 
 const STORAGE_KEY = 'jp.workView';
+const FILTER_STORAGE_KEY = 'jp.workscreen.filter.v1';
+
+// Valid stage keys — used to validate persisted selectedStage values.
+const VALID_STAGES = ['Lead', 'Quoted', 'On', 'Invoiced', 'Overdue', 'Paid'];
 
 function getPersistedView() {
   try {
@@ -72,6 +76,29 @@ function persistView(v) {
   } catch {
     // ignore
   }
+}
+
+/**
+ * Lazy-init helper for the stage filter state.
+ * Reads {selectedStage, showAll} from localStorage under FILTER_STORAGE_KEY.
+ * Falls back to defaults ('On', false) if absent, malformed, or if
+ * selectedStage is not one of the six valid stage keys.
+ */
+function getPersistedFilter() {
+  try {
+    const raw = localStorage.getItem(FILTER_STORAGE_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      const stage = parsed.selectedStage;
+      const all = parsed.showAll;
+      if (VALID_STAGES.includes(stage)) {
+        return { selectedStage: stage, showAll: !!all };
+      }
+    }
+  } catch {
+    // malformed JSON or localStorage unavailable — fall back to defaults
+  }
+  return { selectedStage: 'On', showAll: false };
 }
 
 // ── Status helpers (ported verbatim from PR #62) ──────────────────────────────
@@ -934,8 +961,8 @@ function JobsList({ jobs, selectedStage, showAll, searchQuery, onJobSelect, onSe
 
 export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJob, onAddPayment, onUpdateJob, onDeleteJob, onAddReceipt, onDeleteReceipt, biz, profile, initialJobId }) {
   const [subview, setSubview] = useState(getPersistedView);
-  const [selectedStage, setSelectedStage] = useState('On');
-  const [showAll, setShowAll] = useState(false);
+  const [selectedStage, setSelectedStage] = useState(() => getPersistedFilter().selectedStage);
+  const [showAll, setShowAll] = useState(() => getPersistedFilter().showAll);
   // 1B: client-side search — pure JS filter, works offline
   const [searchQuery, setSearchQuery] = useState('');
   // selectedJob drives the JobDetailDrawer — null means closed.
@@ -973,6 +1000,16 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Persist stage filter state whenever either value changes.
+  // Wrapped in try/catch — Safari private mode throws on setItem.
+  useEffect(() => {
+    try {
+      localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify({ selectedStage, showAll }));
+    } catch {
+      // silently swallow — private mode or storage full
+    }
+  }, [selectedStage, showAll]);
+
   const switchSubview = useCallback((v) => {
     logTelemetry('work_subview', { subview: v });
     setSubview(v);
@@ -1002,8 +1039,14 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
 
   const handleSelectAll = () => {
     setSearchQuery(''); // switching to All view — clear any active search
-    setShowAll(true);
-    logTelemetry('stage_strip_select', { stage: 'All' });
+    if (showAll) {
+      // Already in All mode — snap back to selectedStage.
+      setShowAll(false);
+      logTelemetry('stage_strip_select', { stage: 'All', action: 'exit' });
+    } else {
+      setShowAll(true);
+      logTelemetry('stage_strip_select', { stage: 'All', action: 'enter' });
+    }
   };
 
   // Exclude archived and deleted jobs from every rendered surface in this screen.
@@ -1319,6 +1362,7 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
           className={`show-all-pill${showAll ? ' show-all-pill--active' : ''}`}
           onClick={handleSelectAll}
           aria-pressed={showAll}
+          aria-label={showAll ? `Back to ${selectedStage}` : 'Show all stages'}
         >
           All
         </button>
