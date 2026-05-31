@@ -962,9 +962,10 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
     logTelemetry('stage_strip_select', { stage });
   };
 
-  const handleToggleShowAll = () => {
-    setSearchQuery(''); // resuming stage browsing — clear any active search
-    setShowAll(v => !v);
+  const handleSelectAll = () => {
+    setSearchQuery(''); // switching to All view — clear any active search
+    setShowAll(true);
+    logTelemetry('stage_strip_select', { stage: 'All' });
   };
 
   // Exclude archived and deleted jobs from every rendered surface in this screen.
@@ -1194,12 +1195,14 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
       ) : null}
 
 
-      {/* Stage Strip — deriveStatus + formatAmount passed as props (avoids circular import) */}
+      {/* Stage Strip — deriveStatus + formatAmount passed as props (avoids circular import).
+           onSelectAll fires when the "All" leading segment is tapped. */}
       <StageStrip
         jobs={visibleJobs}
         selectedStage={selectedStage}
         showAll={showAll}
         onSelectStage={handleSelectStage}
+        onSelectAll={handleSelectAll}
         deriveStatus={deriveDisplayStatus}
         formatAmount={formatAmount}
       />
@@ -1253,7 +1256,7 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
         )}
       </div>
 
-      {/* Segmented control row + Show all toggle */}
+      {/* List/Calendar segmented control — view mode axis, independent of stage filter */}
       <div className="work-controls-row">
         <div className="work-segments" role="group" aria-label="Switch between list and calendar view">
           <button
@@ -1271,13 +1274,6 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
             Calendar
           </button>
         </div>
-        <button
-          type="button"
-          className={`show-all-toggle${showAll ? ' show-all-toggle--active' : ''}`}
-          onClick={handleToggleShowAll}
-        >
-          {showAll ? 'Stage view' : 'Show all'}
-        </button>
       </div>
 
       {/* Subview */}
