@@ -36,6 +36,7 @@ import { logTelemetry } from '../lib/telemetry';
 import { daysSinceInvoice, requiresPriceForStage, stagePatch } from '../lib/jobStatus';
 import { deleteJobFromCloud } from '../lib/store';
 import { shouldShowPartPaidChip, formatPartPaidLabel } from '../lib/partPaidChip';
+import { jobMatchesQuery, sortJobsByStage, firstLineOfAddress } from '../lib/jobSort';
 import {
   computeTier,
   daysPastDue,
@@ -230,6 +231,15 @@ function chaseJobTiered(job, biz = null, forceTier = null) {
   recordChase(job.id);
   return true;
 }
+
+/**
+ * Canonical phone resolver — single source so tile and getStageCTA always agree.
+ */
+function resolvePhone(job) {
+  return job.customerPhone || job.phone || job.mobile || '';
+}
+
+// jobMatchesQuery, sortJobsByStage, firstLineOfAddress imported from ../lib/jobSort.
 
 // StageStrip lives in src/components/StageStrip.jsx (extracted because
 // WorkScreen exceeded 500 lines). deriveDisplayStatus and formatAmount are passed as
@@ -480,12 +490,16 @@ function StageChipDropdown({ job, currentStage, onUpdateJob, onSendInvoice, onSe
  * Invoiced + Overdue use chaseLadder for tiered WhatsApp messages.
  */
 function getStageCTA(stage, job, { onSendInvoice, onUpdateJob, onNewJob, onOpenJob, biz }) {
+  // Phone button shown on all unpaid stages when a number exists (1F).
+  const hasPhone = !!resolvePhone(job);
+  const unpaidPhoneBtn = hasPhone && stage !== 'Paid';
+
   switch (stage) {
     case 'Lead':
       return {
         label: 'Send quote →',
         mod: null,
-        phoneBtn: false,
+        phoneBtn: unpaidPhoneBtn,
         // Opens this job's drawer with quote intent — if unpriced, the price
         // field opens automatically; after entering the price, Send quote link
         // CTA is ready for one deliberate tap.
@@ -496,7 +510,7 @@ function getStageCTA(stage, job, { onSendInvoice, onUpdateJob, onNewJob, onOpenJ
       return {
         label: 'Mark booked',
         mod: 'ghost',
-        phoneBtn: true,
+        phoneBtn: unpaidPhoneBtn,
         // Flips status to active — same behaviour as the old "Move to On →" button.
         action: () => onUpdateJob?.({ ...job, status: 'active' }),
       };
@@ -505,7 +519,7 @@ function getStageCTA(stage, job, { onSendInvoice, onUpdateJob, onNewJob, onOpenJ
       return {
         label: 'Send invoice',
         mod: null,
-        phoneBtn: false,
+        phoneBtn: unpaidPhoneBtn,
         action: () => { if (onSendInvoice) onSendInvoice(job); },
       };
 
@@ -514,8 +528,9 @@ function getStageCTA(stage, job, { onSendInvoice, onUpdateJob, onNewJob, onOpenJ
       return {
         label: blocked ? 'Chased today' : 'Chase payment',
         mod: 'ghost',
-        phoneBtn: false,
+        phoneBtn: unpaidPhoneBtn,
         disabled: blocked,
+        markPaid: true, // 1G: surface Mark paid alongside Chase payment
         action: () => { if (!blocked) chaseJobTiered(job, biz); },
       };
     }
@@ -525,8 +540,9 @@ function getStageCTA(stage, job, { onSendInvoice, onUpdateJob, onNewJob, onOpenJ
       return {
         label: blocked ? 'Chased today' : 'Chase payment →',
         mod: blocked ? 'muted' : 'urgent',
-        phoneBtn: !blocked,
+        phoneBtn: unpaidPhoneBtn,
         disabled: blocked,
+        markPaid: true, // 1G: surface Mark paid alongside Chase payment
         action: () => { if (!blocked) chaseJobTiered(job, biz); },
       };
     }
@@ -640,6 +656,8 @@ function JobTile({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJo
   // Only show customer on the secondary line when it's non-empty AND distinct from the
   // primary label — prevents duplicating the job name when no separate customer was entered.
   const secondaryLabel = (jobName && customerName && customerName !== jobName) ? customerName : '';
+  // 1E: First line of address appended to the secondary identity line.
+  const addrLine = firstLineOfAddress(job.address);
 
   const cta = getStageCTA(stage, job, { onSendInvoice, onUpdateJob, onNewJob, onOpenJob, biz });
   const stageMeta = STAGE_META[stage] || STAGE_META.Lead;
@@ -661,20 +679,32 @@ function JobTile({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJo
   const partPaid = shouldShowPartPaidChip(job, stage);
   const partPaidLabel = partPaid ? formatPartPaidLabel(job) : null;
 
-  // Build signal line items (Row 3) — separated by · in CSS
-  const signals = [];
+  // Build signal line items in priority order (1D).
+  // Priority: accepted-quote > part-paid > draft-ready > urgent/overdue time > generic signals.
+  // We collect all candidates then show only the SINGLE highest-priority one.
+  // Photo/note counts move to the drawer (removed from tile per 1D spec).
+  const signalCandidates = [];
   if (isAccepted) {
     const acceptedText = acceptedByName ? `Accepted by ${acceptedByName}` : 'Quote accepted';
-    signals.push({ text: acceptedText, cls: 'jt-signal--accepted' });
+    signalCandidates.push({ text: acceptedText, cls: 'jt-signal--accepted' });
   }
   if (partPaid) {
-    signals.push({ text: partPaidLabel, cls: 'jt-signal--partpaid' });
+    signalCandidates.push({ text: partPaidLabel, cls: 'jt-signal--partpaid' });
   }
-  if (hasDraft)    signals.push({ text: '● Draft ready', cls: 'jt-signal--draft' });
-  if (timeSignal) signals.push({ text: timeSignal.text, cls: `jt-signal--${timeSignal.variant}` });
-  if (moneySub)   signals.push({ text: moneySub, cls: 'jt-signal--mute' });
-  if (photoCount > 0) signals.push({ text: null, photoCount });
-  if (noteCount > 0)  signals.push({ text: null, noteCount });
+  if (hasDraft) {
+    signalCandidates.push({ text: '● Draft ready', cls: 'jt-signal--draft' });
+  }
+  if (timeSignal && (timeSignal.variant === 'urgent' || timeSignal.variant === 'warn')) {
+    signalCandidates.push({ text: timeSignal.text, cls: `jt-signal--${timeSignal.variant}` });
+  }
+  if (moneySub) {
+    signalCandidates.push({ text: moneySub, cls: 'jt-signal--mute' });
+  }
+  if (timeSignal && timeSignal.variant !== 'urgent' && timeSignal.variant !== 'warn') {
+    signalCandidates.push({ text: timeSignal.text, cls: `jt-signal--${timeSignal.variant}` });
+  }
+  // Show only the single highest-priority signal (first in the ordered array).
+  const topSignal = signalCandidates[0] ?? null;
 
   return (
     <li
@@ -715,42 +745,25 @@ function JobTile({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJo
         />
       </div>
 
-      {/* Row 1b: customer name (secondary) — only shown when non-empty */}
-      {secondaryLabel ? (
-        <div className="jt-customer">{secondaryLabel}</div>
+      {/* Row 1b: customer · address — shown when either is non-empty */}
+      {(secondaryLabel || addrLine) ? (
+        <div className="jt-customer">
+          {secondaryLabel}
+          {secondaryLabel && addrLine && <span className="jt-address"> · {addrLine}</span>}
+          {!secondaryLabel && addrLine && <span className="jt-address">{addrLine}</span>}
+        </div>
       ) : null}
-      {/* Row 2b: price on its own line, directly under title */}
+      {/* Row 2: price on its own line, directly under title */}
       <div className={`jt-price${amountMuted ? ' jt-price--muted' : ''}${amountOverdue ? ' jt-price--overdue' : ''}`}>
         {priceLine}
       </div>
 
-      {/* Row 3: one merged signal line — time · money state · counts */}
-      {signals.length > 0 && (
+      {/* Row 3: single highest-priority signal (1D) — keeps the tile scannable */}
+      {topSignal && (
         <div className="jt-signals">
-          {signals.map((sig, i) => (
-            <span key={i} className="jt-signal-group">
-              {i > 0 && <span className="jt-meta-sep">·</span>}
-              {sig.photoCount != null ? (
-                <span className={`jt-meta-item${sig.cls ? ' ' + sig.cls : ''}`}>
-                  <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
-                    <rect x="1.5" y="2.5" width="9" height="7" rx="1"/>
-                    <circle cx="6" cy="6" r="1.5"/>
-                  </svg>
-                  {sig.photoCount}
-                </span>
-              ) : sig.noteCount != null ? (
-                <span className={`jt-meta-item${sig.cls ? ' ' + sig.cls : ''}`}>
-                  <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" aria-hidden="true">
-                    <path d="M2 2h6l2 2v6H2z"/>
-                    <path d="M3.5 5h5M3.5 7h5"/>
-                  </svg>
-                  {sig.noteCount}
-                </span>
-              ) : (
-                <span className={`jt-meta-item${sig.cls ? ' ' + sig.cls : ''}`}>{sig.text}</span>
-              )}
-            </span>
-          ))}
+          <span className="jt-signal-group">
+            <span className={`jt-meta-item${topSignal.cls ? ' ' + topSignal.cls : ''}`}>{topSignal.text}</span>
+          </span>
         </div>
       )}
 
@@ -766,13 +779,31 @@ function JobTile({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJo
           >
             {cta.label}
           </button>
+          {/* 1G: One-tap Mark paid on Invoiced/Overdue — closes the loop from the list */}
+          {cta.markPaid && (
+            <button
+              type="button"
+              className="jt-cta--markpaid"
+              aria-label="Mark paid"
+              onClick={() => onUpdateJob?.({
+                ...job,
+                paid: true,
+                status: 'paid',
+                paidAt: new Date().toISOString(),
+                paymentStatus: 'paid',
+              })}
+            >
+              Mark paid
+            </button>
+          )}
+          {/* 1F: Phone button on all unpaid stages when a number exists */}
           {cta.phoneBtn && (
             <button
               type="button"
               className="jt-icon-btn"
               aria-label="Call customer"
               onClick={() => {
-                const phone = job.phone || job.customerPhone || '';
+                const phone = resolvePhone(job);
                 if (phone) window.open(`tel:${phone}`, '_self');
               }}
             >
@@ -812,36 +843,50 @@ function EmptyState({ stage }) {
 
 // ── JobsList subview ──────────────────────────────────────────────────────────
 
-function JobsList({ jobs, selectedStage, showAll, onJobSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJob, onCopyJob, onArchiveJob, onDeleteJob, biz, onShowToast }) {
-  const filtered = showAll
-    ? jobs
-    : jobs.filter(j => deriveDisplayStatus(j) === selectedStage);
+function JobsList({ jobs, selectedStage, showAll, searchQuery, onJobSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJob, onCopyJob, onArchiveJob, onDeleteJob, biz, onShowToast }) {
+  const q = (searchQuery || '').trim();
+
+  // When searching: ignore the stage filter — show everything that matches (1B spec).
+  // When not searching: filter to the selected stage then sort by urgency (1C).
+  let visible;
+  if (q) {
+    visible = jobs.filter(j => jobMatchesQuery(j, q));
+  } else {
+    const stageJobs = showAll ? jobs : jobs.filter(j => deriveDisplayStatus(j) === selectedStage);
+    visible = sortJobsByStage(stageJobs, showAll ? null : selectedStage);
+  }
+
+  if (visible.length === 0) {
+    if (q) {
+      return (
+        <div className="screen-empty">
+          <p className="screen-empty-title">No jobs match &ldquo;{q}&rdquo;</p>
+          <p className="screen-empty-hint">Check the spelling or tap + New job.</p>
+        </div>
+      );
+    }
+    return <EmptyState stage={showAll ? 'All' : selectedStage} />;
+  }
 
   return (
-    <>
-      {filtered.length === 0 ? (
-        <EmptyState stage={showAll ? 'All' : selectedStage} />
-      ) : (
-        <ul className="job-list">
-          {filtered.map(j => (
-            <JobTile
-              key={j.id || j.cloudId}
-              job={j}
-              onSelect={onJobSelect}
-              onSendInvoice={onSendInvoice}
-              onUpdateJob={onUpdateJob}
-              onNewJob={onNewJob}
-              onOpenJob={onOpenJob}
-              onCopyJob={onCopyJob}
-              onArchiveJob={onArchiveJob}
-              onDeleteJob={onDeleteJob}
-              biz={biz}
-              onShowToast={onShowToast}
-            />
-          ))}
-        </ul>
-      )}
-    </>
+    <ul className="job-list">
+      {visible.map(j => (
+        <JobTile
+          key={j.id || j.cloudId}
+          job={j}
+          onSelect={onJobSelect}
+          onSendInvoice={onSendInvoice}
+          onUpdateJob={onUpdateJob}
+          onNewJob={onNewJob}
+          onOpenJob={onOpenJob}
+          onCopyJob={onCopyJob}
+          onArchiveJob={onArchiveJob}
+          onDeleteJob={onDeleteJob}
+          biz={biz}
+          onShowToast={onShowToast}
+        />
+      ))}
+    </ul>
   );
 }
 
@@ -851,6 +896,8 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
   const [subview, setSubview] = useState(getPersistedView);
   const [selectedStage, setSelectedStage] = useState('On');
   const [showAll, setShowAll] = useState(false);
+  // 1B: client-side search — pure JS filter, works offline
+  const [searchQuery, setSearchQuery] = useState('');
   // selectedJob drives the JobDetailDrawer — null means closed.
   // initialJobId: when set, pre-open the drawer for that job on first render.
   const [selectedJob, setSelectedJob] = useState(() => {
@@ -1171,6 +1218,22 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
         </div>
       )}
 
+      {/* 1B: Search bar — sticky under the stage strip, pure client-side filter */}
+      <div className="jobs-search-wrap">
+        <input
+          type="search"
+          className="jobs-search"
+          placeholder="Search name, job or street"
+          value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)}
+          aria-label="Search jobs"
+          autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="off"
+          spellCheck="false"
+        />
+      </div>
+
       {/* Segmented control row + Show all toggle */}
       <div className="work-controls-row">
         <div className="work-segments" role="group" aria-label="Switch between list and calendar view">
@@ -1204,6 +1267,7 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
           jobs={visibleJobs}
           selectedStage={selectedStage}
           showAll={showAll}
+          searchQuery={searchQuery}
           onJobSelect={setSelectedJob}
           onSendInvoice={setReviewJob}
           onUpdateJob={handleUpdateJob}
