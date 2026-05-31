@@ -2346,7 +2346,6 @@ export default function JobDetailDrawer({
             ref={photoInputRef}
             type="file"
             accept="image/*"
-            capture="environment"
             multiple
             style={{ display: 'none' }}
             onChange={handlePhotoFiles}
