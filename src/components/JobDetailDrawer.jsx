@@ -281,13 +281,15 @@ function SpineBlock({ job, onScheduleEdit, onEditAddress, onEditDescription }) {
  * Phone row is the canonical call affordance — the CONTACT card is removed.
  *
  * Customer field edit callbacks (all optional — rows degrade to read-only when absent):
- *   onEditPhone    – open EditFieldModal for customer phone
- *   onEditEmail    – open EditFieldModal for customer email
+ *   onEditPhone              – open EditFieldModal for customer phone
+ *   onEditEmail              – open EditFieldModal for customer email
+ *   onToggleBusinessCustomer – flip job.isBusinessCustomer (B2B flag)
  */
 function DetailsSection({
   job,
   onEditPhone,
   onEditEmail,
+  onToggleBusinessCustomer,
 }) {
   const hasPhone = !!(job.phone || job.customerPhone || job.mobile);
   const hasEmail = !!(job.email || job.customerEmail);
@@ -407,6 +409,21 @@ function DetailsSection({
               </div>
             )}
           </div>
+        )}
+
+        {/* B2B flag — enables statutory late-payment interest copy at Tier 3 chase */}
+        {onToggleBusinessCustomer && (
+          <label className="jd-b2b-toggle-row">
+            <input
+              type="checkbox"
+              className="jd-b2b-toggle-input"
+              checked={!!job.isBusinessCustomer}
+              onChange={onToggleBusinessCustomer}
+              aria-label="Business customer — enables statutory late-payment interest on final chase"
+            />
+            <span className="jd-b2b-toggle-label">Business customer</span>
+            <span className="jd-b2b-toggle-hint">Enables statutory interest on final chase</span>
+          </label>
         )}
       </div>
     </div>
@@ -1315,7 +1332,7 @@ export default function JobDetailDrawer({
       amountPaid,
       paymentDetails,
       businessName: biz?.name || '',
-      isB2B: false,
+      isB2B: !!job.isBusinessCustomer,
     });
     if (!link) return;
     recordChase(job.id);
@@ -2067,6 +2084,9 @@ export default function JobDetailDrawer({
                 job={job}
                 onEditPhone={onUpdateJob ? () => setEditingField('phone') : undefined}
                 onEditEmail={onUpdateJob ? () => setEditingField('email') : undefined}
+                onToggleBusinessCustomer={onUpdateJob ? () => {
+                  onUpdateJob({ ...job, isBusinessCustomer: !job.isBusinessCustomer });
+                } : undefined}
               />
             );
 

@@ -33,6 +33,8 @@ const META_FIELDS = [
   // Review sheet draft flags — set when trader dismisses the sheet without sending
   'quoteDraft',   // boolean — tile shows amber "Draft ready" meta line
   'invoiceDraft', // boolean — tile shows amber "Draft ready" meta line
+  // B2B flag — enables statutory late-payment interest copy at Tier 3 chase
+  'isBusinessCustomer', // boolean — trader marks this as a commercial (B2B) customer
 ];
 
 export function readJobMeta(id) {
