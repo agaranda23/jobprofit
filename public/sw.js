@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v17';  // bumped from v16: fix job-name leaking into customer + remove header chevron
+const CACHE_NAME = 'jobprofit-v18';  // bumped from v17: Today screen foreman CSS → theme tokens (light-mode parity)
 const PRECACHE = [
   '/',
   '/index.html',
