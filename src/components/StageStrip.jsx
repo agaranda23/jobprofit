@@ -11,7 +11,7 @@
  * Props:
  *   jobs           — full jobs array from AppShell
  *   selectedStage  — currently active stage string
- *   showAll        — true when show-all mode is active (no segment highlighted)
+ *   showAll        — true when show-all mode is active (all segments light up in their own colours)
  *   onSelectStage  — callback(stage: string) — sets a real stage, exits showAll
  *   deriveStatus   — function(job) → stage string (passed in to avoid a circular import)
  *   formatAmount   — function(val) → string (passed in for the same reason)
@@ -87,7 +87,7 @@ export default function StageStrip({ jobs, selectedStage, showAll, onSelectStage
             stage={s}
             count={stageMeta[s].count}
             total={stageMeta[s].total}
-            selected={!showAll && selectedStage === s}
+            selected={showAll || selectedStage === s}
             onSelect={onSelectStage}
             tileRef={el => { tileRefs.current[s] = el; }}
             formatAmount={formatAmount}
