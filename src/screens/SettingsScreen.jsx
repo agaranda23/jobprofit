@@ -302,14 +302,19 @@ function MonthlyOverheadsSection({ overheads, onSave }) {
     setItems(Array.isArray(overheads) ? overheads : []);
   }, [overheads]);
 
+  // Returns true on success, false on failure. Callers check the return value
+  // before closing their inline form — the form stays open when a save fails
+  // so the user doesn't lose their input.
   const persist = async (next) => {
     setSaving(true);
     setError('');
     try {
       await onSave({ overheads: next });
       setItems(next);
+      return true;
     } catch {
       setError('Could not save — try again');
+      return false;
     } finally {
       setSaving(false);
     }
@@ -327,7 +332,7 @@ function MonthlyOverheadsSection({ overheads, onSave }) {
     persist(next);
   };
 
-  const handleAdd = () => {
+  const handleAdd = async () => {
     if (!addState) return;
     const name = (addState.name || '').trim();
     const amount = parseFloat(addState.amount);
@@ -340,10 +345,11 @@ function MonthlyOverheadsSection({ overheads, onSave }) {
       category: addState.category || 'Other',
       is_active: true,
     };
-    persist([...items, newItem]).then(() => setAddState(null));
+    const ok = await persist([...items, newItem]);
+    if (ok) setAddState(null);
   };
 
-  const handleEditSave = (id) => {
+  const handleEditSave = async (id) => {
     if (!editState) return;
     const name = (editState.name || '').trim();
     const amount = parseFloat(editState.amount);
@@ -352,7 +358,8 @@ function MonthlyOverheadsSection({ overheads, onSave }) {
     const next = items.map(i =>
       i.id === id ? { ...i, name, amount, category: editState.category || i.category } : i
     );
-    persist(next).then(() => { setEditId(null); setEditState(null); });
+    const ok = await persist(next);
+    if (ok) { setEditId(null); setEditState(null); }
   };
 
   const activeTotal = getOverheadTotal(items);
