@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v25';  // bumped from v24: green pivot tiles — accent bg, black text/icons, emoji swap
+const CACHE_NAME = 'jobprofit-v26';  // bumped from v25: job drawer stacked cards redesign (PRD 2026-05-31)
 const PRECACHE = [
   '/',
   '/index.html',

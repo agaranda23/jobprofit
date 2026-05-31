@@ -153,125 +153,290 @@ function PhotoLightbox({ src, onClose }) {
 }
 
 /**
- * SpineBlock — the four facts about the job that answer "who, where, when, scope"
- * in a single glance before the user scrolls. Sits between the sticky header and
- * the NextStep card. Design A.
+ * CustomerCard — unified card (Stacked Cards redesign, PRD 2026-05-31).
  *
- * Tapping the address row opens Google Maps.
- * Tapping the scheduled row opens the schedule edit (via onScheduleEdit).
- * Tapping the description row opens an EditFieldModal (via onEditDescription).
- * All rows degrade gracefully when data is absent.
+ * Replaces SpineBlock. Same field set, now wrapped in the standard jd-card chrome.
+ * Field order (locked): name → phone → address → email → description.
+ * Name is read-only here (it appears in the sticky header — never duplicated below).
+ * Empty fields render as ghost-button "+ Add" rows.
+ * No B2B toggle — that moved to the bottom settings row (Alaister override 2026-05-31).
  */
-function SpineBlock({ job, onScheduleEdit, onEditAddress, onEditDescription }) {
+function CustomerCard({ job, onEditPhone, onEditAddress, onEditEmail, onEditDescription }) {
   const customer = job.customer || job.name || '';
   const phone = job.customerPhone || job.phone || job.mobile || '';
   const address = job.address || '';
-  const hasScheduled = !!job.scheduledDate;
-  const scheduledTime =
-    job.scheduledStart && job.scheduledEnd
-      ? `${job.scheduledStart}–${job.scheduledEnd}`
-      : job.scheduledStart || '';
-  const scheduledDisplay = hasScheduled
-    ? `${fmtDate(job.scheduledDate)}${scheduledTime ? ` · ${scheduledTime}` : ''}`
-    : null;
+  const email = job.email || job.customerEmail || '';
   const description = job.description || '';
+  const canEdit = typeof onEditPhone === 'function';
 
   return (
-    <div className="jd-spine">
-      {/* Customer + optional phone — who this job is for */}
-      <div className="jd-spine-customer">
-        {customer}
-        {phone && (
-          <span className="jd-spine-phone"> · {phone}</span>
-        )}
-      </div>
+    <div className="jd-card">
+      <div className="jd-card-label">Customer</div>
 
-      {/* Address — tap to map */}
+      {/* Name — read-only (also in sticky header; rendered here as orientation anchor) */}
+      {customer && (
+        <div className="jd-card-row">
+          <span className="jd-card-row-icon" aria-hidden="true">👤</span>
+          <span className="jd-card-row-val">{customer}</span>
+        </div>
+      )}
+
+      {/* Phone — tap number to call; ghost-button when empty */}
+      {phone ? (
+        <div className="jd-card-row jd-card-row--phone">
+          <span className="jd-card-row-icon" aria-hidden="true">📞</span>
+          <a
+            href={`tel:${phone}`}
+            className="jd-card-row-val jd-card-row-val--link"
+            aria-label={`Call ${phone}`}
+          >
+            {phone}
+          </a>
+          {canEdit && (
+            <button
+              type="button"
+              className="jd-card-row-edit"
+              onClick={onEditPhone}
+              aria-label="Edit customer phone"
+            >
+              ›
+            </button>
+          )}
+        </div>
+      ) : (
+        canEdit && (
+          <button
+            type="button"
+            className="jd-card-row jd-card-row--add"
+            onClick={onEditPhone}
+            aria-label="Add customer phone"
+          >
+            <span className="jd-card-row-icon" aria-hidden="true">📞</span>
+            <span className="jd-card-row-add">+ Add phone</span>
+          </button>
+        )
+      )}
+
+      {/* Address — tap to open Maps; ghost-button when empty */}
       {address ? (
         <a
           href={`https://maps.google.com/?q=${encodeURIComponent(address)}`}
           target="_blank"
           rel="noopener noreferrer"
-          className="jd-spine-row jd-spine-row--link"
+          className="jd-card-row jd-card-row--link"
           aria-label={`Open ${address} in Maps`}
         >
-          <span className="jd-spine-icon" aria-hidden="true">📍</span>
-          <span className="jd-spine-val">{address}</span>
+          <span className="jd-card-row-icon" aria-hidden="true">📍</span>
+          <span className="jd-card-row-val">{address}</span>
         </a>
       ) : (
-        onEditAddress ? (
+        canEdit && (
           <button
             type="button"
-            className="jd-spine-row jd-spine-row--add"
+            className="jd-card-row jd-card-row--add"
             onClick={onEditAddress}
             aria-label="Add address"
           >
-            <span className="jd-spine-icon" aria-hidden="true">📍</span>
-            <span className="jd-spine-empty">No address — <span className="jd-spine-add-link">add</span></span>
+            <span className="jd-card-row-icon" aria-hidden="true">📍</span>
+            <span className="jd-card-row-add">+ Add address</span>
           </button>
-        ) : (
-          <div className="jd-spine-row jd-spine-row--muted">
-            <span className="jd-spine-icon" aria-hidden="true">📍</span>
-            <span className="jd-spine-empty">No address</span>
-          </div>
         )
       )}
 
-      {/* Scheduled date + time — when the work happens */}
-      {scheduledDisplay ? (
-        <div className="jd-spine-row">
-          <span className="jd-spine-icon" aria-hidden="true">🗓️</span>
-          <span className="jd-spine-val">{scheduledDisplay}</span>
-        </div>
-      ) : (
-        onScheduleEdit ? (
+      {/* Email — ghost-button when empty */}
+      {email ? (
+        canEdit ? (
           <button
             type="button"
-            className="jd-spine-row jd-spine-row--add"
-            onClick={onScheduleEdit}
-            aria-label="Schedule this job"
+            className="jd-card-row jd-card-row--tappable"
+            onClick={onEditEmail}
+            aria-label="Edit customer email"
           >
-            <span className="jd-spine-icon" aria-hidden="true">🗓️</span>
-            <span className="jd-spine-empty">Not scheduled — <span className="jd-spine-add-link">add</span></span>
+            <span className="jd-card-row-icon" aria-hidden="true">✉️</span>
+            <span className="jd-card-row-val">{email}</span>
+            <span className="jd-card-row-edit" aria-hidden="true">›</span>
           </button>
         ) : (
-          <div className="jd-spine-row jd-spine-row--muted">
-            <span className="jd-spine-icon" aria-hidden="true">🗓️</span>
-            <span className="jd-spine-empty">Not scheduled</span>
-          </div>
+          <a href={`mailto:${email}`} className="jd-card-row jd-card-row--link">
+            <span className="jd-card-row-icon" aria-hidden="true">✉️</span>
+            <span className="jd-card-row-val">{email}</span>
+          </a>
+        )
+      ) : (
+        canEdit && (
+          <button
+            type="button"
+            className="jd-card-row jd-card-row--add"
+            onClick={onEditEmail}
+            aria-label="Add customer email"
+          >
+            <span className="jd-card-row-icon" aria-hidden="true">✉️</span>
+            <span className="jd-card-row-add">+ Add email</span>
+          </button>
         )
       )}
 
-      {/* Job scope / description — one-line summary of the work */}
+      {/* Description — ghost-button when empty */}
       {description ? (
-        onEditDescription ? (
+        canEdit ? (
           <button
             type="button"
-            className="jd-spine-row jd-spine-row--desc jd-spine-row--tappable"
+            className="jd-card-row jd-card-row--tappable"
             onClick={onEditDescription}
             aria-label="Edit job description"
           >
-            <span className="jd-spine-icon" aria-hidden="true">📋</span>
-            <span className="jd-spine-val">{description}</span>
+            <span className="jd-card-row-icon" aria-hidden="true">📋</span>
+            <span className="jd-card-row-val">{description}</span>
+            <span className="jd-card-row-edit" aria-hidden="true">›</span>
           </button>
         ) : (
-          <div className="jd-spine-row jd-spine-row--desc">
-            <span className="jd-spine-icon" aria-hidden="true">📋</span>
-            <span className="jd-spine-val">{description}</span>
+          <div className="jd-card-row">
+            <span className="jd-card-row-icon" aria-hidden="true">📋</span>
+            <span className="jd-card-row-val">{description}</span>
           </div>
         )
-      ) : onEditDescription ? (
-        <button
-          type="button"
-          className="jd-spine-row jd-spine-row--add"
-          onClick={onEditDescription}
-          aria-label="Add job description"
-        >
-          <span className="jd-spine-icon" aria-hidden="true">📋</span>
-          <span className="jd-spine-empty">No description — <span className="jd-spine-add-link">add</span></span>
-        </button>
-      ) : null}
+      ) : (
+        canEdit && (
+          <button
+            type="button"
+            className="jd-card-row jd-card-row--add"
+            onClick={onEditDescription}
+            aria-label="Add job description"
+          >
+            <span className="jd-card-row-icon" aria-hidden="true">📋</span>
+            <span className="jd-card-row-add">+ Add description</span>
+          </button>
+        )
+      )}
+
+      {/* Accepted signature — read-only thumbnail shown after quote acceptance */}
+      {job.acceptedSignature && (
+        <div className="sig-accepted-card">
+          <div className="sig-accepted-label">Accepted by customer</div>
+          <img
+            src={job.acceptedSignature}
+            alt="Customer signature"
+            className="sig-accepted-img"
+          />
+          <div className="sig-accepted-source">
+            {job.acceptedSource === 'remote'
+              ? `Signed remotely${job.acceptedName ? ` by ${job.acceptedName}` : ' by customer'}`
+              : 'Signed on screen'}
+          </div>
+          {job.acceptedAt && (
+            <div className="sig-accepted-date">
+              {fmtDate(job.acceptedAt)}
+            </div>
+          )}
+        </div>
+      )}
     </div>
+  );
+}
+
+/**
+ * MoneyCard — unified card showing headline quote in the label, plus costs/profit below.
+ * Replaces ProfitRibbon in the Stacked Cards layout (PRD 2026-05-31).
+ * Tapping opens ProfitBreakdownSheet (same behaviour as ProfitRibbon).
+ * Hidden when job has no quote price.
+ */
+function MoneyCard({ quote, costs, profit, margin, onTap }) {
+  if (!quote) return null;
+  const marginColor = margin >= 30 ? 'var(--accent)' : margin >= 15 ? 'var(--warn)' : 'var(--danger)';
+  const formattedQuote = typeof gbp === 'function' ? gbp(quote) : `£${quote.toFixed(2)}`;
+  return (
+    <button
+      type="button"
+      className="jd-card jd-card--money"
+      onClick={onTap}
+      aria-label={`Money — quoted ${formattedQuote}. Tap for profit breakdown.`}
+    >
+      <div className="jd-card-label">Money · Quoted {formattedQuote}</div>
+      <div className="jd-money-rows">
+        <div className="jd-money-row">
+          <span className="jd-money-row-label">Costs</span>
+          <span className="jd-money-row-val">{gbp(costs)}</span>
+        </div>
+        <div className="jd-money-row">
+          <span className="jd-money-row-label">Profit</span>
+          <span className="jd-money-row-val" style={{ color: marginColor, fontWeight: 700 }}>
+            {gbp(profit)} · {margin}%
+          </span>
+        </div>
+      </div>
+    </button>
+  );
+}
+
+/**
+ * HintCard — slim stage-aware "Next: …" hint at the top of the scroll area.
+ * No button — just the headline and optional micro-links.
+ * The actual CTA lives in the sticky BottomActionBar.
+ */
+function HintCard({ content }) {
+  if (!content) return null;
+  const { headline, microCtas = [] } = content;
+  return (
+    <div className="jd-hint-card">
+      <span className="jd-hint-label">Next</span>
+      <span className="jd-hint-headline">{headline}</span>
+    </div>
+  );
+}
+
+/**
+ * BottomActionBar — sticky bottom action bar inside the drawer.
+ * Primary CTA for the current stage, always visible, thumb-zone positioned.
+ * Padding uses env(safe-area-inset-bottom) ONLY — not --nav-clearance.
+ * The global .bottom-nav is already hidden via body.overlay-open (index.css:600).
+ */
+function BottomActionBar({ content, handlers, isPaid = false }) {
+  if (!content) return null;
+  const { primaryCta } = content;
+  const fireAction = (action) => {
+    const fn = handlers?.[action];
+    if (typeof fn === 'function') fn();
+  };
+  const isPrimaryDisabled =
+    primaryCta.action === 'noop' ||
+    primaryCta.label === 'Chased recently';
+  return (
+    <div className="jd-bottom-bar">
+      <button
+        type="button"
+        className={`jd-bottom-bar-btn${isPaid ? ' jd-bottom-bar-btn--secondary' : ''}${isPrimaryDisabled ? ' jd-bottom-bar-btn--disabled' : ''}`}
+        onClick={() => fireAction(primaryCta.action)}
+        disabled={isPrimaryDisabled}
+        aria-disabled={isPrimaryDisabled}
+      >
+        {primaryCta.label}
+      </button>
+    </div>
+  );
+}
+
+/**
+ * B2BSettingsRow — settings-style row below all cards, no card chrome.
+ * B2B customer toggle on the right; label + helper text stacked on the left.
+ * Fixes the "Business customerEnables statutory interest" rendering bug by
+ * using display:block on the hint span (now via CSS class jd-b2b-hint).
+ */
+function B2BSettingsRow({ job, onToggle }) {
+  if (!onToggle) return null;
+  return (
+    <label className="jd-b2b-row">
+      <div className="jd-b2b-row-text">
+        <span className="jd-b2b-row-label">Business customer</span>
+        <span className="jd-b2b-hint">Enables statutory interest on final chase</span>
+      </div>
+      <input
+        type="checkbox"
+        className="jd-b2b-toggle-input"
+        checked={!!job.isBusinessCustomer}
+        onChange={onToggle}
+        aria-label="Business customer — enables statutory late-payment interest on final chase"
+      />
+    </label>
   );
 }
 
@@ -287,13 +452,14 @@ function SpineBlock({ job, onScheduleEdit, onEditAddress, onEditDescription }) {
  * Customer field edit callbacks (all optional — rows degrade to read-only when absent):
  *   onEditPhone              – open EditFieldModal for customer phone
  *   onEditEmail              – open EditFieldModal for customer email
- *   onToggleBusinessCustomer – flip job.isBusinessCustomer (B2B flag)
+ * B2B toggle moved to B2BSettingsRow at the bottom of the drawer (Stacked Cards redesign,
+ * Alaister override 2026-05-31).
+ * Accepted signature moved to CustomerCard (now the top-of-scroll card).
  */
 function DetailsSection({
   job,
   onEditPhone,
   onEditEmail,
-  onToggleBusinessCustomer,
 }) {
   const hasPhone = !!(job.phone || job.customerPhone || job.mobile);
   const hasEmail = !!(job.email || job.customerEmail);
@@ -392,43 +558,6 @@ function DetailsSection({
           </div>
         )}
 
-        {/* Accepted signature — read-only thumbnail shown after quote acceptance */}
-        {job.acceptedSignature && (
-          <div className="sig-accepted-card">
-            <div className="sig-accepted-label">Accepted by customer</div>
-            <img
-              src={job.acceptedSignature}
-              alt="Customer signature"
-              className="sig-accepted-img"
-            />
-            {/* G-2: distinguish remote signature from on-screen (Phase F) */}
-            <div className="sig-accepted-source">
-              {job.acceptedSource === 'remote'
-                ? `Signed remotely${job.acceptedName ? ` by ${job.acceptedName}` : ' by customer'}`
-                : 'Signed on screen'}
-            </div>
-            {job.acceptedAt && (
-              <div className="sig-accepted-date">
-                {fmtDate(job.acceptedAt)}
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* B2B flag — enables statutory late-payment interest copy at Tier 3 chase */}
-        {onToggleBusinessCustomer && (
-          <label className="jd-b2b-toggle-row">
-            <input
-              type="checkbox"
-              className="jd-b2b-toggle-input"
-              checked={!!job.isBusinessCustomer}
-              onChange={onToggleBusinessCustomer}
-              aria-label="Business customer — enables statutory late-payment interest on final chase"
-            />
-            <span className="jd-b2b-toggle-label">Business customer</span>
-            <span className="jd-b2b-toggle-hint">Enables statutory interest on final chase</span>
-          </label>
-        )}
       </div>
     </div>
   );
@@ -2517,39 +2646,10 @@ export default function JobDetailDrawer({
           </div>
         </div>
 
-        {/* Scrollable body */}
+        {/* Scrollable body — Stacked Cards layout (PRD 2026-05-31, Option 2) */}
         <div className="job-detail-body">
-          {/* Spine block — who / where / when / scope above the fold. Design A.
-              Tapping address → Google Maps. Tapping schedule → inline edit form (below).
-              Tapping description → EditFieldModal. */}
-          <SpineBlock
-            job={job}
-            onScheduleEdit={onUpdateJob ? handleScheduleEdit : undefined}
-            onEditAddress={onUpdateJob ? () => setEditingField('address') : undefined}
-            onEditDescription={onUpdateJob ? () => setEditingField('description') : undefined}
-          />
-
-          {/* Schedule edit form — rendered adjacent to SpineBlock, NOT inside Customer card.
-              Bug #4 fix: the date input no longer appears inside DetailsSection. */}
-          <ScheduleEditForm
-            schedEditMode={schedEditMode}
-            schedDate={schedDate}
-            schedStart={schedStart}
-            schedEnd={schedEnd}
-            onScheduleCancel={handleScheduleCancel}
-            onScheduleSave={handleScheduleSave}
-            onScheduleDateChange={setSchedDate}
-            onScheduleStartChange={setSchedStart}
-            onScheduleEndChange={setSchedEnd}
-          />
-
-          {/* ── Stage-aware section layout (Direction 2) ──────────────────────
-              getDrawerSectionConfig drives which sections are expanded / collapsed
-              / hidden for the current stage. expandedSections is a Set that the
-              user can override by tapping any collapsed row.
-              ──────────────────────────────────────────────────────────────── */}
           {(() => {
-            // ── Profit derivation (shared by ribbon + section config) ────────
+            // ── Profit derivation (shared across all cards) ──────────────────
             const quote = job.total ?? job.amount ?? 0;
             const materials = receipts
               .filter(r => r.jobId && (String(r.jobId) === String(job.id) || String(r.jobId) === String(job.cloudId)))
@@ -2557,16 +2657,10 @@ export default function JobDetailDrawer({
             const profit = quote - materials;
             const margin = quote > 0 ? Math.round((profit / quote) * 100) : 0;
 
-            // ── Attention state (Step 2) ─────────────────────────────────────
+            // ── Attention state ──────────────────────────────────────────────
             const attention = sectionsNeedingAttention(job, nextStepContent, receipts);
 
-            // ── One-liner meta strings ───────────────────────────────────────
-            const phone = job.customerPhone || job.phone || job.mobile || '';
-            const email = job.email || job.customerEmail || '';
-            const customer = job.customer || job.name || '';
-            const customerParts = [customer, phone || (email ? 'email only' : null)].filter(Boolean);
-            const customerMeta = customerParts.join(' · ') || null;
-
+            // ── Meta strings for collapsed rows ─────────────────────────────
             const lineItems = Array.isArray(job.lineItems) ? job.lineItems.filter(i => i.desc || i.cost) : [];
             const lineCount = lineItems.length;
             const quoteTotal = job.total ?? job.amount ?? 0;
@@ -2581,15 +2675,7 @@ export default function JobDetailDrawer({
               ? `${gbp(materials)} · ${jobReceipts.length} receipt${jobReceipts.length !== 1 ? 's' : ''}`
               : 'none logged yet';
 
-            // ── Section elements ─────────────────────────────────────────────
-            const nextStepEl = onUpdateJob ? (
-              <NextStepCard
-                content={nextStepContent}
-                handlers={nextStepHandlers}
-                isPaid={isPaid}
-              />
-            ) : null;
-
+            // ── Section body elements ────────────────────────────────────────
             const paymentEl = (
               <PaymentSummaryBlock
                 job={job}
@@ -2618,22 +2704,7 @@ export default function JobDetailDrawer({
               />
             );
 
-            // Step 2: profit section renders as ProfitRibbon (not ProfitBarSection)
-            // The ribbon opens ProfitBreakdownSheet on tap.
-            const profitRibbonEl = quote > 0 ? (
-              <ProfitRibbon
-                quote={quote}
-                costs={materials}
-                profit={profit}
-                margin={margin}
-                onTap={() => setProfitSheetOpen(true)}
-              />
-            ) : null;
-
-            // CIS-4 / CIS-5: tax meta below the ribbon.
-            // Shown for CIS users (CIS toggle + exclude) or any user with edit access (exclude only).
-            // For non-CIS users the exclude toggle is tucked into MoreDisclosure below.
-            // isCisUser is defined at component scope above return() — not re-declared here.
+            // CIS-4 / CIS-5: tax meta shown for CIS users; non-CIS gets exclude toggle in More.
             const taxMetaEl = (isCisUser || onUpdateJob) ? (
               <JobTaxMeta
                 job={job}
@@ -2643,17 +2714,6 @@ export default function JobDetailDrawer({
                 onUpdateJob={onUpdateJob}
               />
             ) : null;
-
-            const customerBodyEl = (
-              <DetailsSection
-                job={job}
-                onEditPhone={onUpdateJob ? () => setEditingField('phone') : undefined}
-                onEditEmail={onUpdateJob ? () => setEditingField('email') : undefined}
-                onToggleBusinessCustomer={onUpdateJob ? () => {
-                  onUpdateJob({ ...job, isBusinessCustomer: !job.isBusinessCustomer });
-                } : undefined}
-              />
-            );
 
             const quoteBodyEl = (
               <QuoteBreakdownSection
@@ -2680,163 +2740,70 @@ export default function JobDetailDrawer({
               />
             );
 
-            // ── Stage-aware layout rendering ─────────────────────────────────
-            const sectionConfig = getDrawerSectionConfig(status);
-            const rendered = [];
+            // ── Schedule display string (for the Schedule card) ──────────────
+            const hasScheduled = !!job.scheduledDate;
+            const scheduledTime =
+              job.scheduledStart && job.scheduledEnd
+                ? `${job.scheduledStart}–${job.scheduledEnd}`
+                : job.scheduledStart || '';
+            const scheduledDisplay = hasScheduled
+              ? `${fmtDate(job.scheduledDate)}${scheduledTime ? ` · ${scheduledTime}` : ''}`
+              : null;
 
+            // ── Stage-aware payment sections (Invoiced / Paid) ───────────────
+            const sectionConfig = getDrawerSectionConfig(status);
+            const paymentSections = [];
             for (const { id, display } of sectionConfig) {
               if (display === 'hidden') continue;
-
-              if (id === 'nextStep') {
-                if (nextStepEl) rendered.push(<React.Fragment key="nextStep">{nextStepEl}</React.Fragment>);
-                // Profit ribbon always follows the Next Step card when the job has a price
-                if (profitRibbonEl) rendered.push(<React.Fragment key="profit-ribbon">{profitRibbonEl}</React.Fragment>);
-                // CIS-4/5: tax meta (CIS toggle + exclude-from-tax) follows the ribbon.
-                // For CIS users this is always shown here. For non-CIS users the exclude
-                // toggle lives in MoreDisclosure (below) so it stays unobtrusive.
-                if (isCisUser && taxMetaEl) rendered.push(<React.Fragment key="tax-meta">{taxMetaEl}</React.Fragment>);
-                continue;
-              }
-
-              // Skip old profit section — replaced by ribbon above
-              if (id === 'profit') continue;
-
-              if (id === 'payment') {
-                if (display === 'expanded') {
-                  // Deposit paid badge (PR 4) — shown above any payment block
-                  // when the job has a paid deposit. Amber-toned, not green —
-                  // signals partial / front-of-funnel payment, not full payment.
-                  if (job.deposit_paid_at) {
-                    rendered.push(
-                      <DepositPaidBadge
-                        key="deposit-paid-badge"
-                        job={job}
-                        depositToken={depositToken}
-                        totalAmount={Number(job.total ?? job.amount ?? 0)}
-                      />
+              if (id === 'payment' && display === 'expanded') {
+                if (job.deposit_paid_at) {
+                  paymentSections.push(
+                    <DepositPaidBadge
+                      key="deposit-paid-badge"
+                      job={job}
+                      depositToken={depositToken}
+                      totalAmount={Number(job.total ?? job.amount ?? 0)}
+                    />
+                  );
+                }
+                if (job.card_paid_at) {
+                  paymentSections.push(
+                    <CardPaymentBlock
+                      key="card-payment-block"
+                      job={job}
+                      token={cardPaymentToken}
+                    />
+                  );
+                } else if (!job.deposit_paid_at || isPaid) {
+                  paymentSections.push(<React.Fragment key="payment">{paymentEl}</React.Fragment>);
+                  if (isPaid && onViewReceipt) {
+                    paymentSections.push(
+                      <div key="view-receipt-btn" className="jd-view-receipt-wrap">
+                        <button
+                          type="button"
+                          className="jd-view-receipt-btn"
+                          onClick={() => onViewReceipt(job)}
+                        >
+                          View receipt
+                        </button>
+                      </div>
                     );
-                  }
-
-                  // Card payment block — shown above the manual payment summary when
-                  // job.card_paid_at is set (webhook-reconciled card payment).
-                  // Brief Section 2.4 / wireframe 4.5.
-                  if (job.card_paid_at) {
-                    rendered.push(
-                      <CardPaymentBlock
-                        key="card-payment-block"
-                        job={job}
-                        token={cardPaymentToken}
-                      />
-                    );
-                  } else if (!job.deposit_paid_at || isPaid) {
-                    // Manual payment path — existing PaymentSummaryBlock + View receipt.
-                    // When deposit is paid but invoice not yet sent/paid, skip the manual
-                    // payment summary (no invoice yet). Show it once the job reaches invoiced/paid.
-                    rendered.push(<React.Fragment key="payment">{paymentEl}</React.Fragment>);
-                    if (isPaid && onViewReceipt) {
-                      rendered.push(
-                        <div key="view-receipt-btn" className="jd-view-receipt-wrap">
-                          <button
-                            type="button"
-                            className="jd-view-receipt-btn"
-                            onClick={() => onViewReceipt(job)}
-                          >
-                            View receipt
-                          </button>
-                        </div>
-                      );
-                    }
                   }
                 }
-                continue;
               }
-
-              if (id === 'payments') {
-                if (display === 'expanded') rendered.push(<React.Fragment key="payments">{paymentsEl}</React.Fragment>);
-                continue;
-              }
-
-              // Quote, Costs, Customer → always CollapsedSectionRow (Step 2)
-              if (id === 'quote') {
-                const defaultExpanded =
-                  display === 'expanded' ||
-                  attention.quote ||
-                  status === 'Lead' ||
-                  status === 'Quoted';
-                rendered.push(
-                  <CollapsedSectionRow
-                    key="quote"
-                    id="quote"
-                    icon="📋"
-                    title="Quote"
-                    meta={quoteMeta}
-                    needsAttention={attention.quote}
-                    defaultExpanded={defaultExpanded}
-                  >
-                    {quoteBodyEl}
-                  </CollapsedSectionRow>
-                );
-                continue;
-              }
-
-              if (id === 'customer') {
-                const defaultExpanded =
-                  display === 'expanded' ||
-                  attention.customer;
-                rendered.push(
-                  <CollapsedSectionRow
-                    key="customer"
-                    id="customer"
-                    icon="👤"
-                    title="Customer"
-                    meta={customerMeta}
-                    needsAttention={attention.customer}
-                    defaultExpanded={defaultExpanded}
-                  >
-                    {customerBodyEl}
-                  </CollapsedSectionRow>
-                );
-                continue;
+              if (id === 'payments' && display === 'expanded') {
+                paymentSections.push(<React.Fragment key="payments">{paymentsEl}</React.Fragment>);
               }
             }
 
-            // Costs section — always rendered as CollapsedSectionRow after the stage-aware ones
-            // Default-expanded at Active stage (cost-log nudge)
+            // ── Quote accordion: default expanded for Lead/Quoted ────────────
+            const quoteDefaultExpanded =
+              status === 'Lead' || status === 'Quoted' || attention.quote;
+
+            // ── Costs accordion: default expanded at Active stage ────────────
             const costsDefaultExpanded = status === 'Active' || attention.costs;
-            rendered.push(
-              <CollapsedSectionRow
-                key="costs"
-                id="costs"
-                icon="🧰"
-                title="Costs"
-                meta={costsMeta}
-                needsAttention={attention.costs}
-                defaultExpanded={costsDefaultExpanded}
-              >
-                {costsBodyEl}
-              </CollapsedSectionRow>
-            );
 
-            return rendered;
-          })()}
-
-          {/* Hidden file input for photo capture — rendered here so handlePhotoFiles
-              has access to onUpdateJob via closure. The button lives in PhotosSection. */}
-          <input
-            ref={photoInputRef}
-            type="file"
-            accept="image/*"
-            multiple
-            style={{ display: 'none' }}
-            onChange={handlePhotoFiles}
-            aria-hidden="true"
-          />
-
-          {/* Photos, Notes, and (for non-CIS users) the exclude-from-tax toggle
-              — behind MoreDisclosure (Step 2).
-              Receipts are now inside the Costs CollapsedSectionRow above.
-              Schedule stays at the spine (SpineBlock). */}
-          {(() => {
+            // ── More (Photos · Notes · Exclude) ─────────────────────────────
             const photosEl = (
               <PhotosSection
                 photos={job.photos}
@@ -2863,57 +2830,179 @@ export default function JobDetailDrawer({
                 onEditNote={onUpdateJob ? handleEditNote : undefined}
               />
             );
-
             const photoCount = Array.isArray(job.photos) ? job.photos.length : 0;
             const hasPhotoContent = photoCount > 0;
             const hasNoteContent = (Array.isArray(job.jobNotes) && job.jobNotes.length > 0) ||
               (typeof job.notes === 'string' && job.notes.trim());
-            const excludeFromTax = !!job.excludeFromTax;
-
-            // For non-CIS users: expose the exclude-from-tax toggle here in More.
-            // CIS users already see it above the ribbon (taxMetaEl), so don't duplicate.
             const hasExcludeToggle = !isCisUser && !!onUpdateJob;
-            const hasAnyContent = hasPhotoContent || hasNoteContent || (hasExcludeToggle && excludeFromTax);
-
-            // Build summary string for the More row
-            const summaryParts = [];
-            if (hasPhotoContent) summaryParts.push(`Photos (${photoCount})`);
-            else if (onUpdateJob) summaryParts.push('Photos');
+            const hasAnyMoreContent = hasPhotoContent || hasNoteContent || (hasExcludeToggle && !!job.excludeFromTax);
+            const moreSummaryParts = [];
+            if (hasPhotoContent) moreSummaryParts.push(`Photos (${photoCount})`);
+            else if (onUpdateJob) moreSummaryParts.push('Photos');
             if (hasNoteContent) {
               const noteCount = Array.isArray(job.jobNotes) ? job.jobNotes.length : 0;
-              summaryParts.push(noteCount > 0 ? `Notes (${noteCount})` : 'Notes');
+              moreSummaryParts.push(noteCount > 0 ? `Notes (${noteCount})` : 'Notes');
             } else if (onUpdateJob) {
-              summaryParts.push('Notes');
+              moreSummaryParts.push('Notes');
             }
-            const moreSummary = summaryParts.join(' · ');
-
-            // Only render More row when there's something to show or add
-            if (!moreSummary && !hasExcludeToggle) return null;
+            const moreSummary = moreSummaryParts.join(' · ');
+            const showMore = !!(moreSummary || hasExcludeToggle);
 
             return (
-              <MoreDisclosure
-                summary={moreSummary}
-                hasContent={hasAnyContent || noteFormOpen}
-              >
-                {photosEl}
-                {(hasNoteContent || noteFormOpen || onUpdateJob) && notesEl}
-                {/* CIS-5: exclude-from-tax for non-CIS users lives here, unobtrusive.
-                    taxMetaEl is scoped to the first IIFE (needs quote/materials);
-                    for non-CIS users we only need the exclude toggle which doesn't
-                    use those values, so we construct JobTaxMeta directly here. */}
-                {hasExcludeToggle && (
-                  <JobTaxMeta
-                    job={job}
-                    profile={profile}
-                    quote={0}
-                    materials={0}
-                    onUpdateJob={onUpdateJob}
+              <>
+                {/* 1. Slim hint card — stage-aware "Next: …" copy, no button */}
+                <HintCard content={nextStepContent} />
+
+                {/* 2. Customer card — name · phone · address · email · description */}
+                <CustomerCard
+                  job={job}
+                  onEditPhone={onUpdateJob ? () => setEditingField('phone') : undefined}
+                  onEditAddress={onUpdateJob ? () => setEditingField('address') : undefined}
+                  onEditEmail={onUpdateJob ? () => setEditingField('email') : undefined}
+                  onEditDescription={onUpdateJob ? () => setEditingField('description') : undefined}
+                />
+
+                {/* 3. Money card — "Money · Quoted £X", costs, profit */}
+                <MoneyCard
+                  quote={quote}
+                  costs={materials}
+                  profit={profit}
+                  margin={margin}
+                  onTap={() => setProfitSheetOpen(true)}
+                />
+                {/* CIS-4/5: tax meta (CIS toggle + exclude) follows the money card */}
+                {isCisUser && taxMetaEl}
+
+                {/* 4. Schedule card — collapsible, inline edit form when open */}
+                <CollapsedSectionRow
+                  key="schedule"
+                  id="schedule"
+                  icon="🗓️"
+                  title="Schedule"
+                  meta={scheduledDisplay || 'Not scheduled'}
+                  defaultExpanded={false}
+                >
+                  <ScheduleEditForm
+                    schedEditMode={schedEditMode}
+                    schedDate={schedDate}
+                    schedStart={schedStart}
+                    schedEnd={schedEnd}
+                    onScheduleCancel={handleScheduleCancel}
+                    onScheduleSave={handleScheduleSave}
+                    onScheduleDateChange={setSchedDate}
+                    onScheduleStartChange={setSchedStart}
+                    onScheduleEndChange={setSchedEnd}
                   />
+                  {!schedEditMode && (
+                    <div className="jd-schedule-card-body">
+                      {scheduledDisplay ? (
+                        <div className="jd-card-row">
+                          <span className="jd-card-row-icon" aria-hidden="true">🗓️</span>
+                          <span className="jd-card-row-val">{scheduledDisplay}</span>
+                        </div>
+                      ) : null}
+                      {onUpdateJob && (
+                        <button
+                          type="button"
+                          className="jd-card-row jd-card-row--add"
+                          onClick={handleScheduleEdit}
+                          aria-label="Schedule this job"
+                        >
+                          <span className="jd-card-row-icon" aria-hidden="true">➕</span>
+                          <span className="jd-card-row-add">
+                            {scheduledDisplay ? 'Edit schedule' : '+ Add schedule'}
+                          </span>
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </CollapsedSectionRow>
+
+                {/* 5. Payment sections (Invoiced / Paid stages only) */}
+                {paymentSections}
+
+                {/* 6. Quote accordion */}
+                <CollapsedSectionRow
+                  key="quote"
+                  id="quote"
+                  icon="📋"
+                  title="Quote"
+                  meta={quoteMeta}
+                  needsAttention={attention.quote}
+                  defaultExpanded={quoteDefaultExpanded}
+                >
+                  {quoteBodyEl}
+                </CollapsedSectionRow>
+
+                {/* 7. Costs accordion */}
+                <CollapsedSectionRow
+                  key="costs"
+                  id="costs"
+                  icon="🧰"
+                  title="Costs"
+                  meta={costsMeta}
+                  needsAttention={attention.costs}
+                  defaultExpanded={costsDefaultExpanded}
+                >
+                  {costsBodyEl}
+                </CollapsedSectionRow>
+
+                {/* 8. More (Photos · Notes · Exclude from tax) */}
+                {showMore && (
+                  <MoreDisclosure
+                    summary={moreSummary}
+                    hasContent={hasAnyMoreContent || noteFormOpen}
+                  >
+                    {photosEl}
+                    {(hasNoteContent || noteFormOpen || onUpdateJob) && notesEl}
+                    {hasExcludeToggle && (
+                      <JobTaxMeta
+                        job={job}
+                        profile={profile}
+                        quote={0}
+                        materials={0}
+                        onUpdateJob={onUpdateJob}
+                      />
+                    )}
+                  </MoreDisclosure>
                 )}
-              </MoreDisclosure>
+
+                {/* 9. B2B settings row — no card chrome, below More */}
+                <B2BSettingsRow
+                  job={job}
+                  onToggle={onUpdateJob ? () => {
+                    onUpdateJob({ ...job, isBusinessCustomer: !job.isBusinessCustomer });
+                  } : undefined}
+                />
+
+                {/* Bottom padding so last card clears the sticky action bar */}
+                <div className="jd-bottom-bar-spacer" aria-hidden="true" />
+              </>
             );
           })()}
+
+          {/* Hidden file input for photo capture — rendered here so handlePhotoFiles
+              has access to onUpdateJob via closure. The button lives in PhotosSection. */}
+          <input
+            ref={photoInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            style={{ display: 'none' }}
+            onChange={handlePhotoFiles}
+            aria-hidden="true"
+          />
         </div>
+
+        {/* Sticky bottom action bar — primary CTA for current stage.
+            Padding-bottom: env(safe-area-inset-bottom) ONLY.
+            The global .bottom-nav is hidden by body.overlay-open (index.css:600)
+            so --nav-clearance (64px) must NOT be used here. */}
+        <BottomActionBar
+          content={nextStepContent}
+          handlers={nextStepHandlers}
+          isPaid={isPaid}
+        />
 
         {/* Toast */}
         {toast && (
