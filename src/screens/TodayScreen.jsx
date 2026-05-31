@@ -1,12 +1,12 @@
 /**
- * TodayScreen — "The Foreman" (PRD 2026-05-30)
+ * TodayScreen — "The Foreman" (PRD 2026-05-30, updated 2026-05-31)
  *
  * One screen, one prompt. Ranking algorithm (deterministic, top-wins):
  *   Tier 1 — Overdue chase (invoice sent, due_date < today, unpaid, not snoozed)
- *   Tier 2 — Unsent invoice (job complete, no invoice sent, completed >48h ago)
- *   Tier 3 — Unlogged job (scheduledDate = today, status lead/draft)
- *   Tier 4 — Unconverted quote — SKIPPED until quote→job flow ships
- *   Tier 5 — Empty state
+ *   Tier 2 — Finished-but-not-invoiced (job complete >48h, no invoice sent)
+ *   Tier 3 — Stale sent quote (status quoted, quoteSentAt ≥3 days ago, not accepted)
+ *   Tier 4 — Accepted-not-started: SKIPPED — the accepted-quote banner handles this.
+ *   Tier 5 — All-clear (nothing actionable)
  *
  * Tie-break across peers within the same tier: largest £ → oldest date → lowest ID.
  *
@@ -23,177 +23,35 @@
 import { useState, useMemo, useCallback } from 'react';
 import AddJobModal from '../components/AddJobModal';
 import ReviewSheet from '../components/ReviewSheet';
-import { gbp, todayKey, formatToday } from '../lib/today';
+import { gbp, formatToday } from '../lib/today';
 import { isAwaitingPayment, deriveStatus } from '../lib/jobStatus';
-import { daysPastDue, getChaseState, recordChase, buildChaseMessage, computeTier, buildPaymentDetails } from '../lib/chaseLadder';
+import { daysPastDue, recordChase, buildChaseMessage, computeTier, buildPaymentDetails } from '../lib/chaseLadder';
 import { writeJobMeta, extractJobMeta } from '../lib/jobMeta';
 import { getNewlyAcceptedJobs, buildAcceptedLabel, formatAcceptedDate } from '../lib/acceptedNotification';
+import {
+  rankNextBestAction,
+  readSnoozeStore,
+  writeSnoozeStore,
+  nbaLabel,
+  nbaHeadline,
+  nbaMeta,
+  nbaCta,
+  jobAmount,
+} from '../lib/nextBestAction';
 
-// ── Snooze storage (localStorage, 24h per tap) ────────────────────────────────
-const SNOOZE_KEY = 'jobprofit:snooze:v1';
+// ── Snooze helpers (delegate to nextBestAction.js store, keep SNOOZE_MS local) ──
 const SNOOZE_MS = 24 * 60 * 60 * 1000;
 
-function readSnoozeStore() {
-  try { return JSON.parse(localStorage.getItem(SNOOZE_KEY) || '{}'); } catch { return {}; }
-}
-function writeSnoozeStore(s) {
-  try { localStorage.setItem(SNOOZE_KEY, JSON.stringify(s)); } catch {}
-}
 function isJobSnoozed(jobId, now = new Date()) {
   const store = readSnoozeStore();
   const until = store[jobId];
   return !!(until && new Date(until) > now);
 }
+
 function snoozeJob(jobId) {
   const store = readSnoozeStore();
   store[jobId] = new Date(Date.now() + SNOOZE_MS).toISOString();
   writeSnoozeStore(store);
-}
-
-// ── Ranking helpers ───────────────────────────────────────────────────────────
-
-function jobAmount(job) {
-  return Number(job?.total ?? job?.amount ?? 0);
-}
-
-function jobDateStr(job) {
-  return job?.invoiceSentAt || job?.completedAt || job?.date || job?.createdAt || '';
-}
-
-/**
- * Tie-break comparator within the same tier.
- * Sort: largest amount first, then oldest date, then lowest ID (string sort).
- */
-function tierTieBreak(a, b) {
-  const amtDiff = jobAmount(b) - jobAmount(a);
-  if (amtDiff !== 0) return amtDiff;
-  const dateA = jobDateStr(a) || '';
-  const dateB = jobDateStr(b) || '';
-  if (dateA < dateB) return -1;
-  if (dateA > dateB) return 1;
-  return String(a.id) < String(b.id) ? -1 : 1;
-}
-
-/**
- * Determines which tier a job qualifies for.
- * Returns 1–3 or 0 (does not qualify for any active tier).
- */
-function qualifyingTier(job, todayStr, now) {
-  const status = deriveStatus(job);
-
-  // Tier 1: invoice sent, past due date, unpaid, not snoozed
-  if (isAwaitingPayment(job) && !isJobSnoozed(job.id, now)) {
-    const dpd = daysPastDue(job, now);
-    if (dpd >= 0) return 1;
-  }
-
-  // Tier 2: job complete, no invoice sent, completed >48h ago
-  if ((status === 'completed' || status === 'active') && !job.invoiceSentAt) {
-    const completedAt = job.completedAt || job.date || job.createdAt;
-    if (completedAt) {
-      const ageMs = now - new Date(completedAt);
-      if (ageMs > 48 * 60 * 60 * 1000) return 2;
-    }
-  }
-
-  // Tier 3: scheduled today, not yet started (lead/draft)
-  if (job.scheduledDate && job.scheduledDate.slice(0, 10) === todayStr) {
-    if (status === 'draft' || status === 'lead') return 3;
-  }
-
-  // Tier 4: unconverted quote — skipped until quote→job flow ships
-
-  return 0;
-}
-
-/**
- * Runs the ranking algorithm over all jobs.
- * Returns { tier, job } for the winning prompt, or { tier: 5, job: null } for empty state.
- */
-function rankJobs(jobs, now = new Date()) {
-  const todayStr = todayKey(now);
-  const byTier = { 1: [], 2: [], 3: [] };
-
-  for (const job of jobs) {
-    // Guard: if the job no longer exists in the array, skip (handles delete-between-rank)
-    if (!job?.id) continue;
-    const t = qualifyingTier(job, todayStr, now);
-    if (t >= 1 && t <= 3) byTier[t].push(job);
-  }
-
-  for (let t = 1; t <= 3; t++) {
-    const pool = byTier[t];
-    if (pool.length === 0) continue;
-    // Cap Tier 1 at top-1 (largest £ wins) — PRD edge case: 50+ overdue chases
-    const winner = pool.slice().sort(tierTieBreak)[0];
-    return { tier: t, job: winner, poolSize: pool.length };
-  }
-
-  return { tier: 5, job: null, poolSize: 0 };
-}
-
-// ── Tier metadata ──────────────────────────────────────────────────────────────
-
-function tierLabel(tier) {
-  if (tier === 1) return 'CHASE';
-  if (tier === 2) return 'INVOICE';
-  if (tier === 3) return 'LOG';
-  return '';
-}
-
-/**
- * Builds the headline copy for the prompt card.
- * Returns a short imperative string — "Chase Sanji." / "Invoice Wilson." / "Log today's job."
- */
-function buildHeadline(tier, job) {
-  const name = job?.customer || job?.customerName || job?.name || 'this job';
-  const firstName = name.split(' ')[0];
-  if (tier === 1) return `Chase ${firstName}.`;
-  if (tier === 2) return `Invoice ${firstName}.`;
-  if (tier === 3) return `Log today's job.`;
-  return '';
-}
-
-/**
- * Builds the meta line below the headline (amount + context).
- */
-function buildMeta(tier, job, now) {
-  const amount = jobAmount(job);
-  if (tier === 1) {
-    const dpd = daysPastDue(job, now);
-    const overdueTxt = dpd === 0 ? 'due today' : dpd === 1 ? '1 day overdue' : `${dpd} days overdue`;
-    return { amount, suffix: overdueTxt, negative: dpd >= 0 };
-  }
-  if (tier === 2) {
-    const completedAt = job.completedAt || job.date || job.createdAt;
-    const hoursAgo = completedAt ? Math.floor((now - new Date(completedAt)) / 3600000) : null;
-    const suffix = hoursAgo != null
-      ? hoursAgo < 48 ? 'completed recently' : `done ${Math.floor(hoursAgo / 24)}d ago`
-      : 'job complete';
-    return { amount, suffix, negative: false };
-  }
-  if (tier === 3) {
-    return { amount: amount || null, suffix: 'scheduled today', negative: false };
-  }
-  return { amount: null, suffix: '', negative: false };
-}
-
-/**
- * Builds the primary CTA label and action type for a given tier + job.
- * Also handles PRD edge case 4: no phone but has email → Chase by email.
- * No phone AND no email → Open job.
- */
-function buildCta(tier, job, profile) {
-  if (tier === 1) {
-    const phone = job?.customerPhone || job?.phone || '';
-    const email = job?.customerEmail || job?.email || '';
-    if (phone) return { label: 'Chase on WhatsApp', action: 'whatsapp' };
-    if (email) return { label: 'Chase by email', action: 'email' };
-    return { label: 'Open job', action: 'open' };
-  }
-  if (tier === 2) return { label: 'Send invoice', action: 'send_invoice' };
-  if (tier === 3) return { label: 'Log it', action: 'log_job' };
-  return { label: 'Log a job', action: 'log_job' };
 }
 
 // ── Main component ─────────────────────────────────────────────────────────────
@@ -258,13 +116,22 @@ export default function TodayScreen({
   };
 
   // ── Ranking (re-runs on jobs or rankVersion change) ──────────────────────────
-  const { tier, job: promptJob, poolSize } = useMemo(
-    () => rankJobs(jobs, new Date()),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [jobs, rankVersion]
-  );
+  // Delegates to the pure rankNextBestAction helper in src/lib/nextBestAction.js.
+  // Real function refs are passed so the helper stays free of React imports.
+  const { tier, job: promptJob, poolSize } = useMemo(() => {
+    const snoozeStore = readSnoozeStore();
+    return rankNextBestAction(
+      jobs,
+      new Date(),
+      snoozeStore,
+      isAwaitingPayment,
+      daysPastDue,
+      deriveStatus,
+    );
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jobs, rankVersion]);
 
-  // ── Weekly check-in line ──────────────────────────────────────────────────────
+  // ── Weekly momentum line (used in all-clear card + below pivot row) ───────────
   const { weekProfit, weekCount } = useMemo(() => {
     const sevenDaysAgo = Date.now() - 7 * 86400000;
     const weekJobs = jobs.filter(j => new Date(j.date || j.createdAt || 0).getTime() >= sevenDaysAgo && j.paid !== false);
@@ -300,7 +167,7 @@ export default function TodayScreen({
       const amount = gbp(jobAmount(promptJob));
       const jobSummary = promptJob.name || promptJob.summary || '';
       const dpd = daysPastDue(promptJob, new Date());
-      const tier = computeTier(promptJob, new Date());
+      const chaseTier = computeTier(promptJob, new Date());
       const bizName = profile?.business_name || '';
       const payDetails = buildPaymentDetails(profile?.bank_details ? { bankDetails: profile.bank_details } : {
         accountName: profile?.business_name,
@@ -312,7 +179,7 @@ export default function TodayScreen({
         amount,
         jobSummary,
         daysOverdue: dpd,
-        tier,
+        tier: chaseTier,
         paymentDetails: payDetails,
         businessName: bizName,
       });
@@ -328,14 +195,14 @@ export default function TodayScreen({
       const name = promptJob.customer || promptJob.customerName || promptJob.name || '';
       const amount = gbp(jobAmount(promptJob));
       const jobSummary = promptJob.name || promptJob.summary || '';
-      const tier = computeTier(promptJob, new Date());
+      const chaseTier = computeTier(promptJob, new Date());
       const dpd = daysPastDue(promptJob, new Date());
       const msg = buildChaseMessage({
         customerName: name,
         amount,
         jobSummary,
         daysOverdue: dpd,
-        tier,
+        tier: chaseTier,
       });
       window.open(`mailto:${email}?subject=Invoice reminder&body=${encodeURIComponent(msg)}`, '_blank', 'noopener');
       recordChase(promptJob.id);
@@ -349,7 +216,7 @@ export default function TodayScreen({
     }
 
     if (ctaAction === 'send_invoice') {
-      // Tier 2: open JobDetailDrawer for this job (the drawer already has the Send Invoice action)
+      // Tier 2: open JobDetailDrawer for this job (the drawer has the Send Invoice action)
       onJobTap?.(promptJob);
       return;
     }
@@ -361,7 +228,6 @@ export default function TodayScreen({
 
   const handleMarkPaid = useCallback((job, method) => {
     setMarkPaidPickerJob(null);
-    // Pass original job + method to AppShell's onMarkPaidFromToday, which builds the update
     onMarkPaid?.(job, method);
     showToast(`${gbp(jobAmount(job))} marked paid`);
     setRankVersion(v => v + 1);
@@ -370,9 +236,7 @@ export default function TodayScreen({
   const handleSnooze = useCallback((job) => {
     snoozeJob(job.id);
     // Record the snooze in the jobMeta side-channel (localStorage).
-    // Cloud sync is handled by AppShell's onUpdateJob — not wired here because
-    // Snooze is a local-first UX (re-rank is instant, cloud is fire-and-forget).
-    // A follow-up can expose onUpdateJob via props to sync snooze state.
+    // Cloud sync is fire-and-forget — snooze is local-first UX.
     try {
       writeJobMeta(job.id, extractJobMeta({ ...job, snoozedUntil: new Date(Date.now() + SNOOZE_MS).toISOString() }));
     } catch {}
@@ -381,14 +245,10 @@ export default function TodayScreen({
   }, []);
 
   const handleCardBodyTap = useCallback((job) => {
-    // Tapping the card body (not a CTA button) opens the underlying record
     if (job) onJobTap?.(job);
   }, [onJobTap]);
 
   // ── Accepted-quote banner handlers ────────────────────────────────────────────
-  // Dismiss: marks the job as seen in the jobMeta side-channel and clears the
-  // banner for this device. Does NOT sync to Supabase — acceptedSeenAt is a
-  // local-only acknowledgement flag (see acceptedNotification.js for rationale).
   const handleAcceptedDismiss = useCallback((job) => {
     const seenAt = new Date().toISOString();
     writeJobMeta(job.id, extractJobMeta({ ...job, acceptedSeenAt: seenAt }));
@@ -399,7 +259,6 @@ export default function TodayScreen({
     });
   }, []);
 
-  // Tap-to-view: marks seen AND navigates to the job.
   const handleAcceptedTap = useCallback((job) => {
     handleAcceptedDismiss(job);
     if (job) onJobTap?.(job);
@@ -415,9 +274,18 @@ export default function TodayScreen({
   };
 
   // ── Prompt card rendering ──────────────────────────────────────────────────────
-  const headline = tier < 5 && promptJob ? buildHeadline(tier, promptJob) : null;
-  const meta = tier < 5 && promptJob ? buildMeta(tier, promptJob, now) : null;
-  const cta = tier < 5 && promptJob ? buildCta(tier, promptJob, profile) : null;
+  const headline = tier < 5 && promptJob ? nbaHeadline(tier, promptJob) : null;
+  const meta     = tier < 5 && promptJob ? nbaMeta(tier, promptJob, now)  : null;
+  const cta      = tier < 5 && promptJob ? nbaCta(tier, promptJob, profile) : null;
+  const label    = tier < 5 && promptJob ? nbaLabel(tier) : null;
+
+  // Override meta.suffix for Tier 1 to include real days-past-due copy
+  const resolvedMeta = useMemo(() => {
+    if (tier !== 1 || !promptJob || !meta) return meta;
+    const dpd = daysPastDue(promptJob, now);
+    const overdueTxt = dpd === 0 ? 'due today' : dpd === 1 ? '1 day overdue' : `${dpd} days overdue`;
+    return { ...meta, suffix: overdueTxt, negative: true };
+  }, [tier, promptJob, meta, now]);
 
   return (
     <div className="today-screen foreman-screen">
@@ -429,10 +297,6 @@ export default function TodayScreen({
       <div className="foreman-divider" />
 
       {/* ── Accepted-quote banner (persistent until acknowledged) ─────────── */}
-      {/* Shown above the foreman prompt so the trader cannot miss it on first open
-          after a customer signs. Each row is independently dismissible. Tapping
-          the row body navigates to the job AND marks it as seen. The "Got it"
-          button marks as seen without navigating. */}
       {newlyAcceptedJobs.length > 0 && (
         <section className="accepted-banner" aria-label="Accepted quotes">
           {newlyAcceptedJobs.map((job) => (
@@ -465,7 +329,7 @@ export default function TodayScreen({
         </section>
       )}
 
-      {/* ── One Prompt card (or empty state) ──────────────────────────────── */}
+      {/* ── One Prompt card (or all-clear) ────────────────────────────────── */}
       {tier < 5 && promptJob ? (
         <section
           className="foreman-prompt-card"
@@ -481,17 +345,17 @@ export default function TodayScreen({
           }}
           onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleCardBodyTap(promptJob); }}
         >
-          <div className="foreman-tier-label">{tierLabel(tier)}</div>
+          <div className="foreman-tier-label">{label}</div>
           <div className="foreman-headline">{headline}</div>
-          {meta && (
-            <div className={`foreman-meta ${meta.negative ? 'foreman-meta--overdue' : ''}`}>
-              {meta.amount != null && (
-                <span className={meta.negative ? 'foreman-amount--overdue' : 'foreman-amount--neutral'}>
-                  {gbp(meta.amount)}
+          {resolvedMeta && (
+            <div className={`foreman-meta ${resolvedMeta.negative ? 'foreman-meta--overdue' : ''}`}>
+              {resolvedMeta.amount != null && (
+                <span className={resolvedMeta.negative ? 'foreman-amount--overdue' : 'foreman-amount--neutral'}>
+                  {gbp(resolvedMeta.amount)}
                 </span>
               )}
-              {meta.amount != null && meta.suffix && <span className="foreman-meta-sep"> — </span>}
-              {meta.suffix && <span>{meta.suffix}</span>}
+              {resolvedMeta.amount != null && resolvedMeta.suffix && <span className="foreman-meta-sep"> — </span>}
+              {resolvedMeta.suffix && <span>{resolvedMeta.suffix}</span>}
             </div>
           )}
 
@@ -557,7 +421,7 @@ export default function TodayScreen({
                     className="foreman-secondary-btn"
                     onClick={() => handleCardBodyTap(promptJob)}
                   >
-                    View job
+                    Open quote
                   </button>
                 )}
               </div>
@@ -565,21 +429,19 @@ export default function TodayScreen({
           )}
         </section>
       ) : (
-        /* ── Empty state ────────────────────────────────────────────────── */
-        <section className="foreman-empty-card">
-          <div className="foreman-empty-check" aria-hidden="true">✓</div>
+        /* ── All-clear state (slim, no duplicate Log a job) ─────────────── */
+        <section className="foreman-empty-card foreman-empty-card--slim">
+          <div className="foreman-empty-check" aria-hidden="true">&#10003;</div>
           <div className="foreman-empty-headline">
             <p>All clear.</p>
-            <p>Nice one.</p>
           </div>
-          <p className="foreman-empty-meta">Nothing overdue. Nothing waiting.</p>
-          <button
-            type="button"
-            className="foreman-cta-primary"
-            onClick={() => setJobOpen(true)}
-          >
-            Log a job
-          </button>
+          {weekCount > 0 ? (
+            <p className="foreman-empty-meta">
+              <span className="foreman-empty-meta__earned">{gbp(weekProfit)}</span> in the last 7 days
+            </p>
+          ) : (
+            <p className="foreman-empty-meta">Nothing overdue. Nothing waiting.</p>
+          )}
           <button
             type="button"
             className="foreman-empty-secondary"
@@ -590,8 +452,8 @@ export default function TodayScreen({
         </section>
       )}
 
-      {/* ── Pivot buttons ─────────────────────────────────────────────────── */}
-      <div className="foreman-pivot-row">
+      {/* ── Pivot buttons (quick-action grid) ────────────────────────────── */}
+      <div className="foreman-pivot-row foreman-pivot-row--three">
         <button
           type="button"
           className="foreman-pivot-btn"
@@ -618,7 +480,7 @@ export default function TodayScreen({
         </button>
       </div>
 
-      {/* ── Weekly check-in line ──────────────────────────────────────────── */}
+      {/* ── Weekly check-in line (shown when there's activity) ───────────── */}
       {weekCount > 0 && (
         <button
           type="button"
@@ -646,7 +508,7 @@ export default function TodayScreen({
                 aria-label="Close"
                 onClick={() => setInvoicePickerOpen(false)}
               >
-                ✕
+                &#10005;
               </button>
             </div>
             <ul className="foreman-invoice-picker-list">
@@ -682,7 +544,6 @@ export default function TodayScreen({
         />
       )}
 
-      {/* ReviewSheet — opened immediately after "Save & send quote" from voice confirm. */}
       {reviewQuoteJob && (
         <ReviewSheet
           mode="quote"

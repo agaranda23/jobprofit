@@ -7350,27 +7350,45 @@ input[type=number] { -moz-appearance: textfield; }
   text-align: center;
 }
 
+/* Slim variant — all-clear state has less vertical weight than urgent cards */
+.foreman-empty-card--slim {
+  padding: 18px 20px 16px;
+}
+
 .foreman-empty-check {
-  width: 44px;
-  height: 44px;
+  width: 36px;
+  height: 36px;
   border-radius: 50%;
-  background: rgba(52, 214, 114, 0.15);
+  background: rgba(52, 214, 114, 0.12);
   color: var(--accent, #34d672);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 18px;
+  font-size: 16px;
   font-weight: 700;
-  margin: 0 auto 14px;
+  margin: 0 auto 10px;
+}
+
+/* Urgent state keeps the original larger check */
+.foreman-empty-card:not(.foreman-empty-card--slim) .foreman-empty-check {
+  width: 44px;
+  height: 44px;
+  font-size: 18px;
+  margin-bottom: 14px;
+  background: rgba(52, 214, 114, 0.15);
 }
 
 .foreman-empty-headline {
-  font-size: 22px;
+  font-size: 18px;
   font-weight: 700;
   color: #fff;
   letter-spacing: -0.02em;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
   line-height: 1.3;
+}
+.foreman-empty-card:not(.foreman-empty-card--slim) .foreman-empty-headline {
+  font-size: 22px;
+  margin-bottom: 6px;
 }
 .foreman-empty-headline p {
   margin: 0;
@@ -7379,7 +7397,14 @@ input[type=number] { -moz-appearance: textfield; }
 .foreman-empty-meta {
   font-size: 13px;
   color: #9CA3AF;
-  margin: 0 0 18px;
+  margin: 0 0 14px;
+}
+
+/* Momentum earned figure inside the all-clear meta line */
+.foreman-empty-meta__earned {
+  color: var(--accent, #34d672);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
 }
 
 .foreman-empty-secondary {
@@ -7390,7 +7415,7 @@ input[type=number] { -moz-appearance: textfield; }
   font-size: 14px;
   font-weight: 600;
   font-family: inherit;
-  padding: 12px 20px;
+  padding: 10px 20px;
   width: 100%;
   min-height: 44px;
   cursor: pointer;
@@ -7404,6 +7429,11 @@ input[type=number] { -moz-appearance: textfield; }
   grid-template-columns: 1fr 1fr;
   gap: 8px;
   margin: 0 16px 12px;
+}
+
+/* Three-column variant — used when all three quick actions are present */
+.foreman-pivot-row--three {
+  grid-template-columns: 1fr 1fr 1fr;
 }
 
 .foreman-pivot-btn {
