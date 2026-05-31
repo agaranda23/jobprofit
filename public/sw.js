@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v20';  // bumped from v19: Stripe Connect Pay-now links + invoice surfaces (PR 2/3)
+const CACHE_NAME = 'jobprofit-v21';  // bumped from v20: remove price chevron from job detail drawer header
 const PRECACHE = [
   '/',
   '/index.html',

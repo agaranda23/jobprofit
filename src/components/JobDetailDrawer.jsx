@@ -2153,7 +2153,6 @@ export default function JobDetailDrawer({
                   ? <span className="jd-detail-edit-row-add">+ Add price</span>
                   : <span className="job-detail-amount">{gbp(Number(job.total ?? job.amount))}</span>
                 }
-                <span className="jd-customer-edit-icon" aria-hidden="true">›</span>
               </button>
             )}
             {!onUpdateJob && typeof amount === 'number' && (
