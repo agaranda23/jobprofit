@@ -47,6 +47,20 @@ import { buildChaseList } from '../lib/chaseList.js';
 
 const APP_VERSION = pkg.version;
 
+// ── Share / contact helpers ───────────────────────────────────────────────────
+
+export function buildShareData() {
+  return {
+    title: 'JobProfit',
+    text: "I use JobProfit to quote, invoice and get paid from my phone — give it a go.",
+    url: 'https://getjobprofit.com',
+  };
+}
+
+export function buildWhatsAppSupportUrl() {
+  return 'https://wa.me/447411353356?text=Hi%2C%20I\'ve%20got%20a%20question%20about%20JobProfit';
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function deriveInitials(profile, session) {
@@ -571,6 +585,38 @@ export default function SettingsScreen({
     toastTimerRef.current = setTimeout(() => setSaveToast(''), 2500);
   };
 
+  const handleShare = async () => {
+    const data = buildShareData();
+    if (typeof navigator.share === 'function' && typeof navigator.canShare === 'function' && navigator.canShare(data)) {
+      try {
+        await navigator.share(data);
+      } catch {
+        // User cancelled or share failed — fall through to clipboard
+        try {
+          await navigator.clipboard.writeText(data.url);
+          showSavedToast('Link copied');
+        } catch {
+          // Clipboard also unavailable — silently do nothing
+        }
+      }
+    } else {
+      try {
+        await navigator.clipboard.writeText(data.url);
+        showSavedToast('Link copied');
+      } catch {
+        // Clipboard unavailable — silently do nothing
+      }
+    }
+  };
+
+  const handleWhatsApp = () => {
+    window.open(buildWhatsAppSupportUrl(), '_blank', 'noopener');
+  };
+
+  const handleSendFeedback = () => {
+    window.location.href = 'mailto:getjobprofit@gmail.com?subject=JobProfit%20feedback';
+  };
+
   const handleSave = async (patch) => {
     if (!onProfileUpdate) throw new Error('onProfileUpdate not wired');
     await onProfileUpdate(patch);
@@ -885,7 +931,6 @@ export default function SettingsScreen({
 
       {/* Accountant */}
       <SectionCard title="Accountant">
-        <PlaceholderRow label="Invite by email" />
         <Row
           label="Export records"
           value={exporting ? 'Preparing…' : 'CSV'}
@@ -907,8 +952,20 @@ export default function SettingsScreen({
 
       {/* Help */}
       <SectionCard title="Help">
-        <PlaceholderRow label="Chat with us" />
-        <PlaceholderRow label="Send feedback" />
+        <Row
+          label="Chat with us"
+          value="WhatsApp"
+          onTap={handleWhatsApp}
+        />
+        <Row
+          label="Send feedback"
+          value="Email"
+          onTap={handleSendFeedback}
+        />
+        <Row
+          label="Refer a mate"
+          onTap={handleShare}
+        />
         <PlaceholderRow label="What's new" />
       </SectionCard>
 
