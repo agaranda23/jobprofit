@@ -3502,7 +3502,7 @@ input[type=number] { -moz-appearance: textfield; }
 
 /* ── Stage Strip ──────────────────────────────── */
 .stage-strip-wrap {
-  margin-bottom: 4px;
+  margin-bottom: 8px; /* rail hidden — own margin carries the gap to the list */
 }
 
 .stage-strip {
@@ -3628,7 +3628,7 @@ input[type=number] { -moz-appearance: textfield; }
 }
 
 .stage-tile-name {
-  font-size: 8.5px;
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.1em;
   color: var(--text-dim);
@@ -3641,7 +3641,7 @@ input[type=number] { -moz-appearance: textfield; }
   line-height: 1.2;
 }
 .stage-tile-amount {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--text-dim);
   line-height: 1.2;
@@ -3662,9 +3662,10 @@ input[type=number] { -moz-appearance: textfield; }
   opacity: 0.65;
 }
 
-/* Connector rail — hairline + dots below the strip */
+/* Connector rail — hidden (Phase 1: selected-tile fill is enough "you are here" signal).
+   The JSX and dot rules below remain so a future A/B can toggle display back on. */
 .stage-rail {
-  display: flex;
+  display: none;
   width: 100%;
   gap: 4px;
   align-items: center;
@@ -6489,6 +6490,43 @@ input[type=number] { -moz-appearance: textfield; }
   font-family: inherit;
 }
 
+/* ── Jobs search bar ─────────────────────────────────────────────────────────
+   Sticky under the header, full-width, works offline (pure JS filter).
+   Positioned inside .work-screen flow so it scrolls with content after
+   the chase bar + strip — no fixed positioning required. */
+.jobs-search-wrap {
+  padding: 0 16px 8px;
+}
+.jobs-search {
+  width: 100%;
+  box-sizing: border-box;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 15px;
+  font-family: inherit;
+  color: var(--text);
+  outline: none;
+  -webkit-appearance: none;
+}
+.jobs-search::placeholder {
+  color: var(--text-dim);
+  opacity: 0.7;
+}
+.jobs-search:focus {
+  border-color: var(--jp-green);
+  box-shadow: 0 0 0 2px rgba(43, 196, 138, 0.18);
+}
+
+/* ── Job tile address line ───────────────────────────────────────────────────
+   Shown on the secondary identity line: customer · first-line-of-address.
+   Inherits .jt-customer font to keep the visual hierarchy consistent. */
+.jt-address {
+  color: var(--text-dim);
+  opacity: 0.75;
+}
+
 /* ═══════════════════════════════════════════════════════════════
    JOB TILE — feat/job-tile-stage-chip
    Replaces .job-card in JobsScreen. Uses CSS custom properties
@@ -6859,6 +6897,27 @@ input[type=number] { -moz-appearance: textfield; }
 }
 .jt-icon-btn:hover { color: var(--text); }
 .jt-icon-btn svg { display: block; }
+
+/* "Mark paid" secondary CTA — ghost button beside Chase payment on Invoiced/Overdue tiles.
+   Smaller than the primary CTA so hierarchy is clear; still ≥44px tall for one-hand tap. */
+.jt-cta--markpaid {
+  flex: 0 0 auto;
+  background: transparent;
+  color: var(--jp-green);
+  border: 1px solid var(--jp-green);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  min-height: 44px;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.jt-cta--markpaid:active { opacity: 0.8; }
 
 /* Disabled Chase CTA state — shown when 48h double-send guard is active */
 .jt-cta:disabled,
