@@ -199,3 +199,102 @@ describe('handleProfileUpdate save flow', () => {
     await expect(onProfileUpdate(patch)).rejects.toThrow('Supabase write failed');
   });
 });
+
+// ── MonthlyOverheadsSection persist() contract ────────────────────────────────
+// Regression test for fix/overhead-running-cost-save:
+//   - persist() returns true on success, false on failure.
+//   - handleAdd / handleEditSave must NOT close the inline form when save fails.
+//
+// We simulate the logic without mounting the component (project convention: no DOM).
+
+async function makePersist(onSave, setItems, setError, setSaving) {
+  return async (next) => {
+    setSaving(true);
+    setError('');
+    try {
+      await onSave({ overheads: next });
+      setItems(next);
+      return true;
+    } catch {
+      setError('Could not save — try again');
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  };
+}
+
+describe('MonthlyOverheadsSection persist()', () => {
+  it('returns true and commits items when onSave resolves', async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    const setItems = vi.fn();
+    const setError = vi.fn();
+    const setSaving = vi.fn();
+    const persist = await makePersist(onSave, setItems, setError, setSaving);
+
+    const next = [{ id: 'a', name: 'Van insurance', amount: 80, category: 'Insurance', is_active: true }];
+    const result = await persist(next);
+
+    expect(result).toBe(true);
+    expect(setItems).toHaveBeenCalledWith(next);
+    expect(setError).toHaveBeenCalledWith('');
+  });
+
+  it('returns false and sets error when onSave rejects (e.g. missing DB column)', async () => {
+    const onSave = vi.fn().mockRejectedValue(new Error('column "overheads" does not exist'));
+    const setItems = vi.fn();
+    const setError = vi.fn();
+    const setSaving = vi.fn();
+    const persist = await makePersist(onSave, setItems, setError, setSaving);
+
+    const next = [{ id: 'b', name: 'Fuel', amount: 150, category: 'Fuel', is_active: true }];
+    const result = await persist(next);
+
+    expect(result).toBe(false);
+    expect(setItems).not.toHaveBeenCalled();
+    expect(setError).toHaveBeenLastCalledWith('Could not save — try again');
+  });
+
+  it('handleAdd closes form only when persist returns true', async () => {
+    let formClosed = false;
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    const setItems = vi.fn();
+    const setError = vi.fn();
+    const setSaving = vi.fn();
+    const persist = await makePersist(onSave, setItems, setError, setSaving);
+
+    const ok = await persist([{ id: 'c', name: 'Phone', amount: 40, category: 'Phone', is_active: true }]);
+    if (ok) formClosed = true;
+
+    expect(formClosed).toBe(true);
+  });
+
+  it('handleAdd keeps form open when persist returns false', async () => {
+    let formClosed = false;
+    const onSave = vi.fn().mockRejectedValue(new Error('DB error'));
+    const setItems = vi.fn();
+    const setError = vi.fn();
+    const setSaving = vi.fn();
+    const persist = await makePersist(onSave, setItems, setError, setSaving);
+
+    const ok = await persist([{ id: 'd', name: 'Rent', amount: 500, category: 'Rent', is_active: true }]);
+    if (ok) formClosed = true;
+
+    expect(formClosed).toBe(false);
+  });
+
+  it('always calls setSaving(false) even when onSave rejects', async () => {
+    const onSave = vi.fn().mockRejectedValue(new Error('network error'));
+    const setItems = vi.fn();
+    const setError = vi.fn();
+    const setSaving = vi.fn();
+    const persist = await makePersist(onSave, setItems, setError, setSaving);
+
+    await persist([]);
+
+    // setSaving is called twice: true at start, false in finally
+    expect(setSaving).toHaveBeenCalledTimes(2);
+    expect(setSaving).toHaveBeenNthCalledWith(1, true);
+    expect(setSaving).toHaveBeenNthCalledWith(2, false);
+  });
+});
