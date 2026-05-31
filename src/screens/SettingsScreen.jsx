@@ -223,6 +223,163 @@ function NotificationsSection({ session }) {
   );
 }
 
+// ── WeeklyDigestRow ───────────────────────────────────────────────────────────
+// Bound to profiles.weekly_digest_enabled (boolean, default true).
+// The column is added by supabase/migrations/20260531100000_add_weekly_digest_enabled.sql.
+// The push itself is a no-op until VAPID keys are set in Netlify env (founder action).
+
+function WeeklyDigestRow({ session, profile, onProfileUpdate }) {
+  // Derive initial state from profile; treat null/undefined as true (opt-out default)
+  const [enabled, setEnabled] = useState(
+    () => profile?.weekly_digest_enabled !== false
+  );
+  const [working, setWorking] = useState(false);
+
+  // Keep in sync if the parent profile reloads (e.g. after a save elsewhere)
+  useEffect(() => {
+    setEnabled(profile?.weekly_digest_enabled !== false);
+  }, [profile?.weekly_digest_enabled]);
+
+  const handleToggle = async () => {
+    if (working) return;
+    const next = !enabled;
+    setEnabled(next); // optimistic
+    setWorking(true);
+    try {
+      await onProfileUpdate({ weekly_digest_enabled: next });
+    } catch {
+      setEnabled(!next); // revert on failure
+    } finally {
+      setWorking(false);
+    }
+  };
+
+  // Only meaningful when push is supported and user is subscribed
+  if (!isPushSupported()) return null;
+
+  return (
+    <Row
+      label="Weekly profit digest"
+      value={working ? 'Updating…' : enabled ? 'On' : 'Off'}
+      onTap={handleToggle}
+      chevron={false}
+    />
+  );
+}
+
+// ── CIS subcontractor setup sheet ────────────────────────────────────────────
+// Shown when the CIS row in Invoice settings is tapped.
+// Manages its own local state; saves via onProfileUpdate on close.
+
+const CIS_RATES = [
+  { value: 20, label: '20% — Registered' },
+  { value: 30, label: '30% — Not registered' },
+  { value: 0,  label: '0% — Gross status' },
+];
+
+function CisSetupSheet({ profile, onProfileUpdate, onClose }) {
+  const [isOn, setIsOn] = useState(() => !!profile?.is_cis_subcontractor);
+  const [rate, setRate] = useState(() => Number(profile?.cis_default_rate ?? 20));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState('');
+
+  const handleSave = async () => {
+    setSaving(true);
+    setError('');
+    try {
+      await onProfileUpdate({
+        is_cis_subcontractor: isOn,
+        cis_default_rate: isOn ? rate : 20,
+      });
+      onClose();
+    } catch {
+      setError('Could not save — try again');
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div
+      className="modal-backdrop"
+      role="dialog"
+      aria-modal="true"
+      aria-label="CIS subcontractor setup"
+      onClick={onClose}
+    >
+      <div
+        className="modal cis-setup-sheet"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="cis-sheet__header">
+          <h2 className="modal-title">CIS subcontractor</h2>
+          <button
+            type="button"
+            className="chase-list-close"
+            onClick={onClose}
+            aria-label="Close"
+          >
+            ×
+          </button>
+        </div>
+
+        <div className="cis-sheet__body">
+          <p className="cis-sheet__explainer">
+            Do contractors deduct tax from your pay before you get it? That&rsquo;s CIS
+            (Construction Industry Scheme). If yes, JobProfit can track it so your
+            Tax Pot is accurate.
+          </p>
+
+          <div className="cis-sheet__toggle-row">
+            <span className="cis-sheet__toggle-label">I&rsquo;m a CIS subcontractor</span>
+            <button
+              type="button"
+              className={`cis-sheet__toggle${isOn ? ' cis-sheet__toggle--on' : ''}`}
+              onClick={() => setIsOn(v => !v)}
+              role="switch"
+              aria-checked={isOn}
+            >
+              {isOn ? 'On' : 'Off'}
+            </button>
+          </div>
+
+          {isOn && (
+            <>
+              <p className="cis-sheet__rate-label">Your CIS deduction rate</p>
+              <div className="work-segments cis-sheet__rate-segments">
+                {CIS_RATES.map(r => (
+                  <button
+                    key={r.value}
+                    type="button"
+                    className={`work-segment${rate === r.value ? ' work-segment--active' : ''}`}
+                    onClick={() => setRate(r.value)}
+                  >
+                    {r.label}
+                  </button>
+                ))}
+              </div>
+              <p className="cis-sheet__rate-hint">
+                Not sure? Most registered subbies are on 20%. Check your CIS statement
+                or ask your contractor.
+              </p>
+            </>
+          )}
+
+          {error && <p className="settings-row-error">{error}</p>}
+
+          <button
+            type="button"
+            className="cis-sheet__save-btn"
+            onClick={handleSave}
+            disabled={saving}
+          >
+            {saving ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Voice language picker ─────────────────────────────────────────────────────
 
 const VOICE_LANGS = [
@@ -810,6 +967,9 @@ export default function SettingsScreen({
     }
   };
 
+  // ── CIS setup sheet state ─────────────────────────────────────────────────
+  const [showCisSheet, setShowCisSheet] = useState(false);
+
   // ── Chase reminders state ─────────────────────────────────────────────────
   const [showChaseList, setShowChaseList] = useState(false);
 
@@ -1079,6 +1239,15 @@ export default function SettingsScreen({
           onTap={openEditTaxSetAside}
         />
         <Row
+          label="CIS subcontractor"
+          value={
+            profile?.is_cis_subcontractor
+              ? `On · ${profile.cis_default_rate ?? 20}%`
+              : 'Off'
+          }
+          onTap={() => setShowCisSheet(true)}
+        />
+        <Row
           label="Card payment link"
           value={profile?.stripe_payment_link ? 'Set' : 'Not set'}
           onTap={openEditStripeLink}
@@ -1111,7 +1280,11 @@ export default function SettingsScreen({
           chevron
           onTap={() => setShowChaseList(true)}
         />
-        <PlaceholderRow label="Weekly profit digest" />
+        <WeeklyDigestRow
+          session={session}
+          profile={profile}
+          onProfileUpdate={onProfileUpdate}
+        />
       </SectionCard>
 
 
@@ -1346,6 +1519,15 @@ export default function SettingsScreen({
             )}
           </div>
         </div>
+      )}
+
+      {/* ── CIS setup sheet ──────────────────────────────────────────────── */}
+      {showCisSheet && (
+        <CisSetupSheet
+          profile={profile}
+          onProfileUpdate={handleSave}
+          onClose={() => setShowCisSheet(false)}
+        />
       )}
 
       {/* ── What's new sheet ─────────────────────────────────────────────── */}

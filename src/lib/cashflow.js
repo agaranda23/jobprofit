@@ -191,6 +191,33 @@ export function taxYearLabel(now = new Date()) {
 }
 
 /**
+ * Resolves per-job CIS state given the job's meta fields and the user's profile.
+ *
+ * Rules:
+ *   - If profile.is_cis_subcontractor is false/falsy → job is never CIS (rate=0 sentinel).
+ *   - If job.cis is explicitly false → this specific job opted out of CIS.
+ *   - If job.cis is true or undefined (for CIS users) → CIS applies.
+ *   - Rate resolves: job.cisRate ?? profile.cis_default_rate ?? 20.
+ *   - Gross (0%) jobs: CIS applies but deduction = £0; their profit still counts
+ *     toward the set-aside base (gross subbies owe all tax themselves).
+ *
+ * Returns { isCisJob: boolean, rate: 0|20|30 }
+ * When isCisJob is false, rate is always 0.
+ *
+ * @param {object} job
+ * @param {object} profile
+ * @returns {{ isCisJob: boolean, rate: number }}
+ */
+export function resolveCisStatus(job, profile) {
+  if (!profile?.is_cis_subcontractor) return { isCisJob: false, rate: 0 };
+  // Explicit per-job opt-out
+  if (job.cis === false) return { isCisJob: false, rate: 0 };
+  // Gross Payment Status at profile level means CIS applies but 0% rate
+  const rate = job.cisRate != null ? Number(job.cisRate) : Number(profile.cis_default_rate ?? 20);
+  return { isCisJob: true, rate };
+}
+
+/**
  * Aggregates jobs and receipts across the current UK tax year up to `now`.
  * Uses the same paid/earned-date and cost logic as getMonthSummary, so YTD
  * figures reconcile with monthly ones.
@@ -198,12 +225,21 @@ export function taxYearLabel(now = new Date()) {
  * A paid job earned on taxYearStart(now) counts; one earned on the day before
  * does not (it belongs to last year).
  *
+ * When profile.is_cis_subcontractor is true, the function also returns:
+ *   cisDeductedYtd   — total CIS already deducted by contractors this year.
+ *                      Formula: Σ over paid CIS jobs of max(0, quote−materials) × rate/100.
+ *   nonCisProfit     — profit from non-CIS paid jobs (and Gross-0% CIS jobs) that
+ *                      the user still owes Self Assessment tax on.
+ *   excludedFromTax  — profit excluded from both calcs via job.excludeFromTax.
+ * For non-CIS users these are 0 / profit / 0 — identical to the pre-CIS behaviour.
+ *
  * @param {object[]} jobs
  * @param {object[]} receipts
  * @param {Date} [now]
- * @returns {{ profit: number, paid: number }}
+ * @param {object} [profile]
+ * @returns {{ profit: number, paid: number, cisDeductedYtd: number, nonCisProfit: number, excludedFromTax: number }}
  */
-export function getTaxYearSummary(jobs, receipts, now = new Date()) {
+export function getTaxYearSummary(jobs, receipts, now = new Date(), profile = null) {
   const safeJobs = Array.isArray(jobs) ? jobs : [];
   const safeReceipts = Array.isArray(receipts) ? receipts : [];
 
@@ -214,6 +250,22 @@ export function getTaxYearSummary(jobs, receipts, now = new Date()) {
 
   let paid = 0;
   let cost = 0;
+  let cisDeductedYtd = 0;
+  let nonCisProfit = 0;
+  let excludedFromTax = 0;
+
+  // Pre-build a per-job receipt map so we can derive labour for CIS calcs
+  // without an O(n²) inner loop.
+  const receiptsByJob = new Map();
+  for (const receipt of safeReceipts) {
+    if (!receipt) continue;
+    const keys = [];
+    if (receipt.jobId != null) keys.push(String(receipt.jobId));
+    for (const k of keys) {
+      if (!receiptsByJob.has(k)) receiptsByJob.set(k, 0);
+      receiptsByJob.set(k, receiptsByJob.get(k) + Number(receipt.amount || 0));
+    }
+  }
 
   for (const job of safeJobs) {
     if (isExcludedJob(job)) continue;
@@ -221,7 +273,42 @@ export function getTaxYearSummary(jobs, receipts, now = new Date()) {
     const d = jobEarnedDate(job);
     if (!d) continue;
     if (d < start || d > end) continue;
+
     paid += jobReceivedAmount(job);
+
+    // Job materials = sum of receipts linked to this job (same logic as getJobProfit).
+    // We look up by both id and cloudId to match the receipt filter used in the UI.
+    const jobId = String(job.id ?? '');
+    const cloudId = job.cloudId != null ? String(job.cloudId) : null;
+    const jobMaterials =
+      (receiptsByJob.get(jobId) ?? 0) +
+      (cloudId && cloudId !== jobId ? (receiptsByJob.get(cloudId) ?? 0) : 0);
+
+    const quote = Number(job.total ?? job.amount ?? 0);
+    const jobProfit = quote - jobMaterials;
+
+    // excludeFromTax: remove from all tax calc buckets.
+    // The job still contributes to cashflow (paid is already added above).
+    if (job.excludeFromTax) {
+      excludedFromTax += jobProfit;
+      continue;
+    }
+
+    const { isCisJob, rate } = resolveCisStatus(job, profile);
+
+    if (isCisJob && rate > 0) {
+      // Deducting-CIS job: the contractor already withheld tax on the labour portion.
+      // Labour = max(0, quote − materials). Clamp to 0 when materials exceed quote.
+      const labour = Math.max(0, quote - jobMaterials);
+      const deduction = labour * (rate / 100);
+      cisDeductedYtd += deduction;
+      // This job's profit does NOT count toward the set-aside base —
+      // the advance deduction already covers it.
+    } else {
+      // Non-CIS job, explicitly opted-out job, or Gross-0% CIS job:
+      // profit counts toward the set-aside base (gross subbies owe all tax themselves).
+      nonCisProfit += jobProfit;
+    }
   }
 
   for (const receipt of safeReceipts) {
@@ -234,8 +321,16 @@ export function getTaxYearSummary(jobs, receipts, now = new Date()) {
   }
 
   return {
+    // profit: overall YTD P&L, unchanged from pre-CIS behaviour.
+    // Non-CIS users: cisDeductedYtd=0, nonCisProfit=profit, excludedFromTax=0.
     profit: paid - cost,
     paid,
+    cisDeductedYtd,
+    // nonCisProfit: per-job profit sum for jobs that belong to the set-aside base.
+    // Does not deduct global receipt costs (those are already in profit).
+    // Used only for the set-aside base calculation: max(0, nonCisProfit) * pct.
+    nonCisProfit,
+    excludedFromTax,
   };
 }
 
