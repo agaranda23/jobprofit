@@ -13,15 +13,16 @@
  *   Accountant       — placeholder
  *   Data & privacy   — placeholder
  *   Help             — placeholder
- *   App              — theme toggle (placeholder) + version read from package.json
+ *   App              — theme picker (Light/Dark/System) + version read from package.json
  *
  * Judgement calls documented here:
  *   1. "Re-run setup wizard" row is a manual escape hatch — always available at
  *      the bottom of Account, regardless of completion status.
  *   2. Logo row opens a text-input modal for v1 (URL only). A proper upload
  *      flow is deferred to a follow-up — noted in this file.
- *   3. Theme toggle is a visual placeholder only (dark mode is hard-coded in
- *      index.css via prefers-color-scheme). A real toggle is a follow-up task.
+ *   3. Theme picker: Light / Dark / System segmented control. Preference is
+ *      persisted to localStorage (jp.theme) via src/lib/theme.js. System mode
+ *      follows the OS prefers-color-scheme and subscribes to live changes.
  *   4. Version is imported from package.json using Vite's JSON import — zero
  *      runtime overhead, no fetch needed.
  *   5. Editable rows use EditFieldModal (single or composite). Saves bubble
@@ -45,6 +46,7 @@ import { isValidStripePaymentLink } from '../lib/bizValidation.js';
 import { buildJobsCsv, downloadOrShareCsv } from '../lib/exportCsv.js';
 import { buildChaseList } from '../lib/chaseList.js';
 import { WHATS_NEW, formatWhatsNewDate } from '../lib/whatsNew.js';
+import { getStoredPref, setPref as setThemePref } from '../lib/theme.js';
 
 const APP_VERSION = pkg.version;
 
@@ -880,6 +882,14 @@ export default function SettingsScreen({
   onProfileUpdate,
   onOpenJob,
 }) {
+  // ── Theme state ───────────────────────────────────────────────────────────
+  const [themePref, setThemePrefState] = useState(() => getStoredPref());
+
+  function handleThemePref(pref) {
+    setThemePrefState(pref);
+    setThemePref(pref);
+  }
+
   // ── What's new state ──────────────────────────────────────────────────────
   const [showWhatsNew, setShowWhatsNew] = useState(false);
   const [whatsNewDot, setWhatsNewDot] = useState(() => hasUnseenWhatsNew());
@@ -1390,9 +1400,27 @@ export default function SettingsScreen({
 
       {/* App */}
       <SectionCard title="App">
-        {/* Theme toggle is a visual placeholder — real dark/light toggle is a follow-up.
-            The app currently follows system prefers-color-scheme from index.css. */}
-        <Row label="Theme" value="System (auto)" />
+        {/* Theme picker — Light / Dark / System segmented control */}
+        <div className="settings-row settings-row--passive settings-row--theme">
+          <span className="settings-row-label">Theme</span>
+          <div className="theme-picker" role="group" aria-label="Choose theme">
+            {[
+              { value: 'light',  label: 'Light'  },
+              { value: 'dark',   label: 'Dark'   },
+              { value: 'system', label: 'System' },
+            ].map(({ value, label }) => (
+              <button
+                key={value}
+                type="button"
+                className={`theme-option${themePref === value ? ' theme-option--active' : ''}`}
+                onClick={() => handleThemePref(value)}
+                aria-pressed={themePref === value}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
         <Row label="Version" value={APP_VERSION} chevron={false} />
       </SectionCard>
 

@@ -24,6 +24,27 @@
       <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap">
     </head>
     <body>
+      <!-- No-flash theme init: reads jp.theme from localStorage and sets
+           data-theme on <html> synchronously, before React mounts and before
+           the browser paints. Runs as a plain script (not module) so it
+           executes as early as possible. Falls back to 'dark' (the default). -->
+      <script>
+        (function () {
+          try {
+            var pref = localStorage.getItem('jp.theme');
+            var valid = ['light', 'dark', 'system'];
+            if (!valid.includes(pref)) pref = 'dark';
+            var resolved = pref;
+            if (pref === 'system') {
+              resolved = window.matchMedia('(prefers-color-scheme: light)').matches
+                ? 'light' : 'dark';
+            }
+            document.documentElement.dataset.theme = resolved;
+          } catch (e) {
+            document.documentElement.dataset.theme = 'dark';
+          }
+        })();
+      </script>
       <div id="root"></div>
       <script type="module" src="/src/main.jsx"></script>
     </body>
