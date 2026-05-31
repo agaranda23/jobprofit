@@ -152,7 +152,7 @@ function jobReceivedAmount(job) {
     // For now, add deposit only when explicit payments don't already cover it.
     return explicit;
   }
-  if (isPaidJob(job)) return Number(job.total ?? job.amount ?? 0);
+  if (isPaidJob(job)) return Number(job.amount ?? 0);
   // Not fully paid: add deposit if present (deposit counts as revenue immediately)
   return jobDepositReceived(job);
 }

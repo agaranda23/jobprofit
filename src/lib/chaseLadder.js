@@ -368,29 +368,23 @@ export function buildChaseLink({ phone, ...msgParams }) {
 export function buildChaseMessageWithPayNow({ payNowUrl = '', depositPaidPence = 0, ...msgParams }) {
   const baseMessage = buildChaseMessage(msgParams);
 
-  const parts = [];
-  if (payNowUrl) {
-    // Deposit context on the pay link line
-    if (depositPaidPence > 0) {
-      const depositGbp = `£${(depositPaidPence / 100).toFixed(2)}`;
-      parts.push(`Pay balance by card here (deposit of ${depositGbp} already received):`);
-    } else {
-      parts.push('Pay by card here:');
-    }
-    parts.push(payNowUrl);
-    parts.push('');
-  }
+  if (!payNowUrl && depositPaidPence === 0) return baseMessage;
 
-  parts.push(baseMessage);
-
-  // Deposit suffix appended to the base message when no payNowUrl
-  // (unconnected trader but deposit was paid — inform the customer)
   if (!payNowUrl && depositPaidPence > 0) {
+    // Unconnected trader but deposit was paid — inform the customer
     const depositGbp = `£${(depositPaidPence / 100).toFixed(2)}`;
     return `${baseMessage}\n\n(Deposit of ${depositGbp} already paid — this is for the remaining balance.)`;
   }
 
-  return parts.join('\n');
+  // payNowUrl is present — prepend the Pay-now block, then a blank line, then base message.
+  // No-deposit: label and URL on the same line (PR 2 spec — "Pay by card here: <url>").
+  // With deposit: label on one line, URL on the next (PR 4 spec — separate lines).
+  if (depositPaidPence > 0) {
+    const depositGbp = `£${(depositPaidPence / 100).toFixed(2)}`;
+    return `Pay balance by card here (deposit of ${depositGbp} already received):\n${payNowUrl}\n\n${baseMessage}`;
+  }
+
+  return `Pay by card here: ${payNowUrl}\n\n${baseMessage}`;
 }
 
 // ── Display helpers ───────────────────────────────────────────────────────
