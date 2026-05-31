@@ -115,6 +115,7 @@ body { background: var(--bg); color: var(--text); -webkit-font-smoothing: antial
 .totals {
   background: var(--surface);
   border-radius: 16px;
+  box-shadow: 0 1px 0 rgba(0,0,0,0.25);
   padding: 8px 20px;
   margin-bottom: 24px;
   border: 1px solid var(--border);
@@ -132,7 +133,7 @@ body { background: var(--bg); color: var(--text); -webkit-font-smoothing: antial
 .profit-row .total-label { color: var(--text); font-weight: 600; }
 .profit-value { font-size: 32px; font-weight: 700; color: var(--accent); letter-spacing: -0.01em; }
 .total-awaiting-row { padding: 4px 0 14px; border: none !important; justify-content: flex-end; }
-.total-awaiting-label { font-size: 14px; font-weight: 600; color: #f59e0b; letter-spacing: -0.005em; }
+.total-awaiting-label { font-size: 14px; font-weight: 600; color: var(--jp-amber); letter-spacing: -0.005em; }
 
 .actions {
   display: flex;
@@ -423,7 +424,8 @@ body { background: var(--bg); color: var(--text); -webkit-font-smoothing: antial
 .unpaid-item {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: 16px;
+  box-shadow: 0 1px 0 rgba(0,0,0,0.25);
   padding: 14px 16px;
   margin-bottom: 8px;
 }
@@ -466,7 +468,7 @@ body { background: var(--bg); color: var(--text); -webkit-font-smoothing: antial
   display: inline-block;
   font-size: 11px;
   background: #3a2a1a;
-  color: #ffa755;
+  color: var(--jp-amber);
   padding: 2px 8px;
   border-radius: 10px;
   margin-left: 8px;
@@ -812,7 +814,7 @@ body {
   font-size: 11px;
   font-weight: 600;
   background: rgba(251,191,36,0.15);
-  color: #f59e0b;
+  color: var(--jp-amber);
   padding: 2px 7px;
   border-radius: 99px;
   vertical-align: middle;
@@ -822,7 +824,7 @@ body {
 /* Offline hint text */
 .aj-offline-hint {
   font-size: 13px;
-  color: #f59e0b;
+  color: var(--jp-amber);
   background: rgba(251,191,36,0.08);
   border: 1px solid rgba(251,191,36,0.25);
   border-radius: 8px;
@@ -947,11 +949,11 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--text-dim);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.06em;
   margin-bottom: 8px;
 }
 .receipt-items-list { list-style: none; padding: 0; margin: 0; }
@@ -1043,7 +1045,7 @@ body {
   letter-spacing: 0.01em;
 }
 .unpaid-amount-inline {
-  color: #ffa755;
+  color: var(--jp-amber);
   font-weight: 700;
   font-variant-numeric: tabular-nums;
 }
@@ -1052,7 +1054,7 @@ body {
 }
 .unpaid-age-line {
   font-size: 12px;
-  color: #ffa755;
+  color: var(--jp-amber);
   margin: -4px 0 10px;
   font-weight: 500;
   letter-spacing: 0.02em;
@@ -1078,7 +1080,8 @@ body {
   padding: 24px 20px;
   background: var(--surface-2);
   border: 1px solid var(--border);
-  border-radius: 14px;
+  border-radius: 16px;
+  box-shadow: 0 1px 0 rgba(0,0,0,0.25);
 }
 .empty-welcome-text {
   text-align: center;
@@ -1307,11 +1310,11 @@ body {
   max-width: 100%;
 }
 .signout-btn-label {
-  color: #ffa755;
+  color: var(--jp-amber);
   font-weight: 600;
 }
 .signout-btn:hover {
-  border-color: #ffa755;
+  border-color: var(--jp-amber);
 }
 
 
@@ -1381,12 +1384,12 @@ input[type=number] { -moz-appearance: textfield; }
 .awaiting-section-link:hover { background: var(--surface-2); color: var(--text); }
 
 /* Awaiting per-job card */
-.awaiting-job-card { background: var(--surface); border: 1px solid #f59e0b40; border-left: 4px solid #f59e0b; border-radius: 14px; overflow: hidden; }
+.awaiting-job-card { background: var(--surface); border: 1px solid #f59e0b40; border-left: 4px solid var(--jp-amber); border-radius: 16px; box-shadow: 0 1px 0 rgba(0,0,0,0.25); overflow: hidden; }
 .awaiting-job-card-row { display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; }
 .awaiting-job-customer-col { flex: 1; min-width: 0; }
 .awaiting-job-customer { font-size: 15px; font-weight: 700; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .awaiting-job-meta { font-size: 12px; color: var(--text-dim); margin-top: 2px; font-weight: 500; }
-.awaiting-job-meta-warn { color: #f59e0b; }
+.awaiting-job-meta-warn { color: var(--jp-amber); }
 .awaiting-job-meta-late { color: #ef4444; }
 .awaiting-job-amount { font-size: 17px; font-weight: 700; color: var(--text); margin-left: 12px; font-variant-numeric: tabular-nums; }
 
@@ -1410,17 +1413,17 @@ input[type=number] { -moz-appearance: textfield; }
 .money-list { display: flex; flex-direction: column; gap: 8px; }
 
 /* Chase row — compact card per awaiting invoice */
-.chase-row { background: var(--surface); border: 1px solid #f59e0b40; border-left: 3px solid #f59e0b; border-radius: 12px; overflow: hidden; }
+.chase-row { background: var(--surface); border: 1px solid #f59e0b40; border-left: 3px solid var(--jp-amber); border-radius: 16px; box-shadow: 0 1px 0 rgba(0,0,0,0.25); overflow: hidden; }
 .chase-row-top { display: flex; justify-content: space-between; align-items: flex-start; padding: 10px 12px 8px; gap: 8px; }
 .chase-row-info { flex: 1; min-width: 0; }
 .chase-row-customer { font-size: 14px; font-weight: 700; color: var(--text); }
 .chase-row-job { font-size: 13px; color: var(--text-dim); }
 .chase-row-meta { font-size: 12px; color: var(--text-dim); margin-top: 2px; font-weight: 500; }
-.chase-row-meta-warn { color: #f59e0b; }
+.chase-row-meta-warn { color: var(--jp-amber); }
 .chase-row-meta-overdue { color: #ef4444; }
 .chase-row-amount { font-size: 15px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap; flex-shrink: 0; }
 .chase-row-actions { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid var(--border); }
-.chase-row-btn-chase { padding: 10px; background: #f59e0b; color: #1a0e00; border: none; font-family: inherit; font-size: 13px; font-weight: 700; cursor: pointer; transition: opacity 0.15s; border-right: 1px solid var(--border); }
+.chase-row-btn-chase { padding: 10px; background: var(--jp-amber); color: #1a0e00; border: none; font-family: inherit; font-size: 13px; font-weight: 700; cursor: pointer; transition: opacity 0.15s; border-right: 1px solid var(--border); }
 .chase-row-btn-chase:active { opacity: 0.8; }
 .chase-row-btn-paid { padding: 10px; background: var(--accent); color: #0b1f10; border: none; font-family: inherit; font-size: 13px; font-weight: 700; cursor: pointer; transition: opacity 0.15s; }
 .chase-row-btn-paid:active { opacity: 0.8; }
@@ -1434,7 +1437,8 @@ input[type=number] { -moz-appearance: textfield; }
 .motm-card {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: 16px;
+  box-shadow: 0 1px 0 rgba(0,0,0,0.25);
   padding: 14px 14px 10px;
   display: flex;
   flex-direction: column;
@@ -1521,52 +1525,55 @@ input[type=number] { -moz-appearance: textfield; }
 .next-up-card {
   display: flex; flex-direction: column; align-items: flex-start;
   width: 100%; margin: 0 0 12px;
-  background: #0f1b2d; border: 1px solid #1b2a44; border-radius: 14px;
+  background: var(--jp-navy); border: 1px solid var(--surface-2); border-radius: 16px;
+  box-shadow: 0 1px 0 rgba(0,0,0,0.25);
   padding: 12px 14px; cursor: pointer; text-align: left;
   transition: opacity 0.15s;
 }
 .next-up-card:active { opacity: 0.8; }
-.next-up-label { font-size: 10px; font-weight: 700; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; }
-.next-up-name { font-size: 15px; font-weight: 700; color: #f5f7fa; line-height: 1.3; margin-bottom: 3px; }
-.next-up-meta { font-size: 12px; color: #9ca3af; }
+.next-up-label { font-size: 11px; font-weight: 600; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 4px; }
+.next-up-name { font-size: 15px; font-weight: 700; color: var(--text); line-height: 1.3; margin-bottom: 3px; }
+.next-up-meta { font-size: 12px; color: var(--text-dim); }
 
 /* Avg-per-job card */
 .avg-card {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 14px;
+  border-radius: 16px;
+  box-shadow: 0 1px 0 rgba(0,0,0,0.25);
   padding: 16px 18px;
   margin: 14px 0 0;
 }
-.avg-card-label { font-size: 12px; font-weight: 600; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 8px; }
+.avg-card-label { font-size: 11px; font-weight: 600; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }
 .avg-card-amount { font-size: 28px; font-weight: 700; color: var(--text); letter-spacing: -0.01em; line-height: 1.1; }
 .avg-card-meta { font-size: 13px; color: var(--text-dim); margin-top: 2px; font-weight: 500; }
 .avg-card-compare { font-size: 13px; color: var(--text-dim); margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .avg-card-compare-soft { font-style: italic; opacity: 0.85; }
 .avg-delta { font-weight: 700; font-size: 13px; padding: 2px 7px; border-radius: 6px; }
 .avg-delta-up { color: var(--accent); background: rgba(34, 197, 94, 0.1); }
-.avg-delta-down { color: #f59e0b; background: rgba(245, 158, 11, 0.1); }
+.avg-delta-down { color: var(--jp-amber); background: rgba(244, 160, 36, 0.1); }
 
 
 /* 30-day outlook card */
 .outlook-card {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 14px;
+  border-radius: 16px;
+  box-shadow: 0 1px 0 rgba(0,0,0,0.25);
   padding: 16px 18px;
   margin: 14px 0 0;
 }
 .outlook-card-good { border-left: 4px solid var(--accent); }
-.outlook-card-tight { border-left: 4px solid #f59e0b; }
-.outlook-card-short { border-left: 4px solid #f59e0b; }
-.outlook-card-label { font-size: 12px; font-weight: 600; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 12px; }
+.outlook-card-tight { border-left: 4px solid var(--jp-amber); }
+.outlook-card-short { border-left: 4px solid var(--jp-amber); }
+.outlook-card-label { font-size: 11px; font-weight: 600; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 12px; }
 .outlook-card-rows { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
 .outlook-card-row { display: flex; justify-content: space-between; font-size: 14px; color: var(--text); }
 .outlook-card-row > :first-child { color: var(--text-dim); font-weight: 500; }
 .outlook-card-row > :last-child { font-weight: 700; font-variant-numeric: tabular-nums; }
 .outlook-card-verdict { font-size: 16px; font-weight: 700; padding-top: 10px; border-top: 1px solid var(--border); }
 .outlook-card-good .outlook-card-verdict { color: var(--accent); }
-.outlook-card-tight .outlook-card-verdict, .outlook-card-short .outlook-card-verdict { color: #f59e0b; }
+.outlook-card-tight .outlook-card-verdict, .outlook-card-short .outlook-card-verdict { color: var(--jp-amber); }
 .outlook-card-soft { font-size: 14px; color: var(--text); line-height: 1.45; margin-bottom: 10px; }
 .outlook-card-foot { font-size: 12px; color: var(--text-dim); margin-top: 10px; font-style: italic; }
 
@@ -1789,8 +1796,8 @@ input[type=number] { -moz-appearance: textfield; }
 
 .drawer-section-label {
   font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
+  font-weight: 600;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   margin-bottom: 8px;
 }
@@ -1900,7 +1907,8 @@ input[type=number] { -moz-appearance: textfield; }
 .job-card {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: 16px;
+  box-shadow: 0 1px 0 rgba(0,0,0,0.25);
   padding: 14px 16px;
 }
 .job-card--warn {
@@ -2224,14 +2232,15 @@ input[type=number] { -moz-appearance: textfield; }
 .money-insights-teaser {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: 16px;
+  box-shadow: 0 1px 0 rgba(0,0,0,0.25);
   padding: 14px 16px;
   margin: 16px 0;
 }
 .money-insights-label {
   font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
+  font-weight: 600;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-dim);
   margin-bottom: 8px;
@@ -2247,7 +2256,8 @@ input[type=number] { -moz-appearance: textfield; }
 .outstanding-hero {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 14px;
+  border-radius: 16px;
+  box-shadow: 0 1px 0 rgba(0,0,0,0.25);
   padding: 20px 20px 18px;
   margin: 0 0 16px;
   text-align: center;
@@ -2258,8 +2268,8 @@ input[type=number] { -moz-appearance: textfield; }
 }
 .outstanding-hero-label {
   font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
+  font-weight: 600;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-dim);
   margin-bottom: 8px;
@@ -3401,7 +3411,7 @@ input[type=number] { -moz-appearance: textfield; }
 /* Partial payments — Phase B */
 .payment-warn {
   font-size: 13px;
-  color: #f59e0b;
+  color: var(--jp-amber);
   margin-top: 4px;
 }
 .payment-method-segmented {
@@ -3433,7 +3443,8 @@ input[type=number] { -moz-appearance: textfield; }
 .payment-summary {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: 16px;
+  box-shadow: 0 1px 0 rgba(0,0,0,0.25);
   padding: 14px 16px;
   margin: 16px 0;
 }
@@ -3497,7 +3508,7 @@ input[type=number] { -moz-appearance: textfield; }
   margin-bottom: 4px;
 }
 .payment-summary-overpaid {
-  color: #f59e0b;
+  color: var(--jp-amber);
   font-weight: 600;
 }
 .payment-summary-last {
@@ -3510,7 +3521,8 @@ input[type=number] { -moz-appearance: textfield; }
 .payment-history {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: 16px;
+  box-shadow: 0 1px 0 rgba(0,0,0,0.25);
   margin: 0 0 16px;
   overflow: hidden;
 }
@@ -4231,9 +4243,9 @@ input[type=number] { -moz-appearance: textfield; }
 }
 .settings-section-title {
   font-size: 11px;
-  font-weight: 700;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.06em;
   color: var(--text-dim);
   margin-bottom: 8px;
   padding: 0 4px;
@@ -6122,7 +6134,7 @@ input[type=number] { -moz-appearance: textfield; }
   font-weight: 700;
   cursor: pointer;
   font-family: inherit;
-  background: #f59e0b;
+  background: var(--jp-amber);
   color: #1c1008;
   transition: opacity 0.15s;
 }
@@ -6663,7 +6675,7 @@ input[type=number] { -moz-appearance: textfield; }
   -webkit-appearance: none;
 }
 .pqv-sign-name-input::placeholder {
-  color: #9ca3af;
+  color: var(--text-dim);
 }
 .pqv-sign-name-input:focus {
   border-color: #00b386;
@@ -7792,7 +7804,7 @@ input[type=number] { -moz-appearance: textfield; }
 .nsc-card {
   background: rgba(43, 196, 138, 0.10);
   border: 1px solid rgba(43, 196, 138, 0.25);
-  border-radius: 12px;
+  border-radius: 16px;
   padding: 14px 16px 16px;
   margin: 0 0 4px;
   display: flex;
@@ -8986,7 +8998,7 @@ input[type=number] { -moz-appearance: textfield; }
 }
 .accepted-banner__icon {
   font-size: 18px;
-  color: #34d672;
+  color: var(--accent);
   flex-shrink: 0;
   line-height: 1;
 }
@@ -9029,7 +9041,7 @@ input[type=number] { -moz-appearance: textfield; }
   min-width: 56px;
 }
 .accepted-banner__dismiss:active {
-  color: #34d672;
+  color: var(--accent);
   opacity: 0.8;
 }
 
@@ -9064,13 +9076,13 @@ input[type=number] { -moz-appearance: textfield; }
 }
 .nav-toast-check {
   font-size: 16px;
-  color: #34d672;
+  color: var(--accent);
   flex-shrink: 0;
   line-height: 1;
 }
 /* ── Job tile accepted signal ── */
 .jt-signal--accepted {
-  color: #34d672;
+  color: var(--accent);
   font-weight: 600;
 }
 
