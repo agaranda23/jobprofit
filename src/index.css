@@ -8743,3 +8743,143 @@ input[type=number] { -moz-appearance: textfield; }
   color: var(--jp-amber);
   font-weight: 600;
 }
+
+/* ── ReceiptModal — branded receipt card ──────────────────────────────────── */
+
+/* Scrollable body wrapper inside modal-sheet */
+.modal-sheet-body {
+  overflow-y: auto;
+  max-height: 50vh;
+  padding: 0 16px;
+}
+
+.receipt-card {
+  background: #0d1117;
+  border: 1px solid #1e2d24;
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: #e6edf3;
+}
+
+.receipt-biz-name {
+  font-size: 15px;
+  font-weight: 700;
+  color: #e6edf3;
+  margin-bottom: 2px;
+}
+
+.receipt-biz-address {
+  font-size: 11px;
+  color: #8b949e;
+  margin-bottom: 4px;
+}
+
+.receipt-divider {
+  border: none;
+  border-top: 1px solid #1e2d24;
+  margin: 10px 0;
+}
+
+.receipt-heading-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+
+.receipt-heading-label {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: #b3f0d5;
+}
+
+.receipt-heading-date {
+  font-size: 11px;
+  color: #8b949e;
+}
+
+.receipt-customer {
+  font-size: 14px;
+  font-weight: 600;
+  color: #e6edf3;
+  margin-bottom: 2px;
+}
+
+.receipt-summary-text {
+  font-size: 12px;
+  color: #8b949e;
+  margin-bottom: 4px;
+}
+
+.receipt-line-items {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+
+.receipt-line-item {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+}
+
+.receipt-line-desc {
+  color: #c9d1d9;
+  flex: 1;
+  padding-right: 8px;
+}
+
+.receipt-line-amount {
+  color: #e6edf3;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.receipt-total-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.receipt-total-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: #e6edf3;
+}
+
+.receipt-total-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: #b3f0d5;
+}
+
+/* PAID IN FULL green stamp */
+.receipt-paid-stamp {
+  background: #0E6B43;
+  color: #b3f0d5;
+  border-radius: 6px;
+  text-align: center;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  padding: 10px 0;
+  margin-bottom: 10px;
+}
+
+.receipt-thankyou {
+  font-size: 11px;
+  color: #8b949e;
+  text-align: center;
+  font-style: italic;
+}
+
+/* WhatsApp send button — matches invoice flow */
+.receipt-send-whatsapp {
+  width: calc(100% - 32px);
+  margin: 0 16px 8px;
+}

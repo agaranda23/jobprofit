@@ -37,6 +37,7 @@ import { daysSinceInvoice, requiresPriceForStage, stagePatch } from '../lib/jobS
 import { deleteJobFromCloud } from '../lib/store';
 import { shouldShowPartPaidChip, formatPartPaidLabel } from '../lib/partPaidChip';
 import { jobMatchesQuery, sortJobsByStage, firstLineOfAddress } from '../lib/jobSort';
+import ReceiptModal from '../components/ReceiptModal';
 import {
   computeTier,
   daysPastDue,
@@ -488,8 +489,9 @@ function StageChipDropdown({ job, currentStage, onUpdateJob, onSendInvoice, onSe
 /**
  * Stage-appropriate CTA config — wired to real WorkScreen handlers.
  * Invoiced + Overdue use chaseLadder for tiered WhatsApp messages.
+ * Paid stage opens ReceiptModal via onViewReceipt.
  */
-function getStageCTA(stage, job, { onSendInvoice, onUpdateJob, onNewJob, onOpenJob, biz }) {
+function getStageCTA(stage, job, { onSendInvoice, onUpdateJob, onNewJob, onOpenJob, biz, onViewReceipt }) {
   // Phone button shown on all unpaid stages when a number exists (1F).
   const hasPhone = !!resolvePhone(job);
   const unpaidPhoneBtn = hasPhone && stage !== 'Paid';
@@ -552,8 +554,7 @@ function getStageCTA(stage, job, { onSendInvoice, onUpdateJob, onNewJob, onOpenJ
         label: 'View receipt',
         mod: 'muted',
         phoneBtn: false,
-        // TODO: open JobDetailDrawer to receipt tab (separate PR)
-        action: () => {},
+        action: () => onViewReceipt?.(job),
       };
 
     default:
@@ -628,7 +629,7 @@ function deriveMoneySub(job, stage) {
  * Customer demoted to secondary line; falls back: if summary empty, customer
  * becomes the primary label so the tile is never a bare "Untitled job".
  */
-function JobTile({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJob, onCopyJob, onArchiveJob, onDeleteJob, biz, onShowToast }) {
+function JobTile({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJob, onCopyJob, onArchiveJob, onDeleteJob, biz, onShowToast, onViewReceipt }) {
   const stage = deriveDisplayStatus(job);
   const isPaid = stage === 'Paid';
 
@@ -659,7 +660,7 @@ function JobTile({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJo
   // 1E: First line of address appended to the secondary identity line.
   const addrLine = firstLineOfAddress(job.address);
 
-  const cta = getStageCTA(stage, job, { onSendInvoice, onUpdateJob, onNewJob, onOpenJob, biz });
+  const cta = getStageCTA(stage, job, { onSendInvoice, onUpdateJob, onNewJob, onOpenJob, biz, onViewReceipt });
   const stageMeta = STAGE_META[stage] || STAGE_META.Lead;
 
   // "Last chased" chip — shown on Invoiced and Overdue tiles after a chase is recorded
@@ -843,7 +844,7 @@ function EmptyState({ stage }) {
 
 // ── JobsList subview ──────────────────────────────────────────────────────────
 
-function JobsList({ jobs, selectedStage, showAll, searchQuery, onJobSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJob, onCopyJob, onArchiveJob, onDeleteJob, biz, onShowToast }) {
+function JobsList({ jobs, selectedStage, showAll, searchQuery, onJobSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJob, onCopyJob, onArchiveJob, onDeleteJob, biz, onShowToast, onViewReceipt }) {
   const q = (searchQuery || '').trim();
 
   // When searching: ignore the stage filter — show everything that matches (1B spec).
@@ -884,6 +885,7 @@ function JobsList({ jobs, selectedStage, showAll, searchQuery, onJobSelect, onSe
           onDeleteJob={onDeleteJob}
           biz={biz}
           onShowToast={onShowToast}
+          onViewReceipt={onViewReceipt}
         />
       ))}
     </ul>
@@ -917,6 +919,8 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
   const [chaseStepIndex, setChaseStepIndex] = useState(0);
   // confirmDeleteJob — job pending hard-delete confirmation; null = modal closed.
   const [confirmDeleteJob, setConfirmDeleteJob] = useState(null);
+  // receiptJob — job whose receipt modal is open; null = closed.
+  const [receiptJob, setReceiptJob] = useState(null);
 
   // If AppShell navigated here with a specific job to open (e.g. from TodayScreen
   // card-body tap), find it in the jobs array and pre-open the drawer.
@@ -1293,6 +1297,7 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
           onDeleteJob={handleRequestDeleteJob}
           biz={biz}
           onShowToast={showToast}
+          onViewReceipt={setReceiptJob}
         />
       ) : (
         <WorkCalendar jobs={visibleJobs} onNewJobOnDate={onNewJob} />
@@ -1370,6 +1375,16 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
             </div>
           </div>
         </div>
+      )}
+
+      {/* Receipt modal — opened by "View receipt" CTA on Paid job tiles */}
+      {receiptJob && (
+        <ReceiptModal
+          job={receiptJob}
+          biz={biz}
+          onClose={() => setReceiptJob(null)}
+          flash={showToast}
+        />
       )}
 
       {toast && <div className="toast">{toast}</div>}
