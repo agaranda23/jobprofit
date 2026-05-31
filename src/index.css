@@ -1661,7 +1661,9 @@ input[type=number] { -moz-appearance: textfield; }
   border-radius: 50%;
   background: linear-gradient(135deg, var(--jp-green) 0%, #1b9968 100%);
   color: #0b1f10;
-  border: 2px solid rgba(255,255,255,0.15);
+  border: none;
+  /* Brand-green ring matching Settings avatar: 2px gap then 2px ring */
+  box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--jp-green);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2369,7 +2371,8 @@ input[type=number] { -moz-appearance: textfield; }
 .money-hero {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 14px;
+  border-radius: 16px;
+  box-shadow: 0 1px 0 rgba(0,0,0,0.25);
   padding: 20px 20px 18px;
   margin: 0 0 16px;
   text-align: center;
@@ -2385,8 +2388,8 @@ input[type=number] { -moz-appearance: textfield; }
 }
 .money-hero__label {
   font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
+  font-weight: 600;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-dim);
   margin-bottom: 8px;
@@ -2414,6 +2417,92 @@ input[type=number] { -moz-appearance: textfield; }
 }
 .money-hero__ytd-line--negative {
   color: var(--negative, #e05252);
+}
+
+/* ── Hero True Profit tier — second tier beneath the month profit figure ── */
+.money-hero__true-profit-divider {
+  /* Inset separator between the naive profit and the True Profit tier */
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 12px 0 10px;
+}
+.money-hero__true-profit-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+}
+.money-hero__true-profit-figure {
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--text);
+  letter-spacing: -0.02em;
+  line-height: 1;
+  margin-bottom: 4px;
+}
+.money-hero__true-profit-figure--negative {
+  color: #ef4444;
+}
+.money-hero__true-profit-sub {
+  font-size: 12px;
+  color: var(--text-dim);
+  font-weight: 500;
+  margin-bottom: 8px;
+}
+/* Blurred locked tier — free users see "After your running costs: £•••" blurred */
+.money-hero__true-profit-locked {
+  margin-top: 12px;
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+.money-hero__true-profit-locked-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 4px;
+}
+.money-hero__true-profit-locked-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.money-hero__true-profit-locked-amount {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--text-dim);
+  letter-spacing: -0.02em;
+  filter: blur(6px);
+  user-select: none;
+  pointer-events: none;
+}
+.money-hero__true-profit-locked-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 8px;
+  background: rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 20px;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+/* Overheads-unset prompt (no blur — just a nudge link) */
+.money-hero__true-profit-prompt {
+  margin-top: 12px;
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+.money-hero__true-profit-prompt p {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin: 0;
+  line-height: 1.4;
 }
 .money-hero__chase-cta {
   display: inline-flex;
@@ -2444,12 +2533,62 @@ input[type=number] { -moz-appearance: textfield; }
 .money-card {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: 16px;
+  box-shadow: 0 1px 0 rgba(0,0,0,0.25);
   padding: 16px;
   margin: 0 0 16px;
 }
+
+/* Shared eyebrow label — used across all Money cards for visual consistency */
+.money-eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 8px;
+  display: block;
+}
 .money-card--chart {
   padding: 12px 12px 8px;
+}
+/* Plain-English caption beneath the chart mode switch */
+.money-chart-caption {
+  font-size: 12px;
+  color: var(--text-dim);
+  font-weight: 500;
+  margin-top: 8px;
+  margin-bottom: 0;
+  line-height: 1.4;
+  text-align: left;
+  opacity: 0.8;
+}
+/* Colour swatches inline in caption */
+.money-chart-caption__swatch {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  vertical-align: middle;
+  margin-right: 2px;
+  flex-shrink: 0;
+}
+/* Tax pot "to keep" inset line */
+.money-tax-setaside__keep {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+  color: var(--accent);
+  font-weight: 600;
+}
+/* Profit/hour rate comparison line */
+.money-insight__rate-compare {
+  font-size: 12px;
+  color: var(--text-dim);
+  font-weight: 500;
+  margin-top: 6px;
+  line-height: 1.4;
 }
 
 /* ── Money tab M3 — two-up stat row ───────────── */
@@ -2462,13 +2601,14 @@ input[type=number] { -moz-appearance: textfield; }
 .money-twoUp__card {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: 16px;
+  box-shadow: 0 1px 0 rgba(0,0,0,0.25);
   padding: 16px 14px;
 }
 .money-twoUp__label {
   font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.08em;
+  font-weight: 600;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-dim);
   margin-bottom: 8px;
@@ -2495,8 +2635,8 @@ input[type=number] { -moz-appearance: textfield; }
   margin-bottom: 8px;
 }
 .money-insight__label {
-  font-size: 12px;
-  font-weight: 700;
+  font-size: 11px;
+  font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-dim);
@@ -2566,7 +2706,8 @@ input[type=number] { -moz-appearance: textfield; }
   padding: 10px 14px;
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: 16px;
+  box-shadow: 0 1px 0 rgba(0,0,0,0.25);
   margin: 0 0 16px;
 }
 .money-trust-hint__icon {
@@ -2689,8 +2830,8 @@ input[type=number] { -moz-appearance: textfield; }
 }
 .money-tax-setaside__label {
   font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
+  font-weight: 600;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-dim);
   margin-bottom: 8px;
@@ -2727,8 +2868,8 @@ input[type=number] { -moz-appearance: textfield; }
 }
 .money-vat__label {
   font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
+  font-weight: 600;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-dim);
 }
@@ -2815,11 +2956,12 @@ input[type=number] { -moz-appearance: textfield; }
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 12px 16px;
-  background: rgba(255, 255, 255, 0.04);
+  padding: 14px 16px;
+  background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 12px;
-  margin-bottom: 4px;
+  border-radius: 16px;
+  box-shadow: 0 1px 0 rgba(0,0,0,0.25);
+  margin-bottom: 16px;
 }
 .upgrade-banner__copy {
   display: flex;
@@ -4246,8 +4388,8 @@ input[type=number] { -moz-appearance: textfield; }
 }
 .money-true-profit__label {
   font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
+  font-weight: 600;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-dim);
   margin-bottom: 8px;
@@ -4287,8 +4429,8 @@ input[type=number] { -moz-appearance: textfield; }
 }
 .money-best-worst__label {
   font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
+  font-weight: 600;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-dim);
 }
@@ -7549,7 +7691,8 @@ input[type=number] { -moz-appearance: textfield; }
 .foreman-esp-card {
   background: var(--surface, #151a1f);
   border: 1px solid var(--border, #2a333c);
-  border-radius: 12px;
+  border-radius: 16px;
+  box-shadow: 0 1px 0 rgba(0,0,0,0.25);
   margin: 0 0 12px;
   padding: 14px 16px;
 }
@@ -7575,6 +7718,7 @@ input[type=number] { -moz-appearance: textfield; }
 
 .foreman-esp-divider {
   border: none;
+  /* Inset divider — starts 16px in from card edge, matching Settings rows */
   border-top: 1px solid var(--border, #2a333c);
   margin: 6px 0;
 }

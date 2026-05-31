@@ -68,15 +68,15 @@ function UpgradeBanner({ onUpgrade }) {
   return (
     <div className="upgrade-banner">
       <div className="upgrade-banner__copy">
-        <span className="upgrade-banner__headline">Unlock your profit insights</span>
-        <span className="upgrade-banner__sub">Tax pot, true profit &amp; profit-per-hour &mdash; £12/mo</span>
+        <span className="upgrade-banner__headline">See what you actually kept</span>
+        <span className="upgrade-banner__sub">True profit after costs, your tax pot, profit per hour &mdash; £12/mo</span>
       </div>
       <button
         type="button"
         className="upgrade-banner__btn"
         onClick={() => onUpgrade?.()}
       >
-        Start free trial
+        Start 14-day trial
       </button>
     </div>
   );
@@ -344,6 +344,50 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
           <div className={`money-hero__ytd-line${isYtdProfitNegative ? ' money-hero__ytd-line--negative' : ''}`}>
             {gbp(ytd.profit)} profit so far this tax year
           </div>
+
+          {/* ── True Profit second tier ────────────────────────────── */}
+          {/* Three states:
+               1. Pro + overheads set   → show real number
+               2. Free + overheads set  → blurred locked line (upgrade pitch)
+               3. Anyone + no overheads → plain nudge to add costs in Settings */}
+          {overheads.length === 0 ? (
+            /* State 3: overheads not configured — show a plain prompt, no blur */
+            <div className="money-hero__true-profit-prompt">
+              <p>
+                Add your monthly running costs in Settings to see true profit
+              </p>
+            </div>
+          ) : userIsPro ? (
+            /* State 1: Pro user — show real True Profit figure */
+            (() => {
+              const trueProfit = monthSummary.profit - overheadTotal;
+              const isTrueProfitNegative = trueProfit < 0;
+              return (
+                <>
+                  <hr className="money-hero__true-profit-divider" />
+                  <div className="money-hero__true-profit-label">After your running costs</div>
+                  <div className={`money-hero__true-profit-figure${isTrueProfitNegative ? ' money-hero__true-profit-figure--negative' : ''}`}>
+                    {gbp(trueProfit)}
+                  </div>
+                  <div className="money-hero__true-profit-sub">
+                    {gbp(overheadTotal)}/mo overheads deducted
+                  </div>
+                </>
+              );
+            })()
+          ) : (
+            /* State 2: Free user + overheads configured — blurred locked line */
+            <div className="money-hero__true-profit-locked">
+              <div className="money-hero__true-profit-locked-label">After your running costs</div>
+              <div className="money-hero__true-profit-locked-row">
+                <span className="money-hero__true-profit-locked-amount">{gbp(monthSummary.profit - overheadTotal)}</span>
+                <span className="money-hero__true-profit-locked-badge">
+                  <span>&#x1F512;</span>
+                  <span>Pro</span>
+                </span>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -377,11 +421,11 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
       {/* ── 2. Upgrade banner — shown once for free users, just below hero ── */}
       {!userIsPro && <UpgradeBanner onUpgrade={handleUpgrade} />}
 
-      {/* ── 3. Tax Set-Aside card (Pro-gated) ────────────────────────────── */}
+      {/* ── 3. Tax Pot card (Pro-gated) ────────────────────────────────── */}
       {/* hasValue: only when there is positive YTD profit to set aside */}
       <ProGate locked={!userIsPro} hasValue={ytd.profit > 0}>
         <div className="money-card money-tax-setaside">
-          <div className="money-tax-setaside__label">Tax set-aside</div>
+          <div className="money-tax-setaside__label">Tax Pot</div>
           {ytd.profit <= 0 ? (
             <p className="money-tax-setaside__empty">Nothing to set aside yet this tax year</p>
           ) : (
@@ -390,7 +434,11 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
                 {gbp(ytdTaxPot)}
               </div>
               <p className="money-tax-setaside__sub">
-                For the {currentTaxYearLabel} tax year so far &middot; {gbp(monthTaxPot)} this month
+                Put by for the taxman &middot; {taxSetAsidePct}% of profit &middot; {gbp(monthTaxPot)} this month
+              </p>
+              {/* "Leaves you £X to keep" = YTD profit minus YTD tax pot */}
+              <p className="money-tax-setaside__keep pro-gate__figure">
+                Leaves you {gbp(Math.max(0, ytd.profit) - ytdTaxPot)} to keep
               </p>
             </>
           )}
@@ -425,34 +473,9 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
         </ProGate>
       )}
 
-      {/* ── 4. True Profit — after running costs (Pro-gated) ────────────── */}
-      {/* hasValue: only when overheads are configured AND there is profit to show */}
-      <ProGate locked={!userIsPro} hasValue={overheads.length > 0 && monthSummary.profit !== 0}>
-        {overheads.length === 0 ? (
-          <div className="money-card money-true-profit money-true-profit--empty">
-            <div className="money-true-profit__label">True profit</div>
-            <p className="money-true-profit__hint">
-              Add your monthly running costs in Settings to see true profit
-            </p>
-          </div>
-        ) : (
-          (() => {
-            const trueProfit = monthSummary.profit - overheadTotal;
-            const isTrueProfitNegative = trueProfit < 0;
-            return (
-              <div className={`money-card money-true-profit${isTrueProfitNegative ? ' money-true-profit--negative' : ''}`}>
-                <div className="money-true-profit__label">True profit</div>
-                <div className={`money-true-profit__figure pro-gate__figure${isTrueProfitNegative ? ' money-twoUp__value--negative' : ''}`}>
-                  {gbp(trueProfit)}
-                </div>
-                <p className="money-true-profit__sub">
-                  After materials and your {gbp(overheadTotal)}/mo running costs
-                </p>
-              </div>
-            );
-          })()
-        )}
-      </ProGate>
+      {/* ── 4. True Profit — relocated into the hero card above.
+              The standalone card has been removed to avoid duplication.
+              All three states (Pro/free/no-overheads) are handled inside the hero. */}
 
       {/* ── 5. Cashflow chart ─────────────────────────────────────────────── */}
       <div className="money-card money-card--chart">
@@ -462,6 +485,13 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
           defaultMode="profitVsCost"
           onRangeChange={(newRange) => setChartRange(newRange)}
         />
+        {/* Plain-English caption under the mode switch */}
+        <p className="money-chart-caption">
+          <span className="money-chart-caption__swatch" style={{ background: 'var(--cf-navy, #1e3a5f)' }} aria-hidden="true" />
+          What you kept&nbsp;&nbsp;
+          <span className="money-chart-caption__swatch" style={{ background: 'var(--cf-amber, #f59e0b)' }} aria-hidden="true" />
+          What it cost you
+        </p>
       </div>
 
       {/* ── 6. Month pace two-up — Paid in + Jobs done ───────────────────── */}
@@ -496,6 +526,12 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
                 </span>
               )}
             </div>
+            {/* Rate comparison — only when hourly_rate is set and pph differs from it */}
+            {hourlyRate > 0 && (
+              <p className="money-insight__rate-compare pro-gate__figure">
+                You charge {gbp(hourlyRate)}/hr &middot; {gbp(Math.max(0, hourlyRate - Math.round(profitPerHour.value)))} goes to costs
+              </p>
+            )}
           </div>
         ) : (
           <div className="money-card money-insight money-insight--pph money-insight--empty">

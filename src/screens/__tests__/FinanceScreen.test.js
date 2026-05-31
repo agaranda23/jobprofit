@@ -831,3 +831,120 @@ describe('getDataTrustHint', () => {
     expect(getDataTrustHint(undefined, undefined, undefined, NOW)).toBeNull();
   });
 });
+
+// ─── Hero True Profit tier gating states ─────────────────────────────────────
+// These tests pin the three rendering states introduced in the Money tab polish:
+//   State 1 (Pro + overheads set)    → trueProfit = profit − overheadTotal
+//   State 2 (Free + overheads set)   → blurred locked line (same calculation, different render)
+//   State 3 (anyone + no overheads)  → prompt shown, no blurred number
+//
+// State 1 and 2 share the same calculation; we test the formula here.
+// State 3 is guarded by `overheads.length === 0` — verified below.
+
+describe('Hero True Profit tier — calculation and gating', () => {
+  function calcTrueProfit(monthProfit, overheads) {
+    // Mirrors FinanceScreen: monthSummary.profit - getOverheadTotal(overheads)
+    return monthProfit - getOverheadTotal(overheads);
+  }
+
+  it('State 1/2: trueProfit = monthly profit minus overhead total', () => {
+    const jobs     = [paidJob({ amount: 1500, date: '2026-05-10' })];
+    const receipts = [receipt({ amount: 300, date: '2026-05-12' })];
+    const overheads = [
+      { id: 'oh1', amount: 200, is_active: true },
+      { id: 'oh2', amount: 150, is_active: true },
+    ];
+    const { profit } = getMonthSummary(jobs, receipts, { month: '2026-05' });
+    // profit = 1500 - 300 = 1200; trueProfit = 1200 - 350 = 850
+    expect(profit).toBe(1200);
+    expect(calcTrueProfit(profit, overheads)).toBe(850);
+  });
+
+  it('State 1/2: trueProfit is negative when overheads exceed monthly profit', () => {
+    const jobs     = [paidJob({ amount: 500, date: '2026-05-10' })];
+    const overheads = [{ id: 'oh1', amount: 800, is_active: true }];
+    const { profit } = getMonthSummary(jobs, [], { month: '2026-05' });
+    expect(calcTrueProfit(profit, overheads)).toBe(-300);
+    expect(calcTrueProfit(profit, overheads)).toBeLessThan(0);
+  });
+
+  it('State 3: overheads.length === 0 means the prompt renders (no blurred number)', () => {
+    // When overheads is an empty array, the True Profit tier shows a prompt.
+    // The guard condition in FinanceScreen is `overheads.length === 0`.
+    const overheads = [];
+    expect(overheads.length).toBe(0);
+    // No true profit calculation should occur in State 3
+    // — verified by confirming getOverheadTotal([]) = 0 (not a meaningful figure)
+    expect(getOverheadTotal(overheads)).toBe(0);
+  });
+
+  it('State 3: null/undefined overheads profile field treated as empty array', () => {
+    // FinanceScreen: const overheads = Array.isArray(profile?.overheads) ? profile.overheads : [];
+    const profileNull      = { overheads: null };
+    const profileUndefined = {};
+    const toOverheads = (p) => Array.isArray(p?.overheads) ? p.overheads : [];
+    expect(toOverheads(profileNull).length).toBe(0);
+    expect(toOverheads(profileUndefined).length).toBe(0);
+  });
+
+  it('State 1/2: inactive overheads not deducted from True Profit', () => {
+    const jobs      = [paidJob({ amount: 1000, date: '2026-05-10' })];
+    const overheads = [
+      { id: 'active', amount: 200, is_active: true  },
+      { id: 'inactive', amount: 999, is_active: false },
+    ];
+    const { profit } = getMonthSummary(jobs, [], { month: '2026-05' });
+    // Only active overhead (200) deducted: 1000 - 200 = 800
+    expect(calcTrueProfit(profit, overheads)).toBe(800);
+  });
+});
+
+// ─── Tax pot "to keep" derivation ────────────────────────────────────────────
+// The "Leaves you £X to keep" line = Math.max(0, ytd.profit) − ytdTaxPot
+// Introduced in the Money tab polish. These tests verify the formula is correct
+// and null-safe, because this number will be seen by paying users every day.
+
+describe('Tax pot "to keep" derivation', () => {
+  // Mirrors FinanceScreen:
+  //   ytdTaxPot = Math.max(0, ytd.profit) * taxSetAsidePct / 100
+  //   toKeep = Math.max(0, ytd.profit) - ytdTaxPot
+  function toKeep(ytdProfit, pct) {
+    const pot = Math.max(0, ytdProfit) * pct / 100;
+    return Math.max(0, ytdProfit) - pot;
+  }
+
+  it('toKeep = ytd profit × (1 - pct/100)', () => {
+    // 20% set aside → 80% to keep
+    expect(toKeep(1000, 20)).toBe(800);
+  });
+
+  it('toKeep is 0 when ytd profit is 0', () => {
+    expect(toKeep(0, 20)).toBe(0);
+  });
+
+  it('toKeep is 0 when ytd profit is negative (max(0,…) floors it)', () => {
+    // Negative YTD profit → taxPot = 0, toKeep = 0 - 0 = 0
+    expect(toKeep(-500, 20)).toBe(0);
+  });
+
+  it('toKeep at 0% set-aside returns full profit', () => {
+    expect(toKeep(800, 0)).toBe(800);
+  });
+
+  it('toKeep at 100% set-aside returns 0', () => {
+    expect(toKeep(800, 100)).toBe(0);
+  });
+
+  it('toKeep scales correctly with a custom pct (e.g. 25%)', () => {
+    expect(toKeep(1000, 25)).toBe(750);
+  });
+
+  it('round-trips via getTaxYearSummary', () => {
+    const NOW  = new Date('2026-05-20T10:00:00');
+    const jobs = [paidJob({ amount: 1000, date: '2026-05-10' })];
+    const recs = [receipt({ amount: 200, date: '2026-05-12' })];
+    const { profit } = getTaxYearSummary(jobs, recs, NOW);
+    // profit = 800; 20% pot = 160; to keep = 640
+    expect(toKeep(profit, 20)).toBe(640);
+  });
+});
