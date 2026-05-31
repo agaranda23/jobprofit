@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v15';  // bumped from v14
+const CACHE_NAME = 'jobprofit-v16';  // bumped from v15: fix customer-name save + remove status pill avatar
 const PRECACHE = [
   '/',
   '/index.html',

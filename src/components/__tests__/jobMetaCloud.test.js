@@ -95,10 +95,14 @@ describe('extractJobMeta — new META_FIELDS (photos / jobNotes / lineItems / to
     expect(meta.amount).toBe(450);
   });
 
-  it('does not include fields not in META_FIELDS (e.g. address)', () => {
+  it('includes address in the meta object (added to META_FIELDS in fix/job-drawer-customer-name-and-avatar)', () => {
+    // Previously address was absent from META_FIELDS (old test asserted false).
+    // It was added alongside customer/summary/email/description so that edits
+    // made in the job drawer survive offline sessions and cloud-sync stomps.
     const job = { ...BASE_JOB, address: '10 Downing St', photos: [] };
     const meta = extractJobMeta(job);
-    expect('address' in meta).toBe(false);
+    expect('address' in meta).toBe(true);
+    expect(meta.address).toBe('10 Downing St');
   });
 
   it('round-trips all new fields through extractJobMeta → writeJobMeta → readJobMeta', () => {

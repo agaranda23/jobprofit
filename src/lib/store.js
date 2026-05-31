@@ -583,9 +583,28 @@ export async function updateJobMetaInCloud(jobId, metaObject) {
 
   // Build the UPDATE payload. Always write meta. When lineItems is present,
   // also keep the legacy line_items column in sync (Alan's decision #4).
+  // When customer-editable column fields are present, mirror them to their
+  // canonical DB columns — this is the fix for the customer-name-not-saved bug
+  // (previously only meta was written; customer_name column was never updated,
+  // so a cloud refresh would overwrite the edit with the stale column value).
   const updatePayload = { meta: metaObject };
   if (Array.isArray(metaObject.lineItems)) {
     updatePayload.line_items = metaObject.lineItems;
+  }
+  if ('customer' in metaObject) {
+    updatePayload.customer_name = metaObject.customer || null;
+  }
+  if ('summary' in metaObject) {
+    updatePayload.summary = metaObject.summary || null;
+  }
+  if ('address' in metaObject) {
+    updatePayload.address = metaObject.address || null;
+  }
+  if ('email' in metaObject) {
+    updatePayload.email = metaObject.email || null;
+  }
+  if ('description' in metaObject) {
+    updatePayload.description = metaObject.description || null;
   }
 
   try {
