@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v29';  // bumped from v28: global box-sizing reset + align jd-csr card edges
+const CACHE_NAME = 'jobprofit-v30';  // bumped from v29: restore CSR rows + lift tax-pot toggle + editable customer name
 const PRECACHE = [
   '/',
   '/index.html',
