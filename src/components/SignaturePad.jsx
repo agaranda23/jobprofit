@@ -112,7 +112,6 @@ export default function SignaturePad({ onSave, onCancel, width = 300, height = 1
         <canvas
           ref={canvasRef}
           className="sig-pad-canvas"
-          style={{ width, height }}
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
