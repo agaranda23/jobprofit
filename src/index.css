@@ -8648,3 +8648,11 @@ input[type=number] { -moz-appearance: textfield; }
   color: #34d672;
   font-weight: 600;
 }
+
+/* ── Job tile part-paid signal ── */
+/* Amber: distinct from green (accepted/paid), consistent with other
+   "in-progress / action pending" surfaces (pre-due bar, draft chip). */
+.jt-signal--partpaid {
+  color: var(--jp-amber);
+  font-weight: 600;
+}

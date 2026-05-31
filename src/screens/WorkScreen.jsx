@@ -35,6 +35,7 @@ import StageStrip from '../components/StageStrip';
 import { logTelemetry } from '../lib/telemetry';
 import { daysSinceInvoice, requiresPriceForStage, stagePatch } from '../lib/jobStatus';
 import { deleteJobFromCloud } from '../lib/store';
+import { shouldShowPartPaidChip, formatPartPaidLabel } from '../lib/partPaidChip';
 import {
   computeTier,
   daysPastDue,
@@ -654,11 +655,20 @@ function JobTile({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJo
   const isAccepted = job.quoteStatus === 'accepted' && !!job.acceptedAt;
   const acceptedByName = (job.acceptedName || '').trim();
 
+  // Part-paid chip — shown on Invoiced/Overdue tiles when money has been received
+  // but the balance hasn't cleared. Uses computeAmountPaid + computeBalance from
+  // payments.js — do not re-implement the math here.
+  const partPaid = shouldShowPartPaidChip(job, stage);
+  const partPaidLabel = partPaid ? formatPartPaidLabel(job) : null;
+
   // Build signal line items (Row 3) — separated by · in CSS
   const signals = [];
   if (isAccepted) {
     const acceptedText = acceptedByName ? `Accepted by ${acceptedByName}` : 'Quote accepted';
     signals.push({ text: acceptedText, cls: 'jt-signal--accepted' });
+  }
+  if (partPaid) {
+    signals.push({ text: partPaidLabel, cls: 'jt-signal--partpaid' });
   }
   if (hasDraft)    signals.push({ text: '● Draft ready', cls: 'jt-signal--draft' });
   if (timeSignal) signals.push({ text: timeSignal.text, cls: `jt-signal--${timeSignal.variant}` });
