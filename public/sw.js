@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v23';  // bumped from v22: CTA green unification + Today header cleanup
+const CACHE_NAME = 'jobprofit-v24';  // bumped from v23: remaining green CTA sweep — token unification complete
 const PRECACHE = [
   '/',
   '/index.html',
