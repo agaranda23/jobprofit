@@ -39,71 +39,76 @@
   margin-bottom: 16px;
 }
 
-/* Mode select */
+/* Mode select — matches dark app surface */
 
 .cashflow-chart__mode-label {
-  display: inline-block;
+  display: block;
 }
 
 .cashflow-chart__mode-select {
   appearance: none;
   -webkit-appearance: none;
-  background-color: transparent;
-  border: 1px solid #d1d5db;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
   border-radius: 8px;
-  padding: 6px 28px 6px 10px;
-  font-size: 0.875rem;
-  font-weight: 500;
+  padding: 8px 28px 8px 12px;
+  font-size: 13px;
+  font-weight: 600;
   font-family: inherit;
-  color: inherit;
+  color: var(--text);
   cursor: pointer;
-  /* chevron via background-image */
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%236b7280' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  width: 100%;
+  /* dark chevron */
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23a8b3c0' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
-  background-position: right 8px center;
+  background-position: right 10px center;
 }
 
 .cashflow-chart__mode-select:focus {
   outline: 2px solid var(--cf-green);
-  outline-offset: 1px;
+  outline-offset: -2px;
 }
 
-/* Range button group */
+/* Range button group — mirrors .work-segments segmented control */
 
 .cashflow-chart__range-group {
   display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
+  gap: 0;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 3px;
 }
 
+/* Each range button is a .work-segment equivalent */
 .cashflow-chart__range-btn {
-  border: 1px solid #d1d5db;
-  border-radius: 20px;
-  padding: 4px 12px;
-  font-size: 0.8rem;
-  font-weight: 500;
+  flex: 1;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  padding: 8px 0;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
   font-family: inherit;
-  background: transparent;
-  color: inherit;
   cursor: pointer;
-  transition: background-color 0.15s, border-color 0.15s;
-  /* Override default button padding from index.css */
-  min-width: auto;
-  line-height: 1.4;
-}
-
-.cashflow-chart__range-btn:hover:not(:disabled) {
-  border-color: var(--cf-green);
+  transition: background 0.15s, color 0.15s;
+  line-height: 1.2;
+  min-width: 0;
 }
 
 .cashflow-chart__range-btn--active {
-  background-color: var(--cf-green);
-  border-color: var(--cf-green);
-  color: #fff;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+}
+
+.cashflow-chart__range-btn:hover:not(:disabled):not(.cashflow-chart__range-btn--active) {
+  color: var(--text);
 }
 
 .cashflow-chart__range-btn--disabled {
-  opacity: 0.4;
+  opacity: 0.35;
   cursor: not-allowed;
   pointer-events: none;
 }
@@ -206,7 +211,7 @@
 
 .cashflow-chart__row--tappable:hover,
 .cashflow-chart__row--tappable:focus-visible {
-  background-color: rgba(0, 0, 0, 0.04);
+  background-color: var(--surface-2);
   outline: none;
 }
 
@@ -223,8 +228,8 @@
   gap: 6px 12px;
   padding: 8px 4px 6px 80px; /* left-indent aligns under bar track */
   font-size: 0.8rem;
-  color: var(--cf-empty-color);
-  border-top: 1px solid rgba(0, 0, 0, 0.06);
+  color: var(--text-dim);
+  border-top: 1px solid var(--border);
   margin-top: 4px;
 }
 
