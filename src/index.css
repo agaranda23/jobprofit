@@ -5004,6 +5004,14 @@ input[type=number] { -moz-appearance: textfield; }
   gap: 8px;
 }
 
+.jd-photo-thumb-placeholder {
+  width: 100%;
+  aspect-ratio: 1;
+  background: var(--surface-2, #f0f0f0);
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
 .jd-photo-thumb-btn {
   background: none;
   border: none;
@@ -5024,16 +5032,20 @@ input[type=number] { -moz-appearance: textfield; }
   border: 1px solid var(--border);
 }
 
-/* Wrapper that holds the thumb button + delete overlay */
+/* Wrapper that holds the thumb button, delete overlay, reorder arrows, and caption.
+   No aspect-ratio here — we let the content define height so captions fit below. */
 .jd-photo-thumb-wrap {
   position: relative;
-  aspect-ratio: 1;
+  /* stack image + caption vertically */
+  display: flex;
+  flex-direction: column;
 }
 
+/* The image button occupies a square inside the wrapper */
 .jd-photo-thumb-wrap .jd-photo-thumb-btn {
   width: 100%;
-  height: 100%;
   aspect-ratio: 1;
+  height: auto;
 }
 
 .jd-photo-delete-btn {
@@ -5057,6 +5069,131 @@ input[type=number] { -moz-appearance: textfield; }
   z-index: 1;
 }
 .jd-photo-delete-btn:active { opacity: 0.8; }
+
+/* ── Photo reorder arrows ── */
+
+.jd-photo-reorder-arrows {
+  position: absolute;
+  bottom: 4px;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+  pointer-events: none; /* children handle their own pointer events */
+}
+
+.jd-photo-reorder-btn {
+  pointer-events: auto;
+  background: rgba(0,0,0,0.55);
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  font-size: 16px;
+  line-height: 1;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.jd-photo-reorder-btn:disabled {
+  opacity: 0.3;
+  cursor: default;
+}
+
+.jd-photo-reorder-btn:not(:disabled):active {
+  background: rgba(0,0,0,0.75);
+}
+
+/* ── Photo caption ── */
+
+/* Caption row beneath the thumbnail — tap to open inline editor */
+.jd-photo-caption-row {
+  display: block;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 3px 0 0;
+  font-size: 11px;
+  color: var(--text-dim);
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.jd-photo-caption-row--empty {
+  color: var(--accent);
+  opacity: 0.7;
+}
+
+.jd-photo-caption-row:active {
+  opacity: 0.7;
+}
+
+/* Inline caption edit form */
+.jd-photo-caption-form {
+  padding-top: 4px;
+}
+
+.jd-photo-caption-input {
+  width: 100%;
+  font-size: 12px;
+  padding: 5px 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text);
+  box-sizing: border-box;
+  outline: none;
+}
+
+.jd-photo-caption-input:focus {
+  border-color: var(--accent);
+}
+
+.jd-photo-caption-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+  justify-content: flex-end;
+}
+
+.jd-photo-caption-cancel,
+.jd-photo-caption-save {
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.jd-photo-caption-cancel {
+  background: var(--surface-2, var(--surface));
+  color: var(--text-dim);
+}
+
+.jd-photo-caption-save {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* Read-only caption when no edit handler */
+.jd-photo-caption-readonly {
+  font-size: 11px;
+  color: var(--text-dim);
+  padding-top: 3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 
 /* ── Notes ── */
 

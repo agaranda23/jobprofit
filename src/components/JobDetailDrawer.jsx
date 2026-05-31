@@ -34,6 +34,9 @@ import {
   isLegacyPhoto,
   dataUrlToBlob,
   makePhotoEntry,
+  getCaption,
+  setCaption,
+  reorderPhotos,
 } from '../lib/jobPhotos';
 import { uploadJobPhoto, getSignedPhotoUrl, deleteJobPhoto } from '../lib/store';
 import {
@@ -804,21 +807,56 @@ function ReceiptsSection({ job, receipts, onViewPhoto, onAddReceipt, onDeleteRec
  * bucket-path object `{ path, uploadedAt }`, or renders the string directly
  * for legacy base64 entries.
  *
- * @param {{ entry: string|object, index: number, onViewPhoto: function, onDeletePhoto?: function }} props
+ * Supports:
+ *   - Tap to enlarge (lightbox)
+ *   - Delete button (× overlay)
+ *   - Caption display + inline edit (new-format entries only)
+ *   - Drag handle for reordering (shown when onReorder is provided)
+ *
+ * Drag-to-reorder uses the HTML5 drag-and-drop API which works on desktop
+ * and Android Chrome. iOS Safari requires a long-press polyfill — we use
+ * up/down arrow buttons as the mobile-first reorder affordance instead.
+ *
+ * @param {{
+ *   entry: string|object,
+ *   index: number,
+ *   total: number,
+ *   onViewPhoto: function,
+ *   onDeletePhoto?: function,
+ *   onSetCaption?: function(index, caption),
+ *   onReorder?: function(fromIdx, toIdx),
+ * }} props
  */
-function PhotoThumb({ entry, index, onViewPhoto, onDeletePhoto }) {
-  // Legacy base64 string — render directly; no async resolution needed.
+function PhotoThumb({ entry, index, total, onViewPhoto, onDeletePhoto, onSetCaption, onReorder }) {
   const isLegacy = isLegacyPhoto(entry);
   const [resolvedSrc, setResolvedSrc] = useState(isLegacy ? entry : null);
+  const [captionEditing, setCaptionEditing] = useState(false);
+  const [captionDraft, setCaptionDraft] = useState('');
 
   useEffect(() => {
-    if (isLegacy) return; // already set above
+    if (isLegacy) return;
     let cancelled = false;
     getSignedPhotoUrl(entry.path, 3600).then((url) => {
       if (!cancelled && url) setResolvedSrc(url);
     });
     return () => { cancelled = true; };
   }, [isLegacy, entry]);
+
+  const caption = isLegacy ? '' : getCaption(entry);
+
+  const handleCaptionSave = () => {
+    if (onSetCaption) onSetCaption(index, captionDraft);
+    setCaptionEditing(false);
+  };
+
+  const handleCaptionCancel = () => {
+    setCaptionEditing(false);
+  };
+
+  const handleCaptionOpen = () => {
+    setCaptionDraft(caption);
+    setCaptionEditing(true);
+  };
 
   if (!resolvedSrc) {
     return (
@@ -836,8 +874,9 @@ function PhotoThumb({ entry, index, onViewPhoto, onDeletePhoto }) {
         onClick={() => onViewPhoto(resolvedSrc)}
         aria-label={`View photo ${index + 1}`}
       >
-        <img src={resolvedSrc} alt="" className="jd-photo-thumb" />
+        <img src={resolvedSrc} alt={caption || ''} className="jd-photo-thumb" />
       </button>
+
       {onDeletePhoto && (
         <button
           type="button"
@@ -847,6 +886,75 @@ function PhotoThumb({ entry, index, onViewPhoto, onDeletePhoto }) {
         >
           ✕
         </button>
+      )}
+
+      {/* Reorder arrows — mobile-first alternative to drag-and-drop.
+          Up = move earlier in the array (lower index), Down = move later. */}
+      {onReorder && total > 1 && (
+        <div className="jd-photo-reorder-arrows" aria-label={`Reorder photo ${index + 1}`}>
+          <button
+            type="button"
+            className="jd-photo-reorder-btn"
+            onClick={() => onReorder(index, index - 1)}
+            disabled={index === 0}
+            aria-label="Move photo earlier"
+          >
+            ‹
+          </button>
+          <button
+            type="button"
+            className="jd-photo-reorder-btn"
+            onClick={() => onReorder(index, index + 1)}
+            disabled={index === total - 1}
+            aria-label="Move photo later"
+          >
+            ›
+          </button>
+        </div>
+      )}
+
+      {/* Caption area — only for new-format entries */}
+      {!isLegacy && onSetCaption && (
+        captionEditing ? (
+          <div className="jd-photo-caption-form">
+            <input
+              type="text"
+              className="jd-photo-caption-input"
+              value={captionDraft}
+              onChange={e => setCaptionDraft(e.target.value)}
+              placeholder="Add caption…"
+              maxLength={120}
+              aria-label={`Caption for photo ${index + 1}`}
+              autoFocus
+              onKeyDown={e => {
+                if (e.key === 'Enter') handleCaptionSave();
+                if (e.key === 'Escape') handleCaptionCancel();
+              }}
+            />
+            <div className="jd-photo-caption-actions">
+              <button type="button" className="jd-photo-caption-cancel" onClick={handleCaptionCancel}>
+                Cancel
+              </button>
+              <button type="button" className="jd-photo-caption-save" onClick={handleCaptionSave}>
+                Save
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button
+            type="button"
+            className={`jd-photo-caption-row${caption ? '' : ' jd-photo-caption-row--empty'}`}
+            onClick={handleCaptionOpen}
+            aria-label={caption ? `Edit caption: ${caption}` : `Add caption to photo ${index + 1}`}
+          >
+            {caption || '+ caption'}
+          </button>
+        )
+      )}
+
+      {/* Caption read-only (no edit handler — e.g. view-only mode) */}
+      {!isLegacy && !onSetCaption && caption && (
+        <div className="jd-photo-caption-readonly">{caption}</div>
       )}
     </div>
   );
@@ -860,26 +968,30 @@ function PhotoThumb({ entry, index, onViewPhoto, onDeletePhoto }) {
  *
  * Handles mixed photo formats:
  *   - Legacy: string (base64 data-URL) — rendered directly
- *   - New:    { path, uploadedAt } object — resolved via signed URL from job-photos bucket
+ *   - New:    { path, uploadedAt, caption? } — resolved via signed URL
  *
  * The file input and its ref live in JobDetailDrawer (the parent) because
  * the async compression handler needs access to onUpdateJob. This component
  * receives onAddPhoto (a function that triggers photoInputRef.current.click())
  * and photoAdding (a loading flag) for display purposes.
  *
- * onDeletePhoto(idx) — optional; when present, each thumbnail gets an × button.
+ * onDeletePhoto(idx)           – optional; each thumbnail gets an × button.
+ * onSetCaption(idx, caption)   – optional; enables per-photo caption editing.
+ * onReorder(fromIdx, toIdx)    – optional; enables reorder arrows on thumbnails.
  */
-/**
- * PhotosSection renders as a pill chip when there are no photos (empty state),
- * or as a full section when photos exist.
- */
-function PhotosSection({ photos, onViewPhoto, onAddPhoto, photoAdding, onDeletePhoto }) {
+function PhotosSection({
+  photos,
+  onViewPhoto,
+  onAddPhoto,
+  photoAdding,
+  onDeletePhoto,
+  onSetCaption,
+  onReorder,
+}) {
   const hasPhotos = Array.isArray(photos) && photos.length > 0;
 
-  // Nothing to show and no handler — render nothing
   if (!hasPhotos && !onAddPhoto) return null;
 
-  // Empty + has handler → pill chip (rendered by parent in the empty-pill row)
   if (!hasPhotos && onAddPhoto) {
     return (
       <button
@@ -894,7 +1006,6 @@ function PhotosSection({ photos, onViewPhoto, onAddPhoto, photoAdding, onDeleteP
     );
   }
 
-  // Has content → full section
   return (
     <div className="jd-section">
       <div className="jd-section-header jd-section-header--with-action">
@@ -915,11 +1026,14 @@ function PhotosSection({ photos, onViewPhoto, onAddPhoto, photoAdding, onDeleteP
         <div className="jd-photos-grid">
           {photos.map((entry, i) => (
             <PhotoThumb
-              key={i}
+              key={isLegacyPhoto(entry) ? `legacy-${i}` : entry.path}
               entry={entry}
               index={i}
+              total={photos.length}
               onViewPhoto={onViewPhoto}
               onDeletePhoto={onDeletePhoto}
+              onSetCaption={onSetCaption}
+              onReorder={onReorder}
             />
           ))}
         </div>
@@ -1438,6 +1552,26 @@ export default function JobDetailDrawer({
     setPhotoAdding(false);
     // Reset input so the same file can be re-added if needed
     if (photoInputRef.current) photoInputRef.current.value = '';
+  };
+
+  // ── Photo caption ─────────────────────────────────────────────────────────
+  // Sets or clears the caption on a photo entry by index.
+  // Only applies to new-format entries ({ path, uploadedAt }) — legacy base64
+  // strings are passed through unchanged by setCaption().
+  const handleSetCaption = (idx, caption) => {
+    if (!onUpdateJob) return;
+    const photos = job.photos || [];
+    const updated = photos.map((entry, i) => i === idx ? setCaption(entry, caption) : entry);
+    onUpdateJob({ ...job, photos: updated });
+  };
+
+  // ── Photo reorder ─────────────────────────────────────────────────────────
+  // Moves a photo from fromIdx to toIdx in the array.
+  // Uses reorderPhotos() pure helper — no storage side-effect needed.
+  const handleReorderPhotos = (fromIdx, toIdx) => {
+    if (!onUpdateJob) return;
+    const updated = reorderPhotos(job.photos || [], fromIdx, toIdx);
+    onUpdateJob({ ...job, photos: updated });
   };
 
   // ── Note add ──────────────────────────────────────────────────────────────
@@ -2230,6 +2364,8 @@ export default function JobDetailDrawer({
                 onAddPhoto={onUpdateJob ? () => photoInputRef.current?.click() : undefined}
                 photoAdding={photoAdding}
                 onDeletePhoto={onUpdateJob ? handleDeletePhoto : undefined}
+                onSetCaption={onUpdateJob ? handleSetCaption : undefined}
+                onReorder={onUpdateJob ? handleReorderPhotos : undefined}
               />
             );
             const notesEl = (
