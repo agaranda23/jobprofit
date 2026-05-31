@@ -161,8 +161,10 @@ function PhotoLightbox({ src, onClose }) {
  * Empty fields render as ghost-button "+ Add" rows.
  * No B2B toggle — that moved to the bottom settings row (Alaister override 2026-05-31).
  */
-function CustomerCard({ job, onEditPhone, onEditAddress, onEditEmail, onEditDescription }) {
-  const customer = job.customer || job.name || '';
+function CustomerCard({ job, onEditName, onEditPhone, onEditAddress, onEditEmail, onEditDescription }) {
+  // Never fall back to job.name — that's the job title, not the customer name.
+  // If job.customer is not set, show a ghost-button "+ Add customer name" instead.
+  const customer = job.customer || '';
   const phone = job.customerPhone || job.phone || job.mobile || '';
   const address = job.address || '';
   const email = job.email || job.customerEmail || '';
@@ -173,12 +175,37 @@ function CustomerCard({ job, onEditPhone, onEditAddress, onEditEmail, onEditDesc
     <div className="jd-card">
       <div className="jd-card-label">Customer</div>
 
-      {/* Name — read-only (also in sticky header; rendered here as orientation anchor) */}
-      {customer && (
-        <div className="jd-card-row">
-          <span className="jd-card-row-icon" aria-hidden="true">👤</span>
-          <span className="jd-card-row-val">{customer}</span>
-        </div>
+      {/* Name — editable when onEditName is provided; ghost-button when no customer set */}
+      {customer ? (
+        onEditName ? (
+          <button
+            type="button"
+            className="jd-card-row jd-card-row--tappable"
+            onClick={onEditName}
+            aria-label="Edit customer name"
+          >
+            <span className="jd-card-row-icon" aria-hidden="true">👤</span>
+            <span className="jd-card-row-val">{customer}</span>
+            <span className="jd-card-row-edit" aria-hidden="true">›</span>
+          </button>
+        ) : (
+          <div className="jd-card-row">
+            <span className="jd-card-row-icon" aria-hidden="true">👤</span>
+            <span className="jd-card-row-val">{customer}</span>
+          </div>
+        )
+      ) : (
+        canEdit && (
+          <button
+            type="button"
+            className="jd-card-row jd-card-row--add"
+            onClick={onEditName}
+            aria-label="Add customer name"
+          >
+            <span className="jd-card-row-icon" aria-hidden="true">👤</span>
+            <span className="jd-card-row-add">+ Add customer name</span>
+          </button>
+        )
       )}
 
       {/* Phone — tap number to call; ghost-button when empty */}
@@ -435,6 +462,30 @@ function B2BSettingsRow({ job, onToggle }) {
         checked={!!job.isBusinessCustomer}
         onChange={onToggle}
         aria-label="Business customer — enables statutory late-payment interest on final chase"
+      />
+    </label>
+  );
+}
+
+/**
+ * ExcludeTaxRow — settings-style row, same visual pattern as B2BSettingsRow.
+ * Lifted out of MoreDisclosure so it's always visible below the B2B row.
+ * Only shown for non-CIS users (CIS users get exclude toggle inside JobTaxMeta).
+ */
+function ExcludeTaxRow({ job, onToggle }) {
+  if (!onToggle) return null;
+  return (
+    <label className="jd-b2b-row">
+      <div className="jd-b2b-row-text">
+        <span className="jd-b2b-row-label">Exclude from tax pot</span>
+        <span className="jd-exclude-tax-hint">Excludes this job from your tax pot calculation</span>
+      </div>
+      <input
+        type="checkbox"
+        className="jd-b2b-toggle-input"
+        checked={!!job.excludeFromTax}
+        onChange={onToggle}
+        aria-label="Exclude from tax pot — excludes this job from your tax pot calculation"
       />
     </label>
   );
@@ -2834,8 +2885,9 @@ export default function JobDetailDrawer({
             const hasPhotoContent = photoCount > 0;
             const hasNoteContent = (Array.isArray(job.jobNotes) && job.jobNotes.length > 0) ||
               (typeof job.notes === 'string' && job.notes.trim());
+            // hasExcludeToggle is used only by ExcludeTaxRow now (lifted out of More).
             const hasExcludeToggle = !isCisUser && !!onUpdateJob;
-            const hasAnyMoreContent = hasPhotoContent || hasNoteContent || (hasExcludeToggle && !!job.excludeFromTax);
+            const hasAnyMoreContent = hasPhotoContent || hasNoteContent;
             const moreSummaryParts = [];
             if (hasPhotoContent) moreSummaryParts.push(`Photos (${photoCount})`);
             else if (onUpdateJob) moreSummaryParts.push('Photos');
@@ -2846,7 +2898,7 @@ export default function JobDetailDrawer({
               moreSummaryParts.push('Notes');
             }
             const moreSummary = moreSummaryParts.join(' · ');
-            const showMore = !!(moreSummary || hasExcludeToggle);
+            const showMore = !!moreSummary;
 
             return (
               <>
@@ -2856,6 +2908,7 @@ export default function JobDetailDrawer({
                 {/* 2. Customer card — name · phone · address · email · description */}
                 <CustomerCard
                   job={job}
+                  onEditName={onUpdateJob ? () => setEditingField('name') : undefined}
                   onEditPhone={onUpdateJob ? () => setEditingField('phone') : undefined}
                   onEditAddress={onUpdateJob ? () => setEditingField('address') : undefined}
                   onEditEmail={onUpdateJob ? () => setEditingField('email') : undefined}
@@ -2947,7 +3000,7 @@ export default function JobDetailDrawer({
                   {costsBodyEl}
                 </CollapsedSectionRow>
 
-                {/* 8. More (Photos · Notes · Exclude from tax) */}
+                {/* 8. More (Photos · Notes) */}
                 {showMore && (
                   <MoreDisclosure
                     summary={moreSummary}
@@ -2955,15 +3008,6 @@ export default function JobDetailDrawer({
                   >
                     {photosEl}
                     {(hasNoteContent || noteFormOpen || onUpdateJob) && notesEl}
-                    {hasExcludeToggle && (
-                      <JobTaxMeta
-                        job={job}
-                        profile={profile}
-                        quote={0}
-                        materials={0}
-                        onUpdateJob={onUpdateJob}
-                      />
-                    )}
                   </MoreDisclosure>
                 )}
 
@@ -2974,6 +3018,15 @@ export default function JobDetailDrawer({
                     onUpdateJob({ ...job, isBusinessCustomer: !job.isBusinessCustomer });
                   } : undefined}
                 />
+
+                {/* 10. Exclude-from-tax settings row — below B2B row, non-CIS only.
+                    CIS users get the exclude toggle inside JobTaxMeta (after Money card). */}
+                {hasExcludeToggle && (
+                  <ExcludeTaxRow
+                    job={job}
+                    onToggle={() => onUpdateJob({ ...job, excludeFromTax: !job.excludeFromTax })}
+                  />
+                )}
 
                 {/* Bottom padding so last card clears the sticky action bar */}
                 <div className="jd-bottom-bar-spacer" aria-hidden="true" />

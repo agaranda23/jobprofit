@@ -8414,6 +8414,11 @@ input[type=number] { -moz-appearance: textfield; }
   border: 1px solid var(--border);
   border-radius: 12px;
   overflow: hidden; /* clip the row's tap highlight to the rounded corners */
+  /* Guard: if the inner button loses height (e.g. box-sizing interaction),
+     the container must not collapse to just its 2px of border (the "thin line"
+     regression). The button's own min-height:48px is the primary constraint;
+     this is the safety net on the wrapper. */
+  min-height: 48px;
 }
 
 .jd-csr--attention {
@@ -10730,6 +10735,16 @@ input[type=number] { -moz-appearance: textfield; }
   accent-color: var(--accent);
   flex-shrink: 0;
   cursor: pointer;
+}
+
+/* ── Exclude-from-tax settings row — mirrors jd-b2b-row exactly ──────────── */
+/* Reuses jd-b2b-row-text / jd-b2b-row-label / jd-b2b-hint / jd-b2b-toggle-input.
+   Only the hint-always-visible variant needs a unique rule. */
+.jd-exclude-tax-hint {
+  display: block;
+  font-size: 12px;
+  color: var(--text-dim);
+  line-height: 1.4;
 }
 
 /* ── Schedule card body (inside CollapsedSectionRow) ─────────────────────── */
