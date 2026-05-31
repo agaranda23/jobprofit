@@ -473,7 +473,7 @@ export default function TodayScreen({
           className="foreman-pivot-btn"
           onClick={() => setJobOpen(true)}
         >
-          <span className="foreman-pivot-icon" aria-hidden="true">+</span>
+          <span className="foreman-pivot-icon" aria-hidden="true">🛠️</span>
           Log a job
         </button>
         <button
@@ -481,7 +481,7 @@ export default function TodayScreen({
           className="foreman-pivot-btn"
           onClick={() => { setJobOpenMode('quote'); setJobOpen(true); }}
         >
-          <span className="foreman-pivot-icon" aria-hidden="true">&#127908;</span>
+          <span className="foreman-pivot-icon" aria-hidden="true">📝</span>
           Create quote
         </button>
         <button
@@ -489,7 +489,7 @@ export default function TodayScreen({
           className="foreman-pivot-btn"
           onClick={handleSendInvoicePivot}
         >
-          <span className="foreman-pivot-icon" aria-hidden="true">+</span>
+          <span className="foreman-pivot-icon" aria-hidden="true">💸</span>
           Send an invoice
         </button>
       </div>

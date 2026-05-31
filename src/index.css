@@ -7836,10 +7836,9 @@ input[type=number] { -moz-appearance: textfield; }
   align-items: center;
   justify-content: center;
   gap: 6px;
-  background: var(--surface);
-  border: 1px solid var(--border);
+  background: var(--accent, #34d672);
   border-radius: 10px;
-  color: var(--text);
+  color: #0B0F17;
   font-size: 13px;
   font-weight: 600;
   font-family: inherit;
@@ -7853,7 +7852,7 @@ input[type=number] { -moz-appearance: textfield; }
 .foreman-pivot-icon {
   font-size: 20px;
   font-weight: 400;
-  color: var(--text-dim);
+  color: #0B0F17;
   line-height: 1;
 }
 
