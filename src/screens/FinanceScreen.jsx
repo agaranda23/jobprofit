@@ -327,8 +327,17 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
           <div className="money-hero__label">Profit this month</div>
           <span className="money-hero__caught-up">Nothing paid in yet this month</span>
           <p className="money-hero__hint">
-            Mark a job as paid in Jobs and it'll show up here.
+            Mark a job as paid and it shows up here.
           </p>
+          {onGoToJobs && (
+            <button
+              type="button"
+              className="money-hero__goto-jobs-btn"
+              onClick={onGoToJobs}
+            >
+              Go to Jobs
+            </button>
+          )}
         </div>
       ) : (
         <div className={`money-hero money-hero--profit${isProfitNegative ? ' money-hero--negative' : ''}`}>
@@ -620,10 +629,16 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
       {/* ── Full empty state ─────────────────────────────────────────────── */}
       {!hasActivity && (
         <div className="screen-empty">
-          <p className="screen-empty-title">Log your first job to start tracking.</p>
+          <div className="screen-empty-icon" aria-hidden="true">💷</div>
+          <p className="screen-empty-title">Nothing here yet.</p>
           <p className="screen-empty-hint">
-            Finish a job and send the invoice — your money picture will appear here.
+            Your profit shows up once you log a job and mark it paid.
           </p>
+          {onGoToJobs && (
+            <button type="button" className="screen-empty-cta" onClick={onGoToJobs}>
+              Log a job
+            </button>
+          )}
         </div>
       )}
 

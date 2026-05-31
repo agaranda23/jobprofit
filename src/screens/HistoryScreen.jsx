@@ -98,7 +98,11 @@ export default function HistoryScreen({ jobs = [], receipts = [], onMarkPaid }) 
       {grouped.length === 0 ? (
         <section className="recent">
           <div className="recent-divider" />
-          <p className="empty-state">Your timeline will appear here as you add jobs and receipts</p>
+          <div className="screen-empty">
+            <div className="screen-empty-icon" aria-hidden="true">📊</div>
+            <p className="screen-empty-title">No history yet.</p>
+            <p className="screen-empty-hint">Your timeline appears here as you log jobs and receipts.</p>
+          </div>
         </section>
       ) : (
         <section className="timeline">
