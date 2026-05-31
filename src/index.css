@@ -8450,6 +8450,12 @@ input[type=number] { -moz-appearance: textfield; }
   opacity: 0.65;
 }
 
+/* Expanded state: add a hairline below the trigger row so the panel content
+   has a clear visual separation from the row above it. */
+.jd-csr-row[aria-expanded="true"] {
+  border-bottom: 1px solid var(--border);
+}
+
 .jd-csr-icon {
   font-size: 14px;
   width: 18px;
@@ -8495,10 +8501,24 @@ input[type=number] { -moz-appearance: textfield; }
   line-height: 1;
 }
 
+/* Expanded panel content: direct children that are jd-section / payment
+   cards lose their top border because the trigger row already provides the
+   visual separation. The selector targets the grandchild via the opacity
+   wrapper div that CollapsedSectionRow wraps children in. */
+.jd-csr-panel > div > .jd-section:first-child,
+.jd-csr-panel > div > .payment-summary:first-child,
+.jd-csr-panel > div > .payment-history:first-child {
+  border-top: none;
+  border-radius: 0 0 12px 12px;
+}
+
+/* Keep legacy direct-child selectors for any case where children are
+   rendered without the opacity wrapper (defensive). */
 .jd-csr-panel > .jd-section:first-child,
 .jd-csr-panel > .payment-summary:first-child,
 .jd-csr-panel > .payment-history:first-child {
   border-top: none;
+  border-radius: 0 0 12px 12px;
 }
 
 /* ── ProfitRibbon ─────────────────────────────────────────────────────────── */
@@ -10529,6 +10549,29 @@ input[type=number] { -moz-appearance: textfield; }
 .jd-card--money:active {
   opacity: 0.8;
 }
+
+/* ── View profit breakdown CTA button ───────────────────────────────────── */
+/* Replaces MoneyCard in the drawer body (Change 1, 2026-06-01).
+   Semantically a button, not a card — separate class from .jd-card. */
+.jd-breakdown-btn {
+  display: block;
+  width: 100%;
+  padding: 15px 16px;
+  background: var(--surface-raised, #142035);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 600;
+  text-align: center;
+  cursor: pointer;
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+  transition: opacity 0.15s;
+}
+.jd-breakdown-btn:active {
+  opacity: 0.75;
+}
 .jd-card-label {
   font-size: 10px;
   font-weight: 700;
@@ -10749,5 +10792,5 @@ input[type=number] { -moz-appearance: textfield; }
 
 /* ── Schedule card body (inside CollapsedSectionRow) ─────────────────────── */
 .jd-schedule-card-body {
-  padding: 0 0 4px;
+  padding: 4px 14px 8px;
 }

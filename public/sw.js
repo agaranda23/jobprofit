@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v30';  // bumped from v29: restore CSR rows + lift tax-pot toggle + editable customer name
+const CACHE_NAME = 'jobprofit-v31';  // bumped from v30: replace Money card with View profit breakdown CTA + fix Schedule/Quote/Costs expansion
 const PRECACHE = [
   '/',
   '/index.html',
