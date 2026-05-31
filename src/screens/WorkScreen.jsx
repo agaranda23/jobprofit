@@ -30,6 +30,7 @@ import { useState, useCallback, useRef, useEffect } from 'react';
 import WorkCalendar from './WorkCalendar';
 import AddJobModal from '../components/AddJobModal';
 import JobDetailDrawer from '../components/JobDetailDrawer';
+import DrawerErrorBoundary from '../components/DrawerErrorBoundary';
 import ReviewSheet from '../components/ReviewSheet';
 import StageStrip from '../components/StageStrip';
 import { logTelemetry } from '../lib/telemetry';
@@ -1317,24 +1318,31 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
         <WorkCalendar jobs={visibleJobs} onNewJobOnDate={onNewJob} />
       )}
 
-      {/* Job detail drawer */}
+      {/* Job detail drawer — wrapped in an error boundary so a render crash
+          shows a fallback instead of a blank white screen. Keyed by job id
+          so the boundary resets automatically when a different job is opened. */}
       {liveSelectedJob && (
-        <JobDetailDrawer
-          job={liveSelectedJob}
-          receipts={receipts}
-          biz={biz}
-          profile={profile}
-          jobs={jobs}
-          onUpdateJob={onUpdateJob}
-          onAddReceipt={onAddReceipt}
-          onDeleteReceipt={onDeleteReceipt}
-          onAddPayment={handleAddPayment}
+        <DrawerErrorBoundary
+          key={liveSelectedJob.id}
           onClose={() => { setSelectedJob(null); setDrawerIntent(null); setDrawerTargetStage(null); }}
-          intent={drawerIntent}
-          targetStage={drawerTargetStage}
-          onClearIntent={() => { setDrawerIntent(null); setDrawerTargetStage(null); }}
-          onViewReceipt={setReceiptJob}
-        />
+        >
+          <JobDetailDrawer
+            job={liveSelectedJob}
+            receipts={receipts}
+            biz={biz}
+            profile={profile}
+            jobs={jobs}
+            onUpdateJob={onUpdateJob}
+            onAddReceipt={onAddReceipt}
+            onDeleteReceipt={onDeleteReceipt}
+            onAddPayment={handleAddPayment}
+            onClose={() => { setSelectedJob(null); setDrawerIntent(null); setDrawerTargetStage(null); }}
+            intent={drawerIntent}
+            targetStage={drawerTargetStage}
+            onClearIntent={() => { setDrawerIntent(null); setDrawerTargetStage(null); }}
+            onViewReceipt={setReceiptJob}
+          />
+        </DrawerErrorBoundary>
       )}
 
       {/* ReviewSheet — opened by "Send invoice" tile CTA on On-stage cards */}

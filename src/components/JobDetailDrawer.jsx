@@ -2029,6 +2029,12 @@ export default function JobDetailDrawer({
     noop:                () => {},
   };
 
+  // Lifted to component scope so BOTH IIFEs in the return() body can reference it.
+  // Previously defined as a const inside the first IIFE (stage-aware layout block),
+  // which made it invisible to the second IIFE (MoreDisclosure block) — that scoping
+  // gap caused a ReferenceError on every job open, producing the blank white screen.
+  const isCisUser = !!profile?.is_cis_subcontractor;
+
   return (
     <>
       {/* Backdrop */}
@@ -2349,7 +2355,7 @@ export default function JobDetailDrawer({
             // CIS-4 / CIS-5: tax meta below the ribbon.
             // Shown for CIS users (CIS toggle + exclude) or any user with edit access (exclude only).
             // For non-CIS users the exclude toggle is tucked into MoreDisclosure below.
-            const isCisUser = !!profile?.is_cis_subcontractor;
+            // isCisUser is defined at component scope above return() — not re-declared here.
             const taxMetaEl = (isCisUser || onUpdateJob) ? (
               <JobTaxMeta
                 job={job}
@@ -2585,8 +2591,19 @@ export default function JobDetailDrawer({
               >
                 {photosEl}
                 {(hasNoteContent || noteFormOpen || onUpdateJob) && notesEl}
-                {/* CIS-5: exclude-from-tax for non-CIS users lives here, unobtrusive */}
-                {hasExcludeToggle && taxMetaEl}
+                {/* CIS-5: exclude-from-tax for non-CIS users lives here, unobtrusive.
+                    taxMetaEl is scoped to the first IIFE (needs quote/materials);
+                    for non-CIS users we only need the exclude toggle which doesn't
+                    use those values, so we construct JobTaxMeta directly here. */}
+                {hasExcludeToggle && (
+                  <JobTaxMeta
+                    job={job}
+                    profile={profile}
+                    quote={0}
+                    materials={0}
+                    onUpdateJob={onUpdateJob}
+                  />
+                )}
               </MoreDisclosure>
             );
           })()}
