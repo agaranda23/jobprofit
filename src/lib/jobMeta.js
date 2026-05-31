@@ -46,6 +46,14 @@ const META_FIELDS = [
   'cisRate', // int (20 | 30 | 0) — the rate applied to this job's labour portion
   // CIS-5 — exclude from tax pot (all users)
   'excludeFromTax', // boolean — removes this job from all tax calculations
+  // Customer-editable columns — mirrored into meta so edits survive offline and
+  // cloud-sync stomps. updateJobMetaInCloud writes these back to the DB columns
+  // (customer_name, summary, address, email, description) in the same UPDATE.
+  'customer',     // maps to customer_name column — the bug: missing here meant name was never persisted
+  'summary',      // maps to summary column — job name / description line
+  'address',      // maps to address column
+  'email',        // maps to email column
+  'description',  // maps to description column (added 2026-05-30 migration)
 ];
 
 export function readJobMeta(id) {

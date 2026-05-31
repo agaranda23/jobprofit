@@ -1294,6 +1294,144 @@ describe('View receipt button — show condition', () => {
   });
 });
 
+// ── Customer-name persistence regression ─────────────────────────────────────
+//
+// Bug: when a user edited a customer name from the job detail drawer, the name
+// appeared in-memory but was lost on the next cloud sync because:
+//   1. 'customer' was absent from META_FIELDS → extractJobMeta() silently dropped it
+//   2. updateJobMetaInCloud() only wrote the meta JSON blob, never the customer_name column
+//   3. mapCloudJobToToday() sets job.customer from r.customer_name, overwriting the edit
+//
+// Fix (PR fix/job-drawer-customer-name-and-avatar):
+//   1. 'customer' (and summary, address, email, description) added to META_FIELDS
+//   2. updateJobMetaInCloud() now mirrors those keys to their canonical DB columns
+//
+// These tests validate both fix layers as pure-logic excerpts.
+
+import { extractJobMeta } from '../../lib/jobMeta';
+
+describe('customer-name persistence — extractJobMeta includes customer (regression guard)', () => {
+  it('includes job.customer in the extracted meta object', () => {
+    const job = { id: 'j1', customer: 'Sarah Jones', amount: 300, photos: [] };
+    const meta = extractJobMeta(job);
+    expect('customer' in meta).toBe(true);
+    expect(meta.customer).toBe('Sarah Jones');
+  });
+
+  it('includes null when customer is cleared', () => {
+    const job = { id: 'j1', customer: null, amount: 300 };
+    const meta = extractJobMeta(job);
+    expect('customer' in meta).toBe(true);
+    expect(meta.customer).toBeNull();
+  });
+
+  it('does NOT include customer when it is not set on the job (no key present)', () => {
+    const job = { id: 'j1', amount: 300 };
+    const meta = extractJobMeta(job);
+    // 'customer' key absent on source → absent from meta (no false positive)
+    expect('customer' in meta).toBe(false);
+  });
+
+  it('also includes summary in the meta (column-level fix)', () => {
+    const job = { id: 'j1', summary: 'Kitchen refit', amount: 400 };
+    const meta = extractJobMeta(job);
+    expect(meta.summary).toBe('Kitchen refit');
+  });
+
+  it('also includes address in the meta (column-level fix)', () => {
+    const job = { id: 'j1', address: '14 Elm Road' };
+    const meta = extractJobMeta(job);
+    expect(meta.address).toBe('14 Elm Road');
+  });
+
+  it('also includes email in the meta (column-level fix)', () => {
+    const job = { id: 'j1', email: 'sarah@example.com' };
+    const meta = extractJobMeta(job);
+    expect(meta.email).toBe('sarah@example.com');
+  });
+
+  it('also includes description in the meta (column-level fix)', () => {
+    const job = { id: 'j1', description: 'Replace tiles and re-grout' };
+    const meta = extractJobMeta(job);
+    expect(meta.description).toBe('Replace tiles and re-grout');
+  });
+});
+
+// Mirrors the column-mapping logic added to updateJobMetaInCloud in store.js.
+// That function can't be imported here (it hits Supabase), so we test the
+// mapping logic as a pure function that mirrors what the real code does.
+function buildUpdatePayload(metaObject) {
+  const payload = { meta: metaObject };
+  if (Array.isArray(metaObject.lineItems)) {
+    payload.line_items = metaObject.lineItems;
+  }
+  if ('customer' in metaObject)    payload.customer_name = metaObject.customer    || null;
+  if ('summary' in metaObject)     payload.summary       = metaObject.summary     || null;
+  if ('address' in metaObject)     payload.address       = metaObject.address     || null;
+  if ('email' in metaObject)       payload.email         = metaObject.email       || null;
+  if ('description' in metaObject) payload.description   = metaObject.description || null;
+  return payload;
+}
+
+describe('customer-name persistence — updateJobMetaInCloud payload maps customer → customer_name (regression guard)', () => {
+  it('maps meta.customer to customer_name in the DB update payload', () => {
+    const meta = { customer: 'Sarah Jones', status: 'active' };
+    const payload = buildUpdatePayload(meta);
+    expect(payload.customer_name).toBe('Sarah Jones');
+  });
+
+  it('writes null to customer_name when customer is cleared', () => {
+    const meta = { customer: null };
+    const payload = buildUpdatePayload(meta);
+    expect(payload.customer_name).toBeNull();
+  });
+
+  it('does NOT add customer_name when customer is absent from meta', () => {
+    const meta = { status: 'active', photos: [] };
+    const payload = buildUpdatePayload(meta);
+    expect('customer_name' in payload).toBe(false);
+  });
+
+  it('maps meta.summary to the summary column', () => {
+    const meta = { summary: 'Bathroom refit' };
+    const payload = buildUpdatePayload(meta);
+    expect(payload.summary).toBe('Bathroom refit');
+  });
+
+  it('maps meta.address to the address column', () => {
+    const meta = { address: '14 Elm Road, Manchester' };
+    const payload = buildUpdatePayload(meta);
+    expect(payload.address).toBe('14 Elm Road, Manchester');
+  });
+
+  it('maps meta.email to the email column', () => {
+    const meta = { email: 'customer@example.com' };
+    const payload = buildUpdatePayload(meta);
+    expect(payload.email).toBe('customer@example.com');
+  });
+
+  it('maps meta.description to the description column', () => {
+    const meta = { description: 'Replace tiling — 2 days' };
+    const payload = buildUpdatePayload(meta);
+    expect(payload.description).toBe('Replace tiling — 2 days');
+  });
+
+  it('still writes meta blob alongside column updates (both layers always present)', () => {
+    const meta = { customer: 'Alan', status: 'active' };
+    const payload = buildUpdatePayload(meta);
+    expect(payload.meta).toBe(meta);
+    expect(payload.customer_name).toBe('Alan');
+  });
+
+  it('still mirrors lineItems to line_items column alongside customer_name', () => {
+    const items = [{ desc: 'Labour', cost: 300 }];
+    const meta = { customer: 'Bob', lineItems: items };
+    const payload = buildUpdatePayload(meta);
+    expect(payload.line_items).toEqual(items);
+    expect(payload.customer_name).toBe('Bob');
+  });
+});
+
 // ── CIS-4/5 regression: resolveCisStatus + isCisUser guard ──────────────────
 //
 // These tests cover the root cause of the P0 blank-screen bug (fix/job-detail-blank):

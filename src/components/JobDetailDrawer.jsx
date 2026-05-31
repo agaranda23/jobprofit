@@ -2057,7 +2057,6 @@ export default function JobDetailDrawer({
         {/* Header row */}
         <div className="job-detail-header">
           <div className="job-detail-header-left">
-            <span className={`job-status-pill ${statusClass}`}>{status[0]}</span>
             <div className="job-detail-title-block">
               {/* Heading: job name (summary) — primary, big. Tappable to edit when allowed. */}
               {onUpdateJob ? (
