@@ -9803,3 +9803,243 @@ input[type=number] { -moz-appearance: textfield; }
   margin: 2px 0 6px;
   line-height: 1.4;
 }
+
+/* ── CardPaymentsScreen ──────────────────────────────────────────────────────
+   Settings → Get paid → Card payments (Stripe Connect)
+   Mobile-first, 375px reference. All touch targets ≥44px.
+   ────────────────────────────────────────────────────────────────────────── */
+
+.card-payments-screen {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+  background: var(--bg);
+}
+
+.card-payments-screen__header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 16px 16px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.card-payments-screen__back {
+  background: none;
+  border: none;
+  font-size: 28px;
+  line-height: 1;
+  color: var(--text);
+  cursor: pointer;
+  padding: 4px 8px 4px 0;
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}
+
+.card-payments-screen__body {
+  padding: 24px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  flex: 1;
+}
+
+/* ── Status block ──────────────────────────────────────────────────────────── */
+
+.card-payments-status {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+
+.card-payments-status--connected {
+  border-color: #22c55e;
+  background: color-mix(in srgb, #22c55e 8%, var(--surface));
+}
+
+.card-payments-status__icon {
+  font-size: 22px;
+  line-height: 1;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.card-payments-status--connected .card-payments-status__icon {
+  color: #22c55e;
+}
+
+.card-payments-status__icon--empty {
+  color: var(--text-dim);
+}
+
+.card-payments-status__title {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.card-payments-status__detail {
+  font-size: 14px;
+  color: var(--text-dim);
+}
+
+.card-payments-status__explainer {
+  font-size: 14px;
+  color: var(--text-dim);
+  line-height: 1.5;
+  margin: 0;
+}
+
+/* ── CTA buttons ───────────────────────────────────────────────────────────── */
+
+.card-payments-cta {
+  display: block;
+  width: 100%;
+  min-height: 56px;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  text-align: center;
+  text-decoration: none;
+  line-height: 56px;
+  padding: 0 16px;
+}
+
+.card-payments-cta--primary {
+  background: var(--accent, #635bff);
+  color: #fff;
+}
+
+.card-payments-cta--primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.card-payments-cta--secondary {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+/* ── Reassurance list ──────────────────────────────────────────────────────── */
+
+.card-payments-reassurance {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.card-payments-reassurance__item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 14px;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
+.card-payments-reassurance__icon {
+  font-size: 18px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+/* ── Footer copy ───────────────────────────────────────────────────────────── */
+
+.card-payments-screen__footnote {
+  font-size: 12px;
+  color: var(--text-dim);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.card-payments-screen__on-copy {
+  font-size: 14px;
+  color: var(--text-dim);
+  margin: 0;
+}
+
+.card-payments-screen__error {
+  font-size: 13px;
+  color: var(--jp-rose, #f43f5e);
+  margin: 0;
+}
+
+/* ── Disconnect link ───────────────────────────────────────────────────────── */
+/* Plain-text weight — findable but not inviting (appropriate for a destructive admin action) */
+
+.card-payments-screen__disconnect-link {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 10px 0;
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  min-height: 44px;
+  align-self: flex-start;
+}
+
+/* ── Disconnect confirm sheet ──────────────────────────────────────────────── */
+
+.card-payments-sheet {
+  padding: 24px 20px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.card-payments-sheet__title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0;
+}
+
+.card-payments-sheet__body {
+  font-size: 14px;
+  color: var(--text-dim);
+  line-height: 1.5;
+  margin: 0;
+}
+
+.card-payments-sheet__confirm {
+  min-height: 48px;
+  border-radius: 10px;
+  background: var(--jp-rose, #f43f5e);
+  color: #fff;
+  border: none;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.card-payments-sheet__confirm:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.card-payments-sheet__cancel {
+  min-height: 48px;
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
