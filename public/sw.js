@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v24';  // bumped from v23: remaining green CTA sweep — token unification complete
+const CACHE_NAME = 'jobprofit-v25';  // bumped from v24: green pivot tiles — accent bg, black text/icons, emoji swap
 const PRECACHE = [
   '/',
   '/index.html',
