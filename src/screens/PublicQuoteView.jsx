@@ -47,6 +47,7 @@ function fmtDate(raw) {
 
 const ACCEPT_QUOTE_URL = '/.netlify/functions/accept-quote';
 const TRACK_OPEN_URL = '/.netlify/functions/track-quote-open';
+const CREATE_DEPOSIT_URL = '/.netlify/functions/create-deposit-payment-link';
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
@@ -280,18 +281,158 @@ function SignSection({ token, onAccepted }) {
   );
 }
 
+// ── DepositBlock ─────────────────────────────────────────────────────────────
+
+/**
+ * DepositBlock — shown on the customer quote page when deposit_percent > 0.
+ *
+ * Renders:
+ *   - A green deposit info row (amount + "locks in your slot")
+ *   - Primary: "Pay £X deposit & accept" (calls create-deposit-payment-link then redirects)
+ *   - Secondary: "Accept without deposit" (existing SignSection flow)
+ *
+ * Decision locked: "Accept without deposit" is always visible when deposit > 0.
+ * Decision locked: deposit_percent === 0 → this block is not rendered at all.
+ *
+ * @param {{
+ *   job: object,
+ *   token: string,                     — the public quote token (UUID)
+ *   depositPercent: number,
+ *   depositAmountPence: number,        — pence; calculated from job total if not pre-stored
+ *   onAcceptWithoutDeposit: function,  — show the SignSection
+ *   depositSuccess: boolean,           — ?deposit_success=true on the URL
+ *   depositCancelled: boolean,         — ?deposit_cancelled=true on the URL
+ * }} props
+ */
+function DepositBlock({ job, token, depositPercent, depositAmountPence, onAcceptWithoutDeposit, depositSuccess, depositCancelled }) {
+  const [depositState, setDepositState] = useState('idle'); // 'idle' | 'loading' | 'error'
+  const [depositError, setDepositError] = useState('');
+
+  const depositGbp = depositAmountPence > 0 ? gbp(depositAmountPence / 100) : '';
+  const totalGbp = gbp(job.total ?? job.amount ?? 0);
+
+  // If already returned from a successful Stripe Checkout, show confirmation.
+  if (depositSuccess) {
+    return (
+      <div className="pqv-section">
+        <div className="pqv-deposit-success">
+          <div className="pqv-deposit-success-title">Deposit paid</div>
+          <div className="pqv-deposit-success-body">
+            Your deposit of {depositGbp} has been received. Your slot is locked in.
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  async function handlePayDeposit() {
+    if (depositState === 'loading') return;
+    setDepositState('loading');
+    setDepositError('');
+
+    try {
+      // create-deposit-payment-link requires auth — for the public page we use
+      // the public access token to identify the job. The function accepts this
+      // by looking up the job by the token field (publicAccessToken stored in meta).
+      // We pass quoteId as the job's ID from the loaded job object.
+      const res = await fetch(CREATE_DEPOSIT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          publicQuoteToken: token, // server validates this against job.meta.publicAccessToken
+        }),
+      });
+
+      let data;
+      try { data = await res.json(); } catch { data = {}; }
+
+      if (!res.ok) {
+        setDepositError(data?.error || "Couldn't create payment link — please try again");
+        setDepositState('error');
+        return;
+      }
+
+      if (data?.payUrl) {
+        // Redirect to Stripe Checkout. On return, the URL will have ?deposit_success=true
+        // or ?deposit_cancelled=true (set in create-deposit-payment-link.js).
+        window.location.href = data.payUrl;
+      } else {
+        setDepositError('Could not generate a payment link — please try again');
+        setDepositState('error');
+      }
+    } catch {
+      setDepositError("Couldn't connect — check your internet and try again");
+      setDepositState('error');
+    }
+  }
+
+  return (
+    <div className="pqv-section">
+      {depositCancelled && (
+        <div className="pqv-deposit-cancelled" role="alert">
+          Payment cancelled. You can try again below or accept without a deposit.
+        </div>
+      )}
+
+      <div className="pqv-deposit-block">
+        <div className="pqv-deposit-block-row">
+          <span>Deposit ({depositPercent}%)</span>
+          <span>{depositGbp}</span>
+        </div>
+        <div className="pqv-deposit-block-sub">Pay now to lock in your slot</div>
+      </div>
+
+      {depositState === 'error' && (
+        <p className="pqv-sign-error" role="alert">{depositError}</p>
+      )}
+
+      <button
+        type="button"
+        className="pqv-btn-deposit"
+        onClick={handlePayDeposit}
+        disabled={depositState === 'loading'}
+        aria-busy={depositState === 'loading'}
+      >
+        {depositState === 'loading' ? 'Preparing payment…' : `Pay ${depositGbp} deposit & accept`}
+      </button>
+
+      <button
+        type="button"
+        className="pqv-btn-no-deposit"
+        onClick={onAcceptWithoutDeposit}
+        disabled={depositState === 'loading'}
+      >
+        Accept without deposit
+      </button>
+    </div>
+  );
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 /**
  * @param {{ token: string }} props
  */
 export default function PublicQuoteView({ token }) {
-  // Consolidated fetch state — single setState per effect branch avoids
-  // cascading-render lint warnings (react-hooks/exhaustive-deps).
+  // ── All hooks must sit above any early return (PR #125 binding rule) ──────────
   const [fetchState, setFetchState] = useState({ status: 'loading', job: null, errorMsg: '' });
-  // remoteAccepted: set when the customer completes the G-2 sign flow in this session.
-  // Stored separately from fetchState so we don't mutate the job object locally.
+  // remoteAccepted: set when the customer completes the sign flow in this session.
   const [remoteAccepted, setRemoteAccepted] = useState(null); // null | { acceptedAt, signatureDataUrl }
+  // showSignSection: toggled to true when customer taps "Accept without deposit"
+  const [showSignSection, setShowSignSection] = useState(false);
+
+  // Read ?deposit_success and ?deposit_cancelled from the URL (set by Stripe redirect).
+  // Computed once at mount — URL params don't change during the page lifetime.
+  const [depositSuccess] = useState(() => {
+    try {
+      return new URLSearchParams(window.location.search).get('deposit_success') === 'true';
+    } catch { return false; }
+  });
+  const [depositCancelled] = useState(() => {
+    try {
+      return new URLSearchParams(window.location.search).get('deposit_cancelled') === 'true';
+    } catch { return false; }
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -309,13 +450,11 @@ export default function PublicQuoteView({ token }) {
           setFetchState({ status: 'error', job: null, errorMsg: 'Quote not found. The link may have expired or been removed.' });
         } else {
           setFetchState({ status: 'ok', job: result, errorMsg: '' });
-          // Fire-and-forget open-tracking. Silently swallowed — the page renders
-          // regardless of whether the tracking call succeeds or the token is stale.
           fetch(TRACK_OPEN_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ token }),
-          }).catch(() => { /* non-blocking — tracking must never break the view */ });
+          }).catch(() => { /* non-blocking */ });
         }
       } catch {
         if (!cancelled) {
@@ -328,11 +467,13 @@ export default function PublicQuoteView({ token }) {
     return () => { cancelled = true; };
   }, [token]);
 
+  // ── Early returns — hooks are all above here ──────────────────────────────────
   const { status, job, errorMsg } = fetchState;
 
   if (status === 'loading') return <LoadingState />;
   if (status === 'error') return <ErrorState message={errorMsg} />;
 
+  // ── Derived values ────────────────────────────────────────────────────────────
   const businessName = job.businessName || job.business_name || '';
   const customerName = job.customer || job.customer_name || job.name || '';
   const description = job.summary || '';
@@ -340,11 +481,30 @@ export default function PublicQuoteView({ token }) {
     ? job.lineItems.filter(i => i.desc || i.cost)
     : [];
   const total = job.total ?? job.amount ?? 0;
-  // A quote is considered accepted if the server already had a signature (Phase F or
-  // a prior G-2 submission), or if the customer just signed in this session.
-  const isAccepted = !!job.acceptedSignature || job.quoteStatus === 'accepted' || !!remoteAccepted;
+
+  // Deposit: use stored percent/amount from DB; calculate if absent.
+  const depositPercent = Number(job.deposit_percent ?? 0);
+  const hasDeposit = depositPercent > 0;
+  const depositAmountPence = job.deposit_amount_pence
+    ? job.deposit_amount_pence
+    : Math.round(total * (depositPercent / 100) * 100);
+
+  // Deposit already paid (either from DB or from ?deposit_success param this session)
+  const depositAlreadyPaid = !!job.deposit_paid_at || depositSuccess;
+
+  // Accepted if: server already has a signature, quoteStatus is accepted,
+  // deposit was paid (which auto-accepts), or customer just signed in this session.
+  const isAccepted = !!job.acceptedSignature || job.quoteStatus === 'accepted'
+    || depositAlreadyPaid || !!remoteAccepted;
   const acceptedAt = remoteAccepted?.acceptedAt || job.acceptedAt || null;
   const quoteDate = job.date || job.createdAt || null;
+
+  // When should we show the deposit flow vs the sign flow vs nothing?
+  // - isAccepted: show accepted badge only (no action needed)
+  // - hasDeposit && !isAccepted && !showSignSection: show DepositBlock
+  // - !hasDeposit || showSignSection: show SignSection (existing flow)
+  const showDepositBlock = hasDeposit && !isAccepted && !showSignSection;
+  const showSignFlow = !isAccepted && (!hasDeposit || showSignSection);
 
   return (
     <div className="pqv-wrap">
@@ -361,7 +521,7 @@ export default function PublicQuoteView({ token }) {
           </div>
         </div>
 
-        {/* Accepted badge — shown if the quote is already accepted */}
+        {/* Accepted badge */}
         {isAccepted && <AcceptedBadge acceptedAt={acceptedAt} />}
 
         {/* Customer + description */}
@@ -378,7 +538,6 @@ export default function PublicQuoteView({ token }) {
         {lineItems.length > 0 ? (
           <LineItemsTable items={lineItems} />
         ) : (
-          /* Fallback: show flat total when no breakdown is available */
           total > 0 && (
             <div className="pqv-section">
               <div className="pqv-flat-total">
@@ -389,15 +548,28 @@ export default function PublicQuoteView({ token }) {
           )
         )}
 
-        {/* Sign section — hidden once accepted (idempotent) */}
-        {!isAccepted && (
+        {/* Deposit flow — shown when deposit > 0% and not yet accepted */}
+        {showDepositBlock && (
+          <DepositBlock
+            job={job}
+            token={token}
+            depositPercent={depositPercent}
+            depositAmountPence={depositAmountPence}
+            onAcceptWithoutDeposit={() => setShowSignSection(true)}
+            depositSuccess={depositSuccess}
+            depositCancelled={depositCancelled}
+          />
+        )}
+
+        {/* Sign section — shown when no deposit, or customer chose "Accept without deposit" */}
+        {showSignFlow && (
           <SignSection
             token={token}
             onAccepted={(result) => setRemoteAccepted(result)}
           />
         )}
 
-        {/* Post-submit confirmation block — shown when signed in this session */}
+        {/* Post-submit confirmation block */}
         {remoteAccepted && (
           <RemoteAcceptedBlock
             signatureDataUrl={remoteAccepted.signatureDataUrl}

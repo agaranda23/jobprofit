@@ -359,13 +359,38 @@ export function buildChaseLink({ phone, ...msgParams }) {
  * When payNowUrl is absent or empty, returns buildChaseMessage output unchanged
  * so no regression for unconnected traders.
  *
- * @param {{ payNowUrl?: string, [key: string]: any }} params — same shape as buildChaseMessage + payNowUrl
+ * @param {{ payNowUrl?: string, depositPaidPence?: number, [key: string]: any }} params
+ *   depositPaidPence — when > 0, the amount field in msgParams is treated as the
+ *   balance (caller must pass the balance as amount); the message suffix notes
+ *   the deposit already paid.
  * @returns {string}
  */
-export function buildChaseMessageWithPayNow({ payNowUrl = '', ...msgParams }) {
+export function buildChaseMessageWithPayNow({ payNowUrl = '', depositPaidPence = 0, ...msgParams }) {
   const baseMessage = buildChaseMessage(msgParams);
-  if (!payNowUrl) return baseMessage;
-  return `Pay by card here: ${payNowUrl}\n\n${baseMessage}`;
+
+  const parts = [];
+  if (payNowUrl) {
+    // Deposit context on the pay link line
+    if (depositPaidPence > 0) {
+      const depositGbp = `£${(depositPaidPence / 100).toFixed(2)}`;
+      parts.push(`Pay balance by card here (deposit of ${depositGbp} already received):`);
+    } else {
+      parts.push('Pay by card here:');
+    }
+    parts.push(payNowUrl);
+    parts.push('');
+  }
+
+  parts.push(baseMessage);
+
+  // Deposit suffix appended to the base message when no payNowUrl
+  // (unconnected trader but deposit was paid — inform the customer)
+  if (!payNowUrl && depositPaidPence > 0) {
+    const depositGbp = `£${(depositPaidPence / 100).toFixed(2)}`;
+    return `${baseMessage}\n\n(Deposit of ${depositGbp} already paid — this is for the remaining balance.)`;
+  }
+
+  return parts.join('\n');
 }
 
 // ── Display helpers ───────────────────────────────────────────────────────

@@ -870,6 +870,98 @@ function DeleteAccountModal({ session, onClose, onDeleted }) {
   );
 }
 
+// ── DefaultDepositRow ─────────────────────────────────────────────────────────
+// 4-button picker (0% / 25% / 50% / Custom) for the trader's default deposit %.
+// Lives in the "Get paid" section of Settings.
+// Per-quote override in the quote builder uses the same widget but does NOT
+// save back to the profile — it only updates the individual quote.
+
+const DEPOSIT_PRESET_BUTTONS = [
+  { label: '0%',  value: 0 },
+  { label: '25%', value: 25 },
+  { label: '50%', value: 50 },
+];
+
+function DefaultDepositRow({ profile, onProfileUpdate }) {
+  const stored = Number(profile?.default_deposit_percent ?? 25);
+  // Treat any value that isn't 0, 25, or 50 as custom
+  const isPreset = [0, 25, 50].includes(stored);
+  const [customValue, setCustomValue] = useState(() => isPreset ? '' : String(stored));
+  const [showCustom, setShowCustom] = useState(!isPreset);
+  const [saving, setSaving] = useState(false);
+
+  async function savePercent(value) {
+    if (saving) return;
+    const n = Math.max(0, Math.min(100, parseInt(value, 10) || 0));
+    setSaving(true);
+    try {
+      await onProfileUpdate({ default_deposit_percent: n });
+    } catch {
+      // Fail silently — profile reload on next open will show the real value
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const currentPercent = stored;
+
+  return (
+    <div className="settings-row settings-row--passive settings-row--deposit">
+      <span className="settings-row-label">Default deposit %</span>
+      <div className="deposit-picker" role="group" aria-label="Default deposit percentage">
+        {DEPOSIT_PRESET_BUTTONS.map(({ label, value }) => (
+          <button
+            key={value}
+            type="button"
+            className={`deposit-picker-btn${currentPercent === value && !showCustom ? ' deposit-picker-btn--active' : ''}`}
+            onClick={() => {
+              setShowCustom(false);
+              setCustomValue('');
+              savePercent(value);
+            }}
+            disabled={saving}
+          >
+            {label}
+          </button>
+        ))}
+        <button
+          type="button"
+          className={`deposit-picker-btn${showCustom ? ' deposit-picker-btn--active' : ''}`}
+          onClick={() => {
+            setShowCustom(true);
+            if (!customValue) setCustomValue(String(currentPercent));
+          }}
+          disabled={saving}
+        >
+          Custom
+        </button>
+      </div>
+      {showCustom && (
+        <div className="deposit-custom-row">
+          <input
+            type="number"
+            min="0"
+            max="100"
+            step="1"
+            className="deposit-custom-input"
+            value={customValue}
+            onChange={(e) => setCustomValue(e.target.value)}
+            onBlur={() => {
+              const n = parseInt(customValue, 10);
+              if (!isNaN(n) && n >= 0 && n <= 100) {
+                savePercent(n);
+              }
+            }}
+            aria-label="Custom deposit percentage"
+            placeholder="e.g. 30"
+          />
+          <span className="deposit-custom-suffix">%</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── SettingsScreen ────────────────────────────────────────────────────────────
 
 export default function SettingsScreen({
@@ -1206,7 +1298,7 @@ export default function SettingsScreen({
         />
       </SectionCard>
 
-      {/* Get paid — Card payments (Stripe Connect) */}
+      {/* Get paid — Card payments (Stripe Connect) + default deposit % */}
       <SectionCard title="Get paid">
         <Row
           label="Card payments"
@@ -1222,6 +1314,7 @@ export default function SettingsScreen({
           }
           onTap={onNavigateToCardPayments}
         />
+        <DefaultDepositRow profile={profile} onProfileUpdate={onProfileUpdate} />
       </SectionCard>
 
       {/* Invoice settings */}
