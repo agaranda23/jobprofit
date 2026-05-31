@@ -16,8 +16,11 @@
  * passing to stripe.webhooks.constructEvent.
  *
  * Handled events:
- *   checkout.session.completed     → mark token + job paid, store fee/net/receipt_url
- *   charge.refunded                → mark token refunded (full) or record partial refund
+ *   checkout.session.completed     → routes on metadata.jp_type:
+ *                                    'invoice' (default) → mark token + job paid
+ *                                    'deposit'           → mark deposit paid, auto-sign quote, create job
+ *   charge.refunded                → mark token refunded (full) or record partial refund;
+ *                                    deposit refunds also revert quote deposit state
  *   account.application.deauthorized → clear stripe_user_id on trader's profile
  *
  * All other events return 200 immediately (Stripe retries 4xx forever — never 4xx).
@@ -107,10 +110,16 @@ export const handler = async function (event) {
   try {
     switch (stripeEvent.type) {
 
-      // ── checkout.session.completed → happy path: mark paid, store fee, halt chase ─
+      // ── checkout.session.completed → route on jp_type ──────────────────────
       case 'checkout.session.completed': {
         const session = stripeEvent.data.object;
-        await handleCheckoutCompleted(session, stripe, adminClient);
+        const jpType = (session.metadata || {}).jp_type || 'invoice';
+        if (jpType === 'deposit') {
+          await handleDepositCompleted(session, stripe, adminClient);
+        } else {
+          // Default: invoice payment (PR 1–3 path — unchanged)
+          await handleCheckoutCompleted(session, stripe, adminClient);
+        }
         break;
       }
 
@@ -317,8 +326,11 @@ async function handleCheckoutCompleted(session, stripe, adminClient) {
 /**
  * charge.refunded — full or partial refund issued from Stripe Dashboard.
  *
- * Full refund:   token status → 'refunded'; job status reverted to 'invoice_sent'.
- * Partial refund: refunded_amount_pence updated; token stays 'paid'; job stays paid.
+ * Routes on tokenRow.kind:
+ *   'invoice': Full refund → token 'refunded', job reverted to invoice_sent.
+ *              Partial refund → refunded_amount_pence updated; job stays paid.
+ *   'deposit': Full refund → token 'refunded', job deposit columns cleared.
+ *              Partial refund → refunded_amount_pence updated; deposit stays paid.
  * Chase ladder is NOT restarted — trader can re-chase manually if needed.
  */
 async function handleChargeRefunded(charge, adminClient) {
@@ -343,9 +355,10 @@ async function handleChargeRefunded(charge, adminClient) {
   const amountRefunded = charge.amount_refunded || 0;
   const totalAmount    = charge.amount || 0;
   const isFullRefund   = amountRefunded >= totalAmount && totalAmount > 0;
+  const isDeposit      = tokenRow.kind === 'deposit';
 
   if (isFullRefund) {
-    // Full refund: flip token to 'refunded' and revert job to invoice_sent.
+    // Full refund: flip token to 'refunded'
     const { error: tokenErr } = await adminClient
       .from('invoice_payment_tokens')
       .update({
@@ -359,26 +372,48 @@ async function handleChargeRefunded(charge, adminClient) {
       throw tokenErr;
     }
 
-    // Revert the job to invoice_sent (the invoice still exists; money hasn't cleared).
-    const { error: jobErr } = await adminClient
-      .from('jobs')
-      .update({
-        paid: false,
-        status: 'invoice_sent',
-        paidAt: null,
-        paymentStatus: null,
-        card_paid_at: null,
-      })
-      .eq('id', tokenRow.invoice_id);
+    if (isDeposit) {
+      // Deposit full refund: clear the deposit columns on the job so the trader
+      // knows the deposit money has gone back. The quote status / acceptance state
+      // is NOT reverted — the quote may still be in an accepted state if the
+      // customer signed before the refund. That's a trader decision to handle manually.
+      const quoteId = tokenRow.quote_id || tokenRow.invoice_id;
+      const { error: jobErr } = await adminClient
+        .from('jobs')
+        .update({
+          deposit_paid_at: null,
+          deposit_payment_token_id: null,
+        })
+        .eq('id', quoteId);
 
-    if (jobErr) {
-      console.error('stripe-connect-webhook: failed to revert job on full refund', jobErr.message);
-      throw jobErr;
+      if (jobErr) {
+        console.error('stripe-connect-webhook: failed to revert deposit on full refund', jobErr.message);
+        throw jobErr;
+      }
+
+      console.log('stripe-connect-webhook: deposit full refund processed for job', quoteId);
+    } else {
+      // Invoice full refund: revert job to invoice_sent
+      const { error: jobErr } = await adminClient
+        .from('jobs')
+        .update({
+          paid: false,
+          status: 'invoice_sent',
+          paidAt: null,
+          paymentStatus: null,
+          card_paid_at: null,
+        })
+        .eq('id', tokenRow.invoice_id);
+
+      if (jobErr) {
+        console.error('stripe-connect-webhook: failed to revert job on full refund', jobErr.message);
+        throw jobErr;
+      }
+
+      console.log('stripe-connect-webhook: invoice full refund processed for job', tokenRow.invoice_id);
     }
-
-    console.log('stripe-connect-webhook: full refund processed for job', tokenRow.invoice_id);
   } else {
-    // Partial refund: record refunded amount; leave token 'paid' and job 'paid'.
+    // Partial refund: record refunded amount; leave token 'paid' and job unchanged.
     const { error: tokenErr } = await adminClient
       .from('invoice_payment_tokens')
       .update({
@@ -391,8 +426,191 @@ async function handleChargeRefunded(charge, adminClient) {
       throw tokenErr;
     }
 
-    console.log('stripe-connect-webhook: partial refund recorded', amountRefunded, 'pence for job', tokenRow.invoice_id);
+    const jobId = tokenRow.quote_id || tokenRow.invoice_id;
+    console.log('stripe-connect-webhook: partial refund recorded', amountRefunded, 'pence for job', jobId, 'kind:', tokenRow.kind);
   }
+}
+
+/**
+ * handleDepositCompleted — checkout.session.completed when jp_type === 'deposit'.
+ *
+ * 1. Look up the deposit token by jobprofit_deposit_token from metadata.
+ * 2. Idempotency: if already paid, return early.
+ * 3. Fetch balance_transaction for fee/net figures.
+ * 4. Update the token row: status='paid', fee_pence, net_pence, receipt_url.
+ * 5. Update the job: deposit_paid_at, deposit_payment_token_id.
+ * 6. Auto-accept the quote by writing the acceptance state to job.meta — mirrors
+ *    what accept-quote.js does but without requiring a customer signature dataURL
+ *    (the deposit payment IS the acceptance signal). Sets quoteStatus='accepted',
+ *    jobStatus='active', acceptedSource='deposit_payment', acceptedAt=now.
+ * 7. Fire push notification to trader if subscriptions exist.
+ */
+async function handleDepositCompleted(session, stripe, adminClient) {
+  const meta = session.metadata || {};
+  const token         = meta.jobprofit_deposit_token;
+  const quoteId       = meta.jobprofit_quote_id;
+  const traderUserId  = meta.jobprofit_trader_user_id;
+  const paymentIntentId = session.payment_intent;
+
+  if (!token && !quoteId) {
+    console.warn('stripe-connect-webhook: deposit session missing token and quoteId', session.id);
+    return;
+  }
+
+  // Look up the deposit token row
+  let tokenRow;
+  if (token) {
+    const { data } = await adminClient
+      .from('invoice_payment_tokens')
+      .select('*')
+      .eq('token', token)
+      .eq('kind', 'deposit')
+      .single();
+    tokenRow = data;
+  }
+
+  if (!tokenRow && quoteId && traderUserId) {
+    // Fallback: look up by quote_id + trader + pending
+    const { data } = await adminClient
+      .from('invoice_payment_tokens')
+      .select('*')
+      .eq('quote_id', quoteId)
+      .eq('trader_user_id', traderUserId)
+      .eq('kind', 'deposit')
+      .eq('status', 'pending')
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .single();
+    tokenRow = data;
+  }
+
+  if (!tokenRow) {
+    console.warn('stripe-connect-webhook: no deposit token row found for session', session.id);
+    return;
+  }
+
+  // Idempotency
+  if (tokenRow.status === 'paid') {
+    console.log('stripe-connect-webhook: idempotent skip — deposit already paid', tokenRow.token);
+    return;
+  }
+
+  // ── Fetch fee/net from balance_transaction ────────────────────────────────
+  let feePence = 0;
+  let netPence = 0;
+  let receiptUrl = null;
+
+  try {
+    const { data: profileData } = await adminClient
+      .from('profiles')
+      .select('stripe_user_id')
+      .eq('id', tokenRow.trader_user_id)
+      .single();
+
+    const connectedAccountId = profileData?.stripe_user_id;
+
+    if (connectedAccountId && paymentIntentId) {
+      const pi = await stripe.paymentIntents.retrieve(
+        paymentIntentId,
+        { expand: ['charges.data.balance_transaction'] },
+        { stripeAccount: connectedAccountId },
+      );
+      const charge = pi.charges?.data?.[0];
+      if (charge) {
+        receiptUrl = charge.receipt_url || null;
+        const bt = charge.balance_transaction;
+        if (bt && typeof bt === 'object') {
+          feePence = bt.fee || 0;
+          netPence = bt.net || 0;
+        }
+      }
+    }
+  } catch (err) {
+    console.warn('stripe-connect-webhook: could not fetch deposit balance_transaction', err?.message);
+  }
+
+  const paidAt = new Date().toISOString();
+
+  // ── Update the deposit token row ──────────────────────────────────────────
+  const { error: tokenErr } = await adminClient
+    .from('invoice_payment_tokens')
+    .update({
+      status:                   'paid',
+      paid_at:                  paidAt,
+      stripe_payment_intent_id: paymentIntentId,
+      fee_pence:                feePence,
+      net_pence:                netPence,
+      receipt_url:              receiptUrl,
+    })
+    .eq('id', tokenRow.id);
+
+  if (tokenErr) {
+    console.error('stripe-connect-webhook: failed to update deposit token', tokenErr.message);
+    throw tokenErr;
+  }
+
+  // ── Fetch the current job to merge meta safely ────────────────────────────
+  const jobId = tokenRow.quote_id || tokenRow.invoice_id;
+
+  const { data: jobRow, error: jobFetchErr } = await adminClient
+    .from('jobs')
+    .select('id, user_id, customer, customer_name, meta, summary, name, deposit_amount_pence')
+    .eq('id', jobId)
+    .single();
+
+  if (jobFetchErr || !jobRow) {
+    console.error('stripe-connect-webhook: could not fetch job for deposit', jobId, jobFetchErr?.message);
+    throw jobFetchErr || new Error('job not found');
+  }
+
+  // ── Auto-accept the quote ─────────────────────────────────────────────────
+  // Mirrors accept-quote.js step 8 but uses 'deposit_payment' as the acceptedSource.
+  // No signature dataURL — the deposit payment IS the acceptance signal.
+  const existingMeta = (jobRow.meta && typeof jobRow.meta === 'object') ? jobRow.meta : {};
+  const updatedMeta = {
+    ...existingMeta,
+    acceptedAt:     existingMeta.acceptedAt || paidAt, // don't overwrite an existing signature acceptance
+    acceptedSource: existingMeta.acceptedSource || 'deposit_payment',
+    quoteStatus:    'accepted',
+    jobStatus:      'active',
+  };
+
+  // ── Update the job with deposit payment state and auto-acceptance ─────────
+  const { error: jobErr } = await adminClient
+    .from('jobs')
+    .update({
+      deposit_paid_at:           paidAt,
+      deposit_payment_token_id:  tokenRow.id,
+      status:                    'active', // move quote → active job
+      meta:                      updatedMeta,
+    })
+    .eq('id', jobId);
+
+  if (jobErr) {
+    console.error('stripe-connect-webhook: failed to update job on deposit paid', jobErr.message);
+    throw jobErr;
+  }
+
+  // ── Fire push notification to trader ──────────────────────────────────────
+  // Reuses sendPushToUser from accept-quote.js. Fail-soft: never blocks the response.
+  try {
+    const { sendPushToUser } = await import('./_lib/sendPushToUser.js');
+    const depositGbp = `£${((tokenRow.amount_pence || 0) / 100).toFixed(2)}`;
+    const jobDesc = jobRow.summary || jobRow.name || 'a job';
+    await sendPushToUser(jobRow.user_id, {
+      title: 'Deposit paid',
+      body:  `Deposit paid: ${depositGbp} for ${jobDesc}`,
+      url:   '/',
+      tag:   `deposit-paid-${jobId}`,
+    });
+  } catch (err) {
+    console.warn('stripe-connect-webhook: deposit push failed (non-blocking)', err?.message);
+  }
+
+  console.log(
+    'stripe-connect-webhook: deposit paid for job', jobId,
+    'amount:', tokenRow.amount_pence, 'fee:', feePence, 'net:', netPence,
+  );
 }
 
 /**
