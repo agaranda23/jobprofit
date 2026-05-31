@@ -3131,7 +3131,7 @@ input[type=number] { -moz-appearance: textfield; }
   flex-shrink: 0;
   padding: 8px 14px;
   background: var(--accent);
-  color: #fff;
+  color: #0B0F17;
   border: none;
   border-radius: 8px;
   font-family: inherit;
@@ -8075,13 +8075,12 @@ input[type=number] { -moz-appearance: textfield; }
   padding: 12px 16px;
   border: none;
   border-radius: 10px;
-  background: var(--jp-green, #2bc48a);
-  color: #fff;
+  background: var(--accent);
+  color: #0B0F17;
   font-size: 15px;
   font-weight: 700;
   text-align: center;
   cursor: pointer;
-  box-shadow: 0 2px 8px rgba(43, 196, 138, 0.30);
   transition: opacity 0.15s;
 }
 
@@ -9713,8 +9712,8 @@ input[type=number] { -moz-appearance: textfield; }
   padding: 14px;
   border-radius: 12px;
   border: none;
-  background: var(--accent, #22c55e);
-  color: #0B1220;
+  background: var(--accent);
+  color: #0B0F17;
   font-size: 15px;
   font-weight: 700;
   cursor: pointer;
@@ -9997,8 +9996,8 @@ input[type=number] { -moz-appearance: textfield; }
 }
 
 .card-payments-cta--primary {
-  background: var(--accent, #635bff);
-  color: #fff;
+  background: var(--accent);
+  color: #0B0F17;
 }
 
 .card-payments-cta--primary:disabled {
@@ -10146,8 +10145,8 @@ input[type=number] { -moz-appearance: textfield; }
   align-items: center;
 }
 .invoice-connect-prompt__setup {
-  background: var(--accent, #2bc48a);
-  color: #fff;
+  background: var(--accent);
+  color: #0B0F17;
   border: none;
   border-radius: 8px;
   font-size: 13px;
