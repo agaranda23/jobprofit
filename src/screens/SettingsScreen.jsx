@@ -44,6 +44,7 @@ import { startCheckout, openBillingPortal } from '../lib/billing.js';
 import { isValidStripePaymentLink } from '../lib/bizValidation.js';
 import { buildJobsCsv, downloadOrShareCsv } from '../lib/exportCsv.js';
 import { buildChaseList } from '../lib/chaseList.js';
+import { WHATS_NEW, formatWhatsNewDate } from '../lib/whatsNew.js';
 
 const APP_VERSION = pkg.version;
 
@@ -515,6 +516,194 @@ function MonthlyOverheadsSection({ overheads, onSave }) {
   );
 }
 
+// ── What's new helpers ────────────────────────────────────────────────────────
+
+const WHATS_NEW_STORAGE_KEY = 'jp.lastSeenWhatsNew';
+
+function getLastSeenWhatsNew() {
+  return localStorage.getItem(WHATS_NEW_STORAGE_KEY) || null;
+}
+
+function markWhatsNewSeen() {
+  // Store the date of the newest entry so we know when there is something unseen
+  const newest = WHATS_NEW[0]?.date;
+  if (newest) localStorage.setItem(WHATS_NEW_STORAGE_KEY, newest);
+}
+
+function hasUnseenWhatsNew() {
+  const seen = getLastSeenWhatsNew();
+  if (!seen) return WHATS_NEW.length > 0;
+  const newest = WHATS_NEW[0]?.date;
+  return newest ? newest > seen : false;
+}
+
+// ── WhatsNewModal ─────────────────────────────────────────────────────────────
+
+function WhatsNewModal({ onClose }) {
+  return (
+    <div
+      className="modal-backdrop"
+      role="dialog"
+      aria-modal="true"
+      aria-label="What's new"
+      onClick={onClose}
+    >
+      <div
+        className="modal whats-new-modal"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="whats-new-header">
+          <h2 className="modal-title">What&rsquo;s new</h2>
+          <button
+            type="button"
+            className="chase-list-close"
+            onClick={onClose}
+            aria-label="Close"
+          >
+            ×
+          </button>
+        </div>
+        <div className="whats-new-entries">
+          {WHATS_NEW.map(entry => (
+            <div key={entry.date + entry.title} className="whats-new-entry">
+              <div className="whats-new-entry-header">
+                <span className="whats-new-emoji" aria-hidden="true">{entry.emoji}</span>
+                <span className="whats-new-entry-title">{entry.title}</span>
+                <span className="whats-new-entry-date">{formatWhatsNewDate(entry.date)}</span>
+              </div>
+              <p className="whats-new-entry-blurb">{entry.blurb}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── DeleteAccountModal ────────────────────────────────────────────────────────
+
+function DeleteAccountModal({ session, onClose, onDeleted }) {
+  const [confirmText, setConfirmText] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+
+  const isConfirmed = confirmText.trim().toUpperCase() === 'DELETE';
+
+  const handleDelete = async () => {
+    if (!isConfirmed || busy) return;
+    setBusy(true);
+    setError('');
+    try {
+      const accessToken = session?.access_token;
+      if (!accessToken) {
+        setError('Session expired — please sign out and sign back in before deleting your account.');
+        setBusy(false);
+        return;
+      }
+      const res = await fetch('/.netlify/functions/delete-account', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${accessToken}` },
+      });
+      if (!res.ok) {
+        let msg = 'Deletion failed — please try again or contact support.';
+        try {
+          const body = await res.json();
+          if (body?.error) msg = body.error;
+        } catch {
+          // ignore parse error — use default message
+        }
+        setError(msg);
+        setBusy(false);
+        return;
+      }
+      // Successful deletion — sign out and clear local data
+      onDeleted();
+    } catch (err) {
+      console.error('delete-account client error', err?.message);
+      setError('Network error — check your connection and try again.');
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div
+      className="modal-backdrop"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Delete account"
+      onClick={onClose}
+    >
+      <div
+        className="modal delete-account-modal"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="whats-new-header">
+          <h2 className="modal-title delete-account-modal__title">Delete account</h2>
+          <button
+            type="button"
+            className="chase-list-close"
+            onClick={onClose}
+            aria-label="Close"
+            disabled={busy}
+          >
+            ×
+          </button>
+        </div>
+
+        <div className="delete-account-modal__body">
+          <p className="delete-account-modal__warning">
+            This is <strong>permanent and irreversible.</strong>
+          </p>
+          <p className="delete-account-modal__copy">
+            Deleting your account will permanently remove:
+          </p>
+          <ul className="delete-account-modal__list">
+            <li>All your jobs, quotes and invoices</li>
+            <li>All receipts and receipt items</li>
+            <li>All job photos</li>
+            <li>Your profile and business details</li>
+            <li>Your subscription (if active, cancel in Stripe first)</li>
+            <li>Everything else — there is no undo</li>
+          </ul>
+          <p className="delete-account-modal__copy">
+            Type <strong>DELETE</strong> in the box below to confirm:
+          </p>
+          <input
+            className="delete-account-modal__input"
+            type="text"
+            placeholder="Type DELETE to confirm"
+            value={confirmText}
+            onChange={e => setConfirmText(e.target.value)}
+            autoCapitalize="characters"
+            autoComplete="off"
+            spellCheck={false}
+            disabled={busy}
+          />
+          {error && (
+            <p className="delete-account-modal__error" role="alert">{error}</p>
+          )}
+          <button
+            type="button"
+            className="delete-account-modal__confirm-btn"
+            onClick={handleDelete}
+            disabled={!isConfirmed || busy}
+          >
+            {busy ? 'Deleting…' : 'Permanently delete my account'}
+          </button>
+          <button
+            type="button"
+            className="delete-account-modal__cancel-btn"
+            onClick={onClose}
+            disabled={busy}
+          >
+            Cancel — keep my account
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── SettingsScreen ────────────────────────────────────────────────────────────
 
 export default function SettingsScreen({
@@ -527,6 +716,38 @@ export default function SettingsScreen({
   onProfileUpdate,
   onOpenJob,
 }) {
+  // ── What's new state ──────────────────────────────────────────────────────
+  const [showWhatsNew, setShowWhatsNew] = useState(false);
+  const [whatsNewDot, setWhatsNewDot] = useState(() => hasUnseenWhatsNew());
+
+  const handleOpenWhatsNew = () => {
+    setShowWhatsNew(true);
+    if (whatsNewDot) {
+      markWhatsNewSeen();
+      setWhatsNewDot(false);
+    }
+  };
+
+  // ── Delete account state ──────────────────────────────────────────────────
+  const [showDeleteAccount, setShowDeleteAccount] = useState(false);
+
+  const handleAccountDeleted = async () => {
+    // Clear all local/session storage so no stale data remains after deletion
+    try {
+      localStorage.clear();
+      sessionStorage.clear();
+    } catch {
+      // Ignore — storage clear is best-effort
+    }
+    // Sign out via Supabase (invalidates the session on the client)
+    try {
+      await supabase.auth.signOut();
+    } catch {
+      // Ignore — the server already deleted the auth user
+    }
+    // onSignOut navigates back to the auth/landing screen in AppShell
+    onSignOut?.();
+  };
   const email       = session?.user?.email || '';
   const firstName   = profile?.first_name  || '';
   const lastName    = profile?.last_name   || '';
@@ -876,6 +1097,7 @@ export default function SettingsScreen({
         <PlaceholderRow label="Weekly profit digest" />
       </SectionCard>
 
+
       {/* Subscription */}
       <SectionCard title="Subscription">
         {/* Trial state — shown only when override is off and user is on an active trial */}
@@ -947,7 +1169,12 @@ export default function SettingsScreen({
           onTap={exporting ? undefined : handleExport}
           chevron={false}
         />
-        <PlaceholderRow label="Delete account" />
+        <Row
+          label="Delete account"
+          danger
+          onTap={() => setShowDeleteAccount(true)}
+          chevron
+        />
       </SectionCard>
 
       {/* Help */}
@@ -966,7 +1193,19 @@ export default function SettingsScreen({
           label="Refer a mate"
           onTap={handleShare}
         />
-        <PlaceholderRow label="What's new" />
+        <button
+          className={`settings-row${whatsNewDot ? ' settings-row--has-dot' : ''}`}
+          type="button"
+          onClick={handleOpenWhatsNew}
+        >
+          <span className="settings-row-label">
+            What&rsquo;s new
+            {whatsNewDot && <span className="settings-new-dot" aria-label="New updates available" />}
+          </span>
+          <span className="settings-row-right">
+            <span className="settings-row-chevron">›</span>
+          </span>
+        </button>
       </SectionCard>
 
       {/* App */}
@@ -1072,6 +1311,20 @@ export default function SettingsScreen({
             )}
           </div>
         </div>
+      )}
+
+      {/* ── What's new sheet ─────────────────────────────────────────────── */}
+      {showWhatsNew && (
+        <WhatsNewModal onClose={() => setShowWhatsNew(false)} />
+      )}
+
+      {/* ── Delete account modal ─────────────────────────────────────────── */}
+      {showDeleteAccount && (
+        <DeleteAccountModal
+          session={session}
+          onClose={() => setShowDeleteAccount(false)}
+          onDeleted={handleAccountDeleted}
+        />
       )}
     </div>
   );
