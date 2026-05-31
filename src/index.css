@@ -8410,6 +8410,10 @@ input[type=number] { -moz-appearance: textfield; }
   align-items: center;
   gap: 8px;
   width: 100%;
+  /* box-sizing prevents width:100% + padding:0 16px from overflowing the parent
+     content-box on mobile — same fix as .jd-card-row. Without it the button
+     border-box = parent content-width + 32px, causing page-level h-scroll. */
+  box-sizing: border-box;
   min-height: 48px;
   padding: 0 16px;
   background: none;

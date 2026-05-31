@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v27';  // bumped from v26: fix customer card horizontal scroll at 375px
+const CACHE_NAME = 'jobprofit-v28';  // bumped from v27: fix CollapsedSectionRow button viewport overflow at 375px
 const PRECACHE = [
   '/',
   '/index.html',
