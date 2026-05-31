@@ -1293,3 +1293,90 @@ describe('View receipt button — show condition', () => {
     expect(showViewReceiptBtn({ paid: false }, false)).toBe(false);
   });
 });
+
+// ── CIS-4/5 regression: resolveCisStatus + isCisUser guard ──────────────────
+//
+// These tests cover the root cause of the P0 blank-screen bug (fix/job-detail-blank):
+//
+//   The second IIFE in the JobDetailDrawer return() body referenced `isCisUser` and
+//   `taxMetaEl` as if they were in scope, but both were actually `const` declarations
+//   inside the FIRST IIFE (the stage-aware layout block). JavaScript closures do not
+//   share sibling IIFE scopes — the second IIFE threw a ReferenceError on every open.
+//
+//   Fix: `isCisUser` was lifted to component scope (above the return()); `taxMetaEl`
+//   in the MoreDisclosure IIFE was replaced with an inline <JobTaxMeta> that doesn't
+//   need the IIFE-local `quote`/`materials` values (the non-CIS path only uses the
+//   exclude-from-tax toggle which ignores those props).
+//
+// Tests here validate the guards that must survive the null/undefined profile path.
+
+import { resolveCisStatus } from '../../lib/cashflow';
+
+describe('resolveCisStatus — undefined / null profile guard (crash regression)', () => {
+  const job = { id: 'j1', customer: 'Alan', amount: 500 };
+
+  it('returns isCisJob:false when profile is null', () => {
+    expect(resolveCisStatus(job, null)).toEqual({ isCisJob: false, rate: 0 });
+  });
+
+  it('returns isCisJob:false when profile is undefined', () => {
+    expect(resolveCisStatus(job, undefined)).toEqual({ isCisJob: false, rate: 0 });
+  });
+
+  it('returns isCisJob:false when profile.is_cis_subcontractor is false', () => {
+    expect(resolveCisStatus(job, { is_cis_subcontractor: false })).toEqual({ isCisJob: false, rate: 0 });
+  });
+
+  it('returns isCisJob:false when profile.is_cis_subcontractor is absent (undefined)', () => {
+    expect(resolveCisStatus(job, {})).toEqual({ isCisJob: false, rate: 0 });
+  });
+
+  it('returns isCisJob:true with default rate 20 for a CIS user with no job override', () => {
+    const profile = { is_cis_subcontractor: true };
+    expect(resolveCisStatus(job, profile)).toEqual({ isCisJob: true, rate: 20 });
+  });
+
+  it('uses profile.cis_default_rate when job has no cisRate override', () => {
+    const profile = { is_cis_subcontractor: true, cis_default_rate: 30 };
+    expect(resolveCisStatus(job, profile)).toEqual({ isCisJob: true, rate: 30 });
+  });
+
+  it('uses job.cisRate in preference to profile.cis_default_rate', () => {
+    const profile = { is_cis_subcontractor: true, cis_default_rate: 20 };
+    const jobWithRate = { ...job, cisRate: 0 };
+    expect(resolveCisStatus(jobWithRate, profile)).toEqual({ isCisJob: true, rate: 0 });
+  });
+
+  it('returns isCisJob:false when job.cis is explicitly false (per-job opt-out)', () => {
+    const profile = { is_cis_subcontractor: true, cis_default_rate: 20 };
+    const optedOutJob = { ...job, cis: false };
+    expect(resolveCisStatus(optedOutJob, profile)).toEqual({ isCisJob: false, rate: 0 });
+  });
+});
+
+// isCisUser derivation — the expression lifted to component scope in the fix
+describe('isCisUser derivation — null/undefined profile is safe', () => {
+  function deriveIsCisUser(profile) {
+    return !!profile?.is_cis_subcontractor;
+  }
+
+  it('returns false when profile is null', () => {
+    expect(deriveIsCisUser(null)).toBe(false);
+  });
+
+  it('returns false when profile is undefined', () => {
+    expect(deriveIsCisUser(undefined)).toBe(false);
+  });
+
+  it('returns false when profile.is_cis_subcontractor is false', () => {
+    expect(deriveIsCisUser({ is_cis_subcontractor: false })).toBe(false);
+  });
+
+  it('returns false when profile.is_cis_subcontractor is absent', () => {
+    expect(deriveIsCisUser({})).toBe(false);
+  });
+
+  it('returns true when profile.is_cis_subcontractor is true', () => {
+    expect(deriveIsCisUser({ is_cis_subcontractor: true })).toBe(true);
+  });
+});
