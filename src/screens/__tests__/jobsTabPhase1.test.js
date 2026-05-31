@@ -186,6 +186,7 @@ describe('sortJobsByStage', () => {
 // WorkScreen handlers: handleSelectStage and handleSelectAll.
 // handleSelectStage: sets a real stage, sets showAll=false, clears query.
 // handleSelectAll:   sets showAll=true, clears query (idempotent — no toggle).
+//   Triggered by the "All" pill in the controls row (not a stage-strip segment).
 // These tests model that state machine as a plain reducer to keep them framework-free.
 
 function makeState(overrides = {}) {

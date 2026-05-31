@@ -1,19 +1,18 @@
 /**
  * StageStrip — fixed-width unified segmented-control for the Work tab.
  *
- * Renders an "All" segment first, then one segment per stage
- * (Lead · Quoted · On · Invoiced · Overdue · Paid) with count and total £.
- * All 7 segments share the strip width equally — no horizontal scroll.
+ * 6 equal segments: Lead · Quoted · On · Invoiced · Overdue · Paid.
+ * All 6 segments share the strip width equally — no horizontal scroll.
  * Active segment gets a solid fill in its own semantic colour.
+ * "Show all" is a separate toggle in the controls row (WorkScreen.jsx), not a segment.
  *
  * Extracted from WorkScreen.jsx (PR: polish/jobs-pipeline-stage-strip).
  *
  * Props:
  *   jobs           — full jobs array from AppShell
  *   selectedStage  — currently active stage string
- *   showAll        — true when the "All" segment is active
+ *   showAll        — true when show-all mode is active (no segment highlighted)
  *   onSelectStage  — callback(stage: string) — sets a real stage, exits showAll
- *   onSelectAll    — callback() — activates the All segment (sets showAll = true)
  *   deriveStatus   — function(job) → stage string (passed in to avoid a circular import)
  *   formatAmount   — function(val) → string (passed in for the same reason)
  */
@@ -48,9 +47,9 @@ function StageTile({ stage, count, total, selected, onSelect, tileRef, formatAmo
 }
 
 /**
- * StageStrip — the full unified scrollable bar.
+ * StageStrip — the full unified bar (6 equal segments, no "All" tile).
  */
-export default function StageStrip({ jobs, selectedStage, showAll, onSelectStage, onSelectAll, deriveStatus, formatAmount }) {
+export default function StageStrip({ jobs, selectedStage, showAll, onSelectStage, deriveStatus, formatAmount }) {
   const scrollRef = useRef(null);
   const tileRefs = useRef({});
 
@@ -60,17 +59,12 @@ export default function StageStrip({ jobs, selectedStage, showAll, onSelectStage
     return acc;
   }, {});
 
-  let allCount = 0;
-  let allTotal = 0;
-
   for (const j of jobs) {
     const s = deriveStatus(j);
     if (stageMeta[s]) {
       stageMeta[s].count += 1;
       stageMeta[s].total += Number(j.total ?? j.amount ?? 0) || 0;
     }
-    allCount += 1;
-    allTotal += Number(j.total ?? j.amount ?? 0) || 0;
   }
 
   // Auto-scroll active tile into view — guarded: only fires if the strip actually
@@ -79,30 +73,14 @@ export default function StageStrip({ jobs, selectedStage, showAll, onSelectStage
   useEffect(() => {
     const strip = scrollRef.current;
     if (!strip || strip.scrollWidth <= strip.clientWidth) return;
-    const key = showAll ? 'All' : selectedStage;
-    const el = tileRefs.current[key];
+    if (showAll) return; // no segment to scroll to in show-all mode
+    const el = tileRefs.current[selectedStage];
     if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
   }, [selectedStage, showAll]);
-
-  const allAmountText = allTotal > 0 ? '£' + formatAmount(allTotal) : '—';
-  const allAmountClass = allTotal === 0 ? 'stage-tile-amount stage-tile-amount--empty' : 'stage-tile-amount';
 
   return (
     <div className="stage-strip-wrap">
       <div className="stage-strip" ref={scrollRef} role="group" aria-label="Filter by pipeline stage">
-        {/* All segment — leading, activates showAll mode */}
-        <button
-          ref={el => { tileRefs.current['All'] = el; }}
-          type="button"
-          className={`stage-tile stage-tile--all${showAll ? ' stage-tile--selected' : ''}`}
-          onClick={onSelectAll}
-          aria-pressed={showAll}
-        >
-          <span className="stage-tile-name">ALL</span>
-          <span className="stage-tile-count">{allCount} {allCount === 1 ? 'job' : 'jobs'}</span>
-          <span className={allAmountClass}>{allAmountText}</span>
-        </button>
-
         {STAGES.map(s => (
           <StageTile
             key={s}

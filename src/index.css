@@ -3464,15 +3464,38 @@ input[type=number] { -moz-appearance: textfield; }
   box-shadow: 0 1px 4px rgba(0,0,0,0.3);
 }
 
-/* Controls row — List/Calendar segmented control only (Show all moved into the stage bar) */
+/* Controls row — List/Calendar segmented control (left) + Show all pill (right) */
 .work-controls-row {
   display: flex;
   align-items: center;
+  gap: 8px;
   margin-bottom: 14px;
 }
 .work-controls-row .work-segments {
   flex: 1;
   margin-bottom: 0;
+}
+
+/* Show all pill — compact toggle that sits to the right of the List/Calendar control.
+   Active state mirrors the stage-tile selected fill (brand green). */
+.show-all-pill {
+  flex-shrink: 0;
+  padding: 7px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-dim);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  white-space: nowrap;
+  line-height: 1.2;
+}
+.show-all-pill--active {
+  background: var(--jp-green);
+  border-color: var(--jp-green);
+  color: #0B1220;
 }
 
 /* ── Stage Strip — unified segmented control ──────────────────────────────── */
@@ -3482,7 +3505,7 @@ input[type=number] { -moz-appearance: textfield; }
   margin-bottom: 10px;
 }
 
-/* The unified bar: one rounded container, fixed full-width — all 7 segments share
+/* The unified bar: one rounded container, fixed full-width — all 6 segments share
    the available width equally so nothing scrolls and there is no trailing gap.
    Mirrors the .work-segments recipe so the two controls read as siblings. */
 .stage-strip {
@@ -3617,27 +3640,14 @@ input[type=number] { -moz-appearance: textfield; }
   opacity: 0.7;
 }
 
-/* All segment — neutral grey-green when inactive, brand green when selected */
-.stage-tile--all .stage-tile-name,
-.stage-tile--all .stage-tile-count,
-.stage-tile--all .stage-tile-amount {
-  color: var(--text-dim);
-}
-.stage-tile--all.stage-tile--selected {
-  background: var(--jp-green);
-}
-.stage-tile--all.stage-tile--selected .stage-tile-name,
-.stage-tile--all.stage-tile--selected .stage-tile-count,
-.stage-tile--all.stage-tile--selected .stage-tile-amount {
-  color: #0B1220;
-}
-
-/* Tile typography — tuned for ~50px cells at 360px viewport (7 equal segments).
-   Name uses tight letter-spacing + clipping so INVOICED never overflows. */
+/* Tile typography — 6 equal segments at 360px: each cell is ~59px wide, ~55px text area.
+   Name: 11px at -0.04em letter-spacing — "INVOICED"/"OVERDUE" (8 chars) measure ~50px,
+   comfortably within the 55px text area at 360px. Up from 9px at 7 segments.
+   Count + amount are secondary — intentionally smaller so the name reads first. */
 .stage-tile-name {
-  font-size: 8.5px;
+  font-size: 11px;
   font-weight: 800;
-  letter-spacing: 0.04em;
+  letter-spacing: -0.04em;
   color: var(--text-dim);
   line-height: 1;
   white-space: nowrap;
@@ -3646,7 +3656,7 @@ input[type=number] { -moz-appearance: textfield; }
   max-width: 100%;
 }
 .stage-tile-count {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
   color: var(--text);
   line-height: 1.2;
@@ -3656,7 +3666,7 @@ input[type=number] { -moz-appearance: textfield; }
   max-width: 100%;
 }
 .stage-tile-amount {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 600;
   color: var(--text-dim);
   line-height: 1.2;
