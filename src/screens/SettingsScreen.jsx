@@ -42,6 +42,8 @@ import { getOverheadTotal } from '../lib/cashflow.js';
 import { isPro, isTrialActive, trialDaysLeft, UNLOCK_PRO_FOR_ALL } from '../lib/plan.js';
 import { startCheckout, openBillingPortal } from '../lib/billing.js';
 import { isValidStripePaymentLink } from '../lib/bizValidation.js';
+import { buildJobsCsv, downloadOrShareCsv } from '../lib/exportCsv.js';
+import { buildChaseList } from '../lib/chaseList.js';
 
 const APP_VERSION = pkg.version;
 
@@ -504,9 +506,12 @@ function MonthlyOverheadsSection({ overheads, onSave }) {
 export default function SettingsScreen({
   session,
   profile,
+  jobs,
+  receipts,
   onSignOut,
   onOpenWizard,
   onProfileUpdate,
+  onOpenJob,
 }) {
   const email       = session?.user?.email || '';
   const firstName   = profile?.first_name  || '';
@@ -528,6 +533,37 @@ export default function SettingsScreen({
   const [activeEdit, setActiveEdit] = useState(null);
   const [saveToast, setSaveToast] = useState('');
   const toastTimerRef = useRef(null);
+
+  // ── Export state ──────────────────────────────────────────────────────────
+  const [exporting, setExporting] = useState(false);
+
+  const handleExport = async () => {
+    if (exporting) return;
+    const safeJobs = Array.isArray(jobs) ? jobs : [];
+    const safeReceipts = Array.isArray(receipts) ? receipts : [];
+    if (safeJobs.length === 0) {
+      showSavedToast('No jobs to export yet');
+      return;
+    }
+    setExporting(true);
+    try {
+      const csv = buildJobsCsv(safeJobs, safeReceipts);
+      const now = new Date();
+      const stamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      await downloadOrShareCsv(csv, `jobprofit-${stamp}.csv`);
+    } catch {
+      showSavedToast('Export failed — try again');
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  // ── Chase reminders state ─────────────────────────────────────────────────
+  const [showChaseList, setShowChaseList] = useState(false);
+
+  const chaseRows = showChaseList
+    ? buildChaseList(Array.isArray(jobs) ? jobs : [])
+    : [];
 
   const showSavedToast = (msg = 'Saved') => {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
@@ -781,7 +817,16 @@ export default function SettingsScreen({
       {/* Notifications */}
       <SectionCard title="Notifications">
         <NotificationsSection session={session} />
-        <PlaceholderRow label="Chase reminders" />
+        <Row
+          label="Chase reminders"
+          action={(() => {
+            const safeJobs = Array.isArray(jobs) ? jobs : [];
+            const count = buildChaseList(safeJobs).length;
+            return count > 0 ? `${count} to chase` : 'All clear';
+          })()}
+          chevron
+          onTap={() => setShowChaseList(true)}
+        />
         <PlaceholderRow label="Weekly profit digest" />
       </SectionCard>
 
@@ -841,12 +886,22 @@ export default function SettingsScreen({
       {/* Accountant */}
       <SectionCard title="Accountant">
         <PlaceholderRow label="Invite by email" />
-        <PlaceholderRow label="Export records" />
+        <Row
+          label="Export records"
+          value={exporting ? 'Preparing…' : 'CSV'}
+          onTap={exporting ? undefined : handleExport}
+          chevron={false}
+        />
       </SectionCard>
 
       {/* Data & privacy */}
       <SectionCard title="Data &amp; privacy">
-        <PlaceholderRow label="Export everything" />
+        <Row
+          label="Export everything"
+          value={exporting ? 'Preparing…' : 'CSV'}
+          onTap={exporting ? undefined : handleExport}
+          chevron={false}
+        />
         <PlaceholderRow label="Delete account" />
       </SectionCard>
 
@@ -894,6 +949,72 @@ export default function SettingsScreen({
           onSave={handleSave}
           onClose={closeEdit}
         />
+      )}
+
+      {/* ── Chase reminders sheet ────────────────────────────────────────── */}
+      {showChaseList && (
+        <div
+          className="modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Chase reminders"
+          onClick={() => setShowChaseList(false)}
+        >
+          <div
+            className="modal chase-list-modal"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="chase-list-header">
+              <h2 className="modal-title" style={{ marginBottom: 4 }}>Chase reminders</h2>
+              <button
+                type="button"
+                className="chase-list-close"
+                onClick={() => setShowChaseList(false)}
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+
+            {chaseRows.length === 0 ? (
+              <div className="chase-list-empty">
+                <p className="chase-list-empty-icon">&#x1F389;</p>
+                <p className="chase-list-empty-text">Nothing to chase — you&rsquo;re all caught up</p>
+              </div>
+            ) : (
+              <div className="chase-list-rows">
+                {chaseRows.map(row => (
+                  <button
+                    key={row.id}
+                    type="button"
+                    className="chase-list-row"
+                    onClick={() => {
+                      setShowChaseList(false);
+                      // Navigate to the job in the Jobs tab
+                      if (onOpenJob && row.id) onOpenJob(row.id);
+                    }}
+                  >
+                    <div className="chase-list-row-main">
+                      <span className="chase-list-row-customer">{row.customer}</span>
+                      {row.summary ? (
+                        <span className="chase-list-row-summary">{row.summary}</span>
+                      ) : null}
+                    </div>
+                    <div className="chase-list-row-meta">
+                      <span className="chase-list-row-amount">
+                        £{Number(row.outstanding).toLocaleString('en-GB', { minimumFractionDigits: 0 })}
+                      </span>
+                      <span className={`chase-list-row-days chase-list-row-days--tier${row.tier}`}>
+                        {row.daysPastDue}d overdue
+                      </span>
+                    </div>
+                    <span className="chase-list-row-chevron">›</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

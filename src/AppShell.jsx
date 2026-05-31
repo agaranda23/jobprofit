@@ -745,9 +745,15 @@ export default function AppShell() {
             <SettingsScreen
               session={session}
               profile={profile}
+              jobs={jobs}
+              receipts={receipts}
               onSignOut={handleSignOut}
               onOpenWizard={openWizardFromSettings}
               onProfileUpdate={handleProfileUpdate}
+              onOpenJob={(jobId) => {
+                if (jobId) setPendingJobId(jobId);
+                navigate('work');
+              }}
             />
           )}
 

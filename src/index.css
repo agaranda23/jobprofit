@@ -4146,6 +4146,132 @@ input[type=number] { -moz-appearance: textfield; }
   line-height: 1;
 }
 
+/* ── Chase list modal (Settings → Chase reminders) ───────────────────────── */
+.chase-list-modal {
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+}
+.chase-list-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+.chase-list-close {
+  background: none;
+  border: none;
+  font-size: 28px;
+  line-height: 1;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 0 0 0 12px;
+  margin: -4px -4px 0 0;
+}
+.chase-list-empty {
+  text-align: center;
+  padding: 24px 0 8px;
+}
+.chase-list-empty-icon {
+  font-size: 32px;
+  margin: 0 0 8px;
+}
+.chase-list-empty-text {
+  color: var(--text-dim);
+  font-size: 15px;
+  margin: 0;
+}
+.chase-list-rows {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  /* Match settings-card border style */
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.chase-list-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 12px;
+  background: var(--surface);
+  border: none;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  min-height: 60px;
+  /* 44pt tap target minimum */
+}
+.chase-list-row:last-child { border-bottom: none; }
+.chase-list-row:active { background: var(--surface-2); }
+.chase-list-row-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.chase-list-row-customer {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.chase-list-row-summary {
+  font-size: 13px;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.chase-list-row-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+  flex-shrink: 0;
+}
+.chase-list-row-amount {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+}
+.chase-list-row-days {
+  font-size: 12px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 6px;
+  white-space: nowrap;
+}
+/* Tier colours mirror the existing chase-bar / overdue palette */
+.chase-list-row-days--tier1 {
+  background: rgba(234, 179, 8, 0.15);
+  color: #ca8a04;
+}
+.chase-list-row-days--tier2 {
+  background: rgba(234, 88, 12, 0.15);
+  color: #ea580c;
+}
+.chase-list-row-days--tier3 {
+  background: rgba(229, 72, 77, 0.15);
+  color: #E5484D;
+}
+.chase-list-row-chevron {
+  font-size: 18px;
+  color: var(--text-dim);
+  line-height: 1;
+  flex-shrink: 0;
+  margin-left: 4px;
+}
+
 /* ── True Profit card ─────────────────────────────────────────────────────── */
 .money-true-profit {
   /* extends .money-card */
