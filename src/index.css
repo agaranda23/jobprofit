@@ -9396,3 +9396,263 @@ input[type=number] { -moz-appearance: textfield; }
   opacity: 0.5;
   cursor: not-allowed;
 }
+
+/* ── CIS subcontractor setup sheet (Settings) ──────────────────────────────── */
+
+.cis-setup-sheet {
+  max-width: 480px;
+  width: 100%;
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.cis-sheet__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 20px 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.cis-sheet__body {
+  padding: 20px;
+}
+
+.cis-sheet__explainer {
+  font-size: 14px;
+  color: var(--text-dim);
+  line-height: 1.55;
+  margin: 0 0 20px;
+}
+
+.cis-sheet__toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.cis-sheet__toggle-label {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.cis-sheet__toggle {
+  min-width: 60px;
+  padding: 6px 14px;
+  border-radius: 20px;
+  border: 1.5px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-dim);
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.cis-sheet__toggle--on {
+  background: var(--accent, #22c55e);
+  border-color: var(--accent, #22c55e);
+  color: #0B1220;
+}
+
+.cis-sheet__rate-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-dim);
+  margin: 0 0 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.cis-sheet__rate-segments {
+  margin-bottom: 10px;
+}
+
+.cis-sheet__rate-hint {
+  font-size: 12px;
+  color: var(--text-dim);
+  line-height: 1.5;
+  margin: 0 0 20px;
+}
+
+.cis-sheet__save-btn {
+  display: block;
+  width: 100%;
+  padding: 14px;
+  border-radius: 12px;
+  border: none;
+  background: var(--accent, #22c55e);
+  color: #0B1220;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  margin-top: 8px;
+  transition: opacity 0.15s;
+}
+
+.cis-sheet__save-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── Tax Pot card — CIS two-block layout ──────────────────────────────────── */
+
+.money-tax-cis-block {
+  padding: 14px 0;
+  border-top: 1px solid var(--border);
+}
+
+.money-tax-cis-block:first-of-type {
+  border-top: none;
+  padding-top: 0;
+}
+
+.money-tax-cis-block--setaside {
+  margin-top: 4px;
+}
+
+.money-tax-cis-block__label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+}
+
+.money-tax-cis-block__figure {
+  font-size: 30px;
+  font-weight: 800;
+  color: var(--text);
+  letter-spacing: -0.02em;
+  line-height: 1;
+  margin-bottom: 5px;
+}
+
+.money-tax-cis-block__sub {
+  font-size: 12px;
+  color: var(--text-dim);
+  font-weight: 500;
+  margin: 0;
+  line-height: 1.5;
+}
+
+.money-tax-setaside__empty--cis-all {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+}
+
+.money-tax-setaside__disclaimer {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin: 14px 0 0;
+  line-height: 1.5;
+  opacity: 0.8;
+}
+
+/* ── Per-job CIS + exclude-from-tax meta (JobDetailDrawer) ──────────────── */
+
+.jd-tax-meta {
+  padding: 10px 16px 4px;
+  background: var(--surface-2);
+  border-top: 1px solid var(--border);
+}
+
+.jd-tax-meta__cis {
+  margin-bottom: 8px;
+}
+
+.jd-tax-meta__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 36px;
+}
+
+.jd-tax-meta__row--exclude {
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  opacity: 0.75;
+}
+
+.jd-tax-meta__label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.jd-tax-meta__label--muted {
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
+.jd-tax-meta__toggle {
+  min-width: 52px;
+  padding: 5px 12px;
+  border-radius: 16px;
+  border: 1.5px solid var(--border);
+  background: var(--surface);
+  color: var(--text-dim);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.jd-tax-meta__toggle--on {
+  background: var(--accent, #22c55e);
+  border-color: var(--accent, #22c55e);
+  color: #0B1220;
+}
+
+.jd-tax-meta__toggle--small {
+  min-width: 44px;
+  padding: 4px 10px;
+  font-size: 12px;
+}
+
+.jd-tax-meta__value {
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.jd-tax-meta__math {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin: 2px 0 6px;
+  font-weight: 500;
+}
+
+.jd-tax-meta__off-label {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin: 2px 0 0;
+}
+
+.jd-tax-meta__rate-toggle {
+  font-size: 12px;
+  color: var(--text-dim);
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px 10px;
+  cursor: pointer;
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+.jd-tax-meta__rate-segs {
+  margin-bottom: 4px;
+}
+
+.jd-tax-meta__exclude-hint {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin: 2px 0 6px;
+  line-height: 1.4;
+}

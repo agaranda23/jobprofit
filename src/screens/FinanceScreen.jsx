@@ -159,6 +159,7 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
   const userIsPro = isPro(profile);
   const overheads = Array.isArray(profile?.overheads) ? profile.overheads : [];
   const overheadTotal = getOverheadTotal(overheads);
+  const isCisSubcontractor = !!profile?.is_cis_subcontractor;
 
   // VAT registration: slice-3/new-nav stores the VAT number on profile.vat_number.
   // Legacy App.jsx uses biz.vatRegistered. Support both so the card works in all nav modes.
@@ -224,7 +225,9 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
     const hasActivity = timelineGroups.length > 0;
 
     // ── YTD tax-year summary ───────────────────────────────────────────────
-    const ytd = getTaxYearSummary(jobs, receipts, now);
+    // Pass profile so CIS deductions are resolved correctly for subbies.
+    // Non-CIS users get identical numbers to before (cisDeductedYtd=0).
+    const ytd = getTaxYearSummary(jobs, receipts, now, profile);
 
     // ── Best & worst jobs (current tax year) ──────────────────────────────
     const bestWorstJobs = getBestWorstJobs(jobs, receipts, now);
@@ -253,7 +256,10 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
 
 
   // ── YTD-derived values ───────────────────────────────────────────────────────
-  const ytdTaxPot = Math.max(0, ytd.profit) * taxSetAsidePct / 100;
+  // For CIS users: set-aside base is nonCisProfit only (CIS work already taxed at source).
+  // For non-CIS users: ytd.nonCisProfit === ytd.profit, so the result is identical.
+  const ytdSetAsideBase = isCisSubcontractor ? ytd.nonCisProfit : ytd.profit;
+  const ytdTaxPot = Math.max(0, ytdSetAsideBase) * taxSetAsidePct / 100;
   const monthTaxPot = Math.max(0, monthSummary.profit) * taxSetAsidePct / 100;
   const currentTaxYearLabel = taxYearLabel(now);
   const isYtdProfitNegative = ytd.profit < 0;
@@ -431,25 +437,83 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
       {!userIsPro && <UpgradeBanner onUpgrade={handleUpgrade} />}
 
       {/* ── 3. Tax Pot card (Pro-gated) ────────────────────────────────── */}
-      {/* hasValue: only when there is positive YTD profit to set aside */}
-      <ProGate locked={!userIsPro} hasValue={ytd.profit > 0}>
+      {/* hasValue: only when there is positive YTD profit or CIS deducted */}
+      <ProGate locked={!userIsPro} hasValue={ytd.profit > 0 || ytd.cisDeductedYtd > 0}>
         <div className="money-card money-tax-setaside">
           <div className="money-tax-setaside__label">Tax Pot</div>
-          {ytd.profit <= 0 ? (
-            <p className="money-tax-setaside__empty">Nothing to set aside yet this tax year</p>
+
+          {isCisSubcontractor ? (
+            /* ── CIS-aware two-block view ───────────────────────────────── */
+            (() => {
+              const cisAmt = ytd.cisDeductedYtd ?? 0;
+              const setAsideAmt = ytdTaxPot;
+              const nonCisBase = ytd.nonCisProfit ?? 0;
+              const allCis = nonCisBase <= 0 && ytd.profit > 0;
+
+              if (ytd.paid === 0 && cisAmt === 0) {
+                return (
+                  <p className="money-tax-setaside__empty">Nothing to set aside yet this tax year</p>
+                );
+              }
+
+              return (
+                <>
+                  {/* Block 1: CIS already deducted — always shown for CIS users with any paid jobs */}
+                  <div className="money-tax-cis-block">
+                    <div className="money-tax-cis-block__label">Already deducted (CIS)</div>
+                    <div className="money-tax-cis-block__figure pro-gate__figure">
+                      {gbp(cisAmt)}
+                    </div>
+                    <p className="money-tax-cis-block__sub">
+                      Taken by contractors this tax year. This usually comes back as a refund.
+                    </p>
+                  </div>
+
+                  {/* Block 2: set-aside on the rest — collapses when 100% CIS */}
+                  {allCis ? (
+                    <p className="money-tax-setaside__empty money-tax-setaside__empty--cis-all">
+                      Nothing extra to set aside &mdash; all your work this year was CIS.
+                    </p>
+                  ) : nonCisBase > 0 ? (
+                    <div className="money-tax-cis-block money-tax-cis-block--setaside">
+                      <div className="money-tax-cis-block__label">Set aside on the rest</div>
+                      <div className="money-tax-cis-block__figure pro-gate__figure">
+                        {gbp(setAsideAmt)}
+                      </div>
+                      <p className="money-tax-cis-block__sub">
+                        {taxSetAsidePct}% of your non-CIS profit ({gbp(nonCisBase)}).
+                        The CIS work is already covered.
+                      </p>
+                    </div>
+                  ) : null}
+
+                  <p className="money-tax-setaside__disclaimer">
+                    Estimate only &mdash; not tax advice. Figures are based on the details
+                    you enter. CIS deductions are advance payments toward your tax, reconciled
+                    on your Self Assessment &mdash; you may owe more or be due a refund.
+                    Check with your accountant or HMRC.
+                  </p>
+                </>
+              );
+            })()
           ) : (
-            <>
-              <div className="money-tax-setaside__figure pro-gate__figure">
-                {gbp(ytdTaxPot)}
-              </div>
-              <p className="money-tax-setaside__sub">
-                Put by for the taxman &middot; {taxSetAsidePct}% of profit &middot; {gbp(monthTaxPot)} this month
-              </p>
-              {/* "Leaves you £X to keep" = YTD profit minus YTD tax pot */}
-              <p className="money-tax-setaside__keep pro-gate__figure">
-                Leaves you {gbp(Math.max(0, ytd.profit) - ytdTaxPot)} to keep
-              </p>
-            </>
+            /* ── Standard (non-CIS) view — byte-for-byte unchanged ─────── */
+            ytd.profit <= 0 ? (
+              <p className="money-tax-setaside__empty">Nothing to set aside yet this tax year</p>
+            ) : (
+              <>
+                <div className="money-tax-setaside__figure pro-gate__figure">
+                  {gbp(ytdTaxPot)}
+                </div>
+                <p className="money-tax-setaside__sub">
+                  Put by for the taxman &middot; {taxSetAsidePct}% of profit &middot; {gbp(monthTaxPot)} this month
+                </p>
+                {/* "Leaves you £X to keep" = YTD profit minus YTD tax pot */}
+                <p className="money-tax-setaside__keep pro-gate__figure">
+                  Leaves you {gbp(Math.max(0, ytd.profit) - ytdTaxPot)} to keep
+                </p>
+              </>
+            )
           )}
         </div>
       </ProGate>
