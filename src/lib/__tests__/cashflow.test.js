@@ -1598,3 +1598,224 @@ describe('getVatSummary', () => {
     expect(netSales).toBe(0);
   });
 });
+
+// ─── getTaxYearSummary — CIS-aware tests ────────────────────────────────────
+// All tests use NOW = 2026-05-31 (tax year 2026/27 started 2026-04-06).
+
+import { resolveCisStatus } from '../cashflow.js';
+
+const CIS_NOW = new Date(2026, 4, 31); // 2026-05-31
+
+// Profile helpers
+const cisProfile20 = { is_cis_subcontractor: true, cis_default_rate: 20 };
+const cisProfile30 = { is_cis_subcontractor: true, cis_default_rate: 30 };
+const cisProfile0  = { is_cis_subcontractor: true, cis_default_rate: 0 };
+const nonCisProfile = { is_cis_subcontractor: false, cis_default_rate: 20 };
+
+// Paid job fixture with the tax year (2026-05-10 is in 2026/27)
+function cisJob(overrides = {}) {
+  return {
+    id: 'cis-j1',
+    amount: 1000,
+    paid: true,
+    date: '2026-05-10',
+    createdAt: '2026-05-10T09:00:00.000Z',
+    payments: [],
+    ...overrides,
+  };
+}
+
+// Receipt linked to cisJob by default
+function cisReceipt(overrides = {}) {
+  return {
+    id: 'cis-r1',
+    jobId: 'cis-j1',
+    amount: 200,
+    date: '2026-05-10',
+    ...overrides,
+  };
+}
+
+describe('resolveCisStatus', () => {
+  it('returns isCisJob=false for non-CIS profile regardless of job fields', () => {
+    const job = cisJob({ cis: true, cisRate: 20 });
+    expect(resolveCisStatus(job, nonCisProfile)).toEqual({ isCisJob: false, rate: 0 });
+  });
+
+  it('returns isCisJob=false when job explicitly opts out (cis: false)', () => {
+    expect(resolveCisStatus(cisJob({ cis: false }), cisProfile20)).toEqual({ isCisJob: false, rate: 0 });
+  });
+
+  it('returns isCisJob=true with profile default rate when job has no cisRate', () => {
+    expect(resolveCisStatus(cisJob(), cisProfile20)).toEqual({ isCisJob: true, rate: 20 });
+    expect(resolveCisStatus(cisJob(), cisProfile30)).toEqual({ isCisJob: true, rate: 30 });
+  });
+
+  it('per-job cisRate overrides the profile default', () => {
+    expect(resolveCisStatus(cisJob({ cisRate: 30 }), cisProfile20)).toEqual({ isCisJob: true, rate: 30 });
+    expect(resolveCisStatus(cisJob({ cisRate: 0 }), cisProfile20)).toEqual({ isCisJob: true, rate: 0 });
+  });
+
+  it('Gross Payment Status (rate=0): isCisJob=true, rate=0', () => {
+    expect(resolveCisStatus(cisJob(), cisProfile0)).toEqual({ isCisJob: true, rate: 0 });
+  });
+
+  it('null profile → non-CIS', () => {
+    expect(resolveCisStatus(cisJob(), null)).toEqual({ isCisJob: false, rate: 0 });
+  });
+});
+
+describe('getTaxYearSummary — non-CIS users unchanged invariant', () => {
+  it('profit and paid are identical to pre-CIS behaviour for non-CIS profile', () => {
+    const jobs = [cisJob({ amount: 800 })];
+    const receipts = [cisReceipt({ amount: 150 })];
+    const result = getTaxYearSummary(jobs, receipts, CIS_NOW, nonCisProfile);
+    expect(result.profit).toBe(800 - 150); // headline P&L unchanged
+    expect(result.paid).toBe(800);
+    expect(result.cisDeductedYtd).toBe(0);
+    // nonCisProfit = per-job profit (quote - linked materials) = 800 - 150
+    expect(result.nonCisProfit).toBe(650);
+    expect(result.excludedFromTax).toBe(0);
+  });
+
+  it('null profile behaves the same as non-CIS profile', () => {
+    const jobs = [cisJob({ amount: 500 })];
+    const result = getTaxYearSummary(jobs, [], CIS_NOW, null);
+    expect(result.cisDeductedYtd).toBe(0);
+    expect(result.nonCisProfit).toBe(500);
+  });
+
+  it('omitting profile argument (3-arg call) stays backward-compatible', () => {
+    const jobs = [cisJob({ amount: 600 })];
+    const result = getTaxYearSummary(jobs, [], CIS_NOW);
+    expect(result.profit).toBe(600);
+    expect(result.cisDeductedYtd).toBe(0);
+  });
+});
+
+describe('getTaxYearSummary — CIS deduction at 20%', () => {
+  // quote=1000, materials=200, labour=800, deduction=160
+  it('computes cisDeductedYtd correctly for a standard CIS job', () => {
+    const jobs = [cisJob({ amount: 1000 })];
+    const receipts = [cisReceipt({ amount: 200 })];
+    const result = getTaxYearSummary(jobs, receipts, CIS_NOW, cisProfile20);
+    expect(result.cisDeductedYtd).toBe(160); // 800 * 20%
+    expect(result.nonCisProfit).toBe(0);     // entire job is CIS
+    expect(result.paid).toBe(1000);
+    expect(result.profit).toBe(1000 - 200);  // headline P&L unchanged
+  });
+
+  it('clamps labour to 0 when materials exceed quote (materials > quote edge case)', () => {
+    // quote=500, materials=700 → labour=0 → deduction=0
+    const jobs = [cisJob({ amount: 500 })];
+    const receipts = [cisReceipt({ amount: 700 })];
+    const result = getTaxYearSummary(jobs, receipts, CIS_NOW, cisProfile20);
+    expect(result.cisDeductedYtd).toBe(0);
+    // nonCisProfit is 0 (the job is CIS, just no deduction)
+    expect(result.nonCisProfit).toBe(0);
+  });
+});
+
+describe('getTaxYearSummary — CIS deduction at 30%', () => {
+  it('applies 30% rate for unregistered subcontractors', () => {
+    // quote=1000, materials=200, labour=800, deduction=240
+    const jobs = [cisJob({ amount: 1000 })];
+    const receipts = [cisReceipt({ amount: 200 })];
+    const result = getTaxYearSummary(jobs, receipts, CIS_NOW, cisProfile30);
+    expect(result.cisDeductedYtd).toBe(240);
+  });
+
+  it('per-job rate of 30 overrides profile default of 20', () => {
+    const jobs = [cisJob({ amount: 1000, cisRate: 30 })];
+    const receipts = [cisReceipt({ amount: 0 })];
+    const result = getTaxYearSummary(jobs, receipts, CIS_NOW, cisProfile20);
+    expect(result.cisDeductedYtd).toBe(300); // 1000 * 30%
+  });
+});
+
+describe('getTaxYearSummary — Gross Payment Status (0%)', () => {
+  it('deduction is £0 for gross jobs but profit counts toward set-aside base', () => {
+    const jobs = [cisJob({ amount: 1000 })];
+    const receipts = [cisReceipt({ amount: 200 })];
+    const result = getTaxYearSummary(jobs, receipts, CIS_NOW, cisProfile0);
+    expect(result.cisDeductedYtd).toBe(0);
+    // Gross job profit (quote - materials) counts toward nonCisProfit
+    expect(result.nonCisProfit).toBe(800); // 1000 - 200
+  });
+});
+
+describe('getTaxYearSummary — excludeFromTax', () => {
+  it('excluded job leaves all tax calc buckets but contributes to paid (cashflow)', () => {
+    const jobs = [cisJob({ amount: 1000, excludeFromTax: true })];
+    const receipts = [cisReceipt({ amount: 200 })];
+    const result = getTaxYearSummary(jobs, receipts, CIS_NOW, cisProfile20);
+    expect(result.paid).toBe(1000);          // still in cashflow
+    expect(result.cisDeductedYtd).toBe(0);  // excluded before CIS calc
+    expect(result.nonCisProfit).toBe(0);    // excluded before set-aside calc
+    expect(result.excludedFromTax).toBe(800); // quote - materials
+  });
+
+  it('excluded non-CIS job also leaves tax calc for non-CIS user', () => {
+    const jobs = [cisJob({ amount: 500, excludeFromTax: true })];
+    const result = getTaxYearSummary(jobs, [], CIS_NOW, nonCisProfile);
+    expect(result.paid).toBe(500);
+    expect(result.nonCisProfit).toBe(0);
+    expect(result.excludedFromTax).toBe(500);
+  });
+});
+
+describe('getTaxYearSummary — mixed CIS + non-CIS jobs', () => {
+  it('splits correctly between CIS and set-aside base', () => {
+    // Job A: CIS at 20%, quote=1000, materials=200 → labour=800, deduction=160
+    // Job B: non-CIS, quote=600, materials=100 → jobProfit=500
+    const jobA = cisJob({ id: 'jA', amount: 1000, date: '2026-05-10' });
+    const jobB = cisJob({ id: 'jB', amount: 600, date: '2026-05-10', cis: false });
+    const rcptA = cisReceipt({ id: 'rA', jobId: 'jA', amount: 200 });
+    const rcptB = cisReceipt({ id: 'rB', jobId: 'jB', amount: 100 });
+    const result = getTaxYearSummary([jobA, jobB], [rcptA, rcptB], CIS_NOW, cisProfile20);
+    expect(result.cisDeductedYtd).toBe(160);  // from jobA only
+    expect(result.nonCisProfit).toBe(500);    // from jobB (600 - 100)
+    expect(result.paid).toBe(1600);
+    expect(result.profit).toBe(1600 - 300);   // headline unchanged
+  });
+
+  it('100% CIS edge: nonCisProfit is 0', () => {
+    const jobs = [
+      cisJob({ id: 'j1', amount: 1000 }),
+      cisJob({ id: 'j2', amount: 800, date: '2026-04-20' }),
+    ];
+    const result = getTaxYearSummary(jobs, [], CIS_NOW, cisProfile20);
+    expect(result.nonCisProfit).toBe(0);
+    expect(result.cisDeductedYtd).toBe(1000 * 0.2 + 800 * 0.2);
+  });
+});
+
+describe('getTaxYearSummary — out-of-tax-year jobs excluded', () => {
+  it('paid job from last tax year does not contribute to CIS deduction', () => {
+    // 2025-04-05 is before the 2025/26 tax year start (2025-04-06) — last year
+    const jobs = [cisJob({ amount: 1000, date: '2025-04-05' })];
+    const result = getTaxYearSummary(jobs, [], CIS_NOW, cisProfile20);
+    expect(result.cisDeductedYtd).toBe(0);
+    expect(result.paid).toBe(0);
+  });
+});
+
+describe('getTaxYearSummary — derived labour for CIS deduction', () => {
+  it('no receipts: full quote amount is labour (100% labour job)', () => {
+    // quote=500, materials=0, labour=500, deduction=100
+    const jobs = [cisJob({ amount: 500 })];
+    const result = getTaxYearSummary(jobs, [], CIS_NOW, cisProfile20);
+    expect(result.cisDeductedYtd).toBe(100);
+  });
+
+  it('sum of multiple receipts for same job correctly reduces labour', () => {
+    // quote=1000, materials=300+100=400, labour=600, deduction=120
+    const jobs = [cisJob({ amount: 1000 })];
+    const receipts = [
+      cisReceipt({ id: 'r1', amount: 300 }),
+      cisReceipt({ id: 'r2', jobId: 'cis-j1', amount: 100 }),
+    ];
+    const result = getTaxYearSummary(jobs, receipts, CIS_NOW, cisProfile20);
+    expect(result.cisDeductedYtd).toBe(120);
+  });
+});

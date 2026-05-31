@@ -557,6 +557,135 @@ function ProfitBarSection({ job, receipts }) {
 }
 
 /**
+ * JobTaxMeta — per-job CIS toggle (CIS users only) and exclude-from-tax toggle (all users).
+ *
+ * CIS-4: only rendered when profile.is_cis_subcontractor is true.
+ *   Shows a CIS on/off toggle + a rate sub-selector (20/30/0) when on.
+ *   Derived labour line: Labour £{labour} · −£{deduction} CIS.
+ * CIS-5: exclude-from-tax toggle shown to all users below CIS.
+ *   For non-CIS users it appears inside MoreDisclosure so it's unobtrusive.
+ *   Stores both flags in job meta via onUpdateJob.
+ *
+ * onUpdateJob is optional — the section is read-only when absent.
+ */
+const CIS_RATE_OPTIONS = [
+  { value: 20, label: '20%' },
+  { value: 30, label: '30%' },
+  { value: 0,  label: '0% Gross' },
+];
+
+function JobTaxMeta({ job, profile, quote, materials, onUpdateJob }) {
+  const isCisUser = !!profile?.is_cis_subcontractor;
+  const [showCisRates, setShowCisRates] = useState(false);
+
+  // For CIS users: a job defaults ON at the profile default rate unless explicitly false.
+  const cisOn = isCisUser ? job.cis !== false : false;
+  const cisRate = job.cisRate != null ? Number(job.cisRate) : Number(profile?.cis_default_rate ?? 20);
+  const excludeFromTax = !!job.excludeFromTax;
+
+  // Derived labour = max(0, quote - materials); deduction = labour * rate/100
+  const labour = Math.max(0, Number(quote || 0) - Number(materials || 0));
+  const deduction = cisOn && cisRate > 0 ? labour * (cisRate / 100) : 0;
+
+  if (!isCisUser && !onUpdateJob) return null;
+
+  return (
+    <div className="jd-tax-meta">
+      {isCisUser && (
+        <div className="jd-tax-meta__cis">
+          <div className="jd-tax-meta__row">
+            <span className="jd-tax-meta__label">CIS</span>
+            {onUpdateJob ? (
+              <button
+                type="button"
+                className={`jd-tax-meta__toggle${cisOn ? ' jd-tax-meta__toggle--on' : ''}`}
+                onClick={() => {
+                  onUpdateJob({ ...job, cis: !cisOn });
+                  setShowCisRates(false);
+                }}
+                role="switch"
+                aria-checked={cisOn}
+              >
+                {cisOn ? 'On' : 'Off'}
+              </button>
+            ) : (
+              <span className="jd-tax-meta__value">{cisOn ? 'On' : 'Off'}</span>
+            )}
+          </div>
+
+          {cisOn && (
+            <>
+              {deduction > 0 && (
+                <p className="jd-tax-meta__math">
+                  Labour {gbp(labour)} &middot; &minus;{gbp(deduction)} CIS ({cisRate}%)
+                </p>
+              )}
+              {cisOn && cisRate === 0 && (
+                <p className="jd-tax-meta__math">Gross status &mdash; no deduction</p>
+              )}
+
+              {onUpdateJob && (
+                <>
+                  <button
+                    type="button"
+                    className="jd-tax-meta__rate-toggle"
+                    onClick={() => setShowCisRates(v => !v)}
+                  >
+                    Rate: {cisRate === 0 ? '0% Gross' : `${cisRate}%`} {showCisRates ? '▴' : '▾'}
+                  </button>
+                  {showCisRates && (
+                    <div className="work-segments jd-tax-meta__rate-segs">
+                      {CIS_RATE_OPTIONS.map(opt => (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          className={`work-segment${cisRate === opt.value ? ' work-segment--active' : ''}`}
+                          onClick={() => {
+                            onUpdateJob({ ...job, cis: true, cisRate: opt.value });
+                            setShowCisRates(false);
+                          }}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </>
+              )}
+            </>
+          )}
+
+          {!cisOn && (
+            <p className="jd-tax-meta__off-label">Not a CIS job</p>
+          )}
+        </div>
+      )}
+
+      {/* Exclude-from-tax toggle — below CIS for CIS users, always available */}
+      <div className="jd-tax-meta__row jd-tax-meta__row--exclude">
+        <span className="jd-tax-meta__label jd-tax-meta__label--muted">Exclude from tax pot</span>
+        {onUpdateJob ? (
+          <button
+            type="button"
+            className={`jd-tax-meta__toggle jd-tax-meta__toggle--small${excludeFromTax ? ' jd-tax-meta__toggle--on' : ''}`}
+            onClick={() => onUpdateJob({ ...job, excludeFromTax: !excludeFromTax })}
+            role="switch"
+            aria-checked={excludeFromTax}
+          >
+            {excludeFromTax ? 'On' : 'Off'}
+          </button>
+        ) : (
+          <span className="jd-tax-meta__value">{excludeFromTax ? 'Yes' : 'No'}</span>
+        )}
+      </div>
+      {excludeFromTax && (
+        <p className="jd-tax-meta__exclude-hint">For money that isn&rsquo;t taxable income.</p>
+      )}
+    </div>
+  );
+}
+
+/**
  * QuoteBreakdownSection — editable list of job.lineItems[].
  *
  * Read mode: description + cost per row, total at foot.
@@ -2217,6 +2346,20 @@ export default function JobDetailDrawer({
               />
             ) : null;
 
+            // CIS-4 / CIS-5: tax meta below the ribbon.
+            // Shown for CIS users (CIS toggle + exclude) or any user with edit access (exclude only).
+            // For non-CIS users the exclude toggle is tucked into MoreDisclosure below.
+            const isCisUser = !!profile?.is_cis_subcontractor;
+            const taxMetaEl = (isCisUser || onUpdateJob) ? (
+              <JobTaxMeta
+                job={job}
+                profile={profile}
+                quote={quote}
+                materials={materials}
+                onUpdateJob={onUpdateJob}
+              />
+            ) : null;
+
             const customerBodyEl = (
               <DetailsSection
                 job={job}
@@ -2264,6 +2407,10 @@ export default function JobDetailDrawer({
                 if (nextStepEl) rendered.push(<React.Fragment key="nextStep">{nextStepEl}</React.Fragment>);
                 // Profit ribbon always follows the Next Step card when the job has a price
                 if (profitRibbonEl) rendered.push(<React.Fragment key="profit-ribbon">{profitRibbonEl}</React.Fragment>);
+                // CIS-4/5: tax meta (CIS toggle + exclude-from-tax) follows the ribbon.
+                // For CIS users this is always shown here. For non-CIS users the exclude
+                // toggle lives in MoreDisclosure (below) so it stays unobtrusive.
+                if (isCisUser && taxMetaEl) rendered.push(<React.Fragment key="tax-meta">{taxMetaEl}</React.Fragment>);
                 continue;
               }
 
@@ -2373,7 +2520,8 @@ export default function JobDetailDrawer({
             aria-hidden="true"
           />
 
-          {/* Photos and Notes — behind MoreDisclosure (Step 2).
+          {/* Photos, Notes, and (for non-CIS users) the exclude-from-tax toggle
+              — behind MoreDisclosure (Step 2).
               Receipts are now inside the Costs CollapsedSectionRow above.
               Schedule stays at the spine (SpineBlock). */}
           {(() => {
@@ -2408,8 +2556,12 @@ export default function JobDetailDrawer({
             const hasPhotoContent = photoCount > 0;
             const hasNoteContent = (Array.isArray(job.jobNotes) && job.jobNotes.length > 0) ||
               (typeof job.notes === 'string' && job.notes.trim());
+            const excludeFromTax = !!job.excludeFromTax;
 
-            const hasAnyContent = hasPhotoContent || hasNoteContent;
+            // For non-CIS users: expose the exclude-from-tax toggle here in More.
+            // CIS users already see it above the ribbon (taxMetaEl), so don't duplicate.
+            const hasExcludeToggle = !isCisUser && !!onUpdateJob;
+            const hasAnyContent = hasPhotoContent || hasNoteContent || (hasExcludeToggle && excludeFromTax);
 
             // Build summary string for the More row
             const summaryParts = [];
@@ -2424,7 +2576,7 @@ export default function JobDetailDrawer({
             const moreSummary = summaryParts.join(' · ');
 
             // Only render More row when there's something to show or add
-            if (!moreSummary) return null;
+            if (!moreSummary && !hasExcludeToggle) return null;
 
             return (
               <MoreDisclosure
@@ -2433,6 +2585,8 @@ export default function JobDetailDrawer({
               >
                 {photosEl}
                 {(hasNoteContent || noteFormOpen || onUpdateJob) && notesEl}
+                {/* CIS-5: exclude-from-tax for non-CIS users lives here, unobtrusive */}
+                {hasExcludeToggle && taxMetaEl}
               </MoreDisclosure>
             );
           })()}
