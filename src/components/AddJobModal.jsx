@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { parseJobFromSpeech } from '../lib/voiceParse';
+import { logTelemetry } from '../lib/telemetry';
 
 const SR = typeof window !== 'undefined'
   ? (window.SpeechRecognition || window.webkitSpeechRecognition)
@@ -41,11 +42,16 @@ function isOnline() {
   return typeof navigator !== 'undefined' ? navigator.onLine : true;
 }
 
-export default function AddJobModal({ onClose, onSave, onOpenDetailed }) {
+export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMode, onSaveAndSend }) {
   // 'micro'    — Two-Tap Micro-Log (new default entry)
   // 'details'  — full Direction A form (reached via "+ Add details" link)
   // 'listening'| 'parsing' | 'confirm' | 'manual' — voice states within 'details'
-  const [view, setView] = useState('micro');
+  //
+  // defaultMode="voice" mounts directly into 'details' so the existing
+  // auto-start effect fires startListening() within ~150 ms of the modal
+  // transition finishing (same pattern as the ~120 ms amount-input focus).
+  // The normal + button omits this prop → default 'micro' keypad view.
+  const [view, setView] = useState(defaultMode === 'voice' ? 'details' : 'micro');
 
   // ── Shared field state (micro + details share these) ──────────────────────
   const [amount, setAmount]           = useState('');
@@ -63,12 +69,16 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed }) {
   const [moreOpen, setMoreOpen]       = useState(false);
 
   // ── Voice state (only active in 'details' view) ───────────────────────────
-  const [voiceStatus, setVoiceStatus] = useState('listening');
-  const [transcript, setTranscript]   = useState('');
-  const [retryCount, setRetryCount]   = useState(0);
+  const [voiceStatus, setVoiceStatus]       = useState('listening');
+  const [transcript, setTranscript]         = useState('');
+  const [retryCount, setRetryCount]         = useState(0);
+  // showParsingSpinner: only true when parsing has taken >400ms — avoids a
+  // distracting flash for responses that come back quickly.
+  const [showParsingSpinner, setShowParsingSpinner] = useState(false);
   const recogRef        = useRef(null);
   const manualOverride  = useRef(false);
   const hasAutoStarted  = useRef(false);
+  const spinnerTimerRef = useRef(null);
 
   // Hide the bottom nav pill while the modal is open.
   useEffect(() => {
@@ -152,8 +162,13 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed }) {
   };
 
   const parse = async (text) => {
+    // Show the "Understanding…" spinner only if parsing takes longer than 400ms.
+    setShowParsingSpinner(false);
+    spinnerTimerRef.current = setTimeout(() => setShowParsingSpinner(true), 400);
     try {
       const parsed = await parseJobFromSpeech(text);
+      clearTimeout(spinnerTimerRef.current);
+      setShowParsingSpinner(false);
       const cleanName     = (parsed.name || '').trim();
       const cleanCustomer = (parsed.customer || '').trim();
       const cleanAmt      = parsed.amount;
@@ -180,6 +195,8 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed }) {
       else setPaymentChip('awaiting');
       setVoiceStatus('confirm');
     } catch {
+      clearTimeout(spinnerTimerRef.current);
+      setShowParsingSpinner(false);
       setVoiceStatus('manual');
     }
   };
@@ -225,20 +242,23 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed }) {
 
   // Details-view save: job name is required only if the user has typed something
   // in the name field; otherwise falls back to autoJobName().
-  const saveDetails = () => {
+  //
+  // buildDetailsPayload() validates and returns the payload, or null on error.
+  // Both saveDetails() and saveAndSend() use it to avoid duplication.
+  const buildDetailsPayload = () => {
     const resolvedName = name.trim() || autoJobName();
     const isPaid = paymentChip !== 'awaiting';
     if (isPaid && !amount.trim()) {
       setError('Add an amount before you can mark this paid');
-      return;
+      return null;
     }
     const amt = amount.trim() ? parseFloat(amount) : null;
     if (amt !== null && (isNaN(amt) || amt <= 0)) {
       setError("That amount doesn't look right");
-      return;
+      return null;
     }
     setError('');
-    onSave({
+    return {
       id:          crypto.randomUUID(),
       name:        resolvedName,
       customer:    customer.trim() || null,
@@ -253,7 +273,23 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed }) {
       ...(notes.trim()       ? { notes: notes.trim() } : {}),
       ...(deposit.trim()     ? { deposit: parseFloat(deposit) || 0 } : {}),
       ...(address.trim()     ? { address: address.trim() } : {}),
-    });
+    };
+  };
+
+  const saveDetails = () => {
+    const payload = buildDetailsPayload();
+    if (!payload) return;
+    onSave(payload);
+  };
+
+  // "Save & send quote" — confirm state only, awaiting jobs only.
+  // Calls onSaveAndSend(payload) so the parent can persist the job then open
+  // ReviewSheet in quote mode without an intermediate job screen.
+  const saveAndSend = () => {
+    const payload = buildDetailsPayload();
+    if (!payload) return;
+    logTelemetry('quote_send', { source: 'voice_confirm' });
+    onSaveAndSend?.(payload);
   };
 
   // Auto-start voice only when entering the 'details' view.
@@ -417,13 +453,15 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed }) {
               </>
             )}
 
-            {/* ── Voice: parsing state ── */}
+            {/* ── Voice: parsing state — spinner deferred until >400ms to avoid flash ── */}
             {voiceStatus === 'parsing' && (
               <>
-                <div className="aj-mic-box aj-mic-box--parsing">
-                  <div className="aj-mic-icon">⏳</div>
-                  <div className="aj-mic-label">Understanding…</div>
-                </div>
+                {showParsingSpinner && (
+                  <div className="aj-mic-box aj-mic-box--parsing">
+                    <div className="aj-mic-icon">&#x23F3;</div>
+                    <div className="aj-mic-label">Understanding…</div>
+                  </div>
+                )}
                 {transcript && (
                   <div className="aj-transcript">&ldquo;{transcript}&rdquo;</div>
                 )}
@@ -532,6 +570,17 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed }) {
                 >
                   {detailsSaveLabel()}
                 </button>
+
+                {/* Save & send quote — confirm state only, awaiting payment only. */}
+                {voiceStatus === 'confirm' && paymentChip === 'awaiting' && onSaveAndSend && (
+                  <button
+                    className="btn-secondary btn-large aj-save-btn"
+                    style={{ marginTop: 8 }}
+                    onClick={saveAndSend}
+                  >
+                    Save &amp; send quote
+                  </button>
+                )}
 
                 <div className="aj-footer-links">
                   {voiceStatus === 'confirm' && (
