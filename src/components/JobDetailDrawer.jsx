@@ -2070,7 +2070,6 @@ export default function JobDetailDrawer({
                     ? <span className="job-detail-customer">{job.summary}</span>
                     : <span className="jd-detail-edit-row-add">+ Add job name</span>
                   }
-                  <span className="jd-customer-edit-icon" aria-hidden="true">›</span>
                 </button>
               ) : (
                 <div className="job-detail-customer">{job.summary || displayName}</div>

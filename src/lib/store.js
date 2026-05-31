@@ -294,7 +294,12 @@ export async function addJobToCloud(payload) {
   const row = {
     id: jobId,
     user_id,
-    customer_name: payload.customer || payload.name || 'Job',
+    // Only write customer_name when a real customer is explicitly provided.
+    // Defaulting to payload.name caused the "Job" string to leak into the
+    // customer field when a job was created with no customer — on the next
+    // sync, mapCloudJobToToday set job.customer = 'Job', which then propagated
+    // back into customer_name via every extractJobMeta / updateJobMetaInCloud call.
+    customer_name: payload.customer || null,
     date: today,
     summary: payload.name || 'Job',
     amount,

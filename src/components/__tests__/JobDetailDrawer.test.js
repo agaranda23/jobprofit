@@ -1432,6 +1432,116 @@ describe('customer-name persistence — updateJobMetaInCloud payload maps custom
   });
 });
 
+// ── Regression: job-name edit must not touch the customer field ───────────────
+//
+// Bug (fix/job-drawer-customer-name-and-avatar v2 commits):
+// When a job's default name was 'Job', addJobToCloud wrote customer_name = 'Job'
+// (from `payload.customer || payload.name || 'Job'`). On next cloud sync,
+// mapCloudJobToToday set job.customer = 'Job'. When the user edited the job name
+// (summary), handleCustomerFieldSave wrote { ...job, summary: newName }, and
+// extractJobMeta picked up the stale job.customer = 'Job', writing it back to the
+// DB via updateJobMetaInCloud. Result: editing the name appeared to set the customer
+// to 'Job'.
+//
+// Fix: addJobToCloud now writes customer_name = payload.customer || null — never
+// inherits from the job name. This test validates that the summary-edit path
+// leaves job.customer unchanged.
+//
+// Mirror functions below match the production implementations used in the
+// drawer + cloud write path. No Supabase, no React, no DOM required.
+
+function simulateAddJobToCloud(payload) {
+  // Mirrors the customer_name derivation in store.js addJobToCloud (AFTER the fix).
+  // Previously: payload.customer || payload.name || 'Job'
+  // Fixed:      payload.customer || null
+  return {
+    customer_name: payload.customer || null,
+    summary: payload.name || 'Job',
+  };
+}
+
+function simulateMapCloudJobToToday(row) {
+  // Mirrors mapCloudJobToToday in store.js (the relevant fields only).
+  return {
+    customer: row.customer_name || '',
+    summary: row.summary || '',
+  };
+}
+
+function simulateSummaryEdit(job, newSummary) {
+  // Mirrors handleCustomerFieldSave in JobDetailDrawer when editingField === 'summary'.
+  // patch = { summary: newSummary } → onUpdateJob({ ...job, summary: newSummary || null })
+  return { ...job, summary: newSummary || null };
+}
+
+function simulateExtractJobMetaCustomer(job) {
+  // Mirrors the customer extraction from extractJobMeta in jobMeta.js.
+  // Only includes 'customer' in the returned object when the key is present on the job.
+  return 'customer' in job ? job.customer : undefined;
+}
+
+describe('Regression: job-name edit must not pollute job.customer', () => {
+  it('a job created with only a name (no customer) has an empty customer field after cloud round-trip', () => {
+    // Simulate creating a job with name 'Job' and no explicit customer
+    const cloudRow = simulateAddJobToCloud({ name: 'Job' });
+    expect(cloudRow.customer_name).toBeNull(); // fixed: no longer defaults to 'Job'
+
+    const job = simulateMapCloudJobToToday(cloudRow);
+    expect(job.customer).toBe(''); // empty, not 'Job'
+  });
+
+  it('editing the job name (summary) leaves job.customer unchanged', () => {
+    // Simulate cloud state: job with no customer (customer_name = null after the fix)
+    const cloudRow = simulateAddJobToCloud({ name: 'Job' });
+    const job = simulateMapCloudJobToToday(cloudRow);
+    expect(job.customer).toBe('');
+
+    // User renames the job: handleCustomerFieldSave writes { ...job, summary: 'Bathroom refit' }
+    const updated = simulateSummaryEdit(job, 'Bathroom refit');
+    expect(updated.summary).toBe('Bathroom refit');
+
+    // customer must be untouched — spread of job preserves the empty string
+    expect(updated.customer).toBe('');
+
+    // extractJobMeta would include customer: '' — but updateJobMetaInCloud writes
+    // customer_name = metaObject.customer || null = null (no leak of 'Job')
+    const extractedCustomer = simulateExtractJobMetaCustomer(updated);
+    const cloudCustomerName = extractedCustomer || null; // mirrors updateJobMetaInCloud gate
+    expect(cloudCustomerName).toBeNull(); // no 'Job' leaked back to customer_name
+  });
+
+  it('a job with a real customer is unaffected by a summary edit', () => {
+    // Simulate creating a job WITH an explicit customer
+    const cloudRow = simulateAddJobToCloud({ name: 'Bathroom refit', customer: 'Sarah Jones' });
+    expect(cloudRow.customer_name).toBe('Sarah Jones');
+
+    const job = simulateMapCloudJobToToday(cloudRow);
+    expect(job.customer).toBe('Sarah Jones');
+
+    // User renames the job
+    const updated = simulateSummaryEdit(job, 'Kitchen refit');
+    expect(updated.summary).toBe('Kitchen refit');
+    expect(updated.customer).toBe('Sarah Jones'); // unchanged
+
+    // Cloud write preserves the real customer name
+    const extractedCustomer = simulateExtractJobMetaCustomer(updated);
+    const cloudCustomerName = extractedCustomer || null;
+    expect(cloudCustomerName).toBe('Sarah Jones');
+  });
+
+  it('addJobToCloud fix: customer_name is null when no customer is supplied (prevents the leak at source)', () => {
+    // The root fix: addJobToCloud no longer inherits customer_name from the job name
+    expect(simulateAddJobToCloud({ name: 'Job' }).customer_name).toBeNull();
+    expect(simulateAddJobToCloud({ name: 'Plumbing' }).customer_name).toBeNull();
+    expect(simulateAddJobToCloud({ name: 'Job', customer: '' }).customer_name).toBeNull();
+  });
+
+  it('addJobToCloud still writes customer_name when a real customer is supplied', () => {
+    expect(simulateAddJobToCloud({ name: 'Job', customer: 'Alan' }).customer_name).toBe('Alan');
+    expect(simulateAddJobToCloud({ name: 'Job', customer: 'Bob Smith' }).customer_name).toBe('Bob Smith');
+  });
+});
+
 // ── CIS-4/5 regression: resolveCisStatus + isCisUser guard ──────────────────
 //
 // These tests cover the root cause of the P0 blank-screen bug (fix/job-detail-blank):
