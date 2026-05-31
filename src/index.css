@@ -3464,76 +3464,91 @@ input[type=number] { -moz-appearance: textfield; }
   box-shadow: 0 1px 4px rgba(0,0,0,0.3);
 }
 
-/* Controls row — segmented control + Show all toggle side by side */
+/* Controls row — List/Calendar segmented control only (Show all moved into the stage bar) */
 .work-controls-row {
   display: flex;
   align-items: center;
-  gap: 10px;
   margin-bottom: 14px;
 }
 .work-controls-row .work-segments {
   flex: 1;
   margin-bottom: 0;
 }
-.show-all-toggle {
-  flex-shrink: 0;
-  align-self: stretch;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  background: none;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  color: var(--text-dim);
-  font-size: 14px;
-  font-weight: 600;
-  padding: 7px 18px;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: background 0.15s, color 0.15s;
-  box-sizing: border-box;
-  min-width: 116px;
-}
-.show-all-toggle--active {
-  background: var(--surface-2);
-  color: var(--text);
-  border-color: var(--text-dim);
-}
 
-/* ── Stage Strip ──────────────────────────────── */
+/* ── Stage Strip — unified segmented control ──────────────────────────────── */
+
+/* Outer wrap carries the bottom gap to the controls row beneath */
 .stage-strip-wrap {
-  margin-bottom: 8px; /* rail hidden — own margin carries the gap to the list */
-}
-
-.stage-strip {
-  display: flex;
-  width: 100%;
-  gap: 4px;
-  padding-bottom: 6px;
+  margin-bottom: 10px;
   position: relative;
 }
 
+/* The unified bar: one rounded container, horizontally scrollable, hidden scrollbar.
+   Mirrors the .work-segments recipe so the two controls read as siblings. */
+.stage-strip {
+  display: flex;
+  gap: 0;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 3px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.stage-strip::-webkit-scrollbar { display: none; }
+
+/* Subtle right-edge fade hint — shows when content overflows */
+.stage-strip-wrap::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  bottom: 3px;
+  width: 28px;
+  background: linear-gradient(to right, transparent, var(--surface-2));
+  border-radius: 0 8px 8px 0;
+  pointer-events: none;
+}
+
+/* Each segment: fixed minimum size so name + count + £ never collapse */
 .stage-tile {
-  flex: 1 1 0;
-  min-width: 0;
+  flex: 0 0 auto;
+  min-width: 84px;
+  min-height: 56px;
   display: flex;
   flex-direction: column;
   align-items: flex-start;
   gap: 2px;
-  padding: 8px 6px;
-  border-radius: 10px;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
+  padding: 8px 8px;
+  border-radius: 8px;
+  background: transparent;
+  border: none;
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s, font-weight 0.1s;
+  transition: background 0.15s;
   text-align: left;
   overflow: hidden;
+  position: relative;
 }
+
+/* Internal divider: inset right-edge shadow instead of a real border, so the
+   outer container border stays clean and no divider appears before active segments */
+.stage-tile:not(:last-child) {
+  box-shadow: inset -1px 0 0 var(--border);
+}
+
+/* Active segment gets a solid colour fill + concentric 8px radius (inset from 10px container) */
 .stage-tile--selected {
   background: var(--jp-green);
-  border: 1px solid var(--jp-green);
-  font-weight: 600;
+  box-shadow: none; /* override the inset divider — active tile has no right-border */
 }
+/* No divider after the segment immediately before an active one either —
+   achieved by selecting the preceding sibling via JS class would be complex,
+   so we simply suppress the divider on the active segment itself (above) and
+   accept the left-edge divider of the next tile; it reads cleanly at this size. */
+
+/* ── Inactive text colours ── */
+
 /* Overdue tile: rose accent when unselected */
 .stage-tile--overdue .stage-tile-name,
 .stage-tile--overdue .stage-tile-count,
@@ -3546,16 +3561,19 @@ input[type=number] { -moz-appearance: textfield; }
 .stage-tile--lead .stage-tile-amount {
   color: var(--jp-blue);
 }
-/* Selected tile: near-black on solid green — AA contrast */
+
+/* ── Selected text colours ── */
+
+/* Default selected (Invoiced, On, All — green fill): near-black for contrast */
 .stage-tile--selected .stage-tile-name,
 .stage-tile--selected .stage-tile-count,
 .stage-tile--selected .stage-tile-amount {
   color: #0B1220;
 }
-/* Lead selected: blue fill with white text (mirrors overdue/rose pattern) */
+
+/* Lead selected: blue fill with white text */
 .stage-tile--lead.stage-tile--selected {
   background: var(--jp-blue);
-  border-color: var(--jp-blue);
 }
 .stage-tile--lead.stage-tile--selected .stage-tile-name,
 .stage-tile--lead.stage-tile--selected .stage-tile-count,
@@ -3566,10 +3584,10 @@ input[type=number] { -moz-appearance: textfield; }
   color: #FFFFFF;
   opacity: 0.7;
 }
-/* Overdue selected: rose fill amplifies its own semantic colour */
+
+/* Overdue selected: rose fill */
 .stage-tile--overdue.stage-tile--selected {
   background: var(--jp-rose);
-  border-color: var(--jp-rose);
 }
 .stage-tile--overdue.stage-tile--selected .stage-tile-name,
 .stage-tile--overdue.stage-tile--selected .stage-tile-count,
@@ -3581,42 +3599,30 @@ input[type=number] { -moz-appearance: textfield; }
   opacity: 0.7;
 }
 
-/* Per-stage selected fills — green-family gradient (Quoted → Paid) */
-.stage-tile--quoted.stage-tile--selected {
-  background: var(--grn-quoted);
-  border-color: var(--grn-quoted);
-}
+/* Per-stage selected fills — green-family (Quoted → Paid) */
+.stage-tile--quoted.stage-tile--selected { background: var(--grn-quoted); }
 .stage-tile--quoted.stage-tile--selected .stage-tile-name,
 .stage-tile--quoted.stage-tile--selected .stage-tile-count,
 .stage-tile--quoted.stage-tile--selected .stage-tile-amount {
   color: #0B1220;
 }
 
-.stage-tile--on.stage-tile--selected {
-  background: var(--grn-on);
-  border-color: var(--grn-on);
-}
+.stage-tile--on.stage-tile--selected { background: var(--grn-on); }
 .stage-tile--on.stage-tile--selected .stage-tile-name,
 .stage-tile--on.stage-tile--selected .stage-tile-count,
 .stage-tile--on.stage-tile--selected .stage-tile-amount {
   color: #0B1220;
 }
 
-.stage-tile--invoiced.stage-tile--selected {
-  background: var(--grn-invoiced);
-  border-color: var(--grn-invoiced);
-}
+.stage-tile--invoiced.stage-tile--selected { background: var(--grn-invoiced); }
 .stage-tile--invoiced.stage-tile--selected .stage-tile-name,
 .stage-tile--invoiced.stage-tile--selected .stage-tile-count,
 .stage-tile--invoiced.stage-tile--selected .stage-tile-amount {
   color: #0B1220;
 }
 
-.stage-tile--paid.stage-tile--selected {
-  background: var(--grn-paid);
-  border-color: var(--grn-paid);
-}
 /* Paid is dark enough to need white text */
+.stage-tile--paid.stage-tile--selected { background: var(--grn-paid); }
 .stage-tile--paid.stage-tile--selected .stage-tile-name,
 .stage-tile--paid.stage-tile--selected .stage-tile-count,
 .stage-tile--paid.stage-tile--selected .stage-tile-amount {
@@ -3627,6 +3633,22 @@ input[type=number] { -moz-appearance: textfield; }
   opacity: 0.7;
 }
 
+/* All segment — neutral grey-green when inactive, brand green when selected */
+.stage-tile--all .stage-tile-name,
+.stage-tile--all .stage-tile-count,
+.stage-tile--all .stage-tile-amount {
+  color: var(--text-dim);
+}
+.stage-tile--all.stage-tile--selected {
+  background: var(--jp-green);
+}
+.stage-tile--all.stage-tile--selected .stage-tile-name,
+.stage-tile--all.stage-tile--selected .stage-tile-count,
+.stage-tile--all.stage-tile--selected .stage-tile-amount {
+  color: #0B1220;
+}
+
+/* Tile typography */
 .stage-tile-name {
   font-size: 11px;
   font-weight: 800;
@@ -3656,75 +3678,11 @@ input[type=number] { -moz-appearance: textfield; }
   opacity: 0.5;
   font-weight: 400;
 }
-/* Em-dash readable on solid green fill */
+/* Em-dash on dark-green fill */
 .stage-tile--selected .stage-tile-amount--empty {
   color: #0B1220;
   opacity: 0.65;
 }
-
-/* Connector rail — hidden (Phase 1: selected-tile fill is enough "you are here" signal).
-   The JSX and dot rules below remain so a future A/B can toggle display back on. */
-.stage-rail {
-  display: none;
-  width: 100%;
-  gap: 4px;
-  align-items: center;
-  position: relative;
-  margin: 0 0 14px 0;
-}
-.stage-rail-cell {
-  flex: 1 1 0;
-  min-width: 0;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
-.stage-rail::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 50%;
-  height: 1px;
-  background: var(--border);
-  z-index: 0;
-}
-.stage-rail-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--surface-2);
-  border: 1.5px solid var(--border);
-  position: relative;
-  z-index: 1;
-  flex-shrink: 0;
-  transition: background 0.15s, border-color 0.15s;
-}
-/* Lead/Overdue — hollow ring, filled only when active */
-.stage-rail-dot--overdue {
-  border-color: var(--jp-rose);
-}
-.stage-rail-dot--overdue.stage-rail-dot--active {
-  background: var(--jp-rose);
-  border-color: var(--jp-rose);
-}
-.stage-rail-dot--lead {
-  border-color: var(--jp-blue);
-}
-.stage-rail-dot--lead.stage-rail-dot--active {
-  background: var(--jp-blue);
-  border-color: var(--jp-blue);
-}
-
-/* Green-family stage dots — hollow ring by default, filled only when active */
-.stage-rail-dot--quoted   { border-color: var(--grn-quoted); }
-.stage-rail-dot--on       { border-color: var(--grn-on); }
-.stage-rail-dot--invoiced { border-color: var(--grn-invoiced); }
-.stage-rail-dot--paid     { border-color: var(--grn-paid); }
-.stage-rail-dot--quoted.stage-rail-dot--active   { background: var(--grn-quoted);   border-color: var(--grn-quoted); }
-.stage-rail-dot--on.stage-rail-dot--active       { background: var(--grn-on);       border-color: var(--grn-on); }
-.stage-rail-dot--invoiced.stage-rail-dot--active { background: var(--grn-invoiced); border-color: var(--grn-invoiced); }
-.stage-rail-dot--paid.stage-rail-dot--active     { background: var(--grn-paid);     border-color: var(--grn-paid); }
 
 /* ── Advance Button ───────────────────────────── */
 .job-card-actions {
@@ -4037,6 +3995,8 @@ input[type=number] { -moz-appearance: textfield; }
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
+  /* Brand-green ring — 2px gap then 2px ring */
+  box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--jp-green);
 }
 .settings-identity-text { flex: 1; min-width: 0; }
 .settings-identity-name {
@@ -4094,17 +4054,20 @@ input[type=number] { -moz-appearance: textfield; }
 .settings-card {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: 16px;
   overflow: hidden;
+  box-shadow: 0 1px 0 rgba(0,0,0,0.25);
 }
 
 .settings-row {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 14px 16px;
+  padding: 16px 16px;
   border: none;
-  border-bottom: 1px solid var(--border);
+  /* Inset divider: starts at 16px from left so it doesn't touch the card edge */
+  box-shadow: inset 0 -1px 0 0 var(--border);
+  margin-left: 0;
   background: none;
   width: 100%;
   cursor: pointer;
@@ -4112,14 +4075,14 @@ input[type=number] { -moz-appearance: textfield; }
   color: var(--text);
   transition: background 0.1s;
 }
-.settings-row:last-child { border-bottom: none; }
+.settings-row:last-child { box-shadow: none; }
 .settings-row:not(:disabled):hover { background: var(--surface-2); }
 .settings-row--passive { cursor: default; }
 .settings-row--danger .settings-row-label { color: var(--jp-rose); }
 
 .settings-row-label {
   font-size: 15px;
-  font-weight: 500;
+  font-weight: 600;
 }
 .settings-row-right {
   display: flex;
@@ -4140,10 +4103,12 @@ input[type=number] { -moz-appearance: textfield; }
   color: var(--text-dim);
   font-style: italic;
 }
+/* Chevron: smaller + dimmer — recedes behind the label */
 .settings-row-chevron {
-  font-size: 18px;
+  font-size: 16px;
   color: var(--text-dim);
   line-height: 1;
+  opacity: 0.65;
 }
 
 /* ── Chase list modal (Settings → Chase reminders) ───────────────────────── */

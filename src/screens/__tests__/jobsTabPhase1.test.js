@@ -181,11 +181,12 @@ describe('sortJobsByStage', () => {
   });
 });
 
-// ─── Stage-change clears search (fix/search-clears-on-tab-change) ─────────────
+// ─── Stage-change clears search (feat/unified-stage-control) ──────────────────
 //
-// The WorkScreen handlers handleSelectStage and handleToggleShowAll both call
-// setSearchQuery('') before updating the stage/showAll state.  These tests model
-// that state machine as a plain reducer to keep them framework-free.
+// WorkScreen handlers: handleSelectStage and handleSelectAll.
+// handleSelectStage: sets a real stage, sets showAll=false, clears query.
+// handleSelectAll:   sets showAll=true, clears query (idempotent — no toggle).
+// These tests model that state machine as a plain reducer to keep them framework-free.
 
 function makeState(overrides = {}) {
   return { searchQuery: '', selectedStage: 'On', showAll: false, ...overrides };
@@ -196,9 +197,9 @@ function selectStage(state, stage) {
   return { ...state, selectedStage: stage, showAll: false, searchQuery: '' };
 }
 
-// Mirrors handleToggleShowAll: clears query, toggles showAll.
-function toggleShowAll(state) {
-  return { ...state, searchQuery: '', showAll: !state.showAll };
+// Mirrors handleSelectAll: always activates All view, clears query.
+function selectAll(state) {
+  return { ...state, searchQuery: '', showAll: true };
 }
 
 describe('stage-change clears search query', () => {
@@ -221,16 +222,24 @@ describe('stage-change clears search query', () => {
     expect(after.searchQuery).toBe('');
   });
 
-  it('toggling Show-all clears an active search query', () => {
+  it('tapping the All segment sets showAll=true and clears the search query', () => {
     const before = makeState({ searchQuery: 'dave', showAll: false });
-    const after = toggleShowAll(before);
+    const after = selectAll(before);
     expect(after.searchQuery).toBe('');
+    expect(after.showAll).toBe(true);
   });
 
-  it('toggling Show-all flips the showAll flag', () => {
-    const before = makeState({ showAll: false });
-    expect(toggleShowAll(before).showAll).toBe(true);
-    expect(toggleShowAll(toggleShowAll(before)).showAll).toBe(false);
+  it('tapping the All segment when already in All view stays in All view (idempotent)', () => {
+    const before = makeState({ showAll: true });
+    const after = selectAll(before);
+    expect(after.showAll).toBe(true);
+  });
+
+  it('tapping a real stage after All exits All mode', () => {
+    const before = makeState({ showAll: true, selectedStage: 'Lead' });
+    const after = selectStage(before, 'On');
+    expect(after.showAll).toBe(false);
+    expect(after.selectedStage).toBe('On');
   });
 
   it('selecting the already-active stage still clears the query', () => {
