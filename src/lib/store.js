@@ -549,13 +549,16 @@ export async function uploadJobPhoto(blob, jobId, filename) {
  * Updates the `meta` jsonb column on a jobs row, and simultaneously keeps the
  * `line_items` column in sync when `metaObject.lineItems` is present.
  *
- * This is fire-and-forget from the caller's perspective — `writeJobMeta` in
- * jobMeta.js calls this without await after the localStorage write succeeds.
+ * This is fire-and-forget from the caller's perspective — `syncMetaToCloud` in
+ * AppShell.jsx calls this without await after the localStorage write succeeds.
  *
- * Offline / no-auth handling: if the Supabase client is not authenticated or
- * the network is unavailable, returns `{ ok: false, error: 'offline' }` without
- * throwing. The localStorage write already happened; the next successful online
- * write for this job will sync the meta column.
+ * Offline / no-auth handling: if the network is unavailable or auth fails,
+ * the update is enqueued in IndexedDB via enqueueMetaUpdate() so it is
+ * retried automatically when the device comes back online (wireOnlineSync /
+ * runSync). The localStorage write already happened so local state is correct.
+ *
+ * Idempotency: the cloud write is UPDATE SET meta=$1 — replaying the same
+ * meta snapshot twice is safe (last-write-wins, same value).
  *
  * @param {string} jobId       – Supabase UUID for the job row
  * @param {object} metaObject  – the full meta object from extractJobMeta()
@@ -568,10 +571,15 @@ export async function updateJobMetaInCloud(jobId, metaObject) {
   try {
     user_id = await getUserId();
   } catch {
+    // Auth unavailable — enqueue and return
+    await _enqueueMetaFallback(jobId, metaObject);
     return { ok: false, error: 'offline' };
   }
 
-  if (!user_id) return { ok: false, error: 'offline' };
+  if (!user_id) {
+    await _enqueueMetaFallback(jobId, metaObject);
+    return { ok: false, error: 'offline' };
+  }
 
   // Build the UPDATE payload. Always write meta. When lineItems is present,
   // also keep the legacy line_items column in sync (Alan's decision #4).
@@ -588,13 +596,31 @@ export async function updateJobMetaInCloud(jobId, metaObject) {
 
     if (error) {
       console.warn('updateJobMetaInCloud failed', jobId, error);
+      // Non-network Supabase error (e.g. schema mismatch) — do not queue;
+      // retrying won't help. Return the error so callers can log it.
       return { ok: false, error: error.message };
     }
     return { ok: true };
   } catch (err) {
-    // Network-level failure — localStorage is the durable copy until next sync
-    console.warn('updateJobMetaInCloud network error', jobId, err?.message);
+    // Network-level failure — enqueue so the update survives the session.
+    console.warn('updateJobMetaInCloud network error — queuing', jobId, err?.message);
+    await _enqueueMetaFallback(jobId, metaObject);
     return { ok: false, error: 'offline' };
+  }
+}
+
+/**
+ * Enqueues a meta update in IndexedDB for retry on reconnect.
+ * Imported lazily to avoid a circular dependency at module load time
+ * (offlineQueue imports store, so store must not import offlineQueue at the
+ * top level).
+ */
+async function _enqueueMetaFallback(jobId, metaObject) {
+  try {
+    const { enqueueMetaUpdate } = await import('./offlineQueue.js');
+    await enqueueMetaUpdate(jobId, metaObject);
+  } catch (qErr) {
+    console.warn('_enqueueMetaFallback failed (IndexedDB unavailable?)', qErr?.message);
   }
 }
 

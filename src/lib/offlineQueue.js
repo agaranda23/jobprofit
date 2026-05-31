@@ -7,7 +7,14 @@
 //   (c) explicit user tap on the SyncBadge
 //
 // Storage: raw IndexedDB — no external dependency.
-// DB name: 'jp-offline-queue', object store: 'jobs', keyPath: 'id'
+// DB name: 'jp-offline-queue'
+// Object stores:
+//   'jobs'         — keyPath: 'id'       — new-job inserts (pre-existing)
+//   'meta-updates' — keyPath: 'jobId'    — meta UPDATE writes (added v2)
+//                    One row per jobId; a second enqueueMetaUpdate for the
+//                    same job REPLACES the earlier row (coalesce to latest).
+//                    Conflict policy: last-write-wins, matching the existing
+//                    cloud meta merge behaviour. True merge is out of scope.
 //
 // IMPORTANT: Chase pipeline reads from synced cloud state only. Jobs sitting
 // in this queue must not trigger chase reminders. The queue writes the row
@@ -16,8 +23,9 @@
 // never appear there, so the constraint is structurally guaranteed.
 
 const DB_NAME    = 'jp-offline-queue';
-const DB_VERSION = 1;
+const DB_VERSION = 2;          // bumped from 1 → 2 to add meta-updates store
 const STORE_NAME = 'jobs';
+const META_STORE = 'meta-updates';
 
 let _db = null;
 
@@ -30,6 +38,10 @@ function openDB() {
       if (!db.objectStoreNames.contains(STORE_NAME)) {
         db.createObjectStore(STORE_NAME, { keyPath: 'id' });
       }
+      // v2: meta-updates store — keyPath 'jobId' gives free coalescing
+      if (!db.objectStoreNames.contains(META_STORE)) {
+        db.createObjectStore(META_STORE, { keyPath: 'jobId' });
+      }
     };
     req.onsuccess  = (e) => { _db = e.target.result; resolve(_db); };
     req.onerror    = (e) => reject(e.target.error);
@@ -41,7 +53,7 @@ function openDB() {
 const _subscribers = new Set();
 
 function _notify() {
-  getQueueLength().then(n => {
+  getTotalQueueLength().then(n => {
     _subscribers.forEach(cb => {
       try { cb(n); } catch {}
     });
@@ -49,13 +61,13 @@ function _notify() {
 }
 
 /**
- * Subscribe to queue-length changes.
+ * Subscribe to queue-length changes (new-job queue + meta-update queue combined).
  * Returns an unsubscribe function.
  */
 export function subscribe(callback) {
   _subscribers.add(callback);
   // Fire immediately with the current count so callers can initialise.
-  getQueueLength().then(n => {
+  getTotalQueueLength().then(n => {
     try { callback(n); } catch {}
   });
   return () => _subscribers.delete(callback);
@@ -92,7 +104,7 @@ export function subscribeToErrorState(callback) {
 }
 
 /**
- * Removes a single entry from the queue by id (user-initiated discard).
+ * Removes a single new-job entry from the queue by id (user-initiated discard).
  * Does NOT attempt a cloud write — the entry is silently dropped.
  */
 export async function discardEntry(id) {
@@ -111,10 +123,10 @@ export async function discardEntry(id) {
   _notifyErrorState();
 }
 
-// ─── Read ─────────────────────────────────────────────────────────────────────
+// ─── Read — new-job queue ─────────────────────────────────────────────────────
 
 /**
- * Returns all pending job rows.
+ * Returns all pending new-job rows.
  * Each row is the original payload passed to enqueueJob(), plus
  * a `_queuedAt` timestamp (ms).
  */
@@ -129,7 +141,7 @@ export async function getPending() {
   });
 }
 
-/** Returns the number of rows currently queued. */
+/** Returns the number of new-job rows currently queued. */
 export async function getQueueLength() {
   const db = await openDB();
   return new Promise((resolve, reject) => {
@@ -141,10 +153,48 @@ export async function getQueueLength() {
   });
 }
 
-// ─── Write ────────────────────────────────────────────────────────────────────
+// ─── Read — meta-update queue ─────────────────────────────────────────────────
 
 /**
- * Adds a job payload to the queue.
+ * Returns all pending meta-update rows.
+ * Shape: { jobId, meta, _queuedAt }
+ */
+export async function getPendingMetaUpdates() {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx    = db.transaction(META_STORE, 'readonly');
+    const store = tx.objectStore(META_STORE);
+    const req   = store.getAll();
+    req.onsuccess = () => resolve(req.result || []);
+    req.onerror   = (e) => reject(e.target.error);
+  });
+}
+
+/** Returns the number of pending meta-update rows. */
+export async function getMetaQueueLength() {
+  const db = await openDB();
+  return new Promise((resolve, reject) => {
+    const tx    = db.transaction(META_STORE, 'readonly');
+    const store = tx.objectStore(META_STORE);
+    const req   = store.count();
+    req.onsuccess = () => resolve(req.result);
+    req.onerror   = (e) => reject(e.target.error);
+  });
+}
+
+/**
+ * Combined count across both queues. Used by subscribe() so SyncBadge reflects
+ * ALL pending writes (new jobs + meta updates), not just new jobs.
+ */
+export async function getTotalQueueLength() {
+  const [jobs, meta] = await Promise.all([getQueueLength(), getMetaQueueLength()]);
+  return jobs + meta;
+}
+
+// ─── Write — new-job queue ────────────────────────────────────────────────────
+
+/**
+ * Adds a job payload to the new-job queue.
  * `jobRow.id` must be a UUID string (client-generated by addJobToCloud).
  */
 export async function enqueueJob(jobRow) {
@@ -161,7 +211,7 @@ export async function enqueueJob(jobRow) {
 }
 
 /**
- * Removes a row from the queue after a successful Supabase write.
+ * Removes a new-job row from the queue after a successful Supabase write.
  */
 export async function markSynced(id) {
   const db = await openDB();
@@ -169,6 +219,48 @@ export async function markSynced(id) {
     const tx    = db.transaction(STORE_NAME, 'readwrite');
     const store = tx.objectStore(STORE_NAME);
     const req   = store.delete(id);
+    req.onsuccess = () => resolve();
+    req.onerror   = (e) => reject(e.target.error);
+  });
+  _notify();
+}
+
+// ─── Write — meta-update queue ────────────────────────────────────────────────
+
+/**
+ * Enqueues a meta UPDATE for an existing job.
+ *
+ * Coalesces automatically: the IDB keyPath is 'jobId', so calling this twice
+ * for the same job replaces the first row with the latest meta object.
+ * This is safe because meta writes are always a full snapshot (not a patch),
+ * so the most recent enqueue is a strict superset of any earlier one.
+ *
+ * @param {string} jobId      – Supabase UUID of the job row
+ * @param {object} metaObject – the full meta snapshot from extractJobMeta()
+ */
+export async function enqueueMetaUpdate(jobId, metaObject) {
+  if (!jobId || !metaObject) throw new Error('enqueueMetaUpdate: jobId and metaObject are required');
+  const db = await openDB();
+  await new Promise((resolve, reject) => {
+    const tx    = db.transaction(META_STORE, 'readwrite');
+    const store = tx.objectStore(META_STORE);
+    // put() replaces any existing row with the same jobId — free coalescing.
+    const req   = store.put({ jobId, meta: metaObject, _queuedAt: Date.now() });
+    req.onsuccess = () => resolve();
+    req.onerror   = (e) => reject(e.target.error);
+  });
+  _notify();
+}
+
+/**
+ * Removes a meta-update row after a successful Supabase write.
+ */
+export async function markMetaSynced(jobId) {
+  const db = await openDB();
+  await new Promise((resolve, reject) => {
+    const tx    = db.transaction(META_STORE, 'readwrite');
+    const store = tx.objectStore(META_STORE);
+    const req   = store.delete(jobId);
     req.onsuccess = () => resolve();
     req.onerror   = (e) => reject(e.target.error);
   });
@@ -195,21 +287,66 @@ function _setSyncing(val) {
 }
 
 /**
- * Attempts to flush all pending rows to Supabase.
+ * Flushes all pending meta-update rows to Supabase.
+ * Called from runSync() — do not call directly.
+ *
+ * Returns { synced, failed } counts for meta rows only.
+ */
+async function runMetaSync() {
+  const pending = await getPendingMetaUpdates();
+  if (pending.length === 0) return { synced: 0, failed: 0 };
+
+  // Dynamic import avoids circular dep: store -> offlineQueue -> store
+  const { updateJobMetaInCloud } = await import('./store.js');
+
+  let synced = 0;
+  let failed = 0;
+
+  for (const row of pending) {
+    try {
+      const result = await updateJobMetaInCloud(row.jobId, row.meta);
+      if (result.ok) {
+        await markMetaSynced(row.jobId);
+        synced++;
+      } else if (result.error === 'offline') {
+        // Still offline — leave the row, will retry on next runSync
+        failed++;
+      } else {
+        // Supabase returned a non-network error (e.g. RLS violation).
+        // Log it and drain the entry to avoid permanent stuck badge.
+        console.warn('Offline meta sync: non-retryable error for', row.jobId, result.error);
+        await markMetaSynced(row.jobId).catch(() => {});
+        synced++;
+      }
+    } catch (err) {
+      console.warn('Offline meta sync failed for job', row.jobId, err);
+      _lastError = err;
+      failed++;
+    }
+  }
+
+  return { synced, failed };
+}
+
+/**
+ * Attempts to flush all pending rows (new jobs + meta updates) to Supabase.
  * Imported lazily inside this function to avoid a circular dependency
  * (store.js imports nothing from here; we import addJobToCloud at call time).
  *
- * Returns { synced, failed } counts.
+ * Returns { synced, failed } counts (combined across both queues).
  */
 export async function runSync() {
   if (_syncing) return { synced: 0, failed: 0 };
-  const pending = await getPending();
-  if (pending.length === 0) return { synced: 0, failed: 0 };
+  const [jobCount, metaCount] = await Promise.all([getQueueLength(), getMetaQueueLength()]);
+  if (jobCount === 0 && metaCount === 0) return { synced: 0, failed: 0 };
 
   _setSyncing(true);
   _lastAttemptAt = Date.now();
   let synced = 0;
   let failed = 0;
+
+  // ── 1. Flush new-job inserts ──────────────────────────────────────────────
+  const pending = await getPending();
 
   // Dynamic import avoids circular dep: store -> offlineQueue -> store
   const { addJobToCloud } = await import('./store.js');
@@ -241,6 +378,11 @@ export async function runSync() {
       }
     }
   }
+
+  // ── 2. Flush meta updates ─────────────────────────────────────────────────
+  const metaResult = await runMetaSync();
+  synced += metaResult.synced;
+  failed += metaResult.failed;
 
   // Clear lastError if everything drained successfully.
   if (failed === 0) _lastError = null;
