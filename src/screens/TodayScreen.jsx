@@ -22,6 +22,7 @@
 
 import { useState, useMemo, useCallback } from 'react';
 import AddJobModal from '../components/AddJobModal';
+import ReviewSheet from '../components/ReviewSheet';
 import { gbp, todayKey, formatToday } from '../lib/today';
 import { isAwaitingPayment, deriveStatus } from '../lib/jobStatus';
 import { daysPastDue, getChaseState, recordChase, buildChaseMessage, computeTier, buildPaymentDetails } from '../lib/chaseLadder';
@@ -200,6 +201,7 @@ export default function TodayScreen({
   jobs = [],
   receipts = [],
   onAddJob,
+  onUpdateJob,
   onOpenDetailed,
   onMarkPaid,
   onJobTap,
@@ -207,6 +209,12 @@ export default function TodayScreen({
   profile,
 }) {
   const [jobOpen, setJobOpen] = useState(false);
+  // jobOpenMode: 'normal' | 'voice' — controls defaultMode prop on AddJobModal.
+  // 'voice' bypasses the micro keypad and starts listening immediately.
+  const [jobOpenMode, setJobOpenMode] = useState('normal');
+  // reviewQuoteJob: when set, opens ReviewSheet in quote mode immediately after
+  // a voice "Save & send quote" action. Cleared when the sheet closes.
+  const [reviewQuoteJob, setReviewQuoteJob] = useState(null);
   const [toast, setToast] = useState('');
   // rankVersion bumps after Mark paid / Snooze to force re-rank without a full re-fetch
   const [rankVersion, setRankVersion] = useState(0);
@@ -224,8 +232,19 @@ export default function TodayScreen({
 
   const handleJobSave = async (payload) => {
     setJobOpen(false);
+    setJobOpenMode('normal');
     showToast('Job saved');
     try { await onAddJob?.(payload); } catch { showToast('Saved offline — will sync'); }
+  };
+
+  // "Save & send quote" from voice confirm state.
+  // Saves the job first, then immediately opens ReviewSheet in quote mode.
+  // onUpdateJob is used by ReviewSheet to persist quoteSentAt/quoteStatus patches.
+  const handleSaveAndSend = async (payload) => {
+    setJobOpen(false);
+    setJobOpenMode('normal');
+    try { await onAddJob?.(payload); } catch {}
+    setReviewQuoteJob(payload);
   };
 
   // ── Ranking (re-runs on jobs or rankVersion change) ──────────────────────────
@@ -510,6 +529,14 @@ export default function TodayScreen({
         <button
           type="button"
           className="foreman-pivot-btn"
+          onClick={() => { setJobOpenMode('voice'); setJobOpen(true); }}
+        >
+          <span className="foreman-pivot-icon" aria-hidden="true">&#127908;</span>
+          New quote
+        </button>
+        <button
+          type="button"
+          className="foreman-pivot-btn"
           onClick={handleSendInvoicePivot}
         >
           <span className="foreman-pivot-icon" aria-hidden="true">+</span>
@@ -573,9 +600,25 @@ export default function TodayScreen({
       {/* ── Modals ──────────────────────────────────────────────────────────── */}
       {jobOpen && (
         <AddJobModal
-          onClose={() => setJobOpen(false)}
+          onClose={() => { setJobOpen(false); setJobOpenMode('normal'); }}
           onSave={handleJobSave}
           onOpenDetailed={onOpenDetailed}
+          defaultMode={jobOpenMode === 'voice' ? 'voice' : undefined}
+          onSaveAndSend={handleSaveAndSend}
+        />
+      )}
+
+      {/* ReviewSheet — opened immediately after "Save & send quote" from voice confirm. */}
+      {reviewQuoteJob && (
+        <ReviewSheet
+          mode="quote"
+          job={reviewQuoteJob}
+          biz={{ name: profile?.business_name || '' }}
+          jobs={jobs}
+          onUpdate={(updatedJob) => { onUpdateJob?.(updatedJob); setReviewQuoteJob(null); }}
+          onClose={() => setReviewQuoteJob(null)}
+          onDismiss={() => setReviewQuoteJob(null)}
+          flash={showToast}
         />
       )}
 
