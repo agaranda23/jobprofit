@@ -221,6 +221,50 @@ function NotificationsSection({ session }) {
   );
 }
 
+// ── WeeklyDigestRow ───────────────────────────────────────────────────────────
+// Bound to profiles.weekly_digest_enabled (boolean, default true).
+// The column is added by supabase/migrations/20260531100000_add_weekly_digest_enabled.sql.
+// The push itself is a no-op until VAPID keys are set in Netlify env (founder action).
+
+function WeeklyDigestRow({ session, profile, onProfileUpdate }) {
+  // Derive initial state from profile; treat null/undefined as true (opt-out default)
+  const [enabled, setEnabled] = useState(
+    () => profile?.weekly_digest_enabled !== false
+  );
+  const [working, setWorking] = useState(false);
+
+  // Keep in sync if the parent profile reloads (e.g. after a save elsewhere)
+  useEffect(() => {
+    setEnabled(profile?.weekly_digest_enabled !== false);
+  }, [profile?.weekly_digest_enabled]);
+
+  const handleToggle = async () => {
+    if (working) return;
+    const next = !enabled;
+    setEnabled(next); // optimistic
+    setWorking(true);
+    try {
+      await onProfileUpdate({ weekly_digest_enabled: next });
+    } catch {
+      setEnabled(!next); // revert on failure
+    } finally {
+      setWorking(false);
+    }
+  };
+
+  // Only meaningful when push is supported and user is subscribed
+  if (!isPushSupported()) return null;
+
+  return (
+    <Row
+      label="Weekly profit digest"
+      value={working ? 'Updating…' : enabled ? 'On' : 'Off'}
+      onTap={handleToggle}
+      chevron={false}
+    />
+  );
+}
+
 // ── Voice language picker ─────────────────────────────────────────────────────
 
 const VOICE_LANGS = [
@@ -1101,7 +1145,11 @@ export default function SettingsScreen({
           chevron
           onTap={() => setShowChaseList(true)}
         />
-        <PlaceholderRow label="Weekly profit digest" />
+        <WeeklyDigestRow
+          session={session}
+          profile={profile}
+          onProfileUpdate={onProfileUpdate}
+        />
       </SectionCard>
 
 
