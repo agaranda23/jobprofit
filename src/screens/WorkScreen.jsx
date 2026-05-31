@@ -1319,6 +1319,7 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
           intent={drawerIntent}
           targetStage={drawerTargetStage}
           onClearIntent={() => { setDrawerIntent(null); setDrawerTargetStage(null); }}
+          onViewReceipt={setReceiptJob}
         />
       )}
 

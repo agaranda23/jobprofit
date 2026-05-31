@@ -1290,6 +1290,10 @@ export default function JobDetailDrawer({
   intent = null,
   targetStage = null,
   onClearIntent,
+  // Opens the shared ReceiptModal in WorkScreen for paid jobs.
+  // Kept as an optional prop so the drawer degrades gracefully if
+  // a parent doesn't wire it (e.g. TodayScreen).
+  onViewReceipt,
 }) {
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
@@ -2267,7 +2271,24 @@ export default function JobDetailDrawer({
               if (id === 'profit') continue;
 
               if (id === 'payment') {
-                if (display === 'expanded') rendered.push(<React.Fragment key="payment">{paymentEl}</React.Fragment>);
+                if (display === 'expanded') {
+                  rendered.push(<React.Fragment key="payment">{paymentEl}</React.Fragment>);
+                  // "View receipt" — shown only on paid jobs when the parent provides the handler.
+                  // Fires the same ReceiptModal used by the tile-CTA path (no duplicate logic).
+                  if (isPaid && onViewReceipt) {
+                    rendered.push(
+                      <div key="view-receipt-btn" className="jd-view-receipt-wrap">
+                        <button
+                          type="button"
+                          className="jd-view-receipt-btn"
+                          onClick={() => onViewReceipt(job)}
+                        >
+                          View receipt
+                        </button>
+                      </div>
+                    );
+                  }
+                }
                 continue;
               }
 

@@ -4997,6 +4997,33 @@ input[type=number] { -moz-appearance: textfield; }
 }
 .jd-receipt-delete-btn:active { background: var(--surface-2, var(--surface)); }
 
+/* ── View receipt (paid jobs) ── */
+
+.jd-view-receipt-wrap {
+  padding: 12px 16px 4px;
+}
+
+.jd-view-receipt-btn {
+  display: block;
+  width: 100%;
+  padding: 13px 16px;
+  background: var(--surface-2, #1e1e1e);
+  color: var(--text-dim, #aaa);
+  border: 1px solid var(--border, #333);
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 500;
+  text-align: center;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  min-height: 44px;
+}
+
+.jd-view-receipt-btn:active {
+  background: var(--surface-3, #2a2a2a);
+  color: var(--text, #fff);
+}
+
 /* ── Photos ── */
 
 .jd-photos-grid {

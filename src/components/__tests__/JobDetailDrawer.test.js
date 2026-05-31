@@ -1241,3 +1241,55 @@ describe('DetailsSection — phone/email row visibility with edit mode', () => {
     expect(v.showPhone).toBe(true);
   });
 });
+
+// ── View receipt button — show condition ─────────────────────────────────────
+//
+// Mirrors the isPaid + onViewReceipt gate in JobDetailDrawer's payment-section
+// render block. Tested as pure-logic excerpt — no DOM mount required.
+//
+// isPaid mirrors JobDetailDrawer line ~1843:
+//   job.paid === true || job.paymentStatus === 'paid' ||
+//   job.jobStatus === 'paid' || job.status === 'paid'
+
+function isPaidJob(job) {
+  return (
+    job.paid === true ||
+    job.paymentStatus === 'paid' ||
+    job.jobStatus === 'paid' ||
+    job.status === 'paid'
+  );
+}
+
+function showViewReceiptBtn(job, hasHandler) {
+  return isPaidJob(job) && hasHandler;
+}
+
+describe('View receipt button — show condition', () => {
+  it('shows when job is paid via job.paid and handler is provided', () => {
+    expect(showViewReceiptBtn({ paid: true }, true)).toBe(true);
+  });
+
+  it('shows when job.status is paid and handler is provided', () => {
+    expect(showViewReceiptBtn({ status: 'paid' }, true)).toBe(true);
+  });
+
+  it('shows when job.paymentStatus is paid and handler is provided', () => {
+    expect(showViewReceiptBtn({ paymentStatus: 'paid' }, true)).toBe(true);
+  });
+
+  it('shows when job.jobStatus is paid and handler is provided', () => {
+    expect(showViewReceiptBtn({ jobStatus: 'paid' }, true)).toBe(true);
+  });
+
+  it('hides when job is paid but no handler is provided (parent did not wire it)', () => {
+    expect(showViewReceiptBtn({ paid: true }, false)).toBe(false);
+  });
+
+  it('hides when handler is provided but job is not paid', () => {
+    expect(showViewReceiptBtn({ paid: false, status: 'invoice_sent' }, true)).toBe(false);
+  });
+
+  it('hides when both job is unpaid and handler is absent', () => {
+    expect(showViewReceiptBtn({ paid: false }, false)).toBe(false);
+  });
+});
