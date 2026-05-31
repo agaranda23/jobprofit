@@ -3480,10 +3480,10 @@ input[type=number] { -moz-appearance: textfield; }
 /* Outer wrap carries the bottom gap to the controls row beneath */
 .stage-strip-wrap {
   margin-bottom: 10px;
-  position: relative;
 }
 
-/* The unified bar: one rounded container, horizontally scrollable, hidden scrollbar.
+/* The unified bar: one rounded container, fixed full-width — all 7 segments share
+   the available width equally so nothing scrolls and there is no trailing gap.
    Mirrors the .work-segments recipe so the two controls read as siblings. */
 .stage-strip {
   display: flex;
@@ -3492,41 +3492,25 @@ input[type=number] { -moz-appearance: textfield; }
   border: 1px solid var(--border);
   border-radius: 10px;
   padding: 3px;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-}
-.stage-strip::-webkit-scrollbar { display: none; }
-
-/* Subtle right-edge fade hint — shows when content overflows */
-.stage-strip-wrap::after {
-  content: '';
-  position: absolute;
-  top: 3px;
-  right: 3px;
-  bottom: 3px;
-  width: 28px;
-  background: linear-gradient(to right, transparent, var(--surface-2));
-  border-radius: 0 8px 8px 0;
-  pointer-events: none;
+  overflow: hidden; /* clip concentric corners; no scroll */
 }
 
-/* Each segment: fixed minimum size so name + count + £ never collapse */
+/* Each segment: equal share of the strip width, no minimum that would force scroll */
 .stage-tile {
-  flex: 0 0 auto;
-  min-width: 84px;
+  flex: 1 1 0;
+  min-width: 0;
   min-height: 56px;
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-  padding: 8px 8px;
+  align-items: center;
+  gap: 1px;
+  padding: 7px 2px;
   border-radius: 8px;
   background: transparent;
   border: none;
   cursor: pointer;
   transition: background 0.15s;
-  text-align: left;
+  text-align: center;
   overflow: hidden;
   position: relative;
 }
@@ -3648,22 +3632,31 @@ input[type=number] { -moz-appearance: textfield; }
   color: #0B1220;
 }
 
-/* Tile typography */
+/* Tile typography — tuned for ~50px cells at 360px viewport (7 equal segments).
+   Name uses tight letter-spacing + clipping so INVOICED never overflows. */
 .stage-tile-name {
-  font-size: 11px;
+  font-size: 8.5px;
   font-weight: 800;
-  letter-spacing: 0.1em;
+  letter-spacing: 0.04em;
   color: var(--text-dim);
   line-height: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: clip;
+  max-width: 100%;
 }
 .stage-tile-count {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
   color: var(--text);
   line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
 }
 .stage-tile-amount {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--text-dim);
   line-height: 1.2;

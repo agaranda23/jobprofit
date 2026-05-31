@@ -1,9 +1,9 @@
 /**
- * StageStrip — horizontal scrollable unified segmented-control for the Work tab.
+ * StageStrip — fixed-width unified segmented-control for the Work tab.
  *
  * Renders an "All" segment first, then one segment per stage
  * (Lead · Quoted · On · Invoiced · Overdue · Paid) with count and total £.
- * All segments live inside a single rounded container (one visual object).
+ * All 7 segments share the strip width equally — no horizontal scroll.
  * Active segment gets a solid fill in its own semantic colour.
  *
  * Extracted from WorkScreen.jsx (PR: polish/jobs-pipeline-stage-strip).
@@ -73,14 +73,15 @@ export default function StageStrip({ jobs, selectedStage, showAll, onSelectStage
     allTotal += Number(j.total ?? j.amount ?? 0) || 0;
   }
 
-  // Auto-scroll active tile into view when selection changes.
-  // "All" uses the key 'All'; stage keys match STAGES.
+  // Auto-scroll active tile into view — guarded: only fires if the strip actually
+  // overflows (it won't with flex:1 equal segments, but keeps the effect harmless
+  // in any edge case where the container is unexpectedly too narrow).
   useEffect(() => {
+    const strip = scrollRef.current;
+    if (!strip || strip.scrollWidth <= strip.clientWidth) return;
     const key = showAll ? 'All' : selectedStage;
     const el = tileRefs.current[key];
-    if (el && scrollRef.current) {
-      el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
-    }
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' });
   }, [selectedStage, showAll]);
 
   const allAmountText = allTotal > 0 ? '£' + formatAmount(allTotal) : '—';
