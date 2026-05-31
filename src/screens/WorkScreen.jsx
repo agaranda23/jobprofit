@@ -742,11 +742,29 @@ function JobTile({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJo
   const partPaid = shouldShowPartPaidChip(job, stage);
   const partPaidLabel = partPaid ? formatPartPaidLabel(job) : null;
 
+  // Card-paid signal — card_paid_at is set by the stripe-connect-webhook when
+  // a customer pays by card. Shown on Paid tiles instead of the generic "Cleared"
+  // money sub-line. Brief Section 2.4: "Paid by card · <time>" subtitle.
+  const isCardPaid = isPaid && !!job.card_paid_at;
+  let cardPaidLabel = null;
+  if (isCardPaid) {
+    try {
+      const d = new Date(job.card_paid_at);
+      const time = d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: true });
+      cardPaidLabel = `Paid by card · ${time}`;
+    } catch {
+      cardPaidLabel = 'Paid by card';
+    }
+  }
+
   // Build signal line items in priority order (1D).
-  // Priority: accepted-quote > part-paid > draft-ready > urgent/overdue time > generic signals.
+  // Priority: card-paid > accepted-quote > part-paid > draft-ready > urgent/overdue time > generic signals.
   // We collect all candidates then show only the SINGLE highest-priority one.
   // Photo/note counts move to the drawer (removed from tile per 1D spec).
   const signalCandidates = [];
+  if (cardPaidLabel) {
+    signalCandidates.push({ text: cardPaidLabel, cls: 'jt-signal--ok' });
+  }
   if (isAccepted) {
     const acceptedText = acceptedByName ? `Accepted by ${acceptedByName}` : 'Quote accepted';
     signalCandidates.push({ text: acceptedText, cls: 'jt-signal--accepted' });
