@@ -46,6 +46,7 @@ function fmtDate(raw) {
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const ACCEPT_QUOTE_URL = '/.netlify/functions/accept-quote';
+const TRACK_OPEN_URL = '/.netlify/functions/track-quote-open';
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
@@ -308,6 +309,13 @@ export default function PublicQuoteView({ token }) {
           setFetchState({ status: 'error', job: null, errorMsg: 'Quote not found. The link may have expired or been removed.' });
         } else {
           setFetchState({ status: 'ok', job: result, errorMsg: '' });
+          // Fire-and-forget open-tracking. Silently swallowed — the page renders
+          // regardless of whether the tracking call succeeds or the token is stale.
+          fetch(TRACK_OPEN_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ token }),
+          }).catch(() => { /* non-blocking — tracking must never break the view */ });
         }
       } catch {
         if (!cancelled) {
