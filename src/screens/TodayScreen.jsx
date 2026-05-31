@@ -209,8 +209,9 @@ export default function TodayScreen({
   profile,
 }) {
   const [jobOpen, setJobOpen] = useState(false);
-  // jobOpenMode: 'normal' | 'voice' — controls defaultMode prop on AddJobModal.
-  // 'voice' bypasses the micro keypad and starts listening immediately.
+  // jobOpenMode: 'normal' | 'quote' — controls defaultMode prop on AddJobModal.
+  // 'quote' opens the create-quote surface (voice-first, both voice and type supported).
+  // 'normal' opens the micro-log keypad.
   const [jobOpenMode, setJobOpenMode] = useState('normal');
   // reviewQuoteJob: when set, opens ReviewSheet in quote mode immediately after
   // a voice "Save & send quote" action. Cleared when the sheet closes.
@@ -233,13 +234,17 @@ export default function TodayScreen({
   const handleJobSave = async (payload) => {
     setJobOpen(false);
     setJobOpenMode('normal');
-    showToast('Job saved');
+    // A quote saved as draft shows a specific message so the tradesperson knows
+    // it landed in the pipeline and can be sent later.
+    const isDraftQuote = payload?.quoteStatus === 'draft';
+    showToast(isDraftQuote ? 'Quote saved as draft' : 'Job saved');
     try { await onAddJob?.(payload); } catch { showToast('Saved offline — will sync'); }
   };
 
-  // "Save & send quote" from voice confirm state.
-  // Saves the job first, then immediately opens ReviewSheet in quote mode.
-  // onUpdateJob is used by ReviewSheet to persist quoteSentAt/quoteStatus patches.
+  // "Save & send quote" — saves the job then opens ReviewSheet in quote mode.
+  // Covers both the voice-confirm path (from details view) and the create-quote path.
+  // onUpdateJob is used by ReviewSheet to persist quoteSentAt/quoteStatus/publicAccessToken
+  // patches back to the cloud after the WhatsApp send.
   const handleSaveAndSend = async (payload) => {
     setJobOpen(false);
     setJobOpenMode('normal');
@@ -529,10 +534,10 @@ export default function TodayScreen({
         <button
           type="button"
           className="foreman-pivot-btn"
-          onClick={() => { setJobOpenMode('voice'); setJobOpen(true); }}
+          onClick={() => { setJobOpenMode('quote'); setJobOpen(true); }}
         >
           <span className="foreman-pivot-icon" aria-hidden="true">&#127908;</span>
-          New quote
+          Create quote
         </button>
         <button
           type="button"
@@ -603,7 +608,7 @@ export default function TodayScreen({
           onClose={() => { setJobOpen(false); setJobOpenMode('normal'); }}
           onSave={handleJobSave}
           onOpenDetailed={onOpenDetailed}
-          defaultMode={jobOpenMode === 'voice' ? 'voice' : undefined}
+          defaultMode={jobOpenMode === 'quote' ? 'quote' : undefined}
           onSaveAndSend={handleSaveAndSend}
         />
       )}
