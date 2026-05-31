@@ -2,6 +2,16 @@ import { useState } from 'react';
 import { daysSinceInvoice } from '../lib/jobStatus';
 import { gbp } from '../lib/today';
 
+/** Returns a human-readable "N days ago" string, or '' for same-day. */
+function daysAgoLabel(isoDate) {
+  if (!isoDate) return null;
+  const diffMs = Date.now() - new Date(isoDate).getTime();
+  const diffDays = Math.floor(diffMs / (24 * 60 * 60 * 1000));
+  if (diffDays === 0) return 'today';
+  if (diffDays === 1) return 'yesterday';
+  return `${diffDays} days ago`;
+}
+
 export default function AwaitingCard({ job, onMarkPaid }) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const days = daysSinceInvoice(job);
@@ -18,12 +28,24 @@ export default function AwaitingCard({ job, onMarkPaid }) {
     days === 0   ? 'Sent today' :
     `${days} day${days === 1 ? '' : 's'} ago`;
 
+  // Quote-link open signal — written server-side when the customer loads the
+  // public quote URL. Only the quote view is tracked; PDF-only invoice sends
+  // have no hosted surface to instrument so openedAt will be absent for those.
+  const openedLabel = job.quoteLinkLastOpenedAt
+    ? `Quote opened ${daysAgoLabel(job.quoteLinkLastOpenedAt)}`
+    : job.quoteLinkOpenedAt
+    ? `Quote opened ${daysAgoLabel(job.quoteLinkOpenedAt)}`
+    : null;
+
   return (
     <div className="awaiting-job-card">
       <div className="awaiting-job-card-row">
         <div className="awaiting-job-customer-col">
           <div className="awaiting-job-customer">{customer}</div>
           <div className={metaClass}>{metaText}</div>
+          {openedLabel && (
+            <div className="awaiting-job-opened-label">{openedLabel}</div>
+          )}
         </div>
         <div className="awaiting-job-amount">{gbp(amount)}</div>
       </div>

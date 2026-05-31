@@ -30,6 +30,9 @@ const META_FIELDS = [
   'amount',     // numeric — kept in sync with total
   // Phase G-1 — public quote share link
   'publicAccessToken', // UUID; lazily generated when trader first taps "Send link"
+  // Phase G-1 open-tracking — written server-side by track-quote-open Netlify function
+  'quoteLinkOpenedAt',     // ISO timestamp of first open by customer
+  'quoteLinkLastOpenedAt', // ISO timestamp of most recent open (every load)
   // Review sheet draft flags — set when trader dismisses the sheet without sending
   'quoteDraft',   // boolean — tile shows amber "Draft ready" meta line
   'invoiceDraft', // boolean — tile shows amber "Draft ready" meta line
