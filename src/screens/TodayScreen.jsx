@@ -310,8 +310,6 @@ export default function TodayScreen({
         <h1 className="foreman-date">{formatToday()}</h1>
       </header>
 
-      <div className="foreman-divider" />
-
       {/* ── Accepted-quote banner (persistent until acknowledged) ─────────── */}
       {newlyAcceptedJobs.length > 0 && (
         <section className="accepted-banner" aria-label="Accepted quotes">
