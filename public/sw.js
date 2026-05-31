@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v26';  // bumped from v25: job drawer stacked cards redesign (PRD 2026-05-31)
+const CACHE_NAME = 'jobprofit-v27';  // bumped from v26: fix customer card horizontal scroll at 375px
 const PRECACHE = [
   '/',
   '/index.html',
