@@ -824,27 +824,34 @@ function JobTile({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJo
 
 // ── Empty state copy per stage ────────────────────────────────────────────────
 
-function EmptyState({ stage }) {
+function EmptyState({ stage, onAddJob }) {
   const copy = {
-    Lead:     { title: 'No leads yet', hint: 'Got a phone enquiry? Tap + to log it.' },
-    Quoted:   { title: 'No quotes out', hint: 'Send a quote and it will appear here.' },
-    On:       { title: 'Nothing on the go', hint: "Either you're on holiday or it's time to chase a quote." },
-    Invoiced: { title: 'No invoices waiting', hint: 'Mark a job complete and send the invoice.' },
-    Overdue:  { title: 'Nothing overdue', hint: 'Good week.' },
-    Paid:     { title: 'No paid jobs yet', hint: 'Paid jobs show here once the money lands.' },
+    Lead:     { icon: '📋', title: 'No leads yet', hint: 'Got a phone enquiry? Log it now and JobProfit tracks it from here.', cta: true },
+    Quoted:   { icon: '📨', title: 'No quotes out', hint: 'Tap + New job to create a quote — it lands here once sent.', cta: true },
+    On:       { icon: '🔨', title: 'Nothing on the go', hint: "Either you're on holiday or it's time to chase a quote." },
+    Invoiced: { icon: '🧾', title: 'No invoices waiting', hint: 'Finish a job and send the invoice — it sits here until paid.' },
+    Overdue:  { icon: '✅', title: 'Nothing overdue', hint: 'Good week. All invoices are in date.' },
+    Paid:     { icon: '💷', title: 'No paid jobs yet', hint: 'Paid jobs show here once the money lands.' },
+    All:      { icon: '📋', title: 'No jobs yet', hint: 'Log your first job and JobProfit does the maths.', cta: true },
   };
-  const { title, hint } = copy[stage] ?? { title: 'No jobs', hint: 'Tap + New job to get started.' };
+  const { icon, title, hint, cta } = copy[stage] ?? { icon: '📋', title: 'No jobs', hint: 'Tap + New job to get started.', cta: true };
   return (
     <div className="screen-empty">
+      <div className="screen-empty-icon" aria-hidden="true">{icon}</div>
       <p className="screen-empty-title">{title}</p>
       <p className="screen-empty-hint">{hint}</p>
+      {cta && onAddJob && (
+        <button type="button" className="screen-empty-cta" onClick={onAddJob}>
+          + New job
+        </button>
+      )}
     </div>
   );
 }
 
 // ── JobsList subview ──────────────────────────────────────────────────────────
 
-function JobsList({ jobs, selectedStage, showAll, searchQuery, onJobSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJob, onCopyJob, onArchiveJob, onDeleteJob, biz, onShowToast, onViewReceipt }) {
+function JobsList({ jobs, selectedStage, showAll, searchQuery, onJobSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJob, onCopyJob, onArchiveJob, onDeleteJob, biz, onShowToast, onViewReceipt, onAddJob }) {
   const q = (searchQuery || '').trim();
 
   // When searching: ignore the stage filter — show everything that matches (1B spec).
@@ -866,7 +873,7 @@ function JobsList({ jobs, selectedStage, showAll, searchQuery, onJobSelect, onSe
         </div>
       );
     }
-    return <EmptyState stage={showAll ? 'All' : selectedStage} />;
+    return <EmptyState stage={showAll ? 'All' : selectedStage} onAddJob={onAddJob} />;
   }
 
   return (
@@ -1304,6 +1311,7 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
           biz={biz}
           onShowToast={showToast}
           onViewReceipt={setReceiptJob}
+          onAddJob={openAddJob}
         />
       ) : (
         <WorkCalendar jobs={visibleJobs} onNewJobOnDate={onNewJob} />
