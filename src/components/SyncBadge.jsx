@@ -5,6 +5,7 @@ import {
   subscribeToErrorState,
   runSync,
   getQueueLength,
+  getMetaQueueLength,
   getPending,
   discardEntry,
 } from '../lib/offlineQueue';
@@ -22,7 +23,10 @@ import {
 const STUCK_THRESHOLD_MS = 60_000;
 
 export default function SyncBadge() {
+  // queueLength is the TOTAL count (new jobs + meta updates) — from subscribe()
+  // which already calls getTotalQueueLength() since PR feat/offline-meta-queue.
   const [queueLength, setQueueLength]   = useState(0);
+  const [metaCount, setMetaCount]       = useState(0);
   const [syncing, setSyncing]           = useState(false);
   const [errorState, setErrorState]     = useState({ lastError: null, lastAttemptAt: null });
   const [now, setNow]                   = useState(() => Date.now());
@@ -37,7 +41,26 @@ export default function SyncBadge() {
     const unsubQueue   = subscribe(setQueueLength);
     const unsubSyncing = subscribeToSyncState(setSyncing);
     const unsubError   = subscribeToErrorState(setErrorState);
-    return () => { unsubQueue(); unsubSyncing(); unsubError(); };
+
+    // Track meta-update count separately so the label can be specific
+    // e.g. "2 new jobs + 3 edits waiting" vs the generic total.
+    let mounted = true;
+    function refreshMetaCount() {
+      getMetaQueueLength()
+        .then(n => { if (mounted) setMetaCount(n); })
+        .catch(() => {});
+    }
+    refreshMetaCount();
+    // Re-read after each total-queue change so the breakdown stays current
+    const unsubForMeta = subscribe(() => refreshMetaCount());
+
+    return () => {
+      mounted = false;
+      unsubQueue();
+      unsubSyncing();
+      unsubError();
+      unsubForMeta();
+    };
   }, []);
 
   // Tick every 5s so the stuck flag re-evaluates without waiting for a user action.
@@ -107,11 +130,19 @@ export default function SyncBadge() {
       })()
     : 'unknown';
 
+  // Build a human-readable label that breaks down the pending count.
+  // New-job count = total minus meta updates (both tracked independently).
+  const jobCount  = Math.max(0, queueLength - metaCount);
+  const parts     = [];
+  if (jobCount > 0)   parts.push(`${jobCount} new job${jobCount  !== 1 ? 's' : ''}`);
+  if (metaCount > 0)  parts.push(`${metaCount} edit${metaCount !== 1 ? 's' : ''}`);
+  const pendingDescription = parts.length > 0 ? parts.join(' + ') : `${queueLength} change${queueLength !== 1 ? 's' : ''}`;
+
   const label = syncing
     ? 'Syncing…'
     : isStuck
       ? 'Sync failed — tap for options'
-      : `⚡ ${queueLength} job${queueLength !== 1 ? 's' : ''} waiting to sync`;
+      : `⚡ ${pendingDescription} waiting to sync`;
 
   return (
     <>
@@ -122,10 +153,10 @@ export default function SyncBadge() {
         aria-live="polite"
         aria-label={
           syncing
-            ? 'Syncing jobs'
+            ? 'Syncing changes'
             : isStuck
               ? 'Sync failed — tap for options'
-              : `${queueLength} job${queueLength !== 1 ? 's' : ''} waiting to sync — tap to retry`
+              : `${pendingDescription} waiting to sync — tap to retry`
         }
         type="button"
       >
