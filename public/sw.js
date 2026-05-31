@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v15';  // bumped from v14
+const CACHE_NAME = 'jobprofit-v16';  // bumped from v15
 const PRECACHE = [
   '/',
   '/index.html',
