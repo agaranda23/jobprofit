@@ -1,3 +1,14 @@
+/* ── Global box-sizing reset ─────────────────────────────────────────────────
+   Without this, any element with width:100% + horizontal padding overflows its
+   parent (border-box = content-width + padding). This was causing page-level
+   horizontal scroll in the Job Detail Drawer on mobile (375px). Setting it once
+   here is safer than patching individual classes (we had to patch .jd-card-row
+   and .jd-csr-row separately before this fix was added).
+   ─────────────────────────────────────────────────────────────────────────── */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
 :root {
   font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
@@ -8397,7 +8408,12 @@ input[type=number] { -moz-appearance: textfield; }
 /* ── CollapsedSectionRow ──────────────────────────────────────────────────── */
 
 .jd-csr {
-  border-top: 1px solid var(--border);
+  /* Match .jd-card chrome exactly so Schedule/Quote/Costs rows align with
+     Customer and Money cards (same left/right edge, same border-radius). */
+  background: var(--surface-raised, #142035);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden; /* clip the row's tap highlight to the rounded corners */
 }
 
 .jd-csr--attention {
@@ -8410,12 +8426,13 @@ input[type=number] { -moz-appearance: textfield; }
   align-items: center;
   gap: 8px;
   width: 100%;
-  /* box-sizing prevents width:100% + padding:0 16px from overflowing the parent
-     content-box on mobile — same fix as .jd-card-row. Without it the button
-     border-box = parent content-width + 32px, causing page-level h-scroll. */
+  /* box-sizing: border-box is now guaranteed by the global * reset at the top
+     of this file, but kept explicitly here for clarity. */
   box-sizing: border-box;
   min-height: 48px;
-  padding: 0 16px;
+  /* Horizontal padding matches .jd-card padding (14px) so the icon aligns
+     with card content on the left edge. */
+  padding: 0 14px;
   background: none;
   border: none;
   cursor: pointer;
