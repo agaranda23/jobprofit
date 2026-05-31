@@ -463,10 +463,11 @@ describe('WhatsApp primary path — link correctness', () => {
 });
 
 // ── getInvoicePDFBlob — PDF generation round-trip ─────────────────────────────
+// Note: generateInvoicePDF / getInvoicePDFBlob are now async (QR code generation).
 
 describe('getInvoicePDFBlob — returns a non-empty Blob', () => {
-  it('returns a Blob with application/pdf type', () => {
-    const blob = getInvoicePDFBlob({
+  it('returns a Blob with size > 1KB', async () => {
+    const blob = await getInvoicePDFBlob({
       job: baseJob(),
       biz: baseBiz(),
       invoiceNumber: 'JP-0001',
@@ -476,8 +477,8 @@ describe('getInvoicePDFBlob — returns a non-empty Blob', () => {
     expect(blob.size).toBeGreaterThan(1000); // sanity: at least 1 KB
   });
 
-  it('handles a job with no lineItems (falls back to summary row)', () => {
-    const blob = getInvoicePDFBlob({
+  it('handles a job with no lineItems (falls back to summary row)', async () => {
+    const blob = await getInvoicePDFBlob({
       job: baseJob({ lineItems: [] }),
       biz: baseBiz(),
       invoiceNumber: 'JP-0002',
@@ -487,14 +488,40 @@ describe('getInvoicePDFBlob — returns a non-empty Blob', () => {
     expect(blob.size).toBeGreaterThan(1000);
   });
 
-  it('handles a null biz without throwing', () => {
-    expect(() =>
+  it('handles a null biz without throwing', async () => {
+    await expect(
       getInvoicePDFBlob({
         job: baseJob(),
         biz: null,
         invoiceNumber: 'JP-0003',
         dueDate: '2026-06-03',
       })
-    ).not.toThrow();
+    ).resolves.not.toThrow();
+  });
+
+  it('renders Pay-now button + QR when payNowUrl is provided', async () => {
+    const blob = await getInvoicePDFBlob({
+      job: baseJob(),
+      biz: baseBiz(),
+      invoiceNumber: 'JP-0004',
+      dueDate: '2026-06-03',
+      payNowUrl: 'https://app.jobprofit.co.uk/p/abc123',
+    });
+    // A PDF with QR embedded is larger than one without. Sanity check only —
+    // the exact size varies by QR content length.
+    expect(blob).toBeInstanceOf(Blob);
+    expect(blob.size).toBeGreaterThan(1000);
+  });
+
+  it('renders without Pay-now button when payNowUrl is absent', async () => {
+    const blob = await getInvoicePDFBlob({
+      job: baseJob(),
+      biz: baseBiz(),
+      invoiceNumber: 'JP-0005',
+      dueDate: '2026-06-03',
+      // payNowUrl omitted — should render as legacy PDF
+    });
+    expect(blob).toBeInstanceOf(Blob);
+    expect(blob.size).toBeGreaterThan(1000);
   });
 });

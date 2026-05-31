@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import App from './App.jsx';
+import CardPaymentsScreen from './screens/CardPaymentsScreen.jsx';
 import {
   isPushSupported,
   getSubscriptionStatus,
@@ -152,6 +153,27 @@ export default function AppShell() {
   // from Today (onJobTap) does NOT bump this key — the drawer-open path must
   // survive. Only the BottomNav onChange handler bumps it.
   const [workResetKey, setWorkResetKey] = useState(0);
+
+  // settingsSubView: which sub-screen within Settings is active.
+  // null          → top-level SettingsScreen
+  // 'card-payments' → CardPaymentsScreen (Stripe Connect)
+  // Extend here as new Settings sub-screens are added.
+  const [settingsSubView, setSettingsSubView] = useState(
+    // If the OAuth callback redirected back with ?connected=1, open Settings
+    // at the top level (the profile will already show 'connected' status once
+    // refreshProfile has run). Strip the query param so it doesn't persist.
+    () => {
+      if (typeof window !== 'undefined') {
+        const params = new URLSearchParams(window.location.search);
+        if (params.has('connected') || params.has('connect_error')) {
+          // Clean the URL — remove query params but keep hash
+          const clean = window.location.pathname + window.location.hash;
+          window.history.replaceState(null, '', clean);
+        }
+      }
+      return null;
+    }
+  );
 
   const manageRootRef = useRef(null);
 
@@ -670,6 +692,9 @@ export default function AppShell() {
     resetTransientUI(nextView);
     // Legacy manage tab still needs its moreKey bump.
     if (!NAV_SLICE_3 && !NEW_NAV && nextView === 'manage') setMoreKey(k => k + 1);
+    // Reset settings sub-view when navigating away from the settings tab so
+    // CardPaymentsScreen doesn't persist on the next visit to Settings.
+    if (nextView !== 'settings') setSettingsSubView(null);
     navigate(nextView);
   }, [resetTransientUI, navigate]);
 
@@ -707,6 +732,7 @@ export default function AppShell() {
               avatarProps={avatarProps}
               profile={profile}
               onNavigateToMoney={() => navigate('finance')}
+              onNavigateToCardPayments={() => setSettingsSubView('card-payments')}
             />
           )}
 
@@ -725,6 +751,7 @@ export default function AppShell() {
               biz={null}
               profile={profile}
               initialJobId={pendingJobId}
+              onNavigateToCardPayments={() => setSettingsSubView('card-payments')}
             />
           )}
 
@@ -738,10 +765,25 @@ export default function AppShell() {
               // onMarkPaid removed: chase block deleted in Phase 1 Money redesign
               onGoToJobs={() => navigate('work')}
               onGoToSettings={() => navigate('settings')}
+              onNavigateToCardPayments={() => { navigate('settings'); setSettingsSubView('card-payments'); }}
             />
           )}
 
-          {view === 'settings' && (
+          {view === 'settings' && settingsSubView === 'card-payments' && (
+            <CardPaymentsScreen
+              profile={profile}
+              onBack={() => setSettingsSubView(null)}
+              onProfileUpdate={(patch) => {
+                // Optimistically update local profile state so the screen flips
+                // immediately; the authoritative update comes from the next
+                // refreshProfile call (which happens automatically on next sign-in
+                // or can be triggered by the parent).
+                setProfile(prev => prev ? { ...prev, ...patch } : prev);
+              }}
+            />
+          )}
+
+          {view === 'settings' && settingsSubView !== 'card-payments' && (
             <SettingsScreen
               session={session}
               profile={profile}
@@ -750,6 +792,7 @@ export default function AppShell() {
               onSignOut={handleSignOut}
               onOpenWizard={openWizardFromSettings}
               onProfileUpdate={handleProfileUpdate}
+              onNavigateToCardPayments={() => setSettingsSubView('card-payments')}
               onOpenJob={(jobId) => {
                 if (jobId) setPendingJobId(jobId);
                 navigate('work');
@@ -785,6 +828,7 @@ export default function AppShell() {
               avatarProps={avatarProps}
               profile={profile}
               onNavigateToMoney={() => navigate('money')}
+              onNavigateToCardPayments={() => setSettingsSubView('card-payments')}
             />
           )}
 
@@ -803,6 +847,7 @@ export default function AppShell() {
               biz={null}
               profile={profile}
               initialJobId={pendingJobId}
+              onNavigateToCardPayments={() => setSettingsSubView('card-payments')}
             />
           )}
 
@@ -853,6 +898,7 @@ export default function AppShell() {
               onAddReceipt={handleAddReceipt}
               profile={profile}
               onNavigateToMoney={() => { setMoreKey(k => k + 1); navigate('manage'); }}
+              onNavigateToCardPayments={() => setSettingsSubView('card-payments')}
             />
           )}
 

@@ -881,6 +881,7 @@ export default function SettingsScreen({
   onOpenWizard,
   onProfileUpdate,
   onOpenJob,
+  onNavigateToCardPayments,
 }) {
   // ── Theme state ───────────────────────────────────────────────────────────
   const [themePref, setThemePrefState] = useState(() => getStoredPref());
@@ -1202,6 +1203,24 @@ export default function SettingsScreen({
           danger
           onTap={onSignOut}
           chevron={false}
+        />
+      </SectionCard>
+
+      {/* Get paid — Card payments (Stripe Connect) */}
+      <SectionCard title="Get paid">
+        <Row
+          label="Card payments"
+          value={
+            profile?.stripe_connect_status === 'connected' && profile?.stripe_user_id
+              ? (() => {
+                  const name =
+                    profile?.business_name ||
+                    [profile?.first_name, profile?.last_name].filter(Boolean).join(' ');
+                  return name ? `Connected · ${name}` : 'Connected';
+                })()
+              : 'Not connected'
+          }
+          onTap={onNavigateToCardPayments}
         />
       </SectionCard>
 

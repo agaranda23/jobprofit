@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v18';  // bumped from v17: Today screen foreman CSS → theme tokens (light-mode parity)
+const CACHE_NAME = 'jobprofit-v20';  // bumped from v19: Stripe Connect Pay-now links + invoice surfaces (PR 2/3)
 const PRECACHE = [
   '/',
   '/index.html',

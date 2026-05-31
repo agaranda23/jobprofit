@@ -207,10 +207,12 @@ function SendInvoiceModal({ job, biz, profile, jobs, onUpdate, onClose, flash })
     onClose();
   };
 
-  const handleDownloadPDF = () => {
+  const handleDownloadPDF = async () => {
     if (!attemptSend()) return;
     setPdfBusy(true);
-    try { downloadInvoicePDF({ job, biz, invoiceNumber, dueDate }); }
+    // downloadInvoicePDF is now async (QR generation). Legacy App.jsx path doesn't
+    // use payNowUrl — omitting it renders the PDF unchanged for legacy users.
+    try { await downloadInvoicePDF({ job, biz, invoiceNumber, dueDate }); }
     catch (e) { console.error(e); flash("PDF failed"); }
     setPdfBusy(false);
     onClose();
