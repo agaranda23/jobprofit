@@ -674,8 +674,12 @@ function JobTile({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJo
       onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') onSelect?.(job); }}
       aria-label={`View details for ${primaryLabel}`}
     >
-      {/* Row 1: job name (primary) + [stage label (read-only) + ⋯ trigger] */}
-      <div className="jt-head" onClick={e => e.stopPropagation()}>
+      {/* Row 1: job name (primary) + [stage label (read-only) + ⋯ trigger].
+          No stopPropagation here — the dots button stops its own propagation and the
+          stage label has pointer-events:none, so tapping the title correctly opens
+          the drawer. Removing the outer stopPropagation was the fix for the
+          "jobs not clickable" report (title tap was being silently swallowed). */}
+      <div className="jt-head">
         <h3 className="jt-title">
           {primaryLabel.slice(0, 72)}{primaryLabel.length > 72 ? '…' : ''}
         </h3>
