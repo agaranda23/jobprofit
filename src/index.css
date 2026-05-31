@@ -6295,12 +6295,24 @@ input[type=number] { -moz-appearance: textfield; }
   100% { background-position: -200% 0; }
 }
 
-/* ── Sign section — force light colour-scheme so OS dark-mode can't bleed in ─ */
-/* The public quote card is intentionally light/white (customer trust).          */
-/* Without this, iOS dark-mode renders the browser-default input as dark,        */
-/* making typed text invisible against the white card.                           */
+/* ── pqv-card: force light theme — pin all dark-app tokens to legible values ── */
+/* Root declares --text: #f5f7fa (near-white) and --text-dim: #a8b3c0 (light    */
+/* grey) for the dark app shell. Those values are always set, so the fallbacks   */
+/* in var(--text, #1a1a1a) are NEVER reached — the dark-app value wins instead.  */
+/* On the public white card this makes text near-invisible (light on white).     */
+/* Fix: re-scope tokens inside .pqv-card so every descendant gets dark text      */
+/* regardless of OS colour scheme or app-shell dark mode.                        */
+/* color-scheme: light also prevents iOS Safari from darkening form inputs.      */
 .pqv-card {
   color-scheme: light;
+  --text:       #111827;
+  --text-dim:   #6b7280;
+  --bg:         #f9fafb;
+  --surface:    #f3f4f6;
+  --surface-2:  #e5e7eb;
+  --border:     #e5e7eb;
+  --accent:     #00b386;
+  --card-bg:    #ffffff;
 }
 
 /* Sign section wrapper */
