@@ -8313,3 +8313,199 @@ input[type=number] { -moz-appearance: textfield; }
   background: var(--surface-2);
 }
 
+
+/* ── Create-quote view (AddJobModal defaultMode="quote") ────────────────── */
+
+/* "Use voice instead" restart button — shown in manual mode when mic available */
+.aj-quote-mic-restart {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  background: #131C2D;
+  border: 1px solid #1F2B44;
+  border-radius: 10px;
+  color: #9CA3AF;
+  font-size: 14px;
+  font-weight: 500;
+  font-family: inherit;
+  padding: 12px;
+  min-height: 44px;
+  margin-bottom: 12px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.aj-quote-mic-restart:active { opacity: 0.8; }
+
+/* Total row — label + £ input inline */
+.aj-quote-total-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 12px 0 4px;
+}
+.aj-quote-total-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: #9CA3AF;
+  white-space: nowrap;
+  min-width: 44px;
+}
+.aj-quote-total-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+}
+.aj-quote-currency {
+  font-size: 20px;
+  font-weight: 700;
+  color: #E5E7EB;
+  line-height: 1;
+}
+.aj-quote-total-input {
+  flex: 1;
+  font-size: 28px;
+  font-weight: 700;
+  color: #E5E7EB;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid #1F2B44;
+  padding: 4px 0;
+  font-family: inherit;
+  outline: none;
+  -moz-appearance: textfield;
+}
+.aj-quote-total-input::-webkit-outer-spin-button,
+.aj-quote-total-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.aj-quote-total-input:focus { border-bottom-color: var(--primary, #28b581); }
+
+/* Line items section */
+.aj-quote-line-items {
+  margin: 8px 0;
+  background: #131C2D;
+  border: 1px solid #1F2B44;
+  border-radius: 10px;
+  padding: 12px;
+}
+.aj-quote-line-items-header {
+  margin-bottom: 8px;
+}
+.aj-quote-line-items-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: #9CA3AF;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* One line-item row */
+.aj-quote-line-row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+.aj-quote-line-desc {
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid #1F2B44;
+  color: #E5E7EB;
+  font-size: 14px;
+  font-family: inherit;
+  padding: 6px 0;
+  outline: none;
+  min-width: 0;
+}
+.aj-quote-line-desc:focus { border-bottom-color: var(--primary, #28b581); }
+.aj-quote-line-cost-wrap {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 80px;
+}
+.aj-quote-line-currency {
+  font-size: 14px;
+  color: #9CA3AF;
+}
+.aj-quote-line-cost {
+  width: 72px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid #1F2B44;
+  color: #E5E7EB;
+  font-size: 14px;
+  font-family: inherit;
+  padding: 6px 0;
+  outline: none;
+  text-align: right;
+  -moz-appearance: textfield;
+}
+.aj-quote-line-cost::-webkit-outer-spin-button,
+.aj-quote-line-cost::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.aj-quote-line-cost:focus { border-bottom-color: var(--primary, #28b581); }
+.aj-quote-line-remove {
+  background: transparent;
+  border: none;
+  color: #4B5563;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px;
+  min-width: 28px;
+  min-height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  -webkit-tap-highlight-color: transparent;
+}
+.aj-quote-line-remove:active { color: #EF4444; }
+
+/* Add line item button inside the items panel */
+.aj-quote-add-line-btn {
+  background: transparent;
+  border: 1px dashed #1F2B44;
+  border-radius: 8px;
+  color: #9CA3AF;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  padding: 8px 12px;
+  width: 100%;
+  cursor: pointer;
+  min-height: 40px;
+  margin-top: 4px;
+  -webkit-tap-highlight-color: transparent;
+}
+.aj-quote-add-line-btn:active { opacity: 0.8; }
+
+/* Auto-sum total row at the bottom of line items */
+.aj-quote-line-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0 0;
+  border-top: 1px solid #1F2B44;
+  margin-top: 8px;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--primary, #28b581);
+}
+
+/* Toggle link below the total / items section */
+.aj-quote-add-items-link {
+  background: transparent;
+  border: none;
+  color: #6B7280;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: inherit;
+  padding: 6px 0;
+  cursor: pointer;
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  -webkit-tap-highlight-color: transparent;
+}
+.aj-quote-add-items-link:active { opacity: 0.7; }

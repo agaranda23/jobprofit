@@ -697,6 +697,7 @@ export default function AppShell() {
               jobs={jobs}
               receipts={receipts}
               onAddJob={handleAddJob}
+              onUpdateJob={onUpdateJob}
               onAddReceipt={handleAddReceipt}
               avatarProps={avatarProps}
               profile={profile}
@@ -768,6 +769,7 @@ export default function AppShell() {
               jobs={jobs}
               receipts={receipts}
               onAddJob={handleAddJob}
+              onUpdateJob={onUpdateJob}
               onAddReceipt={handleAddReceipt}
               avatarProps={avatarProps}
               profile={profile}
@@ -836,6 +838,7 @@ export default function AppShell() {
               jobs={jobs}
               receipts={receipts}
               onAddJob={handleAddJob}
+              onUpdateJob={onUpdateJob}
               onAddReceipt={handleAddReceipt}
               profile={profile}
               onNavigateToMoney={() => { setMoreKey(k => k + 1); navigate('manage'); }}

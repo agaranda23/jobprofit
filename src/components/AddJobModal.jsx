@@ -45,13 +45,16 @@ function isOnline() {
 export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMode, onSaveAndSend }) {
   // 'micro'    — Two-Tap Micro-Log (new default entry)
   // 'details'  — full Direction A form (reached via "+ Add details" link)
-  // 'listening'| 'parsing' | 'confirm' | 'manual' — voice states within 'details'
+  // 'quote'    — Create-quote surface: voice OR type, summary + total + optional line items
+  // Voice sub-states within 'details' and 'quote': 'listening' | 'parsing' | 'confirm' | 'manual'
   //
-  // defaultMode="voice" mounts directly into 'details' so the existing
-  // auto-start effect fires startListening() within ~150 ms of the modal
-  // transition finishing (same pattern as the ~120 ms amount-input focus).
-  // The normal + button omits this prop → default 'micro' keypad view.
-  const [view, setView] = useState(defaultMode === 'voice' ? 'details' : 'micro');
+  // defaultMode="voice"  — mounts into 'details', auto-starts voice immediately.
+  // defaultMode="quote"  — mounts into 'quote', auto-starts voice immediately.
+  // No prop (or 'micro') — default 'micro' keypad view.
+  const [view, setView] = useState(
+    defaultMode === 'voice' ? 'details' :
+    defaultMode === 'quote' ? 'quote'   : 'micro'
+  );
 
   // ── Shared field state (micro + details share these) ──────────────────────
   const [amount, setAmount]           = useState('');
@@ -68,7 +71,22 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMo
   const [error, setError]             = useState('');
   const [moreOpen, setMoreOpen]       = useState(false);
 
-  // ── Voice state (only active in 'details' view) ───────────────────────────
+  // ── Quote-specific state (only active in 'quote' view) ───────────────────
+  // summary: short job description (e.g. "Kitchen renovation")
+  // qTotal: the quote total amount (string while editing)
+  // lineItems: array of { desc, cost } — optional breakdown rows
+  // showLineItems: whether the + Add line item section is expanded
+  const [summary, setSummary]           = useState('');
+  const [qTotal, setQTotal]             = useState('');
+  const [lineItems, setLineItems]       = useState([]);
+  const [showLineItems, setShowLineItems] = useState(false);
+  // quoteVoiceStatus mirrors voiceStatus but is owned by the quote view so
+  // opening 'quote' and 'details' independently don't collide.
+  const [quoteVoiceStatus, setQuoteVoiceStatus] = useState('listening');
+  const [quoteTranscript, setQuoteTranscript]   = useState('');
+  const hasAutoStartedQuote = useRef(false);
+
+  // ── Voice state (active in 'details' and 'quote' views) ───────────────────
   const [voiceStatus, setVoiceStatus]       = useState('listening');
   const [transcript, setTranscript]         = useState('');
   const [retryCount, setRetryCount]         = useState(0);
@@ -301,6 +319,216 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMo
     return () => { try { recogRef.current?.abort(); } catch {} };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view]);
+
+  // ── Quote view: voice helpers ───────────────────────────────────────────────
+  // The quote view reuses the same SR and recogRef but uses separate
+  // quoteVoiceStatus / quoteTranscript state so it doesn't collide with 'details'.
+
+  const startQuoteListening = () => {
+    setError('');
+    setQuoteTranscript('');
+    if (!SR || !isOnline()) {
+      setQuoteVoiceStatus('manual');
+      if (!isOnline()) setError('No signal — type it instead.');
+      return;
+    }
+    try {
+      const r = new SR();
+      const lang = localStorage.getItem('jp.voiceLang') || 'en-GB';
+      r.lang = lang; r.interimResults = true; r.continuous = false; r.maxAlternatives = 1;
+      let finalText = '';
+      r.onresult = (e) => {
+        let interim = '';
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+          const res = e.results[i];
+          if (res.isFinal) finalText += res[0].transcript + ' ';
+          else interim += res[0].transcript;
+        }
+        setQuoteTranscript((finalText + interim).trim());
+      };
+      r.onerror = (e) => {
+        if (e.error === 'not-allowed') {
+          setError('Microphone blocked. Allow it in the address bar then try again.');
+          setQuoteVoiceStatus('manual');
+        } else if (e.error === 'no-speech') {
+          setError('Nothing heard — say the job and amount');
+          setQuoteVoiceStatus('listening');
+        } else if (e.error === 'network') {
+          setError('No signal — type it instead.');
+          setQuoteVoiceStatus('manual');
+        } else {
+          setError(`Mic error: ${e.error}`);
+          setQuoteVoiceStatus('manual');
+        }
+      };
+      r.onend = () => {
+        if (manualOverride.current) { manualOverride.current = false; return; }
+        setQuoteVoiceStatus(s => {
+          if (s === 'listening') {
+            const t = (finalText || '').trim();
+            if (t) { parseQuote(t); return 'parsing'; }
+            setError('Nothing heard — say the job and amount');
+            return 'listening';
+          }
+          return s;
+        });
+      };
+      recogRef.current = r;
+      r.start();
+      setQuoteVoiceStatus('listening');
+    } catch (err) {
+      setError(`Couldn't start mic: ${err.message}`);
+      setQuoteVoiceStatus('manual');
+    }
+  };
+
+  const stopQuoteListening = () => { try { recogRef.current?.stop(); } catch {} };
+
+  const parseQuote = async (text) => {
+    setShowParsingSpinner(false);
+    spinnerTimerRef.current = setTimeout(() => setShowParsingSpinner(true), 400);
+    try {
+      const parsed = await parseJobFromSpeech(text);
+      clearTimeout(spinnerTimerRef.current);
+      setShowParsingSpinner(false);
+      const cleanSummary  = (parsed.name || '').trim();
+      const cleanCustomer = (parsed.customer || '').trim();
+      const cleanAmt      = parsed.amount;
+
+      setSummary(cleanSummary || '');
+      setCustomer(cleanCustomer);
+      if (parsed.paymentType) applyPaymentType(parsed.paymentType);
+      else setPaymentChip('awaiting');
+
+      if (cleanAmt != null && !isNaN(cleanAmt) && cleanAmt > 0) {
+        setQTotal(String(cleanAmt));
+        setQuoteVoiceStatus('confirm');
+      } else {
+        setQTotal('');
+        setQuoteVoiceStatus('manual');
+      }
+    } catch {
+      clearTimeout(spinnerTimerRef.current);
+      setShowParsingSpinner(false);
+      setQuoteVoiceStatus('manual');
+    }
+  };
+
+  // Auto-start voice when entering the 'quote' view.
+  useEffect(() => {
+    if (view !== 'quote') return;
+    if (hasAutoStartedQuote.current) return;
+    hasAutoStartedQuote.current = true;
+    startQuoteListening();
+    return () => { try { recogRef.current?.abort(); } catch {} };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view]);
+
+  // ── Quote line-item helpers ────────────────────────────────────────────────
+
+  /**
+   * Computes the line-items total. Used to auto-populate qTotal when items change.
+   * Returns the sum as a number, or 0 if no items.
+   */
+  function lineItemsTotal(items) {
+    return items.reduce((s, li) => s + (parseFloat(li.cost) || 0), 0);
+  }
+
+  function addLineItem() {
+    setLineItems(prev => [...prev, { desc: '', cost: '' }]);
+  }
+
+  function updateLineItem(idx, field, value) {
+    setLineItems(prev => {
+      const next = prev.map((li, i) => i === idx ? { ...li, [field]: value } : li);
+      // Auto-sum: when line items exist, keep qTotal in sync with their sum.
+      const total = lineItemsTotal(next);
+      if (total > 0) setQTotal(String(total));
+      return next;
+    });
+  }
+
+  function removeLineItem(idx) {
+    setLineItems(prev => {
+      const next = prev.filter((_, i) => i !== idx);
+      const total = lineItemsTotal(next);
+      if (next.length > 0 && total > 0) setQTotal(String(total));
+      return next;
+    });
+  }
+
+  // ── Quote save handlers ────────────────────────────────────────────────────
+
+  /**
+   * Validates the quote form and returns a payload object, or null on error.
+   * The payload is shaped to be compatible with addJobToCloud / ReviewSheet.
+   *
+   * status: 'lead' (awaiting) — quote is a pre-work estimate, never paid at creation.
+   * quoteStatus: 'draft' — saved but not yet sent to the customer.
+   * lineItems: filled from the itemised rows if present, otherwise a single
+   *   { desc: summary, cost: total } so ReviewSheet's PreviewTable renders correctly.
+   */
+  function buildQuotePayload() {
+    const resolvedSummary = summary.trim() || 'New quote';
+    const resolvedCustomer = customer.trim() || null;
+    const resolvedPhone    = phone.trim() || null;
+
+    const hasLineItems = lineItems.length > 0 && lineItems.some(li => li.desc.trim() || li.cost);
+    let resolvedTotal;
+    let resolvedLineItems;
+
+    if (hasLineItems) {
+      const filledItems = lineItems
+        .filter(li => li.desc.trim() || parseFloat(li.cost) > 0)
+        .map(li => ({ desc: li.desc.trim() || 'Item', cost: parseFloat(li.cost) || 0 }));
+      resolvedTotal = filledItems.reduce((s, li) => s + li.cost, 0);
+      resolvedLineItems = filledItems;
+    } else {
+      const parsed = qTotal.trim() ? parseFloat(qTotal) : null;
+      if (parsed !== null && (isNaN(parsed) || parsed <= 0)) {
+        setError("That amount doesn't look right");
+        return null;
+      }
+      resolvedTotal = parsed;
+      resolvedLineItems = parsed != null
+        ? [{ desc: resolvedSummary, cost: parsed }]
+        : [];
+    }
+
+    setError('');
+    return {
+      id:           crypto.randomUUID(),
+      name:         resolvedSummary,
+      summary:      resolvedSummary,
+      customer:     resolvedCustomer,
+      phone:        resolvedPhone,
+      amount:       resolvedTotal,
+      total:        resolvedTotal,
+      lineItems:    resolvedLineItems,
+      paid:         false,
+      paymentType:  null,
+      status:       'lead',
+      quoteStatus:  'draft',
+      date:         new Date().toISOString(),
+      createdAt:    new Date().toISOString(),
+    };
+  }
+
+  /** Save as draft — persists to pipeline at Lead/Quoted stage. Nothing sent. */
+  const saveQuote = () => {
+    const payload = buildQuotePayload();
+    if (!payload) return;
+    logTelemetry('quote_save', { source: 'create_quote', hasLineItems: payload.lineItems.length > 1 });
+    onSave(payload);
+  };
+
+  /** Save + open ReviewSheet in quote mode so the tradesperson can send via WhatsApp. */
+  const saveQuoteAndSend = () => {
+    const payload = buildQuotePayload();
+    if (!payload) return;
+    logTelemetry('quote_send', { source: 'create_quote', hasLineItems: payload.lineItems.length > 1 });
+    onSaveAndSend?.(payload);
+  };
 
   const chipClass = (id) =>
     `aj-chip${paymentChip === id ? ' aj-chip--on' : ''}`;
@@ -631,6 +859,262 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMo
             )}
 
             {error && <p className="modal-error">{error}</p>}
+          </>
+        )}
+
+        {/* ══ QUOTE VIEW — "Create quote" entry point ═══════════════════════ */}
+        {view === 'quote' && (
+          <>
+            <div className="aj-header">
+              <h3 className="modal-title">Create quote</h3>
+              <button className="aj-close-btn" onClick={onClose} aria-label="Close">✕</button>
+            </div>
+
+            {/* ── Voice: listening state ── */}
+            {quoteVoiceStatus === 'listening' && (
+              <>
+                <div className="aj-mic-box">
+                  <div className="aj-mic-icon">&#127908;</div>
+                  <div className="aj-mic-label">Listening…</div>
+                  <div className="aj-mic-sub">Say the job, customer, and price</div>
+                </div>
+                {quoteTranscript && (
+                  <div className="aj-transcript">&ldquo;{quoteTranscript}&rdquo;</div>
+                )}
+                {!quoteTranscript && (
+                  <div className="aj-transcript aj-transcript--hint">
+                    e.g. &ldquo;Bathroom tiling Dave five hundred&rdquo;
+                  </div>
+                )}
+                <button
+                  className="btn-primary"
+                  onClick={stopQuoteListening}
+                  style={{ width: '100%', marginBottom: 8, marginTop: 12 }}
+                >
+                  Done
+                </button>
+                <div className="aj-footer-links">
+                  <button
+                    className="link-btn"
+                    onClick={() => {
+                      manualOverride.current = true;
+                      stopQuoteListening();
+                      setQuoteVoiceStatus('manual');
+                    }}
+                  >
+                    Type instead
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* ── Voice: parsing state ── */}
+            {quoteVoiceStatus === 'parsing' && (
+              <>
+                {showParsingSpinner && (
+                  <div className="aj-mic-box aj-mic-box--parsing">
+                    <div className="aj-mic-icon">&#x23F3;</div>
+                    <div className="aj-mic-label">Understanding…</div>
+                  </div>
+                )}
+                {quoteTranscript && (
+                  <div className="aj-transcript">&ldquo;{quoteTranscript}&rdquo;</div>
+                )}
+              </>
+            )}
+
+            {/* ── Quote form: confirm (post-voice) and manual (typed) ── */}
+            {(quoteVoiceStatus === 'confirm' || quoteVoiceStatus === 'manual') && (
+              <>
+                {quoteVoiceStatus === 'confirm' && quoteTranscript && (
+                  <div className="aj-transcript">&ldquo;{quoteTranscript}&rdquo;</div>
+                )}
+
+                {/* When voice is not available or user chose type-first, show a mic button */}
+                {quoteVoiceStatus === 'manual' && !quoteTranscript && SR && isOnline() && (
+                  <button
+                    className="aj-quote-mic-restart"
+                    type="button"
+                    onClick={() => {
+                      hasAutoStartedQuote.current = false;
+                      setQuoteTranscript('');
+                      setQuoteVoiceStatus('listening');
+                      startQuoteListening();
+                    }}
+                  >
+                    &#127908; Use voice instead
+                  </button>
+                )}
+
+                {/* Core fields */}
+                <div className="modal-fields">
+                  <label>
+                    <span>Job description</span>
+                    <input
+                      type="text"
+                      value={summary}
+                      onChange={e => setSummary(e.target.value)}
+                      placeholder="e.g. Bathroom tiling"
+                      autoFocus={quoteVoiceStatus === 'manual'}
+                    />
+                  </label>
+                  <label>
+                    <span>Customer name</span>
+                    <input
+                      type="text"
+                      value={customer}
+                      onChange={e => setCustomer(e.target.value)}
+                      placeholder="e.g. Dave Williams (optional)"
+                    />
+                  </label>
+                  <label>
+                    <span>Customer phone</span>
+                    <input
+                      type="tel"
+                      inputMode="tel"
+                      value={phone}
+                      onChange={e => setPhone(e.target.value)}
+                      placeholder="07700 900123 (for WhatsApp)"
+                    />
+                  </label>
+                </div>
+
+                {/* Total — hidden when line items are shown (auto-summed instead) */}
+                {!showLineItems && (
+                  <div className="aj-quote-total-row">
+                    <span className="aj-quote-total-label">Total</span>
+                    <div className="aj-quote-total-input-wrap">
+                      <span className="aj-micro-currency aj-quote-currency">£</span>
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        className="aj-quote-total-input"
+                        value={qTotal}
+                        onChange={e => { setQTotal(e.target.value); setError(''); }}
+                        placeholder="0"
+                        aria-label="Quote total in pounds"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {/* Line items — revealed by "+ Add line item" */}
+                {showLineItems && (
+                  <div className="aj-quote-line-items">
+                    <div className="aj-quote-line-items-header">
+                      <span className="aj-quote-line-items-title">Line items</span>
+                    </div>
+                    {lineItems.map((li, idx) => (
+                      <div key={idx} className="aj-quote-line-row">
+                        <input
+                          type="text"
+                          className="aj-quote-line-desc"
+                          value={li.desc}
+                          onChange={e => updateLineItem(idx, 'desc', e.target.value)}
+                          placeholder="Description"
+                          aria-label={`Line item ${idx + 1} description`}
+                        />
+                        <div className="aj-quote-line-cost-wrap">
+                          <span className="aj-quote-line-currency">£</span>
+                          <input
+                            type="number"
+                            inputMode="decimal"
+                            className="aj-quote-line-cost"
+                            value={li.cost}
+                            onChange={e => updateLineItem(idx, 'cost', e.target.value)}
+                            placeholder="0"
+                            aria-label={`Line item ${idx + 1} cost`}
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          className="aj-quote-line-remove"
+                          onClick={() => removeLineItem(idx)}
+                          aria-label={`Remove line item ${idx + 1}`}
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                    <button
+                      type="button"
+                      className="aj-quote-add-line-btn"
+                      onClick={addLineItem}
+                    >
+                      + Add line item
+                    </button>
+                    {lineItems.length > 0 && lineItemsTotal(lineItems) > 0 && (
+                      <div className="aj-quote-line-total">
+                        <span>Total</span>
+                        <span>£{lineItemsTotal(lineItems).toFixed(2)}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Toggle for line items */}
+                {!showLineItems && (
+                  <button
+                    type="button"
+                    className="aj-quote-add-items-link"
+                    onClick={() => {
+                      setShowLineItems(true);
+                      if (lineItems.length === 0) addLineItem();
+                    }}
+                  >
+                    + Add line item
+                  </button>
+                )}
+                {showLineItems && (
+                  <button
+                    type="button"
+                    className="aj-quote-add-items-link"
+                    onClick={() => setShowLineItems(false)}
+                  >
+                    Show flat total instead
+                  </button>
+                )}
+
+                {error && <p className="modal-error">{error}</p>}
+
+                {/* Save as draft */}
+                <button
+                  className="btn-primary btn-large aj-save-btn"
+                  onClick={saveQuote}
+                >
+                  Save quote
+                </button>
+
+                {/* Save + send to customer via WhatsApp */}
+                {onSaveAndSend && (
+                  <button
+                    className="btn-secondary btn-large aj-save-btn"
+                    style={{ marginTop: 8 }}
+                    onClick={saveQuoteAndSend}
+                  >
+                    Send to customer
+                  </button>
+                )}
+
+                {quoteVoiceStatus === 'confirm' && (
+                  <div className="aj-footer-links">
+                    <button
+                      className="link-btn"
+                      onClick={() => {
+                        manualOverride.current = true;
+                        setQuoteVoiceStatus('manual');
+                      }}
+                    >
+                      Edit all fields
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+
+            {error && quoteVoiceStatus !== 'confirm' && quoteVoiceStatus !== 'manual' && (
+              <p className="modal-error">{error}</p>
+            )}
           </>
         )}
 
