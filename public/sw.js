@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v38';  // bumped from v37: fix drawer panel stacking — expanded accordion panels now paint above sibling cards
+const CACHE_NAME = 'jobprofit-v39';  // bumped from v38: fix drawer panel transparent background — .jd-csr-panel now opaque so Money card no longer bleeds through
 const PRECACHE = [
   '/',
   '/index.html',
