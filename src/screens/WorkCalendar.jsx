@@ -5,7 +5,7 @@
  *   - Week view (default) via CSS Grid — 7 day-columns.
  *   - "Unscheduled (n)" strip at top for jobs with null/missing date.
  *   - Tap an empty day slot → calls onNewJobOnDate (pre-fills date in AddJob modal).
- *   - Tap a job in any slot → TODO: open job-detail modal (not yet wired).
+ *   - Tap a job slot → calls onJobTap(job) which opens the JobDetailDrawer.
  *   - Day / Week / Month toggle header (Week is active; Day + Month are v2 placeholders).
  *
  * Data contract: reads `jobs` array from props — same source as JobsScreen/WorkScreen.
@@ -79,7 +79,7 @@ function UnscheduledStrip({ jobs }) {
   );
 }
 
-function DayColumn({ day, dayJobs, isToday, onAddOnDate }) {
+function DayColumn({ day, dayJobs, isToday, onAddOnDate, onJobTap }) {
   const key = isoDate(day);
   return (
     <div className={`wc-day ${isToday ? 'wc-day--today' : ''}`}>
@@ -98,13 +98,17 @@ function DayColumn({ day, dayJobs, isToday, onAddOnDate }) {
           </button>
         ) : (
           dayJobs.map(j => (
-            <div
+            <button
               key={j.id || j.cloudId}
+              type="button"
               className="wc-slot-job"
               title={jobLabel(j)}
+              onClick={() => onJobTap?.(j)}
+              aria-label={`Open ${jobLabel(j)}`}
+              style={{ minHeight: 44, width: '100%', textAlign: 'left', cursor: 'pointer', background: 'none', border: 'none', padding: 0 }}
             >
               <span className="wc-slot-job-label">{jobLabel(j).slice(0, 14)}{jobLabel(j).length > 14 ? '…' : ''}</span>
-            </div>
+            </button>
           ))
         )}
         {dayJobs.length > 0 && (
@@ -123,7 +127,7 @@ function DayColumn({ day, dayJobs, isToday, onAddOnDate }) {
 
 // ── WorkCalendar ──────────────────────────────────────────────────────────────
 
-export default function WorkCalendar({ jobs = [], onNewJobOnDate }) {
+export default function WorkCalendar({ jobs = [], onNewJobOnDate, onJobTap }) {
   const week = buildWeek();
   const byDay = groupByDay(jobs);
   const todayKey = isoDate(new Date());
@@ -166,6 +170,7 @@ export default function WorkCalendar({ jobs = [], onNewJobOnDate }) {
               dayJobs={byDay[key] || []}
               isToday={key === todayKey}
               onAddOnDate={handleAddOnDate}
+              onJobTap={onJobTap}
             />
           );
         })}
