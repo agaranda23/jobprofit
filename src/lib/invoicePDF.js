@@ -100,8 +100,8 @@ function drawHeader(doc, biz) {
     }
   }
 
-  // Phone • email
-  const contact = [biz?.phone, biz?.email].filter(Boolean).join('  •  ');
+  // Phone • email • website
+  const contact = [biz?.phone, biz?.email, biz?.website].filter(Boolean).join('  •  ');
   if (contact) {
     doc.setFontSize(9);
     doc.setFont('helvetica', 'normal');
@@ -461,18 +461,61 @@ function drawDepositRow(doc, depositPence, startY) {
 }
 
 /**
- * Draws the standard footer line.
+ * Draws the terms & conditions block just above the footer rule, when set.
+ * Returns the y position to use for the footer rule (moves it up to make room).
+ *
+ * The terms block is a small italic grey text area, capped at ~6 lines so it
+ * never crowds the totals section. Long text is truncated with an ellipsis.
  */
-function drawFooter(doc, biz, label = '') {
+function drawTermsBlock(doc, termsText, footerRuleY) {
+  if (!termsText) return footerRuleY;
   const w = doc.internal.pageSize.getWidth();
-  const footerY = PAGE_H - 10;
-  rule(doc, footerY - 4);
+  const maxWidth = w - MARGIN * 2;
+
+  doc.setFontSize(7);
+  doc.setFont('helvetica', 'italic');
+  doc.setTextColor(...LIGHT);
+
+  // Split into wrapped lines. jsPDF splitTextToSize handles long paragraphs.
+  const lines = doc.splitTextToSize(termsText, maxWidth).slice(0, 6);
+
+  const lineH = 4;
+  const blockH = lines.length * lineH + 8; // 4px top padding + lines + 4px bottom
+
+  const blockY = footerRuleY - blockH;
+
+  doc.setFontSize(6.5);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...LIGHT);
+  doc.text('Terms & conditions', MARGIN, blockY);
+
+  doc.setFont('helvetica', 'italic');
+  let ty = blockY + lineH;
+  for (const line of lines) {
+    doc.text(line, MARGIN, ty);
+    ty += lineH;
+  }
+
+  // Return new footerRuleY — the rule sits below the terms block
+  return blockY - 2;
+}
+
+/**
+ * Draws the standard footer line (and terms block above it when set).
+ */
+function drawFooter(doc, biz, label = '', termsText = '') {
+  const w = doc.internal.pageSize.getWidth();
+  let footerRuleY = PAGE_H - 14;
+
+  footerRuleY = drawTermsBlock(doc, termsText, footerRuleY);
+
+  rule(doc, footerRuleY);
   doc.setFontSize(7.5);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(...LIGHT);
   const text = label
     || `${biz?.name || 'JobProfit'}  •  Generated ${new Date().toLocaleDateString('en-GB')}`;
-  doc.text(text, w / 2, footerY, { align: 'center' });
+  doc.text(text, w / 2, footerRuleY + 6, { align: 'center' });
 }
 
 // ── Pay-now button + QR helper (Section 2.1, wireframe 4.4) ─────────────────
@@ -630,6 +673,7 @@ export async function generateInvoicePDF({
     address:       biz?.address       || profile?.address        || '',
     phone:         biz?.phone         || profile?.phone          || '',
     email:         biz?.email         || profile?.email          || '',
+    website:       biz?.website       || profile?.website        || '',
     logoUrl:       biz?.logoUrl       || profile?.logo_url       || '',
     logo_url:      biz?.logo_url      || profile?.logo_url       || '',
     utr:           biz?.utr           || profile?.utr_number     || '',
@@ -641,6 +685,7 @@ export async function generateInvoicePDF({
     bankDetails:   biz?.bankDetails   || profile?.bank_details   || '',
     stripePaymentLink: biz?.stripePaymentLink || biz?.stripe_payment_link
                      || profile?.stripe_payment_link || '',
+    termsText:     biz?.termsText     || biz?.terms_text         || profile?.terms_text      || '',
   };
 
   // ── Document settings from profile ───────────────────────────────────────
@@ -821,8 +866,8 @@ export async function generateInvoicePDF({
   doc.setTextColor(...MID);
   doc.text('Thank you for your business.', MARGIN, y);
 
-  // ── Footer ────────────────────────────────────────────────────────────
-  drawFooter(doc, effectiveBiz);
+  // ── Footer (with terms & conditions when set) ────────────────────────
+  drawFooter(doc, effectiveBiz, '', effectiveBiz.termsText);
 
   return doc;
 }
@@ -859,6 +904,7 @@ export function generateQuotePDF({ job, biz, profile = null, quoteUrl = '', qrDa
     address:       biz?.address       || profile?.address        || '',
     phone:         biz?.phone         || profile?.phone          || '',
     email:         biz?.email         || profile?.email          || '',
+    website:       biz?.website       || profile?.website        || '',
     logoUrl:       biz?.logoUrl       || profile?.logo_url       || '',
     logo_url:      biz?.logo_url      || profile?.logo_url       || '',
     utr:           biz?.utr           || profile?.utr_number     || '',
@@ -867,6 +913,7 @@ export function generateQuotePDF({ job, biz, profile = null, quoteUrl = '', qrDa
     accountName:   biz?.accountName   || profile?.account_name   || '',
     sortCode:      biz?.sortCode      || biz?.sort_code          || profile?.sort_code       || '',
     accountNumber: biz?.accountNumber || biz?.account_number     || profile?.account_number  || '',
+    termsText:     biz?.termsText     || biz?.terms_text         || profile?.terms_text      || '',
   };
 
   // ── Document settings from profile ──────────────────────────────────────
@@ -986,8 +1033,8 @@ export function generateQuotePDF({ job, biz, profile = null, quoteUrl = '', qrDa
     }
   }
 
-  // ── Footer ────────────────────────────────────────────────────────────
-  drawFooter(doc, effectiveBiz);
+  // ── Footer (with terms & conditions when set) ────────────────────────
+  drawFooter(doc, effectiveBiz, '', effectiveBiz.termsText);
 
   return doc;
 }

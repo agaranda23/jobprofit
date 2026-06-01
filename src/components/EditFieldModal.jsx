@@ -87,10 +87,12 @@ function FieldRow({ field, value, onChange, error, showLabel = true }) {
             field.inputType === 'number' ? 'numeric' :
             field.inputType === 'tel' ? 'tel' :
             field.inputType === 'email' ? 'email' :
+            field.inputType === 'url' ? 'url' :
             'text'
           }
           autoCapitalize={
-            field.inputType === 'number' || field.inputType === 'tel' || field.inputType === 'email'
+            field.inputType === 'number' || field.inputType === 'tel' ||
+            field.inputType === 'email' || field.inputType === 'url'
               ? 'none'
               : 'words'
           }

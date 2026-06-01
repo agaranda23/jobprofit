@@ -492,13 +492,15 @@ export default function PublicQuoteView({ token }) {
   const traderProfile = profileState.profile || {};
 
   // Business identity: prefer server profile (full details); fall back to job meta
-  const businessName = traderProfile.businessName || job.businessName || job.business_name || '';
-  const businessAddress = traderProfile.address || '';
-  const businessPhone   = traderProfile.phone   || '';
-  const businessEmail   = traderProfile.email   || '';
-  const businessLogoUrl = traderProfile.logoUrl  || '';
+  const businessName    = traderProfile.businessName || job.businessName || job.business_name || '';
+  const businessAddress = traderProfile.address   || '';
+  const businessPhone   = traderProfile.phone     || '';
+  const businessEmail   = traderProfile.email     || '';
+  const businessWebsite = traderProfile.website   || '';
+  const businessLogoUrl = traderProfile.logoUrl   || '';
   const vatRegistered   = traderProfile.vatRegistered ?? false;
-  const vatNumber       = traderProfile.vatNumber     || '';
+  const vatNumber       = traderProfile.vatNumber || '';
+  const termsText       = traderProfile.termsText || traderProfile.terms_text || '';
 
   // Quote number and valid-until date from the server profile / job
   const quoteValidityDays = traderProfile.quoteValidityDays ?? 30;
@@ -560,9 +562,9 @@ export default function PublicQuoteView({ token }) {
           {businessAddress && (
             <div className="pqv-business-meta">{businessAddress}</div>
           )}
-          {(businessPhone || businessEmail) && (
+          {(businessPhone || businessEmail || businessWebsite) && (
             <div className="pqv-business-meta">
-              {[businessPhone, businessEmail].filter(Boolean).join('  •  ')}
+              {[businessPhone, businessEmail, businessWebsite].filter(Boolean).join('  •  ')}
             </div>
           )}
           {vatRegistered && vatNumber && (
@@ -634,6 +636,14 @@ export default function PublicQuoteView({ token }) {
             signatureDataUrl={remoteAccepted.signatureDataUrl}
             acceptedAt={remoteAccepted.acceptedAt}
           />
+        )}
+
+        {/* Terms & conditions footer — shown when set by the trader */}
+        {termsText && (
+          <div className="pqv-terms-block">
+            <div className="pqv-terms-label">Terms &amp; conditions</div>
+            <p className="pqv-terms-text">{termsText}</p>
+          </div>
         )}
 
         <div className="pqv-footer">
