@@ -1980,6 +1980,10 @@ input[type=number] { -moz-appearance: textfield; }
 
 /* ── JobsScreen ───────────────────────────────── */
 .new-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
   background: var(--accent);
   color: #0B0F17;
   border: none;
