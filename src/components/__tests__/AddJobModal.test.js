@@ -148,6 +148,56 @@ describe('H2: customer field visibility', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Speed mode — saveMicro payload shape (Part A)
+// ---------------------------------------------------------------------------
+
+describe('Speed mode: saveMicro payload', () => {
+  // Mirrors the saveMicro() logic after the Speed-mode refactor:
+  // chip strip removed → always paid:false, paymentType:null, speedMode:true.
+  function buildSpeedMicroPayload(amount) {
+    const amt = amount ? parseFloat(amount) : null;
+    return {
+      id:          'test-uuid',
+      name:        'Job · Mon 2 Jun',
+      customer:    null,
+      phone:       null,
+      amount:      amt,
+      paymentType: null,
+      paid:        false,
+      date:        new Date().toISOString(),
+      createdAt:   new Date().toISOString(),
+      via:         'fast',
+      speedMode:   true,
+    };
+  }
+
+  it('Speed-mode save always sets paid:false regardless of amount', () => {
+    const job = buildSpeedMicroPayload('380');
+    expect(job.paid).toBe(false);
+  });
+
+  it('Speed-mode save always sets paymentType:null (deferred to Got Paid toast)', () => {
+    const job = buildSpeedMicroPayload('380');
+    expect(job.paymentType).toBeNull();
+  });
+
+  it('Speed-mode save sets speedMode:true so Today can queue the Got Paid toast', () => {
+    const job = buildSpeedMicroPayload('380');
+    expect(job.speedMode).toBe(true);
+  });
+
+  it('Speed-mode save with no amount saves amount:null (add price later)', () => {
+    const job = buildSpeedMicroPayload('');
+    expect(job.amount).toBeNull();
+  });
+
+  it('Speed-mode save sets via:fast so Today stays on the Today screen', () => {
+    const job = buildSpeedMicroPayload('200');
+    expect(job.via).toBe('fast');
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Grace — null phone degrades gracefully for legacy jobs (pre-B1 records)
 // ---------------------------------------------------------------------------
 

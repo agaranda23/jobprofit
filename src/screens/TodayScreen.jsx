@@ -83,6 +83,11 @@ export default function TodayScreen({
   // toastAction: { label, onClick } — an optional action button inside the toast.
   // Only used for the fast-save "View" link. Cleared when toast auto-dismisses.
   const [toastAction, setToastAction] = useState(null);
+  // gotPaidToastQueue: FIFO array of { job, timerId } shown after Speed-mode saves.
+  // Each item displays "Got paid? £{amount}" with Cash / Bank / Card chips.
+  // Auto-dismisses after 5 s. Multiple Speed-mode saves stack — we show one at a
+  // time and shift the queue when dismissed or a chip is tapped.
+  const [gotPaidToastQueue, setGotPaidToastQueue] = useState([]);
   // rankVersion bumps after Mark paid / Snooze to force re-rank without a full re-fetch
   const [rankVersion, setRankVersion] = useState(0);
   // invoicePickerOpen: "Send an invoice" pivot button opened the job picker
@@ -130,6 +135,20 @@ export default function TodayScreen({
         label: 'View',
         onClick: () => onJobTap?.(payload),
       });
+
+      // Speed-mode saves also enqueue the "Got paid?" chip toast (Part B).
+      // The toast appears after the Saved toast clears (~2.4s). If multiple
+      // Speed-mode saves happen quickly, they stack in FIFO order.
+      if (payload?.speedMode) {
+        const timerId = setTimeout(() => {
+          setGotPaidToastQueue(q => {
+            if (q.length === 0) return q;
+            const [, ...rest] = q;
+            return rest;
+          });
+        }, 5000);
+        setGotPaidToastQueue(q => [...q, { job: payload, timerId }]);
+      }
     } else if (isDetailedPath) {
       // Detailed-save path: navigate to the new job's detail view (Jobs tab, drawer open).
       // Optimistic — open immediately with the just-saved payload, don't wait on cloud.
@@ -282,6 +301,26 @@ export default function TodayScreen({
     showToast(`${gbp(jobAmount(job))} marked paid`);
     setRankVersion(v => v + 1);
   }, [onMarkPaid]);
+
+  // Got Paid toast helpers (Speed mode, Part B)
+  // Dismiss without setting payment — user can still set it via tile's + Add details.
+  const dismissGotPaidToast = useCallback(() => {
+    setGotPaidToastQueue(q => {
+      if (q.length === 0) return q;
+      const [head, ...rest] = q;
+      clearTimeout(head.timerId);
+      return rest;
+    });
+  }, []);
+
+  // Tapping a chip on the Got Paid toast sets payment status immediately
+  // then shifts the queue. Uses onMarkPaid which the parent already wires.
+  const handleGotPaidChip = useCallback((job, method) => {
+    dismissGotPaidToast();
+    onMarkPaid?.(job, method);
+    showToast(`${gbp(job.amount != null ? job.amount : 0)} marked paid`);
+    setRankVersion(v => v + 1);
+  }, [dismissGotPaidToast, onMarkPaid]);
 
   const handleSnooze = useCallback((job) => {
     snoozeJob(job.id);
@@ -645,6 +684,32 @@ export default function TodayScreen({
           )}
         </div>
       )}
+
+      {/* Got Paid chip toast — Speed-mode post-save prompt (Part B).
+          Shows the first item in the queue. Tapping a chip sets paymentType without
+          reopening the modal. Tapping × dismisses and moves to next in queue. */}
+      {gotPaidToastQueue.length > 0 && (() => {
+        const { job } = gotPaidToastQueue[0];
+        const amtLabel = job.amount != null ? ` £${job.amount}` : '';
+        return (
+          <div className="toast got-paid-toast" role="status" aria-live="polite">
+            <span className="got-paid-toast__label">Got paid?{amtLabel}</span>
+            <div className="got-paid-toast__chips">
+              <button type="button" className="got-paid-toast__chip" onClick={() => handleGotPaidChip(job, 'cash')}>Cash</button>
+              <button type="button" className="got-paid-toast__chip" onClick={() => handleGotPaidChip(job, 'bank transfer')}>Bank</button>
+              <button type="button" className="got-paid-toast__chip" onClick={() => handleGotPaidChip(job, 'card')}>Card</button>
+            </div>
+            <button
+              type="button"
+              className="got-paid-toast__dismiss"
+              aria-label="Dismiss"
+              onClick={dismissGotPaidToast}
+            >
+              &times;
+            </button>
+          </div>
+        );
+      })()}
 
       {/* Pay-now soft prompt (Section 1.3 c) — shown after job completion when not connected.
           Not modal, not blocking. Dismissed for this session when trader taps the X. */}
