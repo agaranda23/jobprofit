@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v34';  // bumped from v33: drawer editability (Schedule/Quote/Costs) + payment block moved below Costs
+const CACHE_NAME = 'jobprofit-v35';  // bumped from v34: replace grid-template-rows accordion with max-height in CollapsedSectionRow
 const PRECACHE = [
   '/',
   '/index.html',
