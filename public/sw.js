@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v49';  // bumped from v48: removed redundant .jt-chased-chip that was breaking the CTA row flex layout
+const CACHE_NAME = 'jobprofit-v50';  // bumped from v49: remove duplicate field label in EditFieldModal
 const PRECACHE = [
   '/',
   '/index.html',

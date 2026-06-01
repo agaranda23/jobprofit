@@ -32,7 +32,7 @@ import { useEffect, useRef, useState } from 'react';
 
 // ── Single field state row inside the modal ───────────────────────────────
 
-function FieldRow({ field, value, onChange, error }) {
+function FieldRow({ field, value, onChange, error, showLabel = true }) {
   const inputRef = useRef(null);
 
   // On mount, focus the first field and place cursor at end
@@ -52,6 +52,8 @@ function FieldRow({ field, value, onChange, error }) {
     className: `edit-field-input${error ? ' edit-field-input--error' : ''}`,
     value,
     placeholder: field.placeholder || '',
+    // When the visible label is suppressed, give the input an accessible name directly
+    ...(!showLabel && { 'aria-label': field.label }),
     onChange: e => onChange(field.key, e.target.value),
     onBlur: e => {
       if (field.formatOnBlur) {
@@ -65,9 +67,11 @@ function FieldRow({ field, value, onChange, error }) {
 
   return (
     <div className="edit-field-group">
-      <label className="edit-field-label" htmlFor={`ef-${field.key}`}>
-        {field.label}
-      </label>
+      {showLabel && (
+        <label className="edit-field-label" htmlFor={`ef-${field.key}`}>
+          {field.label}
+        </label>
+      )}
       {field.inputType === 'textarea' ? (
         <textarea
           {...sharedProps}
@@ -238,6 +242,7 @@ export default function EditFieldModal({
               value={values[f.key]}
               onChange={handleChange}
               error={errors[f.key]}
+              showLabel={isComposite}
             />
           ))}
 
