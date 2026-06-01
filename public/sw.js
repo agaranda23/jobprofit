@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v46';  // bumped from v45: Chase + Mark paid fill full row width via flex: 1 1 0 on .jt-cta
+const CACHE_NAME = 'jobprofit-v47';  // bumped from v46: wrap Chase+Mark paid in jt-cta-pair container to guarantee zero dead space
 const PRECACHE = [
   '/',
   '/index.html',

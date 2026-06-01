@@ -7598,6 +7598,24 @@ input[type=number] { -moz-appearance: textfield; }
   gap: 8px;
   align-items: stretch;
 }
+/* Wrapper for the Chase + Mark paid pair on Invoiced/Overdue tiles.
+   Grows to claim all row width after the fixed Call/Map icon buttons,
+   then lays its two children out as equal-width flex items side by side.
+   Using a real container (rather than relying on flex: 1 1 0 directly on
+   <button> elements) is the most cross-browser-reliable way to enforce
+   the 50/50 split with zero dead space. */
+.jt-cta-pair {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+.jt-cta-pair > .jt-cta,
+.jt-cta-pair > .jt-cta--markpaid {
+  flex: 1 1 0;
+  min-width: 0;
+}
 .jt-cta {
   flex: 1 1 0;
   background: var(--accent);
