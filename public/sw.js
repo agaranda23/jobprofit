@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v43';  // bumped from v42: flex-center SVG icon + label in New job button
+const CACHE_NAME = 'jobprofit-v44';  // bumped from v43: unify primary CTA green + chase red across tile stages
 const PRECACHE = [
   '/',
   '/index.html',
