@@ -80,6 +80,9 @@ export default function TodayScreen({
   // a voice "Save & send quote" action. Cleared when the sheet closes.
   const [reviewQuoteJob, setReviewQuoteJob] = useState(null);
   const [toast, setToast] = useState('');
+  // toastAction: { label, onClick } — an optional action button inside the toast.
+  // Only used for the fast-save "View" link. Cleared when toast auto-dismisses.
+  const [toastAction, setToastAction] = useState(null);
   // rankVersion bumps after Mark paid / Snooze to force re-rank without a full re-fetch
   const [rankVersion, setRankVersion] = useState(0);
   // invoicePickerOpen: "Send an invoice" pivot button opened the job picker
@@ -101,18 +104,40 @@ export default function TodayScreen({
 
   const now = new Date();
 
-  const showToast = (msg) => {
+  const showToast = (msg, action = null) => {
     setToast(msg);
-    setTimeout(() => setToast(''), 2400);
+    setToastAction(action);
+    setTimeout(() => { setToast(''); setToastAction(null); }, 2400);
   };
 
   const handleJobSave = async (payload) => {
     setJobOpen(false);
     setJobOpenMode('normal');
-    // A quote saved as draft shows a specific message so the tradesperson knows
-    // it landed in the pipeline and can be sent later.
+
     const isDraftQuote = payload?.quoteStatus === 'draft';
-    showToast(isDraftQuote ? 'Quote saved as draft' : 'Job saved');
+    const isFastPath   = payload?.via === 'fast';
+    const isDetailedPath = payload?.via === 'details';
+
+    if (isDraftQuote) {
+      showToast('Quote saved as draft');
+    } else if (isFastPath) {
+      // Fast-save path: stay on Today, show "Saved · £380" toast with a View link.
+      // The View link calls onJobTap which opens JobDetailDrawer on the Work tab.
+      // Undo is deferred — there is no existing clean optimistic-delete path that is
+      // safe to wire here under time pressure. See follow-up: feat/fast-save-undo.
+      const amtLabel = payload?.amount != null ? ` · £${payload.amount}` : '';
+      showToast(`Saved${amtLabel}`, {
+        label: 'View',
+        onClick: () => onJobTap?.(payload),
+      });
+    } else if (isDetailedPath) {
+      // Detailed-save path: navigate to the new job's detail view (Jobs tab, drawer open).
+      // Optimistic — open immediately with the just-saved payload, don't wait on cloud.
+      // JobDetailDrawer is where Send Invoice lives, so arriving there is a free get-paid assist.
+      onJobTap?.(payload);
+    } else {
+      showToast('Job saved');
+    }
 
     // Pay-now soft prompt (Section 1.3 c): surface when the trader saves a
     // completed job and hasn't connected to Stripe yet. Non-blocking, session only.
@@ -122,7 +147,11 @@ export default function TodayScreen({
       setShowPayNowNudge(true);
     }
 
-    try { await onAddJob?.(payload); } catch { showToast('Saved offline — will sync'); }
+    try { await onAddJob?.(payload); } catch {
+      // If the detailed-save path already navigated away, show the sync toast there.
+      // For fast-save, replace the View toast with the sync message.
+      if (!isDetailedPath) showToast('Saved offline — will sync');
+    }
   };
 
   // "Save & send quote" — saves the job then opens ReviewSheet in quote mode.
@@ -602,7 +631,20 @@ export default function TodayScreen({
         />
       )}
 
-      {toast && <div className="toast" role="status">{toast}</div>}
+      {toast && (
+        <div className="toast" role="status">
+          <span className="toast-msg">{toast}</span>
+          {toastAction && (
+            <button
+              type="button"
+              className="toast-action"
+              onClick={() => { setToast(''); setToastAction(null); toastAction.onClick(); }}
+            >
+              {toastAction.label}
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Pay-now soft prompt (Section 1.3 c) — shown after job completion when not connected.
           Not modal, not blocking. Dismissed for this session when trader taps the X. */}

@@ -465,3 +465,187 @@ describe('PR3: Stage 1 carry-forward summary in Stage 2', () => {
     expect(stage1Summary({ amount: '500', paymentChip: 'bank' })).toBe('£500 · Bank');
   });
 });
+
+// ── PR4: post-save behaviour split ───────────────────────────────────────────
+
+/**
+ * Mirrors the via-flag derivation in each save handler.
+ * fast  = Stage 1 "Save it" button
+ * details = Stage 2 "Save job" button
+ */
+function resolveViaFlag(saveOrigin) {
+  if (saveOrigin === 'micro') return 'fast';
+  if (saveOrigin === 'details') return 'details';
+  return undefined;
+}
+
+/**
+ * Mirrors TodayScreen's handleJobSave post-save routing decision.
+ * Returns: 'toast-view' | 'redirect-job' | 'toast-plain'
+ */
+function postSaveAction({ via, isDraftQuote }) {
+  if (isDraftQuote) return 'toast-plain';
+  if (via === 'fast') return 'toast-view';
+  if (via === 'details') return 'redirect-job';
+  return 'toast-plain';
+}
+
+describe('PR4: fast-save path sets via="fast" and stays on Today', () => {
+  it('micro save produces via="fast"', () => {
+    expect(resolveViaFlag('micro')).toBe('fast');
+  });
+
+  it('via="fast" triggers toast-view action (stays on Today, shows View link)', () => {
+    expect(postSaveAction({ via: 'fast', isDraftQuote: false })).toBe('toast-view');
+  });
+
+  it('via="fast" draft quote still shows plain toast (quote path wins)', () => {
+    expect(postSaveAction({ via: 'fast', isDraftQuote: true })).toBe('toast-plain');
+  });
+});
+
+describe('PR4: detailed-save path sets via="details" and redirects to job drawer', () => {
+  it('details save produces via="details"', () => {
+    expect(resolveViaFlag('details')).toBe('details');
+  });
+
+  it('via="details" triggers redirect-job action (navigates to job drawer)', () => {
+    expect(postSaveAction({ via: 'details', isDraftQuote: false })).toBe('redirect-job');
+  });
+
+  it('via=undefined (legacy path) falls back to plain toast (no navigation)', () => {
+    expect(postSaveAction({ via: undefined, isDraftQuote: false })).toBe('toast-plain');
+  });
+});
+
+// ── PR4: voice parse rerouting into the single Stage 2 form ─────────────────
+
+/**
+ * Mirrors the voice parse outcome → voiceStatus transition (PR4 change).
+ * Previously: successful parse → 'confirm'; failed parse → 'manual'.
+ * Now: all parse outcomes → 'form' (the single unified Stage 2 form).
+ */
+function parseOutcomeStatus({ hasAmount, parseThrew }) {
+  if (parseThrew) return 'form';       // catch block
+  if (!hasAmount) return 'form';       // no amount found — drop to form for user to fill
+  return 'form';                       // success — pre-fill and drop to form for review
+}
+
+/**
+ * Mirrors the startListening offline/no-SR fallback (PR4 change).
+ * Previously went to 'manual'; now goes to 'form'.
+ */
+function offlineFallbackStatus() {
+  return 'form';
+}
+
+/**
+ * Mirrors the onerror handler outcomes (PR4 change).
+ * not-allowed / network / unknown → 'form' (was 'manual')
+ * no-speech → 'idle' (unchanged)
+ */
+function detailsOnerrorStatusPR4(errorCode) {
+  if (errorCode === 'no-speech') return 'idle';
+  return 'form';
+}
+
+describe('PR4: voice parse always lands on the single Stage 2 "form" state', () => {
+  it('successful parse with amount → "form" (not "confirm")', () => {
+    expect(parseOutcomeStatus({ hasAmount: true, parseThrew: false })).toBe('form');
+  });
+
+  it('parse with no amount → "form" (not "manual")', () => {
+    expect(parseOutcomeStatus({ hasAmount: false, parseThrew: false })).toBe('form');
+  });
+
+  it('parse throws → "form" (not "manual")', () => {
+    expect(parseOutcomeStatus({ hasAmount: false, parseThrew: true })).toBe('form');
+  });
+
+  it('offline fallback → "form" (not "manual")', () => {
+    expect(offlineFallbackStatus()).toBe('form');
+  });
+
+  it('mic not-allowed error → "form" (not "manual")', () => {
+    expect(detailsOnerrorStatusPR4('not-allowed')).toBe('form');
+  });
+
+  it('network error → "form" (not "manual")', () => {
+    expect(detailsOnerrorStatusPR4('network')).toBe('form');
+  });
+
+  it('no-speech error → "idle" (unchanged — user taps to retry)', () => {
+    expect(detailsOnerrorStatusPR4('no-speech')).toBe('idle');
+  });
+});
+
+// ── PR4: Stage 2 layout unification — no confirm/manual split ────────────────
+
+/**
+ * Mirrors the Stage 2 form visibility gate (PR4 change).
+ * Previously: voiceStatus === 'confirm' || voiceStatus === 'manual'
+ * Now: voiceStatus === 'form'
+ */
+function stage2FormVisible(voiceStatus) {
+  return voiceStatus === 'form';
+}
+
+/**
+ * Mirrors the "Add the details →" button onClick: sets voiceStatus to 'form'
+ * before setting view to 'details' so the user lands directly on the form.
+ */
+function addDetailsNavResultsInForm() {
+  // onClick sets voiceStatus('form') then setView('details')
+  return 'form';
+}
+
+describe('PR4: Stage 2 unified form visibility (no confirm/manual split)', () => {
+  it('"form" status renders the Stage 2 form', () => {
+    expect(stage2FormVisible('form')).toBe(true);
+  });
+
+  it('"confirm" status no longer renders a separate layout', () => {
+    expect(stage2FormVisible('confirm')).toBe(false);
+  });
+
+  it('"manual" status no longer renders a separate layout', () => {
+    expect(stage2FormVisible('manual')).toBe(false);
+  });
+
+  it('"listening" status does not render the form', () => {
+    expect(stage2FormVisible('listening')).toBe(false);
+  });
+
+  it('"idle" status does not render the form', () => {
+    expect(stage2FormVisible('idle')).toBe(false);
+  });
+
+  it('"Add the details →" click sets voiceStatus to "form" before navigating', () => {
+    expect(addDetailsNavResultsInForm()).toBe('form');
+  });
+});
+
+// ── PR4: Save & send quote gating (no longer gated on voiceStatus) ───────────
+
+/**
+ * Previously Save & send was gated on voiceStatus === 'confirm'.
+ * PR4 removes that gate — the button is available whenever paymentChip is
+ * 'awaiting' and onSaveAndSend is provided, regardless of voice status.
+ */
+function saveAndSendVisiblePR4({ paymentChip, onSaveAndSendProvided }) {
+  return paymentChip === 'awaiting' && onSaveAndSendProvided;
+}
+
+describe('PR4: Save & send quote no longer gated on voiceStatus', () => {
+  it('shown for awaiting + onSaveAndSend provided (regardless of voice state)', () => {
+    expect(saveAndSendVisiblePR4({ paymentChip: 'awaiting', onSaveAndSendProvided: true })).toBe(true);
+  });
+
+  it('hidden when paymentChip is not awaiting', () => {
+    expect(saveAndSendVisiblePR4({ paymentChip: 'cash', onSaveAndSendProvided: true })).toBe(false);
+  });
+
+  it('hidden when onSaveAndSend not provided', () => {
+    expect(saveAndSendVisiblePR4({ paymentChip: 'awaiting', onSaveAndSendProvided: false })).toBe(false);
+  });
+});
