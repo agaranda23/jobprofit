@@ -2915,15 +2915,7 @@ export default function JobDetailDrawer({
                   onEditDescription={onUpdateJob ? () => setEditingField('description') : undefined}
                 />
 
-                {/* 3. Money card — "Money · Quoted £X", costs, profit */}
-                <MoneyCard
-                  quote={quote}
-                  costs={materials}
-                  profit={profit}
-                  margin={margin}
-                  onTap={() => setProfitSheetOpen(true)}
-                />
-                {/* CIS-4/5: tax meta (CIS toggle + exclude) follows the money card */}
+                {/* CIS-4/5: tax meta (CIS toggle + exclude) */}
                 {isCisUser && taxMetaEl}
 
                 {/* 4. Schedule card — collapsible, inline edit form when open */}
@@ -3000,7 +2992,17 @@ export default function JobDetailDrawer({
                   {costsBodyEl}
                 </CollapsedSectionRow>
 
-                {/* 8. More (Photos · Notes) */}
+                {/* 8. View profit breakdown — opens ProfitBreakdownSheet */}
+                <button
+                  type="button"
+                  className="jd-breakdown-btn"
+                  onClick={() => setProfitSheetOpen(true)}
+                  aria-label="View profit breakdown"
+                >
+                  View profit breakdown
+                </button>
+
+                {/* 10. More (Photos · Notes) */}
                 {showMore && (
                   <MoreDisclosure
                     summary={moreSummary}
@@ -3011,7 +3013,7 @@ export default function JobDetailDrawer({
                   </MoreDisclosure>
                 )}
 
-                {/* 9. B2B settings row — no card chrome, below More */}
+                {/* 11. B2B settings row — no card chrome, below More */}
                 <B2BSettingsRow
                   job={job}
                   onToggle={onUpdateJob ? () => {
@@ -3019,8 +3021,8 @@ export default function JobDetailDrawer({
                   } : undefined}
                 />
 
-                {/* 10. Exclude-from-tax settings row — below B2B row, non-CIS only.
-                    CIS users get the exclude toggle inside JobTaxMeta (after Money card). */}
+                {/* 12. Exclude-from-tax settings row — below B2B row, non-CIS only.
+                    CIS users get the exclude toggle inside JobTaxMeta (above Schedule card). */}
                 {hasExcludeToggle && (
                   <ExcludeTaxRow
                     job={job}
