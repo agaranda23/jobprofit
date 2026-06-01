@@ -3166,7 +3166,7 @@ export default function JobDetailDrawer({
           open
           fieldKey="customer"
           fieldLabel="Customer name"
-          currentValue={job.customer || job.name || ''}
+          currentValue={job.customer || ''}
           inputType="text"
           placeholder="e.g. Sarah Jones"
           onSave={handleCustomerFieldSave}

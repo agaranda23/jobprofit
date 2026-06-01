@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v31';  // bumped from v30: replace Money card with View profit breakdown CTA + fix Schedule/Quote/Costs expansion
+const CACHE_NAME = 'jobprofit-v32';  // bumped from v31: customer name modal pre-fill + CSR accordion rewrite (grid-template-rows)
 const PRECACHE = [
   '/',
   '/index.html',
