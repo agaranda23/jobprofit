@@ -283,22 +283,33 @@ function CustomerCard({ job, onEditName, onEditPhone, onEditAddress, onEditEmail
         )
       )}
 
-      {/* Address — tap to edit (mirrors email/phone pattern). Maps deep-link is
-          deferred to a follow-up: founder asked for editable as primary action,
-          Maps as a later secondary option. Read-only contexts still get the
-          Maps fallback so the row remains useful when canEdit is false. */}
+      {/* Address — Maps pin tap on the icon+text, edit tap on the chevron.
+          Two sibling tap targets in one row; no nested button-in-anchor.
+          Read-only branch (canEdit false): whole row links to Maps.
+          No-address branch: unchanged ghost-button for adding address. */}
       {address ? (
         canEdit ? (
-          <button
-            type="button"
-            className="jd-card-row jd-card-row--tappable"
-            onClick={onEditAddress}
-            aria-label="Edit customer address"
-          >
-            <span className="jd-card-row-icon" aria-hidden="true">📍</span>
-            <span className="jd-card-row-val">{address}</span>
-            <span className="jd-card-row-edit" aria-hidden="true">›</span>
-          </button>
+          <div className="jd-card-row jd-card-row--split-action">
+            <a
+              href={`https://maps.google.com/?q=${encodeURIComponent(address)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="jd-card-row-maps-tap"
+              aria-label={`Open ${address} in Maps`}
+              onClick={() => logTelemetry('drawer_action_map', { source: 'drawer' })}
+            >
+              <span className="jd-card-row-icon" aria-hidden="true">📍</span>
+              <span className="jd-card-row-val">{address}</span>
+            </a>
+            <button
+              type="button"
+              className="jd-card-row-edit-btn"
+              onClick={onEditAddress}
+              aria-label="Edit customer address"
+            >
+              <span aria-hidden="true">›</span>
+            </button>
+          </div>
         ) : (
           <a
             href={`https://maps.google.com/?q=${encodeURIComponent(address)}`}

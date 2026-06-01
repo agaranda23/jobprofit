@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v51';  // bumped from v50: chase-bar one-invoice focus Design A
+const CACHE_NAME = 'jobprofit-v52';  // bumped from v51: job-profile three fixes (address Maps, schedule save, Lead CTA)
 const PRECACHE = [
   '/',
   '/index.html',
