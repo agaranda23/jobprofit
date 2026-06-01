@@ -4574,6 +4574,14 @@ input[type=number] { -moz-appearance: textfield; }
   padding: 0 4px;
 }
 
+.settings-section-subtitle {
+  font-size: 13px;
+  color: var(--text-dim);
+  margin: 0;
+  padding: 10px 16px 4px;
+  line-height: 1.5;
+}
+
 .settings-card {
   background: var(--surface);
   border: 1px solid var(--border);

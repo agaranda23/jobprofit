@@ -1,0 +1,127 @@
+<!-- DRAFT — founder must fill all [PLACEHOLDER] items and have a UK solicitor review before relying on this -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Privacy Policy — JobProfit</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+      font-size: 16px;
+      line-height: 1.65;
+      color: #1a1a1a;
+      background: #f9f9f9;
+    }
+    .page {
+      max-width: 680px;
+      margin: 0 auto;
+      padding: 40px 20px 80px;
+      background: #fff;
+      min-height: 100vh;
+    }
+    .logo-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 32px;
+    }
+    .logo-row a {
+      font-weight: 700;
+      font-size: 18px;
+      color: #1a1a1a;
+      text-decoration: none;
+    }
+    h1 { font-size: 26px; margin: 0 0 6px; }
+    .meta { color: #666; font-size: 14px; margin-bottom: 36px; }
+    h2 { font-size: 17px; margin: 32px 0 8px; }
+    p, li { margin: 0 0 12px; }
+    ul { padding-left: 20px; }
+    a { color: #2563eb; }
+    .footer-links {
+      margin-top: 48px;
+      padding-top: 24px;
+      border-top: 1px solid #e5e5e5;
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+      font-size: 14px;
+      color: #555;
+    }
+    .footer-links a { color: #555; }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="logo-row">
+      <a href="/">JobProfit</a>
+    </div>
+
+    <h1>Privacy Policy</h1>
+    <p class="meta">Last updated: [PLACEHOLDER: insert publication date]</p>
+
+    <h2>1. Who we are</h2>
+    <p>JobProfit is operated by [PLACEHOLDER: full legal company name, e.g. JobProfit Ltd] ([PLACEHOLDER: company number]), registered at [PLACEHOLDER: registered office address, UK]. Contact: [PLACEHOLDER: data protection contact email]. We are registered with the ICO; registration number [PLACEHOLDER: ICO registration number].</p>
+
+    <h2>2. The short version</h2>
+    <p>We collect what we need to make the app work. We do not sell your data. We do not share it with anyone who does not need it to run the service. You can export everything or delete your account at any time — both are in the app.</p>
+
+    <h2>3. What data we hold and why</h2>
+
+    <p><strong>3a. Data about you (the trader — account data): JobProfit is the data controller.</strong></p>
+    <ul>
+      <li>Name, email, phone — account creation, login, support, notifications (lawful basis: contract).</li>
+      <li>Business name, business address — populating quotes/invoices (contract).</li>
+      <li>Bank details (account name, sort code, account number) — displaying payment details on invoices (contract).</li>
+      <li>VAT number, UTR number — compliance and invoicing (contract/legal obligation).</li>
+      <li>Hourly rate — calculating job costs and profit (contract).</li>
+      <li>Logo — branding quotes/invoices (contract).</li>
+      <li>App usage data (pages, features, errors) — improving the product (legitimate interests; we use PostHog, see Section 5).</li>
+    </ul>
+
+    <p><strong>3b. Data about your customers (job data): When you quote/invoice/log jobs, YOU are the data controller and JobProfit is your data processor.</strong></p>
+    <p>We process this only on your instruction. This includes customer name, address, phone, email, job descriptions, line items, amounts, and an e-signature (PNG) when a customer accepts a quote via a public link. You are responsible for having a lawful basis to process your customers' data and for responding to their data subject requests. A Data Processing Agreement is available on request at [PLACEHOLDER: data protection contact email].</p>
+
+    <h2>4. How long we keep data</h2>
+    <ul>
+      <li>Account data: while your account is active plus up to 12 months after deletion (billing disputes, chargebacks, legal claims) unless law requires longer.</li>
+      <li>Job and customer data: while active; deleted within [PLACEHOLDER: e.g. 30 days] of account deletion.</li>
+      <li>Analytics (PostHog): per PostHog retention [PLACEHOLDER: specify period].</li>
+      <li>Stripe transaction records: Stripe retains per its policies; we retain metadata up to 7 years for accounting/tax.</li>
+    </ul>
+
+    <h2>5. Who we share data with (sub-processors)</h2>
+    <ul>
+      <li><strong>Supabase</strong> — database hosting — all account/job data — [PLACEHOLDER: confirm region].</li>
+      <li><strong>Netlify</strong> — hosting/serverless — request metadata, logs — USA ([PLACEHOLDER: confirm transfer mechanism]).</li>
+      <li><strong>Stripe / Stripe Connect</strong> — payment processing — trader name, email, billing metadata; card/bank-card details held directly by Stripe, JobProfit never sees or stores them — USA (EU-US DPF).</li>
+      <li><strong>PostHog</strong> — analytics — pseudonymised usage events, device metadata, IP (may be anonymised, [PLACEHOLDER: confirm IP masking]) — [PLACEHOLDER: confirm region].</li>
+    </ul>
+    <p>We do not sell data or use it for advertising targeting.</p>
+
+    <h2>6. International transfers</h2>
+    <p>Where data is transferred outside the UK we rely on [PLACEHOLDER: UK adequacy regs / UK IDTAs / UK Addendum to SCCs as applicable].</p>
+
+    <h2>7. Your rights (UK GDPR)</h2>
+    <p>Access, rectify, erase, restrict/object, data portability, withdraw consent, lodge a complaint with the ICO (<a href="https://ico.org.uk" target="_blank" rel="noopener">ico.org.uk</a>).</p>
+    <p>In-app: export all data as CSV from Settings; delete your account from Settings. For anything beyond the in-app tools, or if you are a customer of a tradesperson who uses JobProfit, contact [PLACEHOLDER: data protection contact email] — for tradespeople's customers we act as processor and will direct your request to the relevant tradesperson (the controller).</p>
+
+    <h2>8. Security</h2>
+    <p>HTTPS/TLS, access controls, Supabase Row Level Security. No system is fully secure; we will notify you and the ICO of a qualifying breach as required.</p>
+
+    <h2>9. Changes</h2>
+    <p>Material changes notified by email or in-app before they take effect; the "last updated" date reflects the current version.</p>
+
+    <h2>10. Contact</h2>
+    <p>[PLACEHOLDER: full legal company name], [PLACEHOLDER: registered address], [PLACEHOLDER: contact email]. ICO registration: [PLACEHOLDER: ICO number].</p>
+
+    <div class="footer-links">
+      <a href="/">Home</a>
+      <a href="/terms">Terms of Service</a>
+      <a href="/cookies">Cookie Policy</a>
+    </div>
+  </div>
+</body>
+</html>

@@ -52,6 +52,7 @@ import { buildChaseList } from '../lib/chaseList.js';
 import { WHATS_NEW, formatWhatsNewDate } from '../lib/whatsNew.js';
 import { getStoredPref, setPref as setThemePref } from '../lib/theme.js';
 import ProUpgradeSheet from '../components/ProUpgradeSheet.jsx';
+import { getConsent, setConsent } from '../lib/consent.js';
 
 const APP_VERSION = pkg.version;
 
@@ -159,6 +160,31 @@ function PlaceholderRow({ label }) {
     <Row
       label={label}
       action="Coming soon"
+      chevron={false}
+    />
+  );
+}
+
+// ── CookieSettingsRow ─────────────────────────────────────────────────────────
+// Shows current analytics consent state and lets the user toggle it.
+// Withdrawal is as easy as granting (single tap, no confirmation step).
+
+function CookieSettingsRow() {
+  const [consent, setConsentState] = useState(() => getConsent());
+
+  function handleToggle() {
+    const next = consent === 'granted' ? 'denied' : 'granted';
+    setConsent(next);
+    setConsentState(next);
+  }
+
+  const label = consent === 'granted' ? 'Analytics on' : 'Analytics off';
+
+  return (
+    <Row
+      label="Cookie settings"
+      value={label}
+      onTap={handleToggle}
       chevron={false}
     />
   );
@@ -1982,6 +2008,18 @@ export default function SettingsScreen({
 
       {/* Data & privacy */}
       <SectionCard title="Data &amp; privacy">
+        <p className="settings-section-subtitle">
+          Your data is yours. Export it or delete it anytime — no email to support, no waiting.
+        </p>
+        <Row
+          label="Privacy Policy"
+          onTap={() => window.open('/privacy', '_blank', 'noopener')}
+        />
+        <Row
+          label="Terms of Service"
+          onTap={() => window.open('/terms', '_blank', 'noopener')}
+        />
+        <CookieSettingsRow />
         <Row
           label="Export everything"
           value={exporting ? 'Preparing…' : 'CSV'}
