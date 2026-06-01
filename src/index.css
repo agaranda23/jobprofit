@@ -4658,6 +4658,28 @@ input[type=number] { -moz-appearance: textfield; }
   opacity: 0.65;
 }
 
+/* ── Settings — FAQ expandable rows ─────────────────────────────────────── */
+
+.settings-faq-item {
+  border-bottom: 1px solid var(--border);
+}
+.settings-faq-item:last-child {
+  border-bottom: none;
+}
+.settings-faq-q {
+  width: 100%;
+  text-align: left;
+}
+.settings-faq-a {
+  padding: 0 16px 14px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--text-dim);
+}
+.settings-faq-a p {
+  margin: 0;
+}
+
 /* ── Settings — theme picker ─────────────────────────────────────────────── */
 
 /* Wrapper sits inside the settings-row padding area */

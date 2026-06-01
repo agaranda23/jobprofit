@@ -190,6 +190,32 @@ function CookieSettingsRow() {
   );
 }
 
+// ── FaqItem — expandable Q&A row inside Help SectionCard ─────────────────────
+
+function FaqItem({ question, children }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="settings-faq-item">
+      <button
+        type="button"
+        className="settings-row settings-faq-q"
+        onClick={() => setOpen(o => !o)}
+        aria-expanded={open}
+      >
+        <span className="settings-row-label">{question}</span>
+        <span className="settings-row-right">
+          <span className="settings-row-chevron" style={{ transition: 'transform 0.2s', transform: open ? 'rotate(90deg)' : 'none' }}>›</span>
+        </span>
+      </button>
+      {open && (
+        <div className="settings-faq-a">
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── NotificationsSection ──────────────────────────────────────────────────────
 
 function NotificationsSection({ session }) {
@@ -1522,6 +1548,17 @@ export default function SettingsScreen({
     window.location.href = 'mailto:getjobprofit@gmail.com?subject=JobProfit%20feedback';
   };
 
+  const handleSendBugReport = () => {
+    const version = APP_VERSION || 'unknown';
+    const ua = navigator.userAgent || 'unknown';
+    const plan = profile?.plan || 'unknown';
+    const userRef = session?.user?.id?.slice(0, 8) || 'anonymous';
+    const body = encodeURIComponent(
+      `What happened:\n\n\nWhat you expected:\n\n\n---\nApp: ${version} | Plan: ${plan} | Ref: ${userRef}\nDevice: ${ua}`,
+    );
+    window.location.href = `mailto:getjobprofit@gmail.com?subject=JobProfit%20bug%20report%20v${version}&body=${body}`;
+  };
+
   const handleSave = async (patch) => {
     if (!onProfileUpdate) throw new Error('onProfileUpdate not wired');
     await onProfileUpdate(patch);
@@ -2047,6 +2084,11 @@ export default function SettingsScreen({
           onTap={handleSendFeedback}
         />
         <Row
+          label="Report a bug"
+          value="Email"
+          onTap={handleSendBugReport}
+        />
+        <Row
           label="Refer a mate"
           onTap={handleShare}
         />
@@ -2063,6 +2105,28 @@ export default function SettingsScreen({
             <span className="settings-row-chevron">›</span>
           </span>
         </button>
+      </SectionCard>
+
+      {/* FAQ */}
+      <SectionCard title="FAQ">
+        <FaqItem question="How do I send an invoice?">
+          <p>Log a job, set the amount, then tap the job to open it and hit "Send invoice". Your customer gets a link they can open in any browser — no app needed. They can also pay by card if you&rsquo;ve connected Stripe in Settings &rarr; Card payments.</p>
+        </FaqItem>
+        <FaqItem question="How does the free trial work? What happens after 14 days?">
+          <p>You get 14 days of Pro free — no card required to start. After that, you drop to the free tier (1 free invoice send). Upgrade to Pro for £12/mo at any time from Settings &rarr; Subscription to keep unlimited invoicing and the full Insight Layer.</p>
+        </FaqItem>
+        <FaqItem question="How do I cancel or change my plan?">
+          <p>Go to Settings &rarr; Subscription &rarr; Manage billing. That opens the Stripe billing portal where you can cancel or update your card. Cancellation takes effect at the end of your current billing period — no pro-rata charge.</p>
+        </FaqItem>
+        <FaqItem question="Is my data safe? Who can see my jobs?">
+          <p>Only you. Your jobs are locked to your account using Supabase Row Level Security — other users cannot read your data even if they tried. Public quote and invoice links are single-use tokens that only reveal what you choose to share with the customer.</p>
+        </FaqItem>
+        <FaqItem question="How does a customer accept a quote and pay?">
+          <p>Send them the quote link. They open it in their browser, review the breakdown, sign with their finger, tick the T&amp;Cs checkbox, and tap Confirm. If you&rsquo;ve set a deposit, they can pay it via Stripe right there. You get a push notification the moment they accept.</p>
+        </FaqItem>
+        <FaqItem question="How do I export or delete my data?">
+          <p>Settings &rarr; Data &amp; privacy &rarr; Export everything downloads a CSV of all your jobs. Settings &rarr; Data &amp; privacy &rarr; Delete account wipes everything immediately — no email to support, no waiting.</p>
+        </FaqItem>
       </SectionCard>
 
       {/* App */}
