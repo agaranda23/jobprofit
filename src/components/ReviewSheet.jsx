@@ -30,8 +30,8 @@
  */
 
 import { useState, useCallback } from 'react';
-import { downloadInvoicePDF } from '../lib/invoicePDF';
-import { downloadQuotePDF } from '../lib/invoicePDF';
+import { downloadInvoicePDF, getInvoicePDFBlob } from '../lib/invoicePDF';
+import { downloadQuotePDF, getQuotePDFBlob } from '../lib/invoicePDF';
 import { buildInvoiceWhatsAppMessage, buildWhatsAppLink } from '../lib/invoiceMessage';
 import { buildQuoteWhatsAppMessage } from '../lib/quoteMessage';
 import { nextInvoiceNumber } from '../lib/invoiceNumber';
@@ -41,6 +41,7 @@ import {
 } from '../lib/publicQuoteToken';
 import { logTelemetry } from '../lib/telemetry';
 import { isPro } from '../lib/plan';
+import { canShareFile } from '../lib/webShare';
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -125,13 +126,48 @@ export default function ReviewSheet({
   }, [isInvoice, job, onUpdate, flash, onDismiss]);
 
   // ── Invoice: WhatsApp send ─────────────────────────────────────────────────
-  const handleInvoiceWhatsApp = () => {
-    logTelemetry('invoice_send', { channel: 'whatsapp', source: 'review_sheet' });
+  // Decision tree:
+  //   1. Generate PDF blob first (needed for file-share paths).
+  //   2. canShareFile(file) + has phone  → navigator.share({ files, text }) + wa.me deep-link in text
+  //   3. canShareFile(file), no phone    → navigator.share({ files, text }) only (user picks recipient)
+  //   4. No Web Share Level 2            → wa.me text-only + auto-trigger PDF download as manual fallback
+  //   5. AbortError (sheet dismissed)    → don't close, don't flash error
+  const handleInvoiceWhatsApp = async () => {
+    setBusy(true);
     const message = buildInvoiceWhatsAppMessage({ job, biz, invoiceNumber, dueDate });
-    const link = buildWhatsAppLink({
-      phone: resolvePhone(job),
-      message,
-    });
+    const phone = resolvePhone(job);
+    const link = buildWhatsAppLink({ phone, message });
+
+    let shareMethod = 'wame_fallback';
+    try {
+      const blob = await getInvoicePDFBlob({ job, biz, profile, invoiceNumber, dueDate });
+      const file = new File([blob], `invoice-${invoiceNumber}.pdf`, { type: 'application/pdf' });
+
+      if (canShareFile(file)) {
+        shareMethod = 'web_share_files';
+        const shareData = phone
+          ? { files: [file], text: message + '\n' + link, title: `Invoice ${invoiceNumber}` }
+          : { files: [file], text: message, title: `Invoice ${invoiceNumber}` };
+        await navigator.share(shareData);
+      } else {
+        // Web Share Level 2 not available — open wa.me + give the user the PDF to attach manually
+        shareMethod = 'wame_fallback';
+        window.open(link, '_blank', 'noopener');
+        await downloadInvoicePDF({ job, biz, profile, invoiceNumber, dueDate });
+      }
+    } catch (err) {
+      if (err?.name === 'AbortError') {
+        // User dismissed the share sheet — not an error, don't close
+        setBusy(false);
+        return;
+      }
+      // PDF generation failed — fall back to text-only wa.me so the user can still send
+      shareMethod = 'wame_fallback';
+      window.open(link, '_blank', 'noopener');
+      flash?.('PDF failed — invoice sent as text');
+    }
+
+    logTelemetry('invoice_send', { channel: 'whatsapp', source: 'review_sheet', share_method: shareMethod });
     onUpdate?.({
       ...job,
       status: 'invoice_sent',
@@ -140,8 +176,8 @@ export default function ReviewSheet({
       invoiceDueDate: new Date(dueDate).toISOString(),
       invoiceDraft: false,
     });
-    window.open(link, '_blank', 'noopener');
     flash?.('Invoice sent');
+    setBusy(false);
     onClose?.();
   };
 
@@ -159,8 +195,15 @@ export default function ReviewSheet({
   };
 
   // ── Quote: WhatsApp send ───────────────────────────────────────────────────
+  // Decision tree:
+  //   1. Generate PDF blob first.
+  //   2. canShareFile(file) + has phone  → navigator.share({ files, text }) where text includes the wa.me link
+  //   3. canShareFile(file), no phone    → navigator.share({ files, text }) only
+  //   4. No Web Share Level 2 + phone    → wa.me text-only + auto-trigger PDF download
+  //   5. No Web Share Level 2, no phone  → clipboard copy of quote URL
+  //   6. AbortError                      → don't close, don't flash error
   const handleQuoteWhatsApp = async () => {
-    logTelemetry('quote_send', { channel: 'whatsapp', source: 'review_sheet' });
+    setBusy(true);
     let token = job.publicAccessToken;
     if (!token) {
       token = generatePublicAccessToken();
@@ -170,6 +213,49 @@ export default function ReviewSheet({
     const message = buildQuoteWhatsAppMessage({ job, biz, quoteUrl });
     const link = buildWhatsAppLink({ phone: phone || '', message });
 
+    let shareMethod = 'wame_fallback';
+    try {
+      const blob = getQuotePDFBlob({ job, biz });
+      const customer = (job?.customer || 'quote').replace(/\s/g, '-');
+      const file = new File([blob], `quote-${customer}.pdf`, { type: 'application/pdf' });
+
+      if (canShareFile(file)) {
+        shareMethod = 'web_share_files';
+        const shareData = phone
+          ? { files: [file], text: message + '\n' + link, title: 'Your quote' }
+          : { files: [file], text: message, title: 'Your quote' };
+        await navigator.share(shareData);
+      } else if (phone) {
+        shareMethod = 'wame_fallback';
+        window.open(link, '_blank', 'noopener');
+        downloadQuotePDF({ job, biz });
+      } else {
+        // No file share, no phone — copy the quote URL so the user can paste it
+        shareMethod = 'web_share_text';
+        try {
+          await navigator.clipboard.writeText(quoteUrl);
+          flash?.('Link copied — paste it in WhatsApp');
+        } catch {
+          flash?.('Share this URL: ' + quoteUrl);
+        }
+      }
+    } catch (err) {
+      if (err?.name === 'AbortError') {
+        setBusy(false);
+        return;
+      }
+      // PDF generation failed — fall back to text-only wa.me
+      shareMethod = 'wame_fallback';
+      if (phone) {
+        window.open(link, '_blank', 'noopener');
+      } else {
+        flash?.('Could not share — try copying the link');
+        setBusy(false);
+        return;
+      }
+    }
+
+    logTelemetry('quote_send', { channel: 'whatsapp', source: 'review_sheet', share_method: shareMethod });
     onUpdate?.({
       ...job,
       status: job.status === 'lead' ? 'quoted' : job.status,
@@ -178,31 +264,8 @@ export default function ReviewSheet({
       publicAccessToken: token,
       quoteDraft: false,
     });
-
-    if (phone) {
-      window.open(link, '_blank', 'noopener');
-    } else if (navigator.share) {
-      setBusy(true);
-      try {
-        await navigator.share({ title: 'Your quote', text: message, url: quoteUrl });
-      } catch (err) {
-        if (err?.name !== 'AbortError') {
-          flash?.('Could not share — try copying the link');
-        }
-        setBusy(false);
-        return;
-      }
-      setBusy(false);
-    } else {
-      try {
-        await navigator.clipboard.writeText(quoteUrl);
-        flash?.('Link copied — paste it in WhatsApp');
-      } catch {
-        flash?.('Share this URL: ' + quoteUrl);
-      }
-    }
-
     flash?.('Quote sent');
+    setBusy(false);
     onClose?.();
   };
 
