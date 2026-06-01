@@ -909,31 +909,44 @@ function JobTile({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJo
             </svg>
             <span>Map</span>
           </button>
-          {/* Main stage-aware CTA — expands to fill remaining space */}
-          <button
-            type="button"
-            className={`jt-cta${cta.mod ? ` jt-cta--${cta.mod}` : ''}`}
-            onClick={cta.action}
-            disabled={!!cta.disabled}
-            aria-disabled={!!cta.disabled}
-          >
-            {cta.label}
-          </button>
-          {/* 1G: One-tap Mark paid on Invoiced/Overdue — closes the loop from the list */}
-          {cta.markPaid && (
+          {/* Main stage-aware CTA — single CTA fills remaining space;
+              dual CTA (Invoiced/Overdue) wrapped in jt-cta-pair so the
+              pair grows as a unit then splits 50/50 internally. */}
+          {cta.markPaid ? (
+            <div className="jt-cta-pair">
+              <button
+                type="button"
+                className={`jt-cta${cta.mod ? ` jt-cta--${cta.mod}` : ''}`}
+                onClick={cta.action}
+                disabled={!!cta.disabled}
+                aria-disabled={!!cta.disabled}
+              >
+                {cta.label}
+              </button>
+              <button
+                type="button"
+                className="jt-cta--markpaid"
+                aria-label="Mark paid"
+                onClick={() => onUpdateJob?.({
+                  ...job,
+                  paid: true,
+                  status: 'paid',
+                  paidAt: new Date().toISOString(),
+                  paymentStatus: 'paid',
+                })}
+              >
+                Mark paid
+              </button>
+            </div>
+          ) : (
             <button
               type="button"
-              className="jt-cta--markpaid"
-              aria-label="Mark paid"
-              onClick={() => onUpdateJob?.({
-                ...job,
-                paid: true,
-                status: 'paid',
-                paidAt: new Date().toISOString(),
-                paymentStatus: 'paid',
-              })}
+              className={`jt-cta${cta.mod ? ` jt-cta--${cta.mod}` : ''}`}
+              onClick={cta.action}
+              disabled={!!cta.disabled}
+              aria-disabled={!!cta.disabled}
             >
-              Mark paid
+              {cta.label}
             </button>
           )}
           {chasedChip && (
