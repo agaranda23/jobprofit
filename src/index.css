@@ -8537,6 +8537,20 @@ input[type=number] { -moz-appearance: textfield; }
   min-height: 48px;
 }
 
+/* Expanded state: create a stacking context so the revealed panel paints on
+   top of subsequent sibling cards in the flex column.
+   Root cause of the 5th drawer stacking regression (June 2026): when Schedule
+   expands inside .job-detail-body (overflow-y:auto flex column), the expanding
+   panel has no stacking context and later sibling cards (.jd-card, .jd-csr)
+   paint over it. position:relative + z-index:1 promotes this element above
+   position:static siblings (z-index:auto) so the panel content is always
+   visible in front. The class is added/removed by CollapsedSectionRow.jsx as
+   expanded state changes — it is never present when the row is collapsed. */
+.jd-csr--expanded {
+  position: relative;
+  z-index: 1;
+}
+
 .jd-csr--attention {
   border-left: 3px solid #F4A024;
   background: #1a1700;
