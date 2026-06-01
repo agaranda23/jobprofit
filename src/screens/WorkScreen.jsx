@@ -850,6 +850,21 @@ function JobTile({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJo
         {priceLine}
       </div>
 
+      {/* Row 2b: + Add details chip — Lead tiles missing customer, address, and notes.
+          Persistent until ANY of those fields is filled. Tap opens the drawer (same as
+          tapping the tile body). Condition mirrors the Speed-mode bare-minimum save:
+          no customer, no address, no notes — the user can enrich via the drawer. */}
+      {stage === 'Lead' && !job.customer && !resolveAddress(job) && !job.notes && (
+        <button
+          type="button"
+          className="jt-add-details-chip"
+          aria-label="Add details to this job"
+          onClick={e => { e.stopPropagation(); onSelect?.(job); }}
+        >
+          + Add details
+        </button>
+      )}
+
       {/* Row 3: single highest-priority signal (1D) — keeps the tile scannable */}
       {topSignal && (
         <div className="jt-signals">

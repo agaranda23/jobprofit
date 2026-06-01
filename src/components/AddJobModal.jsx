@@ -244,18 +244,16 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMo
   // Save handlers
   // ─────────────────────────────────────────────────────────────────────────
 
-  // Micro-log save: amount is optional (can be blank = "add price later").
+  // Micro-log save (Speed mode): amount is optional (can be blank = "add price later").
   // Job name auto-fills to "Job · {day date}". Never blocks the user.
   // via='fast' signals the parent to stay on Today and show a confirmation toast.
+  // speedMode:true signals TodayScreen to also show the "Got paid?" chip toast.
+  // Payment status is always Awaiting on Speed-mode save — the chip strip has been
+  // removed from Stage 1. The Got Paid toast on Today is where the user sets it.
   const saveMicro = () => {
     const amt = amount.trim() ? parseFloat(amount) : null;
     if (amt !== null && (isNaN(amt) || amt <= 0)) {
       setError("That amount doesn't look right");
-      return;
-    }
-    const isPaid = paymentChip !== 'awaiting';
-    if (isPaid && amt === null) {
-      setError('Add an amount before you can mark this paid');
       return;
     }
     setError('');
@@ -265,11 +263,12 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMo
       customer:    null,
       phone:       null,
       amount:      amt,
-      paymentType: isPaid ? paymentChip : null,
-      paid:        isPaid,
+      paymentType: null,
+      paid:        false,
       date:        new Date().toISOString(),
       createdAt:   new Date().toISOString(),
       via:         'fast',
+      speedMode:   true,
     });
   };
 
@@ -582,12 +581,12 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMo
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal modal-tall" onClick={e => e.stopPropagation()}>
 
-        {/* ══ STAGE 1 — MICRO-LOG VIEW (default entry) ══════════════════════ */}
+        {/* ══ STAGE 1 — MICRO-LOG VIEW (Speed mode) ═════════════════════════ */}
         {view === 'micro' && (
           <>
             <div className="aj-header">
               <h3 className="modal-title">
-                Add job
+                New job
                 {!isOnline() && (
                   <span className="aj-offline-pill" aria-label="Offline">⚡ Offline</span>
                 )}
@@ -595,14 +594,8 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMo
               <button className="aj-close-btn" onClick={onClose} aria-label="Close">✕</button>
             </div>
 
-            {/* 2-dot stepper: ● ○ = Stage 1 of 2 */}
-            <div className="aj-stepper" aria-label="Step 1 of 2">
-              <span className="aj-stepper-dot aj-stepper-dot--on" aria-hidden="true" />
-              <span className="aj-stepper-dot" aria-hidden="true" />
-            </div>
-
-            {/* Directional prompt — the screen asks, not just presents a field */}
-            <p className="aj-capture-prompt">How much did you charge?</p>
+            {/* Field label — no chip strip on Stage 1 in Speed mode */}
+            <p className="aj-capture-prompt aj-capture-prompt--label">Amount</p>
 
             {!isOnline() && (
               <p className="aj-offline-hint">No signal — voice off. Type the amount instead.</p>
@@ -623,44 +616,33 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMo
               />
             </div>
 
-            {/* Paid-by chip strip */}
-            <div className="aj-chip-label">Got paid?</div>
-            <div className="aj-chip-strip aj-chip-strip--micro">
-              {PAYMENT_CHIPS.map(c => (
-                <button
-                  key={c.id}
-                  type="button"
-                  className={chipClass(c.id)}
-                  onClick={() => setPaymentChip(c.id)}
-                >
-                  {c.label}
-                </button>
-              ))}
-            </div>
-
             {error && <p className="modal-error">{error}</p>}
 
-            {/* Primary action — thumb-default for the fast 2-tap logger */}
+            {/* Primary action — single tap, no decisions required */}
             <button
               className="btn-primary btn-large aj-save-btn"
               onClick={saveMicro}
             >
-              Save it
+              Log it
             </button>
 
-            {/* Secondary — real bordered button, not a faint text link */}
-            <button
-              className="aj-details-btn"
-              type="button"
-              onClick={() => {
-                // voiceEntryExplicit stays false — voice does NOT auto-start.
-                // Jump straight to the unified form so the user can type immediately.
-                setVoiceStatus('form');
-                setView('details');
-              }}
-            >
-              <span className="aj-details-btn-plus">+</span> Add the details <span className="aj-details-btn-arrow">→</span>
-            </button>
+            {/* Helper hint beneath primary CTA */}
+            <p className="aj-speed-hint">Paid? Add details? You'll get a prompt after.</p>
+
+            {/* Demoted details link — text-only, not a bordered button */}
+            <div className="aj-footer-links">
+              <button
+                className="link-btn aj-details-link"
+                type="button"
+                onClick={() => {
+                  // voiceEntryExplicit stays false — voice does NOT auto-start.
+                  setVoiceStatus('form');
+                  setView('details');
+                }}
+              >
+                + Add details
+              </button>
+            </div>
 
             {/* Voice entry row — explicit tap only, no auto-arm */}
             {SR && isOnline() && (
