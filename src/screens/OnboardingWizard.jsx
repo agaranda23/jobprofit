@@ -104,7 +104,15 @@ function legacyBizDefaults() {
 }
 
 export default function OnboardingWizard({ session, profile, onComplete }) {
-  const [stepIndex, setStepIndex] = useState(() => firstMissingStep(profile));
+  const [stepIndex, setStepIndex] = useState(() => {
+    const first = firstMissingStep(profile);
+    // wizard_started: fires once per device, the first time the wizard mounts.
+    if (!sessionStorage.getItem('jp.telemetry.wizardStarted')) {
+      sessionStorage.setItem('jp.telemetry.wizardStarted', '1');
+      logTelemetry('wizard_started', { step: first + 1 });
+    }
+    return first;
+  });
   const [values, setValues] = useState(() => {
     // Profile (cloud) takes priority; legacy localStorage fills gaps.
     const legacy = legacyBizDefaults();
@@ -177,6 +185,8 @@ export default function OnboardingWizard({ session, profile, onComplete }) {
 
       // Clear the session flag now that wizard is done
       sessionStorage.removeItem('jp.wizardActive');
+
+      logTelemetry('wizard_completed', {});
 
       // data can be null if Supabase returns nothing despite a successful upsert —
       // fall back to the patch we sent so the caller always gets a profile object.

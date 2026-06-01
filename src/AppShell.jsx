@@ -43,6 +43,8 @@ import {
 } from './lib/store';
 import { flipExpiredTrialToFree } from './lib/plan';
 import { enqueueJob, wireOnlineSync } from './lib/offlineQueue';
+import { logTelemetry, identifyUser } from './lib/telemetry';
+import posthog from 'posthog-js';
 import SyncBadge from './components/SyncBadge';
 
 // ─── Feature flags ───────────────────────────────────────────────────────────
@@ -170,6 +172,13 @@ export default function AppShell() {
           const clean = window.location.pathname + window.location.hash;
           window.history.replaceState(null, '', clean);
         }
+        // upgrade_succeeded: Stripe redirects back to /#/settings?upgraded=1.
+        // Fire once per device session; clear the param so Back/refresh don't re-fire.
+        if (params.has('upgraded')) {
+          logTelemetry('upgrade_succeeded', { plan: 'pro' });
+          const clean = window.location.pathname + window.location.hash;
+          window.history.replaceState(null, '', clean);
+        }
       }
       return null;
     }
@@ -284,6 +293,19 @@ export default function AppShell() {
         // If the trial has expired, flip plan to 'free' in the DB so the row
         // stays clean. Fire-and-forget — never blocks render, never throws.
         flipExpiredTrialToFree(supabase, userId, data);
+
+        // Identify the user in PostHog (PII-light: UUID + plan only, no email).
+        identifyUser(userId, {
+          plan: data.plan ?? 'free',
+          trial_ends_at: data.trial_ends_at ?? null,
+        });
+
+        // trial_started — fires once per device when plan first observed as 'trial'.
+        // The localStorage flag prevents re-firing on subsequent profile fetches.
+        if (data.plan === 'trial' && !localStorage.getItem('jp.telemetry.trialStarted')) {
+          localStorage.setItem('jp.telemetry.trialStarted', '1');
+          logTelemetry('trial_started', { plan: 'trial' });
+        }
       }
     } catch {
       // profiles table may not have first_name/last_name yet — that's fine for slice 1
@@ -299,7 +321,19 @@ export default function AppShell() {
     });
     const { data: listener } = supabase.auth.onAuthStateChange((_event, newSession) => {
       setSession(newSession);
-      if (!newSession) setCloudLoaded(false);
+      if (!newSession) {
+        setCloudLoaded(false);
+        // Reset PostHog identity so the next sign-in gets a clean anonymous profile.
+        try { posthog.reset(); } catch { /* PostHog not initialised or blocked — silently no-op */ }
+      }
+      // sign_up: fires on the first SIGNED_IN event for a brand-new account.
+      // Supabase uses event='SIGNED_IN' for both sign-in and sign-up. We
+      // disambiguate by checking created_at ≈ now (within 30 s).
+      if (_event === 'SIGNED_IN' && newSession?.user) {
+        const createdAt = new Date(newSession.user.created_at ?? 0).getTime();
+        const isNew = Date.now() - createdAt < 30_000;
+        if (isNew) logTelemetry('sign_up', { plan: 'free' });
+      }
     });
     return () => {
       mounted = false;
@@ -533,6 +567,7 @@ export default function AppShell() {
   };
 
   const handleMarkPaid = async (id) => {
+    logTelemetry('mark_paid', { source: 'history' });
     try {
       await markJobPaidCloud(id);
       await refreshFromCloud();
@@ -557,6 +592,7 @@ export default function AppShell() {
   // Mark-paid from the new Today awaiting section. Writes the new payment fields
   // into the jobMeta side-channel, then fires the cloud write async.
   const onMarkPaidFromToday = (job, method) => {
+    logTelemetry('mark_paid', { source: 'today', method: method ?? 'unknown' });
     const updated = {
       ...job,
       status: 'paid',

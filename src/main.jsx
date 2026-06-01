@@ -1,8 +1,23 @@
 import { StrictMode, lazy, Suspense } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
+import posthog from 'posthog-js';
 import AppShell from './AppShell.jsx';
 import { activateThemeController } from './lib/theme.js';
+
+// Initialise PostHog only when the project API key is present.
+// Dev/PR previews without VITE_POSTHOG_KEY set will skip this block
+// entirely — no errors, no noise in the PostHog project.
+if (import.meta.env.VITE_POSTHOG_KEY) {
+  posthog.init(import.meta.env.VITE_POSTHOG_KEY, {
+    api_host: import.meta.env.VITE_POSTHOG_HOST || 'https://eu.i.posthog.com',
+    capture_pageview: true,
+    capture_pageleave: true,
+    autocapture: false,
+    persistence: 'localStorage+cookie',
+    loaded: (ph) => { if (import.meta.env.DEV) ph.debug(); },
+  });
+}
 
 // Activate theme controller — reads stored pref, applies resolved data-theme
 // to <html>, and subscribes to OS changes in 'system' mode.

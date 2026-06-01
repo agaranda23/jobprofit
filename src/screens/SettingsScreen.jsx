@@ -31,6 +31,7 @@
 import { useEffect, useRef, useState } from 'react';
 import pkg from '../../package.json';
 import { supabase } from '../lib/supabase.js';
+import { logTelemetry } from '../lib/telemetry.js';
 
 const LOGOS_BUCKET = 'logos';
 const LOGO_MAX_BYTES = 2 * 1024 * 1024; // 2 MB — matches bucket file_size_limit
@@ -1744,6 +1745,7 @@ export default function SettingsScreen({
               label="Add card to stay Pro"
               action="£12/mo"
               onTap={async () => {
+                logTelemetry('upgrade_clicked', { source: 'settings_trial' });
                 const { error } = await startCheckout();
                 if (error) setSaveToast(error);
               }}
@@ -1775,6 +1777,7 @@ export default function SettingsScreen({
               label="Upgrade to Pro"
               action="£12/mo"
               onTap={async () => {
+                logTelemetry('upgrade_clicked', { source: 'settings_free' });
                 const { error } = await startCheckout();
                 if (error) setSaveToast(error);
               }}
