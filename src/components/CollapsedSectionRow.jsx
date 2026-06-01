@@ -6,8 +6,7 @@ import React, { useState, useEffect } from 'react';
  * Design A Step 2 (PRD 2026-05-30):
  *   - Whole 48px row is the tap target (no separate chevron tap)
  *   - Multi-expand: parent does not coordinate collapse (each row owns state)
- *   - 220ms ease-out height transition via CSS grid row expansion (no scrollHeight
- *     measurement — the grid trick is layout-engine-driven and never returns 0)
+ *   - 220ms ease-out height transition via max-height animation
  *   - prefers-reduced-motion: instant snap, no transition
  *   - When needsAttention is true: amber left-border, amber "Fix" pill, default-expanded
  *
@@ -20,10 +19,22 @@ import React, { useState, useEffect } from 'react';
  *   defaultExpanded – boolean; initial open state (can be overridden by needsAttention)
  *   children        – full section body rendered when expanded
  *
- * Expansion technique: CSS grid row height
- *   Collapsed: grid-template-rows: 0fr  → inner div min-height:0 clips to 0
- *   Expanded:  grid-template-rows: 1fr  → inner div grows to fit content
- *   No JS layout measurement needed; browser layout engine handles all heights.
+ * Expansion technique: max-height animation
+ *   Collapsed: max-height: 0  → overflow:hidden clips content to nothing
+ *   Expanded:  max-height: 2000px → large enough for any panel (Quote with many
+ *              line items, Costs with many receipts). The CSS transition animates
+ *              between these values. The 2000px ceiling is intentionally over-sized
+ *              so it never clips real content; the actual rendered height is always
+ *              smaller. Animation timing feels slightly faster on short panels because
+ *              the transition covers less of the 2000px range — acceptable trade-off
+ *              for zero JS layout measurement and universal browser support.
+ *
+ * Why we abandoned the CSS grid-template-rows (0fr → 1fr) trick (PR #192):
+ *   Four rounds of testing showed the grid trick fails to reveal content in the
+ *   production PWA on the devices we tested (375px viewport). Static analysis could
+ *   not reproduce the failure, suggesting a browser/PWA cache or rendering-order
+ *   interaction. The max-height pattern has been the industry standard for 10+ years,
+ *   works in every browser, and requires no inner wrapper div.
  */
 export default function CollapsedSectionRow({
   id,
@@ -52,10 +63,6 @@ export default function CollapsedSectionRow({
   const panelId = `jd-csr-panel-${id}`;
   const triggerId = `jd-csr-trigger-${id}`;
 
-  const transition = prefersReducedMotion
-    ? 'none'
-    : 'grid-template-rows 220ms ease-out';
-
   return (
     <div className={`jd-csr${needsAttention ? ' jd-csr--attention' : ''}`}>
       <button
@@ -81,14 +88,9 @@ export default function CollapsedSectionRow({
 
       {/*
         Panel — always in DOM (no conditional render) so aria-controls target exists.
-
-        Outer div: display:grid with animated grid-template-rows.
-          Collapsed → 0fr  (inner div collapses to 0 via min-height:0)
-          Expanded  → 1fr  (inner div grows to fit content)
-
-        Inner div: overflow:hidden + min-height:0 are both required by the grid trick.
-          overflow:hidden clips content during animation so it doesn't bleed out.
-          min-height:0 lets the grid shrink the div below its intrinsic height.
+        max-height transitions between 0 (collapsed) and 2000px (expanded).
+        overflow:hidden clips content when max-height is 0.
+        Children render directly — no inner wrapper div needed.
       */}
       <div
         id={panelId}
@@ -96,14 +98,12 @@ export default function CollapsedSectionRow({
         aria-labelledby={triggerId}
         className="jd-csr-panel"
         style={{
-          display: 'grid',
-          gridTemplateRows: expanded ? '1fr' : '0fr',
-          transition,
+          maxHeight: expanded ? '2000px' : '0',
+          overflow: 'hidden',
+          transition: prefersReducedMotion ? 'none' : 'max-height 220ms ease-out',
         }}
       >
-        <div style={{ overflow: 'hidden', minHeight: 0 }}>
-          {children}
-        </div>
+        {children}
       </div>
     </div>
   );
