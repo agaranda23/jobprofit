@@ -934,6 +934,47 @@ function DeleteAccountModal({ session, onClose, onDeleted }) {
   );
 }
 
+// ── ItemiseDocumentsRow ───────────────────────────────────────────────────────
+// Bound to profiles.itemise_documents (boolean, default false).
+// When OFF (default): customer-facing PDFs show a single Total without a
+// labour/materials cost split — protecting the trader's margin.
+// When ON: the full Labour + Additional costs breakdown is printed.
+// CIS deduction maths are unaffected by this toggle.
+
+function ItemiseDocumentsRow({ profile, onProfileUpdate }) {
+  const [enabled, setEnabled] = useState(
+    () => profile?.itemise_documents === true
+  );
+  const [working, setWorking] = useState(false);
+
+  useEffect(() => {
+    setEnabled(profile?.itemise_documents === true);
+  }, [profile?.itemise_documents]);
+
+  const handleToggle = async () => {
+    if (working) return;
+    const next = !enabled;
+    setEnabled(next);
+    setWorking(true);
+    try {
+      await onProfileUpdate({ itemise_documents: next });
+    } catch {
+      setEnabled(!next);
+    } finally {
+      setWorking(false);
+    }
+  };
+
+  return (
+    <Row
+      label="Itemise labour & materials on documents"
+      value={working ? 'Updating…' : enabled ? 'On' : 'Off (default)'}
+      onTap={handleToggle}
+      chevron={false}
+    />
+  );
+}
+
 // ── DefaultDepositRow ─────────────────────────────────────────────────────────
 // 4-button picker (0% / 25% / 50% / Custom) for the trader's default deposit %.
 // Lives in the "Get paid" section of Settings.
@@ -1613,6 +1654,36 @@ export default function SettingsScreen({
     validate: (v) => isValidStripePaymentLink(v) ? null : 'Must be a valid https://buy.stripe.com/... URL',
   });
 
+  const openEditPaymentTerms = () => setActiveEdit({
+    modal: 'payment_terms_days',
+    fieldKey: 'payment_terms_days',
+    fieldLabel: 'Default payment terms (days)',
+    currentValue: profile?.payment_terms_days ?? 14,
+    inputType: 'number',
+    placeholder: '14',
+    helpText: 'Invoices will show a due date this many days after issue. You can override per invoice.',
+    validate: (v) => {
+      if (v === '' || v === null || v === undefined) return null;
+      const n = parseInt(v, 10);
+      return (isNaN(n) || n < 0 || n > 365) ? 'Must be a whole number between 0 and 365' : null;
+    },
+  });
+
+  const openEditQuoteValidity = () => setActiveEdit({
+    modal: 'quote_validity_days',
+    fieldKey: 'quote_validity_days',
+    fieldLabel: 'Quote validity (days)',
+    currentValue: profile?.quote_validity_days ?? 30,
+    inputType: 'number',
+    placeholder: '30',
+    helpText: 'Quotes will show "Valid until <date>" this many days from the issue date.',
+    validate: (v) => {
+      if (v === '' || v === null || v === undefined) return null;
+      const n = parseInt(v, 10);
+      return (isNaN(n) || n < 1 || n > 365) ? 'Must be a whole number between 1 and 365' : null;
+    },
+  });
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
@@ -1762,6 +1833,20 @@ export default function SettingsScreen({
           label="Card payment link"
           value={profile?.stripe_payment_link ? 'Set' : 'Not set'}
           onTap={openEditStripeLink}
+        />
+        <Row
+          label="Default payment terms"
+          value={`${profile?.payment_terms_days ?? 14} days`}
+          onTap={openEditPaymentTerms}
+        />
+        <Row
+          label="Quote validity"
+          value={`${profile?.quote_validity_days ?? 30} days`}
+          onTap={openEditQuoteValidity}
+        />
+        <ItemiseDocumentsRow
+          profile={profile}
+          onProfileUpdate={onProfileUpdate}
         />
       </SectionCard>
 

@@ -127,6 +127,8 @@ export const handler = async function (event) {
         'is_cis_subcontractor',
         'cis_default_rate',
         'utr_number',
+        'itemise_documents',
+        'payment_terms_days',
       ].join(', '))
       .eq('id', job.user_id)
       .single();
@@ -165,5 +167,7 @@ export const handler = async function (event) {
     isCisSubcontractor: profile.is_cis_subcontractor ?? false,
     cisDefaultRate:     profile.cis_default_rate     ?? 20,
     utrNumber:          profile.utr_number            || '',
+    itemiseDocuments:   profile.itemise_documents     ?? false,
+    paymentTermsDays:   profile.payment_terms_days    ?? 14,
   });
 };

@@ -85,8 +85,17 @@ function PreviewHeader({ effectiveBiz }) {
   );
 }
 
-function PreviewMeta({ invoiceNumber, dueDate }) {
+function PreviewMeta({ invoiceNumber, dueDate, paymentTermsDays = 14 }) {
   const today = new Date().toLocaleDateString('en-GB');
+
+  // Resolve due date: explicit value wins; otherwise auto-compute from payment terms.
+  const resolvedDueDate = (() => {
+    if (dueDate) return fmtDate(dueDate);
+    const d = new Date();
+    d.setDate(d.getDate() + paymentTermsDays);
+    return d.toLocaleDateString('en-GB');
+  })();
+
   return (
     <div style={{ marginBottom: 14 }}>
       <div style={{ fontSize: 22, fontWeight: 900, color: GREEN, letterSpacing: '-0.5px', marginBottom: 6 }}>
@@ -103,12 +112,10 @@ function PreviewMeta({ invoiceNumber, dueDate }) {
           <span style={{ fontWeight: 700, color: DARK }}>Issued:</span>{' '}
           <span style={{ color: MID }}>{today}</span>
         </div>
-        {dueDate && (
-          <div style={{ fontSize: 12 }}>
-            <span style={{ fontWeight: 700, color: DARK }}>Due:</span>{' '}
-            <span style={{ color: MID }}>{fmtDate(dueDate)}</span>
-          </div>
-        )}
+        <div style={{ fontSize: 12 }}>
+          <span style={{ fontWeight: 700, color: DARK }}>Due:</span>{' '}
+          <span style={{ color: MID }}>{resolvedDueDate}</span>
+        </div>
       </div>
     </div>
   );
@@ -189,10 +196,11 @@ function PreviewLineItems({ job }) {
   );
 }
 
-function PreviewSummary({ quote, materials, showVat, vatNumber, isCisJob, cisRate }) {
+function PreviewSummary({ quote, materials, showVat, vatNumber, isCisJob, cisRate, itemiseDocuments = false }) {
   const labour       = Math.max(0, quote - materials);
   const vat          = showVat ? Math.round(quote * 0.2 * 100) / 100 : 0;
   const grossTotal   = quote + vat;
+  // CRITICAL: materials always feeds CIS calc regardless of itemiseDocuments
   const cisDeduction = (isCisJob && cisRate > 0)
     ? Math.round(labour * (cisRate / 100) * 100) / 100
     : 0;
@@ -203,12 +211,17 @@ function PreviewSummary({ quote, materials, showVat, vatNumber, isCisJob, cisRat
   return (
     <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 14 }}>
       <div style={{ background: '#f8f8f8', borderRadius: 6, padding: '6px 0', minWidth: 180, maxWidth: 220 }}>
-        <div style={rowStyle}>
-          <span style={{ color: MID }}>Labour</span>
-          <span style={{ color: DARK }}>{gbp(labour)}</span>
-        </div>
 
-        {materials > 0 && (
+        {/* Labour row — only when itemise toggle is ON */}
+        {itemiseDocuments && (
+          <div style={rowStyle}>
+            <span style={{ color: MID }}>Labour</span>
+            <span style={{ color: DARK }}>{gbp(labour)}</span>
+          </div>
+        )}
+
+        {/* Materials row — only when itemise toggle is ON and materials > 0 */}
+        {itemiseDocuments && materials > 0 && (
           <div style={rowStyle}>
             <span style={{ color: MID }}>Additional costs</span>
             <span style={{ color: DARK }}>{gbp(materials)}</span>
@@ -222,6 +235,7 @@ function PreviewSummary({ quote, materials, showVat, vatNumber, isCisJob, cisRat
           </div>
         )}
 
+        {/* CIS Deduction — always shown when it applies (legal deduction) */}
         {isCisJob && cisDeduction > 0 && (
           <div style={rowStyle}>
             <span style={{ color: '#b43c3c' }}>CIS Deduction ({cisRate}%)</span>
@@ -351,6 +365,8 @@ export default function InvoiceDocumentPreview({
     .reduce((sum, r) => sum + Number(r.amount || 0), 0);
 
   const quote = Number(job?.total ?? job?.amount ?? 0);
+  const itemiseDocuments = (profile?.itemise_documents) ?? false;
+  const paymentTermsDays = profile?.payment_terms_days ?? 14;
 
   return (
     <div
@@ -369,7 +385,11 @@ export default function InvoiceDocumentPreview({
 
       <div style={{ borderTop: `1.5px solid #e0e0e0`, marginBottom: 14 }} />
 
-      <PreviewMeta invoiceNumber={invoiceNumber} dueDate={dueDate} />
+      <PreviewMeta
+        invoiceNumber={invoiceNumber}
+        dueDate={dueDate}
+        paymentTermsDays={paymentTermsDays}
+      />
 
       <PreviewBillTo job={job} />
 
@@ -382,6 +402,7 @@ export default function InvoiceDocumentPreview({
         vatNumber={effectiveBiz.vatNumber}
         isCisJob={isCisJob}
         cisRate={cisRate}
+        itemiseDocuments={itemiseDocuments}
       />
 
       <PreviewPaymentDetails
@@ -389,6 +410,11 @@ export default function InvoiceDocumentPreview({
         invoiceNumber={invoiceNumber}
         payNowUrl={payNowUrl}
       />
+
+      {/* Thank you line — mirrors the invoice PDF footer */}
+      <div style={{ marginTop: 12, fontSize: 11, fontStyle: 'italic', color: MID }}>
+        Thank you for your business.
+      </div>
     </div>
   );
 }
