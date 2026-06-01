@@ -11,7 +11,6 @@ import {
   isOverdueChase,
   isUnbilledComplete,
   isStaleSentQuote,
-  qualifyingTier,
   rankNextBestAction,
   tierTieBreak,
   jobAmount,
