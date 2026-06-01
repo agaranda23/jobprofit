@@ -30,6 +30,7 @@ import { fetchPublicJob } from '../lib/store';
 import { isValidToken } from '../lib/publicReceiptToken';
 import { resolvePaidDate, resolveAmountPaid, formatReceiptDate } from '../lib/receiptMessage';
 import { resolvePaymentMethod, resolveReceiptNumber } from '../lib/receiptPDF';
+import ConsentBanner from '../components/ConsentBanner.jsx';
 
 const FETCH_PROFILE_URL = '/.netlify/functions/fetch-public-receipt';
 
@@ -315,6 +316,7 @@ export default function PublicReceiptView({ token }) {
   const profile = profileState.profile || {};
 
   return (
+    <>
     <div className="pqv-wrap">
       <div className="pqv-card">
         <div className="pqv-header">
@@ -333,5 +335,7 @@ export default function PublicReceiptView({ token }) {
         </div>
       </div>
     </div>
+    <ConsentBanner />
+    </>
   );
 }

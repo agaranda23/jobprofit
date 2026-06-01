@@ -24,6 +24,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { fetchPublicJob } from '../lib/store';
 import { isValidToken } from '../lib/publicQuoteToken';
 import SignaturePad from '../components/SignaturePad';
+import ConsentBanner from '../components/ConsentBanner.jsx';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -579,6 +580,8 @@ export default function PublicQuoteView({ token }) {
   const showSignFlow = !isAccepted && (!hasDeposit || showSignSection);
 
   return (
+    <>
+    <ConsentBanner />
     <div className="pqv-wrap">
       <div className="pqv-card">
 
@@ -690,5 +693,6 @@ export default function PublicQuoteView({ token }) {
 
       </div>
     </div>
+    </>
   );
 }
