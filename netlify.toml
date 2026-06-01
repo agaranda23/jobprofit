@@ -2,6 +2,24 @@
   command = "npm run build"
   publish = "dist"
 
+# Legal pages — clean URLs for static HTML in /public.
+# Listed BEFORE the SPA catch-all so /privacy, /terms, /cookies resolve to
+# their respective HTML files rather than falling through to index.html.
+[[redirects]]
+  from = "/privacy"
+  to   = "/privacy.html"
+  status = 200
+
+[[redirects]]
+  from = "/terms"
+  to   = "/terms.html"
+  status = 200
+
+[[redirects]]
+  from = "/cookies"
+  to   = "/cookies.html"
+  status = 200
+
 # Pay-now redirect — /p/<token> → pay-redirect Netlify function (server-side 302 to Stripe).
 # Listed BEFORE the public/_redirects SPA catch-all (/*  /index.html  200) so Netlify
 # routes /p/* to the function rather than serving index.html to the browser.
