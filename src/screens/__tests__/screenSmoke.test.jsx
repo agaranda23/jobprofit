@@ -673,3 +673,38 @@ describe('PublicQuoteView render smoke', () => {
     ).not.toThrow();
   });
 });
+
+// ── PublicInvoiceView ─────────────────────────────────────────────────────────
+
+import PublicInvoiceView from '../PublicInvoiceView';
+
+describe('PublicInvoiceView render smoke', () => {
+  afterEach(() => vi.clearAllMocks());
+
+  it('mounts cleanly with a valid UUID token (loading state while fetch resolves)', () => {
+    // fetchPublicJob + fetch-public-invoice are pending on mount.
+    // Component should render the loading skeleton without crashing.
+    expect(() =>
+      render(<PublicInvoiceView token="a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11" />)
+    ).not.toThrow();
+  });
+
+  it('mounts cleanly with an invalid token (validation failure → error state)', () => {
+    // isValidToken returns false; component renders the error card immediately.
+    expect(() =>
+      render(<PublicInvoiceView token="invalid!" />)
+    ).not.toThrow();
+  });
+
+  it('mounts cleanly when token is undefined', () => {
+    expect(() =>
+      render(<PublicInvoiceView token={undefined} />)
+    ).not.toThrow();
+  });
+
+  it('mounts cleanly when token is an empty string', () => {
+    expect(() =>
+      render(<PublicInvoiceView token="" />)
+    ).not.toThrow();
+  });
+});
