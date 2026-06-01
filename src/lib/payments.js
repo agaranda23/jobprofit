@@ -167,13 +167,32 @@ export function isOverpaid(job) {
   return computeBalance(job) < 0;
 }
 
+// ─── Stage helpers ────────────────────────────────────────────────────────
+
+// Pre-invoice stages per the canonical stage model (Lead/Quoted/On/Active).
+// A job is "pre-invoice" when it has not had an invoice sent yet.
+// We check this via job.status (the canonical status field written by
+// StageChipDropdown) and the legacy invoiceSentAt fallback.
+function isPreInvoice(job) {
+  if (job.invoiceSentAt) return false; // invoice has been sent
+  const s = job.status;
+  // Legacy status values that represent post-invoice states
+  if (s === 'invoice_sent' || s === 'awaiting' || s === 'paid') return false;
+  // Legacy flags
+  if (job.invoiceStatus === 'invoiced') return false;
+  // Modern canonical stages that are pre-invoice
+  return s === 'lead' || s === 'quoted' || s === 'active' || !s;
+}
+
 // ─── Auto-flip — 4-branch rule per PRD Section 3 ─────────────────────────
 
 /**
  * Recomputes status / paymentStatus based on current payments. Pure.
  *
  * Branches:
- *   1. isFullyPaid                              → status='paid', paymentStatus='paid'
+ *   1a. isFullyPaid + invoiced (post-invoice) → status='paid', paymentStatus='paid'
+ *   1b. isFullyPaid + pre-invoice             → keep current stage unchanged;
+ *       set a nudge flag so UI can show "Money's in. Invoice when the work's done."
  *   2. balance > 0, was paid, invoiceSentAt set → 'awaiting' / 'awaiting'
  *   3. balance > 0, was paid, no invoice ever   → 'completed' / 'awaiting'
  *      (only way to be 'paid' without invoiceSentAt is the Mark-as-Paid
@@ -183,6 +202,12 @@ export function isOverpaid(job) {
  */
 export function applyAutoFlip(job) {
   if (isFullyPaid(job)) {
+    // Guard: don't auto-flip to Paid when the job hasn't been invoiced yet.
+    // A deposit equal to the full quote on a Quoted job must not skip the
+    // invoice step — no PDF, no MTD trail, no chase history.
+    if (isPreInvoice(job)) {
+      return { ...job, _depositFullyClearsQuote: true };
+    }
     return { ...job, status: 'paid', paymentStatus: 'paid' };
   }
   const wasPaid = job.status === 'paid' || job.paymentStatus === 'paid';

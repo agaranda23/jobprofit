@@ -599,8 +599,15 @@ describe('QuickContactSection — render gate', () => {
 // ── addPayment auto-flip — balance-hits-zero marks paid ──────────────────────
 
 describe('addPayment auto-flip — paying balance in full', () => {
-  it('flips status to paid when payment equals full balance', () => {
-    const job = unpaidJob({ amount: 300 });
+  it('flips status to paid when payment equals full balance on a post-invoice job', () => {
+    // Post-invoice job (invoiceSentAt set) — auto-flip to paid is expected.
+    // Pre-invoice jobs must NOT auto-flip (deposit-delta guard, June 2026).
+    const job = unpaidJob({
+      amount: 300,
+      status: 'awaiting',
+      paymentStatus: 'awaiting',
+      invoiceSentAt: '2026-05-15T10:00:00Z',
+    });
     const updated = addPayment(job, {
       amount: 300,
       date: '2026-05-20',

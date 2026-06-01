@@ -3623,6 +3623,32 @@ input[type=number] { -moz-appearance: textfield; }
   margin-bottom: 10px;
 }
 
+/* Pre-invoice deposit variants */
+.payment-summary--pre-invoice-empty {
+  padding: 10px 16px;
+}
+.payment-summary--pre-invoice-empty .payment-summary-actions {
+  margin-top: 0;
+}
+.payment-summary--pre-invoice {
+  background: rgba(251, 191, 36, 0.05);
+  border-color: rgba(251, 191, 36, 0.2);
+}
+.payment-summary-nudge {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--jp-amber);
+  margin-bottom: 10px;
+}
+
+/* RecordPaymentModal sub-line (deposit context copy) */
+.modal-sub {
+  font-size: 13px;
+  color: var(--text-dim);
+  margin: -6px 0 12px;
+  text-align: center;
+}
+
 /* PaymentHistoryList */
 .payment-history {
   background: var(--surface);

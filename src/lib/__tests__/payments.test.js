@@ -558,4 +558,58 @@ describe('applyAutoFlip', () => {
     };
     expect(applyAutoFlip(job).status).toBe('awaiting');
   });
+
+  // Pre-invoice guard (deposit-delta spec §2):
+  // A deposit equalling the full quote on a Quoted job must NOT auto-flip to
+  // 'paid' — no invoice has been sent, so no MTD trail, no PDF, no chase history.
+  it('pre-invoice guard: deposit equal to quote on quoted job does NOT flip to paid', () => {
+    const job = {
+      id: 'j', amount: 400, status: 'quoted', paymentStatus: 'unpaid',
+      // no invoiceSentAt
+      payments: [{ id: 'a', amount: 400, date: PAST_DATE, method: 'cash', note: '', createdAt: 'x' }],
+    };
+    const result = applyAutoFlip(job);
+    expect(result.status).toBe('quoted');
+    expect(result._depositFullyClearsQuote).toBe(true);
+  });
+
+  it('pre-invoice guard: deposit exceeding quote on active job does NOT flip to paid', () => {
+    const job = {
+      id: 'j', amount: 400, status: 'active', paymentStatus: 'unpaid',
+      payments: [{ id: 'a', amount: 500, date: PAST_DATE, method: 'bank', note: '', createdAt: 'x' }],
+    };
+    const result = applyAutoFlip(job);
+    expect(result.status).toBe('active');
+    expect(result._depositFullyClearsQuote).toBe(true);
+  });
+
+  it('pre-invoice guard: partial deposit on quoted job leaves status unchanged', () => {
+    const job = {
+      id: 'j', amount: 400, status: 'quoted', paymentStatus: 'unpaid',
+      payments: [{ id: 'a', amount: 100, date: PAST_DATE, method: 'cash', note: '', createdAt: 'x' }],
+    };
+    // balance > 0 + not wasPaid → branch 4, returns same reference
+    expect(applyAutoFlip(job)).toBe(job);
+  });
+
+  it('post-invoice: deposit equal to invoice total DOES flip to paid when invoiceSentAt is set', () => {
+    const job = {
+      id: 'j', amount: 400, status: 'awaiting', paymentStatus: 'awaiting',
+      invoiceSentAt: '2026-06-01T00:00:00Z',
+      payments: [{ id: 'a', amount: 400, date: PAST_DATE, method: 'bank', note: '', createdAt: 'x' }],
+    };
+    const result = applyAutoFlip(job);
+    expect(result.status).toBe('paid');
+    expect(result._depositFullyClearsQuote).toBeUndefined();
+  });
+
+  it('addPayment on pre-invoice quoted job does not change status to paid when full amount recorded', () => {
+    const job = {
+      id: 'j', amount: 400, status: 'quoted', paymentStatus: 'unpaid',
+      payments: [],
+    };
+    const result = addPayment(job, { amount: 400, date: PAST_DATE, method: 'cash' });
+    expect(result.status).toBe('quoted');
+    expect(result._depositFullyClearsQuote).toBe(true);
+  });
 });
