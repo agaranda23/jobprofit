@@ -13,6 +13,13 @@ export function buildInvoiceWhatsAppMessage({ job, biz, invoiceNumber, dueDate }
   const summary = (job?.summary || 'Work completed').slice(0, 200);
   const stripeLink = biz?.stripePaymentLink || biz?.stripe_payment_link || '';
 
+  // Partial payments: if any amount has been received, show Received + Balance
+  // so the customer is never chased for the full gross when a deposit was paid.
+  const payments = Array.isArray(job?.payments) ? job.payments : [];
+  const amountPaid = payments.reduce((sum, p) => sum + (p.amount || 0), 0);
+  const balance = grossTotal - amountPaid;
+  const showPartialBlock = amountPaid > 0;
+
   const lines = [
     `Hi ${customer},`,
     '',
@@ -20,6 +27,10 @@ export function buildInvoiceWhatsAppMessage({ job, biz, invoiceNumber, dueDate }
     `📄 ${invoiceNumber}`,
     `🔨 ${summary}`,
     `💷 £${grossTotal.toFixed(2)}${showVat ? ' (inc VAT)' : ''}`,
+    ...(showPartialBlock ? [
+      `💷 Received: £${amountPaid.toFixed(2)}`,
+      `💷 Balance: £${balance.toFixed(2)}`,
+    ] : []),
     `📅 Due: ${dueStr}`,
     '',
   ];

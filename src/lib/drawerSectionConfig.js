@@ -50,14 +50,23 @@ export function getDrawerSectionConfig(stage) {
     case 'Quoted':
       return [
         { id: 'nextStep',  display: 'expanded'  },
-        { id: 'payment',   display: 'hidden'    },
-        { id: 'payments',  display: 'hidden'    },
+        { id: 'payment',   display: 'expanded'  },
+        { id: 'payments',  display: 'expanded'  },
         { id: 'profit',    display: 'collapsed' },
         { id: 'customer',  display: 'collapsed' },
         { id: 'quote',     display: 'expanded'  },
       ];
 
     case 'Active':
+      return [
+        { id: 'nextStep',  display: 'expanded'  },
+        { id: 'payment',   display: 'expanded'  },
+        { id: 'payments',  display: 'expanded'  },
+        { id: 'profit',    display: 'collapsed' },
+        { id: 'customer',  display: 'collapsed' },
+        { id: 'quote',     display: 'collapsed' },
+      ];
+
     case 'Done':
       return [
         { id: 'nextStep',  display: 'expanded'  },

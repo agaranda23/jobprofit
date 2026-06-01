@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v32';  // bumped from v31: customer name modal pre-fill + CSR accordion rewrite (grid-template-rows)
+const CACHE_NAME = 'jobprofit-v33';  // bumped from v32: pre-invoice deposit support + chase balance verification
 const PRECACHE = [
   '/',
   '/index.html',

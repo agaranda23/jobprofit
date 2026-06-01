@@ -21,19 +21,29 @@ function todayLocalIsoDate() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
-export default function RecordPaymentModal({ job, onAddPayment, onClose, flash }) {
+// mode='payment' (default) — post-invoice: prefill with balance, normal copy.
+// mode='deposit'           — pre-invoice: empty prefill, deposit-aware copy.
+export default function RecordPaymentModal({ job, onAddPayment, onClose, flash, mode = 'payment' }) {
+  const isDeposit = mode === 'deposit';
   const balance = computeBalance(job);
-  // Prefill with current balance unless job is fully paid / overpaid
-  // (then user must type — "Add another payment" UX).
-  const [amount, setAmount] = useState(balance > 0 ? balance.toFixed(2) : '');
+  // Post-invoice: prefill with outstanding balance.
+  // Pre-invoice (deposit): leave empty — the deposit amount is whatever the
+  // tradesperson received, not a percentage of the quote.
+  const [amount, setAmount] = useState(
+    isDeposit ? '' : (balance > 0 ? balance.toFixed(2) : '')
+  );
   const [date, setDate] = useState(todayLocalIsoDate());
   const [method, setMethod] = useState('cash');
   const [note, setNote] = useState('');
   const [error, setError] = useState('');
 
+  const quoteTotal = job?.total ?? job?.amount ?? 0;
   const parsedAmount = parseFloat(amount);
+  // Pre-invoice: warn when deposit exceeds quote total (not balance).
+  // Post-invoice: warn when payment exceeds outstanding balance.
+  const overpaymentThreshold = isDeposit ? quoteTotal : balance;
   const isOverpaymentWarning =
-    Number.isFinite(parsedAmount) && parsedAmount > 0 && parsedAmount > balance;
+    Number.isFinite(parsedAmount) && parsedAmount > 0 && parsedAmount > overpaymentThreshold;
 
   const handleSave = () => {
     setError('');
@@ -41,11 +51,13 @@ export default function RecordPaymentModal({ job, onAddPayment, onClose, flash }
       validateAmount(parsedAmount);
       validateDate(date);
       validateMethod(method);
-      // Determine pre-call whether this payment will trigger auto-flip,
-      // so we can show the right toast. (Handler doesn't return the new job.)
-      const willClearBalance = parsedAmount >= balance;
       onAddPayment(job, { amount: parsedAmount, date, method, note: note.trim() });
-      flash?.(willClearBalance ? '💷 Job marked paid' : '✅ Payment recorded');
+      if (isDeposit) {
+        flash?.('✅ Deposit recorded');
+      } else {
+        const willClearBalance = parsedAmount >= balance;
+        flash?.(willClearBalance ? '💷 Job marked paid' : '✅ Payment recorded');
+      }
       onClose();
     } catch (e) {
       setError(e.message);
@@ -56,6 +68,9 @@ export default function RecordPaymentModal({ job, onAddPayment, onClose, flash }
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal" onClick={e => e.stopPropagation()}>
         <h3 className="modal-title">Record Payment</h3>
+        {isDeposit && (
+          <p className="modal-sub">Deposits and stage payments count</p>
+        )}
         <div className="modal-fields">
           <label>
             <span>Amount (£)</span>
@@ -70,7 +85,10 @@ export default function RecordPaymentModal({ job, onAddPayment, onClose, flash }
             />
             {isOverpaymentWarning && (
               <span className="payment-warn">
-                This is more than the balance of £{balance.toFixed(2)}
+                {isDeposit
+                  ? `This is more than the quote of £${quoteTotal.toFixed(2)}`
+                  : `This is more than the balance of £${balance.toFixed(2)}`
+                }
               </span>
             )}
           </label>

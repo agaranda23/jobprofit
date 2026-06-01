@@ -525,3 +525,67 @@ describe('getInvoicePDFBlob — returns a non-empty Blob', () => {
     expect(blob.size).toBeGreaterThan(1000);
   });
 });
+
+// ── buildInvoiceWhatsAppMessage — partial payment balance wiring ─────────────
+// PRD §4.8 (shipped May 2026) + deposit-delta spec §4 (June 2026):
+// When amountPaid > 0 the invoice WhatsApp message MUST show the outstanding
+// balance, not the full gross total. Chasing a customer for £500 when they've
+// already paid £250 burns trust.
+
+describe('buildInvoiceWhatsAppMessage — partial payment balance lines', () => {
+  const dueDate = '2026-06-10';
+  const invoiceNumber = 'JP-0010';
+
+  it('shows Received and Balance lines when a payment exists', () => {
+    const job = baseJob({
+      total: 500,
+      payments: [
+        { id: 'pay_a', amount: 250, date: '2026-06-01', method: 'cash', note: '', createdAt: 'x' },
+      ],
+    });
+    const msg = buildInvoiceWhatsAppMessage({ job, biz: baseBiz(), invoiceNumber, dueDate });
+    expect(msg).toContain('Received: £250.00');
+    expect(msg).toContain('Balance: £250.00');
+  });
+
+  it('balance line reflects the outstanding amount after a deposit, not the gross total', () => {
+    const job = baseJob({
+      total: 400,
+      payments: [
+        { id: 'pay_a', amount: 100, date: '2026-06-01', method: 'bank', note: '', createdAt: 'x' },
+      ],
+    });
+    const msg = buildInvoiceWhatsAppMessage({ job, biz: baseBiz(), invoiceNumber, dueDate });
+    // The message must NOT claim the full £400 is owed
+    expect(msg).toContain('Balance: £300.00');
+    expect(msg).toContain('Received: £100.00');
+  });
+
+  it('does NOT show Received/Balance lines when no payments recorded', () => {
+    const job = baseJob({ total: 400, payments: [] });
+    const msg = buildInvoiceWhatsAppMessage({ job, biz: baseBiz(), invoiceNumber, dueDate });
+    expect(msg).not.toContain('Received:');
+    expect(msg).not.toContain('Balance:');
+  });
+
+  it('does NOT show Received/Balance lines when payments field is absent (legacy job)', () => {
+    const job = baseJob({ total: 400 });
+    delete job.payments;
+    const msg = buildInvoiceWhatsAppMessage({ job, biz: baseBiz(), invoiceNumber, dueDate });
+    expect(msg).not.toContain('Received:');
+    expect(msg).not.toContain('Balance:');
+  });
+
+  it('balance accounts for multiple partial payments', () => {
+    const job = baseJob({
+      total: 600,
+      payments: [
+        { id: 'a', amount: 200, date: '2026-06-01', method: 'cash', note: '', createdAt: 'x' },
+        { id: 'b', amount: 150, date: '2026-06-05', method: 'bank', note: '', createdAt: 'x' },
+      ],
+    });
+    const msg = buildInvoiceWhatsAppMessage({ job, biz: baseBiz(), invoiceNumber, dueDate });
+    expect(msg).toContain('Received: £350.00');
+    expect(msg).toContain('Balance: £250.00');
+  });
+});

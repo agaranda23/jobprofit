@@ -2015,6 +2015,13 @@ export default function JobDetailDrawer({
   const showSendInvoice = status !== 'Paid' && !invoiceAlreadySent;
   const showResendInvoice = status !== 'Paid' && invoiceAlreadySent;
 
+  // Pre-invoice flag: drives deposit mode in RecordPaymentModal and the
+  // PaymentSummaryBlock variant (Received/Quote instead of Received/Balance).
+  const isPreInvoiceJob = !invoiceAlreadySent && (
+    status === 'Lead' || status === 'Quoted' || status === 'Active' || status === 'Done'
+  );
+  const paymentModalMode = isPreInvoiceJob ? 'deposit' : 'payment';
+
   const chaseState = getChaseState(job.id);
   const tier = computeTier(job);
   const chasedLabel = lastChasedLabel(chaseState);
@@ -2731,6 +2738,7 @@ export default function JobDetailDrawer({
               <PaymentSummaryBlock
                 job={job}
                 onRecordPayment={() => setPaymentModalOpen(true)}
+                onSendInvoice={isPreInvoiceJob ? () => setReviewSheetMode('invoice') : undefined}
                 onMarkAsPaid={() => {
                   const balance = computeBalance(job);
                   if (balance > 0) {
@@ -3108,6 +3116,7 @@ export default function JobDetailDrawer({
           onAddPayment={onAddPayment}
           onClose={() => setPaymentModalOpen(false)}
           flash={showFlash}
+          mode={paymentModalMode}
         />
       )}
 
