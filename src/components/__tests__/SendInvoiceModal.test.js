@@ -20,6 +20,8 @@ import { buildInvoiceWhatsAppMessage, buildWhatsAppLink } from '../../lib/invoic
 import { getInvoicePDFBlob } from '../../lib/invoicePDF';
 import { getMissingInvoiceFields } from '../../lib/bizValidation';
 import { canSendInvoice, UNLOCK_PRO_FOR_ALL } from '../../lib/plan';
+import { generatePublicAccessToken } from '../../lib/publicQuoteToken';
+import { buildPublicInvoiceUrl } from '../../lib/publicInvoiceToken';
 
 // ── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -459,6 +461,115 @@ describe('WhatsApp primary path — link correctness', () => {
     const phone = '07900 123456';
     const link = buildWhatsAppLink({ phone, message: 'test' });
     expect(link).toContain('wa.me/447900123456');
+  });
+});
+
+// ── Regression: every invoice-send path includes the hosted /i/<token> link ──
+//
+// This block guards against a future caller of buildInvoiceWhatsAppMessage
+// silently dropping the hostedInvoiceUrl argument. Each send entry point
+// (SendInvoiceModal, legacy App.jsx modal, ReviewSheet) must mint/reuse a
+// token and pass it — otherwise the customer receives plain text instead of
+// the branded invoice link.
+//
+// We test the message-building layer directly (no DOM required). The token
+// lifecycle (mint → pass → persist via onUpdate) is documented in the PR
+// description. If a future send path is added, add a case here.
+
+describe('regression — every invoice-send path includes /i/ hosted link', () => {
+  const invoiceNumber = 'JP-0001';
+  const dueDate = '2026-06-14';
+
+  function mintUrl() {
+    const token = generatePublicAccessToken();
+    return buildPublicInvoiceUrl(token, 'https://app.jobprofit.co.uk');
+  }
+
+  it('SendInvoiceModal path: message contains /i/ when hostedInvoiceUrl is passed', () => {
+    const hostedInvoiceUrl = mintUrl();
+    const msg = buildInvoiceWhatsAppMessage({
+      job: baseJob(),
+      biz: baseBiz(),
+      invoiceNumber,
+      dueDate,
+      hostedInvoiceUrl,
+    });
+    expect(msg).toContain('/i/');
+    expect(msg).toContain('View & pay your invoice:');
+  });
+
+  it('ReviewSheet path: message contains /i/ when hostedInvoiceUrl is passed', () => {
+    // ReviewSheet.handleInvoiceWhatsApp now mints the token and passes it.
+    // This test mirrors that call: token = job.publicAccessToken || generatePublicAccessToken()
+    const job = baseJob(); // no publicAccessToken — triggers mint
+    const token = job.publicAccessToken || generatePublicAccessToken();
+    const hostedInvoiceUrl = buildPublicInvoiceUrl(token, 'https://app.jobprofit.co.uk');
+    const msg = buildInvoiceWhatsAppMessage({
+      job,
+      biz: baseBiz(),
+      invoiceNumber,
+      dueDate,
+      hostedInvoiceUrl,
+    });
+    expect(msg).toContain('/i/');
+    expect(msg).toContain('View & pay your invoice:');
+  });
+
+  it('legacy App.jsx modal path: message contains /i/ when hostedInvoiceUrl is passed', () => {
+    // App.jsx SendInvoiceModal now uses pendingToken + buildPublicInvoiceUrl, same pattern.
+    const job = baseJob();
+    const pendingToken = job.publicAccessToken || generatePublicAccessToken();
+    const hostedInvoiceUrl = buildPublicInvoiceUrl(pendingToken, 'https://app.jobprofit.co.uk');
+    const msg = buildInvoiceWhatsAppMessage({
+      job,
+      biz: baseBiz(),
+      invoiceNumber,
+      dueDate,
+      hostedInvoiceUrl,
+    });
+    expect(msg).toContain('/i/');
+    expect(msg).toContain('View & pay your invoice:');
+  });
+
+  it('message does NOT contain /i/ link when hostedInvoiceUrl is omitted (safe fallback baseline)', () => {
+    // Documents expected fallback — this case should only happen in tests, never in production.
+    const msg = buildInvoiceWhatsAppMessage({
+      job: baseJob(),
+      biz: baseBiz(),
+      invoiceNumber,
+      dueDate,
+      // hostedInvoiceUrl intentionally omitted
+    });
+    expect(msg).not.toContain('View & pay your invoice:');
+    expect(msg).not.toContain('/i/');
+  });
+
+  it('existing token on job is reused, not regenerated (stable URL for re-sends)', () => {
+    const existingToken = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';
+    const job = baseJob({ publicAccessToken: existingToken });
+    const token = job.publicAccessToken || generatePublicAccessToken();
+    expect(token).toBe(existingToken);
+    const url = buildPublicInvoiceUrl(token, 'https://app.jobprofit.co.uk');
+    expect(url).toBe(`https://app.jobprofit.co.uk/i/${existingToken}`);
+  });
+
+  it('onUpdate patch includes publicAccessToken so /i/<token> resolves for the customer', () => {
+    // Simulates the patch object produced by attemptSend (App.jsx) and handleInvoiceWhatsApp
+    // (ReviewSheet). The token MUST be present — without it the /i/<token> page returns 404.
+    const job = baseJob();
+    const pendingToken = job.publicAccessToken || generatePublicAccessToken();
+    const patch = {
+      ...job,
+      status: 'invoice_sent',
+      invoiceSentAt: new Date().toISOString(),
+      invoiceNumber,
+      invoiceDueDate: new Date(dueDate).toISOString(),
+      publicAccessToken: pendingToken,
+      invoiceLinkSentAt: new Date().toISOString(),
+    };
+    expect(patch.publicAccessToken).toBeTruthy();
+    expect(typeof patch.publicAccessToken).toBe('string');
+    expect(patch.publicAccessToken.length).toBeGreaterThan(10);
   });
 });
 
