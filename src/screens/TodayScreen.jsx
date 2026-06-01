@@ -486,24 +486,42 @@ export default function TodayScreen({
           className="foreman-pivot-btn"
           onClick={() => setJobOpen(true)}
         >
-          <span className="foreman-pivot-icon" aria-hidden="true">🛠️</span>
-          Log a job
+          <span className="foreman-pivot-icon" aria-hidden="true">
+            {/* Hammer — PRD 2026-06-01 pick for Job CTA */}
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M14 3l7 7-3 3-2-2-8 8a2 2 0 0 1-3-3l8-8-2-2 3-3z"/>
+            </svg>
+          </span>
+          Job
         </button>
         <button
           type="button"
           className="foreman-pivot-btn"
           onClick={() => { setJobOpenMode('quote'); setJobOpen(true); }}
         >
-          <span className="foreman-pivot-icon" aria-hidden="true">📝</span>
-          Create quote
+          <span className="foreman-pivot-icon" aria-hidden="true">
+            {/* Pen on paper — PRD 2026-06-01 pick for Quote CTA */}
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M5 4h9l5 5v11a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/>
+              <path d="M14 4v5h5"/>
+              <path d="M8.5 16.5l5-5 2 2-5 5H8.5v-2z"/>
+            </svg>
+          </span>
+          Quote
         </button>
         <button
           type="button"
           className="foreman-pivot-btn"
           onClick={handleSendInvoicePivot}
         >
-          <span className="foreman-pivot-icon" aria-hidden="true">💸</span>
-          Send an invoice
+          <span className="foreman-pivot-icon" aria-hidden="true">
+            {/* Paper plane — PRD 2026-06-01 pick for Invoice CTA */}
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 3L3 11l7 2 2 7 9-17z"/>
+              <path d="M10 13l11-10"/>
+            </svg>
+          </span>
+          Invoice
         </button>
       </div>
 
