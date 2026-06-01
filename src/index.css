@@ -11223,16 +11223,22 @@ input[type=number] { -moz-appearance: textfield; }
   /* Deliberately NOT inside .pro-gate__figure — stays readable for free users */
 }
 
-/* ── GetProPill — slim Today-screen upsell row ───────────────────────────── */
+/* ── GetProPill — solid-gold Today-screen upsell bar ────────────────────── */
+/* Styled to match .upgrade-banner__btn (Money tab gold CTA) */
 .get-pro-pill {
   display: flex;
   align-items: center;
   gap: 0;
   margin-bottom: 12px;
   border-radius: 10px;
-  border-left: 3px solid var(--gold, #d4a017);
-  background: rgba(212, 160, 23, 0.07);
+  background: var(--gold-gradient);
+  box-shadow: 0 2px 8px rgba(212, 160, 23, 0.35);
   overflow: hidden;
+  transition: opacity 0.15s, box-shadow 0.15s;
+}
+.get-pro-pill:hover {
+  opacity: 0.92;
+  box-shadow: 0 3px 12px rgba(212, 160, 23, 0.45);
 }
 
 .get-pro-pill__body {
@@ -11248,6 +11254,10 @@ input[type=number] { -moz-appearance: textfield; }
   font-family: inherit;
   min-width: 0;
 }
+.get-pro-pill__body:active ~ * { opacity: 1; }
+.get-pro-pill:active {
+  opacity: 0.78;
+}
 
 .get-pro-pill__icon {
   font-size: 16px;
@@ -11258,8 +11268,8 @@ input[type=number] { -moz-appearance: textfield; }
 .get-pro-pill__copy {
   flex: 1;
   font-size: 13px;
-  font-weight: 600;
-  color: var(--text);
+  font-weight: 700;
+  color: #fff;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -11268,7 +11278,7 @@ input[type=number] { -moz-appearance: textfield; }
 .get-pro-pill__chevron {
   flex-shrink: 0;
   font-size: 18px;
-  color: var(--gold, #d4a017);
+  color: #fff;
   line-height: 1;
   padding-right: 4px;
 }
@@ -11277,15 +11287,14 @@ input[type=number] { -moz-appearance: textfield; }
   flex-shrink: 0;
   background: none;
   border: none;
-  color: var(--text-dim);
+  color: rgba(255, 255, 255, 0.8);
   font-size: 18px;
   line-height: 1;
   padding: 11px 14px;
   cursor: pointer;
-  opacity: 0.6;
-  transition: opacity 0.15s;
+  transition: color 0.15s;
 }
-.get-pro-pill__dismiss:hover { opacity: 1; }
+.get-pro-pill__dismiss:hover { color: #fff; }
 
 /* ── ProUpgradeSheet — full-page sales overlay ───────────────────────────── */
 .pro-upgrade-overlay {
