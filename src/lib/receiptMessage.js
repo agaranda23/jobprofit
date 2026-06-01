@@ -57,11 +57,16 @@ export function formatReceiptDate(raw) {
  * Builds the WhatsApp receipt message.
  *
  * Parameters:
- *   job  – full job object
- *   biz  – business settings (name only; bank details are NOT included in receipts)
+ *   job              – full job object
+ *   biz              – business settings (name only; bank details are NOT included in receipts)
+ *   hostedReceiptUrl – optional /r/<token> URL; when present the message LEADS with
+ *                      "View your receipt: <url>" so the customer opens the branded
+ *                      receipt page rather than reading plain text.
  *
- * Example output:
+ * Example output (with hostedReceiptUrl):
  *   Hi Sarah,
+ *
+ *   View your receipt: https://app.jobprofit.co.uk/r/<token>
  *
  *   Here's your receipt for: Replace kitchen taps
  *   Amount paid: £380.00
@@ -71,7 +76,7 @@ export function formatReceiptDate(raw) {
  *
  *   Alan Plumbing Ltd
  */
-export function buildReceiptWhatsAppMessage({ job, biz }) {
+export function buildReceiptWhatsAppMessage({ job, biz, hostedReceiptUrl = '' }) {
   const firstName = (job?.customer || job?.name || '').split(' ')[0] || 'there';
   const summary = (job?.summary || 'your job').slice(0, 200);
   const amountPaid = resolveAmountPaid(job);
@@ -82,12 +87,20 @@ export function buildReceiptWhatsAppMessage({ job, biz }) {
   const lines = [
     `Hi ${firstName},`,
     '',
+  ];
+
+  if (hostedReceiptUrl) {
+    lines.push(`View your receipt: ${hostedReceiptUrl}`);
+    lines.push('');
+  }
+
+  lines.push(
     `Here's your receipt for: ${summary}`,
     `Amount paid: £${amountPaid.toFixed(2)}`,
     `Paid on: ${paidDateLabel}`,
     '',
     'PAID IN FULL - thank you for your business.',
-  ];
+  );
 
   if (bizName) {
     lines.push('');
