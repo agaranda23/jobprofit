@@ -96,7 +96,17 @@ export const handler = async function (event) {
   try {
     const { data, error } = await adminClient
       .from('profiles')
-      .select('business_name, address, phone, email, logo_url')
+      .select([
+        'business_name',
+        'address',
+        'phone',
+        'email',
+        'logo_url',
+        'website',
+        'vat_registered',
+        'vat_number',
+        'utr_number',
+      ].join(', '))
       .eq('id', job.user_id)
       .single();
 
@@ -111,10 +121,14 @@ export const handler = async function (event) {
   }
 
   return json(200, {
-    businessName: profile.business_name || '',
-    address:      profile.address       || '',
-    phone:        profile.phone         || '',
-    email:        profile.email         || '',
-    logoUrl:      profile.logo_url      || '',
+    businessName:  profile.business_name  || '',
+    address:       profile.address        || '',
+    phone:         profile.phone          || '',
+    email:         profile.email          || '',
+    logoUrl:       profile.logo_url       || '',
+    website:       profile.website        || '',
+    vatRegistered: profile.vat_registered ?? false,
+    vatNumber:     profile.vat_number     || '',
+    utrNumber:     profile.utr_number     || '',
   });
 };

@@ -1684,6 +1684,29 @@ export default function SettingsScreen({
     },
   });
 
+  const openEditWebsite = () => setActiveEdit({
+    modal: 'website',
+    fieldKey: 'website',
+    fieldLabel: 'Website',
+    currentValue: profile?.website || '',
+    inputType: 'url',
+    placeholder: 'https://yoursite.co.uk',
+    helpText: 'Shown on quotes, invoices, and receipts next to your phone and email.',
+    validate: null,
+  });
+
+  const openEditTermsText = () => setActiveEdit({
+    modal: 'terms_text',
+    fieldKey: 'terms_text',
+    fieldLabel: 'Terms & conditions',
+    currentValue: profile?.terms_text || '',
+    inputType: 'textarea',
+    rows: 6,
+    placeholder: 'e.g. Payment due within 14 days. All work guaranteed for 12 months...',
+    helpText: 'Shown in the footer of your quotes and invoices. Leave blank to omit.',
+    validate: null,
+  });
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
@@ -1847,6 +1870,16 @@ export default function SettingsScreen({
         <ItemiseDocumentsRow
           profile={profile}
           onProfileUpdate={onProfileUpdate}
+        />
+        <Row
+          label="Website"
+          value={profile?.website || '—'}
+          onTap={openEditWebsite}
+        />
+        <Row
+          label="Terms & conditions"
+          value={profile?.terms_text ? 'Set' : '—'}
+          onTap={openEditTermsText}
         />
       </SectionCard>
 

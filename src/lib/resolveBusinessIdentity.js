@@ -14,6 +14,7 @@
  *   profiles.address        → address
  *   profiles.phone          → phone
  *   profiles.email          → email
+ *   profiles.website        → website
  *   profiles.logo_url       → logoUrl, logo_url
  *   profiles.account_name   → accountName
  *   profiles.sort_code      → sortCode
@@ -22,6 +23,7 @@
  *   profiles.vat_registered → vatRegistered
  *   profiles.utr_number     → utr
  *   profiles.stripe_payment_link → stripePaymentLink
+ *   profiles.terms_text     → termsText
  *
  * All generators (generateInvoicePDF, generateQuotePDF, generateReceiptPDF) already
  * have their own internal effectiveBiz merge — this function is the call-site
@@ -36,6 +38,7 @@ export function resolveBusinessIdentity(biz, profile) {
     address:        profile?.address        || biz?.address         || '',
     phone:          profile?.phone          || biz?.phone           || '',
     email:          profile?.email          || biz?.email           || '',
+    website:        profile?.website        || biz?.website         || '',
 
     // Logo — keep both field shapes so generators can read either
     logoUrl:        profile?.logo_url       || biz?.logoUrl         || biz?.logo_url || '',
@@ -57,5 +60,8 @@ export function resolveBusinessIdentity(biz, profile) {
                        || biz?.stripePaymentLink
                        || biz?.stripe_payment_link
                        || '',
+
+    // Document content
+    termsText:      profile?.terms_text     || biz?.termsText       || biz?.terms_text || '',
   };
 }

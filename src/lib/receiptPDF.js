@@ -7,9 +7,16 @@ import { resolvePaidDate, resolveAmountPaid, formatReceiptDate } from './receipt
  *
  * Visually mirrors generateInvoicePDF (same header / table / footer system)
  * but labelled RECEIPT and carries:
+ *   - Receipt number — R-<invoice number> if available, or R-<job id slice>
  *   - A "PAID IN FULL" stamp instead of due-date / invoice-number block
  *   - Paid date (sourced via resolvePaidDate — payments[] first, paidAt second)
  *   - Amount paid (sourced via resolveAmountPaid)
+ *   - Payment method — "Paid by: Cash / Bank transfer / Card" (from payments[].method
+ *     or job.paymentType / job.payment_type). Omitted when method is unknown/missing.
+ *   - VAT breakdown (net / VAT / gross) when the business is VAT-registered.
+ *     Non-VAT-registered traders never see any VAT line or VAT number.
+ *   - Full header parity with the invoice (logo, name, address, phone, email,
+ *     website when set, VAT reg number when registered) via resolveBusinessIdentity.
  *   - A short thank-you line before the footer
  *
  * No bank details are shown — this is a confirmation of payment received,
@@ -55,9 +62,15 @@ function inferImageType(src) {
   return 'PNG';
 }
 
+/**
+ * Full header parity with invoicePDF.js drawHeader:
+ *   logo (left) | name, address, phone•email•website, UTR, VAT reg (right)
+ *
+ * Returns y position below the header rule.
+ */
 function drawHeader(doc, biz) {
   const w = doc.internal.pageSize.getWidth();
-  const y = 16;
+  let y = 16;
 
   const logo = bizLogoUrl(biz);
   if (logo) {
@@ -72,22 +85,57 @@ function drawHeader(doc, biz) {
   doc.setTextColor(...DARK);
   doc.text(biz?.name || 'Your Business', w - MARGIN, y + 7, { align: 'right' });
 
-  if (biz?.address) {
+  let rightY = y + 14;
+
+  // Address — split on newlines or commas, max 3 fragments
+  const address = biz?.address || '';
+  if (address) {
     doc.setFontSize(9);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(...MID);
-    doc.text(biz.address, w - MARGIN, y + 14, { align: 'right' });
+    const lines = address.split(/\n|,\s*/).slice(0, 3);
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed) {
+        doc.text(trimmed, w - MARGIN, rightY, { align: 'right' });
+        rightY += 4.5;
+      }
+    }
   }
 
-  const contact = [biz?.phone, biz?.email].filter(Boolean).join('  •  ');
+  // Phone • email • website
+  const contact = [biz?.phone, biz?.email, biz?.website].filter(Boolean).join('  •  ');
   if (contact) {
     doc.setFontSize(9);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(...MID);
-    doc.text(contact, w - MARGIN, y + 21, { align: 'right' });
+    doc.text(contact, w - MARGIN, rightY, { align: 'right' });
+    rightY += 4.5;
   }
 
-  const ruleY = y + HEADER_LOGO_H + 4;
+  // UTR — when set
+  const utr = biz?.utr || biz?.utr_number || '';
+  if (utr) {
+    doc.setFontSize(8.5);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...LIGHT);
+    doc.text(`UTR: ${utr}`, w - MARGIN, rightY, { align: 'right' });
+    rightY += 4.5;
+  }
+
+  // VAT reg number — ONLY when the business is actually VAT-registered
+  const vatRegistered = biz?.vatRegistered || biz?.vat_registered || false;
+  const vatNumber = biz?.vatNumber || biz?.vat_number || '';
+  if (vatRegistered && vatNumber) {
+    doc.setFontSize(8.5);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...LIGHT);
+    doc.text(`VAT Reg: ${vatNumber}`, w - MARGIN, rightY, { align: 'right' });
+    rightY += 4.5;
+  }
+
+  const logoBottom = y + HEADER_LOGO_H + 4;
+  const ruleY = Math.max(logoBottom, rightY + 2);
   rule(doc, ruleY);
   return ruleY + 8;
 }
@@ -195,6 +243,62 @@ function drawFooter(doc, biz, extra = '') {
   doc.text(text, w / 2, footerY, { align: 'center' });
 }
 
+// ── Payment method label resolution ────────────────────────────────────────
+
+const METHOD_LABELS = {
+  cash:    'Cash',
+  bank:    'Bank transfer',
+  card:    'Card',
+  other:   'Other',
+};
+
+/**
+ * Derives the human-readable payment method label for the receipt.
+ *
+ * Priority:
+ *   1. Latest payment row's method from payments[] (the structured partial-
+ *      payment ledger added in Phase B). Uses the method of the last payment
+ *      by date, which for fully-paid jobs is the final settlement.
+ *   2. job.paymentType / job.payment_type — legacy string field on the job
+ *      (values: 'awaiting' | 'cash' | 'bank' | 'card'). 'awaiting' maps to ''.
+ *
+ * Returns '' when the method cannot be determined — callers must omit the
+ * "Paid by:" line entirely in this case (never show "Paid by: Unknown").
+ */
+export function resolvePaymentMethod(job) {
+  const payments = job?.payments;
+  if (Array.isArray(payments) && payments.length > 0) {
+    const sorted = [...payments].sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+    const method = sorted[0]?.method;
+    return METHOD_LABELS[method] || '';
+  }
+  // Legacy per-job field
+  const legacy = job?.paymentType || job?.payment_type || '';
+  if (legacy && legacy !== 'awaiting') {
+    return METHOD_LABELS[legacy] || '';
+  }
+  return '';
+}
+
+// ── Receipt number resolution ────────────────────────────────────────────────
+
+/**
+ * Derives a receipt number for the document meta block.
+ *
+ * Priority:
+ *   1. job.receiptNumber — explicitly stored on the job (future-proof field)
+ *   2. R-<settled invoice number> — if the job carries an invoiceNumber, prefix R-
+ *   3. R-<last 4 chars of job id> — stable fallback matching the Q- quote scheme
+ *
+ * The R- prefix distinguishes receipts from invoices in the trader's records.
+ */
+export function resolveReceiptNumber(job) {
+  if (job?.receiptNumber) return job.receiptNumber;
+  if (job?.invoiceNumber) return `R-${job.invoiceNumber}`;
+  const id = job?.id ?? job?.cloudId ?? '';
+  return id ? `R-${String(id).slice(-4).toUpperCase()}` : '';
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // RECEIPT
 // ═══════════════════════════════════════════════════════════════════════════
@@ -203,26 +307,43 @@ export function generateReceiptPDF({ job, biz, profile = null }) {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   const w = doc.internal.pageSize.getWidth();
 
-  // Merge biz + profile — mirrors invoicePDF.js convention so logo_url from
-  // the Supabase profile row is picked up when biz is null or incomplete.
+  // Full biz merge — profile wins for every field it sets (mirrors resolveBusinessIdentity).
+  // This closes header parity with the invoice: logo_url, address, UTR, VAT reg all
+  // flow from the Supabase profile row rather than the stale localStorage biz object.
   const effectiveBiz = {
-    name:    biz?.name    || profile?.business_name || '',
-    address: biz?.address || profile?.address        || '',
-    phone:   biz?.phone   || profile?.phone          || '',
-    email:   biz?.email   || profile?.email          || '',
-    logoUrl: biz?.logoUrl || biz?.logo_url || profile?.logo_url || '',
-    logo_url: biz?.logo_url || biz?.logoUrl || profile?.logo_url || '',
+    name:         profile?.business_name || biz?.name    || '',
+    address:      profile?.address       || biz?.address  || '',
+    phone:        profile?.phone         || biz?.phone    || '',
+    email:        profile?.email         || biz?.email    || '',
+    website:      profile?.website       || biz?.website  || '',
+    logoUrl:      profile?.logo_url      || biz?.logoUrl  || biz?.logo_url || '',
+    logo_url:     profile?.logo_url      || biz?.logo_url || biz?.logoUrl  || '',
+    utr:          profile?.utr_number    || biz?.utr      || biz?.utr_number || '',
+    vatRegistered: profile?.vat_registered ?? biz?.vatRegistered ?? biz?.vat_registered ?? false,
+    vatNumber:    profile?.vat_number    || biz?.vatNumber || biz?.vat_number || '',
   };
 
-  const amountPaid  = resolveAmountPaid(job);
-  const paidDate    = resolvePaidDate(job);
+  const amountPaid    = resolveAmountPaid(job);
+  const paidDate      = resolvePaidDate(job);
   const paidDateLabel = formatReceiptDate(paidDate);
+  const receiptNumber = resolveReceiptNumber(job);
+  const paymentMethod = resolvePaymentMethod(job);
+
+  // VAT breakdown — shown only when the business is VAT-registered
+  const showVat = !!effectiveBiz.vatRegistered;
+  // Net = amount before VAT. If the job's total is the gross-inc-VAT amount, net = total / 1.2.
+  // We use the settled amountPaid as the gross figure.
+  const vatAmount  = showVat ? Math.round(amountPaid / 6 * 100) / 100 : 0; // VAT at 20% = gross/6
+  const netAmount  = showVat ? Math.round((amountPaid - vatAmount) * 100) / 100 : 0;
 
   // ── Business header ──────────────────────────────────────────────────────
   let y = drawHeader(doc, effectiveBiz);
 
   // ── RECEIPT heading ──────────────────────────────────────────────────────
-  y = drawDocTitle(doc, 'RECEIPT', [['Date', paidDateLabel]], y);
+  y = drawDocTitle(doc, 'RECEIPT', [
+    ['Receipt no', receiptNumber],
+    ['Date',       paidDateLabel],
+  ], y);
 
   // ── Received From ────────────────────────────────────────────────────────
   y = drawRecipientBlock(doc, 'Received From', job, y);
@@ -243,16 +364,37 @@ export function generateReceiptPDF({ job, biz, profile = null }) {
   const jobTotal = job?.total ?? job?.amount ?? 0;
   const panelX = w - MARGIN - 80;
 
-  // Subtotal row
+  // Compute panel row count to size it correctly
+  const panelRows = 1                // Subtotal
+    + (showVat ? 2 : 0)              // Net + VAT rows (when registered)
+    + 1;                             // AMOUNT PAID row
+  const panelH = 12 + (panelRows - 1) * 8 + 14;
+
   doc.setFillColor(248, 248, 248);
-  doc.roundedRect(panelX, y + 4, 80, 28, 2, 2, 'F');
+  doc.roundedRect(panelX, y + 4, 80, panelH, 2, 2, 'F');
 
   let ty = y + 13;
+
+  // Subtotal row
   doc.setFontSize(9.5);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(...MID);
   doc.text('Subtotal', panelX + 6, ty);
   doc.text(`£${jobTotal.toFixed(2)}`, w - MARGIN - 4, ty, { align: 'right' });
+
+  // VAT breakdown — only when VAT-registered
+  if (showVat) {
+    ty += 8;
+    doc.setFontSize(9.5);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...MID);
+    doc.text(`Net (ex. VAT)`, panelX + 6, ty);
+    doc.text(`£${netAmount.toFixed(2)}`, w - MARGIN - 4, ty, { align: 'right' });
+
+    ty += 8;
+    doc.text('VAT (20%)', panelX + 6, ty);
+    doc.text(`£${vatAmount.toFixed(2)}`, w - MARGIN - 4, ty, { align: 'right' });
+  }
 
   // Rule above AMOUNT PAID
   ty += 4;
@@ -267,7 +409,17 @@ export function generateReceiptPDF({ job, biz, profile = null }) {
   doc.text('AMOUNT PAID', panelX + 6, ty);
   doc.text(`£${amountPaid.toFixed(2)}`, w - MARGIN - 4, ty, { align: 'right' });
 
-  y += 36;
+  // VAT reg footnote below panel (mirrors invoicePDF.js convention)
+  if (showVat && effectiveBiz.vatNumber) {
+    const footnoteY = y + 4 + panelH + 4;
+    doc.setFontSize(8.5);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...LIGHT);
+    doc.text(`VAT Reg: ${effectiveBiz.vatNumber}`, MARGIN, footnoteY);
+    y = footnoteY + 8;
+  } else {
+    y += panelH + 12;
+  }
 
   // ── PAID IN FULL stamp ───────────────────────────────────────────────────
   y += 6;
@@ -280,14 +432,20 @@ export function generateReceiptPDF({ job, biz, profile = null }) {
 
   y += 24;
 
-  // ── Payment received line ────────────────────────────────────────────────
+  // ── Payment received + method lines ──────────────────────────────────────
   doc.setFontSize(9);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(...MID);
   doc.text(`Payment received: ${paidDateLabel}`, MARGIN, y);
+  y += 5.5;
+
+  if (paymentMethod) {
+    doc.text(`Paid by: ${paymentMethod}`, MARGIN, y);
+    y += 5.5;
+  }
 
   // ── Thank-you ────────────────────────────────────────────────────────────
-  y += 10;
+  y += 4;
   doc.setFontSize(10);
   doc.setFont('helvetica', 'italic');
   doc.setTextColor(...MID);

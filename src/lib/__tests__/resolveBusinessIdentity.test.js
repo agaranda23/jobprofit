@@ -18,6 +18,7 @@ function bizOnly(overrides = {}) {
     address:       '1 Old Road',
     phone:         '07700 000001',
     email:         'old@biz.co.uk',
+    website:       'https://legacy.co.uk',
     logoUrl:       'https://old.example.com/logo.png',
     accountName:   'Legacy Biz Ltd',
     sortCode:      '11-22-33',
@@ -26,6 +27,7 @@ function bizOnly(overrides = {}) {
     vatRegistered: true,
     utr:           '9999999999',
     stripePaymentLink: 'https://buy.stripe.com/oldlink',
+    termsText:     'Old terms.',
     ...overrides,
   };
 }
@@ -36,6 +38,7 @@ function profileOnly(overrides = {}) {
     address:        '2 New Street',
     phone:          '07800 000002',
     email:          'new@biz.co.uk',
+    website:        'https://modern.co.uk',
     logo_url:       'https://storage.supabase.co/logo.png',
     account_name:   'Modern Biz Ltd',
     sort_code:      '44-55-66',
@@ -44,6 +47,7 @@ function profileOnly(overrides = {}) {
     vat_registered: true,
     utr_number:     '1111111111',
     stripe_payment_link: 'https://buy.stripe.com/newlink',
+    terms_text:     'New terms and conditions apply.',
     ...overrides,
   };
 }
@@ -188,5 +192,57 @@ describe('resolveBusinessIdentity — profile fills gaps left by partial biz', (
     const biz = bizOnly({ utr: '' });
     const result = resolveBusinessIdentity(biz, profileOnly());
     expect(result.utr).toBe('1111111111');
+  });
+});
+
+// ── PR-C additions: website + termsText ──────────────────────────────────────
+
+describe('resolveBusinessIdentity — website field (PR-C)', () => {
+  it('uses profile.website over biz.website when both are set', () => {
+    const result = resolveBusinessIdentity(bizOnly(), profileOnly());
+    expect(result.website).toBe('https://modern.co.uk');
+  });
+
+  it('returns biz.website when profile.website is absent', () => {
+    const result = resolveBusinessIdentity(bizOnly(), profileOnly({ website: '' }));
+    expect(result.website).toBe('https://legacy.co.uk');
+  });
+
+  it('returns empty string when neither biz.website nor profile.website is set', () => {
+    const result = resolveBusinessIdentity(
+      bizOnly({ website: '' }),
+      profileOnly({ website: '' }),
+    );
+    expect(result.website).toBe('');
+  });
+
+  it('returns empty string when both biz and profile are null', () => {
+    const result = resolveBusinessIdentity(null, null);
+    expect(result.website).toBe('');
+  });
+});
+
+describe('resolveBusinessIdentity — termsText field (PR-C)', () => {
+  it('uses profile.terms_text over biz.termsText when both are set', () => {
+    const result = resolveBusinessIdentity(bizOnly(), profileOnly());
+    expect(result.termsText).toBe('New terms and conditions apply.');
+  });
+
+  it('returns biz.termsText when profile.terms_text is absent', () => {
+    const result = resolveBusinessIdentity(bizOnly(), profileOnly({ terms_text: '' }));
+    expect(result.termsText).toBe('Old terms.');
+  });
+
+  it('returns empty string when neither source has termsText', () => {
+    const result = resolveBusinessIdentity(
+      bizOnly({ termsText: '' }),
+      profileOnly({ terms_text: '' }),
+    );
+    expect(result.termsText).toBe('');
+  });
+
+  it('returns empty string when both biz and profile are null', () => {
+    const result = resolveBusinessIdentity(null, null);
+    expect(result.termsText).toBe('');
   });
 });

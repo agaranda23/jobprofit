@@ -6,17 +6,21 @@
  * and error states, same forced-light .pqv-card treatment.
  *
  * What renders:
- *   - Business logo + name (branding)
- *   - "RECEIPT" heading + paid date
+ *   - Business logo + name + address + phone/email/website (full header parity with invoice)
+ *   - "RECEIPT" heading + receipt number + paid date
  *   - Customer name + job summary
- *   - Amount paid
+ *   - Line items
+ *   - Totals panel: subtotal, VAT breakdown (when VAT-registered), amount paid
+ *   - VAT reg footnote (when registered)
  *   - "PAID IN FULL" stamp
+ *   - Payment received date + "Paid by: <method>" (when method is known)
  *   - Thank-you line
  *
  * What is NOT rendered:
  *   - Bank details (receipt confirms payment, not requests it)
  *   - Internal notes, profit data, linked expense receipts, photos
  *   - Any trader-side UI (no editing, no status changes)
+ *   - VAT number / VAT lines for non-VAT-registered traders (never)
  *
  * Design: mobile-first, max-width 600px, no auth shell, forced light theme.
  */
@@ -25,6 +29,7 @@ import { useState, useEffect } from 'react';
 import { fetchPublicJob } from '../lib/store';
 import { isValidToken } from '../lib/publicReceiptToken';
 import { resolvePaidDate, resolveAmountPaid, formatReceiptDate } from '../lib/receiptMessage';
+import { resolvePaymentMethod, resolveReceiptNumber } from '../lib/receiptPDF';
 
 const FETCH_PROFILE_URL = '/.netlify/functions/fetch-public-receipt';
 
@@ -71,19 +76,34 @@ function ErrorState({ message }) {
 // ── Branded receipt card ───────────────────────────────────────────────────────
 
 function ReceiptCard({ job, profile }) {
-  const amountPaid   = resolveAmountPaid(job);
-  const paidDate     = resolvePaidDate(job);
+  const amountPaid    = resolveAmountPaid(job);
+  const paidDate      = resolvePaidDate(job);
   const paidDateLabel = formatReceiptDate(paidDate);
-  const jobTotal     = Number(job?.total ?? job?.amount ?? 0);
+  const receiptNumber = resolveReceiptNumber(job);
+  const paymentMethod = resolvePaymentMethod(job);
+  const jobTotal      = Number(job?.total ?? job?.amount ?? 0);
+
+  // VAT breakdown — only when the business is VAT-registered
+  const vatRegistered = !!(profile?.vatRegistered || profile?.vat_registered);
+  const vatNumber     = profile?.vatNumber || profile?.vat_number || '';
+  const vatAmount     = vatRegistered ? Math.round(amountPaid / 6 * 100) / 100 : 0;
+  const netAmount     = vatRegistered ? Math.round((amountPaid - vatAmount) * 100) / 100 : 0;
 
   const lineItems =
     Array.isArray(job?.lineItems) && job.lineItems.length > 0
       ? job.lineItems
       : [{ desc: job?.summary || 'Work completed', cost: jobTotal }];
 
-  const logoUrl    = profile?.logoUrl || '';
-  const bizName    = profile?.businessName || '';
+  const logoUrl    = profile?.logoUrl || profile?.logo_url || '';
+  const bizName    = profile?.businessName || profile?.name || '';
   const bizAddress = profile?.address || '';
+  const bizPhone   = profile?.phone || '';
+  const bizEmail   = profile?.email || '';
+  const bizWebsite = profile?.website || '';
+
+  // Build contact line: phone • email • website
+  const contactParts = [bizPhone, bizEmail, bizWebsite].filter(Boolean);
+  const contactLine = contactParts.join('  •  ');
 
   return (
     <div
@@ -98,7 +118,7 @@ function ReceiptCard({ job, profile }) {
       }}
       aria-label="Receipt"
     >
-      {/* Business header */}
+      {/* Business header — full parity with invoice */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
         <div style={{ width: 48, height: 48, flexShrink: 0 }}>
           {logoUrl && (
@@ -110,18 +130,31 @@ function ReceiptCard({ job, profile }) {
             <div style={{ fontWeight: 800, fontSize: 15, color: DARK, marginBottom: 2 }}>{bizName}</div>
           )}
           {bizAddress && (
-            <div style={{ fontSize: 11, color: MID }}>{bizAddress}</div>
+            <div style={{ fontSize: 11, color: MID, marginBottom: 1 }}>{bizAddress}</div>
+          )}
+          {contactLine && (
+            <div style={{ fontSize: 11, color: MID, marginBottom: 1 }}>{contactLine}</div>
+          )}
+          {vatRegistered && vatNumber && (
+            <div style={{ fontSize: 10, color: LIGHT }}>VAT Reg: {vatNumber}</div>
           )}
         </div>
       </div>
 
       <div style={{ borderTop: '1.5px solid #e0e0e0', marginBottom: 12 }} />
 
-      {/* RECEIPT heading + date */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 12 }}>
+      {/* RECEIPT heading + receipt number + date */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
         <div style={{ fontSize: 22, fontWeight: 900, color: GREEN, letterSpacing: '-0.5px' }}>RECEIPT</div>
-        <div style={{ fontSize: 12, color: MID }}>{paidDateLabel}</div>
+        <div style={{ textAlign: 'right' }}>
+          {receiptNumber && (
+            <div style={{ fontSize: 11, fontWeight: 700, color: DARK }}>{receiptNumber}</div>
+          )}
+          <div style={{ fontSize: 12, color: MID }}>{paidDateLabel}</div>
+        </div>
       </div>
+
+      <div style={{ marginBottom: 12 }} />
 
       {/* Customer */}
       <div style={{ background: '#f8f8f8', borderRadius: 6, padding: '8px 12px', marginBottom: 12 }}>
@@ -154,12 +187,27 @@ function ReceiptCard({ job, profile }) {
       </table>
 
       {/* Totals panel */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 12 }}>
-        <div style={{ background: '#f8f8f8', borderRadius: 6, padding: '6px 0', minWidth: 160 }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+        <div style={{ background: '#f8f8f8', borderRadius: 6, padding: '6px 0', minWidth: 180 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 8px', fontSize: 12 }}>
             <span style={{ color: MID }}>Subtotal</span>
             <span style={{ color: DARK }}>{gbp(jobTotal)}</span>
           </div>
+
+          {/* VAT breakdown — only when VAT-registered */}
+          {vatRegistered && (
+            <>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 8px', fontSize: 11 }}>
+                <span style={{ color: MID }}>Net (ex. VAT)</span>
+                <span style={{ color: DARK }}>{gbp(netAmount)}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '2px 8px', fontSize: 11 }}>
+                <span style={{ color: MID }}>VAT (20%)</span>
+                <span style={{ color: DARK }}>{gbp(vatAmount)}</span>
+              </div>
+            </>
+          )}
+
           <div style={{ borderTop: `1.5px solid ${GREEN}`, margin: '4px 8px 0' }} />
           <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 8px 4px', fontSize: 13, fontWeight: 800 }}>
             <span style={{ color: DARK }}>Amount paid</span>
@@ -167,6 +215,13 @@ function ReceiptCard({ job, profile }) {
           </div>
         </div>
       </div>
+
+      {/* VAT reg footnote (when registered) */}
+      {vatRegistered && vatNumber && (
+        <div style={{ fontSize: 10, color: LIGHT, marginBottom: 8 }}>
+          VAT Reg: {vatNumber}
+        </div>
+      )}
 
       {/* PAID IN FULL stamp */}
       <div
@@ -186,6 +241,13 @@ function ReceiptCard({ job, profile }) {
           </div>
         )}
       </div>
+
+      {/* Payment method */}
+      {paymentMethod && (
+        <div style={{ fontSize: 11, color: MID, marginBottom: 6 }}>
+          Paid by: {paymentMethod}
+        </div>
+      )}
 
       {/* Thank-you */}
       <div style={{ fontSize: 11, color: MID, fontStyle: 'italic', textAlign: 'center' }}>

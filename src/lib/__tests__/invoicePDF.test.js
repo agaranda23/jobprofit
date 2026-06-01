@@ -46,17 +46,18 @@ vi.mock('jspdf', () => {
     this.setDrawColor   = vi.fn();
     this.setFillColor   = vi.fn();
     this.setLineWidth   = vi.fn();
-    this.text           = vi.fn((str) => { drawnTexts.push(str); });
-    this.line           = vi.fn();
-    this.link           = vi.fn();
-    this.roundedRect    = vi.fn();
-    this.getTextWidth   = vi.fn(() => 20);
-    this.addImage       = vi.fn((...args) => { addImageCalls.push(args); });
-    this.textWithLink   = vi.fn();
-    this.addPage        = vi.fn();
-    this.lastAutoTable  = { finalY: 120 };
-    this.output         = vi.fn(() => new Blob([]));
-    this.save           = vi.fn();
+    this.text            = vi.fn((str) => { drawnTexts.push(str); });
+    this.line            = vi.fn();
+    this.link            = vi.fn();
+    this.roundedRect     = vi.fn();
+    this.getTextWidth    = vi.fn(() => 20);
+    this.addImage        = vi.fn((...args) => { addImageCalls.push(args); });
+    this.textWithLink    = vi.fn();
+    this.addPage         = vi.fn();
+    this.splitTextToSize = vi.fn((text) => [text]);
+    this.lastAutoTable   = { finalY: 120 };
+    this.output          = vi.fn(() => new Blob([]));
+    this.save            = vi.fn();
   }
   return { jsPDF: MockJsPDF };
 });
@@ -776,5 +777,124 @@ describe('XI. Invoice footer — "Thank you for your business."', () => {
       biz: baseBiz(),
     });
     expect(drawnTexts.some(t => String(t).includes('Thank you for your business.'))).toBe(false);
+  });
+});
+
+// ── XII. Terms & conditions on invoice + quote (PR-C) ─────────────────────────
+
+describe('XII. Terms & conditions — rendered on invoice/quote when set (PR-C)', () => {
+  beforeEach(() => { drawnTexts = []; addImageCalls = []; vi.clearAllMocks(); });
+
+  it('renders "Terms & conditions" heading when biz.termsText is set on invoice', async () => {
+    await generateInvoicePDF({
+      job: baseJob({ total: 300 }),
+      biz: baseBiz({ termsText: 'Payment due within 14 days.' }),
+      invoiceNumber: 'INV-TERMS-01',
+      dueDate: '2026-07-31',
+    });
+    expect(drawnTexts.some(t => String(t).includes('Terms & conditions'))).toBe(true);
+  });
+
+  it('renders the actual terms text on invoice', async () => {
+    await generateInvoicePDF({
+      job: baseJob({ total: 300 }),
+      biz: baseBiz({ termsText: 'All work guaranteed for 12 months.' }),
+      invoiceNumber: 'INV-TERMS-02',
+      dueDate: '2026-07-31',
+    });
+    expect(drawnTexts.some(t => String(t).includes('All work guaranteed for 12 months.'))).toBe(true);
+  });
+
+  it('does NOT render "Terms & conditions" heading when termsText is empty', async () => {
+    await generateInvoicePDF({
+      job: baseJob({ total: 300 }),
+      biz: baseBiz({ termsText: '' }),
+      invoiceNumber: 'INV-TERMS-03',
+      dueDate: '2026-07-31',
+    });
+    expect(drawnTexts.some(t => String(t).includes('Terms & conditions'))).toBe(false);
+  });
+
+  it('does NOT render "Terms & conditions" when termsText is absent on invoice', async () => {
+    await generateInvoicePDF({
+      job: baseJob({ total: 300 }),
+      biz: baseBiz(),
+      invoiceNumber: 'INV-TERMS-04',
+      dueDate: '2026-07-31',
+    });
+    expect(drawnTexts.some(t => String(t).includes('Terms & conditions'))).toBe(false);
+  });
+
+  it('renders "Terms & conditions" on quote when biz.termsText is set', () => {
+    generateQuotePDF({
+      job: baseJob({ total: 500 }),
+      biz: baseBiz({ termsText: 'Quote valid 30 days. 50% deposit required.' }),
+    });
+    expect(drawnTexts.some(t => String(t).includes('Terms & conditions'))).toBe(true);
+    expect(drawnTexts.some(t => String(t).includes('Quote valid 30 days. 50% deposit required.'))).toBe(true);
+  });
+
+  it('does NOT render "Terms & conditions" on quote when termsText is absent', () => {
+    generateQuotePDF({
+      job: baseJob({ total: 500 }),
+      biz: baseBiz(),
+    });
+    expect(drawnTexts.some(t => String(t).includes('Terms & conditions'))).toBe(false);
+  });
+
+  it('profile.terms_text flows through to invoice via effectiveBiz', async () => {
+    await generateInvoicePDF({
+      job: baseJob({ total: 400 }),
+      biz: baseBiz(),
+      profile: { is_cis_subcontractor: false, terms_text: 'Terms from profile.' },
+      invoiceNumber: 'INV-TERMS-05',
+      dueDate: '2026-07-31',
+    });
+    expect(drawnTexts.some(t => String(t).includes('Terms from profile.'))).toBe(true);
+  });
+});
+
+// ── XIII. Website in header contact line (PR-C) ───────────────────────────────
+
+describe('XIII. Website in header contact line (PR-C)', () => {
+  beforeEach(() => { drawnTexts = []; addImageCalls = []; vi.clearAllMocks(); });
+
+  it('renders website in the contact line of the invoice header when set', async () => {
+    await generateInvoicePDF({
+      job: baseJob({ total: 300 }),
+      biz: baseBiz({ website: 'https://murphy.co.uk' }),
+      invoiceNumber: 'INV-WEB-01',
+      dueDate: '2026-07-31',
+    });
+    expect(drawnTexts.some(t => String(t).includes('https://murphy.co.uk'))).toBe(true);
+  });
+
+  it('renders website from profile when set', async () => {
+    await generateInvoicePDF({
+      job: baseJob({ total: 300 }),
+      biz: baseBiz(),
+      profile: { is_cis_subcontractor: false, website: 'https://from-profile.co.uk' },
+      invoiceNumber: 'INV-WEB-02',
+      dueDate: '2026-07-31',
+    });
+    expect(drawnTexts.some(t => String(t).includes('https://from-profile.co.uk'))).toBe(true);
+  });
+
+  it('renders website in the quote header when set', () => {
+    generateQuotePDF({
+      job: baseJob({ total: 300 }),
+      biz: baseBiz({ website: 'https://murphy.co.uk' }),
+    });
+    expect(drawnTexts.some(t => String(t).includes('https://murphy.co.uk'))).toBe(true);
+  });
+
+  it('does NOT render website line when website is absent', async () => {
+    await generateInvoicePDF({
+      job: baseJob({ total: 300 }),
+      biz: baseBiz(),
+      invoiceNumber: 'INV-WEB-03',
+      dueDate: '2026-07-31',
+    });
+    expect(drawnTexts.some(t => String(t).includes('https://'))).toBe(false);
   });
 });

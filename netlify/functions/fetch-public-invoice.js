@@ -115,6 +115,7 @@ export const handler = async function (event) {
         'phone',
         'email',
         'logo_url',
+        'website',
         'vat_registered',
         'vat_number',
         'account_name',
@@ -129,6 +130,7 @@ export const handler = async function (event) {
         'utr_number',
         'itemise_documents',
         'payment_terms_days',
+        'terms_text',
       ].join(', '))
       .eq('id', job.user_id)
       .single();
@@ -152,6 +154,7 @@ export const handler = async function (event) {
     phone:              profile.phone                || '',
     email:              profile.email                || '',
     logoUrl:            profile.logo_url             || '',
+    website:            profile.website              || '',
     vatRegistered:      profile.vat_registered       ?? false,
     vatNumber:          profile.vat_number           || '',
     accountName:        profile.account_name         || '',
@@ -169,5 +172,6 @@ export const handler = async function (event) {
     utrNumber:          profile.utr_number            || '',
     itemiseDocuments:   profile.itemise_documents     ?? false,
     paymentTermsDays:   profile.payment_terms_days    ?? 14,
+    termsText:          profile.terms_text            || '',
   });
 };

@@ -227,6 +227,7 @@ export default function PublicInvoiceView({ token }) {
     address:        profile.address       || '',
     phone:          profile.phone         || '',
     email:          profile.email         || '',
+    website:        profile.website       || '',
     logoUrl:        profile.logoUrl       || '',
     logo_url:       profile.logoUrl       || '',
     vatRegistered:  profile.vatRegistered ?? false,
@@ -237,6 +238,7 @@ export default function PublicInvoiceView({ token }) {
     bankDetails:    profile.bankDetails   || '',
     stripePaymentLink: profile.stripePaymentLink || '',
     utr:            profile.utrNumber     || '',
+    termsText:      profile.termsText     || profile.terms_text || '',
   };
 
   // Build a profile-shape object for InvoiceDocumentPreview's CIS + document settings logic.
@@ -282,9 +284,9 @@ export default function PublicInvoiceView({ token }) {
           {biz.address && (
             <div className="pqv-business-meta">{biz.address}</div>
           )}
-          {(biz.phone || biz.email) && (
+          {(biz.phone || biz.email || biz.website) && (
             <div className="pqv-business-meta">
-              {[biz.phone, biz.email].filter(Boolean).join('  •  ')}
+              {[biz.phone, biz.email, biz.website].filter(Boolean).join('  •  ')}
             </div>
           )}
           {biz.vatRegistered && biz.vatNumber && (
@@ -319,6 +321,14 @@ export default function PublicInvoiceView({ token }) {
         {!showPayNowButton && !showStaticLink && hasBankDetails && (
           <div className="piv-bank-only-note">
             Please pay by bank transfer using the details above.
+          </div>
+        )}
+
+        {/* Terms & conditions footer — shown when set by the trader */}
+        {biz.termsText && (
+          <div className="pqv-terms-block">
+            <div className="pqv-terms-label">Terms &amp; conditions</div>
+            <p className="pqv-terms-text">{biz.termsText}</p>
           </div>
         )}
 
