@@ -32,11 +32,10 @@
 import { useMemo, useState, useCallback } from 'react';
 import { gbp, todayKey } from '../lib/today';
 import { isPro } from '../lib/plan';
-import { logTelemetry } from '../lib/telemetry';
 import HeaderAvatar from '../components/HeaderAvatar';
 import CashflowChart from '../components/CashflowChart';
 import ProGate from '../components/ProGate';
-import { startCheckout } from '../lib/billing';
+import ProUpgradeSheet from '../components/ProUpgradeSheet';
 import {
   getCashflowByMonth,
   getMonthSummary,
@@ -57,14 +56,10 @@ import {
 // One nudge max — priority: margin drop (or gain) first.
 const MARGIN_NUDGE_THRESHOLD_PCT = 10;
 
-function openUpgrade() {
-  logTelemetry('upgrade_clicked', { source: 'upgrade_banner' });
-  startCheckout().catch(() => {});
-}
-
 /**
  * UpgradeBanner — rendered ONCE on the Money tab for free users, just below
  * the profit hero. Never rendered for Pro users.
+ * Tapping "Start 14-day trial" opens ProUpgradeSheet (source='upgrade_banner').
  */
 function UpgradeBanner({ onUpgrade }) {
   return (
@@ -141,6 +136,15 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
   // chartRange drives which window of data getCashflowByMonth uses.
   // '6m' is the default matching the chart's defaultRange prop.
   const [chartRange, setChartRange] = useState('6m');
+  // upgradeSheetOpen: controls ProUpgradeSheet visibility.
+  // upgradeSheetSource: telemetry source field passed to the sheet.
+  const [upgradeSheetOpen, setUpgradeSheetOpen] = useState(false);
+  const [upgradeSheetSource, setUpgradeSheetSource] = useState('upgrade_banner');
+
+  const openUpgradeSheet = useCallback((source = 'upgrade_banner') => {
+    setUpgradeSheetSource(source);
+    setUpgradeSheetOpen(true);
+  }, []);
 
   // ── Pay-now Money banner (Section 1.3 b) ────────────────────────────────────
   // Shown when: trader is not connected to Stripe AND has 2+ unpaid invoices.
@@ -291,10 +295,13 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
   const currentTaxYearLabel = taxYearLabel(now);
   const isYtdProfitNegative = ytd.profit < 0;
 
-  // handleUpgrade: stable callback that delegates to the prop if wired, otherwise
-  // falls back to the Tally waitlist URL. Declared after the useMemo so the
-  // React Compiler doesn't trace it into the memo's dep inference.
-  const handleUpgrade = onUpgrade ?? openUpgrade;
+  // handleUpgrade: opens the ProUpgradeSheet. The onUpgrade prop is kept for
+  // backward-compatibility with any parent that may wire it, but the primary
+  // path is always the sheet (which then calls startCheckout internally).
+  const handleUpgrade = useCallback((source = 'upgrade_banner') => {
+    openUpgradeSheet(source);
+    onUpgrade?.();
+  }, [openUpgradeSheet, onUpgrade]);
 
   // handleTrustHintCta: tap-through for the data trust nudge.
   // markPaid → Jobs tab; noCosts → Settings tab (to add overheads/receipts).
@@ -377,6 +384,12 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
           <div className="money-hero__label">Profit this month</div>
           <div className={`money-hero__figure${isProfitNegative ? ' money-twoUp__value--negative' : ''}`}>
             {gbp(monthSummary.profit)}
+            <span
+              className="money-hero__label-gross"
+              title="Before overhead, before tax."
+            >
+              (gross)
+            </span>
           </div>
           <div className="money-hero__meta">
             {isProfitNegative
@@ -410,6 +423,12 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
                   <div className="money-hero__true-profit-label">After your running costs</div>
                   <div className={`money-hero__true-profit-figure${isTrueProfitNegative ? ' money-hero__true-profit-figure--negative' : ''}`}>
                     {gbp(trueProfit)}
+                    <span
+                      className="money-hero__label-net"
+                      title="After materials, overheads, and tax pot."
+                    >
+                      (NET)
+                    </span>
                   </div>
                   <div className="money-hero__true-profit-sub">
                     {gbp(overheadTotal)}/mo overheads deducted
@@ -418,17 +437,31 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
               );
             })()
           ) : (
-            /* State 2: Free user + overheads configured — blurred locked line */
-            <div className="money-hero__true-profit-locked">
+            /* State 2: Free user + overheads configured — blurred locked line.
+               (NET) label is a sibling of the blurred amount so it stays readable.
+               Tapping the row opens ProUpgradeSheet with source='progate'. */
+            <button
+              type="button"
+              className="money-hero__true-profit-locked"
+              onClick={() => handleUpgrade('progate')}
+              aria-label="Unlock true profit — tap to upgrade to Pro"
+            >
               <div className="money-hero__true-profit-locked-label">After your running costs</div>
               <div className="money-hero__true-profit-locked-row">
+                {/* amount is blurred; (NET) label sits outside and stays visible */}
                 <span className="money-hero__true-profit-locked-amount">{gbp(monthSummary.profit - overheadTotal)}</span>
+                <span
+                  className="money-hero__label-net"
+                  title="After materials, overheads, and tax pot."
+                >
+                  (NET)
+                </span>
                 <span className="money-hero__true-profit-locked-badge">
                   <span>&#x1F512;</span>
                   <span>Pro</span>
                 </span>
               </div>
-            </div>
+            </button>
           )}
         </div>
       )}
@@ -465,7 +498,7 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
 
       {/* ── 3. Tax Pot card (Pro-gated) ────────────────────────────────── */}
       {/* hasValue: only when there is positive YTD profit or CIS deducted */}
-      <ProGate locked={!userIsPro} hasValue={ytd.profit > 0 || ytd.cisDeductedYtd > 0}>
+      <ProGate locked={!userIsPro} hasValue={ytd.profit > 0 || ytd.cisDeductedYtd > 0} onUpgrade={() => handleUpgrade('progate')}>
         <div className="money-card money-tax-setaside">
           <div className="money-tax-setaside__label">Tax Pot</div>
 
@@ -548,7 +581,7 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
       {/* ── 3b. VAT this quarter (Pro-gated, VAT-registered users only) ───── */}
       {/* Only rendered when the user has a VAT number set. No teaser for non-VAT users. */}
       {isVatRegistered && (
-        <ProGate locked={!userIsPro} hasValue={vatSummary.netSales > 0 || vatSummary.inputVat > 0}>
+        <ProGate locked={!userIsPro} hasValue={vatSummary.netSales > 0 || vatSummary.inputVat > 0} onUpgrade={() => handleUpgrade('progate')}>
           <div className="money-card money-vat">
             <div className="money-vat__header">
               <span className="money-vat__label">VAT this quarter</span>
@@ -642,7 +675,7 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
 
       {/* ── 7. Est. Profit/Hour (Pro-gated) ──────────────────────────────── */}
       {/* hasValue: only when getProfitPerHour returned a real number */}
-      <ProGate locked={!userIsPro} hasValue={profitPerHour.value !== null}>
+      <ProGate locked={!userIsPro} hasValue={profitPerHour.value !== null} onUpgrade={() => handleUpgrade('progate')}>
         {profitPerHour.value !== null ? (
           <div className="money-card money-insight money-insight--pph">
             <div className="money-insight__row">
@@ -684,7 +717,7 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
 
       {/* ── 8. Best & worst jobs (Pro-gated) ─────────────────────────────── */}
       {/* hasValue: only when there is at least one qualifying completed job */}
-      <ProGate locked={!userIsPro} hasValue={!!bestWorstJobs.best}>
+      <ProGate locked={!userIsPro} hasValue={!!bestWorstJobs.best} onUpgrade={() => handleUpgrade('progate')}>
         {bestWorstJobs.best ? (
           <BestWorstCard best={bestWorstJobs.best} worst={bestWorstJobs.worst} />
         ) : (
@@ -701,7 +734,7 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
       {/* hasValue is always true here: nudge only renders when showMarginNudge is true,
           which means there is real delta data — the copy is the value being gated. */}
       {showMarginNudge && (
-        <ProGate locked={!userIsPro} hasValue={true}>
+        <ProGate locked={!userIsPro} hasValue={true} onUpgrade={() => handleUpgrade('progate')}>
           <div className={`money-card money-nudge money-nudge--${marginTrend.deltaSign}`}>
             <span className="money-nudge__icon">{marginTrend.deltaSign === 'up' ? '📈' : '📉'}</span>
             <span className="money-nudge__copy pro-gate__figure">{marginNudgeCopy}</span>
@@ -766,6 +799,13 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
           )}
         </div>
       )}
+
+      {/* ── ProUpgradeSheet — opened by every upgrade CTA on this screen ── */}
+      <ProUpgradeSheet
+        open={upgradeSheetOpen}
+        source={upgradeSheetSource}
+        onClose={() => setUpgradeSheetOpen(false)}
+      />
 
     </div>
   );
