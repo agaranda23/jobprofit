@@ -6336,6 +6336,27 @@ input[type=number] { -moz-appearance: textfield; }
   color: #92400e;
 }
 
+/* Invoice document preview toggle — text-link style, sits above the main CTA */
+.invoice-preview-toggle {
+  background: none;
+  border: 1px solid var(--brand-green, #2bc48a);
+  border-radius: 8px;
+  color: var(--brand-green, #2bc48a);
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  padding: 10px 16px;
+  cursor: pointer;
+  width: 100%;
+  text-align: center;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s;
+}
+.invoice-preview-toggle:hover,
+.invoice-preview-toggle:active {
+  background: rgba(43, 196, 138, 0.08);
+}
+
 /* WhatsApp primary send button — brand green, full width, tall touch target */
 .invoice-send-whatsapp {
   background: #25D366;
