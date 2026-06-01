@@ -2147,6 +2147,10 @@ export default function JobDetailDrawer({
       ? existingItems
       : [{ desc: job.summary || job.customer || job.name || 'Job', cost: n }];
 
+    // Capture before clearing — if the user arrived via the Lead-tile "Send quote →"
+    // CTA we need to continue the funnel after the price is saved.
+    const wasQuoteIntent = intent === 'quote';
+
     if (intent === 'price' && targetStage) {
       // Merge price AND the stage advance into one write
       const stageLabel = targetStage === 'Paid' ? 'marked paid' : `moved to ${targetStage}`;
@@ -2158,6 +2162,12 @@ export default function JobDetailDrawer({
     }
     setEditingField(null);
     onClearIntent?.();
+
+    // If the user arrived here via the Lead-tile "Send quote →" CTA, continue the
+    // funnel by opening ReviewSheet in quote mode so they can actually send it.
+    if (wasQuoteIntent) {
+      setReviewSheetMode('quote');
+    }
   };
 
   // Auto-open the price entry field when the drawer opens with an intent and
@@ -2167,6 +2177,17 @@ export default function JobDetailDrawer({
       setEditingField('amount');
     }
     // Only react to intent changes — not every render
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [intent]);
+
+  // When the Lead-tile "Send quote →" CTA opens the drawer on an already-priced
+  // job, skip the amount step and open ReviewSheet(quote) immediately so the
+  // flow doesn't dead-end. Clears intent so we don't re-trigger.
+  useEffect(() => {
+    if (intent === 'quote' && !needsPrice(job) && reviewSheetMode === null) {
+      setReviewSheetMode('quote');
+      onClearIntent?.();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [intent]);
 
@@ -2452,7 +2473,12 @@ export default function JobDetailDrawer({
   // ── Pipeline transitions ──────────────────────────────────────────────────
   // Mirrors legacy convertToJob (App.jsx line 620) and Mark Sent (line 660).
   const handleMarkSent = () => {
-    onUpdateJob({ ...job, quoteStatus: 'sent' });
+    onUpdateJob({
+      ...job,
+      quoteStatus: 'sent',
+      status: job.status === 'lead' ? 'quoted' : job.status,
+      quoteSentAt: job.quoteSentAt || new Date().toISOString(),
+    });
     showFlash('Quote marked as sent');
   };
 

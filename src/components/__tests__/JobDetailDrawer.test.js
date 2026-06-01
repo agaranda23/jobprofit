@@ -1635,3 +1635,178 @@ describe('isCisUser derivation — null/undefined profile is safe', () => {
     expect(deriveIsCisUser({ is_cis_subcontractor: true })).toBe(true);
   });
 });
+
+// ── Bug fix: handleMarkSent must flip status lead → quoted ────────────────────
+//
+// Bug: handleMarkSent only wrote quoteStatus:'sent' but not status:'quoted'.
+// WorkScreen filters tabs on job.status — a lead with quoteStatus:'sent' but
+// status:'lead' stayed on the Lead tab instead of moving to Quoted.
+//
+// Fix mirrors ReviewSheet.jsx (lines 175-177): always writes status and quoteSentAt.
+
+function buildMarkSentFixedUpdate(job) {
+  return {
+    ...job,
+    quoteStatus: 'sent',
+    status: job.status === 'lead' ? 'quoted' : job.status,
+    quoteSentAt: job.quoteSentAt || new Date().toISOString(),
+  };
+}
+
+describe('handleMarkSent — lead-to-quoted status transition (bug fix)', () => {
+  it('flips status from lead to quoted when quoteStatus was draft', () => {
+    const job = { id: 'j1', status: 'lead', quoteStatus: 'draft', amount: 300 };
+    const updated = buildMarkSentFixedUpdate(job);
+    expect(updated.status).toBe('quoted');
+    expect(updated.quoteStatus).toBe('sent');
+  });
+
+  it('sets quoteSentAt to an ISO timestamp when not already set', () => {
+    const job = { id: 'j1', status: 'lead', quoteStatus: 'draft', amount: 300 };
+    const updated = buildMarkSentFixedUpdate(job);
+    expect(updated.quoteSentAt).toBeTruthy();
+    expect(() => new Date(updated.quoteSentAt).toISOString()).not.toThrow();
+  });
+
+  it('preserves existing quoteSentAt if already set (idempotent on re-send)', () => {
+    const existingTs = '2026-05-01T00:00:00Z';
+    const job = { id: 'j1', status: 'lead', quoteStatus: 'draft', quoteSentAt: existingTs, amount: 300 };
+    const updated = buildMarkSentFixedUpdate(job);
+    expect(updated.quoteSentAt).toBe(existingTs);
+  });
+
+  it('does NOT flip status when job is already past lead (active)', () => {
+    const job = { id: 'j1', status: 'active', quoteStatus: 'sent', amount: 300 };
+    const updated = buildMarkSentFixedUpdate(job);
+    expect(updated.status).toBe('active');
+  });
+
+  it('does NOT flip status when job is quoted (already in the right tab)', () => {
+    const job = { id: 'j1', status: 'quoted', quoteStatus: 'draft', amount: 300 };
+    const updated = buildMarkSentFixedUpdate(job);
+    expect(updated.status).toBe('quoted');
+  });
+
+  it('preserves all other job fields', () => {
+    const job = { id: 'j1', status: 'lead', quoteStatus: 'draft', customer: 'Alan', amount: 500 };
+    const updated = buildMarkSentFixedUpdate(job);
+    expect(updated.customer).toBe('Alan');
+    expect(updated.amount).toBe(500);
+    expect(updated.id).toBe('j1');
+  });
+});
+
+// ── Bug fix: handleAmountSave with intent='quote' opens ReviewSheet ───────────
+//
+// Bug: after entering a price via the Lead-tile "Send quote →" CTA, the user
+// was left in the drawer with no next step — ReviewSheet never opened.
+//
+// Fix: handleAmountSave captures wasQuoteIntent before clearing intent, then
+// sets reviewSheetMode='quote' after the save when wasQuoteIntent is true.
+
+function simulateAmountSave(intent, job, patch) {
+  const n = Number(patch.amount);
+  const existingItems = Array.isArray(job.lineItems) ? job.lineItems.filter(i => i.desc || i.cost > 0) : [];
+  const li = existingItems.length > 0
+    ? existingItems
+    : [{ desc: job.summary || job.customer || job.name || 'Job', cost: n }];
+
+  const wasQuoteIntent = intent === 'quote';
+  const updatedJob = { ...job, amount: n, total: n, lineItems: li };
+
+  return {
+    updatedJob,
+    shouldOpenReviewSheet: wasQuoteIntent,
+  };
+}
+
+describe('handleAmountSave — intent=quote opens ReviewSheet after price save (bug fix)', () => {
+  it('signals ReviewSheet should open when intent is quote', () => {
+    const job = { id: 'j1', status: 'lead', customer: 'Alan' };
+    const result = simulateAmountSave('quote', job, { amount: '350' });
+    expect(result.shouldOpenReviewSheet).toBe(true);
+  });
+
+  it('does NOT open ReviewSheet when intent is price (stage advance path)', () => {
+    const job = { id: 'j1', status: 'lead', customer: 'Alan' };
+    const result = simulateAmountSave('price', job, { amount: '350' });
+    expect(result.shouldOpenReviewSheet).toBe(false);
+  });
+
+  it('does NOT open ReviewSheet when intent is null (plain price edit)', () => {
+    const job = { id: 'j1', status: 'active', amount: 0, customer: 'Bob' };
+    const result = simulateAmountSave(null, job, { amount: '400' });
+    expect(result.shouldOpenReviewSheet).toBe(false);
+  });
+
+  it('saves the new price onto the job regardless of intent', () => {
+    const job = { id: 'j1', status: 'lead' };
+    const result = simulateAmountSave('quote', job, { amount: '275' });
+    expect(result.updatedJob.amount).toBe(275);
+    expect(result.updatedJob.total).toBe(275);
+  });
+
+  it('seeds a line item from job.customer when none exist', () => {
+    const job = { id: 'j1', status: 'lead', customer: 'Sarah' };
+    const result = simulateAmountSave('quote', job, { amount: '500' });
+    expect(result.updatedJob.lineItems[0].desc).toBe('Sarah');
+    expect(result.updatedJob.lineItems[0].cost).toBe(500);
+  });
+
+  it('preserves existing line items rather than replacing them', () => {
+    const job = {
+      id: 'j1',
+      status: 'lead',
+      lineItems: [{ desc: 'Boiler service', cost: 200 }],
+    };
+    const result = simulateAmountSave('quote', job, { amount: '200' });
+    expect(result.updatedJob.lineItems[0].desc).toBe('Boiler service');
+  });
+});
+
+// ── Bug fix: intent='quote' on already-priced job skips price modal ───────────
+//
+// Fix: a second useEffect fires when intent==='quote' and !needsPrice(job) and
+// reviewSheetMode === null, opening ReviewSheet directly instead of the amount modal.
+
+import { needsPrice } from '../../lib/jobStatus';
+
+function simulateQuoteIntentEffect(intent, job, reviewSheetMode) {
+  // Mirrors the new useEffect added for Bug 2b
+  if (intent === 'quote' && !needsPrice(job) && reviewSheetMode === null) {
+    return 'quote'; // would call setReviewSheetMode('quote')
+  }
+  return reviewSheetMode;
+}
+
+describe('intent=quote on already-priced job — ReviewSheet opens directly (bug fix)', () => {
+  it('opens ReviewSheet immediately when job already has a price and intent is quote', () => {
+    const job = { id: 'j1', status: 'lead', amount: 350, total: 350, lineItems: [{ desc: 'Job', cost: 350 }] };
+    const result = simulateQuoteIntentEffect('quote', job, null);
+    expect(result).toBe('quote');
+  });
+
+  it('does NOT open ReviewSheet when needsPrice(job) is true (price modal takes precedence)', () => {
+    const job = { id: 'j1', status: 'lead', amount: 0 };
+    const result = simulateQuoteIntentEffect('quote', job, null);
+    expect(result).toBeNull();
+  });
+
+  it('does NOT re-trigger when ReviewSheet is already open', () => {
+    const job = { id: 'j1', amount: 350, total: 350, lineItems: [{ desc: 'Job', cost: 350 }] };
+    const result = simulateQuoteIntentEffect('quote', job, 'quote');
+    expect(result).toBe('quote');
+  });
+
+  it('does nothing when intent is not quote', () => {
+    const job = { id: 'j1', amount: 350, total: 350, lineItems: [{ desc: 'Job', cost: 350 }] };
+    const result = simulateQuoteIntentEffect('price', job, null);
+    expect(result).toBeNull();
+  });
+
+  it('does nothing when intent is null', () => {
+    const job = { id: 'j1', amount: 350, total: 350 };
+    const result = simulateQuoteIntentEffect(null, job, null);
+    expect(result).toBeNull();
+  });
+});
