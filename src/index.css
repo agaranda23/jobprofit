@@ -8503,8 +8503,8 @@ input[type=number] { -moz-appearance: textfield; }
 
 /* Expanded panel content: direct children that are jd-section / payment
    cards lose their top border because the trigger row already provides the
-   visual separation. The selector targets the grandchild via the opacity
-   wrapper div that CollapsedSectionRow wraps children in. */
+   visual separation. The selector targets the grandchild via the overflow
+   clip div that CollapsedSectionRow wraps children in (grid-trick inner div). */
 .jd-csr-panel > div > .jd-section:first-child,
 .jd-csr-panel > div > .payment-summary:first-child,
 .jd-csr-panel > div > .payment-history:first-child {
@@ -8512,8 +8512,7 @@ input[type=number] { -moz-appearance: textfield; }
   border-radius: 0 0 12px 12px;
 }
 
-/* Keep legacy direct-child selectors for any case where children are
-   rendered without the opacity wrapper (defensive). */
+/* Defensive direct-child selectors (belt-and-braces). */
 .jd-csr-panel > .jd-section:first-child,
 .jd-csr-panel > .payment-summary:first-child,
 .jd-csr-panel > .payment-history:first-child {

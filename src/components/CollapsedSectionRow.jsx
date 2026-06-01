@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 
 /**
  * CollapsedSectionRow — one-liner row that expands in place via accordion.
@@ -6,7 +6,8 @@ import React, { useState, useRef, useEffect } from 'react';
  * Design A Step 2 (PRD 2026-05-30):
  *   - Whole 48px row is the tap target (no separate chevron tap)
  *   - Multi-expand: parent does not coordinate collapse (each row owns state)
- *   - 180ms ease-out height transition; content fades in over the last 80ms
+ *   - 220ms ease-out height transition via CSS grid row expansion (no scrollHeight
+ *     measurement — the grid trick is layout-engine-driven and never returns 0)
  *   - prefers-reduced-motion: instant snap, no transition
  *   - When needsAttention is true: amber left-border, amber "Fix" pill, default-expanded
  *
@@ -18,6 +19,11 @@ import React, { useState, useRef, useEffect } from 'react';
  *   needsAttention  – boolean; when true the row goes amber and forces expanded
  *   defaultExpanded – boolean; initial open state (can be overridden by needsAttention)
  *   children        – full section body rendered when expanded
+ *
+ * Expansion technique: CSS grid row height
+ *   Collapsed: grid-template-rows: 0fr  → inner div min-height:0 clips to 0
+ *   Expanded:  grid-template-rows: 1fr  → inner div grows to fit content
+ *   No JS layout measurement needed; browser layout engine handles all heights.
  */
 export default function CollapsedSectionRow({
   id,
@@ -29,62 +35,26 @@ export default function CollapsedSectionRow({
   children,
 }) {
   const [expanded, setExpanded] = useState(defaultExpanded || needsAttention);
-  const panelRef = useRef(null);
-  const [height, setHeight] = useState(expanded ? 'auto' : '0px');
-  const [visible, setVisible] = useState(expanded);
 
-  // Track reduced-motion preference
   const prefersReducedMotion =
     typeof window !== 'undefined' &&
     window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-  // When needsAttention changes (e.g. gap filled), re-evaluate expanded state
+  // When needsAttention changes to true (e.g. a gap appears), force-expand.
+  // We do not collapse when attention is removed — let the user control it.
   useEffect(() => {
     if (needsAttention && !expanded) {
       setExpanded(true);
     }
-    // We don't collapse when attention is removed — let the user control it
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [needsAttention]);
 
-  // Animate height on expand/collapse
-  useEffect(() => {
-    if (prefersReducedMotion) {
-      setHeight(expanded ? 'auto' : '0px');
-      setVisible(expanded);
-      return;
-    }
-
-    if (expanded) {
-      setVisible(true);
-      // Next frame: measure content height and animate to it
-      requestAnimationFrame(() => {
-        if (panelRef.current) {
-          setHeight(`${panelRef.current.scrollHeight}px`);
-        }
-      });
-      // After animation completes, set to 'auto' so content can reflow
-      const t = setTimeout(() => setHeight('auto'), 180);
-      return () => clearTimeout(t);
-    } else {
-      // Snap from 'auto' to measured px so CSS transition fires
-      if (panelRef.current) {
-        setHeight(`${panelRef.current.scrollHeight}px`);
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            setHeight('0px');
-          });
-        });
-      } else {
-        setHeight('0px');
-      }
-      const t = setTimeout(() => setVisible(false), 180);
-      return () => clearTimeout(t);
-    }
-  }, [expanded, prefersReducedMotion]);
-
   const panelId = `jd-csr-panel-${id}`;
   const triggerId = `jd-csr-trigger-${id}`;
+
+  const transition = prefersReducedMotion
+    ? 'none'
+    : 'grid-template-rows 220ms ease-out';
 
   return (
     <div className={`jd-csr${needsAttention ? ' jd-csr--attention' : ''}`}>
@@ -109,26 +79,29 @@ export default function CollapsedSectionRow({
         </span>
       </button>
 
-      {/* Panel — always in DOM for measurement; visibility gated by `visible` */}
+      {/*
+        Panel — always in DOM (no conditional render) so aria-controls target exists.
+
+        Outer div: display:grid with animated grid-template-rows.
+          Collapsed → 0fr  (inner div collapses to 0 via min-height:0)
+          Expanded  → 1fr  (inner div grows to fit content)
+
+        Inner div: overflow:hidden + min-height:0 are both required by the grid trick.
+          overflow:hidden clips content during animation so it doesn't bleed out.
+          min-height:0 lets the grid shrink the div below its intrinsic height.
+      */}
       <div
         id={panelId}
-        ref={panelRef}
         role="region"
         aria-labelledby={triggerId}
         className="jd-csr-panel"
         style={{
-          height: prefersReducedMotion ? (expanded ? 'auto' : '0px') : height,
-          overflow: 'hidden',
-          transition: prefersReducedMotion ? 'none' : 'height 180ms ease-out',
-          visibility: visible ? 'visible' : 'hidden',
+          display: 'grid',
+          gridTemplateRows: expanded ? '1fr' : '0fr',
+          transition,
         }}
       >
-        <div
-          style={{
-            opacity: expanded ? 1 : 0,
-            transition: prefersReducedMotion ? 'none' : 'opacity 80ms ease-out 100ms',
-          }}
-        >
+        <div style={{ overflow: 'hidden', minHeight: 0 }}>
           {children}
         </div>
       </div>
