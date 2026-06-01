@@ -7679,13 +7679,13 @@ input[type=number] { -moz-appearance: textfield; }
 }
 .jt-action-btn--missing:active { opacity: 0.6; }
 
-/* "Mark paid" secondary CTA — ghost button beside Chase payment on Invoiced/Overdue tiles.
-   Smaller than the primary CTA so hierarchy is clear; still ≥44px tall for one-hand tap. */
+/* "Mark paid" secondary CTA — green bg + black text beside Chase payment on Invoiced/Overdue tiles.
+   Matches the primary CTA colour so the "good action" is unmistakable; still ≥44px tall for one-hand tap. */
 .jt-cta--markpaid {
   flex: 0 0 auto;
-  background: transparent;
-  color: var(--jp-green);
-  border: 1px solid var(--jp-green);
+  background: var(--accent);
+  color: #0B0F17;
+  border: none;
   border-radius: 10px;
   padding: 10px 14px;
   font-size: 13px;

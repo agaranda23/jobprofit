@@ -564,7 +564,7 @@ function getStageCTA(stage, job, { onSendInvoice, onUpdateJob, onNewJob, onOpenJ
   switch (stage) {
     case 'Lead':
       return {
-        label: 'Send quote →',
+        label: 'Send quote',
         mod: null,
         // Opens this job's drawer with quote intent — if unpriced, the price
         // field opens automatically; after entering the price, Send quote link
@@ -575,7 +575,7 @@ function getStageCTA(stage, job, { onSendInvoice, onUpdateJob, onNewJob, onOpenJ
     case 'Quoted':
       return {
         label: 'Mark booked',
-        mod: 'ghost',
+        mod: null,
         // Flips status to active — same behaviour as the old "Move to On →" button.
         action: () => onUpdateJob?.({ ...job, status: 'active' }),
       };
@@ -591,7 +591,7 @@ function getStageCTA(stage, job, { onSendInvoice, onUpdateJob, onNewJob, onOpenJ
       const blocked = isDoubleSendBlocked(job.id);
       return {
         label: blocked ? 'Chased today' : 'Chase payment',
-        mod: 'ghost',
+        mod: blocked ? 'muted' : 'urgent',
         disabled: blocked,
         markPaid: true, // 1G: surface Mark paid alongside Chase payment
         action: () => { if (!blocked) chaseJobTiered(job, biz); },
@@ -601,7 +601,7 @@ function getStageCTA(stage, job, { onSendInvoice, onUpdateJob, onNewJob, onOpenJ
     case 'Overdue': {
       const blocked = isDoubleSendBlocked(job.id);
       return {
-        label: blocked ? 'Chased today' : 'Chase payment →',
+        label: blocked ? 'Chased today' : 'Chase payment',
         mod: blocked ? 'muted' : 'urgent',
         disabled: blocked,
         markPaid: true, // 1G: surface Mark paid alongside Chase payment
