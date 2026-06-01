@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v33';  // bumped from v32: pre-invoice deposit support + chase balance verification
+const CACHE_NAME = 'jobprofit-v34';  // bumped from v33: drawer editability (Schedule/Quote/Costs) + payment block moved below Costs
 const PRECACHE = [
   '/',
   '/index.html',

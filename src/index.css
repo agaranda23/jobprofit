@@ -10679,6 +10679,49 @@ input[type=number] { -moz-appearance: textfield; }
   cursor: default;
 }
 
+/* Chevron on tappable rows — right-aligned, muted */
+.jd-card-row-chevron {
+  font-size: 18px;
+  color: var(--text-dim);
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+/* Flex value container for rows that need desc + amount side by side */
+.jd-card-row-val--flex {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex: 1;
+  min-width: 0;
+}
+
+/* Receipt row chevron — sits between amount and the right edge */
+.jd-receipt-chevron {
+  font-size: 18px;
+  color: var(--text-dim);
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+/* Payment block wrapper — groups the payment card between Costs and View profit breakdown */
+.jd-payment-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Section label — small uppercase header above lone elements (e.g. "Deposit (optional)") */
+.jd-section-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0 2px;
+}
+
 /* ── Money card rows ─────────────────────────────────────────────────────── */
 .jd-money-rows {
   display: flex;

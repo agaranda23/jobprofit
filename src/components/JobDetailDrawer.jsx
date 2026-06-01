@@ -901,33 +901,21 @@ function QuoteBreakdownSection({
   // Hide entirely in read mode when there are no items and no edit handler
   if (items.length === 0 && !onToggleEdit) return null;
 
-  // In read mode: hide when there is exactly one line item and its value equals
-  // the job total — the header already shows the total so the breakdown adds nothing.
-  const jobTotal = job.total ?? job.amount ?? 0;
-  if (!editMode && items.length === 1 && !onToggleEdit) {
-    const singleQty = Number(items[0].qty || items[0].quantity || 1);
-    const singleUnit = Number(items[0].cost || items[0].unitCost || items[0].price || 0);
-    if (singleQty * singleUnit === jobTotal && jobTotal > 0) return null;
-  }
-
   const draftTotal = Array.isArray(editItems)
     ? editItems.reduce((sum, i) => sum + Number(i.cost || 0), 0)
     : 0;
 
+  // Enter edit mode and immediately append a blank line so the user lands on
+  // an editable row — used by the empty-state "Add a line" ghost button.
+  const handleAddFirstLine = () => {
+    onToggleEdit();
+    onAddItem();
+  };
+
   return (
     <div className="jd-section">
-      <div className="jd-section-header jd-section-header--with-action">
+      <div className="jd-section-header">
         <span>Quote breakdown</span>
-        {onToggleEdit && !editMode && (
-          <button
-            type="button"
-            className="jd-section-action-btn"
-            onClick={onToggleEdit}
-            aria-label="Edit quote breakdown"
-          >
-            Edit
-          </button>
-        )}
       </div>
 
       {editMode ? (
@@ -963,7 +951,7 @@ function QuoteBreakdownSection({
             </div>
           ))}
           <button type="button" className="jd-li-add-btn" onClick={onAddItem}>
-            + Add line item
+            + Add a line
           </button>
           <div className="jd-li-edit-footer">
             <button type="button" className="btn-ghost" onClick={onCancelEdit}>
@@ -977,29 +965,72 @@ function QuoteBreakdownSection({
       ) : (
         <div className="jd-section-body jd-section-body--flush">
           {items.length === 0 ? (
-            <div style={{ padding: '12px 0', color: 'var(--text-dim)', fontSize: 14 }}>
-              No line items yet.
-            </div>
+            onToggleEdit && (
+              <button
+                type="button"
+                className="jd-card-row jd-card-row--add"
+                onClick={handleAddFirstLine}
+                aria-label="Add a line item"
+              >
+                <span className="jd-card-row-icon" aria-hidden="true">📋</span>
+                <span className="jd-card-row-add">+ Add a line</span>
+              </button>
+            )
           ) : (
-            items.map((item, idx) => {
-              const qty = Number(item.qty || item.quantity || 1);
-              const unit = Number(item.cost || item.unitCost || item.price || 0);
-              const lineTotal = qty * unit;
-              return (
-                <div key={idx} className="jd-line-item">
-                  <span className="jd-line-item-desc">
-                    {item.desc || '—'}
-                    {qty > 1 && (
-                      <span className="jd-line-item-qty"> × {qty}</span>
-                    )}
-                  </span>
-                  <span className="jd-line-item-cost">{gbp(lineTotal)}</span>
-                </div>
-              );
-            })
+            <>
+              {items.map((item, idx) => {
+                const qty = Number(item.qty || item.quantity || 1);
+                const unit = Number(item.cost || item.unitCost || item.price || 0);
+                const lineTotal = qty * unit;
+                if (onToggleEdit) {
+                  return (
+                    <button
+                      key={idx}
+                      type="button"
+                      className="jd-card-row jd-card-row--tappable"
+                      onClick={onToggleEdit}
+                      aria-label={`Edit line item: ${item.desc || 'Line item'}`}
+                    >
+                      <span className="jd-card-row-val jd-card-row-val--flex">
+                        <span className="jd-line-item-desc">
+                          {item.desc || '—'}
+                          {qty > 1 && (
+                            <span className="jd-line-item-qty"> × {qty}</span>
+                          )}
+                        </span>
+                        <span className="jd-line-item-cost">{gbp(lineTotal)}</span>
+                      </span>
+                      <span className="jd-card-row-chevron" aria-hidden="true">›</span>
+                    </button>
+                  );
+                }
+                return (
+                  <div key={idx} className="jd-line-item">
+                    <span className="jd-line-item-desc">
+                      {item.desc || '—'}
+                      {qty > 1 && (
+                        <span className="jd-line-item-qty"> × {qty}</span>
+                      )}
+                    </span>
+                    <span className="jd-line-item-cost">{gbp(lineTotal)}</span>
+                  </div>
+                );
+              })}
+              {/* Total row removed (Design A): header £ is the canonical total.
+                  Duplicate bold total beneath breakdown identified as noise. */}
+              {onToggleEdit && (
+                <button
+                  type="button"
+                  className="jd-card-row jd-card-row--add"
+                  onClick={handleAddFirstLine}
+                  aria-label="Add another line item"
+                >
+                  <span className="jd-card-row-icon" aria-hidden="true">➕</span>
+                  <span className="jd-card-row-add">+ Add a line</span>
+                </button>
+              )}
+            </>
           )}
-          {/* Total row removed (Design A): header £ is the canonical total.
-              Duplicate bold total beneath breakdown identified as noise. */}
         </div>
       )}
     </div>
@@ -1035,79 +1066,81 @@ function ReceiptsSection({ job, receipts, onViewPhoto, onAddReceipt, onDeleteRec
   // Nothing to show and no handler — render nothing
   if (jobReceipts.length === 0 && !onAddReceipt) return null;
 
-  // Empty + has handler → pill chip (rendered by parent in the empty-pill row)
-  if (jobReceipts.length === 0 && onAddReceipt) {
-    return (
-      <button
-        type="button"
-        className="jd-pill-chip"
-        onClick={onAddReceipt}
-        aria-label="Add receipt"
-      >
-        + Add receipt
-      </button>
-    );
-  }
-
-  // Has content → full section
-  return (
-    <div className="jd-section">
-      <div className="jd-section-header jd-section-header--with-action">
-        <span>Receipts</span>
-        {onAddReceipt && (
+  const receiptRows = jobReceipts.map(r => (
+    <div
+      key={r.id}
+      className={`jd-receipt-row${onEditReceipt ? ' jd-receipt-row--tappable' : ''}`}
+      onClick={onEditReceipt ? () => onEditReceipt(r) : undefined}
+      role={onEditReceipt ? 'button' : undefined}
+      tabIndex={onEditReceipt ? 0 : undefined}
+      onKeyDown={onEditReceipt ? e => { if (e.key === 'Enter' || e.key === ' ') onEditReceipt(r); } : undefined}
+      aria-label={onEditReceipt ? `Edit receipt ${r.label || 'Receipt'}` : undefined}
+    >
+      {r.photo ? (
+        <button
+          type="button"
+          className="jd-receipt-thumb-btn"
+          onClick={e => { e.stopPropagation(); onViewPhoto(r.photo); }}
+          aria-label="View receipt photo"
+        >
+          <img src={r.photo} alt="" className="jd-receipt-thumb" />
+        </button>
+      ) : (
+        <div className="jd-receipt-icon" aria-hidden="true">🧾</div>
+      )}
+      <div className="jd-receipt-meta">
+        <div className="jd-receipt-label">{r.label || 'Receipt'}</div>
+        {r.date && <div className="jd-receipt-date">{fmtDate(r.date)}</div>}
+      </div>
+      <div className="jd-receipt-right">
+        {onEditReceipt && <span className="jd-receipt-chevron" aria-hidden="true">›</span>}
+        <div className="jd-receipt-amount">{gbp(r.amount || 0)}</div>
+        {onDeleteReceipt && (
           <button
             type="button"
-            className="jd-section-action-btn"
-            onClick={onAddReceipt}
-            aria-label="Add receipt"
+            className="jd-receipt-delete-btn"
+            onClick={e => { e.stopPropagation(); onDeleteReceipt(r.id); }}
+            aria-label="Delete receipt"
           >
-            + Add receipt
+            ✕
           </button>
         )}
       </div>
+    </div>
+  ));
+
+  // Empty state: ghost row (consistent with Schedule / Customer card pattern)
+  if (jobReceipts.length === 0) {
+    return (
       <div className="jd-section-body jd-section-body--flush">
-        {jobReceipts.map(r => (
-          <div
-            key={r.id}
-            className={`jd-receipt-row${onEditReceipt ? ' jd-receipt-row--tappable' : ''}`}
-            onClick={onEditReceipt ? () => onEditReceipt(r) : undefined}
-            role={onEditReceipt ? 'button' : undefined}
-            tabIndex={onEditReceipt ? 0 : undefined}
-            onKeyDown={onEditReceipt ? e => { if (e.key === 'Enter' || e.key === ' ') onEditReceipt(r); } : undefined}
-            aria-label={onEditReceipt ? `Edit receipt ${r.label || 'Receipt'}` : undefined}
-          >
-            {r.photo ? (
-              <button
-                type="button"
-                className="jd-receipt-thumb-btn"
-                onClick={e => { e.stopPropagation(); onViewPhoto(r.photo); }}
-                aria-label="View receipt photo"
-              >
-                <img src={r.photo} alt="" className="jd-receipt-thumb" />
-              </button>
-            ) : (
-              <div className="jd-receipt-icon" aria-hidden="true">🧾</div>
-            )}
-            <div className="jd-receipt-meta">
-              <div className="jd-receipt-label">{r.label || 'Receipt'}</div>
-              {r.date && <div className="jd-receipt-date">{fmtDate(r.date)}</div>}
-            </div>
-            <div className="jd-receipt-right">
-              <div className="jd-receipt-amount">{gbp(r.amount || 0)}</div>
-              {onDeleteReceipt && (
-                <button
-                  type="button"
-                  className="jd-receipt-delete-btn"
-                  onClick={e => { e.stopPropagation(); onDeleteReceipt(r.id); }}
-                  aria-label="Delete receipt"
-                >
-                  ✕
-                </button>
-              )}
-            </div>
-          </div>
-        ))}
+        <button
+          type="button"
+          className="jd-card-row jd-card-row--add"
+          onClick={onAddReceipt}
+          aria-label="Add receipt"
+        >
+          <span className="jd-card-row-icon" aria-hidden="true">🧾</span>
+          <span className="jd-card-row-add">+ Add receipt</span>
+        </button>
       </div>
+    );
+  }
+
+  // Populated state: receipt rows + add-another ghost row at the bottom
+  return (
+    <div className="jd-section-body jd-section-body--flush">
+      {receiptRows}
+      {onAddReceipt && (
+        <button
+          type="button"
+          className="jd-card-row jd-card-row--add"
+          onClick={onAddReceipt}
+          aria-label="Add another receipt"
+        >
+          <span className="jd-card-row-icon" aria-hidden="true">➕</span>
+          <span className="jd-card-row-add">+ Add receipt</span>
+        </button>
+      )}
     </div>
   );
 }
@@ -2948,31 +2981,39 @@ export default function JobDetailDrawer({
                   />
                   {!schedEditMode && (
                     <div className="jd-schedule-card-body">
-                      {scheduledDisplay ? (
+                      {scheduledDisplay && onUpdateJob ? (
+                        // Populated + editable: tappable row with › chevron
+                        <button
+                          type="button"
+                          className="jd-card-row jd-card-row--tappable"
+                          onClick={handleScheduleEdit}
+                          aria-label="Edit schedule"
+                        >
+                          <span className="jd-card-row-icon" aria-hidden="true">🗓️</span>
+                          <span className="jd-card-row-val">{scheduledDisplay}</span>
+                          <span className="jd-card-row-chevron" aria-hidden="true">›</span>
+                        </button>
+                      ) : scheduledDisplay ? (
+                        // Populated, view-only
                         <div className="jd-card-row">
                           <span className="jd-card-row-icon" aria-hidden="true">🗓️</span>
                           <span className="jd-card-row-val">{scheduledDisplay}</span>
                         </div>
-                      ) : null}
-                      {onUpdateJob && (
+                      ) : onUpdateJob ? (
+                        // Empty + editable: ghost row
                         <button
                           type="button"
                           className="jd-card-row jd-card-row--add"
                           onClick={handleScheduleEdit}
                           aria-label="Schedule this job"
                         >
-                          <span className="jd-card-row-icon" aria-hidden="true">➕</span>
-                          <span className="jd-card-row-add">
-                            {scheduledDisplay ? 'Edit schedule' : '+ Add schedule'}
-                          </span>
+                          <span className="jd-card-row-icon" aria-hidden="true">📅</span>
+                          <span className="jd-card-row-add">+ Add schedule</span>
                         </button>
-                      )}
+                      ) : null}
                     </div>
                   )}
                 </CollapsedSectionRow>
-
-                {/* 5. Payment sections (Invoiced / Paid stages only) */}
-                {paymentSections}
 
                 {/* 6. Quote accordion */}
                 <CollapsedSectionRow
@@ -2999,6 +3040,18 @@ export default function JobDetailDrawer({
                 >
                   {costsBodyEl}
                 </CollapsedSectionRow>
+
+                {/* 7b. Payment block — moved below Costs, above View profit breakdown.
+                    Variant A (pre-invoice, no payments yet) gets a "Deposit (optional)"
+                    label so the lone Record Payment button doesn't look adrift. */}
+                {paymentSections.length > 0 && (
+                  <div className="jd-payment-block">
+                    {isPreInvoiceJob && (job.payments || []).length === 0 && (
+                      <div className="jd-section-label">Deposit (optional)</div>
+                    )}
+                    {paymentSections}
+                  </div>
+                )}
 
                 {/* 8. View profit breakdown — opens ProfitBreakdownSheet */}
                 <button
