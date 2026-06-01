@@ -7339,7 +7339,13 @@ input[type=number] { -moz-appearance: textfield; }
 .pqv-sign-accepted-date {
   font-size: 13px;
   color: #6b7280;
-  margin: 0 0 16px;
+  margin: 0 0 6px;
+}
+
+.pqv-sign-accepted-consent {
+  font-size: 12px;
+  color: #6b7280;
+  margin: 0 0 12px;
 }
 
 .pqv-sign-accepted-img {

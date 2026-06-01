@@ -59,7 +59,7 @@ export const handler = async function (event) {
     return json(400, { error: 'Invalid JSON body' });
   }
 
-  const { token, signature, acceptedName } = body;
+  const { token, signature, acceptedName, consentGiven } = body;
 
   // ── 2. Validate token ────────────────────────────────────────────────────────
   if (typeof token !== 'string' || !UUID_RE.test(token)) {
@@ -121,12 +121,23 @@ export const handler = async function (event) {
   }
 
   // ── 7. Idempotency — return existing state if already accepted ───────────────
+  // NOTE: the already-accepted path does NOT re-check consent. The consent was
+  // given at the time of first acceptance; re-requiring it on a reload would be
+  // confusing and serves no legal purpose.
   const existingMeta = (jobRow.meta && typeof jobRow.meta === 'object') ? jobRow.meta : {};
   if (existingMeta.acceptedSignature) {
     return json(200, {
       acceptedAt: existingMeta.acceptedAt,
       alreadyAccepted: true,
     });
+  }
+
+  // ── 7a. Validate consent (new acceptances only) ──────────────────────────────
+  // The customer must tick the T&Cs + Privacy checkbox on the public quote page
+  // before the Confirm button becomes active. This is a belt-and-braces server
+  // check. consentGiven must be exactly boolean true.
+  if (consentGiven !== true) {
+    return json(400, { error: 'Consent is required to accept this quote' });
   }
 
   // ── 8. Write acceptance ──────────────────────────────────────────────────────
@@ -139,6 +150,9 @@ export const handler = async function (event) {
     acceptedSource: 'remote',
     quoteStatus: 'accepted',
     jobStatus: 'active',
+    consentGiven: true,
+    consentAt: acceptedAt,
+    consentPolicyVersion: 'v1',
   };
 
   try {

@@ -140,6 +140,9 @@ function RemoteAcceptedBlock({ signatureDataUrl, acceptedAt }) {
           Accepted on {fmtDate(acceptedAt)}
         </div>
       )}
+      <div className="pqv-sign-accepted-consent">
+        Agreed to Terms &amp; Privacy (v1)
+      </div>
       {signatureDataUrl && (
         <img
           src={signatureDataUrl}
@@ -164,6 +167,9 @@ function SignSection({ token, onAccepted }) {
   const [errorMsg, setErrorMsg] = useState('');
   // capturedSig holds the dataURL after the pad's onSave fires
   const [capturedSig, setCapturedSig] = useState(null);
+  // consentChecked: customer must tick T&Cs + Privacy before Confirm is active
+  const [consentChecked, setConsentChecked] = useState(false);
+  const [consentNudge, setConsentNudge] = useState(false);
 
   const handlePadSave = useCallback((dataUrl) => {
     setCapturedSig(dataUrl);
@@ -175,6 +181,10 @@ function SignSection({ token, onAccepted }) {
 
   async function handleSubmit() {
     if (!capturedSig) return;
+    if (!consentChecked) {
+      setConsentNudge(true);
+      return;
+    }
     setSubmitState('submitting');
     setErrorMsg('');
 
@@ -186,6 +196,7 @@ function SignSection({ token, onAccepted }) {
           token,
           signature: capturedSig,
           acceptedName: customerName.trim() || undefined,
+          consentGiven: true,
         }),
       });
 
@@ -243,7 +254,7 @@ function SignSection({ token, onAccepted }) {
     );
   }
 
-  // Signature captured — show preview + confirm/redo buttons
+  // Signature captured — show preview + consent checkbox + confirm/redo buttons
   return (
     <div className="pqv-section pqv-sign-section">
       <h2 className="pqv-section-title">Confirm your signature</h2>
@@ -254,6 +265,31 @@ function SignSection({ token, onAccepted }) {
         className="pqv-sign-preview-img"
       />
 
+      {/* Consent checkbox — must be ticked before Confirm is active */}
+      <label
+        className="pqv-consent-row"
+        style={{ display: 'flex', alignItems: 'flex-start', gap: 10, minHeight: 44, cursor: 'pointer', marginTop: 14, marginBottom: 4 }}
+      >
+        <input
+          type="checkbox"
+          checked={consentChecked}
+          onChange={(e) => { setConsentChecked(e.target.checked); if (e.target.checked) setConsentNudge(false); }}
+          style={{ marginTop: 3, flexShrink: 0, width: 20, height: 20, cursor: 'pointer' }}
+          aria-label="Accept terms and privacy policy"
+        />
+        <span style={{ fontSize: 14, lineHeight: 1.5, color: 'var(--text, #1a1a1a)' }}>
+          I accept this quote and agree to the{' '}
+          <a href="/terms" target="_blank" rel="noopener" style={{ color: 'inherit', textDecoration: 'underline' }}>Terms</a>
+          {' '}and{' '}
+          <a href="/privacy" target="_blank" rel="noopener" style={{ color: 'inherit', textDecoration: 'underline' }}>Privacy Policy</a>.
+        </span>
+      </label>
+      {consentNudge && !consentChecked && (
+        <p className="pqv-sign-error" role="alert" style={{ margin: '0 0 8px' }}>
+          Tick the box to accept.
+        </p>
+      )}
+
       {submitState === 'error' && (
         <p className="pqv-sign-error" role="alert">{errorMsg}</p>
       )}
@@ -262,7 +298,7 @@ function SignSection({ token, onAccepted }) {
         <button
           type="button"
           className="btn-ghost pqv-sign-btn-redo"
-          onClick={() => { setCapturedSig(null); setSubmitState('idle'); setErrorMsg(''); }}
+          onClick={() => { setCapturedSig(null); setSubmitState('idle'); setErrorMsg(''); setConsentChecked(false); setConsentNudge(false); }}
           disabled={isSubmitting}
         >
           Redo
@@ -271,10 +307,10 @@ function SignSection({ token, onAccepted }) {
           type="button"
           className="btn-convert pqv-sign-btn-submit"
           onClick={handleSubmit}
-          disabled={isSubmitting}
+          disabled={isSubmitting || !consentChecked}
           aria-busy={isSubmitting}
         >
-          {isSubmitting ? 'Submitting...' : 'Submit'}
+          {isSubmitting ? 'Submitting...' : 'Confirm'}
         </button>
       </div>
     </div>
