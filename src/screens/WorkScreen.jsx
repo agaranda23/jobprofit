@@ -591,7 +591,7 @@ function getStageCTA(stage, job, { onSendInvoice, onUpdateJob, onNewJob, onOpenJ
       const blocked = isDoubleSendBlocked(job.id);
       return {
         label: blocked ? 'Chased today' : 'Chase payment',
-        mod: blocked ? 'muted' : 'urgent',
+        mod: blocked ? 'blocked' : 'urgent',
         disabled: blocked,
         markPaid: true, // 1G: surface Mark paid alongside Chase payment
         action: () => { if (!blocked) chaseJobTiered(job, biz); },
@@ -602,7 +602,7 @@ function getStageCTA(stage, job, { onSendInvoice, onUpdateJob, onNewJob, onOpenJ
       const blocked = isDoubleSendBlocked(job.id);
       return {
         label: blocked ? 'Chased today' : 'Chase payment',
-        mod: blocked ? 'muted' : 'urgent',
+        mod: blocked ? 'blocked' : 'urgent',
         disabled: blocked,
         markPaid: true, // 1G: surface Mark paid alongside Chase payment
         action: () => { if (!blocked) chaseJobTiered(job, biz); },

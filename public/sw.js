@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v47';  // bumped from v46: wrap Chase+Mark paid in jt-cta-pair container to guarantee zero dead space
+const CACHE_NAME = 'jobprofit-v48';  // bumped from v47: width:100% on jt-foot, min-width:0 on flex children, deep-red blocked state
 const PRECACHE = [
   '/',
   '/index.html',
