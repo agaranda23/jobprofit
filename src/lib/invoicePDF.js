@@ -506,6 +506,53 @@ function drawPayNowRow(doc, { amount, payNowUrl, qrDataUrl }, startY) {
   return rowY + QR_SIZE + 4;
 }
 
+// ── Sign-quote button + QR helper ──────────────────────────────────────────
+// Mirrors drawPayNowRow's layout (button + QR side-by-side). Renders a green
+// "Tap to view and sign" CTA panel with a clickable PDF link annotation + QR
+// code linking to the public quote view at /q/<token>.
+//
+// Returns the new y position after drawing the row. Caller must pre-generate
+// qrDataUrl via QRCode.toDataURL(quoteUrl).
+function drawSignQuoteRow(doc, { quoteUrl, qrDataUrl }, startY) {
+  const w = doc.internal.pageSize.getWidth();
+  const SIGN_ACCENT = [43, 196, 138]; // brand green (#2bc48a) — same as pay-now
+  const QR_SIZE = 22; // mm
+  const BTN_H = 12;
+  const BTN_W = w - MARGIN * 2 - QR_SIZE - 6;
+  const rowY = startY + 4;
+
+  // Button background
+  doc.setFillColor(...SIGN_ACCENT);
+  doc.roundedRect(MARGIN, rowY, BTN_W, BTN_H, 3, 3, 'F');
+
+  // Button label
+  doc.setFontSize(11);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(255, 255, 255);
+  doc.text('Tap to view and sign this quote', MARGIN + BTN_W / 2, rowY + 7.5, { align: 'center' });
+
+  // Subtitle (mirrors pay-now styling)
+  doc.setFontSize(7.5);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(...LIGHT);
+  doc.text('Sign on your phone — no app, no login', MARGIN + BTN_W / 2, rowY + BTN_H + 5, { align: 'center' });
+
+  // QR code (right side)
+  const qrX = MARGIN + BTN_W + 6;
+  if (qrDataUrl) {
+    try {
+      doc.addImage(qrDataUrl, 'PNG', qrX, rowY - 2, QR_SIZE, QR_SIZE);
+    } catch {
+      // QR decode failed — fall through, button alone is fine
+    }
+  }
+
+  // Make the button area clickable
+  doc.link(MARGIN, rowY, BTN_W, BTN_H, { url: quoteUrl });
+
+  return rowY + QR_SIZE + 4;
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 // INVOICE
 // ═══════════════════════════════════════════════════════════════════════════
@@ -766,7 +813,7 @@ export async function getInvoicePDFBlob(args) {
 // acceptedSignature: PNG dataURL string captured in the drawer. Embedded with
 // doc.addImage; silently skipped if the dataURL fails to decode.
 
-export function generateQuotePDF({ job, biz, profile = null }) {
+export function generateQuotePDF({ job, biz, profile = null, quoteUrl = '', qrDataUrl = '' }) {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
 
   const effectiveBiz = {
@@ -840,6 +887,14 @@ export function generateQuotePDF({ job, biz, profile = null }) {
     doc.setTextColor(8, 107, 69); // #086B45
     doc.text(`Deposit (${depositPercent}%) · £${depositAmount.toFixed(2)} · Locks in your slot`, panelX + 6, y + 12);
     y += 22;
+  }
+
+  // ── Sign quote CTA ────────────────────────────────────────────────────────
+  // Shown when the quote has not yet been signed AND we have a public URL.
+  // Skipped after acceptance so the PDF history isn't littered with stale CTAs.
+  if (quoteUrl && !job?.acceptedSignature) {
+    y += 4;
+    y = drawSignQuoteRow(doc, { quoteUrl, qrDataUrl }, y);
   }
 
   // ── Accepted signature — embed when present ───────────────────────────

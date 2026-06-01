@@ -30,6 +30,7 @@
  */
 
 import { useState, useCallback } from 'react';
+import QRCode from 'qrcode';
 import { downloadInvoicePDF, getInvoicePDFBlob } from '../lib/invoicePDF';
 import { downloadQuotePDF, getQuotePDFBlob } from '../lib/invoicePDF';
 import { buildInvoiceWhatsAppMessage, buildWhatsAppLink } from '../lib/invoiceMessage';
@@ -213,9 +214,24 @@ export default function ReviewSheet({
     const message = buildQuoteWhatsAppMessage({ job, biz, quoteUrl });
     const link = buildWhatsAppLink({ phone: phone || '', message });
 
+    // Pre-generate QR for embedding in the PDF.
+    // Mirrors the invoice pay-now flow's QRCode.toDataURL pattern.
+    // Best-effort: if QR generation fails, the PDF still renders with just the
+    // clickable button (qrDataUrl falsy in drawSignQuoteRow).
+    let qrDataUrl = '';
+    try {
+      qrDataUrl = await QRCode.toDataURL(quoteUrl, {
+        width: 220,
+        margin: 1,
+        errorCorrectionLevel: 'M',
+      });
+    } catch {
+      // QR generation failed — proceed without it
+    }
+
     let shareMethod = 'wame_fallback';
     try {
-      const blob = getQuotePDFBlob({ job, biz });
+      const blob = getQuotePDFBlob({ job, biz, profile, quoteUrl, qrDataUrl });
       const customer = (job?.customer || 'quote').replace(/\s/g, '-');
       const file = new File([blob], `quote-${customer}.pdf`, { type: 'application/pdf' });
 
@@ -228,7 +244,7 @@ export default function ReviewSheet({
       } else if (phone) {
         shareMethod = 'wame_fallback';
         window.open(link, '_blank', 'noopener');
-        downloadQuotePDF({ job, biz });
+        downloadQuotePDF({ job, biz, profile, quoteUrl, qrDataUrl });
       } else {
         // No file share, no phone — copy the quote URL so the user can paste it
         shareMethod = 'web_share_text';
@@ -270,10 +286,27 @@ export default function ReviewSheet({
   };
 
   // ── Quote: PDF download ────────────────────────────────────────────────────
-  const handleQuoteDownloadPDF = () => {
+  // Passes quoteUrl only when a token is already present on the job (i.e. the
+  // quote was previously sent and the sign-link exists). For unsent drafts the
+  // token hasn't been minted yet, so quoteUrl = '' and the sign block is skipped.
+  const handleQuoteDownloadPDF = async () => {
     logTelemetry('quote_send', { channel: 'download', source: 'review_sheet' });
     try {
-      downloadQuotePDF({ job, biz });
+      const existingToken = job.publicAccessToken || '';
+      const downloadQuoteUrl = existingToken ? buildPublicQuoteUrl(existingToken) : '';
+      let downloadQrDataUrl = '';
+      if (downloadQuoteUrl) {
+        try {
+          downloadQrDataUrl = await QRCode.toDataURL(downloadQuoteUrl, {
+            width: 220,
+            margin: 1,
+            errorCorrectionLevel: 'M',
+          });
+        } catch {
+          // QR generation failed — proceed without it
+        }
+      }
+      downloadQuotePDF({ job, biz, profile, quoteUrl: downloadQuoteUrl, qrDataUrl: downloadQrDataUrl });
       flash?.('Saved to Files. Share it however you like.');
     } catch {
       flash?.('PDF failed — check Settings for business details');
