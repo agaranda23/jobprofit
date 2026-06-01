@@ -9,7 +9,7 @@
  * Wilson (unsent invoice).
  */
 
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 
 // ── We test the pure ranking logic by importing it via a test helper.
 // The ranking function is inlined in TodayScreen.jsx (not exported), so we

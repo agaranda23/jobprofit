@@ -93,15 +93,6 @@ function makeSelectChain(tableResult) {
   };
 }
 
-function makeUpdateChain(callsArray) {
-  return {
-    update: (data) => {
-      callsArray.push(data);
-      return makeEqChain(mockUpdateResult);
-    },
-  };
-}
-
 function makeEqChain(result) {
   return {
     eq: () => makeEqChain(result),

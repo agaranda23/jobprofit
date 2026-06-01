@@ -1,8 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import {
-  validateAmount,
-  validateDate,
-  validateMethod,
   addPayment,
   editPayment,
   deletePayment,

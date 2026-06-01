@@ -267,7 +267,6 @@ describe('H. Success path → 302 to settings?connected=1', () => {
     const handler = await getHandler();
     await handler(makeEvent({ state }));
     expect(mockUpdate).toHaveBeenCalled();
-    const updateArg = mockUpdate.mock.calls[0]?.[0];
     // mockUpdate receives no args in our mock chain — verify the mock was called
     // (the eq().update() chain means we can only verify call count in this mock setup)
     expect(mockUpdate).toHaveBeenCalledTimes(1);

@@ -218,7 +218,6 @@ export const handler = async function (event) {
   // or fall back to a generic label.
   const invoiceNumber = job.meta?.invoiceNumber || `INV-${invoiceId.slice(0, 8).toUpperCase()}`;
   const jobDescription = truncate(job.summary || job.name || 'Work completed', 60);
-  const customerName = job.customer || job.customerName || '';
   const businessName =
     profile.business_name ||
     [profile.first_name, profile.last_name].filter(Boolean).join(' ') ||
