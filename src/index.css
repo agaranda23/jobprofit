@@ -4448,6 +4448,22 @@ input[type=number] { -moz-appearance: textfield; }
 .settings-row--passive { cursor: default; }
 .settings-row--danger .settings-row-label { color: var(--jp-rose); }
 
+/* Gold-highlighted Subscription rows — matches GetProPill + ProUpgradeSheet CTA */
+.settings-row--gold {
+  border-left: 3px solid var(--gold, #d4a017);
+  background: linear-gradient(90deg, rgba(212, 160, 23, 0.08) 0%, rgba(212, 160, 23, 0) 60%);
+}
+.settings-row--gold:not(:disabled):hover {
+  background: linear-gradient(90deg, rgba(212, 160, 23, 0.14) 0%, rgba(212, 160, 23, 0.02) 60%);
+}
+.settings-row--gold .settings-row-label { color: var(--gold, #d4a017); font-weight: 700; }
+.settings-row--gold .settings-row-action {
+  color: var(--gold, #d4a017);
+  font-weight: 700;
+  font-style: normal;
+}
+.settings-row--gold .settings-row-chevron { color: var(--gold, #d4a017); }
+
 .settings-row-label {
   font-size: 15px;
   font-weight: 600;

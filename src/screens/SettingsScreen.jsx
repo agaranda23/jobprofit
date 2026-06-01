@@ -129,11 +129,17 @@ function SectionCard({ title, children }) {
   );
 }
 
-function Row({ label, value, action, onTap, danger = false, chevron = true }) {
+function Row({ label, value, action, onTap, danger = false, chevron = true, highlight = false }) {
   const handleClick = onTap || undefined;
+  const classes = [
+    'settings-row',
+    danger && 'settings-row--danger',
+    !onTap && 'settings-row--passive',
+    highlight && 'settings-row--gold',
+  ].filter(Boolean).join(' ');
   return (
     <button
-      className={`settings-row ${danger ? 'settings-row--danger' : ''} ${!onTap ? 'settings-row--passive' : ''}`}
+      className={classes}
       onClick={handleClick}
       disabled={!onTap}
       type="button"
@@ -1748,6 +1754,7 @@ export default function SettingsScreen({
               label="Add card to stay Pro"
               action="£12/mo"
               onTap={() => setUpgradeSheetOpen(true)}
+              highlight
             />
           </>
         ) : isPro(profile) ? (
@@ -1776,6 +1783,7 @@ export default function SettingsScreen({
               label="Upgrade to Pro"
               action="£12/mo"
               onTap={() => setUpgradeSheetOpen(true)}
+              highlight
             />
           </>
         )}
