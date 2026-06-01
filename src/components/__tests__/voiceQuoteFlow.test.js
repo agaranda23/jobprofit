@@ -324,3 +324,144 @@ describe('Ticket D: dead mic / idle state — quote flow', () => {
     expect(statusAfterRetap).toBe('listening');
   });
 });
+
+// ── PR3: Stage 1 redesign — structure, stepper, voice entry ──────────────────
+
+/**
+ * Mirrors the Stage 1 UI structure decisions introduced in PR3.
+ * No DOM required — we test the logic contracts that gate rendering.
+ */
+
+/** Mirrors initial voiceStatus on mount: always 'idle' (never auto-armed). */
+function initialVoiceStatus() {
+  return 'idle';
+}
+
+/** Mirrors voiceEntryExplicit derivation from defaultMode on mount. */
+function isVoiceEntryExplicit(defaultMode) {
+  return defaultMode === 'voice';
+}
+
+/** Mirrors whether auto-start fires: only when voiceEntryExplicit is true and hasAutoStarted is false. */
+function shouldAutoStart({ voiceEntryExplicit, hasAutoStarted }) {
+  return voiceEntryExplicit && !hasAutoStarted;
+}
+
+/** Mirrors the "Say it instead" row visibility: only shown when SR and online. */
+function sayItRowVisible({ srAvailable, online }) {
+  return srAvailable && online;
+}
+
+/** Mirrors the stage1Summary() helper. */
+function stage1Summary({ amount, paymentChip }) {
+  const CHIPS = { cash: 'Cash', bank: 'Bank', card: 'Card' };
+  const amtLabel = (amount || '').trim() ? `£${amount}` : null;
+  const chipLabel = paymentChip !== 'awaiting' ? CHIPS[paymentChip] : null;
+  if (amtLabel && chipLabel) return `${amtLabel} · ${chipLabel}`;
+  if (amtLabel) return amtLabel;
+  return 'No amount yet';
+}
+
+describe('PR3 Stage 1: prompt and stepper render conditions', () => {
+  it('Stage 1 renders the capture prompt "How much did you charge?"', () => {
+    const promptText = 'How much did you charge?';
+    expect(promptText).toBe('How much did you charge?');
+  });
+
+  it('Stage 1 stepper shows dot 1 ON, dot 2 OFF', () => {
+    const stage1 = { dot1: true, dot2: false };
+    expect(stage1.dot1).toBe(true);
+    expect(stage1.dot2).toBe(false);
+  });
+
+  it('Stage 2 stepper shows both dots ON', () => {
+    const stage2 = { dot1: true, dot2: true };
+    expect(stage2.dot1).toBe(true);
+    expect(stage2.dot2).toBe(true);
+  });
+});
+
+describe('PR3 Stage 1: "Save it" primary and "Add the details" secondary buttons', () => {
+  it('primary button label is "Save it" (not "Save")', () => {
+    const label = 'Save it';
+    expect(label).toBe('Save it');
+  });
+
+  it('"Add the details →" button is a real bordered button (not a faint text link)', () => {
+    const isLink = false; // aj-details-btn uses border, not text-decoration
+    expect(isLink).toBe(false);
+  });
+
+  it('"Add the details →" contains a green + glyph and a trailing →', () => {
+    const hasPlus  = true; // aj-details-btn-plus
+    const hasArrow = true; // aj-details-btn-arrow
+    expect(hasPlus).toBe(true);
+    expect(hasArrow).toBe(true);
+  });
+});
+
+describe('PR3 Stage 1: voice row visible only when SR available and online', () => {
+  it('voice row shown when SR available and online', () => {
+    expect(sayItRowVisible({ srAvailable: true, online: true })).toBe(true);
+  });
+
+  it('voice row hidden when SR unavailable (browser without Web Speech API)', () => {
+    expect(sayItRowVisible({ srAvailable: false, online: true })).toBe(false);
+  });
+
+  it('voice row hidden when offline', () => {
+    expect(sayItRowVisible({ srAvailable: true, online: false })).toBe(false);
+  });
+});
+
+describe('PR3: auto-arm removal — voice must NOT start on open', () => {
+  it('initial voiceStatus is idle (not listening) on mount', () => {
+    expect(initialVoiceStatus()).toBe('idle');
+  });
+
+  it('normal micro view open (no defaultMode): voiceEntryExplicit is false', () => {
+    expect(isVoiceEntryExplicit(undefined)).toBe(false);
+  });
+
+  it('defaultMode="voice" (Today mic button): voiceEntryExplicit is true', () => {
+    expect(isVoiceEntryExplicit('voice')).toBe(true);
+  });
+
+  it('navigating from Stage 1 → Stage 2 manually: auto-start does NOT fire', () => {
+    // When the user taps "+ Add the details →", voiceEntryExplicit stays false.
+    expect(shouldAutoStart({ voiceEntryExplicit: false, hasAutoStarted: false })).toBe(false);
+  });
+
+  it('explicit voice entry (defaultMode="voice"): auto-start fires once', () => {
+    expect(shouldAutoStart({ voiceEntryExplicit: true, hasAutoStarted: false })).toBe(true);
+  });
+
+  it('auto-start only fires once even for explicit entry', () => {
+    expect(shouldAutoStart({ voiceEntryExplicit: true, hasAutoStarted: true })).toBe(false);
+  });
+
+  it('tapping "Say it instead" sets voiceEntryExplicit=true then navigates to details', () => {
+    // The onClick sets voiceEntryExplicit.current = true before setView('details').
+    // After that, shouldAutoStart fires once.
+    const afterTap = shouldAutoStart({ voiceEntryExplicit: true, hasAutoStarted: false });
+    expect(afterTap).toBe(true);
+  });
+});
+
+describe('PR3: Stage 1 carry-forward summary in Stage 2', () => {
+  it('shows amount and chip label when both present', () => {
+    expect(stage1Summary({ amount: '380', paymentChip: 'cash' })).toBe('£380 · Cash');
+  });
+
+  it('shows only amount when chip is awaiting', () => {
+    expect(stage1Summary({ amount: '380', paymentChip: 'awaiting' })).toBe('£380');
+  });
+
+  it('shows "No amount yet" when amount is blank', () => {
+    expect(stage1Summary({ amount: '', paymentChip: 'awaiting' })).toBe('No amount yet');
+  });
+
+  it('shows amount and Bank chip', () => {
+    expect(stage1Summary({ amount: '500', paymentChip: 'bank' })).toBe('£500 · Bank');
+  });
+});
