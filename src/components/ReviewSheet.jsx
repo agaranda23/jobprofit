@@ -39,6 +39,7 @@ import {
   generatePublicAccessToken,
   buildPublicQuoteUrl,
 } from '../lib/publicQuoteToken';
+import { buildPublicInvoiceUrl } from '../lib/publicInvoiceToken';
 import { logTelemetry } from '../lib/telemetry';
 import { isPro } from '../lib/plan';
 
@@ -127,17 +128,25 @@ export default function ReviewSheet({
   // ── Invoice: WhatsApp send ─────────────────────────────────────────────────
   const handleInvoiceWhatsApp = () => {
     logTelemetry('invoice_send', { channel: 'whatsapp', source: 'review_sheet' });
-    const message = buildInvoiceWhatsAppMessage({ job, biz, invoiceNumber, dueDate });
+    // Reuse the existing token when present so the customer always gets the
+    // same /i/<token> URL regardless of how many times the invoice is re-sent.
+    const token = job?.publicAccessToken || generatePublicAccessToken();
+    const hostedInvoiceUrl = buildPublicInvoiceUrl(token);
+    const message = buildInvoiceWhatsAppMessage({ job, biz, invoiceNumber, dueDate, hostedInvoiceUrl });
     const link = buildWhatsAppLink({
       phone: resolvePhone(job),
       message,
     });
+    // Persist the token so the /i/<token> page can resolve this job for the
+    // customer. Without this write the link in the message would be a 404.
     onUpdate?.({
       ...job,
       status: 'invoice_sent',
       invoiceSentAt: new Date().toISOString(),
       invoiceNumber,
       invoiceDueDate: new Date(dueDate).toISOString(),
+      publicAccessToken: token,
+      invoiceLinkSentAt: new Date().toISOString(),
       invoiceDraft: false,
     });
     window.open(link, '_blank', 'noopener');

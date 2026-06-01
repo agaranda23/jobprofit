@@ -5,6 +5,8 @@ import { deriveStatus } from "./lib/jobStatus";
 import { nextInvoiceNumber } from "./lib/invoiceNumber";
 import { downloadInvoicePDF } from "./lib/invoicePDF";
 import { buildInvoiceWhatsAppMessage, buildWhatsAppLink } from "./lib/invoiceMessage";
+import { buildPublicInvoiceUrl } from "./lib/publicInvoiceToken";
+import { generatePublicAccessToken } from "./lib/publicQuoteToken";
 import { getMissingInvoiceFields } from "./lib/bizValidation";
 import { writeJobMeta, extractJobMeta, applyJobMetaToJobs } from "./lib/jobMeta";
 import { canSendInvoice, incrementSendCount } from "./lib/plan";
@@ -169,9 +171,13 @@ function SendInvoiceModal({ job, biz, profile, jobs, onUpdate, onClose, flash })
   const [copyOk, setCopyOk] = useState(false);
   // 'send' = normal view; 'paywall' = quota exceeded, swap body without stacking a new modal
   const [view, setView] = useState('send');
+  // Mint or reuse the token once per modal open — same UUID per job so re-sends
+  // share the same /i/<token> URL. useState initialiser runs once only.
+  const [pendingToken] = useState(() => job?.publicAccessToken || generatePublicAccessToken());
+  const hostedInvoiceUrl = buildPublicInvoiceUrl(pendingToken);
   const missing = getMissingInvoiceFields(biz, profile);
   const showVat = !!biz?.vatRegistered;
-  const previewMessage = buildInvoiceWhatsAppMessage({ job, biz, invoiceNumber, dueDate });
+  const previewMessage = buildInvoiceWhatsAppMessage({ job, biz, invoiceNumber, dueDate, hostedInvoiceUrl });
 
   // True only when this is a first-time send (job not yet in invoice_sent state).
   // Re-opening an already-sent invoice does NOT re-bill and does NOT re-gate.
@@ -191,6 +197,9 @@ function SendInvoiceModal({ job, biz, profile, jobs, onUpdate, onClose, flash })
         invoiceSentAt: new Date().toISOString(),
         invoiceNumber,
         invoiceDueDate: new Date(dueDate).toISOString(),
+        // Persist the token so /i/<token> resolves for the customer.
+        publicAccessToken: pendingToken,
+        invoiceLinkSentAt: new Date().toISOString(),
       });
       // Optimistic: increment locally is handled by AppShell re-fetching profile on next load.
       // Fire the Supabase write without blocking the UI.
