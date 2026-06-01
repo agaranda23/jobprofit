@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v48';  // bumped from v47: width:100% on jt-foot, min-width:0 on flex children, deep-red blocked state
+const CACHE_NAME = 'jobprofit-v49';  // bumped from v48: removed redundant .jt-chased-chip that was breaking the CTA row flex layout
 const PRECACHE = [
   '/',
   '/index.html',

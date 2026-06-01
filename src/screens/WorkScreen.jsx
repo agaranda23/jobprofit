@@ -49,8 +49,6 @@ import {
   buildPaymentDetails,
   recordChase,
   isDoubleSendBlocked,
-  getChaseState,
-  lastChasedLabel,
   DEFAULT_PAYMENT_TERMS_DAYS,
 } from '../lib/chaseLadder';
 import { supabase } from '../lib/supabase';
@@ -722,10 +720,6 @@ function JobTile({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJo
   const cta = getStageCTA(stage, job, { onSendInvoice, onUpdateJob, onNewJob, onOpenJob, biz, onViewReceipt });
   const stageMeta = STAGE_META[stage] || STAGE_META.Lead;
 
-  // "Last chased" chip — shown on Invoiced and Overdue tiles after a chase is recorded
-  const chaseState = (stage === 'Invoiced' || stage === 'Overdue') ? getChaseState(job.id) : null;
-  const chasedChip = lastChasedLabel(chaseState);
-
   // Draft flag — shown before other signals when a draft exists
   const hasDraft = !!(job.quoteDraft || job.invoiceDraft);
 
@@ -948,9 +942,6 @@ function JobTile({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJo
             >
               {cta.label}
             </button>
-          )}
-          {chasedChip && (
-            <span className="jt-chased-chip">{chasedChip}</span>
           )}
         </div>
       )}
