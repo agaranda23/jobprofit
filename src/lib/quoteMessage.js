@@ -23,24 +23,27 @@ export function buildQuoteWhatsAppMessage({ job, biz, quoteUrl, depositPayUrl = 
     ? `£${(total * depositPercent / 100).toFixed(2)}`
     : '';
 
+  // Link-first ordering: WhatsApp truncates file-share captions on iOS,
+  // so the sign URL must sit in the first 2-3 lines or the customer will
+  // only see the PDF and miss the call to action. Greeting + sign link
+  // come first; details (summary, total, deposit) sit below as context.
   const lines = [
     firstName ? `Hi ${firstName},` : 'Hi,',
     '',
-    `Here's your quote for:`,
+    `📝 Tap to view and sign your quote:`,
+    quoteUrl,
+    '',
     `🔨 ${summary}`,
   ];
   if (totalStr) lines.push(`💷 Total: ${totalStr}`);
 
-  // Deposit pay link — above the main quote URL per brief Section 2.2 pattern
+  // Deposit pay link — separate visible block below the sign link.
   if (depositPayUrl && depositAmount) {
     lines.push('');
     lines.push(`Pay ${depositAmount} deposit (locks in your slot):`);
     lines.push(depositPayUrl);
   }
 
-  lines.push('');
-  lines.push(`Tap to view and sign:`);
-  lines.push(quoteUrl);
   lines.push('');
   lines.push(`Cheers,`);
   lines.push(businessName);
