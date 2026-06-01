@@ -273,6 +273,13 @@ function resolvePhone(job) {
   return job.customerPhone || job.phone || job.mobile || '';
 }
 
+/**
+ * Canonical address resolver — job.address is the primary field.
+ */
+function resolveAddress(job) {
+  return job.address || '';
+}
+
 // jobMatchesQuery, sortJobsByStage, firstLineOfAddress imported from ../lib/jobSort.
 
 // StageStrip lives in src/components/StageStrip.jsx (extracted because
@@ -554,16 +561,11 @@ function StageChipDropdown({ job, currentStage, onUpdateJob, onSendInvoice, onSe
  * Paid stage opens ReceiptModal via onViewReceipt.
  */
 function getStageCTA(stage, job, { onSendInvoice, onUpdateJob, onNewJob, onOpenJob, biz, onViewReceipt }) {
-  // Phone button shown on all unpaid stages when a number exists (1F).
-  const hasPhone = !!resolvePhone(job);
-  const unpaidPhoneBtn = hasPhone && stage !== 'Paid';
-
   switch (stage) {
     case 'Lead':
       return {
         label: 'Send quote →',
         mod: null,
-        phoneBtn: unpaidPhoneBtn,
         // Opens this job's drawer with quote intent — if unpriced, the price
         // field opens automatically; after entering the price, Send quote link
         // CTA is ready for one deliberate tap.
@@ -574,7 +576,6 @@ function getStageCTA(stage, job, { onSendInvoice, onUpdateJob, onNewJob, onOpenJ
       return {
         label: 'Mark booked',
         mod: 'ghost',
-        phoneBtn: unpaidPhoneBtn,
         // Flips status to active — same behaviour as the old "Move to On →" button.
         action: () => onUpdateJob?.({ ...job, status: 'active' }),
       };
@@ -583,7 +584,6 @@ function getStageCTA(stage, job, { onSendInvoice, onUpdateJob, onNewJob, onOpenJ
       return {
         label: 'Send invoice',
         mod: null,
-        phoneBtn: unpaidPhoneBtn,
         action: () => { if (onSendInvoice) onSendInvoice(job); },
       };
 
@@ -592,7 +592,6 @@ function getStageCTA(stage, job, { onSendInvoice, onUpdateJob, onNewJob, onOpenJ
       return {
         label: blocked ? 'Chased today' : 'Chase payment',
         mod: 'ghost',
-        phoneBtn: unpaidPhoneBtn,
         disabled: blocked,
         markPaid: true, // 1G: surface Mark paid alongside Chase payment
         action: () => { if (!blocked) chaseJobTiered(job, biz); },
@@ -604,7 +603,6 @@ function getStageCTA(stage, job, { onSendInvoice, onUpdateJob, onNewJob, onOpenJ
       return {
         label: blocked ? 'Chased today' : 'Chase payment →',
         mod: blocked ? 'muted' : 'urgent',
-        phoneBtn: unpaidPhoneBtn,
         disabled: blocked,
         markPaid: true, // 1G: surface Mark paid alongside Chase payment
         action: () => { if (!blocked) chaseJobTiered(job, biz); },
@@ -615,7 +613,6 @@ function getStageCTA(stage, job, { onSendInvoice, onUpdateJob, onNewJob, onOpenJ
       return {
         label: 'View receipt',
         mod: 'muted',
-        phoneBtn: false,
         action: () => onViewReceipt?.(job),
       };
 
@@ -691,7 +688,7 @@ function deriveMoneySub(job, stage) {
  * Customer demoted to secondary line; falls back: if summary empty, customer
  * becomes the primary label so the tile is never a bare "Untitled job".
  */
-function JobTile({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJob, onCopyJob, onArchiveJob, onDeleteJob, biz, onShowToast, onViewReceipt }) {
+function JobTile({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJob, onCopyJob, onArchiveJob, onDeleteJob, biz, onShowToast, onViewReceipt, onActionRedirect }) {
   const stage = deriveDisplayStatus(job);
   const isPaid = stage === 'Paid';
 
@@ -871,6 +868,48 @@ function JobTile({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJo
       {/* CTA row — stopPropagation so taps don't open the drawer */}
       {cta && (
         <div className="jt-foot" onClick={e => e.stopPropagation()}>
+          {/* Call button — always shown. Dials if phone exists; redirects to edit if not. */}
+          <button
+            type="button"
+            className={`jt-action-btn${!resolvePhone(job) ? ' jt-action-btn--missing' : ''}`}
+            aria-label="Call customer"
+            onClick={() => {
+              const phone = resolvePhone(job);
+              logTelemetry('tile_action_call', { hasData: !!phone, source: 'tile' });
+              if (phone) {
+                window.open(`tel:${phone}`, '_self');
+              } else {
+                onActionRedirect?.(job, 'phone');
+              }
+            }}
+          >
+            <svg width="15" height="15" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
+              <path d="M4 3l2-1 2 3-1.5 1.5a8 8 0 0 0 4 4L12 9l3 2-1 2a2 2 0 0 1-2 1A11 11 0 0 1 3 5a2 2 0 0 1 1-2z"/>
+            </svg>
+            <span>Call</span>
+          </button>
+          {/* Map button — always shown. Opens Google Maps if address exists; redirects to edit if not. */}
+          <button
+            type="button"
+            className={`jt-action-btn${!resolveAddress(job) ? ' jt-action-btn--missing' : ''}`}
+            aria-label="Open in maps"
+            onClick={() => {
+              const addr = resolveAddress(job);
+              logTelemetry('tile_action_map', { hasData: !!addr, source: 'tile' });
+              if (addr) {
+                window.open(`https://maps.google.com/?q=${encodeURIComponent(addr)}`, '_blank', 'noopener');
+              } else {
+                onActionRedirect?.(job, 'address');
+              }
+            }}
+          >
+            <svg width="15" height="15" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
+              <path d="M9 1C6.24 1 4 3.24 4 6c0 4.25 5 11 5 11s5-6.75 5-11c0-2.76-2.24-5-5-5z"/>
+              <circle cx="9" cy="6" r="1.8" fill="currentColor" stroke="none"/>
+            </svg>
+            <span>Map</span>
+          </button>
+          {/* Main stage-aware CTA — expands to fill remaining space */}
           <button
             type="button"
             className={`jt-cta${cta.mod ? ` jt-cta--${cta.mod}` : ''}`}
@@ -895,22 +934,6 @@ function JobTile({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJo
               })}
             >
               Mark paid
-            </button>
-          )}
-          {/* 1F: Phone button on all unpaid stages when a number exists */}
-          {cta.phoneBtn && (
-            <button
-              type="button"
-              className="jt-icon-btn"
-              aria-label="Call customer"
-              onClick={() => {
-                const phone = resolvePhone(job);
-                if (phone) window.open(`tel:${phone}`, '_self');
-              }}
-            >
-              <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
-                <path d="M4 3l2-1 2 3-1.5 1.5a8 8 0 0 0 4 4L12 9l3 2-1 2a2 2 0 0 1-2 1A11 11 0 0 1 3 5a2 2 0 0 1 1-2z"/>
-              </svg>
             </button>
           )}
           {chasedChip && (
@@ -951,7 +974,7 @@ function EmptyState({ stage, onAddJob }) {
 
 // ── JobsList subview ──────────────────────────────────────────────────────────
 
-function JobsList({ jobs, selectedStage, showAll, searchQuery, onJobSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJob, onCopyJob, onArchiveJob, onDeleteJob, biz, onShowToast, onViewReceipt, onAddJob }) {
+function JobsList({ jobs, selectedStage, showAll, searchQuery, onJobSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJob, onCopyJob, onArchiveJob, onDeleteJob, biz, onShowToast, onViewReceipt, onAddJob, onActionRedirect }) {
   const q = (searchQuery || '').trim();
 
   // When searching: ignore the stage filter — show everything that matches (1B spec).
@@ -993,6 +1016,7 @@ function JobsList({ jobs, selectedStage, showAll, searchQuery, onJobSelect, onSe
           biz={biz}
           onShowToast={onShowToast}
           onViewReceipt={onViewReceipt}
+          onActionRedirect={onActionRedirect}
         />
       ))}
     </ul>
@@ -1017,6 +1041,10 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
   // (e.g. tile CTA "Send quote →" or stage-advance guard). Cleared after use.
   const [drawerIntent, setDrawerIntent] = useState(null);
   const [drawerTargetStage, setDrawerTargetStage] = useState(null);
+  // pendingEditField — when the user taps Call/Map on a job that's missing the
+  // required data, we open the drawer and immediately surface the edit modal for
+  // that field. Cleared once the drawer mounts and consumes it.
+  const [pendingEditField, setPendingEditField] = useState(null);
   // reviewJob drives the ReviewSheet opened from tile CTAs (Send invoice on On stage).
   const [reviewJob, setReviewJob] = useState(null);
   const [toast, setToast] = useState('');
@@ -1262,6 +1290,13 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
     setSelectedJob(job);
     setDrawerIntent(opts?.intent ?? null);
     setDrawerTargetStage(opts?.targetStage ?? null);
+    setPendingEditField(opts?.editField ?? null);
+  };
+
+  // Called by Call/Map buttons when the job is missing the required data.
+  // Opens the drawer and surfaces the edit modal for the relevant field.
+  const handleActionRedirect = (job, field) => {
+    handleOpenJob(job, { editField: field });
   };
 
   // Duplicates a job as a new Lead, carrying customer + price details but
@@ -1499,6 +1534,7 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
           onShowToast={showToast}
           onViewReceipt={setReceiptJob}
           onAddJob={openAddJob}
+          onActionRedirect={handleActionRedirect}
         />
       ) : (
         <WorkCalendar jobs={visibleJobs} onNewJobOnDate={onNewJob} />
@@ -1510,7 +1546,7 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
       {liveSelectedJob && (
         <DrawerErrorBoundary
           key={liveSelectedJob.id}
-          onClose={() => { setSelectedJob(null); setDrawerIntent(null); setDrawerTargetStage(null); }}
+          onClose={() => { setSelectedJob(null); setDrawerIntent(null); setDrawerTargetStage(null); setPendingEditField(null); }}
         >
           <JobDetailDrawer
             job={liveSelectedJob}
@@ -1522,10 +1558,12 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
             onAddReceipt={onAddReceipt}
             onDeleteReceipt={onDeleteReceipt}
             onAddPayment={handleAddPayment}
-            onClose={() => { setSelectedJob(null); setDrawerIntent(null); setDrawerTargetStage(null); }}
+            onClose={() => { setSelectedJob(null); setDrawerIntent(null); setDrawerTargetStage(null); setPendingEditField(null); }}
             intent={drawerIntent}
             targetStage={drawerTargetStage}
             onClearIntent={() => { setDrawerIntent(null); setDrawerTargetStage(null); }}
+            initialEditingField={pendingEditField}
+            onClearInitialEditingField={() => setPendingEditField(null)}
             onViewReceipt={setReceiptJob}
             onNavigateToCardPayments={onNavigateToCardPayments}
           />

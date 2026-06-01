@@ -1822,6 +1822,11 @@ export default function JobDetailDrawer({
   // Optional: called when the trader taps "Set up" in the Send Invoice connect prompt.
   // AppShell passes () => setSettingsSubView('card-payments').
   onNavigateToCardPayments,
+  // When set, the drawer immediately opens the edit modal for this field on mount.
+  // Used by the Call/Map tile buttons to redirect to data entry when the field is empty.
+  initialEditingField = null,
+  // Called once the initialEditingField has been consumed so WorkScreen can clear it.
+  onClearInitialEditingField,
 }) {
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
@@ -2164,6 +2169,18 @@ export default function JobDetailDrawer({
     // Only react to intent changes — not every render
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [intent]);
+
+  // When the drawer is opened via Call/Map redirect (missing phone or address),
+  // immediately surface the edit modal for that field so the user can add the data.
+  // Fires once on mount; onClearInitialEditingField tells WorkScreen to reset state
+  // so the field doesn't re-open if the drawer is remounted for the same job.
+  useEffect(() => {
+    if (!initialEditingField) return;
+    setEditingField(initialEditingField);
+    onClearInitialEditingField?.();
+    // Intentionally runs only on mount — dep array empty so it fires once.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ── Photo add ─────────────────────────────────────────────────────────────
   // New behaviour: compress → Blob → upload to job-photos bucket (private) →
