@@ -148,8 +148,8 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMo
           setError('Microphone blocked. Allow it in the address bar then try again.');
           setVoiceStatus('manual');
         } else if (e.error === 'no-speech') {
-          setError('Nothing heard — say the job and amount');
-          setVoiceStatus('listening');
+          setError('');
+          setVoiceStatus('idle');
         } else if (e.error === 'network') {
           setError('No signal — type it instead.');
           setVoiceStatus('manual');
@@ -164,8 +164,8 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMo
           if (s === 'listening') {
             const t = (finalText || '').trim();
             if (t) { parse(t); return 'parsing'; }
-            setError('Nothing heard — say the job and amount');
-            return 'listening';
+            setError('');
+            return 'idle';
           }
           return s;
         });
@@ -351,8 +351,8 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMo
           setError('Microphone blocked. Allow it in the address bar then try again.');
           setQuoteVoiceStatus('manual');
         } else if (e.error === 'no-speech') {
-          setError('Nothing heard — say the job and amount');
-          setQuoteVoiceStatus('listening');
+          setError('');
+          setQuoteVoiceStatus('idle');
         } else if (e.error === 'network') {
           setError('No signal — type it instead.');
           setQuoteVoiceStatus('manual');
@@ -367,8 +367,8 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMo
           if (s === 'listening') {
             const t = (finalText || '').trim();
             if (t) { parseQuote(t); return 'parsing'; }
-            setError('Nothing heard — say the job and amount');
-            return 'listening';
+            setError('');
+            return 'idle';
           }
           return s;
         });
@@ -681,6 +681,33 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMo
               </>
             )}
 
+            {/* ── Voice: idle state — mic stopped with no speech, tap to re-arm ── */}
+            {voiceStatus === 'idle' && (
+              <>
+                <button
+                  type="button"
+                  className="aj-mic-box aj-mic-box--idle"
+                  onClick={startListening}
+                  aria-label="Tap to try the microphone again"
+                >
+                  <div className="aj-mic-icon aj-mic-icon--idle">&#127908;</div>
+                  <div className="aj-mic-label">Nothing heard</div>
+                  <div className="aj-mic-sub">Tap to try again</div>
+                </button>
+                <div className="aj-footer-links">
+                  <button
+                    className="link-btn"
+                    onClick={() => {
+                      manualOverride.current = true;
+                      setVoiceStatus('manual');
+                    }}
+                  >
+                    Type instead
+                  </button>
+                </div>
+              </>
+            )}
+
             {/* ── Voice: parsing state — spinner deferred until >400ms to avoid flash ── */}
             {voiceStatus === 'parsing' && (
               <>
@@ -899,6 +926,33 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMo
                     onClick={() => {
                       manualOverride.current = true;
                       stopQuoteListening();
+                      setQuoteVoiceStatus('manual');
+                    }}
+                  >
+                    Type instead
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* ── Voice: idle state — mic stopped with no speech, tap to re-arm ── */}
+            {quoteVoiceStatus === 'idle' && (
+              <>
+                <button
+                  type="button"
+                  className="aj-mic-box aj-mic-box--idle"
+                  onClick={startQuoteListening}
+                  aria-label="Tap to try the microphone again"
+                >
+                  <div className="aj-mic-icon aj-mic-icon--idle">&#127908;</div>
+                  <div className="aj-mic-label">Nothing heard</div>
+                  <div className="aj-mic-sub">Tap to try again</div>
+                </button>
+                <div className="aj-footer-links">
+                  <button
+                    className="link-btn"
+                    onClick={() => {
+                      manualOverride.current = true;
                       setQuoteVoiceStatus('manual');
                     }}
                   >

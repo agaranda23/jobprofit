@@ -726,6 +726,18 @@ body {
   background: var(--surface-2);
   color: var(--text-dim);
 }
+/* Idle state: mic stopped with no speech — greyed out, tappable to re-arm */
+.aj-mic-box--idle {
+  background: var(--surface-2);
+  color: var(--text-dim);
+  border: 2px dashed var(--border);
+  cursor: pointer;
+  width: 100%;
+  font-family: inherit;
+  min-height: 44px;
+}
+.aj-mic-box--idle:active { opacity: 0.75; }
+.aj-mic-icon--idle { opacity: 0.45; filter: grayscale(1); }
 .aj-mic-icon { font-size: 32px; margin-bottom: 6px; }
 .aj-mic-label { font-size: 17px; font-weight: 700; }
 .aj-mic-sub { font-size: 13px; opacity: 0.85; margin-top: 4px; }
