@@ -31,6 +31,8 @@
 import { useState, useEffect } from 'react';
 import { getInvoicePDFBlob, downloadInvoicePDF } from '../lib/invoicePDF';
 import { buildInvoiceWhatsAppMessage, buildWhatsAppLink } from '../lib/invoiceMessage';
+import { buildPublicInvoiceUrl } from '../lib/publicInvoiceToken';
+import { generatePublicAccessToken } from '../lib/publicQuoteToken';
 import { nextInvoiceNumber } from '../lib/invoiceNumber';
 import { getMissingInvoiceFields } from '../lib/bizValidation';
 import { canSendInvoice, incrementSendCount } from '../lib/plan';
@@ -103,6 +105,21 @@ export default function SendInvoiceModal({
   // trader sees it again next time they open Send Invoice.
   const [connectBannerDismissed, setConnectBannerDismissed] = useState(false);
 
+  // hostedInvoiceUrl: the /i/<token> link prepended to the WhatsApp message so
+  // the customer opens the full branded invoice rather than reading plain text.
+  // We lazily generate/reuse the publicAccessToken — the same UUID the quote
+  // page uses — so the trader shares one token per job.
+  //
+  // If the job doesn't have a token yet we mint one now (before the send
+  // happens) so the URL is ready when the WhatsApp message is built. The token
+  // is written to the job in attemptSend() below via onUpdate.
+  const [pendingToken] = useState(() => {
+    // Use the existing token when present; mint a new one otherwise.
+    // useState initialiser runs once so the same token survives re-renders.
+    return job?.publicAccessToken || generatePublicAccessToken();
+  });
+  const hostedInvoiceUrl = buildPublicInvoiceUrl(pendingToken);
+
   // All hooks above — no early returns until after this point (PR #125 lesson).
 
   // Generate a Pay-now link when the modal opens for connected traders.
@@ -159,7 +176,7 @@ export default function SendInvoiceModal({
     ...(biz || {}),
     stripePaymentLink: effectivePaymentLink,
   };
-  const message = buildInvoiceWhatsAppMessage({ job, biz: bizWithStripe, invoiceNumber, dueDate });
+  const message = buildInvoiceWhatsAppMessage({ job, biz: bizWithStripe, invoiceNumber, dueDate, hostedInvoiceUrl });
   // Check whether the job has a usable price — treat null AND 0 as "no price".
   const invAmount = Number(job.total ?? job.amount);
   const isUnpriced = !invAmount || invAmount <= 0;
@@ -174,12 +191,19 @@ export default function SendInvoiceModal({
       return false;
     }
     if (isFirstSend) {
+      const now = new Date().toISOString();
       onUpdate({
         ...job,
         status: 'invoice_sent',
-        invoiceSentAt: new Date().toISOString(),
+        invoiceSentAt: now,
         invoiceNumber,
         invoiceDueDate: new Date(dueDate).toISOString(),
+        // Persist the public access token so the /i/<token> URL stays stable
+        // and the trader can re-send the same link. Reuses the quote token
+        // when already present (same token per job — one link per job regardless
+        // of whether it was first shared as a quote or invoice).
+        publicAccessToken: pendingToken,
+        invoiceLinkSentAt: now,
       });
       // Fire-and-forget Supabase increment — silently tolerates offline.
       incrementSendCount(supabase, profile?.id);
@@ -442,8 +466,8 @@ export default function SendInvoiceModal({
           aria-disabled={isUnpriced}
         >
           {isConnected && payNowUrl
-            ? '💬 Send invoice with Pay-now'
-            : '💬 Send via WhatsApp'}
+            ? '💬 Send invoice with Pay-now link'
+            : '💬 Send invoice link via WhatsApp'}
         </button>
 
         {/* More ways to send — secondary options, always visible */}

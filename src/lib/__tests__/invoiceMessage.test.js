@@ -203,3 +203,104 @@ describe('buildWhatsAppLink — phone normalisation unaffected by Stripe link', 
     expect(link).toContain('wa.me/447700900123');
   });
 });
+
+// ── hostedInvoiceUrl — hosted invoice link in the WhatsApp message ────────────
+
+const HOSTED_URL = 'https://app.jobprofit.co.uk/i/a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';
+
+describe('buildInvoiceWhatsAppMessage — hostedInvoiceUrl', () => {
+  it('includes "View & pay your invoice:" with the URL when hostedInvoiceUrl is set', () => {
+    const msg = buildInvoiceWhatsAppMessage({
+      job: baseJob(),
+      biz: baseBiz(),
+      invoiceNumber,
+      dueDate,
+      hostedInvoiceUrl: HOSTED_URL,
+    });
+    expect(msg).toContain('View & pay your invoice:');
+    expect(msg).toContain(HOSTED_URL);
+  });
+
+  it('hosted invoice link appears before the invoice number line', () => {
+    const msg = buildInvoiceWhatsAppMessage({
+      job: baseJob(),
+      biz: baseBiz(),
+      invoiceNumber,
+      dueDate,
+      hostedInvoiceUrl: HOSTED_URL,
+    });
+    const linkPos    = msg.indexOf(HOSTED_URL);
+    const invNumPos  = msg.indexOf(invoiceNumber);
+    expect(linkPos).toBeGreaterThan(-1);
+    expect(invNumPos).toBeGreaterThan(-1);
+    expect(linkPos).toBeLessThan(invNumPos);
+  });
+
+  it('omits "View & pay" line when hostedInvoiceUrl is absent', () => {
+    const msg = buildInvoiceWhatsAppMessage({
+      job: baseJob(),
+      biz: baseBiz(),
+      invoiceNumber,
+      dueDate,
+    });
+    expect(msg).not.toContain('View & pay your invoice:');
+  });
+
+  it('omits "View & pay" line when hostedInvoiceUrl is empty string', () => {
+    const msg = buildInvoiceWhatsAppMessage({
+      job: baseJob(),
+      biz: baseBiz(),
+      invoiceNumber,
+      dueDate,
+      hostedInvoiceUrl: '',
+    });
+    expect(msg).not.toContain('View & pay your invoice:');
+  });
+
+  it('does not include the static Stripe link when hostedInvoiceUrl is set (avoid duplicate CTAs)', () => {
+    const msg = buildInvoiceWhatsAppMessage({
+      job: baseJob(),
+      biz: baseBiz({ stripePaymentLink: 'https://buy.stripe.com/test_abc123' }),
+      invoiceNumber,
+      dueDate,
+      hostedInvoiceUrl: HOSTED_URL,
+    });
+    // The static Stripe link should not be a separate CTA when hostedInvoiceUrl is present
+    expect(msg).not.toContain('Pay by card: https://buy.stripe.com/test_abc123');
+  });
+
+  it('uses "Or by bank transfer:" header when hostedInvoiceUrl is set (card CTA already present)', () => {
+    const msg = buildInvoiceWhatsAppMessage({
+      job: baseJob(),
+      biz: baseBiz(),
+      invoiceNumber,
+      dueDate,
+      hostedInvoiceUrl: HOSTED_URL,
+    });
+    expect(msg).toContain('Or by bank transfer:');
+    expect(msg).not.toContain('Bank details:');
+  });
+
+  it('still includes invoice amount in the message when hostedInvoiceUrl is set', () => {
+    const msg = buildInvoiceWhatsAppMessage({
+      job: baseJob({ total: 500 }),
+      biz: baseBiz(),
+      invoiceNumber,
+      dueDate,
+      hostedInvoiceUrl: HOSTED_URL,
+    });
+    expect(msg).toContain('500.00');
+  });
+
+  it('shows VAT-inclusive total when vatRegistered and hostedInvoiceUrl is set', () => {
+    const msg = buildInvoiceWhatsAppMessage({
+      job: baseJob({ total: 100 }),
+      biz: baseBiz({ vatRegistered: true }),
+      invoiceNumber,
+      dueDate,
+      hostedInvoiceUrl: HOSTED_URL,
+    });
+    expect(msg).toContain('120.00');
+    expect(msg).toContain(HOSTED_URL);
+  });
+});

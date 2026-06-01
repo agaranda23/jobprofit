@@ -14,6 +14,10 @@ activateThemeController();
 // Loaded lazily so it never inflates the main bundle for authenticated users.
 const PublicQuoteView = lazy(() => import('./screens/PublicQuoteView.jsx'));
 
+// Hosted invoice page — /i/<token>
+// Also lazy-loaded: customers open this in a browser, not the app shell.
+const PublicInvoiceView = lazy(() => import('./screens/PublicInvoiceView.jsx'));
+
 /**
  * Checks whether the current URL path is a public quote route.
  * Pattern: /q/<token> where token is any non-empty segment.
@@ -25,14 +29,33 @@ function parsePublicQuoteRoute() {
   return match ? match[1] : null;
 }
 
-const publicToken = parsePublicQuoteRoute();
+/**
+ * Checks whether the current URL path is a public invoice route.
+ * Pattern: /i/<token> where token is any non-empty segment.
+ * Returns the token string if matched, null otherwise.
+ */
+function parsePublicInvoiceRoute() {
+  const path = window.location.pathname;
+  const match = /^\/i\/([^/]+)$/.exec(path);
+  return match ? match[1] : null;
+}
+
+const publicQuoteToken   = parsePublicQuoteRoute();
+const publicInvoiceToken = parsePublicInvoiceRoute();
+
+const SUSPENSE_FALLBACK = <div className="auth-loading"><div className="ocr-spinner" /></div>;
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    {publicToken ? (
+    {publicInvoiceToken ? (
+      // Hosted invoice page — no auth gate, no AppShell, code-split
+      <Suspense fallback={SUSPENSE_FALLBACK}>
+        <PublicInvoiceView token={publicInvoiceToken} />
+      </Suspense>
+    ) : publicQuoteToken ? (
       // Public quote view — no auth gate, no AppShell, code-split
-      <Suspense fallback={<div className="auth-loading"><div className="ocr-spinner" /></div>}>
-        <PublicQuoteView token={publicToken} />
+      <Suspense fallback={SUSPENSE_FALLBACK}>
+        <PublicQuoteView token={publicQuoteToken} />
       </Suspense>
     ) : (
       <AppShell />

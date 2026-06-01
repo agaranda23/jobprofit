@@ -4,7 +4,20 @@
 
 const WA_URL_LIMIT = 2000; // wa.me practical URL cap; truncate long summaries
 
-export function buildInvoiceWhatsAppMessage({ job, biz, invoiceNumber, dueDate }) {
+/**
+ * Builds the WhatsApp invoice message.
+ *
+ * @param {object} args
+ * @param {object} args.job
+ * @param {object} args.biz
+ * @param {string} args.invoiceNumber
+ * @param {string} args.dueDate
+ * @param {string} [args.hostedInvoiceUrl] — when set, prepends "View & pay your invoice: <url>"
+ *   as the primary CTA so the customer opens the hosted invoice page rather than reading
+ *   a plain-text message. The rest of the message follows as context. Falls back cleanly
+ *   when empty/absent (old behaviour — text-only message).
+ */
+export function buildInvoiceWhatsAppMessage({ job, biz, invoiceNumber, dueDate, hostedInvoiceUrl = '' }) {
   const customer = (job?.customer || job?.customerName || '').split(' ')[0] || '';
   const total = job?.total ?? job?.amount ?? 0;
   const showVat = !!biz?.vatRegistered;
@@ -20,30 +33,40 @@ export function buildInvoiceWhatsAppMessage({ job, biz, invoiceNumber, dueDate }
   const balance = grossTotal - amountPaid;
   const showPartialBlock = amountPaid > 0;
 
-  const lines = [
-    `Hi ${customer},`,
-    '',
-    `Here's your invoice:`,
-    `📄 ${invoiceNumber}`,
-    `🔨 ${summary}`,
-    `💷 £${grossTotal.toFixed(2)}${showVat ? ' (inc VAT)' : ''}`,
-    ...(showPartialBlock ? [
-      `💷 Received: £${amountPaid.toFixed(2)}`,
-      `💷 Balance: £${balance.toFixed(2)}`,
-    ] : []),
-    `📅 Due: ${dueStr}`,
-    '',
-  ];
+  const lines = [`Hi ${customer},`, ''];
 
-  // Pay-by-card block — shown only when a Stripe Payment Link is set
-  if (stripeLink) {
-    lines.push(`💳 Pay by card: ${stripeLink}`);
+  // Hosted invoice link — the headline CTA when available.
+  // The customer taps this to see the full branded document + pay by card.
+  // We keep the key facts (amount, due date) in the text so the message is
+  // useful even if the link is not tapped (e.g. previewed as plain text).
+  if (hostedInvoiceUrl) {
+    lines.push(`View & pay your invoice: ${hostedInvoiceUrl}`);
+    lines.push('');
+  }
+
+  lines.push(
+    `Invoice: ${invoiceNumber}`,
+    `Job: ${summary}`,
+    `Amount: £${grossTotal.toFixed(2)}${showVat ? ' (inc VAT)' : ''}`,
+    ...(showPartialBlock ? [
+      `Received: £${amountPaid.toFixed(2)}`,
+      `Balance: £${balance.toFixed(2)}`,
+    ] : []),
+    `Due: ${dueStr}`,
+    '',
+  );
+
+  // Pay-by-card block — shown only when a static Stripe Payment Link is set
+  // AND no hosted invoice URL is present (avoid duplicating the pay CTA).
+  if (stripeLink && !hostedInvoiceUrl) {
+    lines.push(`Pay by card: ${stripeLink}`);
     lines.push('');
   }
 
   // Bank transfer header — relabelled to "Or by bank transfer:" when card option
   // is present so the two payment methods read as clear alternatives.
-  const bankHeader = stripeLink ? 'Or by bank transfer:' : 'Bank details:';
+  const hasCardOption = (stripeLink && !hostedInvoiceUrl) || !!hostedInvoiceUrl;
+  const bankHeader = hasCardOption ? 'Or by bank transfer:' : 'Bank details:';
 
   if (biz?.accountName || biz?.sortCode || biz?.accountNumber) {
     lines.push(bankHeader);

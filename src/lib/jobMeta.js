@@ -30,6 +30,10 @@ const META_FIELDS = [
   'amount',     // numeric — kept in sync with total
   // Phase G-1 — public quote share link
   'publicAccessToken', // UUID; lazily generated when trader first taps "Send link"
+  // Hosted invoice page — reuses publicAccessToken for the /i/<token> URL.
+  // invoiceLinkSentAt records when the hosted invoice link was first included
+  // in a WhatsApp send so the trader can see the customer received a real doc.
+  'invoiceLinkSentAt', // ISO timestamp — set on first send that includes a hosted invoice URL
   // Phase G-1 open-tracking — written server-side by track-quote-open Netlify function
   'quoteLinkOpenedAt',     // ISO timestamp of first open by customer
   'quoteLinkLastOpenedAt', // ISO timestamp of most recent open (every load)
