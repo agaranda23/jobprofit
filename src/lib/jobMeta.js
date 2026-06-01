@@ -45,6 +45,12 @@ const META_FIELDS = [
   // Phase G-3 — accepted-quote in-app notification
   'acceptedSeenAt', // ISO timestamp; set when trader first views this accepted quote
   'acceptedName',   // customer name stored by accept-quote Netlify function (mirrored here)
+  // Manual-overdue flag — set to true by stagePatch('Overdue') so a trader can
+  // manually mark a job Overdue before the due date passes. Without this the flag
+  // survives in-memory but is silently dropped on cloud write/reload (not in
+  // META_FIELDS → not written to meta JSONB → lost on next refresh).
+  'overdue', // boolean — true = manually promoted to Overdue stage
+
   // CIS-4 — per-job CIS fields (stored in meta, no DB migration needed)
   'cis',     // boolean — whether this job has CIS deducted by the contractor
   'cisRate', // int (20 | 30 | 0) — the rate applied to this job's labour portion

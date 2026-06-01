@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v40';  // bumped from v39: Today pivot CTAs — silhouette SVG icons + one-word labels
+const CACHE_NAME = 'jobprofit-v41';  // bumped from v40: manual Invoiced ↔ Overdue stage transition — overdue flag added to META_FIELDS
 const PRECACHE = [
   '/',
   '/index.html',
