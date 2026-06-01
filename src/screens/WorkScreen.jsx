@@ -612,7 +612,7 @@ function getStageCTA(stage, job, { onSendInvoice, onUpdateJob, onNewJob, onOpenJ
     case 'Paid':
       return {
         label: 'View receipt',
-        mod: 'muted',
+        mod: null,
         action: () => onViewReceipt?.(job),
       };
 
@@ -1439,26 +1439,6 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
         deriveStatus={deriveDisplayStatus}
         formatAmount={formatAmount}
       />
-
-      {/* Batch-chase nudge bar — shown on Overdue stage when there are un-chased jobs.
-           Each tap opens the next job's correctly-tiered WhatsApp message one at a time.
-           The app never sends autonomously — the human taps send in WhatsApp. */}
-      {selectedStage === 'Overdue' && !showAll && chasableJobs.length > 0 && (
-        <div className="chase-nudge-bar" role="region" aria-label="Chase nudge">
-          <span className="chase-nudge-text">
-            {chasableJobs.length === 1
-              ? '1 invoice needs chasing'
-              : `${chasableJobs.length} invoices need chasing`}
-          </span>
-          <button
-            type="button"
-            className="chase-nudge-btn"
-            onClick={handleBatchChaseStep}
-          >
-            Chase next →
-          </button>
-        </div>
-      )}
 
       {/* 1B: Search bar — sticky under the stage strip, pure client-side filter */}
       <div className="jobs-search-wrap">

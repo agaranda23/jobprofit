@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v44';  // bumped from v43: unify primary CTA green + chase red across tile stages
+const CACHE_NAME = 'jobprofit-v45';  // bumped from v44: View receipt green CTA + Chase/Mark paid 50/50 height + remove duplicate chase nudge bar
 const PRECACHE = [
   '/',
   '/index.html',
