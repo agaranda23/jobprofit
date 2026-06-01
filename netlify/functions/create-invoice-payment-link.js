@@ -238,7 +238,7 @@ export const handler = async function (event) {
     session = await stripe.checkout.sessions.create(
       {
         mode: 'payment',
-        payment_method_types: ['card'],
+        automatic_payment_methods: { enabled: true },
         line_items: [
           {
             price_data: {
