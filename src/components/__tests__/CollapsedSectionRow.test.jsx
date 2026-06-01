@@ -298,3 +298,57 @@ describe('CSS regression guard — .jd-csr overflow (4th expansion regression)',
     expect(jdCsrBlock).toMatch(/min-height\s*:\s*48px/);
   });
 });
+
+// ── CSS regression guard — .jd-csr-panel opaque background (6th regression) ─────
+//
+// Root cause of the 6th drawer regression (June 2026):
+//
+//   When .jd-csr had overflow:hidden it implicitly clipped-but-covered the
+//   panel content with the parent's background. After overflow:hidden was removed
+//   (fix #203) the parent's background only fills its layout box (the trigger row
+//   height). The .jd-csr-panel div has no background of its own so when it expands
+//   beyond the parent's layout box — which it does via max-height animation — the
+//   panel content is rendered over a transparent area. Siblings below in the flex
+//   column (Money card, "View profit breakdown" CTA) bleed through visually.
+//
+//   Fix: add .jd-csr-panel { background: var(--surface-raised, #142035) } so the
+//   panel div itself is always opaque. var(--surface-raised) is themed so both
+//   dark and light modes are handled without hard-coding colours.
+//
+//   This test reads the live CSS file so a future refactor that removes the
+//   background from .jd-csr-panel will fail loudly at CI time.
+
+function extractJdCsrPanelBlock(cssText) {
+  // Find the .jd-csr-panel { ... } block (exact selector, not child selectors).
+  const markerIdx = cssText.indexOf('\n.jd-csr-panel {');
+  if (markerIdx === -1) return null;
+  const blockStart = markerIdx + 1;
+  const openBrace = cssText.indexOf('{', blockStart);
+  if (openBrace === -1) return null;
+  const closeBrace = cssText.indexOf('}', openBrace);
+  if (closeBrace === -1) return null;
+  return cssText.slice(blockStart, closeBrace + 1);
+}
+
+describe('CSS regression guard — .jd-csr-panel opaque background (6th regression)', () => {
+  const cssText = fs.readFileSync(CSS_PATH, 'utf8');
+  const panelBlock = extractJdCsrPanelBlock(cssText);
+
+  it('CSS file contains a .jd-csr-panel { } rule (sanity check)', () => {
+    expect(panelBlock).not.toBeNull();
+    expect(panelBlock).toContain('.jd-csr-panel');
+  });
+
+  it('.jd-csr-panel has a background declaration (panel must be opaque)', () => {
+    const blockWithoutComments = panelBlock.replace(/\/\*[\s\S]*?\*\//g, '');
+    expect(blockWithoutComments).toMatch(/background\s*:/);
+  });
+
+  it('.jd-csr-panel background references --surface-raised (must match card surface, not a random colour)', () => {
+    expect(panelBlock).toContain('--surface-raised');
+  });
+
+  it('.jd-csr-panel background fallback is #142035 (dark-mode opaque, matches .jd-csr)', () => {
+    expect(panelBlock).toContain('#142035');
+  });
+});

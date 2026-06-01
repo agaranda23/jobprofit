@@ -8551,6 +8551,20 @@ input[type=number] { -moz-appearance: textfield; }
   z-index: 1;
 }
 
+/* 6th drawer regression (June 2026) — opaque panel background.
+   Root cause: .jd-csr has overflow:hidden REMOVED (fix #203) so its
+   background only fills the container's layout box (the trigger-row height).
+   When the panel expands beyond that box via max-height animation, the panel
+   div itself is transparent — underlying siblings (Money card, "View profit
+   breakdown" CTA) bleed through visually.
+   Fix: give .jd-csr-panel its own opaque background matching the card surface.
+   var(--surface-raised) is themed so both dark and light mode are handled;
+   the fallback colour (#142035) matches the dark-mode value already used on
+   .jd-csr. */
+.jd-csr-panel {
+  background: var(--surface-raised, #142035);
+}
+
 .jd-csr--attention {
   border-left: 3px solid #F4A024;
   background: #1a1700;
