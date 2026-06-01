@@ -4,18 +4,33 @@ import './index.css'
 import posthog from 'posthog-js';
 import AppShell from './AppShell.jsx';
 import { activateThemeController } from './lib/theme.js';
+import { getConsent } from './lib/consent.js';
 
 // Initialise PostHog only when the project API key is present.
-// Dev/PR previews without VITE_POSTHOG_KEY set will skip this block
-// entirely — no errors, no noise in the PostHog project.
+// Dev/PR previews without VITE_POSTHOG_KEY set will skip this block entirely.
+//
+// GDPR/PECR compliance: opt_out_capturing_by_default prevents any event capture
+// or cookie writes until the user explicitly grants consent via the ConsentBanner.
+// If consent was previously granted (stored in localStorage), we opt back in
+// immediately so returning users are not re-prompted on every page load.
+//
+// persistence is 'localStorage' (not 'localStorage+cookie') — PostHog's own
+// cookie is not needed for opted-out users and we avoid setting it before consent.
 if (import.meta.env.VITE_POSTHOG_KEY) {
   posthog.init(import.meta.env.VITE_POSTHOG_KEY, {
     api_host: import.meta.env.VITE_POSTHOG_HOST || 'https://eu.i.posthog.com',
     capture_pageview: true,
     capture_pageleave: true,
     autocapture: false,
-    persistence: 'localStorage+cookie',
-    loaded: (ph) => { if (import.meta.env.DEV) ph.debug(); },
+    persistence: 'localStorage',
+    opt_out_capturing_by_default: true,
+    loaded: (ph) => {
+      if (import.meta.env.DEV) ph.debug();
+      // Restore previous consent — runs synchronously before first render.
+      if (getConsent() === 'granted') {
+        ph.opt_in_capturing();
+      }
+    },
   });
 }
 

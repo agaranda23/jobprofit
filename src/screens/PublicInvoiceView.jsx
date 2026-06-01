@@ -31,6 +31,7 @@ import { useState, useEffect } from 'react';
 import { fetchPublicJob } from '../lib/store';
 import { isValidToken } from '../lib/publicInvoiceToken';
 import InvoiceDocumentPreview from '../components/InvoiceDocumentPreview';
+import ConsentBanner from '../components/ConsentBanner.jsx';
 
 const FETCH_PROFILE_URL   = '/.netlify/functions/fetch-public-invoice';
 const CREATE_PAY_LINK_URL = '/.netlify/functions/create-invoice-payment-link-public';
@@ -267,6 +268,7 @@ export default function PublicInvoiceView({ token }) {
   const showStaticLink   = !isConnected && hasStaticLink;
 
   return (
+    <>
     <div className="pqv-wrap">
       <div className="pqv-card">
 
@@ -340,5 +342,7 @@ export default function PublicInvoiceView({ token }) {
 
       </div>
     </div>
+    <ConsentBanner />
+    </>
   );
 }

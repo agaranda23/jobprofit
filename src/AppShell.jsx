@@ -47,6 +47,7 @@ import { enqueueJob, wireOnlineSync } from './lib/offlineQueue';
 import { logTelemetry, identifyUser } from './lib/telemetry';
 import posthog from 'posthog-js';
 import SyncBadge from './components/SyncBadge';
+import ConsentBanner from './components/ConsentBanner.jsx';
 
 // ─── Feature flags ───────────────────────────────────────────────────────────
 // Slice-3 nav (Today / Jobs / Money / Settings) is the default for all users.
@@ -774,6 +775,7 @@ export default function AppShell() {
 
   return (
     <>
+      <ConsentBanner />
       {/* ── SLICE-3 NAV (Today / Jobs / Money / Settings) ───────────── */}
       {NAV_SLICE_3 && (
         <>

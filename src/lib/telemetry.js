@@ -5,6 +5,12 @@
  * polluting a real PostHog project). In production the events go to PostHog
  * via the singleton initialised in main.jsx.
  *
+ * Consent guard: logTelemetry and identifyUser both check isConsentGranted()
+ * before calling PostHog. PostHog itself is also initialised opted-out by default
+ * (main.jsx), so this guard is a belt-and-braces layer for readability and
+ * future-proofing — if main.jsx changes, telemetry.js still won't fire without
+ * consent.
+ *
  * Null-safe: if PostHog was not initialised (env var missing, adblocker,
  * or a public route that skips AppShell) both functions are silent no-ops.
  *
@@ -13,6 +19,7 @@
  *   identifyUser(userId, traits)      — link events to a known user
  */
 import posthog from 'posthog-js';
+import { isConsentGranted } from './consent.js';
 
 /**
  * Capture a named event with an optional flat payload.
@@ -26,6 +33,7 @@ export function logTelemetry(event, data) {
     console.log(`[telemetry] ${event}`, data);
     return;
   }
+  if (!isConsentGranted()) return;
   try {
     posthog.capture(event, data);
   } catch {
@@ -47,6 +55,7 @@ export function identifyUser(userId, traits = {}) {
     console.log('[telemetry] identify', userId, traits);
     return;
   }
+  if (!isConsentGranted()) return;
   try {
     posthog.identify(userId, traits);
   } catch {
