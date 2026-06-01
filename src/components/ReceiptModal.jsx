@@ -26,6 +26,7 @@ import { getReceiptPDFBlob, downloadReceiptPDF } from '../lib/receiptPDF.js';
 import { buildWhatsAppLink } from '../lib/invoiceMessage.js';
 import { logTelemetry } from '../lib/telemetry.js';
 import { generatePublicAccessToken, buildPublicReceiptUrl } from '../lib/publicReceiptToken.js';
+import { resolveBusinessIdentity } from '../lib/resolveBusinessIdentity.js';
 
 // Module-level capability check — same pattern as SendInvoiceModal.
 const SUPPORTS_FILE_SHARE =
@@ -126,13 +127,9 @@ export default function ReceiptModal({ job, biz, profile = null, onUpdate, onClo
   const token = job?.publicAccessToken || generatePublicAccessToken();
   const hostedReceiptUrl = buildPublicReceiptUrl(token);
 
-  // Build effective biz merging profile so logo_url is available everywhere.
-  const effectiveBiz = {
-    ...(biz || {}),
-    logoUrl:  biz?.logoUrl  || biz?.logo_url || profile?.logo_url || '',
-    logo_url: biz?.logo_url || biz?.logoUrl  || profile?.logo_url || '',
-    name:     biz?.name     || profile?.business_name || '',
-  };
+  // Merge biz + profile so every field saved in Settings appears on the receipt.
+  // Profile takes priority — it's always fresher than the stale localStorage biz.
+  const effectiveBiz = resolveBusinessIdentity(biz, profile);
 
   const message = buildReceiptWhatsAppMessage({ job, biz: effectiveBiz, hostedReceiptUrl });
 
@@ -217,9 +214,10 @@ export default function ReceiptModal({ job, biz, profile = null, onUpdate, onClo
           </button>
         </div>
 
-        {/* Branded receipt card */}
+        {/* Branded receipt card — passes the fully-resolved biz so address/name
+            from Settings appear in the in-app preview too. */}
         <div className="modal-sheet-body">
-          <ReceiptSummary job={job} biz={biz} />
+          <ReceiptSummary job={job} biz={effectiveBiz} />
         </div>
 
         {/* Send receipt — primary: WhatsApp */}

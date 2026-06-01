@@ -236,6 +236,7 @@ export default function PublicInvoiceView({ token }) {
     accountNumber:  profile.accountNumber || '',
     bankDetails:    profile.bankDetails   || '',
     stripePaymentLink: profile.stripePaymentLink || '',
+    utr:            profile.utrNumber     || '',
   };
 
   // Build a profile-shape object for InvoiceDocumentPreview's CIS logic.

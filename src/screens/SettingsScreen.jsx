@@ -1539,6 +1539,49 @@ export default function SettingsScreen({
     validate: validateHourlyRate,
   });
 
+  const openEditAddress = () => setActiveEdit({
+    modal: 'address',
+    fieldKey: 'address',
+    fieldLabel: 'Business address',
+    currentValue: profile?.address || '',
+    inputType: 'textarea',
+    placeholder: 'e.g. 12 Trade Lane, Manchester, M1 2AB',
+    helpText: 'Shown on invoices, quotes and receipts.',
+    validate: null,
+  });
+
+  const openEditPhone = () => setActiveEdit({
+    modal: 'phone',
+    fieldKey: 'phone',
+    fieldLabel: 'Business phone',
+    currentValue: profile?.phone || '',
+    inputType: 'tel',
+    placeholder: 'e.g. 07800 100200',
+    helpText: 'Shown next to your email on documents.',
+    validate: null,
+  });
+
+  const openEditEmail = () => setActiveEdit({
+    modal: 'email',
+    fieldKey: 'email',
+    fieldLabel: 'Business email',
+    currentValue: profile?.email || '',
+    inputType: 'email',
+    placeholder: 'e.g. you@yourbusiness.co.uk',
+    helpText: 'Shown on invoices and quotes.',
+    validate: null,
+  });
+
+  const openEditUtr = () => setActiveEdit({
+    modal: 'utr_number',
+    fieldKey: 'utr_number',
+    fieldLabel: 'UTR number',
+    currentValue: profile?.utr_number || '',
+    placeholder: 'e.g. 1234567890',
+    helpText: 'Unique Taxpayer Reference. Shown on invoices when set. Required for CIS.',
+    validate: null,
+  });
+
   const openEditVat = () => setActiveEdit({
     modal: 'vat_number',
     fieldKey: 'vat_number',
@@ -1667,6 +1710,21 @@ export default function SettingsScreen({
           onTap={openEditBusinessName}
         />
         <Row
+          label="Business address"
+          value={profile?.address ? profile.address.split(/\n|,/)[0].trim() : '—'}
+          onTap={openEditAddress}
+        />
+        <Row
+          label="Business phone"
+          value={profile?.phone || '—'}
+          onTap={openEditPhone}
+        />
+        <Row
+          label="Business email"
+          value={profile?.email || '—'}
+          onTap={openEditEmail}
+        />
+        <Row
           label="Bank details"
           value={(profile?.sort_code && profile?.account_number) ? 'Set' : '—'}
           onTap={openEditBankDetails}
@@ -1680,6 +1738,11 @@ export default function SettingsScreen({
           label="VAT"
           value={profile?.vat_number ? 'Registered' : 'Not set'}
           onTap={openEditVat}
+        />
+        <Row
+          label="UTR number"
+          value={profile?.utr_number || '—'}
+          onTap={openEditUtr}
         />
         <Row
           label="Tax set-aside %"

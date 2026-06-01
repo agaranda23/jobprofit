@@ -19,6 +19,7 @@ import { nextInvoiceNumber } from '../../lib/invoiceNumber';
 import { buildInvoiceWhatsAppMessage, buildWhatsAppLink } from '../../lib/invoiceMessage';
 import { getInvoicePDFBlob } from '../../lib/invoicePDF';
 import { getMissingInvoiceFields } from '../../lib/bizValidation';
+import { resolveBusinessIdentity } from '../../lib/resolveBusinessIdentity';
 import { canSendInvoice, UNLOCK_PRO_FOR_ALL } from '../../lib/plan';
 import { generatePublicAccessToken } from '../../lib/publicQuoteToken';
 import { buildPublicInvoiceUrl } from '../../lib/publicInvoiceToken';
@@ -698,5 +699,104 @@ describe('buildInvoiceWhatsAppMessage — partial payment balance lines', () => 
     const msg = buildInvoiceWhatsAppMessage({ job, biz: baseBiz(), invoiceNumber, dueDate });
     expect(msg).toContain('Received: £350.00');
     expect(msg).toContain('Balance: £250.00');
+  });
+});
+
+// ── resolveBusinessIdentity — profile fields reach the PDF generator ──────────
+//
+// Root-cause regression tests for the "filled in Settings but details don't
+// appear on documents" bug. The SendInvoiceModal PDF paths (share PDF, download
+// PDF) previously passed only `biz: bizWithStripe` (no `profile`), so the
+// generator's profile-fallback chain never fired.
+//
+// After the fix, SendInvoiceModal:
+//   1. Calls resolveBusinessIdentity(biz, profile) → resolvedBiz (all fields merged)
+//   2. Passes resolvedBiz as `biz` AND the raw `profile` to getInvoicePDFBlob /
+//      downloadInvoicePDF so both the send-path and the generator internals agree.
+//
+// These tests verify the resolved object carries every field the generator reads.
+
+describe('resolveBusinessIdentity — profile fields flow into SendInvoiceModal PDF path', () => {
+  // Simulate what SendInvoiceModal now does: biz is null (AppShell passes null),
+  // profile has all the data the founder entered in Settings.
+  function profileWithAllFields(overrides = {}) {
+    return {
+      business_name:  'Alan Plumbing Ltd',
+      address:        '12 Trade Street, Manchester, M1 2AB',
+      phone:          '07800 100200',
+      email:          'alan@alanplumbing.co.uk',
+      logo_url:       'https://storage.supabase.co/logos/alan.png',
+      account_name:   'Alan Aranda',
+      sort_code:      '12-34-56',
+      account_number: '12345678',
+      vat_number:     'GB123456789',
+      vat_registered: true,
+      utr_number:     '1234567890',
+      stripe_payment_link: '',
+      ...overrides,
+    };
+  }
+
+  it('name resolves from profile.business_name when biz is null', () => {
+    const resolved = resolveBusinessIdentity(null, profileWithAllFields());
+    expect(resolved.name).toBe('Alan Plumbing Ltd');
+  });
+
+  it('address resolves from profile.address when biz is null', () => {
+    const resolved = resolveBusinessIdentity(null, profileWithAllFields());
+    expect(resolved.address).toBe('12 Trade Street, Manchester, M1 2AB');
+  });
+
+  it('phone resolves from profile.phone when biz is null', () => {
+    const resolved = resolveBusinessIdentity(null, profileWithAllFields());
+    expect(resolved.phone).toBe('07800 100200');
+  });
+
+  it('email resolves from profile.email when biz is null', () => {
+    const resolved = resolveBusinessIdentity(null, profileWithAllFields());
+    expect(resolved.email).toBe('alan@alanplumbing.co.uk');
+  });
+
+  it('sortCode resolves from profile.sort_code when biz is null', () => {
+    const resolved = resolveBusinessIdentity(null, profileWithAllFields());
+    expect(resolved.sortCode).toBe('12-34-56');
+  });
+
+  it('accountNumber resolves from profile.account_number when biz is null', () => {
+    const resolved = resolveBusinessIdentity(null, profileWithAllFields());
+    expect(resolved.accountNumber).toBe('12345678');
+  });
+
+  it('vatNumber resolves from profile.vat_number when biz is null', () => {
+    const resolved = resolveBusinessIdentity(null, profileWithAllFields());
+    expect(resolved.vatNumber).toBe('GB123456789');
+  });
+
+  it('vatRegistered resolves from profile.vat_registered when biz is null', () => {
+    const resolved = resolveBusinessIdentity(null, profileWithAllFields());
+    expect(resolved.vatRegistered).toBe(true);
+  });
+
+  it('utr resolves from profile.utr_number when biz is null', () => {
+    const resolved = resolveBusinessIdentity(null, profileWithAllFields());
+    expect(resolved.utr).toBe('1234567890');
+  });
+
+  it('logoUrl resolves from profile.logo_url when biz is null', () => {
+    const resolved = resolveBusinessIdentity(null, profileWithAllFields());
+    expect(resolved.logoUrl).toBe('https://storage.supabase.co/logos/alan.png');
+  });
+
+  it('getInvoicePDFBlob does not throw when biz is null and profile has all fields', async () => {
+    const resolved = resolveBusinessIdentity(null, profileWithAllFields());
+    const blob = await getInvoicePDFBlob({
+      job: baseJob(),
+      biz: resolved,
+      profile: profileWithAllFields(),
+      invoiceNumber: 'JP-0099',
+      dueDate: '2026-07-01',
+    });
+    expect(blob).toBeInstanceOf(Blob);
+    expect(blob.size).toBeGreaterThan(1000);
   });
 });
