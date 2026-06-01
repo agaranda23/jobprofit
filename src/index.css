@@ -6659,6 +6659,15 @@ input[type=number] { -moz-appearance: textfield; }
   cursor: crosshair;
 }
 
+/* On short viewports (e.g. iPhone SE, landscape) reduce the canvas so the
+   pad + sticky action buttons fit without excessive scrolling. The sticky
+   buttons are the primary fix; this is a secondary comfort improvement. */
+@media (max-height: 700px) {
+  .sig-pad-canvas {
+    height: 130px;
+  }
+}
+
 .sig-pad-placeholder {
   position: absolute;
   inset: 0;
@@ -6671,10 +6680,20 @@ input[type=number] { -moz-appearance: textfield; }
   user-select: none;
 }
 
+/* Sticky to bottom so the buttons are never hidden behind the iOS Safari
+   floating URL bar. Solid white background prevents the canvas drawing
+   area from bleeding through. padding-bottom accounts for the device's
+   safe-area-inset-bottom (home indicator bar on Face ID iPhones). */
 .sig-pad-actions {
   display: flex;
   gap: 8px;
   align-items: center;
+  position: sticky;
+  bottom: 0;
+  background: #ffffff;
+  padding: 12px 0 calc(12px + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid #e5e7eb;
+  margin-top: 12px;
 }
 
 .sig-pad-btn-clear  { flex: 0 0 auto; }
@@ -6734,14 +6753,18 @@ input[type=number] { -moz-appearance: textfield; }
 
 /* ── PublicQuoteView — /q/<token> ─────────────────────────────────────────── */
 
-/* Full-page wrapper: centres card on desktop, full-width on phone */
+/* Full-page wrapper: centres card on desktop, full-width on phone.
+   Bottom padding uses 96px + safe-area-inset-bottom to ensure content
+   can scroll fully clear of the iOS Safari floating URL bar (~60-90px).
+   safe-area-inset-bottom alone is not enough — the Safari toolbar is not
+   a safe area inset, so we add an explicit 96px buffer on top of it. */
 .pqv-wrap {
   min-height: 100dvh;
   background: var(--bg, #f5f5f5);
   display: flex;
   justify-content: center;
   align-items: flex-start;
-  padding: 24px 16px 48px;
+  padding: 24px 16px calc(96px + env(safe-area-inset-bottom, 0px));
   box-sizing: border-box;
 }
 
@@ -7048,11 +7071,20 @@ input[type=number] { -moz-appearance: textfield; }
   margin-top: 8px;
 }
 
-/* Confirm-actions row: Redo + Submit side by side, full-width, min 44px touch */
+/* Confirm-actions row: Redo + Submit side by side, full-width, min 44px touch.
+   Sticky to bottom so the Submit button is never hidden behind the iOS Safari
+   floating URL bar. White background + top border prevents the preview image
+   from bleeding through when the user scrolls. padding-bottom accounts for the
+   safe-area-inset-bottom (home indicator on Face ID iPhones). */
 .pqv-sign-confirm-actions {
   display: flex;
   gap: 12px;
   margin-top: 20px;
+  position: sticky;
+  bottom: 0;
+  background: #ffffff;
+  padding: 12px 0 calc(12px + env(safe-area-inset-bottom, 0px));
+  border-top: 1px solid #e5e7eb;
 }
 .pqv-sign-confirm-actions > * {
   flex: 1;
