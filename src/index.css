@@ -4329,6 +4329,20 @@ input[type=number] { -moz-appearance: textfield; }
   flex-shrink: 0;
   /* Brand-green ring — 2px gap then 2px ring */
   box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--jp-green);
+  overflow: hidden;
+}
+/* Logo variant — keeps the ring but replaces the gradient fill with white
+   so the logo image sits on a neutral background. object-fit: contain
+   shows the full logo without cropping; most trade logos are landscape. */
+.settings-avatar--logo {
+  background: var(--surface-2, #f5f5f5);
+}
+.settings-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 50%;
+  display: block;
 }
 .settings-identity-text { flex: 1; min-width: 0; }
 .settings-identity-name {
@@ -6355,6 +6369,16 @@ input[type=number] { -moz-appearance: textfield; }
 .invoice-preview-toggle:hover,
 .invoice-preview-toggle:active {
   background: rgba(43, 196, 138, 0.08);
+}
+
+/* Subtle loading hint shown only when generating a dynamic Pay-now link and
+   no static fallback link is available. Keeps the modal unblocked in all
+   other cases. */
+.invoice-paynow-loading {
+  font-size: 12px;
+  color: var(--text-dim);
+  text-align: center;
+  padding: 6px 0 2px;
 }
 
 /* WhatsApp primary send button — brand green, full width, tall touch target */
