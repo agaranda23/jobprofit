@@ -786,11 +786,9 @@ body {
 
 /* Paid-status chip strip */
 .aj-chip-label {
-  font-size: 12px;
+  font-size: 15px;
   color: var(--text-dim);
   font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
   margin: 14px 0 6px;
 }
 .aj-chip-strip {
@@ -803,14 +801,17 @@ body {
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: 999px;
-  padding: 8px 16px;
+  padding: 10px 16px;
   font-size: 14px;
   font-weight: 500;
   color: var(--text-dim);
   cursor: pointer;
   transition: background 0.15s, color 0.15s, border-color 0.15s;
-  min-height: 40px;
+  min-height: 48px;
   line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .aj-chip:active { transform: scale(0.97); }
 .aj-chip--on {
@@ -898,7 +899,7 @@ body {
   font-size: 13px;
 }
 
-/* "Add details" link below Save */
+/* "Add details" link below Save — kept for any legacy reference; replaced by aj-details-btn */
 .aj-details-link {
   display: block;
   width: 100%;
@@ -914,7 +915,120 @@ body {
   text-underline-offset: 3px;
 }
 
-/* Subtitle in the details view */
+/* Stage 1 → Stage 2 bordered secondary button */
+.aj-details-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  background: none;
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 600;
+  font-family: inherit;
+  padding: 14px 16px;
+  margin-top: 10px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  min-height: 52px;
+}
+.aj-details-btn:active {
+  background: var(--surface-2);
+  border-color: var(--accent);
+}
+.aj-details-btn-plus {
+  color: var(--accent);
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1;
+}
+.aj-details-btn-arrow {
+  color: var(--text-dim);
+  font-size: 16px;
+}
+
+/* "Say it instead" voice row — explicit tap only, no auto-arm */
+.aj-say-it-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 14px;
+  font-weight: 500;
+  font-family: inherit;
+  padding: 14px 0 8px;
+  cursor: pointer;
+  min-height: 48px;
+}
+.aj-say-it-row:active { opacity: 0.7; }
+.aj-say-it-mic { font-size: 18px; }
+.aj-say-it-label { text-decoration: underline; text-underline-offset: 3px; }
+
+/* 2-dot stepper (● ○ Stage 1 / ● ● Stage 2) */
+.aj-stepper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin: 2px 0 10px;
+}
+.aj-stepper-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--border);
+  display: inline-block;
+}
+.aj-stepper-dot--on {
+  background: var(--accent);
+}
+
+/* Directional prompt on Stage 1 */
+.aj-capture-prompt {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text);
+  margin: 4px 0 0;
+  text-align: left;
+}
+
+/* Back button in Stage 2 header */
+.aj-back-btn {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 20px;
+  padding: 4px 8px 4px 0;
+  cursor: pointer;
+  line-height: 1;
+  min-width: 36px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}
+.aj-back-btn:active { opacity: 0.7; }
+
+/* Stage 1 carry-forward summary chip in Stage 2 */
+.aj-stage1-summary {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-dim);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 12px;
+  margin: 0 0 12px;
+  text-align: center;
+}
+
+/* Subtitle in the details view — kept for any legacy reference */
 .aj-details-sub {
   font-size: 13px;
   color: var(--text-dim);
@@ -922,7 +1036,7 @@ body {
   text-align: center;
 }
 
-/* Mic shortcut icon in the micro-log header */
+/* Mic shortcut icon in the micro-log header — kept; class no longer rendered but CSS stays */
 .aj-mic-shortcut {
   background: none;
   border: none;

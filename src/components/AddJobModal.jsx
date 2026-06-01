@@ -43,18 +43,25 @@ function isOnline() {
 }
 
 export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMode, onSaveAndSend }) {
-  // 'micro'    — Two-Tap Micro-Log (new default entry)
-  // 'details'  — full Direction A form (reached via "+ Add details" link)
+  // 'micro'    — Stage 1: fast capture (amount + paid-by + Save it)
+  // 'details'  — Stage 2: full form (name, customer, date, more options)
   // 'quote'    — Create-quote surface: voice OR type, summary + total + optional line items
   // Voice sub-states within 'details' and 'quote': 'listening' | 'parsing' | 'confirm' | 'manual'
   //
-  // defaultMode="voice"  — mounts into 'details', auto-starts voice immediately.
-  // defaultMode="quote"  — mounts into 'quote', auto-starts voice immediately.
-  // No prop (or 'micro') — default 'micro' keypad view.
+  // defaultMode="voice"  — mounts into 'details', starts voice immediately (user tapped mic on Today).
+  // defaultMode="quote"  — mounts into 'quote', starts voice immediately.
+  // No prop (or 'micro') — default 'micro' keypad view (Stage 1).
   const [view, setView] = useState(
     defaultMode === 'voice' ? 'details' :
     defaultMode === 'quote' ? 'quote'   : 'micro'
   );
+
+  // When the user navigates from Stage 1 to Stage 2 via the "+ Add the details →" button,
+  // we do NOT want voice to auto-start (building-site noise). This ref tracks whether the
+  // entry into details was an explicit voice request (defaultMode="voice") vs a manual nav.
+  // true  = voice was explicitly requested on mount → auto-start is allowed once.
+  // false = user navigated from micro → no auto-start.
+  const voiceEntryExplicit = useRef(defaultMode === 'voice');
 
   // ── Shared field state (micro + details share these) ──────────────────────
   const [amount, setAmount]           = useState('');
@@ -87,7 +94,7 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMo
   const hasAutoStartedQuote = useRef(false);
 
   // ── Voice state (active in 'details' and 'quote' views) ───────────────────
-  const [voiceStatus, setVoiceStatus]       = useState('listening');
+  const [voiceStatus, setVoiceStatus]       = useState('idle');
   const [transcript, setTranscript]         = useState('');
   const [retryCount, setRetryCount]         = useState(0);
   // showParsingSpinner: only true when parsing has taken >400ms — avoids a
@@ -310,10 +317,14 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMo
     onSaveAndSend?.(payload);
   };
 
-  // Auto-start voice only when entering the 'details' view.
+  // Auto-start voice only when entering the 'details' view via an explicit voice
+  // entry (defaultMode="voice"). When the user navigates here from Stage 1 via
+  // the "+ Add the details →" button, voiceEntryExplicit.current is false and
+  // voice does NOT auto-start — building sites are noisy.
   useEffect(() => {
     if (view !== 'details') return;
     if (hasAutoStarted.current) return;
+    if (!voiceEntryExplicit.current) return;
     hasAutoStarted.current = true;
     startListening();
     return () => { try { recogRef.current?.abort(); } catch {} };
@@ -542,6 +553,18 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMo
     return `Save · paid by ${paymentChip}`;
   };
 
+  // Compact summary of Stage 1 values carried into Stage 2 header.
+  // e.g. "£380 · Cash" or "£380" or "No amount yet"
+  const stage1Summary = () => {
+    const amtLabel = amount.trim() ? `£${amount}` : null;
+    const chipLabel = paymentChip !== 'awaiting'
+      ? PAYMENT_CHIPS.find(c => c.id === paymentChip)?.label
+      : null;
+    if (amtLabel && chipLabel) return `${amtLabel} · ${chipLabel}`;
+    if (amtLabel) return amtLabel;
+    return 'No amount yet';
+  };
+
   // ─────────────────────────────────────────────────────────────────────────
   // Render
   // ─────────────────────────────────────────────────────────────────────────
@@ -550,7 +573,7 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMo
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal modal-tall" onClick={e => e.stopPropagation()}>
 
-        {/* ══ MICRO-LOG VIEW (default entry) ════════════════════════════════ */}
+        {/* ══ STAGE 1 — MICRO-LOG VIEW (default entry) ══════════════════════ */}
         {view === 'micro' && (
           <>
             <div className="aj-header">
@@ -560,25 +583,17 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMo
                   <span className="aj-offline-pill" aria-label="Offline">⚡ Offline</span>
                 )}
               </h3>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                {/* Voice shortcut — secondary, not the default */}
-                {SR && isOnline() && (
-                  <button
-                    className="aj-mic-shortcut"
-                    aria-label="Use voice instead"
-                    title="Use voice"
-                    type="button"
-                    onClick={() => {
-                      setView('details');
-                      // hasAutoStarted is still false at this point → voice will auto-start
-                    }}
-                  >
-                    🎤
-                  </button>
-                )}
-                <button className="aj-close-btn" onClick={onClose} aria-label="Close">✕</button>
-              </div>
+              <button className="aj-close-btn" onClick={onClose} aria-label="Close">✕</button>
             </div>
+
+            {/* 2-dot stepper: ● ○ = Stage 1 of 2 */}
+            <div className="aj-stepper" aria-label="Step 1 of 2">
+              <span className="aj-stepper-dot aj-stepper-dot--on" aria-hidden="true" />
+              <span className="aj-stepper-dot" aria-hidden="true" />
+            </div>
+
+            {/* Directional prompt — the screen asks, not just presents a field */}
+            <p className="aj-capture-prompt">How much did you charge?</p>
 
             {!isOnline() && (
               <p className="aj-offline-hint">No signal — voice off. Type the amount instead.</p>
@@ -616,32 +631,77 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMo
 
             {error && <p className="modal-error">{error}</p>}
 
+            {/* Primary action — thumb-default for the fast 2-tap logger */}
             <button
               className="btn-primary btn-large aj-save-btn"
               onClick={saveMicro}
             >
-              Save
+              Save it
             </button>
 
+            {/* Secondary — real bordered button, not a faint text link */}
             <button
-              className="aj-details-link"
+              className="aj-details-btn"
               type="button"
-              onClick={() => setView('details')}
+              onClick={() => {
+                // voiceEntryExplicit stays false — voice does NOT auto-start
+                setView('details');
+              }}
             >
-              + Add details (name, customer, when)
+              <span className="aj-details-btn-plus">+</span> Add the details <span className="aj-details-btn-arrow">→</span>
             </button>
+
+            {/* Voice entry row — explicit tap only, no auto-arm */}
+            {SR && isOnline() && (
+              <button
+                className="aj-say-it-row"
+                type="button"
+                aria-label="Say it instead — use voice"
+                onClick={() => {
+                  // Mark as explicit voice entry so auto-start fires once
+                  voiceEntryExplicit.current = true;
+                  setView('details');
+                }}
+              >
+                <span className="aj-say-it-mic" aria-hidden="true">🎤</span>
+                <span className="aj-say-it-label">Say it instead</span>
+              </button>
+            )}
           </>
         )}
 
-        {/* ══ DETAILS VIEW (full Direction A form) ══════════════════════════ */}
+        {/* ══ STAGE 2 — DETAILS VIEW (full Direction A form) ════════════════ */}
         {view === 'details' && (
           <>
             <div className="aj-header">
+              {/* Back arrow — returns to Stage 1 with values preserved */}
+              <button
+                className="aj-back-btn"
+                type="button"
+                onClick={() => {
+                  // Stop any active mic before going back
+                  try { recogRef.current?.abort(); } catch {} // eslint-disable-line no-empty
+                  voiceEntryExplicit.current = false;
+                  setView('micro');
+                }}
+                aria-label="Back to Step 1"
+              >
+                ←
+              </button>
               <h3 className="modal-title">Add details</h3>
               <button className="aj-close-btn" onClick={onClose} aria-label="Close">✕</button>
             </div>
 
-            <p className="aj-details-sub">Add name, customer, and date</p>
+            {/* 2-dot stepper: ● ● = Stage 2 of 2 */}
+            <div className="aj-stepper" aria-label="Step 2 of 2">
+              <span className="aj-stepper-dot aj-stepper-dot--on" aria-hidden="true" />
+              <span className="aj-stepper-dot aj-stepper-dot--on" aria-hidden="true" />
+            </div>
+
+            {/* Compact carry-forward summary so the user knows their Stage 1 data is safe */}
+            <div className="aj-stage1-summary" aria-label="Values from step 1">
+              {stage1Summary()}
+            </div>
 
             {/* ── Voice: listening state ── */}
             {voiceStatus === 'listening' && (
