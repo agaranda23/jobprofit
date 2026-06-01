@@ -13,6 +13,12 @@
  *   3. The panel overflow is always 'hidden' regardless of expanded state.
  *   4. Toggling expanded state flips maxHeight between '0' and '2000px'.
  *   5. needsAttention forcing expansion is correctly computed.
+ *   6. CSS regression guard — .jd-csr does NOT have overflow:hidden.
+ *      This was the root cause of the 4th drawer-expansion regression (June 2026):
+ *      overflow:hidden on .jd-csr caused iOS Safari / PWA WebKit to hold the
+ *      container at its pre-expansion height and clip the panel content. This test
+ *      will fail if overflow:hidden is re-added to .jd-csr, catching the regression
+ *      at CI time rather than silently in production.
  *
  * These are the exact expressions in CollapsedSectionRow.jsx. If the component
  * changes the logic, these tests break — catching the regression.
@@ -22,6 +28,12 @@
  * the physical tap test at 375px.
  */
 import { describe, it, expect } from 'vitest';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // ── Mirror the exact initialisation logic from CollapsedSectionRow.jsx ────────
 
@@ -127,5 +139,77 @@ describe('CollapsedSectionRow — toggle logic', () => {
   it('maxHeight after toggle from expanded is "0"', () => {
     const afterToggle = toggle(true); // was expanded, now collapsed
     expect(panelStyle(afterToggle).maxHeight).toBe('0');
+  });
+});
+
+// ── CSS regression guard — .jd-csr must NOT have overflow:hidden ──────────────
+//
+// Root cause of the 4th drawer-expansion regression (June 2026):
+//
+//   overflow:hidden on .jd-csr caused iOS Safari / PWA WebKit to hold the
+//   container element at its pre-expansion height and clip the max-height
+//   panel transition. Result: Schedule / Quote / Costs sections appeared
+//   to tap correctly (JS state did flip) but the content was clipped to 0px
+//   visible height. Three prior animation approaches (scrollHeight JS, CSS
+//   grid-template-rows, max-height) all failed for the same root cause.
+//
+//   Fix: remove overflow:hidden from .jd-csr. The property was placed there
+//   to clip the tap-highlight to the border-radius corners, but:
+//     - .jd-csr-row already sets -webkit-tap-highlight-color: transparent
+//     - The :active style is opacity:0.65, not a background-color change
+//     - .jd-csr-row has background:none — nothing to clip
+//   So overflow:hidden was serving no purpose while silently breaking expand.
+//
+//   These tests read the live CSS file to detect if overflow:hidden is
+//   re-added to .jd-csr in a future refactor. They will fail at CI time
+//   rather than silently in production.
+//
+// What "overflow:hidden absent from .jd-csr rule" means:
+//   The CSS block that starts with ".jd-csr {" must not contain
+//   "overflow: hidden" (or "overflow:hidden") before the closing brace.
+
+const CSS_PATH = path.resolve(__dirname, '../../../src/index.css');
+
+function extractJdCsrBlock(cssText) {
+  // Find the .jd-csr { ... } block (not .jd-csr-- variants, not .jd-csr-row etc.)
+  // Strategy: find the exact selector ".jd-csr {" then grab everything up to
+  // the matching closing brace (accounting for single-depth nesting only — the
+  // .jd-csr rule has no at-rule nesting in our CSS).
+  const markerIdx = cssText.indexOf('\n.jd-csr {');
+  if (markerIdx === -1) return null;
+  const blockStart = markerIdx + 1; // skip the leading newline
+  const openBrace = cssText.indexOf('{', blockStart);
+  if (openBrace === -1) return null;
+  const closeBrace = cssText.indexOf('}', openBrace);
+  if (closeBrace === -1) return null;
+  return cssText.slice(blockStart, closeBrace + 1);
+}
+
+describe('CSS regression guard — .jd-csr overflow (4th expansion regression)', () => {
+  const cssText = fs.readFileSync(CSS_PATH, 'utf8');
+  const jdCsrBlock = extractJdCsrBlock(cssText);
+
+  it('CSS file contains a .jd-csr { } rule (sanity check — guard is not vacuously true)', () => {
+    expect(jdCsrBlock).not.toBeNull();
+    expect(jdCsrBlock).toContain('.jd-csr');
+  });
+
+  it('.jd-csr rule does NOT have an active overflow:hidden declaration (root cause of expansion regression)', () => {
+    // overflow:hidden on .jd-csr clips the max-height panel in iOS Safari PWA.
+    // This test will fail if overflow:hidden is re-added as an active rule —
+    // ensuring the regression is caught at CI time rather than silently in production.
+    //
+    // We strip CSS comments (/* ... */) before checking so that the
+    // "overflow: hidden REMOVED" comment in the CSS does not false-fire.
+    const blockWithoutComments = jdCsrBlock.replace(/\/\*[\s\S]*?\*\//g, '');
+    expect(blockWithoutComments).not.toMatch(/overflow\s*:\s*hidden/);
+  });
+
+  it('.jd-csr rule still has border-radius:12px (visual chrome preserved after fix)', () => {
+    expect(jdCsrBlock).toMatch(/border-radius\s*:\s*12px/);
+  });
+
+  it('.jd-csr rule still has min-height:48px (thin-line regression guard preserved)', () => {
+    expect(jdCsrBlock).toMatch(/min-height\s*:\s*48px/);
   });
 });

@@ -8522,7 +8522,14 @@ input[type=number] { -moz-appearance: textfield; }
   background: var(--surface-raised, #142035);
   border: 1px solid var(--border);
   border-radius: 12px;
-  overflow: hidden; /* clip the row's tap highlight to the rounded corners */
+  /* overflow: hidden REMOVED — it prevented the max-height accordion panel from
+     expanding in iOS Safari / PWA WebKit environments. The browser holds the
+     container at its pre-expansion height and clips the revealed content.
+     Safe to remove because:
+       1. .jd-csr-row already sets -webkit-tap-highlight-color: transparent
+       2. The :active state is opacity-based, not background-based
+       3. .jd-csr-row has background: none — nothing to clip at border-radius corners
+     Rounded corners on the container background are preserved by border-radius alone. */
   /* Guard: if the inner button loses height (e.g. box-sizing interaction),
      the container must not collapse to just its 2px of border (the "thin line"
      regression). The button's own min-height:48px is the primary constraint;

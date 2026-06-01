@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v36';  // bumped from v35: fix notificationclick navigate for chase-reminder deep-links
+const CACHE_NAME = 'jobprofit-v37';  // bumped from v36: fix drawer accordion expand (remove overflow:hidden from .jd-csr)
 const PRECACHE = [
   '/',
   '/index.html',
