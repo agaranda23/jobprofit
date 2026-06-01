@@ -2775,6 +2775,7 @@ export default function JobDetailDrawer({
                 onMarkAsPaid={() => {
                   const balance = computeBalance(job);
                   if (balance > 0) {
+                    logTelemetry('mark_paid', { source: 'job_drawer' });
                     onAddPayment(job, {
                       amount: balance,
                       date: new Date().toISOString().slice(0, 10),

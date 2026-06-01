@@ -32,6 +32,7 @@
 import { useMemo, useState, useCallback } from 'react';
 import { gbp, todayKey } from '../lib/today';
 import { isPro } from '../lib/plan';
+import { logTelemetry } from '../lib/telemetry';
 import HeaderAvatar from '../components/HeaderAvatar';
 import CashflowChart from '../components/CashflowChart';
 import ProGate from '../components/ProGate';
@@ -57,6 +58,7 @@ import {
 const MARGIN_NUDGE_THRESHOLD_PCT = 10;
 
 function openUpgrade() {
+  logTelemetry('upgrade_clicked', { source: 'upgrade_banner' });
   startCheckout().catch(() => {});
 }
 

@@ -187,6 +187,7 @@ export default function SendInvoiceModal({
     // Hard-stop backstop for £0 invoices — belt-and-suspenders behind the UI banner.
     if (isUnpriced) return false;
     if (isFirstSend && !canSendInvoice(profile)) {
+      logTelemetry('paywall_viewed', { source: 'invoice_send', plan: profile?.plan ?? 'free' });
       setView('paywall');
       return false;
     }
