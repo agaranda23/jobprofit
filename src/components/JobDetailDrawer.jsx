@@ -134,10 +134,13 @@ const STATUS_CLASS = {
 // ── Section components (inline — not extracted until legacy JobDetail is fully split) ──
 
 /**
- * Full-screen photo lightbox — tap anywhere to close.
- * Mirrors the PhotoModal in App.jsx (kept inline to avoid cross-file dep on the monolith).
+ * Full-screen photo lightbox — tap the backdrop to close.
+ * When `receipt` and `onEdit` are provided (receipt row tap path), shows a
+ * details bar at the bottom with label, amount, date, and an Edit button.
+ * For receipts with no photo the row opens the edit sheet directly — this
+ * component is never rendered with an empty src.
  */
-function PhotoLightbox({ src, onClose }) {
+function PhotoLightbox({ src, onClose, receipt, onEdit }) {
   if (!src) return null;
   return (
     <div
@@ -148,6 +151,42 @@ function PhotoLightbox({ src, onClose }) {
       aria-modal="true"
     >
       <img src={src} alt="" className="photo-lightbox-img" />
+
+      {receipt && (
+        <div
+          className="photo-lightbox-receipt-bar"
+          onClick={e => e.stopPropagation()}
+        >
+          <div className="photo-lightbox-receipt-meta">
+            <span className="photo-lightbox-receipt-label">{receipt.label || 'Receipt'}</span>
+            {receipt.date && (
+              <span className="photo-lightbox-receipt-date">
+                {(() => {
+                  try {
+                    const d = receipt.date.length === 10
+                      ? new Date(receipt.date + 'T00:00:00')
+                      : new Date(receipt.date);
+                    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+                  } catch { return receipt.date; }
+                })()}
+              </span>
+            )}
+            <span className="photo-lightbox-receipt-amount">
+              {`£${(Number(receipt.amount || 0)).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+            </span>
+          </div>
+          {onEdit && (
+            <button
+              type="button"
+              className="photo-lightbox-edit-btn"
+              onClick={() => { onClose(); onEdit(receipt); }}
+              aria-label="Edit receipt"
+            >
+              Edit
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -1071,7 +1110,19 @@ function QuoteBreakdownSection({
  * Returns { pillChip: ReactElement | null, section: ReactElement | null } so the
  * parent can group all empty-section pills together on one row.
  */
-function ReceiptsSection({ job, receipts, onViewPhoto, onAddReceipt, onDeleteReceipt, onEditReceipt }) {
+/**
+ * ReceiptsSection — receipts linked to this job via jobId.
+ *
+ * Row tap behaviour (unified):
+ *   - Receipt HAS a photo → row tap opens PhotoLightbox with label/amount/date
+ *     detail bar and an Edit button (via onReceiptRowTap).
+ *   - Receipt has NO photo → row tap opens the edit sheet directly (same as before).
+ *   - The × delete button is independent and unaffected.
+ *
+ * The old separate thumbnail-tap-to-enlarge is removed — the row tap now does
+ * the right thing for both photo and no-photo receipts.
+ */
+function ReceiptsSection({ job, receipts, onAddReceipt, onDeleteReceipt, onEditReceipt, onReceiptRowTap }) {
   // receipts shape from getTodayReceipts: { id, label, amount, photo, date, jobId, imagePath }
   // Match on both string UUID (cloud) and legacy integer-style IDs
   const jobReceipts = receipts.filter(r => {
@@ -1082,25 +1133,37 @@ function ReceiptsSection({ job, receipts, onViewPhoto, onAddReceipt, onDeleteRec
   // Nothing to show and no handler — render nothing
   if (jobReceipts.length === 0 && !onAddReceipt) return null;
 
+  const handleRowTap = (r) => {
+    if (r.photo) {
+      // Has photo: open lightbox with receipt details overlaid
+      onReceiptRowTap?.(r);
+    } else if (onEditReceipt) {
+      // No photo: go straight to edit/detail sheet
+      onEditReceipt(r);
+    }
+  };
+  const isRowTappable = !!(onReceiptRowTap || onEditReceipt);
+
   const receiptRows = jobReceipts.map(r => (
     <div
       key={r.id}
-      className={`jd-receipt-row${onEditReceipt ? ' jd-receipt-row--tappable' : ''}`}
-      onClick={onEditReceipt ? () => onEditReceipt(r) : undefined}
-      role={onEditReceipt ? 'button' : undefined}
-      tabIndex={onEditReceipt ? 0 : undefined}
-      onKeyDown={onEditReceipt ? e => { if (e.key === 'Enter' || e.key === ' ') onEditReceipt(r); } : undefined}
-      aria-label={onEditReceipt ? `Edit receipt ${r.label || 'Receipt'}` : undefined}
+      className={`jd-receipt-row${isRowTappable ? ' jd-receipt-row--tappable' : ''}`}
+      onClick={isRowTappable ? () => handleRowTap(r) : undefined}
+      role={isRowTappable ? 'button' : undefined}
+      tabIndex={isRowTappable ? 0 : undefined}
+      onKeyDown={isRowTappable ? e => { if (e.key === 'Enter' || e.key === ' ') handleRowTap(r); } : undefined}
+      aria-label={
+        r.photo
+          ? `View ${r.label || 'Receipt'} — tap to enlarge`
+          : isRowTappable
+          ? `Edit receipt ${r.label || 'Receipt'}`
+          : undefined
+      }
     >
       {r.photo ? (
-        <button
-          type="button"
-          className="jd-receipt-thumb-btn"
-          onClick={e => { e.stopPropagation(); onViewPhoto(r.photo); }}
-          aria-label="View receipt photo"
-        >
+        <div className="jd-receipt-icon" aria-hidden="true">
           <img src={r.photo} alt="" className="jd-receipt-thumb" />
-        </button>
+        </div>
       ) : (
         <div className="jd-receipt-icon" aria-hidden="true">🧾</div>
       )}
@@ -1109,7 +1172,7 @@ function ReceiptsSection({ job, receipts, onViewPhoto, onAddReceipt, onDeleteRec
         {r.date && <div className="jd-receipt-date">{fmtDate(r.date)}</div>}
       </div>
       <div className="jd-receipt-right">
-        {onEditReceipt && <span className="jd-receipt-chevron" aria-hidden="true">›</span>}
+        {isRowTappable && <span className="jd-receipt-chevron" aria-hidden="true">›</span>}
         <div className="jd-receipt-amount">{gbp(r.amount || 0)}</div>
         {onDeleteReceipt && (
           <button
@@ -1835,6 +1898,9 @@ export default function JobDetailDrawer({
   const [receiptModalOpen, setReceiptModalOpen] = useState(false);
   const [sigPadOpen, setSigPadOpen] = useState(false);
   const [lightboxSrc, setLightboxSrc] = useState(null);
+  // When the lightbox was opened from a receipt row, store the receipt object
+  // so the lightbox can show its label/amount/date and wire an Edit button.
+  const [lightboxReceipt, setLightboxReceipt] = useState(null);
   const [toast, setToast] = useState(null);
   const [kebabOpen, setKebabOpen] = useState(false);
   const kebabRef = useRef(null);
@@ -1899,7 +1965,7 @@ export default function JobDetailDrawer({
   useEffect(() => {
     const onKey = (e) => {
       if (e.key === 'Escape') {
-        if (lightboxSrc) { setLightboxSrc(null); return; }
+        if (lightboxSrc) { setLightboxSrc(null); setLightboxReceipt(null); return; }
         if (kebabOpen) { setKebabOpen(false); return; }
         if (editingField) { setEditingField(null); return; }
         if (editingNote) { setEditingNote(null); return; }
@@ -2885,10 +2951,12 @@ export default function JobDetailDrawer({
               <ReceiptsSection
                 job={job}
                 receipts={receipts}
-                onViewPhoto={setLightboxSrc}
                 onAddReceipt={onAddReceipt ? () => setReceiptModalOpen(true) : undefined}
                 onDeleteReceipt={onDeleteReceipt ? handleDeleteReceipt : undefined}
                 onEditReceipt={onUpdateJob ? setEditingReceipt : undefined}
+                onReceiptRowTap={onUpdateJob
+                  ? (r) => { setLightboxSrc(r.photo); setLightboxReceipt(r); }
+                  : undefined}
               />
             );
 
@@ -3194,8 +3262,15 @@ export default function JobDetailDrawer({
         receipts={receipts}
       />
 
-      {/* Photo lightbox — sits on top of everything */}
-      <PhotoLightbox src={lightboxSrc} onClose={() => setLightboxSrc(null)} />
+      {/* Photo lightbox — sits on top of everything.
+          When opened from a receipt row, receipt + onEdit are passed so the
+          lightbox shows label/amount/date and an Edit action. */}
+      <PhotoLightbox
+        src={lightboxSrc}
+        onClose={() => { setLightboxSrc(null); setLightboxReceipt(null); }}
+        receipt={lightboxReceipt}
+        onEdit={lightboxReceipt && onUpdateJob ? setEditingReceipt : undefined}
+      />
 
       {/* SignaturePad modal — sits above the drawer; uses modal-backdrop--top (z-index 1100) */}
       {sigPadOpen && (

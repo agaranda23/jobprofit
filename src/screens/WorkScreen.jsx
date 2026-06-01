@@ -1522,7 +1522,7 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
           onActionRedirect={handleActionRedirect}
         />
       ) : (
-        <WorkCalendar jobs={visibleJobs} onNewJobOnDate={onNewJob} />
+        <WorkCalendar jobs={visibleJobs} onNewJobOnDate={onNewJob} onJobTap={setSelectedJob} />
       )}
 
       {/* Job detail drawer — wrapped in an error boundary so a render crash

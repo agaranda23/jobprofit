@@ -911,6 +911,10 @@ export default function AppShell() {
               profile={profile}
               onAvatarClick={() => setDrawerOpen(true)}
               onAddJob={openDetailed}
+              onJobTap={(job) => {
+                if (job?.id) setPendingJobId(job.id);
+                navigate('work');
+              }}
             />
           )}
 

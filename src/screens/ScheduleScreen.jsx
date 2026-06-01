@@ -8,7 +8,7 @@ import HeaderAvatar from '../components/HeaderAvatar';
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-export default function ScheduleScreen({ jobs = [], session, profile, onAvatarClick, onAddJob }) {
+export default function ScheduleScreen({ jobs = [], session, profile, onAvatarClick, onAddJob, onJobTap }) {
   const week = buildWeek();
   const jobsByDay = groupJobsByDay(jobs, week);
 
@@ -44,14 +44,21 @@ export default function ScheduleScreen({ jobs = [], session, profile, onAvatarCl
                   </button>
                 ) : (
                   dayJobs.map(j => (
-                    <div key={j.id || j.cloudId} className="schedule-slot">
+                    <button
+                      key={j.id || j.cloudId}
+                      type="button"
+                      className="schedule-slot"
+                      onClick={() => onJobTap?.(j)}
+                      aria-label={`Open ${j.customer || j.name || 'Job'}`}
+                      style={{ minHeight: 44, width: '100%', textAlign: 'left', cursor: 'pointer', background: 'none', border: 'none', padding: 0 }}
+                    >
                       <span className="schedule-slot-time">
                         {j.scheduledStart || ''}
                       </span>
                       <span className="schedule-slot-title">
                         {j.customer || j.name || 'Job'}
                       </span>
-                    </div>
+                    </button>
                   ))
                 )}
               </div>

@@ -66,9 +66,11 @@ export function sortJobsByStage(jobs, stage) {
       break;
     case 'On':
       sorted.sort((a, b) => {
-        const aDate = new Date(a.updatedAt || a.createdAt || 0);
-        const bDate = new Date(b.updatedAt || b.createdAt || 0);
-        return bDate - aDate; // most recently touched first
+        // Prefer the job's work date (scheduled date) for On-stage ordering;
+        // fall back to most-recently-touched so unscheduled jobs still sort sensibly.
+        const aDate = new Date(a.date || a.updatedAt || a.createdAt || 0);
+        const bDate = new Date(b.date || b.updatedAt || b.createdAt || 0);
+        return bDate - aDate; // newest work date first
       });
       break;
     case 'Lead':
@@ -87,6 +89,13 @@ export function sortJobsByStage(jobs, stage) {
       });
       break;
     default:
+      // showAll mode (null stage) — newest work date first so the most recent
+      // jobs surface at the top regardless of stage.
+      sorted.sort((a, b) => {
+        const aDate = new Date(a.date || a.createdAt || 0);
+        const bDate = new Date(b.date || b.createdAt || 0);
+        return bDate - aDate;
+      });
       break;
   }
   return sorted;

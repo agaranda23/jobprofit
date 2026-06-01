@@ -6045,9 +6045,70 @@ input[type=number] { -moz-appearance: textfield; }
 
 .photo-lightbox-img {
   max-width: 94vw;
-  max-height: 90vh;
+  max-height: 82vh;
   border-radius: 12px;
   object-fit: contain;
+}
+
+/* Receipt detail bar — shown at the bottom of the lightbox when opened from a receipt row */
+.photo-lightbox-receipt-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(0, 0, 0, 0.82);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  padding: 16px 20px calc(16px + env(safe-area-inset-bottom));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  cursor: default;
+}
+
+.photo-lightbox-receipt-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.photo-lightbox-receipt-label {
+  font-size: 15px;
+  font-weight: 600;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.photo-lightbox-receipt-date {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.photo-lightbox-receipt-amount {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.85);
+  margin-top: 2px;
+}
+
+.photo-lightbox-edit-btn {
+  flex-shrink: 0;
+  background: var(--accent);
+  color: #000;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 18px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  min-height: 44px;
+}
+
+.photo-lightbox-edit-btn:active {
+  opacity: 0.8;
 }
 
 /* ── ProfitBarSection — hero + subline ───────────────────────────────────── */
@@ -10830,6 +10891,14 @@ input[type=number] { -moz-appearance: textfield; }
   color: var(--text-dim);
   /* min-width: 0 lets the label shrink below its content size in flex context */
   min-width: 0;
+}
+/* Green accent on the leading + glyph of every add-affordance button.
+   Works because all .jd-card-row-add spans start with "+ " and flex children
+   participate in block formatting so ::first-letter applies.
+   The label text stays --text-dim; only the + glyph becomes --accent. */
+.jd-card-row-add::first-letter {
+  color: var(--accent);
+  font-weight: 600;
 }
 .jd-card-row-edit {
   font-size: 18px;
