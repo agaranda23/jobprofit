@@ -3182,6 +3182,7 @@ export default function JobDetailDrawer({
           mode={reviewSheetMode}
           job={job}
           biz={biz ?? {}}
+          profile={profile ?? null}
           jobs={jobs ?? []}
           onUpdate={onUpdateJob ?? (() => {})}
           onClose={() => setReviewSheetMode(null)}

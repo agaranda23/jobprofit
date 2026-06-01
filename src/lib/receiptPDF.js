@@ -43,13 +43,27 @@ function rule(doc, y) {
   doc.line(MARGIN, y, w - MARGIN, y);
 }
 
+function bizLogoUrl(biz) {
+  return biz?.logoUrl || biz?.logo_url || null;
+}
+
+function inferImageType(src) {
+  if (!src) return 'PNG';
+  const lower = src.toLowerCase();
+  if (lower.startsWith('data:image/jpeg') || lower.startsWith('data:image/jpg')) return 'JPEG';
+  if (lower.includes('.jpg') || lower.includes('.jpeg')) return 'JPEG';
+  return 'PNG';
+}
+
 function drawHeader(doc, biz) {
   const w = doc.internal.pageSize.getWidth();
   const y = 16;
 
-  if (biz?.logoUrl) {
+  const logo = bizLogoUrl(biz);
+  if (logo) {
     try {
-      doc.addImage(biz.logoUrl, 'JPEG', MARGIN, y, HEADER_LOGO_W, HEADER_LOGO_H);
+      const imgType = inferImageType(logo);
+      doc.addImage(logo, imgType, MARGIN, y, HEADER_LOGO_W, HEADER_LOGO_H);
     } catch { /* logo decode failed — skip silently */ }
   }
 
@@ -185,16 +199,27 @@ function drawFooter(doc, biz, extra = '') {
 // RECEIPT
 // ═══════════════════════════════════════════════════════════════════════════
 
-export function generateReceiptPDF({ job, biz }) {
+export function generateReceiptPDF({ job, biz, profile = null }) {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   const w = doc.internal.pageSize.getWidth();
+
+  // Merge biz + profile — mirrors invoicePDF.js convention so logo_url from
+  // the Supabase profile row is picked up when biz is null or incomplete.
+  const effectiveBiz = {
+    name:    biz?.name    || profile?.business_name || '',
+    address: biz?.address || profile?.address        || '',
+    phone:   biz?.phone   || profile?.phone          || '',
+    email:   biz?.email   || profile?.email          || '',
+    logoUrl: biz?.logoUrl || biz?.logo_url || profile?.logo_url || '',
+    logo_url: biz?.logo_url || biz?.logoUrl || profile?.logo_url || '',
+  };
 
   const amountPaid  = resolveAmountPaid(job);
   const paidDate    = resolvePaidDate(job);
   const paidDateLabel = formatReceiptDate(paidDate);
 
   // ── Business header ──────────────────────────────────────────────────────
-  let y = drawHeader(doc, biz);
+  let y = drawHeader(doc, effectiveBiz);
 
   // ── RECEIPT heading ──────────────────────────────────────────────────────
   y = drawDocTitle(doc, 'RECEIPT', [['Date', paidDateLabel]], y);
@@ -269,18 +294,18 @@ export function generateReceiptPDF({ job, biz }) {
   doc.text('Thank you for your business.', MARGIN, y);
 
   // ── Footer ───────────────────────────────────────────────────────────────
-  drawFooter(doc, biz, `${biz?.name || 'JobProfit'}  •  Receipt generated ${new Date().toLocaleDateString('en-GB')}`);
+  drawFooter(doc, effectiveBiz, `${effectiveBiz.name || 'JobProfit'}  •  Receipt generated ${new Date().toLocaleDateString('en-GB')}`);
 
   return doc;
 }
 
-export function downloadReceiptPDF({ job, biz }) {
-  const doc = generateReceiptPDF({ job, biz });
+export function downloadReceiptPDF({ job, biz, profile = null }) {
+  const doc = generateReceiptPDF({ job, biz, profile });
   const customer = (job?.customer || job?.name || 'receipt').replace(/\s+/g, '-');
   doc.save(`receipt-${customer}.pdf`);
 }
 
-export function getReceiptPDFBlob({ job, biz }) {
-  const doc = generateReceiptPDF({ job, biz });
+export function getReceiptPDFBlob({ job, biz, profile = null }) {
+  const doc = generateReceiptPDF({ job, biz, profile });
   return doc.output('blob');
 }

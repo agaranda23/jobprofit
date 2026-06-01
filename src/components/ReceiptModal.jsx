@@ -8,9 +8,11 @@
  * Delivery mirrors SendInvoiceModal conventions so the two flows feel identical.
  *
  * Props:
- *   job       – full job object (must be Paid stage)
- *   biz       – business settings (name, branding — no bank details on receipts)
- *   onClose() – close the modal
+ *   job        – full job object (must be Paid stage)
+ *   biz        – business settings (name, branding — no bank details on receipts)
+ *   profile    – Supabase profiles row (or null); used for logo_url and PDF branding
+ *   onUpdate   – optional: persists job update (token persistence for /r/ URL)
+ *   onClose()  – close the modal
  *   flash(msg) – toast callback
  */
 import { useState } from 'react';
@@ -23,6 +25,7 @@ import {
 import { getReceiptPDFBlob, downloadReceiptPDF } from '../lib/receiptPDF.js';
 import { buildWhatsAppLink } from '../lib/invoiceMessage.js';
 import { logTelemetry } from '../lib/telemetry.js';
+import { generatePublicAccessToken, buildPublicReceiptUrl } from '../lib/publicReceiptToken.js';
 
 // Module-level capability check — same pattern as SendInvoiceModal.
 const SUPPORTS_FILE_SHARE =
@@ -113,15 +116,39 @@ function ReceiptSummary({ job, biz }) {
 
 // ── ReceiptModal ──────────────────────────────────────────────────────────────
 
-export default function ReceiptModal({ job, biz, onClose, flash }) {
+export default function ReceiptModal({ job, biz, profile = null, onUpdate, onClose, flash }) {
   const [busy, setBusy] = useState(false);
 
   const phone = job?.customerPhone || job?.phone || job?.mobile || '';
-  const message = buildReceiptWhatsAppMessage({ job, biz });
 
-  // Primary: WhatsApp deep-link — fast, no PDF overhead
+  // Mint/reuse the publicAccessToken so the /r/<token> URL is stable across re-sends.
+  // Same pattern as SendInvoiceModal's pendingToken — one token per job, lazily minted.
+  const token = job?.publicAccessToken || generatePublicAccessToken();
+  const hostedReceiptUrl = buildPublicReceiptUrl(token);
+
+  // Build effective biz merging profile so logo_url is available everywhere.
+  const effectiveBiz = {
+    ...(biz || {}),
+    logoUrl:  biz?.logoUrl  || biz?.logo_url || profile?.logo_url || '',
+    logo_url: biz?.logo_url || biz?.logoUrl  || profile?.logo_url || '',
+    name:     biz?.name     || profile?.business_name || '',
+  };
+
+  const message = buildReceiptWhatsAppMessage({ job, biz: effectiveBiz, hostedReceiptUrl });
+
+  // Persist the publicAccessToken on the job when a new one was minted so the
+  // /r/<token> page can resolve the job. Mirrors SendInvoiceModal's onUpdate patch.
+  function persistToken() {
+    if (!job?.publicAccessToken && onUpdate) {
+      onUpdate({ ...job, publicAccessToken: token });
+    }
+  }
+
+  // Primary: WhatsApp deep-link — fast, no PDF overhead.
+  // Message now leads with "View your receipt: /r/<token>" (branded page link).
   const handleWhatsApp = () => {
     logTelemetry('receipt_send', { channel: 'whatsapp' });
+    persistToken();
     const link = buildWhatsAppLink({ phone, message });
     window.open(link, '_blank', 'noopener');
     flash?.('Receipt sent');
@@ -131,9 +158,10 @@ export default function ReceiptModal({ job, biz, onClose, flash }) {
   // Secondary: Web Share API with PDF (iOS/Android share sheet)
   const handleSharePDF = async () => {
     logTelemetry('receipt_send', { channel: 'share' });
+    persistToken();
     setBusy(true);
     try {
-      const blob = getReceiptPDFBlob({ job, biz });
+      const blob = getReceiptPDFBlob({ job, biz: effectiveBiz, profile });
       const customer = (job?.customer || job?.name || 'receipt').replace(/\s+/g, '-');
       const file = new File([blob], `receipt-${customer}.pdf`, { type: 'application/pdf' });
       if (canShareFile(file)) {
@@ -142,7 +170,7 @@ export default function ReceiptModal({ job, biz, onClose, flash }) {
         onClose?.();
       } else {
         // Fallback: download PDF + WhatsApp text
-        downloadReceiptPDF({ job, biz });
+        downloadReceiptPDF({ job, biz: effectiveBiz, profile });
         const link = buildWhatsAppLink({ phone, message });
         window.open(link, '_blank', 'noopener');
         flash?.('Receipt sent');
@@ -162,7 +190,7 @@ export default function ReceiptModal({ job, biz, onClose, flash }) {
   const handleDownloadPDF = () => {
     logTelemetry('receipt_send', { channel: 'download' });
     try {
-      downloadReceiptPDF({ job, biz });
+      downloadReceiptPDF({ job, biz: effectiveBiz, profile });
       flash?.('Receipt downloaded');
       onClose?.();
     } catch {

@@ -1593,6 +1593,8 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
         <ReceiptModal
           job={receiptJob}
           biz={biz}
+          profile={profile}
+          onUpdate={onUpdateJob}
           onClose={() => setReceiptJob(null)}
           flash={showToast}
         />

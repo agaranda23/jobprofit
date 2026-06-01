@@ -59,9 +59,7 @@ function PreviewHeader({ effectiveBiz }) {
       <div style={{ width: 56, height: 56, flexShrink: 0 }}>
         {logo
           ? <img src={logo} alt="Logo" style={{ width: 56, height: 56, objectFit: 'contain', borderRadius: 4 }} />
-          : <div style={{ width: 56, height: 56, borderRadius: 4, background: '#f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-              <span style={{ fontSize: 11, color: LIGHT, textAlign: 'center', lineHeight: 1.3 }}>No<br />logo</span>
-            </div>
+          : null
         }
       </div>
 

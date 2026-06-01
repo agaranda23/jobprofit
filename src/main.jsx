@@ -18,6 +18,10 @@ const PublicQuoteView = lazy(() => import('./screens/PublicQuoteView.jsx'));
 // Also lazy-loaded: customers open this in a browser, not the app shell.
 const PublicInvoiceView = lazy(() => import('./screens/PublicInvoiceView.jsx'));
 
+// Hosted receipt page — /r/<token>
+// Lazy-loaded: customers open this after payment is confirmed.
+const PublicReceiptView = lazy(() => import('./screens/PublicReceiptView.jsx'));
+
 /**
  * Checks whether the current URL path is a public quote route.
  * Pattern: /q/<token> where token is any non-empty segment.
@@ -40,8 +44,20 @@ function parsePublicInvoiceRoute() {
   return match ? match[1] : null;
 }
 
+/**
+ * Checks whether the current URL path is a public receipt route.
+ * Pattern: /r/<token> where token is any non-empty segment.
+ * Returns the token string if matched, null otherwise.
+ */
+function parsePublicReceiptRoute() {
+  const path = window.location.pathname;
+  const match = /^\/r\/([^/]+)$/.exec(path);
+  return match ? match[1] : null;
+}
+
 const publicQuoteToken   = parsePublicQuoteRoute();
 const publicInvoiceToken = parsePublicInvoiceRoute();
+const publicReceiptToken = parsePublicReceiptRoute();
 
 const SUSPENSE_FALLBACK = <div className="auth-loading"><div className="ocr-spinner" /></div>;
 
@@ -51,6 +67,11 @@ createRoot(document.getElementById('root')).render(
       // Hosted invoice page — no auth gate, no AppShell, code-split
       <Suspense fallback={SUSPENSE_FALLBACK}>
         <PublicInvoiceView token={publicInvoiceToken} />
+      </Suspense>
+    ) : publicReceiptToken ? (
+      // Hosted receipt page — no auth gate, no AppShell, code-split
+      <Suspense fallback={SUSPENSE_FALLBACK}>
+        <PublicReceiptView token={publicReceiptToken} />
       </Suspense>
     ) : publicQuoteToken ? (
       // Public quote view — no auth gate, no AppShell, code-split
