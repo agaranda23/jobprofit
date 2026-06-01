@@ -287,7 +287,10 @@ export default function TodayScreen({
 
   // ── Send Invoice pivot: open picker or toast ──────────────────────────────────
   const handleSendInvoicePivot = () => {
-    if (uninvoicedJobs.length === 0) return;
+    if (uninvoicedJobs.length === 0) {
+      showToast('No jobs to invoice yet — finish a quote or log a job first.');
+      return;
+    }
     setInvoicePickerOpen(true);
   };
 
@@ -477,7 +480,7 @@ export default function TodayScreen({
       )}
 
       {/* ── Pivot buttons (quick-action grid) ────────────────────────────── */}
-      <div className={`foreman-pivot-row${uninvoicedJobs.length > 0 ? ' foreman-pivot-row--three' : ''}`}>
+      <div className="foreman-pivot-row foreman-pivot-row--three">
         <button
           type="button"
           className="foreman-pivot-btn"
@@ -494,16 +497,14 @@ export default function TodayScreen({
           <span className="foreman-pivot-icon" aria-hidden="true">📝</span>
           Create quote
         </button>
-        {uninvoicedJobs.length > 0 && (
-          <button
-            type="button"
-            className="foreman-pivot-btn"
-            onClick={handleSendInvoicePivot}
-          >
-            <span className="foreman-pivot-icon" aria-hidden="true">💸</span>
-            Send an invoice
-          </button>
-        )}
+        <button
+          type="button"
+          className="foreman-pivot-btn"
+          onClick={handleSendInvoicePivot}
+        >
+          <span className="foreman-pivot-icon" aria-hidden="true">💸</span>
+          Send an invoice
+        </button>
       </div>
 
       {/* ── Weekly check-in line (shown when there's activity) ───────────── */}
