@@ -5,6 +5,7 @@
 // Today screen uses cloud-backed functions with localStorage dual-write.
 
 import { supabase } from './supabase';
+import { writeJobMeta } from './jobMeta';
 
 // Returns YYYY-MM-DD in the user's local timezone (not UTC).
 // Critical: new Date().toISOString().slice(0,10) returns UTC date,
@@ -311,6 +312,11 @@ export async function addJobToCloud(payload) {
     status: isPaid ? 'paid' : 'lead',
     // Write empty array when no price — avoid a stray £0 line item
     line_items: amount != null ? [{ desc: payload.name || 'Job', cost: amount }] : [],
+    // Dedicated text columns — written at insert so they survive cloud sync
+    // without needing a follow-up meta UPDATE.
+    address: payload.address || null,
+    email:   payload.email   || null,
+    notes:   payload.notes   || null,
   };
 
   const { data, error } = await supabase
@@ -322,6 +328,21 @@ export async function addJobToCloud(payload) {
   if (error) {
     console.error('addJobToCloud failed', error);
     throw error;
+  }
+
+  // Write cost/deposit fields to the meta side-channel. These have no dedicated
+  // DB columns so they live in the meta JSONB (via META_FIELDS in jobMeta.js).
+  // Fire-and-forget via updateJobMetaInCloud is not used here because at insert
+  // time there is no meta to preserve — a direct writeJobMeta is safe and avoids
+  // an extra round-trip. The cloud meta column gets synced on the next
+  // user action that triggers syncMetaToCloud (e.g. mark paid, edit a field).
+  const metaPatch = {};
+  if (payload.materialsCost != null) metaPatch.materialsCost = payload.materialsCost;
+  if (payload.labourHours   != null) metaPatch.labourHours   = payload.labourHours;
+  if (payload.deposit       != null) metaPatch.deposit       = payload.deposit;
+  if (payload.notes         != null) metaPatch.notes         = payload.notes;
+  if (Object.keys(metaPatch).length > 0) {
+    writeJobMeta(data.id, metaPatch);
   }
 
   // Dual-write to localStorage for legacy Manage compatibility.
