@@ -100,6 +100,9 @@ button:focus-visible {
      so they stay in sync on desktop. On mobile the viewport is narrower than
      this value, so both fill the viewport naturally. Overridden to 560px at 640px+. */
   --app-max-width: 480px;
+  /* Pivot tile icon colour — SVGs on the green CTA tiles use currentColor,
+     which resolves to this variable. Dark default matches tile text (#0B0F17). */
+  --tile-icon-color: #0B0F17;
 }
 
 /* ── Light theme token overrides ────────────────────────────────────────────
@@ -137,6 +140,8 @@ button:focus-visible {
   /* Gold stays the same in light mode */
   --gold: #d4a017;
   --gold-gradient: linear-gradient(135deg, #f5c75a 0%, #d4a017 50%, #b8861a 100%);
+  /* Pivot tile icons — pure black for max contrast on the deeper green tile (#00a86b) */
+  --tile-icon-color: #000000;
 
   /* Brand palette — light-legible variants */
   --jp-green:    #00a86b;
@@ -8038,8 +8043,14 @@ input[type=number] { -moz-appearance: textfield; }
 .foreman-pivot-icon {
   font-size: 20px;
   font-weight: 400;
-  color: #0B0F17;
+  /* --tile-icon-color: dark default (#0B0F17) is set on :root below;
+     light mode overrides to pure black (#000000) for max contrast on the
+     deeper green tile (#00a86b). SVGs use stroke="currentColor" to pick this up. */
+  color: var(--tile-icon-color);
   line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* ── Weekly check-in line ───────────────────────────────────────────────────── */

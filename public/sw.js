@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v39';  // bumped from v38: fix drawer panel transparent background — .jd-csr-panel now opaque so Money card no longer bleeds through
+const CACHE_NAME = 'jobprofit-v40';  // bumped from v39: Today pivot CTAs — silhouette SVG icons + one-word labels
 const PRECACHE = [
   '/',
   '/index.html',
