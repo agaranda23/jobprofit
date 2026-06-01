@@ -1713,11 +1713,12 @@ input[type=number] { -moz-appearance: textfield; }
 
 /* Design tokens used by new-nav components */
 :root {
-  --jp-green:  #2bc48a;
-  --jp-amber:  #f4a024;
-  --jp-rose:   #e5484d;
-  --jp-blue:   #3B82F6;
-  --jp-navy:   #0f1b2d;
+  --jp-green:     #2bc48a;
+  --jp-amber:     #f4a024;
+  --jp-rose:      #e5484d;
+  --jp-rose-deep: #962024;
+  --jp-blue:      #3B82F6;
+  --jp-navy:      #0f1b2d;
 
   /* Stage Strip green-family gradient — Quoted → Paid */
   --grn-quoted:   #B3F0D5;  /* Pale mint     — lightness ~78% */
@@ -7597,6 +7598,7 @@ input[type=number] { -moz-appearance: textfield; }
   display: flex;
   gap: 8px;
   align-items: stretch;
+  width: 100%;
 }
 /* Wrapper for the Chase + Mark paid pair on Invoiced/Overdue tiles.
    Grows to claim all row width after the fixed Call/Map icon buttons,
@@ -7649,6 +7651,12 @@ input[type=number] { -moz-appearance: textfield; }
   background: transparent;
   color: var(--text-dim);
   border: 1px solid var(--border);
+}
+.jt-cta--blocked {
+  background: var(--jp-rose-deep);
+  color: #fff;
+  border: none;
+  opacity: 0.85;
 }
 .jt-icon-btn {
   width: 44px;
