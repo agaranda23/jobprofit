@@ -102,6 +102,40 @@ export function sortJobsByStage(jobs, stage) {
 }
 
 /**
+ * Sort all jobs for the All-view using urgency-first tier grouping.
+ *
+ * Tier order: Overdue → Invoiced → On → Quoted → Lead → Paid
+ * Within each tier the existing per-stage sort rule from sortJobsByStage is reused —
+ * no new sort logic is added here.
+ *
+ * The stageDeriver callback must map a raw job to one of the six canonical stage
+ * strings. WorkScreen passes its own deriveDisplayStatus so this helper stays
+ * framework-free and testable without importing React.
+ *
+ * Returns a new array — does not mutate the input.
+ *
+ * @param {object[]} jobs
+ * @param {(job: object) => string} stageDeriver
+ * @returns {object[]}
+ */
+export function sortJobsForAllView(jobs, stageDeriver) {
+  const TIER_ORDER = ['Overdue', 'Invoiced', 'On', 'Quoted', 'Lead', 'Paid'];
+
+  // Bucket jobs into their tier groups.
+  const buckets = {};
+  for (const tier of TIER_ORDER) buckets[tier] = [];
+
+  for (const job of jobs) {
+    const stage = stageDeriver(job);
+    const bucket = buckets[stage] ?? buckets['Lead']; // unknown stages fall into Lead
+    bucket.push(job);
+  }
+
+  // Sort within each bucket using the existing per-stage rule, then concatenate.
+  return TIER_ORDER.flatMap(tier => sortJobsByStage(buckets[tier], tier));
+}
+
+/**
  * First line of an address string (everything before the first comma or newline).
  * Returns '' when the address is empty or undefined.
  *

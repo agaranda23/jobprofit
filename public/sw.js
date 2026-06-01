@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v50';  // bumped from v49: remove duplicate field label in EditFieldModal
+const CACHE_NAME = 'jobprofit-v51';  // bumped from v50: All-view urgency-tier sort + 25-per-page pagination
 const PRECACHE = [
   '/',
   '/index.html',
