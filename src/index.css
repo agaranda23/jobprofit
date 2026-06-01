@@ -7912,16 +7912,6 @@ input[type=number] { -moz-appearance: textfield; }
   pointer-events: none;
 }
 
-/* "Last chased" chip — appears below CTA row on Invoiced/Overdue tiles after a chase */
-.jt-chased-chip {
-  flex: 0 0 100%;
-  font-size: 11px;
-  color: var(--text-dim);
-  text-align: right;
-  margin-top: -2px;
-  padding-right: 2px;
-}
-
 /* ═══════════════════════════════════════════════════════════════════════════════
    FOREMAN SCREEN — Today tab revamp (PRD 2026-05-30)
    Design tokens: --navy-2 = #1B2A44, --green = #2BC48A, --rose = #E5484D
