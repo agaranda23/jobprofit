@@ -11677,6 +11677,174 @@ input[type=number] { -moz-appearance: textfield; }
   padding: 4px 14px 8px;
 }
 
+/* ── Multi-visit schedule — Iteration A ─────────────────────────────────────
+   visit-row-wrap:  relative container for swipe-left action reveal
+   visit-row-inner: the translating row button
+   visit-action-btn: "Mark done" action revealed on swipe-left
+   visit-status-pill: coloured badge (done / today / planned / missed)
+   visit-invoice-prompt: banner shown when last visit is marked done
+   ────────────────────────────────────────────────────────────────────────── */
+
+.visit-row-wrap {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: stretch;
+}
+
+.visit-row-inner {
+  /* Override the default jd-card-row width so it clips cleanly on swipe */
+  flex-shrink: 0;
+  width: 100%;
+  will-change: transform;
+  position: relative;
+  z-index: 1;
+}
+
+/* Swipe-left revealed action — sits to the right, behind the row */
+.visit-action-btn {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent, #2BC48A);
+  color: #000;
+  font-size: 13px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  padding: 0 16px;
+  white-space: nowrap;
+  z-index: 0;
+}
+
+/* Static "Done" button for prefers-reduced-motion users */
+.visit-mark-done-static {
+  flex-shrink: 0;
+  align-self: center;
+  margin: 0 4px 0 0;
+  padding: 4px 10px;
+  background: none;
+  border: 1px solid var(--accent, #2BC48A);
+  border-radius: 999px;
+  color: var(--accent, #2BC48A);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Status pills */
+.visit-status-pill {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  vertical-align: middle;
+  letter-spacing: 0.1px;
+}
+.visit-status-pill--done {
+  background: rgba(100, 116, 139, 0.2);
+  color: var(--text-dim, #94A3B8);
+}
+.visit-status-pill--today {
+  background: rgba(43, 196, 138, 0.18);
+  color: var(--accent, #2BC48A);
+}
+.visit-status-pill--planned {
+  background: rgba(244, 160, 36, 0.16);
+  color: #F4A024;
+}
+.visit-status-pill--missed {
+  background: rgba(229, 72, 77, 0.16);
+  color: #E5484D;
+}
+.visit-status-pill--cancelled {
+  background: rgba(100, 116, 139, 0.15);
+  color: var(--text-dim, #94A3B8);
+  text-decoration: line-through;
+}
+
+/* Strikethrough date text for done visits */
+.visit-row-val--done {
+  text-decoration: line-through;
+  opacity: 0.65;
+}
+
+/* Visit editor sheet — modal sheet */
+.visit-editor-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.visit-editor-sheet {
+  background: var(--card-bg, #111827);
+  border-radius: 16px 16px 0 0;
+  padding: 20px 20px calc(20px + env(safe-area-inset-bottom));
+  width: 100%;
+  max-width: 480px;
+  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.3);
+}
+.visit-editor-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text, #F1F5F9);
+  margin-bottom: 16px;
+}
+
+/* Send Invoice prompt — inline banner inside Schedule card */
+.visit-invoice-prompt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 14px 4px;
+  padding: 10px 12px;
+  background: rgba(43, 196, 138, 0.12);
+  border: 1px solid rgba(43, 196, 138, 0.35);
+  border-radius: 10px;
+}
+.visit-invoice-prompt-msg {
+  flex: 1;
+  font-size: 13px;
+  color: var(--text, #F1F5F9);
+  line-height: 1.35;
+}
+.visit-invoice-prompt-btn {
+  flex-shrink: 0;
+  padding: 6px 12px;
+  background: var(--accent, #2BC48A);
+  color: #000;
+  font-size: 13px;
+  font-weight: 700;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  white-space: nowrap;
+}
+.visit-invoice-prompt-dismiss {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: var(--text-dim, #94A3B8);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 0 2px;
+  line-height: 1;
+  -webkit-tap-highlight-color: transparent;
+}
+
 /* ── Logo upload modal ───────────────────────────────────────────────────── */
 
 /* Hidden file input — only the styled button is visible */

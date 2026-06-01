@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v53';  // bumped from v52: Speed mode first screen + Got Paid toast + Add details chip
+const CACHE_NAME = 'jobprofit-v54';  // bumped from v53: Schedule multi-visit + swipe-mark-done + lazy migration
 const PRECACHE = [
   '/',
   '/index.html',
