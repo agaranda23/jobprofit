@@ -35,6 +35,7 @@ import { buildPublicInvoiceUrl } from '../lib/publicInvoiceToken';
 import { generatePublicAccessToken } from '../lib/publicQuoteToken';
 import { nextInvoiceNumber } from '../lib/invoiceNumber';
 import { getMissingInvoiceFields } from '../lib/bizValidation';
+import { resolveBusinessIdentity } from '../lib/resolveBusinessIdentity';
 import { canSendInvoice, incrementSendCount } from '../lib/plan';
 import { supabase } from '../lib/supabase';
 import { logTelemetry } from '../lib/telemetry';
@@ -172,8 +173,13 @@ export default function SendInvoiceModal({
       ? payNowUrl
       : (profile?.stripe_payment_link || biz?.stripePaymentLink || '');
 
+  // Merge biz (legacy localStorage) + profile (Supabase, edited via Settings) so
+  // all document paths — WhatsApp message, PDF share, PDF download — see the
+  // same complete business identity. Profile fields take priority because Settings
+  // writes to profile, not to the stale localStorage biz object.
+  const resolvedBiz = resolveBusinessIdentity(biz, profile);
   const bizWithStripe = {
-    ...(biz || {}),
+    ...resolvedBiz,
     stripePaymentLink: effectivePaymentLink,
   };
   const message = buildInvoiceWhatsAppMessage({ job, biz: bizWithStripe, invoiceNumber, dueDate, hostedInvoiceUrl });
@@ -234,7 +240,7 @@ export default function SendInvoiceModal({
     setBusy(true);
     try {
       // getInvoicePDFBlob is now async (generates QR code if payNowUrl is set).
-      const blob = await getInvoicePDFBlob({ job, biz: bizWithStripe, invoiceNumber, dueDate, payNowUrl });
+      const blob = await getInvoicePDFBlob({ job, biz: bizWithStripe, profile, invoiceNumber, dueDate, payNowUrl });
       const file = new File([blob], `${invoiceNumber}.pdf`, { type: 'application/pdf' });
       if (canShareFile(file)) {
         await navigator.share({
@@ -246,7 +252,7 @@ export default function SendInvoiceModal({
         onClose();
       } else {
         // Fallback: download PDF + open WhatsApp deep-link with text.
-        await downloadInvoicePDF({ job, biz: bizWithStripe, invoiceNumber, dueDate, payNowUrl });
+        await downloadInvoicePDF({ job, biz: bizWithStripe, profile, invoiceNumber, dueDate, payNowUrl });
         const link = buildWhatsAppLink({
           phone: job.customerPhone || job.phone || '',
           message,
@@ -275,7 +281,7 @@ export default function SendInvoiceModal({
     if (!attemptSend()) return;
     try {
       // downloadInvoicePDF is now async (QR code generation).
-      await downloadInvoicePDF({ job, biz: bizWithStripe, invoiceNumber, dueDate, payNowUrl });
+      await downloadInvoicePDF({ job, biz: bizWithStripe, profile, invoiceNumber, dueDate, payNowUrl });
       flash('Invoice downloaded');
       onClose();
     } catch {

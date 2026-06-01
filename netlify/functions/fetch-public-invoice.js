@@ -126,6 +126,7 @@ export const handler = async function (event) {
         'stripe_payment_link',
         'is_cis_subcontractor',
         'cis_default_rate',
+        'utr_number',
       ].join(', '))
       .eq('id', job.user_id)
       .single();
@@ -163,5 +164,6 @@ export const handler = async function (event) {
     stripePaymentLink:  profile.stripe_payment_link  || '',
     isCisSubcontractor: profile.is_cis_subcontractor ?? false,
     cisDefaultRate:     profile.cis_default_rate     ?? 20,
+    utrNumber:          profile.utr_number            || '',
   });
 };
