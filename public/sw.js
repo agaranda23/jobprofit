@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v45';  // bumped from v44: View receipt green CTA + Chase/Mark paid 50/50 height + remove duplicate chase nudge bar
+const CACHE_NAME = 'jobprofit-v46';  // bumped from v45: Chase + Mark paid fill full row width via flex: 1 1 0 on .jt-cta
 const PRECACHE = [
   '/',
   '/index.html',
