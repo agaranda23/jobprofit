@@ -10854,3 +10854,71 @@ input[type=number] { -moz-appearance: textfield; }
 .jd-schedule-card-body {
   padding: 4px 14px 8px;
 }
+
+/* ── Logo upload modal ───────────────────────────────────────────────────── */
+
+/* Hidden file input — only the styled button is visible */
+.logo-modal__file-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Logo preview — square thumbnail, rounded corners, below the header */
+.logo-modal__preview {
+  display: flex;
+  justify-content: center;
+  padding: 16px 24px 0;
+}
+.logo-modal__img {
+  max-width: 120px;
+  max-height: 80px;
+  object-fit: contain;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--card-bg);
+}
+
+/* Tab switcher — Upload | Paste URL */
+.logo-modal__tabs {
+  display: flex;
+  gap: 0;
+  margin: 16px 24px 0;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+.logo-modal__tab {
+  flex: 1;
+  padding: 9px 12px;
+  font-size: 14px;
+  font-weight: 500;
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.logo-modal__tab:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.logo-modal__tab--active {
+  background: var(--accent);
+  color: #fff;
+}
+.logo-modal__tab:not(.logo-modal__tab--active):not(:disabled):active {
+  background: var(--surface-hover, rgba(0,0,0,0.06));
+}
+
+/* Full-width "Choose image" button in the Upload tab */
+.logo-modal__pick-btn {
+  width: 100%;
+  padding: 14px;
+  font-size: 16px;
+  font-weight: 600;
+  border-radius: 10px;
+  margin-top: 4px;
+}

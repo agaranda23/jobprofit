@@ -31,6 +31,9 @@
 import { useEffect, useRef, useState } from 'react';
 import pkg from '../../package.json';
 import { supabase } from '../lib/supabase.js';
+
+const LOGOS_BUCKET = 'logos';
+const LOGO_MAX_BYTES = 2 * 1024 * 1024; // 2 MB — matches bucket file_size_limit
 import EditFieldModal from '../components/EditFieldModal.jsx';
 import {
   isPushSupported,
@@ -962,6 +965,245 @@ function DefaultDepositRow({ profile, onProfileUpdate }) {
   );
 }
 
+// ── LogoModal ─────────────────────────────────────────────────────────────────
+// Replaces the old URL-only EditFieldModal for the logo field.
+// Two input paths:
+//   A) Upload image  — file input → Supabase Storage (logos bucket) → public URL
+//   B) Paste a URL   — text input → saved directly as logo_url
+//
+// On any save failure the modal stays open and shows the error inline.
+// On success it closes and the save-toast fires in SettingsScreen.
+
+function LogoModal({ currentUrl, session, onSave, onClose }) {
+  const fileInputRef = useRef(null);
+  const [urlValue, setUrlValue]   = useState(currentUrl || '');
+  const [preview, setPreview]     = useState(currentUrl || '');
+  const [uploading, setUploading] = useState(false);
+  const [progress, setProgress]   = useState('');
+  const [error, setError]         = useState('');
+  const [tab, setTab]             = useState('upload'); // 'upload' | 'url'
+
+  const handleFileChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setError('');
+
+    if (!file.type.startsWith('image/')) {
+      setError('Please pick an image file (JPEG, PNG, WebP…)');
+      return;
+    }
+    if (file.size > LOGO_MAX_BYTES) {
+      setError(`File is too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum is 2 MB.`);
+      return;
+    }
+
+    const userId = session?.user?.id;
+    if (!userId) {
+      setError('Not signed in — please sign out and back in then try again.');
+      return;
+    }
+
+    setUploading(true);
+    setProgress('Uploading…');
+
+    try {
+      const ext      = file.name.split('.').pop().toLowerCase() || 'jpg';
+      const filename = `logo-${Date.now()}.${ext}`;
+      const path     = `${userId}/${filename}`;
+
+      const { error: uploadErr } = await supabase.storage
+        .from(LOGOS_BUCKET)
+        .upload(path, file, {
+          contentType: file.type,
+          upsert: true,
+        });
+
+      if (uploadErr) throw uploadErr;
+
+      const { data: urlData } = supabase.storage
+        .from(LOGOS_BUCKET)
+        .getPublicUrl(path);
+
+      const publicUrl = urlData?.publicUrl;
+      if (!publicUrl) throw new Error('Could not get public URL after upload');
+
+      setProgress('Saving…');
+      await onSave({ logo_url: publicUrl });
+      // onSave resolves → SettingsScreen shows the toast and we close
+    } catch (err) {
+      setError(err?.message || 'Upload failed — try again');
+      setUploading(false);
+      setProgress('');
+    }
+  };
+
+  const handleUrlSave = async () => {
+    setError('');
+    const trimmed = urlValue.trim();
+    if (!trimmed) {
+      // Saving empty string clears the logo — allow it
+    }
+    setUploading(true);
+    setProgress('Saving…');
+    try {
+      await onSave({ logo_url: trimmed || null });
+    } catch (err) {
+      setError(err?.message || 'Could not save — try again');
+      setUploading(false);
+      setProgress('');
+    }
+  };
+
+  return (
+    <div
+      className="modal-backdrop"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Logo"
+      onClick={e => { if (e.target === e.currentTarget && !uploading) onClose(); }}
+    >
+      <div
+        className="modal-sheet edit-field-sheet logo-modal"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="modal-sheet-header">
+          <h3 className="modal-sheet-title">Logo</h3>
+          <button
+            className="modal-sheet-close"
+            onClick={onClose}
+            aria-label="Close"
+            type="button"
+            disabled={uploading}
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* Current logo preview */}
+        {preview && (
+          <div className="logo-modal__preview">
+            <img
+              src={preview}
+              alt="Current logo"
+              className="logo-modal__img"
+              onError={() => setPreview('')}
+            />
+          </div>
+        )}
+
+        {/* Tab switcher */}
+        <div className="logo-modal__tabs" role="group" aria-label="Logo input method">
+          <button
+            type="button"
+            className={`logo-modal__tab${tab === 'upload' ? ' logo-modal__tab--active' : ''}`}
+            onClick={() => { setTab('upload'); setError(''); }}
+            disabled={uploading}
+          >
+            Upload image
+          </button>
+          <button
+            type="button"
+            className={`logo-modal__tab${tab === 'url' ? ' logo-modal__tab--active' : ''}`}
+            onClick={() => { setTab('url'); setError(''); }}
+            disabled={uploading}
+          >
+            Paste URL
+          </button>
+        </div>
+
+        <div className="edit-field-body">
+          {tab === 'upload' ? (
+            <>
+              <p className="edit-field-help">
+                Pick an image from your phone (JPEG, PNG or WebP, max 2 MB).
+              </p>
+              {/* Hidden real file input — triggered by the button below */}
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                className="logo-modal__file-input"
+                aria-hidden="true"
+                tabIndex={-1}
+                onChange={handleFileChange}
+                disabled={uploading}
+              />
+              <button
+                type="button"
+                className="btn-primary logo-modal__pick-btn"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+              >
+                {uploading ? progress : 'Choose image'}
+              </button>
+            </>
+          ) : (
+            <>
+              <div className="edit-field-group">
+                <label className="edit-field-label" htmlFor="logo-url-input">
+                  Image URL
+                </label>
+                <input
+                  id="logo-url-input"
+                  type="url"
+                  inputMode="url"
+                  className="edit-field-input"
+                  value={urlValue}
+                  placeholder="https://yourdomain.com/logo.png"
+                  onChange={e => { setUrlValue(e.target.value); setPreview(e.target.value); setError(''); }}
+                  autoCapitalize="none"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  disabled={uploading}
+                />
+                <span className="edit-field-help">Paste a public image URL.</span>
+              </div>
+            </>
+          )}
+
+          {error && (
+            <p className="edit-field-save-error" role="alert">{error}</p>
+          )}
+        </div>
+
+        {tab === 'url' && (
+          <div className="edit-field-actions">
+            <button
+              type="button"
+              className="btn-ghost edit-field-cancel"
+              onClick={onClose}
+              disabled={uploading}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              className="btn-primary edit-field-save"
+              onClick={handleUrlSave}
+              disabled={uploading}
+            >
+              {uploading ? progress : 'Save'}
+            </button>
+          </div>
+        )}
+        {tab === 'upload' && (
+          <div className="edit-field-actions">
+            <button
+              type="button"
+              className="btn-ghost edit-field-cancel"
+              onClick={onClose}
+              disabled={uploading}
+            >
+              Cancel
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── SettingsScreen ────────────────────────────────────────────────────────────
 
 export default function SettingsScreen({
@@ -982,6 +1224,9 @@ export default function SettingsScreen({
     setThemePrefState(pref);
     setThemePref(pref);
   }
+
+  // ── Logo modal state ──────────────────────────────────────────────────────
+  const [showLogoModal, setShowLogoModal] = useState(false);
 
   // ── What's new state ──────────────────────────────────────────────────────
   const [showWhatsNew, setShowWhatsNew] = useState(false);
@@ -1145,16 +1390,7 @@ export default function SettingsScreen({
     validate: validateNonEmpty,
   });
 
-  const openEditLogo = () => setActiveEdit({
-    modal: 'logo_url',
-    fieldKey: 'logo_url',
-    fieldLabel: 'Logo URL',
-    currentValue: profile?.logo_url || '',
-    placeholder: 'https://yourdomain.com/logo.png',
-    helpText: 'Paste a public image URL. A full upload flow is coming soon.',
-    // Logo URL is optional — no required validation
-    validate: null,
-  });
+  const openEditLogo = () => setShowLogoModal(true);
 
   const openEditBankDetails = () => setActiveEdit({
     modal: 'bank',
@@ -1645,6 +1881,19 @@ export default function SettingsScreen({
       {/* ── What's new sheet ─────────────────────────────────────────────── */}
       {showWhatsNew && (
         <WhatsNewModal onClose={() => setShowWhatsNew(false)} />
+      )}
+
+      {/* ── Logo upload modal ────────────────────────────────────────────── */}
+      {showLogoModal && (
+        <LogoModal
+          currentUrl={profile?.logo_url || ''}
+          session={session}
+          onSave={async (patch) => {
+            await handleSave(patch);
+            setShowLogoModal(false);
+          }}
+          onClose={() => setShowLogoModal(false)}
+        />
       )}
 
       {/* ── Delete account modal ─────────────────────────────────────────── */}

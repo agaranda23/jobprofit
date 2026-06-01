@@ -298,3 +298,182 @@ describe('MonthlyOverheadsSection persist()', () => {
     expect(setSaving).toHaveBeenNthCalledWith(2, false);
   });
 });
+
+// ── LogoModal upload validation logic ─────────────────────────────────────────
+// Inline the validation rules from LogoModal.handleFileChange so they can be
+// tested without mounting the component.
+
+const LOGO_MAX_BYTES = 2 * 1024 * 1024;
+
+function validateLogoFile(file) {
+  if (!file.type.startsWith('image/')) {
+    return 'Please pick an image file (JPEG, PNG, WebP…)';
+  }
+  if (file.size > LOGO_MAX_BYTES) {
+    return `File is too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Maximum is 2 MB.`;
+  }
+  return null;
+}
+
+// Simulate the upload-then-save path shape (no real network)
+async function simulateLogoUpload({ file, session, uploadResult, publicUrl, onSave }) {
+  const validationError = validateLogoFile(file);
+  if (validationError) return { error: validationError, savedWith: null };
+
+  const userId = session?.user?.id;
+  if (!userId) return { error: 'Not signed in — please sign out and back in then try again.', savedWith: null };
+
+  if (uploadResult?.error) throw uploadResult.error;
+
+  if (!publicUrl) throw new Error('Could not get public URL after upload');
+
+  await onSave({ logo_url: publicUrl });
+  return { error: null, savedWith: publicUrl };
+}
+
+describe('LogoModal — file validation', () => {
+  it('accepts a JPEG file under 2 MB', () => {
+    const file = { type: 'image/jpeg', size: 500_000, name: 'logo.jpg' };
+    expect(validateLogoFile(file)).toBeNull();
+  });
+
+  it('accepts a PNG file under 2 MB', () => {
+    const file = { type: 'image/png', size: 1_000_000, name: 'logo.png' };
+    expect(validateLogoFile(file)).toBeNull();
+  });
+
+  it('accepts a WebP file at exactly 1 byte under the limit', () => {
+    const file = { type: 'image/webp', size: LOGO_MAX_BYTES - 1, name: 'logo.webp' };
+    expect(validateLogoFile(file)).toBeNull();
+  });
+
+  it('rejects a file whose type is not image/*', () => {
+    const file = { type: 'application/pdf', size: 100, name: 'doc.pdf' };
+    const result = validateLogoFile(file);
+    expect(result).toMatch(/image file/i);
+  });
+
+  it('rejects a file larger than 2 MB', () => {
+    const file = { type: 'image/jpeg', size: LOGO_MAX_BYTES + 1, name: 'huge.jpg' };
+    const result = validateLogoFile(file);
+    expect(result).toMatch(/too large/i);
+    expect(result).toMatch(/2 MB/);
+  });
+
+  it('rejects exactly at the limit + 1 byte and includes size in message', () => {
+    const overBy = LOGO_MAX_BYTES + 100_000;
+    const file = { type: 'image/jpeg', size: overBy, name: 'big.jpg' };
+    const msg = validateLogoFile(file);
+    expect(msg).toContain('MB');
+  });
+});
+
+describe('LogoModal — upload & save flow', () => {
+  it('saves the public URL to logo_url on success', async () => {
+    const onSave = vi.fn().mockResolvedValue(undefined);
+    const file = { type: 'image/jpeg', size: 100_000, name: 'logo.jpg' };
+    const session = { user: { id: 'user-abc' } };
+    const publicUrl = 'https://xyz.supabase.co/storage/v1/object/public/logos/user-abc/logo-123.jpg';
+
+    const result = await simulateLogoUpload({
+      file,
+      session,
+      uploadResult: { error: null },
+      publicUrl,
+      onSave,
+    });
+
+    expect(result.error).toBeNull();
+    expect(onSave).toHaveBeenCalledOnce();
+    expect(onSave).toHaveBeenCalledWith({ logo_url: publicUrl });
+    expect(result.savedWith).toBe(publicUrl);
+  });
+
+  it('returns a validation error and does NOT call onSave for a non-image file', async () => {
+    const onSave = vi.fn();
+    const file = { type: 'text/plain', size: 100, name: 'not-an-image.txt' };
+    const session = { user: { id: 'user-abc' } };
+
+    const result = await simulateLogoUpload({
+      file,
+      session,
+      uploadResult: { error: null },
+      publicUrl: 'https://example.com/logo.jpg',
+      onSave,
+    });
+
+    expect(result.error).toMatch(/image file/i);
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it('returns a validation error and does NOT call onSave for an oversized file', async () => {
+    const onSave = vi.fn();
+    const file = { type: 'image/png', size: LOGO_MAX_BYTES + 1, name: 'too-big.png' };
+    const session = { user: { id: 'user-abc' } };
+
+    const result = await simulateLogoUpload({
+      file,
+      session,
+      uploadResult: { error: null },
+      publicUrl: 'https://example.com/logo.png',
+      onSave,
+    });
+
+    expect(result.error).toMatch(/too large/i);
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it('returns a "not signed in" error when session has no user id', async () => {
+    const onSave = vi.fn();
+    const file = { type: 'image/jpeg', size: 100_000, name: 'logo.jpg' };
+    const session = null;
+
+    const result = await simulateLogoUpload({
+      file,
+      session,
+      uploadResult: { error: null },
+      publicUrl: 'https://example.com/logo.jpg',
+      onSave,
+    });
+
+    expect(result.error).toMatch(/not signed in/i);
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it('throws when the storage upload returns an error', async () => {
+    const onSave = vi.fn();
+    const file = { type: 'image/jpeg', size: 100_000, name: 'logo.jpg' };
+    const session = { user: { id: 'user-abc' } };
+    const storageError = new Error('Storage: row-level security policy violation');
+
+    await expect(
+      simulateLogoUpload({
+        file,
+        session,
+        uploadResult: { error: storageError },
+        publicUrl: null,
+        onSave,
+      })
+    ).rejects.toThrow('Storage');
+
+    expect(onSave).not.toHaveBeenCalled();
+  });
+
+  it('throws when publicUrl is null even with a successful upload', async () => {
+    const onSave = vi.fn();
+    const file = { type: 'image/jpeg', size: 100_000, name: 'logo.jpg' };
+    const session = { user: { id: 'user-abc' } };
+
+    await expect(
+      simulateLogoUpload({
+        file,
+        session,
+        uploadResult: { error: null },
+        publicUrl: null,
+        onSave,
+      })
+    ).rejects.toThrow('Could not get public URL');
+
+    expect(onSave).not.toHaveBeenCalled();
+  });
+});
