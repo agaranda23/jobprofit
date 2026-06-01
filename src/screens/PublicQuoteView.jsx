@@ -685,12 +685,6 @@ export default function PublicQuoteView({ token }) {
           </div>
         )}
 
-        <div className="pqv-footer">
-          <p className="pqv-footer-note">
-            By signing you confirm you have read and accepted this quote.
-          </p>
-        </div>
-
       </div>
     </div>
     </>
