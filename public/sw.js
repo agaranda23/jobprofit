@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v42';  // bumped from v41: replace "+" glyph with inline SVG plus icon on New job button
+const CACHE_NAME = 'jobprofit-v43';  // bumped from v42: flex-center SVG icon + label in New job button
 const PRECACHE = [
   '/',
   '/index.html',
