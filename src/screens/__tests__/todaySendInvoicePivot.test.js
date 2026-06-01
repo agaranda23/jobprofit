@@ -1,21 +1,19 @@
 /**
- * Tests for the Today tab "Send an invoice" pivot button visibility fix.
+ * Tests for the Today tab "Send an invoice" pivot button behaviour.
  *
- * Bug: the button was rendered unconditionally — tapping it when no invoiceable
- * jobs existed showed a confusing toast ("Mark a job complete first...").
- *
- * Fix: button is gated on uninvoicedJobs.length > 0. The pivot row also drops
- * the --three modifier class when the button is hidden so the two remaining
- * buttons span the full row width.
- *
- * Tests here validate the pure filter logic that drives uninvoicedJobs and the
- * button/class visibility rules derived from it — no DOM mount required.
+ * Final behaviour (after founder feedback on 2026-06-01):
+ *   - Button is ALWAYS visible — founders want a persistent visual reminder
+ *     that they can invoice from Today.
+ *   - When uninvoicedJobs is empty, tapping it shows a friendly toast:
+ *     "No jobs to invoice yet — finish a quote or log a job first."
+ *   - When uninvoicedJobs has entries, tapping it opens the picker.
+ *   - Pivot row always uses the --three grid since all three buttons are now
+ *     permanently rendered.
  */
 
 import { describe, it, expect } from 'vitest';
 
 // ── Inline of deriveStatus — mirrors TodayScreen's imported helper ─────────────
-// We replicate enough of the real deriveStatus to exercise the filter.
 function deriveStatus(job) {
   if (job.status) return job.status;
   if (job.jobStatus) return job.jobStatus;
@@ -30,21 +28,17 @@ function computeUninvoicedJobs(jobs) {
   });
 }
 
-// ── Visibility rules derived from uninvoicedJobs (mirrors TodayScreen render) ──
-
-function showSendInvoiceButton(uninvoicedJobs) {
-  return uninvoicedJobs.length > 0;
+// ── Pivot row class — always the --three layout (button is always visible) ────
+function pivotRowClass() {
+  return 'foreman-pivot-row foreman-pivot-row--three';
 }
 
-function pivotRowClass(uninvoicedJobs) {
-  return `foreman-pivot-row${uninvoicedJobs.length > 0 ? ' foreman-pivot-row--three' : ''}`;
-}
-
+// ── handleSendInvoicePivot — toast when empty, open picker otherwise ──────────
 function handleSendInvoicePivot(uninvoicedJobs) {
-  // Mirrors the fixed handler — silent no-op when list is empty (button is
-  // already hidden, but defensive guard stays in case of race condition).
-  if (uninvoicedJobs.length === 0) return null;
-  return 'open-picker';
+  if (uninvoicedJobs.length === 0) {
+    return { action: 'toast', message: 'No jobs to invoice yet — finish a quote or log a job first.' };
+  }
+  return { action: 'open-picker' };
 }
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
@@ -79,33 +73,27 @@ function invoicedJob(overrides = {}) {
 
 describe('uninvoicedJobs filter — jobs eligible for the Send Invoice picker', () => {
   it('includes completed jobs with no invoiceSentAt', () => {
-    const jobs = [completedJob()];
-    expect(computeUninvoicedJobs(jobs).length).toBe(1);
+    expect(computeUninvoicedJobs([completedJob()]).length).toBe(1);
   });
 
   it('includes active jobs with no invoiceSentAt', () => {
-    const jobs = [activeJob()];
-    expect(computeUninvoicedJobs(jobs).length).toBe(1);
+    expect(computeUninvoicedJobs([activeJob()]).length).toBe(1);
   });
 
   it('excludes lead jobs regardless of invoiceSentAt', () => {
-    const jobs = [leadJob()];
-    expect(computeUninvoicedJobs(jobs).length).toBe(0);
+    expect(computeUninvoicedJobs([leadJob()]).length).toBe(0);
   });
 
   it('excludes quoted jobs regardless of invoiceSentAt', () => {
-    const jobs = [quotedJob()];
-    expect(computeUninvoicedJobs(jobs).length).toBe(0);
+    expect(computeUninvoicedJobs([quotedJob()]).length).toBe(0);
   });
 
   it('excludes active jobs that already have invoiceSentAt', () => {
-    const jobs = [invoicedJob()];
-    expect(computeUninvoicedJobs(jobs).length).toBe(0);
+    expect(computeUninvoicedJobs([invoicedJob()]).length).toBe(0);
   });
 
   it('excludes completed jobs that already have invoiceSentAt', () => {
-    const jobs = [completedJob({ invoiceSentAt: '2026-05-10T09:00:00Z' })];
-    expect(computeUninvoicedJobs(jobs).length).toBe(0);
+    expect(computeUninvoicedJobs([completedJob({ invoiceSentAt: '2026-05-10T09:00:00Z' })]).length).toBe(0);
   });
 
   it('returns empty array when jobs list is empty', () => {
@@ -121,53 +109,47 @@ describe('uninvoicedJobs filter — jobs eligible for the Send Invoice picker', 
   });
 });
 
-// ── Send invoice button visibility (Bug 3 fix) ────────────────────────────────
+// ── Pivot row class — always the --three layout ───────────────────────────────
 
-describe('Send an invoice pivot button — hidden when no invoiceable jobs (bug fix)', () => {
-  it('button is hidden when uninvoicedJobs is empty', () => {
-    const uninvoiced = computeUninvoicedJobs([leadJob(), quotedJob()]);
-    expect(showSendInvoiceButton(uninvoiced)).toBe(false);
+describe('pivot row class — always uses the three-column layout', () => {
+  it('returns --three class regardless of uninvoicedJobs state', () => {
+    expect(pivotRowClass()).toBe('foreman-pivot-row foreman-pivot-row--three');
+  });
+});
+
+// ── handleSendInvoicePivot — toast when empty, open picker otherwise ──────────
+
+describe('handleSendInvoicePivot — friendly toast when no jobs, picker otherwise', () => {
+  it('shows the friendly toast when uninvoicedJobs is empty', () => {
+    const result = handleSendInvoicePivot([]);
+    expect(result.action).toBe('toast');
+    expect(result.message).toContain('No jobs to invoice yet');
   });
 
-  it('button is visible when at least one uninvoiced job exists', () => {
+  it('toast copy mentions both recovery paths (quote and log)', () => {
+    const result = handleSendInvoicePivot([]);
+    expect(result.message).toContain('finish a quote');
+    expect(result.message).toContain('log a job');
+  });
+
+  it('does not show the old confusing copy', () => {
+    const result = handleSendInvoicePivot([]);
+    expect(result.message).not.toContain('Mark a job complete first');
+  });
+
+  it('opens the picker when uninvoicedJobs has entries', () => {
     const uninvoiced = computeUninvoicedJobs([completedJob()]);
-    expect(showSendInvoiceButton(uninvoiced)).toBe(true);
+    const result = handleSendInvoicePivot(uninvoiced);
+    expect(result.action).toBe('open-picker');
   });
 
-  it('button is visible for a mix of lead and completed jobs', () => {
+  it('opens the picker for a mix of lead and completed jobs', () => {
     const uninvoiced = computeUninvoicedJobs([leadJob(), completedJob()]);
-    expect(showSendInvoiceButton(uninvoiced)).toBe(true);
+    expect(handleSendInvoicePivot(uninvoiced).action).toBe('open-picker');
   });
 
-  it('button is hidden when all completed/active jobs already have invoiceSentAt', () => {
+  it('shows the toast when all completed/active jobs already have invoiceSentAt', () => {
     const uninvoiced = computeUninvoicedJobs([invoicedJob(), completedJob({ invoiceSentAt: '2026-05-01T00:00:00Z' })]);
-    expect(showSendInvoiceButton(uninvoiced)).toBe(false);
-  });
-});
-
-// ── Pivot row class — drops --three when button is hidden ─────────────────────
-
-describe('pivot row class — --three modifier only when Send Invoice button is visible', () => {
-  it('uses --three class when there are uninvoiceable jobs', () => {
-    const uninvoiced = computeUninvoicedJobs([completedJob()]);
-    expect(pivotRowClass(uninvoiced)).toBe('foreman-pivot-row foreman-pivot-row--three');
-  });
-
-  it('drops --three class when no uninvoiceable jobs (two-button layout)', () => {
-    const uninvoiced = computeUninvoicedJobs([leadJob()]);
-    expect(pivotRowClass(uninvoiced)).toBe('foreman-pivot-row');
-  });
-});
-
-// ── handleSendInvoicePivot — silent no-op when list is empty ─────────────────
-
-describe('handleSendInvoicePivot — defensive guard returns no-op (bug fix)', () => {
-  it('returns null (no action) when uninvoicedJobs is empty — no toast shown', () => {
-    expect(handleSendInvoicePivot([])).toBeNull();
-  });
-
-  it('opens picker when uninvoicedJobs has entries', () => {
-    const uninvoiced = computeUninvoicedJobs([completedJob()]);
-    expect(handleSendInvoicePivot(uninvoiced)).toBe('open-picker');
+    expect(handleSendInvoicePivot(uninvoiced).action).toBe('toast');
   });
 });
