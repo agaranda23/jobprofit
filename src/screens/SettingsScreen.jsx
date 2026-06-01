@@ -270,6 +270,59 @@ function WeeklyDigestRow({ session, profile, onProfileUpdate }) {
   );
 }
 
+// ── AutoChaseRow ──────────────────────────────────────────────────────────────
+// Bound to profiles.auto_chase_enabled (boolean, default true).
+// Column added by supabase/migrations/20260601200000_add_auto_chase_enabled.sql.
+// Pro/trial only — free users see a Pro upsell label instead of an active toggle.
+
+function AutoChaseRow({ profile, onProfileUpdate }) {
+  const proUser = isPro(profile);
+
+  const [enabled, setEnabled] = useState(
+    () => profile?.auto_chase_enabled !== false
+  );
+  const [working, setWorking] = useState(false);
+
+  // Keep in sync if the parent profile reloads (e.g. after a save elsewhere)
+  useEffect(() => {
+    setEnabled(profile?.auto_chase_enabled !== false);
+  }, [profile?.auto_chase_enabled]);
+
+  if (!proUser) {
+    // Free user — show upsell, not a toggle that does nothing
+    return (
+      <Row
+        label="Auto-chase reminders"
+        value="Pro"
+        chevron={false}
+      />
+    );
+  }
+
+  const handleToggle = async () => {
+    if (working) return;
+    const next = !enabled;
+    setEnabled(next); // optimistic
+    setWorking(true);
+    try {
+      await onProfileUpdate({ auto_chase_enabled: next });
+    } catch {
+      setEnabled(!next); // revert on failure
+    } finally {
+      setWorking(false);
+    }
+  };
+
+  return (
+    <Row
+      label="Auto-chase reminders"
+      value={working ? 'Updating…' : enabled ? 'On' : 'Off'}
+      onTap={handleToggle}
+      chevron={false}
+    />
+  );
+}
+
 // ── CIS subcontractor setup sheet ────────────────────────────────────────────
 // Shown when the CIS row in Invoice settings is tapped.
 // Manages its own local state; saves via onProfileUpdate on close.
@@ -1630,6 +1683,10 @@ export default function SettingsScreen({
         />
         <WeeklyDigestRow
           session={session}
+          profile={profile}
+          onProfileUpdate={onProfileUpdate}
+        />
+        <AutoChaseRow
           profile={profile}
           onProfileUpdate={onProfileUpdate}
         />

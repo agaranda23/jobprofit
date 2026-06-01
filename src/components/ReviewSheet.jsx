@@ -40,6 +40,7 @@ import {
   buildPublicQuoteUrl,
 } from '../lib/publicQuoteToken';
 import { logTelemetry } from '../lib/telemetry';
+import { isPro } from '../lib/plan';
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -89,6 +90,7 @@ export default function ReviewSheet({
   job,
   biz,
   jobs,
+  profile,
   onClose,
   onDismiss,
   onUpdate,
@@ -250,12 +252,33 @@ export default function ReviewSheet({
           {busy ? 'Preparing…' : primaryLabel}
         </button>
 
-        {/* Auto-chase chip — invoice mode only, visual in v1 */}
-        {isInvoice && (
-          <div className="rs-autochase-chip" aria-label="Auto-chase is on">
-            Auto-chase: on
-          </div>
-        )}
+        {/* Auto-chase chip — invoice mode only.
+            Shows real state: on for pro/trial with auto_chase_enabled,
+            a Pro upsell for free users, hidden when explicitly off. */}
+        {isInvoice && (() => {
+          const proUser = isPro(profile);
+          const autoOn  = profile?.auto_chase_enabled !== false;
+
+          if (proUser && autoOn) {
+            return (
+              <div className="rs-autochase-chip rs-autochase-chip--on" aria-label="Auto-chase is on">
+                Auto-chase: on
+              </div>
+            );
+          }
+
+          if (proUser && !autoOn) {
+            // Explicitly turned off — show nothing (user made the choice)
+            return null;
+          }
+
+          // Free user — show a Pro upsell instead of a false "on" claim
+          return (
+            <div className="rs-autochase-chip rs-autochase-chip--upsell" aria-label="Auto-chase requires Pro">
+              Auto-chase · Pro
+            </div>
+          );
+        })()}
 
         {/* Peer ghost buttons */}
         <div className="rs-peer-row">
