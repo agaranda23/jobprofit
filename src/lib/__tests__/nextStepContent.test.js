@@ -93,8 +93,8 @@ describe('deriveNextStepContent — Lead (quote not sent)', () => {
     expect(deriveNextStepContent(params).headline).toBe('Send the quote');
   });
 
-  it('primary CTA label mentions WhatsApp', () => {
-    expect(deriveNextStepContent(params).primaryCta.label).toContain('WhatsApp');
+  it('primary CTA label is "Send quote"', () => {
+    expect(deriveNextStepContent(params).primaryCta.label).toBe('Send quote');
   });
 
   it('primary CTA action is sendQuoteLink', () => {

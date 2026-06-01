@@ -109,3 +109,52 @@ describe('writeJobMeta / readJobMeta — overdue round-trip', () => {
     expect(readJobMeta(JOB_ID).overdue).toBe(false);
   });
 });
+
+// ── Schedule fields regression (Issue 2) ─────────────────────────────────────
+// Root cause: scheduledDate/scheduledStart/scheduledEnd were missing from
+// META_FIELDS so handleScheduleSave values were silently stripped before
+// localStorage write, reverting on every reload.
+
+const SCHED_JOB_ID = 'test-job-meta-schedule-001';
+
+describe('extractJobMeta — schedule fields', () => {
+  it('includes scheduledDate when present on the job', () => {
+    const job = { id: SCHED_JOB_ID, scheduledDate: '2026-06-10' };
+    const meta = extractJobMeta(job);
+    expect(meta.scheduledDate).toBe('2026-06-10');
+  });
+
+  it('includes scheduledStart and scheduledEnd when present', () => {
+    const job = { id: SCHED_JOB_ID, scheduledDate: '2026-06-10', scheduledStart: '09:00', scheduledEnd: '11:30' };
+    const meta = extractJobMeta(job);
+    expect(meta.scheduledStart).toBe('09:00');
+    expect(meta.scheduledEnd).toBe('11:30');
+  });
+
+  it('does not include schedule fields when absent from the job', () => {
+    const job = { id: SCHED_JOB_ID, status: 'Lead' };
+    const meta = extractJobMeta(job);
+    expect('scheduledDate' in meta).toBe(false);
+    expect('scheduledStart' in meta).toBe(false);
+    expect('scheduledEnd' in meta).toBe(false);
+  });
+});
+
+describe('writeJobMeta / readJobMeta — schedule round-trip', () => {
+  it('persists scheduledDate and reads it back', () => {
+    writeJobMeta(SCHED_JOB_ID, { scheduledDate: '2026-06-10', scheduledStart: '09:00', scheduledEnd: '11:30' });
+    const stored = readJobMeta(SCHED_JOB_ID);
+    expect(stored.scheduledDate).toBe('2026-06-10');
+    expect(stored.scheduledStart).toBe('09:00');
+    expect(stored.scheduledEnd).toBe('11:30');
+  });
+
+  it('persists scheduledDate: null (clear) and reads it back as null', () => {
+    // Unschedule path writes scheduledDate: null — must survive round-trip
+    writeJobMeta(SCHED_JOB_ID, { scheduledDate: null, scheduledStart: null, scheduledEnd: null });
+    const stored = readJobMeta(SCHED_JOB_ID);
+    expect(stored.scheduledDate).toBeNull();
+    expect(stored.scheduledStart).toBeNull();
+    expect(stored.scheduledEnd).toBeNull();
+  });
+});

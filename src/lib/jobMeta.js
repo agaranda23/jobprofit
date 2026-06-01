@@ -72,6 +72,12 @@ const META_FIELDS = [
   'labourHours',   // number — hours worked on this job
   'deposit',       // number — deposit amount taken at booking
   'notes',         // string — free-text note logged at job creation
+  // Schedule fields — drawer handleScheduleSave and App.jsx saveSchedule both
+  // route through onUpdateJob → writeJobMeta. Without these entries the schedule
+  // date/time would appear saved in-memory but be silently stripped on reload.
+  'scheduledDate',  // ISO date string e.g. "2026-06-10"
+  'scheduledStart', // time string e.g. "09:00"
+  'scheduledEnd',   // time string e.g. "11:30"
 ];
 
 export function readJobMeta(id) {

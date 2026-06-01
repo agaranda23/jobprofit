@@ -156,7 +156,7 @@ export function deriveNextStepContent({
   // Lead — quote not yet sent
   return {
     headline: 'Send the quote',
-    primaryCta: { label: 'Send quote via WhatsApp', action: 'sendQuoteLink' },
+    primaryCta: { label: 'Send quote', action: 'sendQuoteLink' },
     microCtas: [
       { label: 'Edit price', action: 'editPrice' },
       { label: 'Edit line items', action: 'editLineItems' },
