@@ -64,6 +64,14 @@ const META_FIELDS = [
   'address',      // maps to address column
   'email',        // maps to email column
   'description',  // maps to description column (added 2026-05-30 migration)
+  // Per-job cost fields — no dedicated DB columns; persisted in meta JSONB only.
+  // materialsCost and labourHours feed true-profit calculations.
+  // deposit is the deposit amount taken at booking (not the Stripe deposit flow).
+  // notes is a plain-text string note; separate from jobNotes[] (structured notes).
+  'materialsCost', // number — materials/supplies cost for this job
+  'labourHours',   // number — hours worked on this job
+  'deposit',       // number — deposit amount taken at booking
+  'notes',         // string — free-text note logged at job creation
 ];
 
 export function readJobMeta(id) {
