@@ -378,12 +378,32 @@ async function handleChargeRefunded(charge, adminClient) {
       // is NOT reverted — the quote may still be in an accepted state if the
       // customer signed before the refund. That's a trader decision to handle manually.
       const quoteId = tokenRow.quote_id || tokenRow.invoice_id;
+
+      // Also remove the 'Deposit on acceptance' payment row from payments[] so
+      // the balance-due calculation is not net-reduced by a refunded deposit.
+      let paymentsAfterRefund;
+      try {
+        const { data: jobForRefund } = await adminClient
+          .from('jobs')
+          .select('payments')
+          .eq('id', quoteId)
+          .single();
+        const existingPays = Array.isArray(jobForRefund?.payments) ? jobForRefund.payments : [];
+        paymentsAfterRefund = existingPays.filter(p => p.note !== 'Deposit on acceptance');
+      } catch {
+        // Non-fatal: if we can't fetch the payments, skip the array update.
+        paymentsAfterRefund = undefined;
+      }
+
+      const refundPatch = {
+        deposit_paid_at: null,
+        deposit_payment_token_id: null,
+        ...(paymentsAfterRefund !== undefined ? { payments: paymentsAfterRefund } : {}),
+      };
+
       const { error: jobErr } = await adminClient
         .from('jobs')
-        .update({
-          deposit_paid_at: null,
-          deposit_payment_token_id: null,
-        })
+        .update(refundPatch)
         .eq('id', quoteId);
 
       if (jobErr) {
@@ -554,7 +574,7 @@ async function handleDepositCompleted(session, stripe, adminClient) {
 
   const { data: jobRow, error: jobFetchErr } = await adminClient
     .from('jobs')
-    .select('id, user_id, customer, customer_name, meta, summary, name, deposit_amount_pence')
+    .select('id, user_id, customer, customer_name, meta, summary, name, deposit_amount_pence, payments')
     .eq('id', jobId)
     .single();
 
@@ -575,6 +595,35 @@ async function handleDepositCompleted(session, stripe, adminClient) {
     jobStatus:      'active',
   };
 
+  // ── Append deposit payment to job.payments[] so it nets off the invoice ────
+  // Uses the addPayment shape from src/lib/payments.js. The existing part-paid
+  // machinery (PaymentSummaryBlock, applyAutoFlip, chase ladder) then treats this
+  // deposit like any other payment and chases only the remaining balance.
+  //
+  // Idempotency: check whether a payment with note 'Deposit on acceptance' already
+  // exists so duplicate webhook deliveries don't double-count.
+  const depositAmountGbp = (tokenRow.amount_pence || 0) / 100;
+  const paidAtDate = paidAt.slice(0, 10); // YYYY-MM-DD
+
+  const existingPayments = Array.isArray(jobRow.payments) ? jobRow.payments : [];
+  const depositAlreadyRecorded = existingPayments.some(
+    p => p.note === 'Deposit on acceptance',
+  );
+
+  const updatedPayments = depositAlreadyRecorded
+    ? existingPayments
+    : [
+        ...existingPayments,
+        {
+          id:        `pay_${Date.now()}_dep`,
+          date:      paidAtDate,
+          amount:    depositAmountGbp,
+          method:    'card',
+          note:      'Deposit on acceptance',
+          createdAt: paidAt,
+        },
+      ];
+
   // ── Update the job with deposit payment state and auto-acceptance ─────────
   const { error: jobErr } = await adminClient
     .from('jobs')
@@ -583,6 +632,7 @@ async function handleDepositCompleted(session, stripe, adminClient) {
       deposit_payment_token_id:  tokenRow.id,
       status:                    'active', // move quote → active job
       meta:                      updatedMeta,
+      payments:                  updatedPayments,
     })
     .eq('id', jobId);
 
@@ -592,14 +642,18 @@ async function handleDepositCompleted(session, stripe, adminClient) {
   }
 
   // ── Fire push notification to trader ──────────────────────────────────────
-  // Reuses sendPushToUser from accept-quote.js. Fail-soft: never blocks the response.
+  // Fail-soft: never blocks the response.
   try {
     const { sendPushToUser } = await import('./_lib/sendPushToUser.js');
-    const depositGbp = `£${((tokenRow.amount_pence || 0) / 100).toFixed(2)}`;
-    const jobDesc = jobRow.summary || jobRow.name || 'a job';
+    const depositGbp = `£${((tokenRow.amount_pence || 0) / 100).toFixed(0)}`;
+    const customerName = jobRow.customer || jobRow.customer_name || '';
+    const customerLabel = customerName ? customerName.split(' ')[0] : null;
+    const jobDesc = jobRow.summary || jobRow.name || 'your quote';
     await sendPushToUser(jobRow.user_id, {
-      title: 'Deposit paid',
-      body:  `Deposit paid: ${depositGbp} for ${jobDesc}`,
+      title: `Deposit paid — ${depositGbp}`,
+      body:  customerLabel
+        ? `${customerLabel} accepted your quote and paid the ${depositGbp} deposit. Job's now active.`
+        : `Deposit paid for ${jobDesc}. Job's now active.`,
       url:   '/',
       tag:   `deposit-paid-${jobId}`,
     });

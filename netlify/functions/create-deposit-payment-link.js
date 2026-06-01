@@ -171,7 +171,7 @@ export const handler = async function (event) {
   try {
     const { data, error } = await adminClient
       .from('profiles')
-      .select('stripe_user_id, stripe_connect_status, business_name, first_name, last_name')
+      .select('stripe_user_id, stripe_connect_status, business_name, first_name, last_name, plan, trial_ends_at')
       .eq('id', userId)
       .single();
 
@@ -182,6 +182,19 @@ export const handler = async function (event) {
   } catch (err) {
     console.error('create-deposit-payment-link: profile fetch threw', err?.message);
     return json(502, { error: 'Could not retrieve profile' });
+  }
+
+  // ── 4a. Server-side Pro gate ──────────────────────────────────────────────────
+  // Belt-and-braces with the client gate. Trial (plan='trial', trial_ends_at in
+  // the future) counts as Pro. The customer paying the deposit is NEVER gated —
+  // only the trader generating the link reaches this code.
+  const isProPlan = profile.plan === 'pro';
+  const isActiveTrial =
+    profile.plan === 'trial' &&
+    profile.trial_ends_at &&
+    new Date(profile.trial_ends_at) > new Date();
+  if (!isProPlan && !isActiveTrial) {
+    return json(403, { error: 'Deposit on acceptance requires a Pro plan.', code: 'PRO_REQUIRED' });
   }
 
   // ── 5. Verify trader is connected to Stripe ───────────────────────────────────

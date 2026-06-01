@@ -9703,6 +9703,99 @@ input[type=number] { -moz-appearance: textfield; }
   background: #1ebe5c;
 }
 
+/* Per-quote deposit picker in ReviewSheet — quote mode only ─────────────── */
+.rs-deposit-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 0 4px;
+  border-top: 1px solid var(--border);
+}
+
+.rs-deposit-row-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary, #666);
+}
+
+.rs-deposit-preview {
+  font-weight: 400;
+  color: var(--jp-green, #28b581);
+  margin-left: 4px;
+}
+
+.rs-deposit-picker {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.rs-deposit-btn {
+  flex: 1 1 auto;
+  min-width: 52px;
+  min-height: 36px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.rs-deposit-btn--active {
+  background: var(--jp-green, #28b581);
+  border-color: var(--jp-green, #28b581);
+  color: #fff;
+  font-weight: 700;
+}
+
+.rs-deposit-btn:not(.rs-deposit-btn--active):active {
+  background: var(--surface-2);
+}
+
+.rs-deposit-custom-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.rs-deposit-custom-input {
+  width: 72px;
+  height: 36px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0 8px;
+  font-size: 14px;
+  background: var(--surface);
+  color: var(--text);
+}
+
+.rs-deposit-custom-input:focus {
+  outline: none;
+  border-color: var(--jp-green, #28b581);
+}
+
+.rs-deposit-custom-suffix {
+  font-size: 14px;
+  color: var(--text-secondary, #666);
+}
+
+.rs-deposit-upsell {
+  padding: 10px 0 2px;
+  font-size: 12px;
+  color: var(--text-secondary, #666);
+  text-align: center;
+  border-top: 1px solid var(--border);
+}
+
+/* Negative-balance guard in DepositPaidBadge */
+.deposit-balance-due--warn {
+  color: var(--danger, #e53e3e);
+  font-weight: 600;
+}
+
 /* Auto-chase chip — invoice mode, visual only */
 .rs-autochase-chip {
   align-self: center;

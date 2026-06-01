@@ -402,8 +402,22 @@ function CustomerCard({ job, onEditName, onEditPhone, onEditAddress, onEditEmail
         )
       )}
 
-      {/* Accepted signature — read-only thumbnail shown after quote acceptance */}
-      {job.acceptedSignature && (
+      {/* Accepted signature — read-only thumbnail shown after quote acceptance.
+          When acceptedSource is 'deposit_payment' (no handwritten signature),
+          show a card-acceptance badge instead of an empty signature box. */}
+      {job.acceptedSource === 'deposit_payment' && !job.acceptedSignature ? (
+        <div className="sig-accepted-card">
+          <div className="sig-accepted-label">Accepted by card deposit</div>
+          <div className="sig-accepted-source">
+            Customer paid the deposit — quote accepted
+          </div>
+          {job.acceptedAt && (
+            <div className="sig-accepted-date">
+              {fmtDate(job.acceptedAt)}
+            </div>
+          )}
+        </div>
+      ) : job.acceptedSignature ? (
         <div className="sig-accepted-card">
           <div className="sig-accepted-label">Accepted by customer</div>
           <img
@@ -414,6 +428,8 @@ function CustomerCard({ job, onEditName, onEditPhone, onEditAddress, onEditEmail
           <div className="sig-accepted-source">
             {job.acceptedSource === 'remote'
               ? `Signed remotely${job.acceptedName ? ` by ${job.acceptedName}` : ' by customer'}`
+              : job.acceptedSource === 'deposit_payment'
+              ? 'Accepted by card deposit'
               : 'Signed on screen'}
           </div>
           {job.acceptedAt && (
@@ -422,7 +438,7 @@ function CustomerCard({ job, onEditName, onEditPhone, onEditAddress, onEditEmail
             </div>
           )}
         </div>
-      )}
+      ) : null}
     </div>
   );
 }
@@ -1701,7 +1717,12 @@ function DepositPaidBadge({ job, depositToken, totalAmount }) {
 
   const depositPence = job.deposit_amount_pence || depositToken?.amount_pence || 0;
   const depositGbp = depositPence > 0 ? gbp(depositPence / 100) : '';
-  const balanceGbp = depositPence > 0 ? gbp(Math.max(0, totalAmount - depositPence / 100)) : '';
+  const rawBalance = totalAmount - depositPence / 100;
+  const balanceClamped = Math.max(0, rawBalance);
+  const balanceGbp = depositPence > 0 ? gbp(balanceClamped) : '';
+  // Negative balance means the trader has edited the quote total below the
+  // already-paid deposit — flag it so they know to refund the difference.
+  const depositExceedsTotal = depositPence > 0 && rawBalance < 0;
 
   let dateLabel = '';
   try {
@@ -1731,10 +1752,16 @@ function DepositPaidBadge({ job, depositToken, totalAmount }) {
         <a href={stripePaymentUrl} target="_blank" rel="noopener noreferrer"
           style={{ color: 'inherit', textDecoration: 'underline' }}>Refund &#x2197;</a>
       </div>
-      {balanceGbp && (
-        <div className="deposit-balance-due">
-          Balance due on completion: <strong>{balanceGbp}</strong>
+      {depositExceedsTotal ? (
+        <div className="deposit-balance-due deposit-balance-due--warn">
+          Deposit exceeds new total — refund the difference via Stripe
         </div>
+      ) : (
+        balanceGbp && (
+          <div className="deposit-balance-due">
+            Balance due on completion: <strong>{balanceGbp}</strong>
+          </div>
+        )
       )}
     </div>
   );
