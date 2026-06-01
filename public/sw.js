@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v41';  // bumped from v40: manual Invoiced ↔ Overdue stage transition — overdue flag added to META_FIELDS
+const CACHE_NAME = 'jobprofit-v42';  // bumped from v41: replace "+" glyph with inline SVG plus icon on New job button
 const PRECACHE = [
   '/',
   '/index.html',
