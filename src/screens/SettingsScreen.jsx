@@ -965,6 +965,45 @@ function DefaultDepositRow({ profile, onProfileUpdate }) {
   );
 }
 
+// ── SettingsAvatar ────────────────────────────────────────────────────────────
+// Shows the trader's logo in the identity card when profile.logo_url is set.
+// Falls back to the initials circle (with the green ring) when no logo is set
+// or when the image fails to load (broken URL, storage error, etc.).
+
+function SettingsAvatar({ profile, session }) {
+  const logoUrl = profile?.logo_url || '';
+
+  if (logoUrl) {
+    return (
+      <div className="settings-avatar settings-avatar--logo">
+        <img
+          src={logoUrl}
+          alt="Business logo"
+          className="settings-avatar-img"
+          onError={(e) => {
+            // Image failed to load — swap to initials fallback without crashing.
+            const parent = e.currentTarget.parentElement;
+            if (parent) {
+              parent.classList.remove('settings-avatar--logo');
+              e.currentTarget.replaceWith(
+                Object.assign(document.createElement('span'), {
+                  textContent: deriveInitials(profile, session),
+                })
+              );
+            }
+          }}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="settings-avatar">
+      <span>{deriveInitials(profile, session)}</span>
+    </div>
+  );
+}
+
 // ── LogoModal ─────────────────────────────────────────────────────────────────
 // Replaces the old URL-only EditFieldModal for the logo field.
 // Two input paths:
@@ -1478,9 +1517,7 @@ export default function SettingsScreen({
 
       {/* Account identity card */}
       <div className="settings-identity">
-        <div className="settings-avatar">
-          <span>{deriveInitials(profile, session)}</span>
-        </div>
+        <SettingsAvatar profile={profile} session={session} />
         <div className="settings-identity-text">
           <div className="settings-identity-name">{displayName}</div>
           {tradingName && <div className="settings-identity-trading">{tradingName}</div>}

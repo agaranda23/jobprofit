@@ -432,13 +432,26 @@ export default function SendInvoiceModal({
           />
         )}
 
+        {/* Pay-now link loading hint — shown only while the dynamic Stripe link
+            is being generated AND there is no static fallback link available.
+            When a static stripe_payment_link is already set, we allow immediate
+            send (the fallback link is included) and skip the wait-spinner. */}
+        {isConnected && payNowLoading && !effectivePaymentLink && (
+          <div className="invoice-paynow-loading" role="status" aria-live="polite">
+            Generating Pay-now link…
+          </div>
+        )}
+
         {/* Primary CTA — WhatsApp deep-link (fast, no PDF overhead).
-            Label changes when connected + Pay-now URL is ready (per brief 1.4). */}
+            Label changes when connected + Pay-now URL is ready (per brief 1.4).
+            Only blocked while loading if there is no static fallback payment link —
+            if a fallback exists the message is already complete and the trader can
+            send immediately without waiting for the dynamic link. */}
         <button
           type="button"
           className="btn-primary modal-sheet-btn invoice-send-whatsapp"
           onClick={handleWhatsApp}
-          disabled={isUnpriced || (isConnected && payNowLoading)}
+          disabled={isUnpriced || (isConnected && payNowLoading && !effectivePaymentLink)}
           aria-disabled={isUnpriced}
         >
           {isConnected && payNowUrl
