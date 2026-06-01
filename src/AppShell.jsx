@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useKeyboardInset } from './lib/useKeyboardInset.js';
 import App from './App.jsx';
 import CardPaymentsScreen from './screens/CardPaymentsScreen.jsx';
 import {
@@ -120,6 +121,11 @@ function parseViewFromHash() {
 }
 
 export default function AppShell() {
+  // Write --kb-inset CSS variable whenever the on-screen keyboard opens/closes.
+  // All bottom-sheet modals read this variable via padding-bottom on .modal-backdrop
+  // so they float above the keypad without any per-modal code.
+  useKeyboardInset();
+
   const [view, setView] = useState(() => parseViewFromHash());
   const [moreKey, setMoreKey] = useState(0);
   const [pendingDeepLink, setPendingDeepLink] = useState(null);

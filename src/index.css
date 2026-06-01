@@ -373,6 +373,11 @@ body { background: var(--bg); color: var(--text); -webkit-font-smoothing: antial
   /* z-index 300 sits above .drawer-backdrop (200) and .job-detail-sheet (201)
      so RecordPaymentModal blocks all clicks to the drawer underneath. */
   z-index: 300;
+  /* Keyboard inset: --kb-inset is written by useKeyboardInset (AppShell).
+     padding-bottom lifts the bottom-aligned sheet above the on-screen keyboard.
+     transition matches the keyboard animation so the sheet slides up smoothly. */
+  padding-bottom: var(--kb-inset, 0px);
+  transition: padding-bottom 0.2s ease-out;
 }
 .modal {
   background: var(--surface);
@@ -915,39 +920,51 @@ body {
   text-underline-offset: 3px;
 }
 
-/* Stage 1 → Stage 2 bordered secondary button */
+/* Stage 1 → Stage 2 bordered secondary button — visually secondary to "Save it"
+   but unmissable: taller, heavier text, stronger border, subtle tint. */
 .aj-details-btn {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
   width: 100%;
-  background: none;
-  border: 1.5px solid var(--border);
+  /* Subtle green tint: keeps it clearly secondary vs the solid green primary,
+     but gives it enough presence to read as a real call-to-action on a build site. */
+  background: rgba(34, 197, 94, 0.08);
+  border: 2px solid rgba(34, 197, 94, 0.45);
   border-radius: 12px;
   color: var(--text);
-  font-size: 15px;
-  font-weight: 600;
+  font-size: 16px;
+  font-weight: 700;
   font-family: inherit;
-  padding: 14px 16px;
+  padding: 16px 16px;
   margin-top: 10px;
   cursor: pointer;
   transition: border-color 0.15s, background 0.15s;
-  min-height: 52px;
+  min-height: 58px;
 }
 .aj-details-btn:active {
-  background: var(--surface-2);
+  background: rgba(34, 197, 94, 0.18);
   border-color: var(--accent);
+}
+/* Dark-mode: the rgba tint naturally works since --accent is the same green. */
+[data-theme="dark"] .aj-details-btn {
+  background: rgba(34, 197, 94, 0.1);
+  border-color: rgba(34, 197, 94, 0.5);
+}
+[data-theme="dark"] .aj-details-btn:active {
+  background: rgba(34, 197, 94, 0.2);
 }
 .aj-details-btn-plus {
   color: var(--accent);
-  font-size: 18px;
-  font-weight: 700;
+  font-size: 20px;
+  font-weight: 800;
   line-height: 1;
 }
 .aj-details-btn-arrow {
-  color: var(--text-dim);
-  font-size: 16px;
+  color: var(--accent);
+  font-size: 17px;
+  font-weight: 700;
 }
 
 /* "Say it instead" voice row — explicit tap only, no auto-arm */
@@ -1157,7 +1174,9 @@ body {
 }
 
 /* Receipt OCR + items UI */
-.modal-tall { max-height: 88vh; overflow-y: auto; }
+/* max-height is the visible space above the keyboard — subtract --kb-inset so
+   the sheet body scrolls within the area the keypad hasn't claimed. */
+.modal-tall { max-height: calc(88vh - var(--kb-inset, 0px)); overflow-y: auto; }
 
 .field-row { display: flex; gap: 10px; }
 .field-row label { display: flex; flex-direction: column; gap: 6px; font-size: 14px; color: var(--text-dim); }
@@ -6376,7 +6395,8 @@ input[type=number] { -moz-appearance: textfield; }
   display: flex;
   flex-direction: column;
   gap: 12px;
-  max-height: 90svh;
+  /* Shrink when the keyboard is up so sheet body stays within the visible area. */
+  max-height: calc(90svh - var(--kb-inset, 0px));
   overflow-y: auto;
   animation: slide-up 0.25s ease-out;
 }
@@ -8270,6 +8290,9 @@ input[type=number] { -moz-appearance: textfield; }
   display: flex;
   align-items: flex-end;
   padding: 0 0 env(safe-area-inset-bottom, 0);
+  /* Keyboard inset: lifts the picker above the on-screen keyboard. */
+  padding-bottom: calc(env(safe-area-inset-bottom, 0px) + var(--kb-inset, 0px));
+  transition: padding-bottom 0.2s ease-out;
 }
 
 .foreman-invoice-picker {
@@ -11486,6 +11509,9 @@ input[type=number] { -moz-appearance: textfield; }
   align-items: flex-end;
   justify-content: center;
   /* full-screen on narrow viewports, bottom-sheet on wider */
+  /* Keyboard inset: lifts the upgrade sheet above the on-screen keyboard. */
+  padding-bottom: var(--kb-inset, 0px);
+  transition: padding-bottom 0.2s ease-out;
 }
 
 .pro-upgrade-sheet {
