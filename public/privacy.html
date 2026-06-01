@@ -60,10 +60,12 @@
     </div>
 
     <h1>Privacy Policy</h1>
-    <p class="meta">Last updated: [PLACEHOLDER: insert publication date]</p>
+    <!-- TODO: set to go-live date on publish -->
+    <p class="meta">Last updated: [PUBLISH-DATE]</p>
 
     <h2>1. Who we are</h2>
-    <p>JobProfit is operated by [PLACEHOLDER: full legal company name, e.g. JobProfit Ltd] ([PLACEHOLDER: company number]), registered at [PLACEHOLDER: registered office address, UK]. Contact: [PLACEHOLDER: data protection contact email]. We are registered with the ICO; registration number [PLACEHOLDER: ICO registration number].</p>
+    <!-- TODO(founder): replace [ICO-NUMBER-PENDING] with ZA number from ICO confirmation email -->
+    <p>JobProfit is operated by JOB PROFIT LTD (company number 17249792), registered at 69 Rabournmead Drive, Northolt, UB5 6YJ, United Kingdom. Contact: <a href="mailto:getjobprofit@gmail.com">getjobprofit@gmail.com</a>. We are registered with the ICO; registration number [ICO-NUMBER-PENDING].</p>
 
     <h2>2. The short version</h2>
     <p>We collect what we need to make the app work. We do not sell your data. We do not share it with anyone who does not need it to run the service. You can export everything or delete your account at any time — both are in the app.</p>
@@ -82,31 +84,36 @@
     </ul>
 
     <p><strong>3b. Data about your customers (job data): When you quote/invoice/log jobs, YOU are the data controller and JobProfit is your data processor.</strong></p>
-    <p>We process this only on your instruction. This includes customer name, address, phone, email, job descriptions, line items, amounts, and an e-signature (PNG) when a customer accepts a quote via a public link. You are responsible for having a lawful basis to process your customers' data and for responding to their data subject requests. A Data Processing Agreement is available on request at [PLACEHOLDER: data protection contact email].</p>
+    <p>We process this only on your instruction. This includes customer name, address, phone, email, job descriptions, line items, amounts, and an e-signature (PNG) when a customer accepts a quote via a public link. You are responsible for having a lawful basis to process your customers' data and for responding to their data subject requests. A Data Processing Agreement is available on request at <a href="mailto:getjobprofit@gmail.com">getjobprofit@gmail.com</a>.</p>
+
+    <p><strong>3c. Providing your data.</strong> Some of the account data above (such as your name, email, and business details) is necessary to provide the service under our contract with you — if you do not provide it, we may be unable to create or operate your account. Analytics data is optional and based on your consent.</p>
+
+    <p><strong>3d. Automated decision-making.</strong> We do not carry out automated decision-making or profiling that produces legal or similarly significant effects on you.</p>
 
     <h2>4. How long we keep data</h2>
     <ul>
       <li>Account data: while your account is active plus up to 12 months after deletion (billing disputes, chargebacks, legal claims) unless law requires longer.</li>
-      <li>Job and customer data: while active; deleted within [PLACEHOLDER: e.g. 30 days] of account deletion.</li>
-      <li>Analytics (PostHog): per PostHog retention [PLACEHOLDER: specify period].</li>
+      <li>Job and customer data: while active; deleted within 30 days of account deletion.</li>
+      <li>Analytics (PostHog): retained in line with our PostHog (EU) configuration and kept no longer than necessary for product analytics.</li>
       <li>Stripe transaction records: Stripe retains per its policies; we retain metadata up to 7 years for accounting/tax.</li>
     </ul>
 
     <h2>5. Who we share data with (sub-processors)</h2>
     <ul>
-      <li><strong>Supabase</strong> — database hosting — all account/job data — [PLACEHOLDER: confirm region].</li>
-      <li><strong>Netlify</strong> — hosting/serverless — request metadata, logs — USA ([PLACEHOLDER: confirm transfer mechanism]).</li>
+      <!-- TODO(founder): confirm Supabase project region (Supabase dashboard → Project Settings → General) and replace [CONFIRM-REGION] -->
+      <li><strong>Supabase</strong> — database hosting — all account and job data — hosted in our configured Supabase project region; see [CONFIRM-REGION] below.</li>
+      <li><strong>Netlify</strong> — hosting/serverless — request metadata, logs — USA; transfers covered by Standard Contractual Clauses / the UK Addendum (per Netlify's Data Processing Agreement).</li>
       <li><strong>Stripe / Stripe Connect</strong> — payment processing — trader name, email, billing metadata; card/bank-card details held directly by Stripe, JobProfit never sees or stores them — USA (EU-US DPF).</li>
-      <li><strong>PostHog</strong> — analytics — pseudonymised usage events, device metadata, IP (may be anonymised, [PLACEHOLDER: confirm IP masking]) — [PLACEHOLDER: confirm region].</li>
+      <li><strong>PostHog (EU)</strong> — pseudonymised usage events and device metadata; IP addresses are processed by PostHog and are not used by us to identify you personally.</li>
     </ul>
     <p>We do not sell data or use it for advertising targeting.</p>
 
     <h2>6. International transfers</h2>
-    <p>Where data is transferred outside the UK we rely on [PLACEHOLDER: UK adequacy regs / UK IDTAs / UK Addendum to SCCs as applicable].</p>
+    <p>Where data is transferred outside the UK we rely on UK adequacy regulations, the UK International Data Transfer Agreement (IDTA), or the UK Addendum to the EU Standard Contractual Clauses, as applicable.</p>
 
     <h2>7. Your rights (UK GDPR)</h2>
     <p>Access, rectify, erase, restrict/object, data portability, withdraw consent, lodge a complaint with the ICO (<a href="https://ico.org.uk" target="_blank" rel="noopener">ico.org.uk</a>).</p>
-    <p>In-app: export all data as CSV from Settings; delete your account from Settings. For anything beyond the in-app tools, or if you are a customer of a tradesperson who uses JobProfit, contact [PLACEHOLDER: data protection contact email] — for tradespeople's customers we act as processor and will direct your request to the relevant tradesperson (the controller).</p>
+    <p>In-app: export all data as CSV from Settings; delete your account from Settings. For anything beyond the in-app tools, or if you are a customer of a tradesperson who uses JobProfit, contact <a href="mailto:getjobprofit@gmail.com">getjobprofit@gmail.com</a> — for tradespeople's customers we act as processor and will direct your request to the relevant tradesperson (the controller).</p>
 
     <h2>8. Security</h2>
     <p>HTTPS/TLS, access controls, Supabase Row Level Security. No system is fully secure; we will notify you and the ICO of a qualifying breach as required.</p>
@@ -115,7 +122,8 @@
     <p>Material changes notified by email or in-app before they take effect; the "last updated" date reflects the current version.</p>
 
     <h2>10. Contact</h2>
-    <p>[PLACEHOLDER: full legal company name], [PLACEHOLDER: registered address], [PLACEHOLDER: contact email]. ICO registration: [PLACEHOLDER: ICO number].</p>
+    <!-- TODO(founder): replace [ICO-NUMBER-PENDING] with ZA number from ICO confirmation email -->
+    <p>JOB PROFIT LTD, 69 Rabournmead Drive, Northolt, UB5 6YJ, United Kingdom. Email: <a href="mailto:getjobprofit@gmail.com">getjobprofit@gmail.com</a>. ICO registration: [ICO-NUMBER-PENDING].</p>
 
     <div class="footer-links">
       <a href="/">Home</a>
