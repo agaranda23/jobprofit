@@ -147,4 +147,44 @@ describe('buildQuoteWhatsAppMessage', () => {
       buildQuoteWhatsAppMessage({ job: null, biz: null, quoteUrl: QUOTE_URL })
     ).not.toThrow();
   });
+
+  // Link-first ordering — WhatsApp truncates file-share captions on iOS, so
+  // the sign URL must sit ahead of the summary/total lines.
+  it('places the quote URL above the summary line', () => {
+    const msg = buildQuoteWhatsAppMessage({
+      job: { customer: 'Alan', summary: 'Boiler service', total: 500 },
+      biz: { name: 'A Plumbing' },
+      quoteUrl: QUOTE_URL,
+    });
+    expect(msg.indexOf(QUOTE_URL)).toBeLessThan(msg.indexOf('🔨'));
+  });
+
+  it('places the quote URL above the total line', () => {
+    const msg = buildQuoteWhatsAppMessage({
+      job: { customer: 'Alan', summary: 'X', total: 500 },
+      biz: { name: 'A Plumbing' },
+      quoteUrl: QUOTE_URL,
+    });
+    expect(msg.indexOf(QUOTE_URL)).toBeLessThan(msg.indexOf('💷'));
+  });
+
+  it('places the quote URL within the first 4 lines (caption-preview safe)', () => {
+    const msg = buildQuoteWhatsAppMessage({
+      job: { customer: 'Alan', summary: 'X', total: 500 },
+      biz: { name: 'A Plumbing' },
+      quoteUrl: QUOTE_URL,
+    });
+    const firstFour = msg.split('\n').slice(0, 4).join('\n');
+    expect(firstFour).toContain(QUOTE_URL);
+  });
+
+  it('includes a clear sign-call before the URL', () => {
+    const msg = buildQuoteWhatsAppMessage({
+      job: { customer: 'Alan', total: 500 },
+      biz: { name: 'A Plumbing' },
+      quoteUrl: QUOTE_URL,
+    });
+    // "Tap to view and sign" must appear before the URL
+    expect(msg.indexOf('sign')).toBeLessThan(msg.indexOf(QUOTE_URL));
+  });
 });
