@@ -309,13 +309,18 @@ function drawLineItems(doc, job, startY) {
  *
  * @param {object} doc
  * @param {object} opts
- * @param {number}  opts.quote        — job quote / total
- * @param {number}  opts.materials    — linked receipt costs (additional costs)
- * @param {boolean} opts.showVat      — true when the biz is VAT-registered
- * @param {string}  opts.vatNumber    — VAT registration number (for display)
- * @param {boolean} opts.isCisJob     — whether CIS deduction applies to this job
- * @param {number}  opts.cisRate      — CIS rate (20 or 30)
- * @param {boolean} opts.hasDeposit   — whether a deposit deduction follows
+ * @param {number}  opts.quote           — job quote / total
+ * @param {number}  opts.materials       — linked receipt costs (additional costs)
+ * @param {boolean} opts.showVat         — true when the biz is VAT-registered
+ * @param {string}  opts.vatNumber       — VAT registration number (for display)
+ * @param {boolean} opts.isCisJob        — whether CIS deduction applies to this job
+ * @param {number}  opts.cisRate         — CIS rate (20 or 30)
+ * @param {boolean} opts.hasDeposit      — whether a deposit deduction follows
+ * @param {boolean} opts.itemiseDocuments — when false (default) the Labour and
+ *   Additional costs lines are suppressed; only the Total is shown. CIS
+ *   deduction is still computed internally but only printed when itemiseDocuments
+ *   is true or the job is CIS (deduction is a legal line, not a cost reveal).
+ *   Pass false / undefined for customer-facing PDFs; true for itemised invoices.
  * @param {number}  startY
  */
 function drawSummaryBlock(doc, {
@@ -326,6 +331,7 @@ function drawSummaryBlock(doc, {
   isCisJob,
   cisRate,
   hasDeposit,
+  itemiseDocuments = false,
 }, startY) {
   const w = doc.internal.pageSize.getWidth();
   const panelX = w - MARGIN - 88;
@@ -333,25 +339,31 @@ function drawSummaryBlock(doc, {
   const valX   = w - MARGIN - 4;
   const labelX = panelX + 6;
 
-  // Derived values
+  // Derived values — computed regardless of itemiseDocuments so CIS is always correct
   const labour     = Math.max(0, quote - materials);
   const vat        = showVat ? Math.round(quote * 0.2 * 100) / 100 : 0;
   const grossTotal = quote + vat;
 
   // CIS deduction applied to labour (not materials, not VAT)
+  // CRITICAL: materials always feeds this calculation even when itemiseDocuments=false
   const cisDeduction = (isCisJob && cisRate > 0)
     ? Math.round(labour * (cisRate / 100) * 100) / 100
     : 0;
 
   const totalPayable = grossTotal - cisDeduction;
 
-  // Count rows to size the panel dynamically
-  const hasLabourRow    = true; // always shown
-  const hasMatsRow      = materials > 0;
-  const hasVatRow       = showVat;
-  const hasCisRow       = isCisJob && cisDeduction > 0;
-  const rowCount        = 1 + (hasMatsRow ? 1 : 0) + (hasVatRow ? 1 : 0) + (hasCisRow ? 1 : 0);
-  const panelH          = 12 + rowCount * 8 + 14; // padding + rows + total row
+  // Decide which rows are visible on the customer-facing document
+  const showLabourRow = itemiseDocuments;            // suppressed when toggle is OFF
+  const showMatsRow   = itemiseDocuments && materials > 0; // suppressed when toggle is OFF
+  const showVatRow    = showVat;                     // always shown when VAT-registered
+  const showCisRow    = isCisJob && cisDeduction > 0; // always shown (legal deduction)
+
+  const rowCount = (showLabourRow ? 1 : 0)
+                 + (showMatsRow   ? 1 : 0)
+                 + (showVatRow    ? 1 : 0)
+                 + (showCisRow    ? 1 : 0)
+                 + 1; // Total row always
+  const panelH = 12 + (rowCount - 1) * 8 + 14; // padding + breakdown rows + total row
 
   doc.setFillColor(248, 248, 248);
   doc.roundedRect(panelX, startY + 4, panelW, panelH, 2, 2, 'F');
@@ -369,21 +381,24 @@ function drawSummaryBlock(doc, {
     y += rowStep;
   };
 
-  // Labour row
-  summaryRow('Labour', `£${labour.toFixed(2)}`);
+  // Labour row — only when itemise toggle is ON
+  if (showLabourRow) {
+    summaryRow('Labour', `£${labour.toFixed(2)}`);
+  }
 
-  // Materials (additional costs) row — only when non-zero
-  if (hasMatsRow) {
+  // Materials (additional costs) row — only when itemise toggle is ON and non-zero
+  if (showMatsRow) {
     summaryRow('Additional costs', `£${materials.toFixed(2)}`);
   }
 
   // VAT row — only when VAT-registered
-  if (hasVatRow) {
+  if (showVatRow) {
     summaryRow('VAT (20%)', `£${vat.toFixed(2)}`);
   }
 
-  // CIS Deduction row — NEGATIVE, shown in red-ish/mid tone with − prefix
-  if (hasCisRow) {
+  // CIS Deduction row — NEGATIVE, shown in red-ish/mid tone with − prefix.
+  // Always shown when it applies — it is a legal deduction the customer needs to see.
+  if (showCisRow) {
     doc.setFontSize(9.5);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(180, 60, 60); // muted red to signal deduction
@@ -567,7 +582,8 @@ function drawSignQuoteRow(doc, { quoteUrl, qrDataUrl }, startY) {
  *   logo_url / sort_code / account_number when not set on biz. If both biz and profile
  *   carry a field, biz wins (legacy data takes precedence).
  * @param {string} args.invoiceNumber
- * @param {string} args.dueDate
+ * @param {string} [args.dueDate]    — explicit YYYY-MM-DD due date. When absent,
+ *   auto-computed as today + profile.payment_terms_days (default 14 days).
  * @param {string} [args.payNowUrl] — when provided (trader connected + token generated),
  *   draws the Pay-now button + QR row directly under the Total Payable line.
  *   When absent or empty, falls back to the legacy stripePaymentLink in biz (plain text link).
@@ -627,6 +643,20 @@ export async function generateInvoicePDF({
                      || profile?.stripe_payment_link || '',
   };
 
+  // ── Document settings from profile ───────────────────────────────────────
+  // itemise_documents: when false (default) we suppress labour/materials lines.
+  // payment_terms_days: used to auto-compute due date when none is provided.
+  const itemiseDocuments = profile?.itemise_documents ?? false;
+  const paymentTermsDays = profile?.payment_terms_days ?? 14;
+
+  // Auto-compute due date when the caller did not supply one.
+  const resolvedDueDate = (() => {
+    if (dueDate) return dueDate; // caller-supplied takes precedence
+    const d = new Date();
+    d.setDate(d.getDate() + paymentTermsDays);
+    return d.toISOString().slice(0, 10); // YYYY-MM-DD
+  })();
+
   // ── CIS status ────────────────────────────────────────────────────────────
   // Use resolveCisStatus from cashflow.js — the canonical source of truth.
   // Profile may come from the function arg or from biz.is_cis_subcontractor
@@ -654,7 +684,7 @@ export async function generateInvoicePDF({
   const metaFields = [
     ['Invoice no', invoiceNumber],
     ['Issued',     new Date().toLocaleDateString('en-GB')],
-    ['Due',        dueDate ? new Date(dueDate).toLocaleDateString('en-GB') : null],
+    ['Due',        new Date(resolvedDueDate + 'T00:00:00').toLocaleDateString('en-GB')],
   ];
   y = drawDocTitle(doc, 'INVOICE', metaFields, y);
 
@@ -694,6 +724,7 @@ export async function generateInvoicePDF({
     isCisJob,
     cisRate,
     hasDeposit,
+    itemiseDocuments,
   }, y);
 
   // ── Deposit deduction row ──────────────────────────────────────────────
@@ -783,6 +814,13 @@ export async function generateInvoicePDF({
   doc.setTextColor(...DARK);
   doc.text(`Reference: ${invoiceNumber}`, MARGIN, y);
 
+  // ── Thank you line ────────────────────────────────────────────────────
+  y += 10;
+  doc.setFontSize(9);
+  doc.setFont('helvetica', 'italic');
+  doc.setTextColor(...MID);
+  doc.text('Thank you for your business.', MARGIN, y);
+
   // ── Footer ────────────────────────────────────────────────────────────
   drawFooter(doc, effectiveBiz);
 
@@ -831,12 +869,31 @@ export function generateQuotePDF({ job, biz, profile = null, quoteUrl = '', qrDa
     accountNumber: biz?.accountNumber || biz?.account_number     || profile?.account_number  || '',
   };
 
+  // ── Document settings from profile ──────────────────────────────────────
+  const itemiseDocuments = profile?.itemise_documents ?? false;
+  const quoteValidityDays = profile?.quote_validity_days ?? 30;
+
+  // Quote number — mirrors the JP- invoice scheme but with a Q- prefix.
+  // job.quoteNumber is stored when the quote is saved; fall back to deriving
+  // from job.id so every quote has a reference even in the legacy flow.
+  const quoteNumber = job?.quoteNumber || (job?.id ? `Q-${String(job.id).slice(-4).toUpperCase()}` : '');
+
+  // Valid-until date: quote issue date (job.date / today) + quoteValidityDays
+  const issueDate = job?.date
+    ? (job.date.length === 10 ? new Date(job.date + 'T00:00:00') : new Date(job.date))
+    : new Date();
+  const validUntil = new Date(issueDate);
+  validUntil.setDate(validUntil.getDate() + quoteValidityDays);
+  const validUntilStr = validUntil.toLocaleDateString('en-GB');
+
   // ── Header ──────────────────────────────────────────────────────────────
   let y = drawHeader(doc, effectiveBiz);
 
   // ── Document title block ──────────────────────────────────────────────
   const metaFields = [
-    ['Date', new Date().toLocaleDateString('en-GB')],
+    ['Quote ref',    quoteNumber],
+    ['Date',         issueDate.toLocaleDateString('en-GB')],
+    ['Valid until',  validUntilStr],
   ];
   y = drawDocTitle(doc, 'QUOTE', metaFields, y);
 
@@ -863,13 +920,14 @@ export function generateQuotePDF({ job, biz, profile = null, quoteUrl = '', qrDa
 
   // Re-use the summary block for quotes too (simpler: no CIS, no deposit)
   y = drawSummaryBlock(doc, {
-    quote:      subtotal,
-    materials:  0,        // receipts not relevant at quote stage
+    quote:            subtotal,
+    materials:        0,        // receipts not relevant at quote stage
     showVat,
-    vatNumber:  effectiveBiz.vatNumber,
-    isCisJob:   false,    // CIS deduction is not shown on quotes
-    cisRate:    0,
-    hasDeposit: false,
+    vatNumber:        effectiveBiz.vatNumber,
+    isCisJob:         false,    // CIS deduction is not shown on quotes
+    cisRate:          0,
+    hasDeposit:       false,
+    itemiseDocuments,
   }, y);
 
   // ── Deposit row (PR 4) — shown when deposit_percent > 0 ──────────────

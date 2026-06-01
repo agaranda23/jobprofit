@@ -239,10 +239,12 @@ export default function PublicInvoiceView({ token }) {
     utr:            profile.utrNumber     || '',
   };
 
-  // Build a profile-shape object for InvoiceDocumentPreview's CIS logic.
+  // Build a profile-shape object for InvoiceDocumentPreview's CIS + document settings logic.
   const cisProfile = {
     is_cis_subcontractor: profile.isCisSubcontractor ?? false,
     cis_default_rate:     profile.cisDefaultRate ?? 20,
+    itemise_documents:    profile.itemiseDocuments ?? false,
+    payment_terms_days:   profile.paymentTermsDays ?? 14,
   };
 
   // Invoice meta from the job.
@@ -266,10 +268,31 @@ export default function PublicInvoiceView({ token }) {
     <div className="pqv-wrap">
       <div className="pqv-card">
 
-        {/* Document header label */}
+        {/* Document header — full business identity, matching the PDF header */}
         <div className="pqv-header">
+          {biz.logoUrl && (
+            <img
+              src={biz.logoUrl}
+              alt="Business logo"
+              className="pqv-business-logo"
+              style={{ maxHeight: 56, maxWidth: 120, objectFit: 'contain', marginBottom: 6 }}
+            />
+          )}
           {biz.name && <div className="pqv-business-name">{biz.name}</div>}
-          <div className="pqv-quote-label">Invoice</div>
+          {biz.address && (
+            <div className="pqv-business-meta">{biz.address}</div>
+          )}
+          {(biz.phone || biz.email) && (
+            <div className="pqv-business-meta">
+              {[biz.phone, biz.email].filter(Boolean).join('  •  ')}
+            </div>
+          )}
+          {biz.vatRegistered && biz.vatNumber && (
+            <div className="pqv-business-meta pqv-business-meta--light">
+              VAT Reg: {biz.vatNumber}
+            </div>
+          )}
+          <div className="pqv-quote-label" style={{ marginTop: 8 }}>Invoice</div>
         </div>
 
         {/* Full branded invoice rendered by InvoiceDocumentPreview */}

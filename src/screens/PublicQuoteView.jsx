@@ -45,9 +45,10 @@ function fmtDate(raw) {
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const ACCEPT_QUOTE_URL = '/.netlify/functions/accept-quote';
-const TRACK_OPEN_URL = '/.netlify/functions/track-quote-open';
-const CREATE_DEPOSIT_URL = '/.netlify/functions/create-deposit-payment-link';
+const ACCEPT_QUOTE_URL       = '/.netlify/functions/accept-quote';
+const TRACK_OPEN_URL         = '/.netlify/functions/track-quote-open';
+const CREATE_DEPOSIT_URL     = '/.netlify/functions/create-deposit-payment-link';
+const FETCH_QUOTE_PROFILE_URL = '/.netlify/functions/fetch-public-quote-profile';
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
@@ -416,6 +417,7 @@ function DepositBlock({ job, token, depositPercent, depositAmountPence, onAccept
 export default function PublicQuoteView({ token }) {
   // ── All hooks must sit above any early return (PR #125 binding rule) ──────────
   const [fetchState, setFetchState] = useState({ status: 'loading', job: null, errorMsg: '' });
+  const [profileState, setProfileState] = useState({ status: 'loading', profile: null });
   // remoteAccepted: set when the customer completes the sign flow in this session.
   const [remoteAccepted, setRemoteAccepted] = useState(null); // null | { acceptedAt, signatureDataUrl }
   // showSignSection: toggled to true when customer taps "Accept without deposit"
@@ -440,27 +442,37 @@ export default function PublicQuoteView({ token }) {
     async function load() {
       if (!isValidToken(token)) {
         setFetchState({ status: 'error', job: null, errorMsg: 'This link is not valid. Ask your trader for an updated link.' });
+        setProfileState({ status: 'ok', profile: null });
         return;
       }
 
-      try {
-        const result = await fetchPublicJob(token);
-        if (cancelled) return;
-        if (!result) {
-          setFetchState({ status: 'error', job: null, errorMsg: 'Quote not found. The link may have expired or been removed.' });
-        } else {
-          setFetchState({ status: 'ok', job: result, errorMsg: '' });
-          fetch(TRACK_OPEN_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ token }),
-          }).catch(() => { /* non-blocking */ });
-        }
-      } catch {
-        if (!cancelled) {
-          setFetchState({ status: 'error', job: null, errorMsg: 'Could not load the quote. Check your connection and try again.' });
-        }
+      // Fetch job + profile in parallel
+      const [jobResult, profileResult] = await Promise.allSettled([
+        fetchPublicJob(token),
+        fetch(FETCH_QUOTE_PROFILE_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token }),
+        }).then(r => r.ok ? r.json() : null).catch(() => null),
+      ]);
+
+      if (cancelled) return;
+
+      const result = jobResult.status === 'fulfilled' ? jobResult.value : null;
+      if (!result) {
+        setFetchState({ status: 'error', job: null, errorMsg: 'Quote not found. The link may have expired or been removed.' });
+        setProfileState({ status: 'ok', profile: null });
+        return;
       }
+
+      setFetchState({ status: 'ok', job: result, errorMsg: '' });
+      setProfileState({ status: 'ok', profile: profileResult.status === 'fulfilled' ? profileResult.value : null });
+
+      fetch(TRACK_OPEN_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token }),
+      }).catch(() => { /* non-blocking */ });
     }
 
     load();
@@ -470,11 +482,33 @@ export default function PublicQuoteView({ token }) {
   // ── Early returns — hooks are all above here ──────────────────────────────────
   const { status, job, errorMsg } = fetchState;
 
-  if (status === 'loading') return <LoadingState />;
+  if (status === 'loading' || (status === 'ok' && profileState.status === 'loading')) {
+    return <LoadingState />;
+  }
   if (status === 'error') return <ErrorState message={errorMsg} />;
 
   // ── Derived values ────────────────────────────────────────────────────────────
-  const businessName = job.businessName || job.business_name || '';
+  // Profile from the server (may be null if the fetch failed — degrade gracefully)
+  const traderProfile = profileState.profile || {};
+
+  // Business identity: prefer server profile (full details); fall back to job meta
+  const businessName = traderProfile.businessName || job.businessName || job.business_name || '';
+  const businessAddress = traderProfile.address || '';
+  const businessPhone   = traderProfile.phone   || '';
+  const businessEmail   = traderProfile.email   || '';
+  const businessLogoUrl = traderProfile.logoUrl  || '';
+  const vatRegistered   = traderProfile.vatRegistered ?? false;
+  const vatNumber       = traderProfile.vatNumber     || '';
+
+  // Quote number and valid-until date from the server profile / job
+  const quoteValidityDays = traderProfile.quoteValidityDays ?? 30;
+  const quoteNumber = job.quoteNumber || (job.id ? `Q-${String(job.id).slice(-4).toUpperCase()}` : '');
+  const issueDate = job.date
+    ? (job.date.length === 10 ? new Date(job.date + 'T00:00:00') : new Date(job.date))
+    : new Date();
+  const validUntil = new Date(issueDate);
+  validUntil.setDate(validUntil.getDate() + quoteValidityDays);
+  const validUntilStr = validUntil.toLocaleDateString('en-GB');
   const customerName = job.customer || job.customer_name || job.name || '';
   const description = job.summary || '';
   const lineItems = Array.isArray(job.lineItems) && job.lineItems.length > 0
@@ -510,15 +544,40 @@ export default function PublicQuoteView({ token }) {
     <div className="pqv-wrap">
       <div className="pqv-card">
 
-        {/* Header — trader business info */}
+        {/* Header — full trader business identity, matching the quote PDF */}
         <div className="pqv-header">
+          {businessLogoUrl && (
+            <img
+              src={businessLogoUrl}
+              alt="Business logo"
+              className="pqv-business-logo"
+              style={{ maxHeight: 56, maxWidth: 120, objectFit: 'contain', marginBottom: 6 }}
+            />
+          )}
           {businessName && (
             <div className="pqv-business-name">{businessName}</div>
           )}
-          <div className="pqv-quote-label">
+          {businessAddress && (
+            <div className="pqv-business-meta">{businessAddress}</div>
+          )}
+          {(businessPhone || businessEmail) && (
+            <div className="pqv-business-meta">
+              {[businessPhone, businessEmail].filter(Boolean).join('  •  ')}
+            </div>
+          )}
+          {vatRegistered && vatNumber && (
+            <div className="pqv-business-meta pqv-business-meta--light">
+              VAT Reg: {vatNumber}
+            </div>
+          )}
+          <div className="pqv-quote-label" style={{ marginTop: 8 }}>
             Quote
             {quoteDate && <span className="pqv-quote-date"> &middot; {fmtDate(quoteDate)}</span>}
           </div>
+          {quoteNumber && (
+            <div className="pqv-quote-ref">Ref: {quoteNumber}</div>
+          )}
+          <div className="pqv-quote-valid-until">Valid until {validUntilStr}</div>
         </div>
 
         {/* Accepted badge */}

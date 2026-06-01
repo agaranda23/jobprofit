@@ -605,3 +605,176 @@ describe('VII. Bank details rendered from effectiveBiz (profile fallback)', () =
     expect(drawnTexts.some(t => String(t).includes('87654321'))).toBe(true);
   });
 });
+
+// ── VIII. Materials margin-leak fix — itemise_documents toggle ────────────────
+
+describe('VIII. itemise_documents toggle gates labour/materials display', () => {
+  beforeEach(() => { drawnTexts = []; addImageCalls = []; vi.clearAllMocks(); });
+
+  it('hides "Labour" and "Additional costs" rows when itemise_documents is false (default)', async () => {
+    const receipts = [{ jobId: 'j-001', amount: 200 }];
+    await generateInvoicePDF({
+      job: baseJob({ total: 800, cis: false }),
+      biz: baseBiz(),
+      profile: { is_cis_subcontractor: false, itemise_documents: false },
+      invoiceNumber: 'INV-ITEM-01',
+      dueDate: '2026-07-31',
+      receipts,
+    });
+    expect(drawnTexts.some(t => String(t).includes('Labour'))).toBe(false);
+    expect(drawnTexts.some(t => String(t).includes('Additional costs'))).toBe(false);
+  });
+
+  it('hides labour/materials rows when profile has no itemise_documents field (absent defaults to false)', async () => {
+    const receipts = [{ jobId: 'j-001', amount: 150 }];
+    await generateInvoicePDF({
+      job: baseJob({ total: 600 }),
+      biz: baseBiz(),
+      profile: { is_cis_subcontractor: false }, // no itemise_documents key
+      invoiceNumber: 'INV-ITEM-02',
+      dueDate: '2026-07-31',
+      receipts,
+    });
+    expect(drawnTexts.some(t => String(t).includes('Labour'))).toBe(false);
+    expect(drawnTexts.some(t => String(t).includes('Additional costs'))).toBe(false);
+  });
+
+  it('shows "Labour" and "Additional costs" rows when itemise_documents is true', async () => {
+    const receipts = [{ jobId: 'j-001', amount: 200 }];
+    await generateInvoicePDF({
+      job: baseJob({ total: 800 }),
+      biz: baseBiz(),
+      profile: { is_cis_subcontractor: false, itemise_documents: true },
+      invoiceNumber: 'INV-ITEM-03',
+      dueDate: '2026-07-31',
+      receipts,
+    });
+    expect(drawnTexts.some(t => String(t).includes('Labour'))).toBe(true);
+    expect(drawnTexts.some(t => String(t).includes('Additional costs'))).toBe(true);
+  });
+
+  it('CRITICAL: CIS deduction still uses materials when itemise_documents is false', async () => {
+    // quote = £1000, materials = £300, labour = £700, CIS 20% → £140
+    // Even with itemise_documents=false, CIS deduction must be £140 (not £200)
+    const receipts = [{ jobId: 'j-001', amount: 300 }];
+    await generateInvoicePDF({
+      job: baseJob({ total: 1000, cis: true }),
+      biz: baseBiz(),
+      profile: { is_cis_subcontractor: true, cis_default_rate: 20, itemise_documents: false },
+      invoiceNumber: 'INV-ITEM-CIS-01',
+      dueDate: '2026-07-31',
+      receipts,
+    });
+    // CIS deduction is always shown (legal requirement), correct amount despite hidden labour/mats
+    expect(drawnTexts.some(t => String(t).includes('CIS Deduction (20%)'))).toBe(true);
+    expect(drawnTexts.some(t => String(t).includes('−£140.00'))).toBe(true);
+    // Labour and materials should NOT be shown
+    expect(drawnTexts.some(t => String(t).includes('Labour'))).toBe(false);
+    expect(drawnTexts.some(t => String(t).includes('Additional costs'))).toBe(false);
+  });
+
+  it('Total Payable is shown correctly regardless of itemise_documents setting', async () => {
+    await generateInvoicePDF({
+      job: baseJob({ total: 500 }),
+      biz: baseBiz(),
+      profile: { is_cis_subcontractor: false, itemise_documents: false },
+      invoiceNumber: 'INV-ITEM-TOTAL-01',
+      dueDate: '2026-07-31',
+    });
+    expect(drawnTexts.some(t => String(t).includes('Total Payable'))).toBe(true);
+    expect(drawnTexts.some(t => String(t).includes('£500.00'))).toBe(true);
+  });
+});
+
+// ── IX. Quote "valid until" + quote number ────────────────────────────────────
+
+describe('IX. generateQuotePDF — valid until + quote number', () => {
+  beforeEach(() => { drawnTexts = []; addImageCalls = []; vi.clearAllMocks(); });
+
+  it('renders "Valid until" in the quote meta fields', async () => {
+    generateQuotePDF({
+      job: baseJob({ date: '2026-06-01' }),
+      biz: baseBiz(),
+      profile: { quote_validity_days: 30 },
+    });
+    expect(drawnTexts.some(t => String(t).includes('Valid until'))).toBe(true);
+  });
+
+  it('renders "Quote ref" label in the quote meta fields', async () => {
+    generateQuotePDF({
+      job: baseJob({ id: 'j-001' }),
+      biz: baseBiz(),
+    });
+    expect(drawnTexts.some(t => String(t).includes('Quote ref'))).toBe(true);
+  });
+
+  it('uses job.quoteNumber when present', async () => {
+    generateQuotePDF({
+      job: baseJob({ quoteNumber: 'Q-0042' }),
+      biz: baseBiz(),
+    });
+    expect(drawnTexts.some(t => String(t).includes('Q-0042'))).toBe(true);
+  });
+
+  it('derives valid-until date correctly: 2026-06-01 + 30 days = 01/07/2026', async () => {
+    generateQuotePDF({
+      job: baseJob({ date: '2026-06-01' }),
+      biz: baseBiz(),
+      profile: { quote_validity_days: 30 },
+    });
+    // 2026-06-01 + 30 days = 2026-07-01
+    expect(drawnTexts.some(t => String(t).includes('01/07/2026'))).toBe(true);
+  });
+});
+
+// ── X. Invoice auto due date from payment_terms_days ─────────────────────────
+
+describe('X. Invoice auto due date from payment_terms_days', () => {
+  beforeEach(() => { drawnTexts = []; addImageCalls = []; vi.clearAllMocks(); });
+
+  it('renders a "Due" meta field even when no explicit dueDate is supplied', async () => {
+    await generateInvoicePDF({
+      job: baseJob({ total: 400 }),
+      biz: baseBiz(),
+      profile: { is_cis_subcontractor: false, payment_terms_days: 14 },
+      invoiceNumber: 'INV-DUE-01',
+      // dueDate intentionally omitted — should auto-compute
+    });
+    expect(drawnTexts.some(t => String(t).includes('Due'))).toBe(true);
+  });
+
+  it('explicit dueDate takes precedence over payment_terms_days', async () => {
+    await generateInvoicePDF({
+      job: baseJob({ total: 400 }),
+      biz: baseBiz(),
+      profile: { is_cis_subcontractor: false, payment_terms_days: 14 },
+      invoiceNumber: 'INV-DUE-02',
+      dueDate: '2026-08-15',
+    });
+    expect(drawnTexts.some(t => String(t).includes('15/08/2026'))).toBe(true);
+  });
+});
+
+// ── XI. Thank you line on invoice ─────────────────────────────────────────────
+
+describe('XI. Invoice footer — "Thank you for your business."', () => {
+  beforeEach(() => { drawnTexts = []; addImageCalls = []; vi.clearAllMocks(); });
+
+  it('renders thank-you text on the invoice', async () => {
+    await generateInvoicePDF({
+      job: baseJob({ total: 300 }),
+      biz: baseBiz(),
+      invoiceNumber: 'INV-TY-01',
+      dueDate: '2026-07-31',
+    });
+    expect(drawnTexts.some(t => String(t).includes('Thank you for your business.'))).toBe(true);
+  });
+
+  it('does NOT render thank-you text on a quote PDF', async () => {
+    generateQuotePDF({
+      job: baseJob({ total: 300 }),
+      biz: baseBiz(),
+    });
+    expect(drawnTexts.some(t => String(t).includes('Thank you for your business.'))).toBe(false);
+  });
+});
