@@ -1539,6 +1539,7 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
           job={reviewJob}
           biz={{ ...(biz ?? {}), stripePaymentLink: profile?.stripe_payment_link || biz?.stripePaymentLink || '' }}
           jobs={jobs}
+          profile={profile}
           onUpdate={onUpdateJob ?? (() => {})}
           onClose={() => setReviewJob(null)}
           onDismiss={() => setReviewJob(null)}

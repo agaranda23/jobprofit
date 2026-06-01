@@ -205,6 +205,23 @@ export default function AppShell() {
     }
   }, [authReady]);
 
+  // Chase-reminder deep-link: /?job=<jobId>#/work
+  // Sent by chase-reminders.js push notification. Parses once after auth is
+  // ready, sets pendingJobId, navigates to Work, then cleans the URL.
+  useEffect(() => {
+    if (!authReady) return;
+    const params = new URLSearchParams(window.location.search);
+    const jobId = params.get('job');
+    if (jobId) {
+      setPendingJobId(jobId);
+      navigate('work');
+      // Strip the ?job= param from the URL so Back/refresh doesn't re-trigger
+      const clean = window.location.pathname + window.location.hash;
+      window.history.replaceState(null, '', clean);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authReady]);
+
   // Single popstate listener: re-derive view from hash on Back/Forward.
   // Do NOT bump moreKey here — App.jsx state must survive a Back navigation.
   useEffect(() => {

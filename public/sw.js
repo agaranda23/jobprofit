@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v35';  // bumped from v34: replace grid-template-rows accordion with max-height in CollapsedSectionRow
+const CACHE_NAME = 'jobprofit-v36';  // bumped from v35: fix notificationclick navigate for chase-reminder deep-links
 const PRECACHE = [
   '/',
   '/index.html',
@@ -44,18 +44,25 @@ self.addEventListener('push', (event) => {
 
 // Fired when the user taps the push notification banner.
 // Opens (or focuses) the app and navigates to the relevant job.
+// For /?job=<id>#/work deep-links the app must be opened at the full URL so
+// AppShell can parse ?job= on auth-ready — navigate() is called when the
+// window already exists so we don't silently land on the wrong screen.
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
   const url = event.notification.data?.url || '/';
   event.waitUntil(
     self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-      // Focus an existing window if one is already open
+      // Navigate an existing window to the target URL, then focus it
       for (const client of clientList) {
         if (client.url.startsWith(self.location.origin) && 'focus' in client) {
+          if ('navigate' in client) {
+            // navigate() reloads the app at the new URL so AppShell picks up ?job=
+            return client.navigate(self.location.origin + url).then(c => c?.focus());
+          }
           return client.focus();
         }
       }
-      // Otherwise open a new window
+      // Otherwise open a new window at the target URL
       return self.clients.openWindow(url);
     })
   );
