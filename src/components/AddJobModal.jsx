@@ -897,7 +897,7 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMo
                   </label>
                 </div>
 
-                {/* More options drawer — materials, labour, deposit, notes, phone */}
+                {/* More options drawer — materials, labour, notes, phone */}
                 <div className="aj-footer-links">
                   <button
                     className="link-btn aj-more-toggle"
@@ -1289,16 +1289,10 @@ function MoreOptionsFields({
             placeholder="Job site address (optional)"
           />
         </label>
-        <label>
-          <span>Deposit taken (£)</span>
-          <input
-            type="number"
-            inputMode="decimal"
-            value={deposit}
-            onChange={e => setDeposit(e.target.value)}
-            placeholder="0"
-          />
-        </label>
+        {/* Legacy freeform deposit field removed (2026-06). Deposits are now
+            set via the deposit_percent / deposit_amount_pence model, configured
+            in Settings → Default deposit %, applied at quote-send time.
+            Existing jobs with a stored `deposit` value are unaffected. */}
       </div>
     </div>
   );
