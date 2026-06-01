@@ -244,18 +244,34 @@ function CustomerCard({ job, onEditName, onEditPhone, onEditAddress, onEditEmail
         )
       )}
 
-      {/* Address — tap to open Maps; ghost-button when empty */}
+      {/* Address — tap to edit (mirrors email/phone pattern). Maps deep-link is
+          deferred to a follow-up: founder asked for editable as primary action,
+          Maps as a later secondary option. Read-only contexts still get the
+          Maps fallback so the row remains useful when canEdit is false. */}
       {address ? (
-        <a
-          href={`https://maps.google.com/?q=${encodeURIComponent(address)}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="jd-card-row jd-card-row--link"
-          aria-label={`Open ${address} in Maps`}
-        >
-          <span className="jd-card-row-icon" aria-hidden="true">📍</span>
-          <span className="jd-card-row-val">{address}</span>
-        </a>
+        canEdit ? (
+          <button
+            type="button"
+            className="jd-card-row jd-card-row--tappable"
+            onClick={onEditAddress}
+            aria-label="Edit customer address"
+          >
+            <span className="jd-card-row-icon" aria-hidden="true">📍</span>
+            <span className="jd-card-row-val">{address}</span>
+            <span className="jd-card-row-edit" aria-hidden="true">›</span>
+          </button>
+        ) : (
+          <a
+            href={`https://maps.google.com/?q=${encodeURIComponent(address)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="jd-card-row jd-card-row--link"
+            aria-label={`Open ${address} in Maps`}
+          >
+            <span className="jd-card-row-icon" aria-hidden="true">📍</span>
+            <span className="jd-card-row-val">{address}</span>
+          </a>
+        )
       ) : (
         canEdit && (
           <button
