@@ -7599,7 +7599,7 @@ input[type=number] { -moz-appearance: textfield; }
   align-items: stretch;
 }
 .jt-cta {
-  flex: 1 1 auto;
+  flex: 1 1 0;
   background: var(--accent);
   color: #0B0F17;
   border: none;
@@ -7615,6 +7615,7 @@ input[type=number] { -moz-appearance: textfield; }
   justify-content: center;
   gap: 6px;
   min-height: 44px;
+  white-space: nowrap;
 }
 .jt-cta:active { opacity: 0.8; }
 .jt-cta--urgent {
@@ -7680,8 +7681,8 @@ input[type=number] { -moz-appearance: textfield; }
 .jt-action-btn--missing:active { opacity: 0.6; }
 
 /* "Mark paid" secondary CTA — 50/50 split with Chase payment on Invoiced/Overdue tiles.
-   flex: 1 1 0 means it grows equally alongside .jt-cta (flex: 1 1 auto) to fill
-   the available right-side width after the Call/Map icon buttons. Height matches
+   Both this and .jt-cta use flex: 1 1 0 so they grow equally from a zero base,
+   filling all remaining row width after the Call/Map icon buttons. Height matches
    .jt-cta via identical padding + min-height. */
 .jt-cta--markpaid {
   flex: 1 1 0;
