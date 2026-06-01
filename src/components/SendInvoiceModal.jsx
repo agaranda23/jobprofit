@@ -37,6 +37,7 @@ import { canSendInvoice, incrementSendCount } from '../lib/plan';
 import { supabase } from '../lib/supabase';
 import { logTelemetry } from '../lib/telemetry';
 import { startCheckout } from '../lib/billing';
+import InvoiceDocumentPreview from './InvoiceDocumentPreview';
 
 // Returns true when this browser supports navigator.share() with a files array.
 // Stored as a module-level constant so we don't recalculate on every render.
@@ -83,6 +84,9 @@ export default function SendInvoiceModal({
   const [busy, setBusy] = useState(false);
   const [view, setView] = useState('send'); // 'send' | 'paywall'
   const [checkoutError, setCheckoutError] = useState(null);
+  // showPreview: toggles the in-app invoice document preview panel.
+  // Collapsed by default so the send CTA is the first thing the founder sees.
+  const [showPreview, setShowPreview] = useState(false);
 
   // ── Pay-now state ────────────────────────────────────────────────────────────
   // isConnected: true when the trader has a connected Stripe account.
@@ -403,6 +407,29 @@ export default function SendInvoiceModal({
           <div className="invoice-missing-warning">
             Missing: {missing.join(', ')} — fix in Settings for payment instructions
           </div>
+        )}
+
+        {/* Invoice document preview toggle — lets the founder see the branded
+            document before sending. Collapsed by default to keep the CTA front
+            and centre on mobile (one-hand kerb use case). */}
+        <button
+          type="button"
+          className="invoice-preview-toggle"
+          onClick={() => setShowPreview(v => !v)}
+          aria-expanded={showPreview}
+        >
+          {showPreview ? 'Hide preview' : 'Preview invoice document'}
+        </button>
+
+        {showPreview && (
+          <InvoiceDocumentPreview
+            job={job}
+            biz={bizWithStripe}
+            profile={profile}
+            invoiceNumber={invoiceNumber}
+            dueDate={dueDate}
+            payNowUrl={payNowUrl}
+          />
         )}
 
         {/* Primary CTA — WhatsApp deep-link (fast, no PDF overhead).

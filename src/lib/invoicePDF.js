@@ -1,6 +1,7 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import QRCode from 'qrcode';
+import { resolveCisStatus } from './cashflow.js';
 
 // Generates an invoice PDF for the new Get Paid workflow. Distinct from
 // the legacy generateInvoicePDF in App.jsx (which uses window.jspdf and
@@ -8,7 +9,6 @@ import QRCode from 'qrcode';
 // itself plus the structured biz fields added in PRD #2.
 
 // ── Brand tokens ────────────────────────────────────────────────────────────
-// Keep accent use sparse — these PDFs print on white; all body text is dark.
 const BRAND_GREEN   = [43, 196, 138];  // #2bc48a — rule / column header accent
 const DARK          = [20, 20, 20];    // near-black for headings and body text
 const MID           = [80, 80, 80];    // secondary labels, address lines
@@ -32,22 +32,47 @@ function rule(doc, y) {
 }
 
 /**
- * Draws the shared business header block (logo + name + address + contact).
+ * Normalises a logo URL / data-URL from the biz object.
+ * Tries biz.logoUrl first (legacy camelCase), then biz.logo_url (new profile field).
+ * Returns null when neither is present.
+ */
+function bizLogoUrl(biz) {
+  return biz?.logoUrl || biz?.logo_url || null;
+}
+
+/**
+ * Infers jsPDF image type from a data-URL or a URL pathname.
+ * Returns 'JPEG' for .jpg/.jpeg/data:image/jpeg, 'PNG' for everything else
+ * (PNG is the safe default; jsPDF handles it without needing EXIF data).
+ */
+function inferImageType(src) {
+  if (!src) return 'PNG';
+  const lower = src.toLowerCase();
+  if (lower.startsWith('data:image/jpeg') || lower.startsWith('data:image/jpg')) return 'JPEG';
+  if (lower.includes('.jpg') || lower.includes('.jpeg')) return 'JPEG';
+  return 'PNG';
+}
+
+/**
+ * Draws the shared business header block (logo + name + address + contact + UTR/VAT IDs).
  * Returns the y position just below the header rule.
  *
  * Layout:
  *   logo (left)          business name (right, bold, large)
- *                        address (right, muted)
+ *                        address lines (right, muted)
  *                        phone • email (right, muted)
+ *                        UTR / VAT reg (right, muted — when set)
  *   ── rule ──────────────────────────────────────────────────────
  */
 function drawHeader(doc, biz) {
   const w = doc.internal.pageSize.getWidth();
   let y = 16;
 
-  if (biz?.logoUrl) {
+  const logo = bizLogoUrl(biz);
+  if (logo) {
     try {
-      doc.addImage(biz.logoUrl, 'JPEG', MARGIN, y, HEADER_LOGO_W, HEADER_LOGO_H);
+      const imgType = inferImageType(logo);
+      doc.addImage(logo, imgType, MARGIN, y, HEADER_LOGO_W, HEADER_LOGO_H);
     } catch { /* logo decode failed — skip silently */ }
   }
 
@@ -57,12 +82,22 @@ function drawHeader(doc, biz) {
   doc.setTextColor(...DARK);
   doc.text(biz?.name || 'Your Business', w - MARGIN, y + 7, { align: 'right' });
 
-  // Address
-  if (biz?.address) {
+  let rightY = y + 14;
+
+  // Address lines (may contain newlines — split them)
+  const address = biz?.address || '';
+  if (address) {
     doc.setFontSize(9);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(...MID);
-    doc.text(biz.address, w - MARGIN, y + 14, { align: 'right' });
+    const lines = address.split(/\n|,\s*/).slice(0, 3); // max 3 address fragments
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (trimmed) {
+        doc.text(trimmed, w - MARGIN, rightY, { align: 'right' });
+        rightY += 4.5;
+      }
+    }
   }
 
   // Phone • email
@@ -71,11 +106,34 @@ function drawHeader(doc, biz) {
     doc.setFontSize(9);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(...MID);
-    doc.text(contact, w - MARGIN, y + 21, { align: 'right' });
+    doc.text(contact, w - MARGIN, rightY, { align: 'right' });
+    rightY += 4.5;
   }
 
-  // Horizontal rule beneath header
-  const ruleY = y + HEADER_LOGO_H + 4;
+  // UTR — shown when set (relevant for self-assessment / CIS)
+  const utr = biz?.utr || biz?.utr_number || '';
+  if (utr) {
+    doc.setFontSize(8.5);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...LIGHT);
+    doc.text(`UTR: ${utr}`, w - MARGIN, rightY, { align: 'right' });
+    rightY += 4.5;
+  }
+
+  // VAT reg number in header when registered
+  const vatNumber = biz?.vatNumber || biz?.vat_number || '';
+  const vatRegistered = biz?.vatRegistered || biz?.vat_registered || false;
+  if (vatRegistered && vatNumber) {
+    doc.setFontSize(8.5);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...LIGHT);
+    doc.text(`VAT Reg: ${vatNumber}`, w - MARGIN, rightY, { align: 'right' });
+    rightY += 4.5;
+  }
+
+  // Horizontal rule beneath header — sits below whichever side is taller
+  const logoBottom = y + HEADER_LOGO_H + 4;
+  const ruleY = Math.max(logoBottom, rightY + 2);
   rule(doc, ruleY);
 
   return ruleY + 8; // caller starts drawing from here
@@ -117,13 +175,20 @@ function drawDocTitle(doc, title, fields, startY) {
 /**
  * Draws the "recipient" section (BILL TO / PREPARED FOR / RECEIVED FROM).
  * Returns the y position after the block.
+ *
+ * Renders: label, customer name, phone (when present), address (when present).
  */
 function drawRecipientBlock(doc, label, job, startY) {
   const w = doc.internal.pageSize.getWidth();
 
-  // Faint background band
+  // Faint background band — height depends on content
+  const hasPhone   = !!(job?.customerPhone || job?.phone);
+  const hasAddress = !!job?.address;
+  const lineCount  = 1 + (hasPhone ? 1 : 0) + (hasAddress ? 1 : 0);
+  const bandH      = 10 + lineCount * 5.5;
+
   doc.setFillColor(248, 248, 248);
-  doc.roundedRect(MARGIN, startY - 3, w - MARGIN * 2, 22, 2, 2, 'F');
+  doc.roundedRect(MARGIN, startY - 3, w - MARGIN * 2, bandH, 2, 2, 'F');
 
   // Label
   doc.setFontSize(7.5);
@@ -137,37 +202,73 @@ function drawRecipientBlock(doc, label, job, startY) {
   doc.setTextColor(...DARK);
   doc.text(job?.customer || job?.customerName || 'Customer', MARGIN + 4, startY + 10);
 
-  // Address (if present)
-  if (job?.address) {
+  let lineY = startY + 16;
+
+  if (hasPhone) {
     doc.setFontSize(9);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(...MID);
-    doc.text(job.address, MARGIN + 4, startY + 16);
-    return startY + 30;
+    doc.text(job.customerPhone || job.phone, MARGIN + 4, lineY);
+    lineY += 5.5;
   }
 
-  return startY + 26;
+  if (hasAddress) {
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(...MID);
+    doc.text(job.address, MARGIN + 4, lineY);
+    lineY += 5.5;
+  }
+
+  return lineY + 4;
 }
 
 /**
- * Draws the line-items autotable and returns the y position after it.
+ * Draws the line-items autotable with Description / Rate / Qty / Amount columns.
+ * When a line item has qty > 1 or an explicit rate, the Rate and Qty columns are
+ * populated. When both are absent (single-amount items), those cells are empty so
+ * the document stays clean.
+ *
+ * Returns the y position after the table.
  */
 function drawLineItems(doc, job, startY) {
-  const items = (job?.lineItems || []).map(li => [
-    li.desc || '',
-    { content: `£${(li.cost || 0).toFixed(2)}`, styles: { halign: 'right' } },
-  ]);
+  const rawItems = Array.isArray(job?.lineItems) ? job.lineItems : [];
 
-  if (items.length === 0) {
-    items.push([
-      job?.summary || 'Work completed',
-      { content: `£${(job?.total ?? job?.amount ?? 0).toFixed(2)}`, styles: { halign: 'right' } },
-    ]);
-  }
+  // Build table rows — normalise qty/rate from the item shape.
+  // job.lineItems[n] shape: { desc, cost, qty?, quantity?, rate? }
+  const items = rawItems.length > 0
+    ? rawItems.map(li => {
+        const qty  = Number(li.qty ?? li.quantity ?? 1);
+        const cost = Number(li.cost || 0);
+        // If an explicit rate per-unit exists, use it; otherwise derive from cost/qty.
+        const rate = li.rate != null ? Number(li.rate) : (qty !== 1 ? cost / qty : null);
+        const showRate = qty > 1 || li.rate != null;
+
+        return [
+          li.desc || '',
+          showRate
+            ? { content: rate != null ? `£${rate.toFixed(2)}` : '', styles: { halign: 'right' } }
+            : { content: '', styles: { halign: 'right' } },
+          showRate
+            ? { content: qty !== 1 ? String(qty) : '', styles: { halign: 'center' } }
+            : { content: '', styles: { halign: 'center' } },
+          { content: `£${cost.toFixed(2)}`, styles: { halign: 'right' } },
+        ];
+      })
+    : [[
+        job?.summary || 'Work completed',
+        { content: '', styles: { halign: 'right' } },
+        { content: '', styles: { halign: 'center' } },
+        { content: `£${(job?.total ?? job?.amount ?? 0).toFixed(2)}`, styles: { halign: 'right' } },
+      ]];
 
   autoTable(doc, {
     startY,
-    head: [['Description', { content: 'Amount', styles: { halign: 'right' } }]],
+    head: [['Description',
+      { content: 'Rate',   styles: { halign: 'right' } },
+      { content: 'Qty',    styles: { halign: 'center' } },
+      { content: 'Amount', styles: { halign: 'right' } },
+    ]],
     body: items,
     theme: 'plain',
     headStyles: {
@@ -183,7 +284,12 @@ function drawLineItems(doc, job, startY) {
       cellPadding: { top: 3.5, bottom: 3.5, left: 4, right: 4 },
     },
     alternateRowStyles: { fillColor: [250, 250, 250] },
-    columnStyles: { 1: { cellWidth: 42 } },
+    columnStyles: {
+      0: { cellWidth: 'auto' },
+      1: { cellWidth: 26 },
+      2: { cellWidth: 14 },
+      3: { cellWidth: 28 },
+    },
     tableLineColor: RULE,
     tableLineWidth: 0.2,
   });
@@ -192,60 +298,149 @@ function drawLineItems(doc, job, startY) {
 }
 
 /**
- * Draws the totals block (subtotal / VAT / total) right-aligned.
+ * Draws the SUMMARY block: Labour, Materials (additional costs), VAT (20%) when
+ * VAT-registered, CIS Deduction as a negative line when the job is CIS, and
+ * Total Payable (bold). Right-aligned panel.
+ *
+ * VAT is calculated on the quote subtotal (ex-materials, ex-CIS) — the gross
+ * invoice amount. CIS deduction = max(0, quote − materials) × rate/100.
+ *
  * Returns the y position after the block.
+ *
+ * @param {object} doc
+ * @param {object} opts
+ * @param {number}  opts.quote        — job quote / total
+ * @param {number}  opts.materials    — linked receipt costs (additional costs)
+ * @param {boolean} opts.showVat      — true when the biz is VAT-registered
+ * @param {string}  opts.vatNumber    — VAT registration number (for display)
+ * @param {boolean} opts.isCisJob     — whether CIS deduction applies to this job
+ * @param {number}  opts.cisRate      — CIS rate (20 or 30)
+ * @param {boolean} opts.hasDeposit   — whether a deposit deduction follows
+ * @param {number}  startY
  */
-function drawTotals(doc, { subtotal, showVat, vatNumber, totalLabel = 'TOTAL DUE' }, startY) {
+function drawSummaryBlock(doc, {
+  quote,
+  materials,
+  showVat,
+  vatNumber,
+  isCisJob,
+  cisRate,
+  hasDeposit,
+}, startY) {
   const w = doc.internal.pageSize.getWidth();
-  const vat = showVat ? Math.round(subtotal * 0.2 * 100) / 100 : 0;
-  const total = subtotal + vat;
-
-  // Subtle background for the totals panel
-  const panelX = w - MARGIN - 80;
-  const panelH = showVat ? 32 : 22;
-  doc.setFillColor(248, 248, 248);
-  doc.roundedRect(panelX, startY + 4, 80, panelH, 2, 2, 'F');
-
-  let y = startY + 12;
-  const valX = w - MARGIN - 4;
+  const panelX = w - MARGIN - 88;
+  const panelW = 88;
+  const valX   = w - MARGIN - 4;
   const labelX = panelX + 6;
 
-  // Subtotal row
-  doc.setFontSize(9.5);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(...MID);
-  doc.text('Subtotal', labelX, y);
-  doc.text(`£${subtotal.toFixed(2)}`, valX, y, { align: 'right' });
+  // Derived values
+  const labour     = Math.max(0, quote - materials);
+  const vat        = showVat ? Math.round(quote * 0.2 * 100) / 100 : 0;
+  const grossTotal = quote + vat;
 
-  // VAT row
-  if (showVat) {
-    y += 8;
-    doc.text('VAT (20%)', labelX, y);
-    doc.text(`£${vat.toFixed(2)}`, valX, y, { align: 'right' });
+  // CIS deduction applied to labour (not materials, not VAT)
+  const cisDeduction = (isCisJob && cisRate > 0)
+    ? Math.round(labour * (cisRate / 100) * 100) / 100
+    : 0;
+
+  const totalPayable = grossTotal - cisDeduction;
+
+  // Count rows to size the panel dynamically
+  const hasLabourRow    = true; // always shown
+  const hasMatsRow      = materials > 0;
+  const hasVatRow       = showVat;
+  const hasCisRow       = isCisJob && cisDeduction > 0;
+  const rowCount        = 1 + (hasMatsRow ? 1 : 0) + (hasVatRow ? 1 : 0) + (hasCisRow ? 1 : 0);
+  const panelH          = 12 + rowCount * 8 + 14; // padding + rows + total row
+
+  doc.setFillColor(248, 248, 248);
+  doc.roundedRect(panelX, startY + 4, panelW, panelH, 2, 2, 'F');
+
+  let y = startY + 13;
+  const rowStep = 8;
+
+  // Helper — draws one summary row
+  const summaryRow = (lbl, val, opts = {}) => {
+    doc.setFontSize(9.5);
+    doc.setFont('helvetica', opts.bold ? 'bold' : 'normal');
+    doc.setTextColor(...(opts.color ?? MID));
+    doc.text(lbl, labelX, y);
+    doc.text(val, valX, y, { align: 'right' });
+    y += rowStep;
+  };
+
+  // Labour row
+  summaryRow('Labour', `£${labour.toFixed(2)}`);
+
+  // Materials (additional costs) row — only when non-zero
+  if (hasMatsRow) {
+    summaryRow('Additional costs', `£${materials.toFixed(2)}`);
   }
 
-  // Total rule
-  y += 4;
+  // VAT row — only when VAT-registered
+  if (hasVatRow) {
+    summaryRow('VAT (20%)', `£${vat.toFixed(2)}`);
+  }
+
+  // CIS Deduction row — NEGATIVE, shown in red-ish/mid tone with − prefix
+  if (hasCisRow) {
+    doc.setFontSize(9.5);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(180, 60, 60); // muted red to signal deduction
+    doc.text(`CIS Deduction (${cisRate}%)`, labelX, y);
+    doc.text(`−£${cisDeduction.toFixed(2)}`, valX, y, { align: 'right' });
+    y += rowStep;
+  }
+
+  // Dividing rule before total
+  y += 1;
   doc.setDrawColor(...BRAND_GREEN);
   doc.setLineWidth(0.5);
   doc.line(panelX + 4, y, w - MARGIN - 4, y);
-
-  // Total row
   y += 7;
+
+  // Total Payable (bold, dark)
+  const totalLabel = hasDeposit ? 'Subtotal' : 'Total Payable';
   doc.setFontSize(12);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...DARK);
   doc.text(totalLabel, labelX, y);
-  doc.text(`£${total.toFixed(2)}`, valX, y, { align: 'right' });
+  doc.text(`£${totalPayable.toFixed(2)}`, valX, y, { align: 'right' });
+  y += 8;
 
-  // VAT number (if applicable)
+  // VAT number footnote beneath panel (when VAT-registered)
   if (showVat && vatNumber) {
-    y += 7;
     doc.setFontSize(8.5);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(...LIGHT);
     doc.text(`VAT Reg: ${vatNumber}`, MARGIN, y);
   }
+
+  return y + 4;
+}
+
+/**
+ * Draws a deposit-paid deduction row in the totals area.
+ * Returns the new y position after the row.
+ *
+ * @param {object} doc       — jsPDF instance
+ * @param {number} depositPence — deposit amount in pence
+ * @param {number} startY
+ */
+function drawDepositRow(doc, depositPence, startY) {
+  const w = doc.internal.pageSize.getWidth();
+  const panelX = w - MARGIN - 88;
+  const valX = w - MARGIN - 4;
+  const labelX = panelX + 6;
+  const depositGbp = (depositPence / 100).toFixed(2);
+
+  let y = startY + 2;
+
+  doc.setFontSize(9.5);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(...BRAND_GREEN);
+  doc.text('Deposit paid', labelX, y);
+  doc.text(`−£${depositGbp}`, valX, y, { align: 'right' });
 
   return y + 8;
 }
@@ -316,49 +511,37 @@ function drawPayNowRow(doc, { amount, payNowUrl, qrDataUrl }, startY) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 /**
- * Draws a deposit-paid deduction row in the totals area.
- * Returns the new y position after the row.
- *
- * @param {object} doc       — jsPDF instance
- * @param {number} depositPence — deposit amount in pence
- * @param {number} startY
- */
-function drawDepositRow(doc, depositPence, startY) {
-  const w = doc.internal.pageSize.getWidth();
-  const panelX = w - MARGIN - 80;
-  const valX = w - MARGIN - 4;
-  const labelX = panelX + 6;
-  const depositGbp = (depositPence / 100).toFixed(2);
-
-  let y = startY + 2;
-
-  doc.setFontSize(9.5);
-  doc.setFont('helvetica', 'normal');
-  doc.setTextColor(...BRAND_GREEN);
-  doc.text('Deposit paid', labelX, y);
-  doc.text(`−£${depositGbp}`, valX, y, { align: 'right' }); // −£
-
-  return y + 8;
-}
-
-/**
  * Generates an invoice PDF.
  *
  * @param {object} args
  * @param {object} args.job
  * @param {object} args.biz
+ * @param {object} [args.profile]    — Supabase profiles row; read for CIS status and
+ *   logo_url / sort_code / account_number when not set on biz. If both biz and profile
+ *   carry a field, biz wins (legacy data takes precedence).
  * @param {string} args.invoiceNumber
  * @param {string} args.dueDate
  * @param {string} [args.payNowUrl] — when provided (trader connected + token generated),
- *   draws the Pay-now button + QR row directly under the Total Due line (wireframe 4.4).
+ *   draws the Pay-now button + QR row directly under the Total Payable line.
  *   When absent or empty, falls back to the legacy stripePaymentLink in biz (plain text link).
  *   Set to empty string when not connected — the PDF renders as before with bank details only.
  *   When a deposit was paid, payNowUrl should be for the BALANCE (not gross).
  * @param {number} [args.depositPaidPence] — when set, shows a green "Deposit paid −£X" row
  *   and the Pay-now button (if present) covers the balance only. Defaults to 0 (no deposit).
+ * @param {object[]} [args.receipts] — all receipts in the app; used to derive materials cost
+ *   for the CIS deduction line. When absent, materials = 0 (CIS deduction based on full quote).
  * @returns {Promise<jsPDF>} — async because QR code generation is async.
  */
-export async function generateInvoicePDF({ job, biz, invoiceNumber, dueDate, payNowUrl = '', depositPaidPence = 0 }) {
+export async function generateInvoicePDF({
+  job,
+  biz,
+  profile = null,
+  invoiceNumber,
+  dueDate,
+  payNowUrl = '',
+  depositPaidPence = 0,
+  receipts = [],
+}) {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   const w = doc.internal.pageSize.getWidth();
 
@@ -376,13 +559,54 @@ export async function generateInvoicePDF({ job, biz, invoiceNumber, dueDate, pay
     }
   }
 
+  // ── Normalise biz/profile field names ────────────────────────────────────
+  // The legacy biz object uses camelCase; the new profile uses snake_case.
+  // We build a merged biz view where biz fields take precedence.
+  const effectiveBiz = {
+    name:          biz?.name          || profile?.business_name || '',
+    address:       biz?.address       || profile?.address        || '',
+    phone:         biz?.phone         || profile?.phone          || '',
+    email:         biz?.email         || profile?.email          || '',
+    logoUrl:       biz?.logoUrl       || profile?.logo_url       || '',
+    logo_url:      biz?.logo_url      || profile?.logo_url       || '',
+    utr:           biz?.utr           || profile?.utr_number     || '',
+    vatRegistered: biz?.vatRegistered ?? biz?.vat_registered     ?? profile?.vat_registered ?? false,
+    vatNumber:     biz?.vatNumber     || biz?.vat_number         || profile?.vat_number      || '',
+    accountName:   biz?.accountName   || profile?.account_name   || '',
+    sortCode:      biz?.sortCode      || biz?.sort_code          || profile?.sort_code       || '',
+    accountNumber: biz?.accountNumber || biz?.account_number     || profile?.account_number  || '',
+    bankDetails:   biz?.bankDetails   || profile?.bank_details   || '',
+    stripePaymentLink: biz?.stripePaymentLink || biz?.stripe_payment_link
+                     || profile?.stripe_payment_link || '',
+  };
+
+  // ── CIS status ────────────────────────────────────────────────────────────
+  // Use resolveCisStatus from cashflow.js — the canonical source of truth.
+  // Profile may come from the function arg or from biz.is_cis_subcontractor
+  // (when callers in the legacy flow pass partial data via biz).
+  const cisProfile = profile || {
+    is_cis_subcontractor: biz?.is_cis_subcontractor ?? false,
+    cis_default_rate:     biz?.cis_default_rate ?? 20,
+  };
+  const { isCisJob, rate: cisRate } = resolveCisStatus(job || {}, cisProfile);
+
+  // ── Materials cost for CIS deduction ─────────────────────────────────────
+  // Materials = sum of receipts linked to this job (matching by jobId/cloudId).
+  const safeReceipts = Array.isArray(receipts) ? receipts : [];
+  const materials = safeReceipts
+    .filter(r => r && r.jobId != null && (
+      String(r.jobId) === String(job?.id) ||
+      (job?.cloudId != null && String(r.jobId) === String(job.cloudId))
+    ))
+    .reduce((sum, r) => sum + Number(r.amount || 0), 0);
+
   // ── Header ──────────────────────────────────────────────────────────────
-  let y = drawHeader(doc, biz);
+  let y = drawHeader(doc, effectiveBiz);
 
   // ── Document title block ──────────────────────────────────────────────
   const metaFields = [
     ['Invoice no', invoiceNumber],
-    ['Date',       new Date().toLocaleDateString('en-GB')],
+    ['Issued',     new Date().toLocaleDateString('en-GB')],
     ['Due',        dueDate ? new Date(dueDate).toLocaleDateString('en-GB') : null],
   ];
   y = drawDocTitle(doc, 'INVOICE', metaFields, y);
@@ -390,7 +614,7 @@ export async function generateInvoicePDF({ job, biz, invoiceNumber, dueDate, pay
   // ── Bill To ───────────────────────────────────────────────────────────
   y = drawRecipientBlock(doc, 'Bill To', job, y);
 
-  // ── Job description line (if there are no line items, this sets context)
+  // ── Job description line (context when line items present)
   if (job?.summary && (job?.lineItems || []).length > 0) {
     doc.setFontSize(10);
     doc.setFont('helvetica', 'italic');
@@ -402,54 +626,57 @@ export async function generateInvoicePDF({ job, biz, invoiceNumber, dueDate, pay
   // ── Line items ────────────────────────────────────────────────────────
   y = drawLineItems(doc, job, y + 2) + 4;
 
-  // ── Totals (gross) ────────────────────────────────────────────────────
-  const subtotal = job?.total ?? job?.amount ?? 0;
-  const showVat = !!biz?.vatRegistered;
-  const vat = showVat ? Math.round(subtotal * 0.2 * 100) / 100 : 0;
-  const grossTotal = subtotal + vat;
+  // ── Summary block (Labour / Materials / VAT / CIS / Total Payable) ────
+  const quote      = job?.total ?? job?.amount ?? 0;
+  const showVat    = !!effectiveBiz.vatRegistered;
+  const vat        = showVat ? Math.round(quote * 0.2 * 100) / 100 : 0;
+  const grossTotal = quote + vat;
+  const cisDeduction = (isCisJob && cisRate > 0)
+    ? Math.round(Math.max(0, quote - materials) * (cisRate / 100) * 100) / 100
+    : 0;
+  // Total Payable = gross − CIS deduction (before any deposit offset)
+  const totalPayable = grossTotal - cisDeduction;
 
-  // When a deposit was paid, re-label the totals row as "Subtotal" and
-  // show the deposit deduction + balance separately. Otherwise "TOTAL DUE".
   const hasDeposit = depositPaidPence > 0;
-  y = drawTotals(doc, {
-    subtotal,
+
+  y = drawSummaryBlock(doc, {
+    quote,
+    materials,
     showVat,
-    vatNumber: biz?.vatNumber,
-    totalLabel: hasDeposit ? 'Subtotal' : 'TOTAL DUE',
+    vatNumber: effectiveBiz.vatNumber,
+    isCisJob,
+    cisRate,
+    hasDeposit,
   }, y);
 
-  // ── Deposit deduction row (PR 4) ──────────────────────────────────────
+  // ── Deposit deduction row ──────────────────────────────────────────────
   if (hasDeposit) {
     y = drawDepositRow(doc, depositPaidPence, y);
 
     // Balance due row
-    const balanceGbp = Math.max(0, grossTotal - depositPaidPence / 100);
-    const w2 = doc.internal.pageSize.getWidth();
-    const panelX = w2 - MARGIN - 80;
-    const valX = w2 - MARGIN - 4;
-    const labelX = panelX + 6;
+    const balanceGbp = Math.max(0, totalPayable - depositPaidPence / 100);
+    const panelX2 = w - MARGIN - 88;
+    const valX2   = w - MARGIN - 4;
+    const labelX2 = panelX2 + 6;
 
-    // Green rule above balance
     doc.setDrawColor(...BRAND_GREEN);
     doc.setLineWidth(0.5);
-    doc.line(panelX + 4, y, w2 - MARGIN - 4, y);
+    doc.line(panelX2 + 4, y, w - MARGIN - 4, y);
     y += 7;
 
     doc.setFontSize(12);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(...DARK);
-    doc.text('BALANCE DUE', labelX, y);
-    doc.text(`£${balanceGbp.toFixed(2)}`, valX, y, { align: 'right' }); // £
+    doc.text('BALANCE DUE', labelX2, y);
+    doc.text(`£${balanceGbp.toFixed(2)}`, valX2, y, { align: 'right' });
     y += 8;
   }
 
   // ── Pay-now button + QR (Section 2.1, wireframe 4.4) ──────────────────
-  // When deposit is set, the payNowUrl is for the balance; the button
-  // label reflects the balance amount.
   if (payNowUrl) {
     const displayAmount = hasDeposit
-      ? Math.max(0, grossTotal - depositPaidPence / 100)
-      : grossTotal;
+      ? Math.max(0, totalPayable - depositPaidPence / 100)
+      : totalPayable;
     y = drawPayNowRow(doc, { amount: displayAmount, payNowUrl, qrDataUrl }, y);
     y += 4;
   }
@@ -466,10 +693,8 @@ export async function generateInvoicePDF({ job, biz, invoiceNumber, dueDate, pay
   y += 7;
 
   // Legacy pay-by-card block — shown when payNowUrl is absent but the trader
-  // has a manually-entered static payment link in their Settings. Kept per brief
-  // decision from founder call: the legacy static link row stays in Settings.
-  // When payNowUrl is set, we skip the legacy link (the button above is the CTA).
-  const stripeLink = !payNowUrl ? (biz?.stripePaymentLink || biz?.stripe_payment_link || '') : '';
+  // has a manually-entered static payment link in their Settings.
+  const stripeLink = !payNowUrl ? (effectiveBiz.stripePaymentLink || '') : '';
   if (stripeLink) {
     doc.setFontSize(9.5);
     doc.setFont('helvetica', 'bold');
@@ -485,9 +710,9 @@ export async function generateInvoicePDF({ job, biz, invoiceNumber, dueDate, pay
 
   // Bank transfer block
   const bankHeader = (stripeLink || payNowUrl) ? 'Or pay by bank transfer:' : 'Bank details:';
-  const hasBankFields = biz?.accountName || biz?.sortCode || biz?.accountNumber;
+  const hasBankFields = effectiveBiz.accountName || effectiveBiz.sortCode || effectiveBiz.accountNumber;
 
-  if (hasBankFields || biz?.bankDetails) {
+  if (hasBankFields || effectiveBiz.bankDetails) {
     doc.setFontSize(9.5);
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(...DARK);
@@ -497,11 +722,11 @@ export async function generateInvoicePDF({ job, biz, invoiceNumber, dueDate, pay
     doc.setTextColor(...MID);
 
     if (hasBankFields) {
-      if (biz.accountName)   { doc.text(`Name: ${biz.accountName}`,         MARGIN, y); y += 5; }
-      if (biz.sortCode)      { doc.text(`Sort code: ${biz.sortCode}`,        MARGIN, y); y += 5; }
-      if (biz.accountNumber) { doc.text(`Account: ${biz.accountNumber}`,     MARGIN, y); y += 5; }
+      if (effectiveBiz.accountName)   { doc.text(`Name: ${effectiveBiz.accountName}`,         MARGIN, y); y += 5; }
+      if (effectiveBiz.sortCode)      { doc.text(`Sort code: ${effectiveBiz.sortCode}`,        MARGIN, y); y += 5; }
+      if (effectiveBiz.accountNumber) { doc.text(`Account: ${effectiveBiz.accountNumber}`,     MARGIN, y); y += 5; }
     } else {
-      biz.bankDetails.split('\n').forEach(line => { doc.text(line, MARGIN, y); y += 5; });
+      effectiveBiz.bankDetails.split('\n').forEach(line => { doc.text(line, MARGIN, y); y += 5; });
     }
   }
 
@@ -511,16 +736,8 @@ export async function generateInvoicePDF({ job, biz, invoiceNumber, dueDate, pay
   doc.setTextColor(...DARK);
   doc.text(`Reference: ${invoiceNumber}`, MARGIN, y);
 
-  if (biz?.vatRegistered && biz?.vatNumber) {
-    y += 6;
-    doc.setFontSize(8.5);
-    doc.setFont('helvetica', 'normal');
-    doc.setTextColor(...LIGHT);
-    doc.text(`VAT registration: ${biz.vatNumber}`, MARGIN, y);
-  }
-
   // ── Footer ────────────────────────────────────────────────────────────
-  drawFooter(doc, biz);
+  drawFooter(doc, effectiveBiz);
 
   return doc;
 }
@@ -549,11 +766,26 @@ export async function getInvoicePDFBlob(args) {
 // acceptedSignature: PNG dataURL string captured in the drawer. Embedded with
 // doc.addImage; silently skipped if the dataURL fails to decode.
 
-export function generateQuotePDF({ job, biz }) {
+export function generateQuotePDF({ job, biz, profile = null }) {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
 
+  const effectiveBiz = {
+    name:          biz?.name          || profile?.business_name || '',
+    address:       biz?.address       || profile?.address        || '',
+    phone:         biz?.phone         || profile?.phone          || '',
+    email:         biz?.email         || profile?.email          || '',
+    logoUrl:       biz?.logoUrl       || profile?.logo_url       || '',
+    logo_url:      biz?.logo_url      || profile?.logo_url       || '',
+    utr:           biz?.utr           || profile?.utr_number     || '',
+    vatRegistered: biz?.vatRegistered ?? biz?.vat_registered     ?? profile?.vat_registered ?? false,
+    vatNumber:     biz?.vatNumber     || biz?.vat_number         || profile?.vat_number      || '',
+    accountName:   biz?.accountName   || profile?.account_name   || '',
+    sortCode:      biz?.sortCode      || biz?.sort_code          || profile?.sort_code       || '',
+    accountNumber: biz?.accountNumber || biz?.account_number     || profile?.account_number  || '',
+  };
+
   // ── Header ──────────────────────────────────────────────────────────────
-  let y = drawHeader(doc, biz);
+  let y = drawHeader(doc, effectiveBiz);
 
   // ── Document title block ──────────────────────────────────────────────
   const metaFields = [
@@ -576,26 +808,27 @@ export function generateQuotePDF({ job, biz }) {
   // ── Line items ────────────────────────────────────────────────────────
   y = drawLineItems(doc, job, y + 2) + 4;
 
-  // ── Totals ────────────────────────────────────────────────────────────
+  // ── Totals (legacy drawTotals-style for quotes — no CIS, simpler) ────
   const subtotal = job?.total ?? job?.amount ?? 0;
-  y = drawTotals(doc, {
-    subtotal,
-    showVat:   !!biz?.vatRegistered,
-    vatNumber: biz?.vatNumber,
-    totalLabel: 'QUOTE TOTAL',
+  const showVat  = !!effectiveBiz.vatRegistered;
+  const vat      = showVat ? Math.round(subtotal * 0.2 * 100) / 100 : 0;
+  const gross    = subtotal + vat;
+
+  // Re-use the summary block for quotes too (simpler: no CIS, no deposit)
+  y = drawSummaryBlock(doc, {
+    quote:      subtotal,
+    materials:  0,        // receipts not relevant at quote stage
+    showVat,
+    vatNumber:  effectiveBiz.vatNumber,
+    isCisJob:   false,    // CIS deduction is not shown on quotes
+    cisRate:    0,
+    hasDeposit: false,
   }, y);
 
   // ── Deposit row (PR 4) — shown when deposit_percent > 0 ──────────────
-  // Placed between the total and the signature area so the customer sees
-  // the deposit amount before they sign.
   const depositPercent = Number(job?.deposit_percent ?? 0);
   if (depositPercent > 0) {
-    const showVat = !!biz?.vatRegistered;
-    const vat = showVat ? Math.round(subtotal * 0.2 * 100) / 100 : 0;
-    const grossTotal = subtotal + vat;
-    const depositAmount = Math.round(grossTotal * (depositPercent / 100) * 100) / 100;
-
-    // Green highlighted deposit row
+    const depositAmount = Math.round(gross * (depositPercent / 100) * 100) / 100;
     const w = doc.internal.pageSize.getWidth();
     const panelX = MARGIN;
     const panelW = w - MARGIN * 2;
@@ -641,7 +874,7 @@ export function generateQuotePDF({ job, biz }) {
   }
 
   // ── Footer ────────────────────────────────────────────────────────────
-  drawFooter(doc, biz);
+  drawFooter(doc, effectiveBiz);
 
   return doc;
 }
