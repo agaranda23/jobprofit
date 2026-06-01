@@ -45,12 +45,13 @@ import {
 import { OVERHEAD_CATEGORIES } from '../lib/overheads.js';
 import { getOverheadTotal } from '../lib/cashflow.js';
 import { isPro, isTrialActive, trialDaysLeft, UNLOCK_PRO_FOR_ALL } from '../lib/plan.js';
-import { startCheckout, openBillingPortal } from '../lib/billing.js';
+import { openBillingPortal } from '../lib/billing.js';
 import { isValidStripePaymentLink } from '../lib/bizValidation.js';
 import { buildJobsCsv, downloadOrShareCsv } from '../lib/exportCsv.js';
 import { buildChaseList } from '../lib/chaseList.js';
 import { WHATS_NEW, formatWhatsNewDate } from '../lib/whatsNew.js';
 import { getStoredPref, setPref as setThemePref } from '../lib/theme.js';
+import ProUpgradeSheet from '../components/ProUpgradeSheet.jsx';
 
 const APP_VERSION = pkg.version;
 
@@ -1373,6 +1374,8 @@ export default function SettingsScreen({
   const [activeEdit, setActiveEdit] = useState(null);
   const [saveToast, setSaveToast] = useState('');
   const toastTimerRef = useRef(null);
+  // upgradeSheetOpen: controls ProUpgradeSheet on Settings.
+  const [upgradeSheetOpen, setUpgradeSheetOpen] = useState(false);
 
   // ── Export state ──────────────────────────────────────────────────────────
   const [exporting, setExporting] = useState(false);
@@ -1744,11 +1747,7 @@ export default function SettingsScreen({
             <Row
               label="Add card to stay Pro"
               action="£12/mo"
-              onTap={async () => {
-                logTelemetry('upgrade_clicked', { source: 'settings_trial' });
-                const { error } = await startCheckout();
-                if (error) setSaveToast(error);
-              }}
+              onTap={() => setUpgradeSheetOpen(true)}
             />
           </>
         ) : isPro(profile) ? (
@@ -1776,11 +1775,7 @@ export default function SettingsScreen({
             <Row
               label="Upgrade to Pro"
               action="£12/mo"
-              onTap={async () => {
-                logTelemetry('upgrade_clicked', { source: 'settings_free' });
-                const { error } = await startCheckout();
-                if (error) setSaveToast(error);
-              }}
+              onTap={() => setUpgradeSheetOpen(true)}
             />
           </>
         )}
@@ -2001,6 +1996,13 @@ export default function SettingsScreen({
           onDeleted={handleAccountDeleted}
         />
       )}
+
+      {/* ── Pro upgrade sheet — opened by Subscription upgrade rows ─────── */}
+      <ProUpgradeSheet
+        open={upgradeSheetOpen}
+        source="settings"
+        onClose={() => setUpgradeSheetOpen(false)}
+      />
     </div>
   );
 }

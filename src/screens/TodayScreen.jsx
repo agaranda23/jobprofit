@@ -23,6 +23,8 @@
 import { useState, useMemo, useCallback } from 'react';
 import AddJobModal from '../components/AddJobModal';
 import ReviewSheet from '../components/ReviewSheet';
+import GetProPill from '../components/GetProPill';
+import ProUpgradeSheet from '../components/ProUpgradeSheet';
 import { gbp, formatToday } from '../lib/today';
 import { isAwaitingPayment, deriveStatus } from '../lib/jobStatus';
 import { daysPastDue, recordChase, buildChaseMessage, computeTier, buildPaymentDetails } from '../lib/chaseLadder';
@@ -38,6 +40,7 @@ import {
   nbaCta,
   jobAmount,
 } from '../lib/nextBestAction';
+import { isPro } from '../lib/plan';
 
 // ── Snooze helpers (delegate to nextBestAction.js store, keep SNOOZE_MS local) ──
 const SNOOZE_MS = 24 * 60 * 60 * 1000;
@@ -93,6 +96,8 @@ export default function TodayScreen({
   // showPayNowNudge: set to true after a job is saved as completed when the trader
   // is not connected to Stripe. Cleared when dismissed or session ends.
   const [showPayNowNudge, setShowPayNowNudge] = useState(false);
+  // upgradeSheetOpen: controls ProUpgradeSheet visibility on Today.
+  const [upgradeSheetOpen, setUpgradeSheetOpen] = useState(false);
 
   const now = new Date();
 
@@ -309,6 +314,14 @@ export default function TodayScreen({
       <header className="foreman-header">
         <h1 className="foreman-date">{formatToday()}</h1>
       </header>
+
+      {/* ── Get Pro upsell pill (free users + active trials only) ──────── */}
+      {!isPro(profile) && (
+        <GetProPill
+          profile={profile}
+          onOpen={() => setUpgradeSheetOpen(true)}
+        />
+      )}
 
       {/* ── Accepted-quote banner (persistent until acknowledged) ─────────── */}
       {newlyAcceptedJobs.length > 0 && (
@@ -604,6 +617,13 @@ export default function TodayScreen({
           </button>
         </div>
       )}
+
+      {/* ── ProUpgradeSheet — opened by GetProPill on Today ──────────────── */}
+      <ProUpgradeSheet
+        open={upgradeSheetOpen}
+        source="today_pill"
+        onClose={() => setUpgradeSheetOpen(false)}
+      />
     </div>
   );
 }

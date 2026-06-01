@@ -87,6 +87,9 @@ button:focus-visible {
   --accent-pressed: #16a34a;
   --danger: #ef4444;
   --border: #2a333c;
+  /* Premium gold — used for every Pro upgrade CTA */
+  --gold: #d4a017;
+  --gold-gradient: linear-gradient(135deg, #f5c75a 0%, #d4a017 50%, #b8861a 100%);
   /* Nav clearance: bar height = 12px top padding + ~40px tab content + 12px bottom padding + safe-area.
      On a standard device (no notch) this is 64px. On notched iPhones safe-area-inset-bottom
      (typically 34px) is folded inside the bar's own padding-bottom, so --nav-clearance grows
@@ -131,6 +134,9 @@ button:focus-visible {
   /* Semantic */
   --danger:      #dc2626;
   --border:      #e5e7eb;
+  /* Gold stays the same in light mode */
+  --gold: #d4a017;
+  --gold-gradient: linear-gradient(135deg, #f5c75a 0%, #d4a017 50%, #b8861a 100%);
 
   /* Brand palette — light-legible variants */
   --jp-green:    #00a86b;
@@ -3106,6 +3112,21 @@ input[type=number] { -moz-appearance: textfield; }
   letter-spacing: 0.02em;
   opacity: 0.7;
 }
+/* When the lock badge is a button (onUpgrade wired), give it a gold border */
+.pro-gate__lock-badge--btn {
+  cursor: pointer;
+  border: 1px solid rgba(212, 160, 23, 0.5);
+  background: rgba(212, 160, 23, 0.08);
+  transition: background 0.15s, border-color 0.15s;
+}
+.pro-gate__lock-badge--btn:hover {
+  background: rgba(212, 160, 23, 0.16);
+  border-color: rgba(212, 160, 23, 0.8);
+}
+.pro-gate__lock-badge--btn .pro-gate__lock-label {
+  color: var(--gold, #d4a017);
+  opacity: 1;
+}
 
 /* ── UpgradeBanner — one-time upgrade CTA on the Money tab ── */
 /* Rendered once for free users, directly below the Profit hero.
@@ -3141,18 +3162,19 @@ input[type=number] { -moz-appearance: textfield; }
 .upgrade-banner__btn {
   flex-shrink: 0;
   padding: 8px 14px;
-  background: var(--accent);
-  color: #0B0F17;
+  background: var(--gold-gradient);
+  color: #fff;
   border: none;
   border-radius: 8px;
   font-family: inherit;
   font-size: 13px;
   font-weight: 700;
   cursor: pointer;
-  transition: opacity 0.15s;
+  box-shadow: 0 2px 8px rgba(212, 160, 23, 0.35);
+  transition: opacity 0.15s, box-shadow 0.15s;
 }
-.upgrade-banner__btn:hover { opacity: 0.88; }
-.upgrade-banner__btn:active { opacity: 0.75; }
+.upgrade-banner__btn:hover { opacity: 0.92; box-shadow: 0 3px 12px rgba(212, 160, 23, 0.45); }
+.upgrade-banner__btn:active { opacity: 0.78; }
 
 /* ── Today screen — tax pot leak line ──────────── */
 .today-tax-pot-line {
@@ -11032,5 +11054,331 @@ input[type=number] { -moz-appearance: textfield; }
   font-size: 14px;
   color: #374151;
   text-align: center;
+  line-height: 1.5;
+}
+
+/* ── (gross) / (NET) profit labels ──────────────────────────────────────────
+   Both labels sit inline next to the figure on the Money hero.
+   .money-hero__label-gross: muted, smaller, after the free "Profit this month" figure
+   .money-hero__label-net:   same weight, beside the True Profit figure — stays
+   UNBLURRED even when .pro-gate__figure blurs the adjacent number. */
+.money-hero__label-gross {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-dim);
+  letter-spacing: 0.03em;
+  opacity: 0.75;
+  vertical-align: middle;
+}
+
+.money-hero__label-net {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--gold, #d4a017);
+  letter-spacing: 0.03em;
+  vertical-align: middle;
+  /* Deliberately NOT inside .pro-gate__figure — stays readable for free users */
+}
+
+/* ── GetProPill — slim Today-screen upsell row ───────────────────────────── */
+.get-pro-pill {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin-bottom: 12px;
+  border-radius: 10px;
+  border-left: 3px solid var(--gold, #d4a017);
+  background: rgba(212, 160, 23, 0.07);
+  overflow: hidden;
+}
+
+.get-pro-pill__body {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 12px 11px 14px;
+  background: none;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+  min-width: 0;
+}
+
+.get-pro-pill__icon {
+  font-size: 16px;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.get-pro-pill__copy {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.get-pro-pill__chevron {
+  flex-shrink: 0;
+  font-size: 18px;
+  color: var(--gold, #d4a017);
+  line-height: 1;
+  padding-right: 4px;
+}
+
+.get-pro-pill__dismiss {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 18px;
+  line-height: 1;
+  padding: 11px 14px;
+  cursor: pointer;
+  opacity: 0.6;
+  transition: opacity 0.15s;
+}
+.get-pro-pill__dismiss:hover { opacity: 1; }
+
+/* ── ProUpgradeSheet — full-page sales overlay ───────────────────────────── */
+.pro-upgrade-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  z-index: 900;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  /* full-screen on narrow viewports, bottom-sheet on wider */
+}
+
+.pro-upgrade-sheet {
+  position: relative;
+  width: 100%;
+  max-width: var(--app-max-width, 480px);
+  max-height: 92dvh;
+  overflow-y: auto;
+  background: var(--surface);
+  border-radius: 20px 20px 0 0;
+  padding: 24px 20px calc(env(safe-area-inset-bottom) + 24px);
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  /* Smooth slide-in from bottom */
+  animation: sheet-slide-in 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+@keyframes sheet-slide-in {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+
+/* On viewports wider than 480px: show as a centred bottom sheet capped at 80% height */
+@media (min-width: 480px) {
+  .pro-upgrade-overlay {
+    align-items: flex-end;
+  }
+  .pro-upgrade-sheet {
+    border-radius: 20px 20px 0 0;
+    max-height: 80dvh;
+  }
+}
+
+/* On very small viewports, go full-screen */
+@media (max-width: 380px) {
+  .pro-upgrade-sheet {
+    border-radius: 0;
+    max-height: 100dvh;
+  }
+}
+
+.pro-upgrade-sheet__close {
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 4px 8px;
+  opacity: 0.7;
+  transition: opacity 0.15s;
+  z-index: 1;
+}
+.pro-upgrade-sheet__close:hover { opacity: 1; }
+
+/* Header */
+.pro-upgrade-sheet__header {
+  text-align: center;
+  padding: 8px 0 16px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 16px;
+}
+
+.pro-upgrade-sheet__title {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.pro-upgrade-sheet__price {
+  font-size: 32px;
+  font-weight: 800;
+  color: var(--gold, #d4a017);
+  line-height: 1.1;
+}
+
+.pro-upgrade-sheet__price-period {
+  font-size: 16px;
+  font-weight: 500;
+  color: var(--text-dim);
+}
+
+.pro-upgrade-sheet__trust {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-top: 4px;
+}
+
+/* Competitor wedge */
+.pro-upgrade-sheet__wedge {
+  background: var(--surface-2);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+}
+
+.pro-upgrade-sheet__wedge-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.pro-upgrade-sheet__wedge-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 13px;
+  color: var(--text-dim);
+}
+
+.pro-upgrade-sheet__wedge-row--highlight {
+  color: var(--gold, #d4a017);
+  font-weight: 700;
+}
+
+.pro-upgrade-sheet__wedge-name {
+  flex: 1;
+}
+
+.pro-upgrade-sheet__wedge-price {
+  font-variant-numeric: tabular-nums;
+}
+
+.pro-upgrade-sheet__wedge-caption {
+  font-size: 12px;
+  color: var(--text-dim);
+  text-align: right;
+  font-style: italic;
+}
+
+/* Feature list */
+.pro-upgrade-sheet__features {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pro-upgrade-sheet__feature {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.pro-upgrade-sheet__feature-tick {
+  color: var(--gold, #d4a017);
+  font-weight: 700;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.pro-upgrade-sheet__feature-label {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.pro-upgrade-sheet__feature-sub {
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
+/* Trust line */
+.pro-upgrade-sheet__trust-line {
+  font-size: 12px;
+  color: var(--text-dim);
+  text-align: center;
+  margin: 0 0 20px;
+  line-height: 1.5;
+}
+
+/* Primary CTA — gold */
+.pro-upgrade-sheet__cta {
+  width: 100%;
+  padding: 16px;
+  background: var(--gold-gradient);
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(212, 160, 23, 0.4);
+  transition: opacity 0.15s, box-shadow 0.15s;
+  margin-bottom: 12px;
+}
+.pro-upgrade-sheet__cta:hover { opacity: 0.92; box-shadow: 0 6px 20px rgba(212, 160, 23, 0.5); }
+.pro-upgrade-sheet__cta:active { opacity: 0.78; }
+
+/* Secondary dismiss */
+.pro-upgrade-sheet__maybe-later {
+  width: 100%;
+  padding: 12px;
+  background: none;
+  border: none;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-dim);
+  cursor: pointer;
+  margin-bottom: 8px;
+  transition: color 0.15s;
+}
+.pro-upgrade-sheet__maybe-later:hover { color: var(--text); }
+
+/* Footer */
+.pro-upgrade-sheet__footer {
+  font-size: 11px;
+  color: var(--text-dim);
+  text-align: center;
+  margin: 0;
+  opacity: 0.65;
   line-height: 1.5;
 }
