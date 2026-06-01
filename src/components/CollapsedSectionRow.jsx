@@ -64,7 +64,7 @@ export default function CollapsedSectionRow({
   const triggerId = `jd-csr-trigger-${id}`;
 
   return (
-    <div className={`jd-csr${needsAttention ? ' jd-csr--attention' : ''}`}>
+    <div className={`jd-csr${expanded ? ' jd-csr--expanded' : ''}${needsAttention ? ' jd-csr--attention' : ''}`}>
       <button
         id={triggerId}
         type="button"

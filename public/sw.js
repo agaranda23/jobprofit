@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v37';  // bumped from v36: fix drawer accordion expand (remove overflow:hidden from .jd-csr)
+const CACHE_NAME = 'jobprofit-v38';  // bumped from v37: fix drawer panel stacking — expanded accordion panels now paint above sibling cards
 const PRECACHE = [
   '/',
   '/index.html',

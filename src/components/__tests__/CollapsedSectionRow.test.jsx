@@ -142,6 +142,39 @@ describe('CollapsedSectionRow — toggle logic', () => {
   });
 });
 
+// ── Wrapper className mirrors the JSX expression ──────────────────────────────
+
+function wrapperClassName(expanded, needsAttention = false) {
+  // Mirrors exactly: `jd-csr${expanded ? ' jd-csr--expanded' : ''}${needsAttention ? ' jd-csr--attention' : ''}`
+  return `jd-csr${expanded ? ' jd-csr--expanded' : ''}${needsAttention ? ' jd-csr--attention' : ''}`;
+}
+
+describe('CollapsedSectionRow — wrapper className reflects expanded and attention state', () => {
+  it('collapsed, no attention: base class only', () => {
+    expect(wrapperClassName(false, false)).toBe('jd-csr');
+  });
+
+  it('expanded, no attention: includes jd-csr--expanded', () => {
+    expect(wrapperClassName(true, false)).toContain('jd-csr--expanded');
+  });
+
+  it('collapsed, no attention: does NOT include jd-csr--expanded', () => {
+    expect(wrapperClassName(false, false)).not.toContain('jd-csr--expanded');
+  });
+
+  it('expanded, with attention: includes both modifier classes', () => {
+    const cls = wrapperClassName(true, true);
+    expect(cls).toContain('jd-csr--expanded');
+    expect(cls).toContain('jd-csr--attention');
+  });
+
+  it('collapsed, with attention: includes jd-csr--attention but NOT jd-csr--expanded', () => {
+    const cls = wrapperClassName(false, true);
+    expect(cls).toContain('jd-csr--attention');
+    expect(cls).not.toContain('jd-csr--expanded');
+  });
+});
+
 // ── CSS regression guard — .jd-csr must NOT have overflow:hidden ──────────────
 //
 // Root cause of the 4th drawer-expansion regression (June 2026):
@@ -184,6 +217,58 @@ function extractJdCsrBlock(cssText) {
   if (closeBrace === -1) return null;
   return cssText.slice(blockStart, closeBrace + 1);
 }
+
+function extractJdCsrExpandedBlock(cssText) {
+  // Find the .jd-csr--expanded { ... } block.
+  // Uses the same single-depth brace strategy as extractJdCsrBlock.
+  const markerIdx = cssText.indexOf('\n.jd-csr--expanded {');
+  if (markerIdx === -1) return null;
+  const blockStart = markerIdx + 1;
+  const openBrace = cssText.indexOf('{', blockStart);
+  if (openBrace === -1) return null;
+  const closeBrace = cssText.indexOf('}', openBrace);
+  if (closeBrace === -1) return null;
+  return cssText.slice(blockStart, closeBrace + 1);
+}
+
+// ── CSS regression guard — .jd-csr--expanded stacking fix ────────────────────
+//
+// Root cause of the 5th drawer stacking regression (June 2026):
+//
+//   When a CollapsedSectionRow expands inside .job-detail-body (overflow-y:auto
+//   flex column), the expanding panel had no stacking context. Later sibling
+//   cards in the flex column painted on top of the revealed panel content —
+//   the user could tap Schedule/Quote/Costs and the JS state flipped correctly,
+//   but the expanded editing UI was visually obscured behind the next card.
+//
+//   Fix: add .jd-csr--expanded { position: relative; z-index: 1 } in index.css
+//   and apply the class from CollapsedSectionRow.jsx when expanded === true.
+//   position:relative promotes the element into a stacking context; z-index:1
+//   ensures it paints above position:static siblings (z-index:auto).
+//
+//   These tests read the live CSS file so a future refactor that removes
+//   position:relative or z-index from .jd-csr--expanded fails loudly at CI
+//   time rather than silently in production.
+
+describe('CSS regression guard — .jd-csr--expanded stacking (5th stacking regression)', () => {
+  const cssText = fs.readFileSync(CSS_PATH, 'utf8');
+  const expandedBlock = extractJdCsrExpandedBlock(cssText);
+
+  it('CSS file contains a .jd-csr--expanded { } rule (sanity check)', () => {
+    expect(expandedBlock).not.toBeNull();
+    expect(expandedBlock).toContain('.jd-csr--expanded');
+  });
+
+  it('.jd-csr--expanded has position:relative (creates stacking context)', () => {
+    const blockWithoutComments = expandedBlock.replace(/\/\*[\s\S]*?\*\//g, '');
+    expect(blockWithoutComments).toMatch(/position\s*:\s*relative/);
+  });
+
+  it('.jd-csr--expanded has z-index:1 (wins over position:static siblings)', () => {
+    const blockWithoutComments = expandedBlock.replace(/\/\*[\s\S]*?\*\//g, '');
+    expect(blockWithoutComments).toMatch(/z-index\s*:\s*1\b/);
+  });
+});
 
 describe('CSS regression guard — .jd-csr overflow (4th expansion regression)', () => {
   const cssText = fs.readFileSync(CSS_PATH, 'utf8');
