@@ -2403,6 +2403,152 @@ input[type=number] { -moz-appearance: textfield; }
 }
 .chase-bar-btn--predue:active { opacity: 0.8; }
 
+/* ── Chase bar Design A — one-invoice focus ─────────────────────────────── */
+
+/* Base override: Design A bar stacks vertically rather than the horizontal
+   flex of the legacy bar. Inherits background/border from .chase-bar. */
+.chase-bar--a {
+  display: block;
+  padding: 10px 12px;
+}
+/* Tier 3 (14+ days): stronger red border signals urgency */
+.chase-bar--a.chase-bar--a-t3 {
+  border-color: #8B2222;
+  background: linear-gradient(180deg, #2E1010 0%, #220C0C 100%);
+}
+
+/* Inner layout: left text block + right button side by side */
+.chase-bar-a-body { width: 100%; }
+.chase-bar-a-row1 {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+.chase-bar-a-left {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* Customer name — bold, white, truncated for long names at 375px */
+.chase-bar-a-name {
+  display: block;
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Inline £ amount next to the name */
+.chase-bar-a-amount {
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+}
+
+/* Days-late + tier pill row */
+.chase-bar-a-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 3px;
+  flex-wrap: wrap;
+}
+.chase-bar-a-days {
+  font-size: 12px;
+  color: #FCA5A8;
+}
+.chase-bar-a-tier {
+  font-size: 11px;
+  font-weight: 700;
+  background: rgba(229, 72, 77, 0.18);
+  color: #FCA5A8;
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+/* Tier 3 pill: red bg, white text — more urgent */
+.chase-bar-a-tier--3 {
+  background: #8B2222;
+  color: #fff;
+}
+
+/* Chase on WhatsApp button — inherits sizing from .chase-bar-btn */
+.chase-bar-btn--a {
+  flex: 0 0 auto;
+  background: var(--jp-rose, #e5484d);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 0 14px;
+  font-size: 13px;
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  min-height: 44px;
+  white-space: nowrap;
+  align-self: center;
+}
+.chase-bar-btn--a:active { opacity: 0.8; }
+
+/* Queue-hint line below the main row */
+.chase-bar-a-queue {
+  font-size: 12px;
+  color: #FCA5A8;
+  opacity: 0.75;
+  margin-top: 6px;
+}
+
+/* Just-chased transition state — green flash for 1.5s */
+.chase-bar--just-chased {
+  background: linear-gradient(180deg, #0E2318 0%, #0A1910 100%);
+  border-color: #1F5A3A;
+}
+.chase-bar--just-chased .chase-bar-a-name {
+  color: #2BC48A;
+}
+.chase-bar--just-chased .chase-bar-a-meta {
+  color: #B4E8CD;
+}
+
+/* Shared layout for single-line states (just-chased, blocked, all-chased) */
+.chase-bar-a-main {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.chase-bar-a-meta {
+  font-size: 12px;
+  color: #FCA5A8;
+}
+
+/* All-chased empty state — soft green "you did it" tint */
+.chase-bar--all-chased {
+  background: linear-gradient(180deg, #0D2318 0%, #091A12 100%);
+  border-color: #1B4D32;
+}
+.chase-bar--all-chased .chase-bar-a-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #2BC48A;
+}
+
+/* Blocked state — grey/muted, no button */
+.chase-bar--blocked {
+  background: linear-gradient(180deg, #1A1F28 0%, #131820 100%);
+  border-color: #2A3244;
+}
+.chase-bar--blocked .chase-bar-a-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #A8B3C0;
+}
+.chase-bar--blocked .chase-bar-a-meta {
+  color: #6B7A8F;
+}
+
 /* ── JobsScreen — per-card dual CTAs ──────────── */
 .job-card-ctas {
   display: flex;

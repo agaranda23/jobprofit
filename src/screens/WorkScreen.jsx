@@ -1056,6 +1056,9 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
   const [addJobOpen, setAddJobOpen] = useState(false);
   // chaseStepIndex — tracks which job to nudge next in the batch-chase flow
   const [chaseStepIndex, setChaseStepIndex] = useState(0);
+  // chaseBarJustChased — job that was just chased; drives the 1.5s "Chased" transition
+  // state on the chase bar before it morphs to the next invoice. Null = normal state.
+  const [chaseBarJustChased, setChaseBarJustChased] = useState(null);
   // confirmDeleteJob — job pending hard-delete confirmation; null = modal closed.
   const [confirmDeleteJob, setConfirmDeleteJob] = useState(null);
   // receiptJob — job whose receipt modal is open; null = closed.
@@ -1217,6 +1220,20 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
   // Batch nudge: overdue jobs that are NOT blocked by the 48h guard
   const chasableJobs = riskFigures.overdueJobs.filter(j => !isDoubleSendBlocked(j.id));
 
+  // Tier-priority queue for Design A chase bar.
+  // Rule: Tier 3 (14+ days) jumps ahead of all others; then Tier 2; then Tier 1.
+  // Within each tier, oldest due date first. 'grace' tier is non-actionable and
+  // is excluded (those jobs don't appear in chasableJobs anyway).
+  const prioritisedChaseQueue = [...chasableJobs].sort((a, b) => {
+    const ta = typeof computeTier(a) === 'number' ? computeTier(a) : 0;
+    const tb = typeof computeTier(b) === 'number' ? computeTier(b) : 0;
+    if (ta !== tb) return tb - ta; // higher tier first
+    // Within same tier: oldest due date first
+    const aDate = a.invoiceDueDate ? new Date(a.invoiceDueDate) : new Date(a.invoiceSentAt ?? 0);
+    const bDate = b.invoiceDueDate ? new Date(b.invoiceDueDate) : new Date(b.invoiceSentAt ?? 0);
+    return aDate - bDate;
+  });
+
   // Pre-due heads-up: opens the Tier 0 WhatsApp message for the oldest pre-due job.
   const handlePreDueChase = () => {
     const job = preDueJobs[0];
@@ -1254,16 +1271,21 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
     window.open(finalUrl, '_blank', 'noopener');
   };
 
-  // Batch chase: step through chasable jobs one tap at a time.
+  // Batch chase: step through the tier-priority queue one tap at a time.
   // Each tap opens the correctly-tiered WhatsApp message; the human fires the send.
+  // Tier 3 (14+ days overdue) always leads the queue; then Tier 2, then Tier 1,
+  // oldest-due first within each tier. Uses the existing chaseJobTiered path so
+  // message content, recordChase, and the 48h guard are unchanged.
   const handleBatchChaseStep = () => {
-    const safeIndex = chaseStepIndex % Math.max(chasableJobs.length, 1);
-    const job = chasableJobs[safeIndex];
+    const job = prioritisedChaseQueue[0];
     if (!job) return;
     const opened = chaseJobTiered(job, biz, null, payNowUrls.get(job.id) ?? '');
     if (opened) {
-      setChaseStepIndex(safeIndex + 1);
+      setChaseStepIndex(prev => prev + 1);
       showToast(`Chased ${job.customer || job.name || 'Invoice'}`);
+      // Show 1.5s "Chased" transition state on the bar before it morphs to next
+      setChaseBarJustChased(job);
+      setTimeout(() => setChaseBarJustChased(null), 1500);
     }
   };
 
@@ -1378,33 +1400,116 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
         </div>
       </div>
 
-      {/* Chase bar — three mutually exclusive states (overdue wins over pre-due):
-           1. Red: one or more invoices past due.
-           2. Amber: no overdue invoices, but at least one due in 1-2 days.
-           3. Nothing: at rest — StageStrip carries all money-in-flight info. */}
-      {riskFigures.overdueJobs.length > 0 ? (
-        <div
-          className="chase-bar"
-          role="region"
-          aria-live="polite"
-          aria-label={`${riskFigures.overdueJobs.length === 1 ? '1 overdue invoice' : `${riskFigures.overdueJobs.length} overdue invoices`}`}
-        >
-          <div className="chase-bar-left">
-            <span className="chase-bar-amount">£{formatAmount(riskFigures.overdue)}</span>
-            <span className="chase-bar-label">
-              {' '}overdue · {riskFigures.overdueJobs.length === 1 ? '1 invoice' : `${riskFigures.overdueJobs.length} invoices`}
-            </span>
-          </div>
-          <button
-            type="button"
-            className="chase-bar-btn"
-            onClick={handleBatchChaseStep}
-            aria-label={`Chase ${riskFigures.overdueJobs.length === 1 ? '1 overdue invoice' : `${riskFigures.overdueJobs.length} overdue invoices`}`}
+      {/* Chase bar — Design A: one-invoice focus with tier-priority queue.
+           Four mutually exclusive states (evaluated top-down):
+           1. Red — overdue invoices exist; shows the most-urgent one (Tier 3 first).
+              1a. Just-chased transition (1.5s green flash after a tap).
+              1b. All chaseable — normal queue state.
+              1c. All blocked (48h cooldown) — "all today's chases are out" grey state.
+           2. Amber — no overdue, but at least one invoice due in 1-2 days.
+           3. Nothing — at rest. */}
+      {riskFigures.overdueJobs.length > 0 ? (() => {
+        const nextJob = prioritisedChaseQueue[0] ?? null;
+        const queueRemaining = prioritisedChaseQueue.length; // jobs still chaseable
+
+        // Just-chased state: show 1.5s green confirmation before morphing
+        if (chaseBarJustChased) {
+          const customerShort = (chaseBarJustChased.customer || chaseBarJustChased.name || 'Invoice')
+            .split(' ').slice(0, 2).join(' ');
+          return (
+            <div
+              key={`chased-${chaseBarJustChased.id}`}
+              className="chase-bar chase-bar--just-chased"
+              role="region"
+              aria-live="polite"
+              aria-label={`Chased ${customerShort}`}
+            >
+              <div className="chase-bar-a-main">
+                <span className="chase-bar-a-name">&#10003; Chased {customerShort}</span>
+                <span className="chase-bar-a-meta">Next up in a moment&hellip;</span>
+              </div>
+            </div>
+          );
+        }
+
+        // Queue empty: all overdue jobs are within the 48h cooldown.
+        // If the user chased at least one this session, show the positive empty state.
+        // Otherwise (blocked from a previous session), show the neutral blocked state.
+        if (!nextJob) {
+          const allChasedThisSession = chaseStepIndex > 0;
+          return allChasedThisSession ? (
+            <div
+              className="chase-bar chase-bar--all-chased"
+              role="region"
+              aria-live="polite"
+              aria-label="All chased"
+            >
+              <div className="chase-bar-a-main">
+                <span className="chase-bar-a-name">All chased. Money&rsquo;s on the way.</span>
+              </div>
+            </div>
+          ) : (
+            <div
+              className="chase-bar chase-bar--blocked"
+              role="region"
+              aria-live="polite"
+              aria-label="All today's chases are out"
+            >
+              <div className="chase-bar-a-main">
+                <span className="chase-bar-a-name">All today&rsquo;s chases are out</span>
+                <span className="chase-bar-a-meta">Reply expected within 48h</span>
+              </div>
+            </div>
+          );
+        }
+
+        // Normal state: show the next invoice to chase (nextJob is non-null here)
+        const customerName = nextJob.customer || nextJob.name || 'Invoice';
+        const outstanding = Number(nextJob.total ?? nextJob.amount ?? 0);
+        const daysLate = Math.max(0, daysPastDue(nextJob));
+        const rawTier = computeTier(nextJob);
+        const tierNum = typeof rawTier === 'number' ? rawTier : 1;
+        const tierLabel = tierNum === 3 ? 'final' : tierNum === 2 ? 'firm' : 'light';
+        const queueLine = queueRemaining > 1
+          ? `+ ${queueRemaining - 1} more to chase after this`
+          : null;
+
+        return (
+          <div
+            key={`chase-${nextJob.id}`}
+            className={`chase-bar chase-bar--a${tierNum === 3 ? ' chase-bar--a-t3' : ''}`}
+            role="region"
+            aria-live="polite"
+            aria-label={`${customerName} · £${formatAmount(outstanding)} · ${daysLate} days late`}
           >
-            Chase →
-          </button>
-        </div>
-      ) : preDueJobs.length > 0 ? (
+            <div className="chase-bar-a-body">
+              <div className="chase-bar-a-row1">
+                <div className="chase-bar-a-left">
+                  <span className="chase-bar-a-name">{customerName}</span>
+                  <span className="chase-bar-a-amount"> &middot; £{formatAmount(outstanding)}</span>
+                  <div className="chase-bar-a-meta">
+                    <span className="chase-bar-a-days">{daysLate}d late</span>
+                    <span className={`chase-bar-a-tier${tierNum === 3 ? ' chase-bar-a-tier--3' : ''}`}>
+                      Tier {tierNum} &middot; {tierLabel}
+                    </span>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="chase-bar-btn chase-bar-btn--a"
+                  onClick={handleBatchChaseStep}
+                  aria-label={`Chase ${customerName} on WhatsApp`}
+                >
+                  Chase on WhatsApp
+                </button>
+              </div>
+              {queueLine && (
+                <div className="chase-bar-a-queue">{queueLine}</div>
+              )}
+            </div>
+          </div>
+        );
+      })() : preDueJobs.length > 0 ? (
         <div
           className="chase-bar chase-bar--predue"
           role="region"

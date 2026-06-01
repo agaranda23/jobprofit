@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v50';  // bumped from v49: remove duplicate field label in EditFieldModal
+const CACHE_NAME = 'jobprofit-v51';  // bumped from v50: chase-bar one-invoice focus Design A
 const PRECACHE = [
   '/',
   '/index.html',
