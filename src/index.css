@@ -10800,6 +10800,99 @@ input[type=number] { -moz-appearance: textfield; }
   cursor: not-allowed;
 }
 
+/* ── Trade type setup sheet ───────────────────────────────────────────────── */
+/* Uses .cis-setup-sheet modal chrome; only the chip grid + extras are new.    */
+
+.trade-setup-sheet {
+  max-height: 90dvh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.trade-sheet__hint {
+  font-size: 13px;
+  color: var(--text-dim);
+  margin: 0 0 12px;
+  line-height: 1.45;
+}
+
+.trade-sheet__hint--star {
+  margin-top: 10px;
+}
+
+.trade-sheet__chip-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.trade-sheet__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 8px 14px;
+  border-radius: 20px;
+  border: 1.5px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, opacity 0.15s;
+  white-space: nowrap;
+}
+
+.trade-sheet__chip--on {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  border-color: var(--accent);
+  color: var(--text);
+}
+
+.trade-sheet__chip--primary {
+  background: color-mix(in srgb, var(--accent) 28%, transparent);
+  border-color: var(--accent);
+  font-weight: 700;
+}
+
+.trade-sheet__chip--maxed {
+  opacity: 0.38;
+  cursor: not-allowed;
+}
+
+.trade-sheet__star {
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--text-dim);
+  padding: 0 1px;
+  user-select: none;
+}
+
+.trade-sheet__star--active {
+  color: var(--accent);
+}
+
+.trade-sheet__other-wrap {
+  margin: 12px 0 4px;
+}
+
+.trade-sheet__other-input {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1.5px solid var(--border);
+  background: var(--surface-2);
+  color: var(--text);
+  font-size: 15px;
+  box-sizing: border-box;
+}
+
+.trade-sheet__other-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
 /* ── Tax Pot card — CIS two-block layout ──────────────────────────────────── */
 
 .money-tax-cis-block {

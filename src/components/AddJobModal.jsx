@@ -43,7 +43,29 @@ function isOnline() {
   return typeof navigator !== 'undefined' ? navigator.onLine : true;
 }
 
-export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMode, onSaveAndSend }) {
+// ── Trade-aware voice hint ─────────────────────────────────────────────────────
+// Returns a short example sentence the user can say, tailored to their primary
+// trade. Purely cosmetic — does not affect parsing logic in voiceParse.js.
+// Falls back to a generic example when no trade is set.
+export function getTradeVoiceHint(tradePrimary) {
+  const map = {
+    plumber:                  'Burst pipe Mrs Jones one eighty cash',
+    gas_engineer:             'Boiler service Mrs Mitchell one twenty',
+    heating_engineer:         'Heating flush Mr Evans two fifty bank',
+    electrician:              'Replace consumer unit Mr Patel four fifty',
+    builder:                  'Foundation work site London three thousand',
+    carpenter_joiner:         'Fit kitchen Mr Harris six hundred cash',
+    decorator:                'Repaint hallway Mrs Brown four hundred',
+    plasterer:                'Skim bedroom ceiling Dave two eighty',
+    roofer:                   'Ridge tile repair Mr Clark three sixty',
+    tiler:                    'Bathroom tiling Mrs White five hundred',
+    landscaper_groundworker:  'Turf garden Mr Green eight hundred',
+  };
+  const key = (tradePrimary || '').toLowerCase();
+  return map[key] || 'Kitchen job Sarah three eighty cash';
+}
+
+export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMode, onSaveAndSend, tradePrimary }) {
   // 'micro'    — Stage 1: fast capture (amount + paid-by + Save it)
   // 'details'  — Stage 2: full form (name, customer, date, more options)
   // 'quote'    — Create-quote surface: voice OR type, summary + total + optional line items
@@ -807,7 +829,7 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMo
                 )}
                 {!transcript && (
                   <div className="aj-transcript aj-transcript--hint">
-                    e.g. &ldquo;Kitchen job Sarah three eighty cash&rdquo;
+                    e.g. &ldquo;{getTradeVoiceHint(tradePrimary)}&rdquo;
                   </div>
                 )}
                 <button
@@ -1043,7 +1065,7 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMo
                 )}
                 {!quoteTranscript && (
                   <div className="aj-transcript aj-transcript--hint">
-                    e.g. &ldquo;Bathroom tiling Dave five hundred&rdquo;
+                    e.g. &ldquo;{getTradeVoiceHint(tradePrimary)}&rdquo;
                   </div>
                 )}
                 <button
