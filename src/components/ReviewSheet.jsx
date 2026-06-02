@@ -40,6 +40,8 @@ import {
   generatePublicAccessToken,
   buildPublicQuoteUrl,
 } from '../lib/publicQuoteToken';
+import { persistPublicToken } from '../lib/store';
+import { extractJobMeta, writeJobMeta } from '../lib/jobMeta';
 import { logTelemetry } from '../lib/telemetry';
 import { isPro } from '../lib/plan';
 import { canShareFile } from '../lib/webShare';
@@ -310,21 +312,63 @@ export default function ReviewSheet({
 
   // ── Quote: WhatsApp send ───────────────────────────────────────────────────
   // Decision tree:
-  //   1. Generate PDF blob first.
-  //   2. canShareFile(file) + has phone  → navigator.share({ files, text }) where text includes the wa.me link
-  //   3. canShareFile(file), no phone    → navigator.share({ files, text }) only
-  //   4. No Web Share Level 2 + phone    → wa.me text-only + auto-trigger PDF download
-  //   5. No Web Share Level 2, no phone  → clipboard copy of quote URL
-  //   6. AbortError                      → don't close, don't flash error
+  //   1. Mint/reuse publicAccessToken and AWAIT its write to the cloud BEFORE
+  //      generating the PDF or share link — this is the fix for the "Quote not
+  //      found" bug. The URL is embedded in both the QR code and the PDF; if the
+  //      customer opens the link before the cloud write completes (even 200ms),
+  //      fetchPublicJob returns null → "Quote not found."
+  //   2. If the cloud write fails offline → warn the trader and abort the send.
+  //   3. canShareFile(file) + has phone  → navigator.share({ files, text })
+  //   4. canShareFile(file), no phone    → navigator.share({ files, text }) only
+  //   5. No Web Share Level 2 + phone    → wa.me text-only + auto-trigger PDF download
+  //   6. No Web Share Level 2, no phone  → clipboard copy of quote URL
+  //   7. AbortError                      → don't close, don't flash error
   const handleQuoteWhatsApp = async () => {
     setBusy(true);
     let token = job.publicAccessToken;
     if (!token) {
       token = generatePublicAccessToken();
     }
+
+    // ── Step 1: persist the token to cloud BEFORE producing the shareable URL ──
+    // Build the full meta snapshot that includes the new token and stage fields so
+    // the single cloud write captures everything in one round-trip.
+    const isLead = job.status === 'lead' || !job.status;
+    const jobTotal = Number(job.total ?? job.amount ?? 0);
+    const lockedDepositPence = depositPercent > 0 && jobTotal > 0
+      ? Math.round(jobTotal * (depositPercent / 100) * 100)
+      : 0;
+    const updatedJob = {
+      ...job,
+      ...(isLead ? stagePatch('Quoted') : {}),
+      quoteStatus: 'sent',
+      quoteSentAt: new Date().toISOString(),
+      publicAccessToken: token,
+      quoteDraft: false,
+      deposit_percent:       depositPercent > 0 ? depositPercent : 0,
+      deposit_amount_pence:  lockedDepositPence > 0 ? lockedDepositPence : null,
+    };
+    // Write to localStorage first (synchronous, always succeeds).
+    const mergedMeta = writeJobMeta(updatedJob.id, extractJobMeta(updatedJob));
+
+    // Await the cloud write. If we're offline the token can't reach Supabase, so
+    // the sign link will be dead — surface this clearly rather than producing a
+    // silently broken link.
+    const persistResult = await persistPublicToken(updatedJob.id, mergedMeta);
+    if (!persistResult.ok) {
+      if (persistResult.offline) {
+        flash?.('No connection — quote link won\'t work until you\'re back online. Try again when connected.');
+      } else {
+        flash?.('Could not save quote link — try again');
+      }
+      setBusy(false);
+      return;
+    }
+
+    // Token is now committed to the cloud. The URL is safe to share.
     const quoteUrl = buildPublicQuoteUrl(token);
     const phone = resolvePhone(job);
-    const message = buildQuoteWhatsAppMessage({ job, biz, quoteUrl });
+    const message = buildQuoteWhatsAppMessage({ job: updatedJob, biz, quoteUrl });
     const link = buildWhatsAppLink({ phone: phone || '', message });
 
     // Pre-generate QR for embedding in the PDF.
@@ -344,7 +388,7 @@ export default function ReviewSheet({
 
     let shareMethod = 'wame_fallback';
     try {
-      const blob = getQuotePDFBlob({ job, biz, profile, quoteUrl, qrDataUrl });
+      const blob = getQuotePDFBlob({ job: updatedJob, biz, profile, quoteUrl, qrDataUrl });
       const customer = (job?.customer || 'quote').replace(/\s/g, '-');
       const file = new File([blob], `quote-${customer}.pdf`, { type: 'application/pdf' });
 
@@ -357,7 +401,7 @@ export default function ReviewSheet({
       } else if (phone) {
         shareMethod = 'wame_fallback';
         window.open(link, '_blank', 'noopener');
-        downloadQuotePDF({ job, biz, profile, quoteUrl, qrDataUrl });
+        downloadQuotePDF({ job: updatedJob, biz, profile, quoteUrl, qrDataUrl });
       } else {
         // No file share, no phone — copy the quote URL so the user can paste it
         shareMethod = 'web_share_text';
@@ -370,7 +414,12 @@ export default function ReviewSheet({
       }
     } catch (err) {
       if (err?.name === 'AbortError') {
+        // User dismissed the share sheet. The token was already persisted so it's
+        // safe to call onUpdate and close — the link exists in the cloud.
+        onUpdate?.(updatedJob);
+        flash?.('Quote saved — tap Send to share when ready');
         setBusy(false);
+        onClose?.();
         return;
       }
       // PDF generation failed — fall back to text-only wa.me
@@ -385,27 +434,10 @@ export default function ReviewSheet({
     }
 
     logTelemetry('quote_send', { channel: 'whatsapp', source: 'review_sheet', share_method: shareMethod });
-    // Lock the deposit amount in pence at send time (based on the total at this
-    // moment). The webhook uses deposit_amount_pence if set, so price edits after
-    // the quote was sent don't silently change what the customer owes.
-    const jobTotal = Number(job.total ?? job.amount ?? 0);
-    const lockedDepositPence = depositPercent > 0 && jobTotal > 0
-      ? Math.round(jobTotal * (depositPercent / 100) * 100)
-      : 0;
-    // Advance Lead → Quoted on send. stagePatch('Quoted') handles legacy jobs
-    // where job.status is undefined (which made the old equality check fail and
-    // left the job stranded on Lead even after the quote went out).
-    const isLead = job.status === 'lead' || !job.status;
-    onUpdate?.({
-      ...job,
-      ...(isLead ? stagePatch('Quoted') : {}),
-      quoteStatus: 'sent',
-      quoteSentAt: new Date().toISOString(),
-      publicAccessToken: token,
-      quoteDraft: false,
-      deposit_percent:       depositPercent > 0 ? depositPercent : 0,
-      deposit_amount_pence:  lockedDepositPence > 0 ? lockedDepositPence : null,
-    });
+    // The cloud write already happened above. onUpdate here updates React state
+    // (in-memory jobs list) — it will call writeJobMeta+syncMetaToCloud again but
+    // that is idempotent (same meta object, no-op cloud write).
+    onUpdate?.(updatedJob);
     flash?.('Quote sent');
     setBusy(false);
     onClose?.();

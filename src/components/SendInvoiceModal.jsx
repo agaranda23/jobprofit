@@ -48,6 +48,8 @@ import { canSendInvoice, incrementSendCount } from '../lib/plan';
 import { supabase } from '../lib/supabase';
 import { logTelemetry } from '../lib/telemetry';
 import { startCheckout } from '../lib/billing';
+import { persistPublicToken } from '../lib/store';
+import { extractJobMeta, writeJobMeta } from '../lib/jobMeta';
 import InvoiceDocumentPreview from './InvoiceDocumentPreview';
 
 // Returns true when this browser supports navigator.share() with a files array.
@@ -227,9 +229,10 @@ export default function SendInvoiceModal({
   const invAmount = Number(job.total ?? job.amount);
   const isUnpriced = !invAmount || invAmount <= 0;
 
-  // Performs the status transition on first send.
-  // Returns false when the paywall or bank gate should block the send.
-  const attemptSend = () => {
+  // Performs gates (paywall, bank-gate, price check) and — on first send —
+  // awaits the cloud write of publicAccessToken before returning true.
+  // Returns false when a gate blocks the send or the cloud write fails offline.
+  const attemptSend = async () => {
     // Hard-stop backstop for £0 invoices — belt-and-suspenders behind the UI banner.
     if (isUnpriced) return false;
     // Just-in-time bank gate: if the trader has no bank details, intercept the send
@@ -247,7 +250,7 @@ export default function SendInvoiceModal({
     }
     if (isFirstSend) {
       const now = new Date().toISOString();
-      onUpdate({
+      const updatedJob = {
         ...job,
         status: 'invoice_sent',
         invoiceSentAt: now,
@@ -259,7 +262,27 @@ export default function SendInvoiceModal({
         // of whether it was first shared as a quote or invoice).
         publicAccessToken: pendingToken,
         invoiceLinkSentAt: now,
-      });
+      };
+
+      // Write to localStorage synchronously first so in-app state is correct
+      // even if the cloud write below is delayed.
+      const mergedMeta = writeJobMeta(updatedJob.id, extractJobMeta(updatedJob));
+
+      // Await the cloud write of the token. The hosted invoice URL is embedded in
+      // the WhatsApp message; if the customer opens it before the cloud write lands,
+      // they hit "Invoice not found." Awaiting here guarantees the token is in
+      // Supabase before the message is produced.
+      const persistResult = await persistPublicToken(updatedJob.id, mergedMeta);
+      if (!persistResult.ok) {
+        if (persistResult.offline) {
+          flash('No connection — invoice link won\'t work until you\'re back online. Try again when connected.');
+        } else {
+          flash('Could not save invoice link — try again');
+        }
+        return false;
+      }
+
+      onUpdate(updatedJob);
       // Fire-and-forget Supabase increment — silently tolerates offline.
       incrementSendCount(supabase, profile?.id);
     }
@@ -268,9 +291,9 @@ export default function SendInvoiceModal({
 
   // Primary path: wa.me deep-link — opens WhatsApp with invoice text + bank
   // details. Fast, no PDF generation overhead, works on any phone.
-  const handleWhatsApp = () => {
+  const handleWhatsApp = async () => {
     logTelemetry('invoice_send', { channel: 'whatsapp' });
-    if (!attemptSend()) return;
+    if (!await attemptSend()) return;
     const link = buildWhatsAppLink({
       phone: job.customerPhone || job.phone || '',
       message,
@@ -284,7 +307,7 @@ export default function SendInvoiceModal({
   // the actual PDF so customers who need a formal document get one.
   const handleSharePDF = async () => {
     logTelemetry('invoice_send', { channel: 'share' });
-    if (!attemptSend()) return;
+    if (!await attemptSend()) return;
     setBusy(true);
     try {
       // getInvoicePDFBlob is now async (generates QR code if payNowUrl is set).
@@ -316,8 +339,8 @@ export default function SendInvoiceModal({
       if (err?.name !== 'AbortError') {
         flash('Could not send — try the download below');
       }
-      // NOTE: if attemptSend already called onUpdate we can't rollback cleanly
-      // without a dedicated undo path, so we only rollback when no share happened.
+      // NOTE: attemptSend already called onUpdate — the token is in the cloud.
+      // We can't rollback the cloud write but the state is consistent.
       setBusy(false);
       return;
     }
@@ -326,7 +349,7 @@ export default function SendInvoiceModal({
 
   const handleDownloadPDF = async () => {
     logTelemetry('invoice_send', { channel: 'download' });
-    if (!attemptSend()) return;
+    if (!await attemptSend()) return;
     try {
       // downloadInvoicePDF is now async (QR code generation).
       await downloadInvoicePDF({ job, biz: bizWithStripe, profile, invoiceNumber, dueDate, payNowUrl });
