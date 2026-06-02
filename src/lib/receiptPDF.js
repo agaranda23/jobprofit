@@ -241,6 +241,9 @@ function drawFooter(doc, biz, extra = '') {
   doc.setTextColor(...LIGHT);
   const text = extra || `${biz?.name || 'JobProfit'}  •  Generated ${new Date().toLocaleDateString('en-GB')}`;
   doc.text(text, w / 2, footerY, { align: 'center' });
+  // PRD V2: hide this line for Pro traders with white-label enabled.
+  doc.setFontSize(6.5);
+  doc.text('Sent with JobProfit  •  getjobprofit.com', w / 2, footerY + 5, { align: 'center' });
 }
 
 // ── Payment method label resolution ────────────────────────────────────────
