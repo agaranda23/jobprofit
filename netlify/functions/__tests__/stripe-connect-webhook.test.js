@@ -640,3 +640,148 @@ describe('L. charge.refunded with kind=deposit', () => {
     expect(tokenUpdateCalls.some(c => c.data.status === 'refunded')).toBe(false);
   });
 });
+
+// ── M. Deposit consent fields written to jobs.meta ────────────────────────────
+// These tests verify that the GDPR consent gap on the deposit acceptance path
+// is closed: when a deposit checkout completes, the webhook must write
+// consentGiven/consentAt/consentPolicyVersion into jobs.meta, mirroring
+// what accept-quote.js writes on the sign path.
+
+describe('M. Deposit completed — consent fields in jobs.meta', () => {
+  const FAKE_DEPOSIT_TOKEN   = 'dep-tok-consent-test';
+  const FAKE_QUOTE_ID        = 'quote-uuid-consent';
+  const FAKE_CONSENT_AT      = '2026-06-02T10:00:00.000Z';
+
+  function makeDepositSessionWithConsent(overrides = {}) {
+    return {
+      id:             FAKE_SESSION_ID,
+      payment_intent: FAKE_PI_ID,
+      metadata: {
+        jp_type:                    'deposit',
+        jobprofit_deposit_token:    FAKE_DEPOSIT_TOKEN,
+        jobprofit_quote_id:         FAKE_QUOTE_ID,
+        jobprofit_trader_user_id:   FAKE_TRADER_ID,
+        jobprofit_deposit_percent:  '25',
+        consent_given:              'true',
+        consent_at:                 FAKE_CONSENT_AT,
+        consent_policy_version:     'v1',
+        ...overrides,
+      },
+    };
+  }
+
+  function makeDepositTokenRow(overrides = {}) {
+    return {
+      id:             'deposit-consent-row-1',
+      token:          FAKE_DEPOSIT_TOKEN,
+      kind:           'deposit',
+      invoice_id:     FAKE_QUOTE_ID,
+      quote_id:       FAKE_QUOTE_ID,
+      trader_user_id: FAKE_TRADER_ID,
+      amount_pence:   13500,
+      status:         'pending',
+      ...overrides,
+    };
+  }
+
+  it('M1: writes consentGiven:true, consentAt, consentPolicyVersion:v1 when consent metadata is present', async () => {
+    mockTokenSelectResult = { data: makeDepositTokenRow() };
+    mockJobSelectResult   = {
+      data: {
+        id:       FAKE_QUOTE_ID,
+        user_id:  FAKE_TRADER_ID,
+        meta:     {},
+        summary:  'Kitchen fit',
+        payments: [],
+      },
+    };
+
+    mockConstructEvent.mockReturnValue(
+      makeStripeEvent('checkout.session.completed', makeDepositSessionWithConsent()),
+    );
+
+    const res = await handler(buildEvent());
+    expect(res.statusCode).toBe(200);
+
+    const jobUpdate = jobUpdateCalls.find(c => c.table === 'jobs' && c.data.meta);
+    expect(jobUpdate).toBeDefined();
+    expect(jobUpdate.data.meta.consentGiven).toBe(true);
+    expect(jobUpdate.data.meta.consentAt).toBe(FAKE_CONSENT_AT);
+    expect(jobUpdate.data.meta.consentPolicyVersion).toBe('v1');
+    expect(jobUpdate.data.meta.quoteStatus).toBe('accepted');
+  });
+
+  it('M2: graceful fallback — no consent metadata (old in-flight link) still marks accepted, consentGiven:false', async () => {
+    mockTokenSelectResult = { data: makeDepositTokenRow() };
+    mockJobSelectResult   = {
+      data: {
+        id:       FAKE_QUOTE_ID,
+        user_id:  FAKE_TRADER_ID,
+        meta:     {},
+        summary:  'Old link job',
+        payments: [],
+      },
+    };
+
+    // Old session — no consent_ keys in metadata
+    mockConstructEvent.mockReturnValue(
+      makeStripeEvent('checkout.session.completed', {
+        id:             FAKE_SESSION_ID,
+        payment_intent: FAKE_PI_ID,
+        metadata: {
+          jp_type:                   'deposit',
+          jobprofit_deposit_token:   FAKE_DEPOSIT_TOKEN,
+          jobprofit_quote_id:        FAKE_QUOTE_ID,
+          jobprofit_trader_user_id:  FAKE_TRADER_ID,
+          jobprofit_deposit_percent: '25',
+          // no consent_ fields
+        },
+      }),
+    );
+
+    const res = await handler(buildEvent());
+    expect(res.statusCode).toBe(200);
+
+    const jobUpdate = jobUpdateCalls.find(c => c.table === 'jobs' && c.data.meta);
+    expect(jobUpdate).toBeDefined();
+    // Quote still accepted — not crashing
+    expect(jobUpdate.data.meta.quoteStatus).toBe('accepted');
+    // Consent recorded as not captured rather than throwing
+    expect(jobUpdate.data.meta.consentGiven).toBe(false);
+    expect(jobUpdate.data.meta.consentPolicyVersion).toBeNull();
+  });
+
+  it('M3: does not overwrite existing consent fields when quote was already signed first', async () => {
+    mockTokenSelectResult = { data: makeDepositTokenRow() };
+    // Quote already has consent from the sign flow
+    mockJobSelectResult   = {
+      data: {
+        id:       FAKE_QUOTE_ID,
+        user_id:  FAKE_TRADER_ID,
+        meta: {
+          acceptedSignature:    'data:image/png;base64,EXISTING',
+          acceptedAt:           '2026-06-01T09:00:00.000Z',
+          acceptedSource:       'remote',
+          consentGiven:         true,
+          consentAt:            '2026-06-01T09:00:00.000Z',
+          consentPolicyVersion: 'v1',
+        },
+        summary:  'Already signed',
+        payments: [],
+      },
+    };
+
+    mockConstructEvent.mockReturnValue(
+      makeStripeEvent('checkout.session.completed', makeDepositSessionWithConsent()),
+    );
+
+    const res = await handler(buildEvent());
+    expect(res.statusCode).toBe(200);
+
+    const jobUpdate = jobUpdateCalls.find(c => c.table === 'jobs' && c.data.meta);
+    expect(jobUpdate).toBeDefined();
+    // The original consent timestamp must not be overwritten
+    expect(jobUpdate.data.meta.consentAt).toBe('2026-06-01T09:00:00.000Z');
+    expect(jobUpdate.data.meta.consentGiven).toBe(true);
+  });
+});

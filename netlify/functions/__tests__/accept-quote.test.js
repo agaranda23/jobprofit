@@ -289,7 +289,7 @@ describe('E. Success path', () => {
     }));
 
     const handler = await getHandler();
-    await handler(makeEvent({ token: VALID_TOKEN, signature: VALID_SIG, acceptedName: longName }));
+    await handler(makeEvent({ token: VALID_TOKEN, signature: VALID_SIG, acceptedName: longName, consentGiven: true }));
 
     // capturedMeta may not be set in all mock configurations — soft check
     if (capturedMeta) {
@@ -322,7 +322,7 @@ describe('F. acceptedSource field in written meta', () => {
     }));
 
     const handler = await getHandler();
-    await handler(makeEvent({ token: VALID_TOKEN, signature: VALID_SIG }));
+    await handler(makeEvent({ token: VALID_TOKEN, signature: VALID_SIG, consentGiven: true }));
 
     if (writtenMeta) {
       expect(writtenMeta.acceptedSource).toBe('remote');
