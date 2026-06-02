@@ -9099,6 +9099,23 @@ input[type=number] { -moz-appearance: textfield; }
      regression). The button's own min-height:48px is the primary constraint;
      this is the safety net on the wrapper. */
   min-height: 48px;
+  /* 9th drawer regression fix (June 2026) — THE ACTUAL ROOT CAUSE of the
+     "Schedule options render behind Quote" bug that survived the 4th–8th fixes.
+     .job-detail-body is a HEIGHT-CONSTRAINED flex column (display:flex;
+     flex-direction:column; flex:1; overflow-y:auto). Flex items default to
+     flex-shrink:1. The min-height:48px above OVERRIDES flexbox's normal
+     min-content protection, so when two accordions are expanded and the total
+     exceeds the visible height, the flex algorithm SQUASHES the expanded card's
+     box down toward 48px. Its content does not shrink, and since overflow:hidden
+     was removed from .jd-csr (4th fix), that content spills out and overlaps the
+     card below. Paint order then makes the later sibling (Quote) cover Schedule.
+     This is why conditional render (8th fix) didn't help — the children were
+     real in-flow DOM, but flex still squashed the BOX and the content spilled.
+     Collapsing Quote first reduces total height → no squash → no spill (matches
+     the user's reproduction exactly).
+     Fix: flex-shrink:0 so the cards keep their natural (content) height and the
+     body SCROLLS instead of squashing them. Eliminates the spill at the source. */
+  flex-shrink: 0;
 }
 
 /* 8th drawer regression fix (June 2026) — definitive fix: conditional render.

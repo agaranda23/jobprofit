@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v56';  // bumped from v55: Schedule accordion definitive fix — conditional render replaces max-height animation (container now reflows in WebKit PWA)
+const CACHE_NAME = 'jobprofit-v57';  // bumped from v56: Schedule accordion TRUE root cause — flex-shrink:0 on .jd-csr stops the height-constrained flex column squashing expanded cards (content was spilling over the sibling card below)
 const PRECACHE = [
   '/',
   '/index.html',
