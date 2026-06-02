@@ -4465,6 +4465,106 @@ input[type=number] { -moz-appearance: textfield; }
   opacity: 0.65;
 }
 
+/* ── Paid finish-line accent ────────────────────────────────────────────────
+   The Paid tile carries a subtle green tint and a tick icon so the strip
+   visually reads as a journey ending in a win.
+   Uses --grn-paid (already in the palette) — no new colour introduced.
+   Works in both the selected state (defined above: dark green fill, white text)
+   and the unselected state defined here (green name + tick). */
+
+/* Tick icon: matches the name colour in each state */
+.stage-tile-paid-tick {
+  color: var(--grn-paid);
+  flex-shrink: 0;
+  margin-bottom: 0;
+  display: block;
+}
+
+/* Unselected Paid tile: name and tick in --grn-paid for a subtle finish cue */
+.stage-tile--paid-finish .stage-tile-name {
+  color: var(--grn-paid);
+}
+
+/* Selected Paid tile: tick and name are already #FFFFFF via the selected rule above;
+   enforce consistent colour on the tick SVG path stroke. */
+.stage-tile--paid.stage-tile--selected .stage-tile-paid-tick {
+  color: #FFFFFF;
+}
+
+/* ── Pipeline coachmark ─────────────────────────────────────────────────────
+   One-time tip that appears below the stage strip on the user's first visit.
+   Reuses the money-trust-hint visual language (surface background, border,
+   rounded card) so it reads as a system-level hint rather than a feature ad.
+   Mobile-first: full width, sits below the strip, never overlaps it. */
+
+.pipeline-coachmark {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  margin-top: 8px;
+  /* Subtle entrance — fades in so it doesn't feel jarring on first load */
+  animation: coachmark-fadein 0.25s ease both;
+}
+
+@keyframes coachmark-fadein {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.pipeline-coachmark__icon {
+  font-size: 14px;
+  flex-shrink: 0;
+  color: var(--grn-paid);
+  margin-top: 1px;
+  line-height: 1.4;
+}
+
+.pipeline-coachmark__msg {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--text-dim);
+  line-height: 1.4;
+  margin: 0;
+}
+
+.pipeline-coachmark__actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  align-self: flex-start;
+}
+
+.pipeline-coachmark__got-it {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  background: none;
+  border: none;
+  padding: 2px 4px;
+  cursor: pointer;
+  white-space: nowrap;
+  line-height: 1;
+}
+.pipeline-coachmark__got-it:active { opacity: 0.7; }
+
+.pipeline-coachmark__dismiss {
+  font-size: 16px;
+  line-height: 1;
+  color: var(--text-dim);
+  background: none;
+  border: none;
+  padding: 0 0 0 2px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.pipeline-coachmark__dismiss:active { opacity: 0.6; }
+
 /* ── Advance Button ───────────────────────────── */
 .job-card-actions {
   display: flex;
