@@ -7643,6 +7643,65 @@ input[type=number] { -moz-appearance: textfield; }
   background: #ffffff;
 }
 
+/* ── Business header meta rows (address, phone/email, VAT) ─────────────────── */
+/* Smaller and dimmer than .pqv-business-name; sits directly below it.         */
+.pqv-business-meta {
+  font-size: 13px;
+  color: var(--text-dim, #6b7280);
+  line-height: 1.5;
+  margin-bottom: 2px;
+}
+
+.pqv-business-meta--light {
+  color: var(--text-dim, #6b7280);
+  opacity: 0.8;
+}
+
+/* Logo image — inline styles handle max-width/height; this class anchors      */
+/* display and vertical rhythm consistently with the business name below it.   */
+.pqv-business-logo {
+  display: block;
+  margin-bottom: 6px;
+}
+
+/* Quote reference and validity lines — small, dim, below the quote label.     */
+.pqv-quote-ref {
+  font-size: 12px;
+  color: var(--text-dim, #6b7280);
+  margin-top: 2px;
+}
+
+.pqv-quote-valid-until {
+  font-size: 12px;
+  color: var(--text-dim, #6b7280);
+  margin-top: 2px;
+}
+
+/* Terms & conditions block — sits at the bottom of the card, separated from   */
+/* the signature/invoice section by a light border.                             */
+.pqv-terms-block {
+  margin-top: 28px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border, #e5e7eb);
+}
+
+.pqv-terms-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-dim, #6b7280);
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  margin-bottom: 8px;
+}
+
+.pqv-terms-text {
+  font-size: 13px;
+  color: var(--text-dim, #6b7280);
+  line-height: 1.6;
+  margin: 0;
+  white-space: pre-wrap;
+}
+
 /* ── Push permission prompt ────────────────────────────────────────────────── */
 /* Non-blocking card above the bottom nav. Shown once per device, 5 s after   */
 /* sign-in, only when Notification.permission === 'default'.                   */

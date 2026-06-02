@@ -226,6 +226,7 @@ describe('E. Success path', () => {
       token: VALID_TOKEN,
       signature: VALID_SIG,
       acceptedName: 'Jane Customer',
+      consentGiven: true,
     }));
 
     expect(res.statusCode).toBe(200);
@@ -235,6 +236,34 @@ describe('E. Success path', () => {
     // Must not expose job IDs or internal tokens in the response
     expect(body.id).toBeUndefined();
     expect(body.token).toBeUndefined();
+  });
+
+  it('returns 400 with consent error when consentGiven is omitted', async () => {
+    mockSelectResult = {
+      data: { id: 'job-uuid-consent', meta: { publicAccessToken: VALID_TOKEN } },
+      error: null,
+    };
+    const { createClient } = await import('@supabase/supabase-js');
+    createClient.mockImplementationOnce(() => ({
+      from: vi.fn(() => ({
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        single: vi.fn(async () => mockSelectResult),
+        update: vi.fn(() => ({
+          eq: vi.fn(async () => ({ error: null })),
+        })),
+      })),
+    }));
+
+    const handler = await getHandler();
+    const res = await handler(makeEvent({
+      token: VALID_TOKEN,
+      signature: VALID_SIG,
+      // consentGiven deliberately omitted
+    }));
+
+    expect(res.statusCode).toBe(400);
+    expect(JSON.parse(res.body).error).toMatch(/consent is required/i);
   });
 
   it('strips and limits acceptedName to 200 characters', async () => {
