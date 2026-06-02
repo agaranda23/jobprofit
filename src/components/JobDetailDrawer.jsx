@@ -48,6 +48,15 @@ import {
 import { buildWhatsAppLink } from '../lib/invoiceMessage';
 import { buildQuoteWhatsAppMessage } from '../lib/quoteMessage';
 import { logTelemetry } from '../lib/telemetry';
+import {
+  readVisits,
+  writeVisits,
+  computeVisitStatus,
+  getScheduleMeta,
+  isLastPlannedVisit,
+  generateVisitId,
+  tomorrowDateString,
+} from '../lib/visits';
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -763,6 +772,273 @@ function ScheduleEditForm({
         >
           Save
         </button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * VisitRow — single tappable row inside the Schedule card.
+ * Handles swipe-left to reveal "Mark done" action.
+ *
+ * Props:
+ *   visit      Visit object
+ *   onTap      () → void — opens editor for this visit
+ *   onMarkDone (visitId) → void
+ *   canEdit    boolean
+ */
+const VISIT_STATUS_LABEL = {
+  done:      'Done',
+  today:     'Today',
+  missed:    'Missed',
+  planned:   'Upcoming',
+  cancelled: 'Cancelled',
+};
+
+function VisitStatusPill({ status }) {
+  return (
+    <span className={`visit-status-pill visit-status-pill--${status}`} aria-label={VISIT_STATUS_LABEL[status]}>
+      {VISIT_STATUS_LABEL[status] ?? status}
+    </span>
+  );
+}
+
+function VisitRow({ visit, onTap, onMarkDone, canEdit }) {
+  const computedStatus = computeVisitStatus(visit);
+  const isDone = computedStatus === 'done';
+  const prefersReduced =
+    typeof window !== 'undefined' &&
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  // Swipe-left state
+  const [swipeOffset, setSwipeOffset] = React.useState(0);
+  const [revealed, setRevealed] = React.useState(false);
+  const touchStartX = React.useRef(null);
+  const THRESHOLD = 60;
+  const ACTION_WIDTH = 96; // px — width of the "Mark done" button revealed area
+
+  const handleTouchStart = (e) => {
+    if (!canEdit || isDone) return;
+    touchStartX.current = e.touches[0].clientX;
+  };
+
+  const handleTouchMove = (e) => {
+    if (touchStartX.current === null) return;
+    const delta = e.touches[0].clientX - touchStartX.current;
+    if (delta >= 0) { setSwipeOffset(0); return; } // no right-swipe
+    setSwipeOffset(Math.max(delta, -ACTION_WIDTH));
+  };
+
+  const handleTouchEnd = () => {
+    if (touchStartX.current === null) return;
+    touchStartX.current = null;
+    if (swipeOffset < -THRESHOLD) {
+      setSwipeOffset(-ACTION_WIDTH);
+      setRevealed(true);
+    } else {
+      setSwipeOffset(0);
+      setRevealed(false);
+    }
+  };
+
+  const closeReveal = () => {
+    setSwipeOffset(0);
+    setRevealed(false);
+  };
+
+  const handleMarkDone = (e) => {
+    e.stopPropagation();
+    onMarkDone(visit.id);
+    closeReveal();
+  };
+
+  // Format time display
+  const timeStr = visit.start && visit.end
+    ? ` · ${visit.start}–${visit.end}`
+    : visit.start
+    ? ` · ${visit.start}`
+    : '';
+
+  // Date display
+  let dateStr = visit.date || 'No date';
+  if (visit.date) {
+    try {
+      const d = new Date(visit.date + 'T00:00:00');
+      dateStr = d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+    } catch { /* keep raw */ }
+  }
+
+  const rowContent = (
+    <>
+      <span className="jd-card-row-icon" aria-hidden="true">📅</span>
+      <span className={`jd-card-row-val${isDone ? ' visit-row-val--done' : ''}`}>
+        {dateStr}{timeStr}
+        <VisitStatusPill status={computedStatus} />
+      </span>
+      {canEdit && <span className="jd-card-row-chevron" aria-hidden="true">›</span>}
+    </>
+  );
+
+  // prefers-reduced-motion: show a static "Mark done" button instead of swipe
+  if (prefersReduced && canEdit && !isDone) {
+    return (
+      <div className="visit-row-wrap">
+        <button
+          type="button"
+          className="jd-card-row jd-card-row--tappable"
+          onClick={onTap}
+          aria-label={`Edit visit on ${dateStr}`}
+        >
+          {rowContent}
+        </button>
+        <button
+          type="button"
+          className="visit-mark-done-static"
+          onClick={() => onMarkDone(visit.id)}
+          aria-label="Mark visit done"
+        >
+          Done
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="visit-row-wrap"
+      onClick={revealed ? closeReveal : undefined}
+    >
+      {/* Swipeable row */}
+      <button
+        type="button"
+        className="jd-card-row jd-card-row--tappable visit-row-inner"
+        style={
+          prefersReduced
+            ? undefined
+            : {
+                transform: `translateX(${swipeOffset}px)`,
+                transition: touchStartX.current !== null ? 'none' : 'transform 0.2s ease',
+              }
+        }
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onClick={revealed ? (e) => { e.stopPropagation(); closeReveal(); } : onTap}
+        aria-label={`Edit visit on ${dateStr}`}
+      >
+        {rowContent}
+      </button>
+
+      {/* Revealed action — always in the DOM, visible via swipe */}
+      {canEdit && !isDone && (
+        <button
+          type="button"
+          className="visit-action-btn"
+          style={{ width: ACTION_WIDTH }}
+          onClick={handleMarkDone}
+          aria-label="Mark visit done"
+        >
+          Mark done
+        </button>
+      )}
+    </div>
+  );
+}
+
+/**
+ * VisitEditorSheet — modal sheet for adding/editing a single visit.
+ * Reuses the jd-schedule-edit-form chrome pattern.
+ */
+function VisitEditorSheet({ open, visit, onSave, onCancel }) {
+  const [date, setDate] = React.useState('');
+  const [start, setStart] = React.useState('');
+  const [end, setEnd] = React.useState('');
+  const [status, setStatus] = React.useState('planned');
+  const [note, setNote] = React.useState('');
+
+  // Sync fields when the sheet opens with a different visit
+  React.useEffect(() => {
+    if (open) {
+      setDate(visit?.date || '');
+      setStart(visit?.start || '');
+      setEnd(visit?.end || '');
+      setStatus(visit?.status || 'planned');
+      setNote(visit?.note || '');
+    }
+  }, [open, visit?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (!open) return null;
+
+  const handleSave = () => {
+    if (!date) return;
+    onSave({ date, start: start || undefined, end: end || undefined, status, note: note || undefined });
+  };
+
+  return (
+    <div className="visit-editor-backdrop" role="dialog" aria-modal="true" aria-label="Edit visit">
+      <div className="visit-editor-sheet">
+        <div className="visit-editor-title">{visit?.id ? 'Edit visit' : 'Add visit'}</div>
+        <div className="jd-schedule-edit-form">
+          <div>
+            <div className="jd-schedule-edit-label">Date</div>
+            <input
+              type="date"
+              className="jd-schedule-edit-input"
+              value={date}
+              onChange={e => setDate(e.target.value)}
+              aria-label="Visit date"
+            />
+          </div>
+          <div>
+            <div className="jd-schedule-edit-label">Time (optional)</div>
+            <div className="jd-schedule-edit-time-row">
+              <input
+                type="time"
+                className="jd-schedule-edit-input"
+                value={start}
+                onChange={e => setStart(e.target.value)}
+                aria-label="Start time"
+              />
+              <input
+                type="time"
+                className="jd-schedule-edit-input"
+                value={end}
+                onChange={e => setEnd(e.target.value)}
+                aria-label="End time"
+                disabled={!start}
+              />
+            </div>
+          </div>
+          <div>
+            <div className="jd-schedule-edit-label">Status</div>
+            <select
+              className="jd-schedule-edit-input"
+              value={status}
+              onChange={e => setStatus(e.target.value)}
+              aria-label="Visit status"
+            >
+              <option value="planned">Upcoming</option>
+              <option value="done">Done</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+          </div>
+          <div>
+            <div className="jd-schedule-edit-label">Note (optional)</div>
+            <input
+              type="text"
+              className="jd-schedule-edit-input"
+              value={note}
+              onChange={e => setNote(e.target.value)}
+              placeholder="Plastering only / snag fix / etc."
+              aria-label="Visit note"
+              maxLength={200}
+            />
+          </div>
+          <div className="jd-schedule-edit-footer">
+            <button type="button" className="btn-ghost" onClick={onCancel}>Cancel</button>
+            <button type="button" className="btn-primary" onClick={handleSave} disabled={!date}>Save</button>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -1989,11 +2265,17 @@ export default function JobDetailDrawer({
   const [liEditMode, setLiEditMode] = useState(false);
   const [liDraft, setLiDraft] = useState([]);
 
-  // Schedule edit — inline draft state
+  // Schedule edit — inline draft state (legacy single-visit path, kept for compatibility)
   const [schedEditMode, setSchedEditMode] = useState(false);
   const [schedDate, setSchedDate] = useState('');
   const [schedStart, setSchedStart] = useState('');
   const [schedEnd, setSchedEnd] = useState('');
+
+  // Visit editor sheet — multi-visit path
+  // editingVisit: null (closed) | { ...Visit } (existing) | { _isNew: true } (add)
+  const [editingVisit, setEditingVisit] = useState(null);
+  // Send invoice prompt: shown when last visit is marked done and job isn't yet invoiced
+  const [showInvoicePrompt, setShowInvoicePrompt] = useState(false);
 
   // Customer field editing — single EditFieldModal controlled by this key.
   // null = closed; 'name' | 'phone' | 'email' | 'summary' = which field is open.
@@ -2574,6 +2856,41 @@ export default function JobDetailDrawer({
     showFlash('Schedule updated');
   };
 
+  // ── Multi-visit handlers ──────────────────────────────────────────────────
+  const handleVisitSave = (fields) => {
+    const currentVisits = readVisits(job);
+    let updatedVisits;
+
+    if (editingVisit && !editingVisit._isNew) {
+      // Editing existing visit — patch the entry
+      updatedVisits = currentVisits.map(v =>
+        v.id === editingVisit.id ? { ...v, ...fields } : v,
+      );
+    } else {
+      // Adding new visit — append with a fresh ID
+      const newVisit = { id: generateVisitId(), ...fields };
+      updatedVisits = [...currentVisits, newVisit];
+    }
+
+    onUpdateJob({ ...job, ...writeVisits(job, updatedVisits) });
+    setEditingVisit(null);
+    showFlash(editingVisit?._isNew ? 'Visit added' : 'Visit updated');
+  };
+
+  const handleMarkVisitDone = (visitId) => {
+    const currentVisits = readVisits(job);
+    const updatedVisits = currentVisits.map(v =>
+      v.id === visitId ? { ...v, status: 'done' } : v,
+    );
+    onUpdateJob({ ...job, ...writeVisits(job, updatedVisits) });
+
+    // Auto-prompt Send Invoice if this was the last planned visit
+    if (isLastPlannedVisit(currentVisits, visitId) && showSendInvoice) {
+      setShowInvoicePrompt(true);
+    }
+    showFlash('Visit marked done');
+  };
+
   // ── Pipeline transitions ──────────────────────────────────────────────────
   // Mirrors legacy convertToJob (App.jsx line 620) and Mark Sent (line 660).
   const handleMarkSent = () => {
@@ -2998,15 +3315,9 @@ export default function JobDetailDrawer({
               />
             );
 
-            // ── Schedule display string (for the Schedule card) ──────────────
-            const hasScheduled = !!job.scheduledDate;
-            const scheduledTime =
-              job.scheduledStart && job.scheduledEnd
-                ? `${job.scheduledStart}–${job.scheduledEnd}`
-                : job.scheduledStart || '';
-            const scheduledDisplay = hasScheduled
-              ? `${fmtDate(job.scheduledDate)}${scheduledTime ? ` · ${scheduledTime}` : ''}`
-              : null;
+            // ── Schedule: multi-visit aware display ──────────────────────────
+            const jobVisits = readVisits(job);
+            const scheduledDisplay = getScheduleMeta(jobVisits, fmtDate);
 
             // ── Stage-aware payment sections (Invoiced / Paid) ───────────────
             const sectionConfig = getDrawerSectionConfig(status);
@@ -3126,59 +3437,74 @@ export default function JobDetailDrawer({
                 {isCisUser && taxMetaEl}
 
                 {/* 4. Schedule card — collapsible, inline edit form when open */}
+                {/* 4. Schedule card — multi-visit list (Iteration A) */}
                 <CollapsedSectionRow
                   key="schedule"
                   id="schedule"
                   icon="🗓️"
                   title="Schedule"
-                  meta={scheduledDisplay || 'Not scheduled'}
+                  meta={scheduledDisplay}
                   defaultExpanded={false}
                 >
-                  <ScheduleEditForm
-                    schedEditMode={schedEditMode}
-                    schedDate={schedDate}
-                    schedStart={schedStart}
-                    schedEnd={schedEnd}
-                    onScheduleCancel={handleScheduleCancel}
-                    onScheduleSave={handleScheduleSave}
-                    onScheduleDateChange={setSchedDate}
-                    onScheduleStartChange={setSchedStart}
-                    onScheduleEndChange={setSchedEnd}
-                  />
-                  {!schedEditMode && (
-                    <div className="jd-schedule-card-body">
-                      {scheduledDisplay && onUpdateJob ? (
-                        // Populated + editable: tappable row with › chevron
-                        <button
-                          type="button"
-                          className="jd-card-row jd-card-row--tappable"
-                          onClick={handleScheduleEdit}
-                          aria-label="Edit schedule"
-                        >
-                          <span className="jd-card-row-icon" aria-hidden="true">🗓️</span>
-                          <span className="jd-card-row-val">{scheduledDisplay}</span>
-                          <span className="jd-card-row-chevron" aria-hidden="true">›</span>
-                        </button>
-                      ) : scheduledDisplay ? (
-                        // Populated, view-only
-                        <div className="jd-card-row">
-                          <span className="jd-card-row-icon" aria-hidden="true">🗓️</span>
-                          <span className="jd-card-row-val">{scheduledDisplay}</span>
-                        </div>
-                      ) : onUpdateJob ? (
-                        // Empty + editable: ghost row
-                        <button
-                          type="button"
-                          className="jd-card-row jd-card-row--add"
-                          onClick={handleScheduleEdit}
-                          aria-label="Schedule this job"
-                        >
-                          <span className="jd-card-row-icon" aria-hidden="true">📅</span>
-                          <span className="jd-card-row-add">+ Add schedule</span>
-                        </button>
-                      ) : null}
+                  {/* Send Invoice prompt — shown when last visit marked done */}
+                  {showInvoicePrompt && (
+                    <div className="visit-invoice-prompt" role="alert">
+                      <span className="visit-invoice-prompt-msg">All visits done — ready to invoice?</span>
+                      <button
+                        type="button"
+                        className="visit-invoice-prompt-btn"
+                        onClick={() => {
+                          setShowInvoicePrompt(false);
+                          if (needsPrice(job)) { setEditingField('amount'); return; }
+                          setReviewSheetMode('invoice');
+                        }}
+                      >
+                        Send invoice
+                      </button>
+                      <button
+                        type="button"
+                        className="visit-invoice-prompt-dismiss"
+                        onClick={() => setShowInvoicePrompt(false)}
+                        aria-label="Dismiss"
+                      >
+                        ✕
+                      </button>
                     </div>
                   )}
+
+                  <div className="jd-schedule-card-body">
+                    {/* Visit rows */}
+                    {jobVisits.map(v => (
+                      <VisitRow
+                        key={v.id}
+                        visit={v}
+                        onTap={onUpdateJob ? () => setEditingVisit(v) : undefined}
+                        onMarkDone={onUpdateJob ? handleMarkVisitDone : undefined}
+                        canEdit={!!onUpdateJob}
+                      />
+                    ))}
+
+                    {/* Add visit ghost row */}
+                    {onUpdateJob && (
+                      <button
+                        type="button"
+                        className="jd-card-row jd-card-row--add"
+                        onClick={() => setEditingVisit({ _isNew: true, date: tomorrowDateString(), status: 'planned' })}
+                        aria-label="Add a visit"
+                      >
+                        <span className="jd-card-row-icon" aria-hidden="true">📅</span>
+                        <span className="jd-card-row-add">+ Add visit</span>
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Visit editor sheet */}
+                  <VisitEditorSheet
+                    open={!!editingVisit}
+                    visit={editingVisit}
+                    onSave={handleVisitSave}
+                    onCancel={() => setEditingVisit(null)}
+                  />
                 </CollapsedSectionRow>
 
                 {/* 6. Quote accordion */}
