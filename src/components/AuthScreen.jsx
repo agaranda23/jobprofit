@@ -1,11 +1,17 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
+import { logTelemetry } from '../lib/telemetry';
 
 export default function AuthScreen() {
   const [email, setEmail] = useState('');
   const [sent, setSent] = useState(false);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
+
+  // Funnel step 1: auth wall viewed.
+  useEffect(() => {
+    logTelemetry('auth_screen_viewed');
+  }, []);
 
   const send = async (e) => {
     e?.preventDefault?.();
@@ -22,6 +28,8 @@ export default function AuthScreen() {
       if (error) {
         setError(error.message);
       } else {
+        // Funnel step 2: OTP link successfully requested.
+        logTelemetry('signin_link_requested');
         setSent(true);
       }
     } catch (e) {
