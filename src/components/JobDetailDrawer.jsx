@@ -2894,17 +2894,24 @@ export default function JobDetailDrawer({
   // ── Pipeline transitions ──────────────────────────────────────────────────
   // Mirrors legacy convertToJob (App.jsx line 620) and Mark Sent (line 660).
   const handleMarkSent = () => {
+    // stagePatch('Quoted') handles legacy jobs where job.status is undefined,
+    // which made the old equality check silently leave the job on Lead stage.
+    const isLead = job.status === 'lead' || !job.status;
     onUpdateJob({
       ...job,
+      ...(isLead ? stagePatch('Quoted') : {}),
       quoteStatus: 'sent',
-      status: job.status === 'lead' ? 'quoted' : job.status,
       quoteSentAt: job.quoteSentAt || new Date().toISOString(),
     });
     showFlash('Quote marked as sent');
   };
 
   const handleConvert = () => {
-    onUpdateJob({ ...job, quoteStatus: 'accepted', jobStatus: 'active' });
+    // stagePatch('On') sets status:'active' (canonical field).
+    // Old code only set jobStatus:'active' (legacy field), so the job never
+    // left Quoted in the UI after the trader manually accepted.
+    const isQuoted = job.status === 'quoted';
+    onUpdateJob({ ...job, quoteStatus: 'accepted', ...(isQuoted ? stagePatch('On') : {}) });
     showFlash('Converted to active job');
   };
 
@@ -2912,12 +2919,15 @@ export default function JobDetailDrawer({
   // Called by SignaturePad.onSave with the PNG dataURL after customer signs.
   const handleSignatureSave = (signatureDataURL) => {
     setSigPadOpen(false);
+    // stagePatch('On') sets status:'active' (canonical field).
+    // Old code only set jobStatus:'active', leaving the job stranded on Quoted.
+    const isQuoted = job.status === 'quoted';
     onUpdateJob({
       ...job,
       acceptedSignature: signatureDataURL,
       quoteStatus: 'accepted',
       acceptedAt: new Date().toISOString(),
-      jobStatus: 'active',
+      ...(isQuoted ? stagePatch('On') : {}),
     });
     showFlash('Quote accepted — signed by customer');
   };
