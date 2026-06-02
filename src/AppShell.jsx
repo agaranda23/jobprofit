@@ -512,17 +512,10 @@ export default function AppShell() {
     }
   }, []);
 
-  // Wizard trigger: when new-nav or slice-3 profile loads and required fields
-  // are missing, open the wizard once per session.
-  // The sessionStorage flag prevents looping the user on every reload.
-  useEffect(() => {
-    if (!NEW_NAV && !NAV_SLICE_3) return;
-    if (!profile) return; // wait for profile to resolve
-    if (sessionStorage.getItem('jp.wizardActive')) return; // already in wizard this session
-    if (isProfileComplete(profile, session)) return; // already done
-    sessionStorage.setItem('jp.wizardActive', '1');
-    setWizardOpen(true);
-  }, [profile, session]);
+  // Wizard auto-open removed (feat/zero-friction-entry, 2026-06-02).
+  // New users land directly on Today. The wizard is reachable on demand from
+  // Settings ("Finish setting up"). Missing business/bank details are collected
+  // just-in-time at the invoice-send step (SendInvoiceModal identity/bank gates).
 
   const handleAddJob = async (job) => {
     try {
@@ -711,15 +704,9 @@ export default function AppShell() {
   };
 
   const openDetailed = () => {
-    // New-nav / slice-3: gate job create on wizard completion.
-    // Old-nav: no gate — existing behaviour unchanged.
-    if ((NEW_NAV || NAV_SLICE_3) && !isProfileComplete(profile, session)) {
-      sessionStorage.setItem('jp.wizardActive', '1');
-      // After wizard, route to 'work' (slice 3) or 'jobs' (new nav)
-      setPostWizardNav(NAV_SLICE_3 ? 'work' : 'jobs');
-      setWizardOpen(true);
-      return;
-    }
+    // Profile-completeness gate removed (feat/zero-friction-entry, 2026-06-02).
+    // Users can create jobs immediately after sign-in. Missing business/bank
+    // details are collected just-in-time at the invoice-send step.
     setPendingDeepLink('create-detailed-job');
     setMoreKey(k => k + 1);
     // Slice 3: route to 'work'; New nav: 'jobs'; Legacy: 'manage'

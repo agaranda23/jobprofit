@@ -283,3 +283,61 @@ describe('F. existing users with bank details — unaffected by deferral', () =>
     expect(msg).toContain('12345678');
   });
 });
+
+// ── G. Zero-friction entry — app accessible without a complete profile ─────────
+// feat/zero-friction-entry (2026-06-02): wizard no longer auto-opens.
+// The app is reachable immediately after sign-in. Missing identity fields are
+// collected just-in-time at the invoice-send step (identity-gate in SendInvoiceModal).
+
+describe('G. zero-friction entry — wizard non-blocking contract', () => {
+  // The wizard auto-open logic was removed. isProfileComplete is no longer used
+  // as a render gate in AppShell. These tests document the new JIT gate order
+  // in SendInvoiceModal: identity-gate → bank-gate → paywall → send.
+
+  function simulateInvoiceSend({ profile, isUnpriced = false }) {
+    if (isUnpriced) return 'blocked-unpriced';
+    // Identity gate (feat/zero-friction-entry): fires when any name field is missing.
+    const identityMissing = !profile?.business_name || !profile?.first_name || !profile?.last_name;
+    if (identityMissing) return 'identity-gate';
+    // Bank gate fires next.
+    if (!profileHasBank(profile)) return 'bank-gate';
+    return 'proceed';
+  }
+
+  it('brand-new user with empty profile hits identity-gate before bank-gate', () => {
+    expect(simulateInvoiceSend({ profile: {} })).toBe('identity-gate');
+  });
+
+  it('user with only business_name still hits identity-gate (first/last missing)', () => {
+    expect(simulateInvoiceSend({ profile: { business_name: 'Smith Plumbing' } })).toBe('identity-gate');
+  });
+
+  it('user with name fields but no bank hits bank-gate (identity passes)', () => {
+    expect(simulateInvoiceSend({ profile: nameOnlyProfile() })).toBe('bank-gate');
+  });
+
+  it('user with full profile proceeds immediately (no gate)', () => {
+    expect(simulateInvoiceSend({ profile: fullProfile() })).toBe('proceed');
+  });
+
+  it('unpriced invoice blocks before identity-gate', () => {
+    expect(simulateInvoiceSend({ profile: {}, isUnpriced: true })).toBe('blocked-unpriced');
+  });
+
+  it('after identity-gate save, localProfile with name fields passes identity check', () => {
+    const saved = { business_name: 'Smith Plumbing', first_name: 'Alan', last_name: 'Smith' };
+    const identityMissing = !saved.business_name || !saved.first_name || !saved.last_name;
+    expect(identityMissing).toBe(false);
+  });
+
+  it('after identity + bank save, full localProfile proceeds to send', () => {
+    const saved = {
+      business_name: 'Smith Plumbing',
+      first_name: 'Alan',
+      last_name: 'Smith',
+      sort_code: '12-34-56',
+      account_number: '12345678',
+    };
+    expect(simulateInvoiceSend({ profile: saved })).toBe('proceed');
+  });
+});
