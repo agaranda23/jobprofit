@@ -307,6 +307,52 @@ describe('F. subscribe — key-mismatch triggers re-subscribe', () => {
     expect(mockPushManager.subscribe).toHaveBeenCalledOnce();
   });
 
+  it('is idempotent when already-subscribed with the same key (granted-subscribed auto-heal path)', async () => {
+    // AppShell now calls subscribe() for BOTH 'granted-unsubscribed' AND
+    // 'granted-subscribed'. This test asserts the safe path: an already-subscribed
+    // device whose VAPID key has NOT changed just upserts the same endpoint row
+    // (no unsubscribe, no permission prompt, one Supabase upsert).
+    vi.stubEnv('VITE_VAPID_PUBLIC_KEY', NEW_KEY);
+
+    const existingSub = makeFakeSub(NEW_KEY);
+    existingSub.toJSON = () => ({
+      endpoint: existingSub.endpoint,
+      keys: { p256dh: 'p256-same', auth: 'auth-same' },
+    });
+
+    const mockPushManager = {
+      getSubscription: vi.fn(async () => existingSub),
+      subscribe: vi.fn(async () => existingSub),
+    };
+    const mockRegistration = { pushManager: mockPushManager };
+
+    const fakeNotification = { permission: 'granted', requestPermission: vi.fn() };
+    global.window = { PushManager: function PushManager() {}, Notification: fakeNotification };
+    global.Notification = fakeNotification;
+    setNavigator({
+      serviceWorker: { ready: Promise.resolve(mockRegistration) },
+      userAgent: 'TestBrowser/1.0',
+    });
+
+    vi.resetModules();
+    const { subscribe: subscribeFn } = await import('../pushSubscribe.js');
+
+    const result = await subscribeFn('user-already-subscribed');
+
+    // Key matches — must NOT unsubscribe the existing subscription
+    expect(existingSub.unsubscribe).not.toHaveBeenCalled();
+    // Must still call pushManager.subscribe (browser deduplicates to same sub)
+    expect(mockPushManager.subscribe).toHaveBeenCalledOnce();
+    // Must upsert the endpoint so the DB row stays fresh
+    expect(mockUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({ endpoint: existingSub.endpoint }),
+      expect.any(Object)
+    );
+    // requestPermission must never be called — this is not a prompt path
+    expect(fakeNotification.requestPermission).not.toHaveBeenCalled();
+    expect(result).toBe(existingSub);
+  });
+
   it('handles the case where no prior subscription exists (first-time subscribe)', async () => {
     vi.stubEnv('VITE_VAPID_PUBLIC_KEY', NEW_KEY);
 

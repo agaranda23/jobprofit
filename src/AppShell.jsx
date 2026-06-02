@@ -381,9 +381,14 @@ export default function AppShell() {
     if (!session?.user?.id) return;
     if (!isPushSupported()) return;
 
-    // Silently re-subscribe if previously granted but subscription expired
+    // Silently re-subscribe on every app open for granted users.
+    // 'granted-unsubscribed': permission granted but no subscription (expired/cleared).
+    // 'granted-subscribed': subscription exists but may be bound to a rotated VAPID key —
+    //   subscribe() detects the mismatch, tears down the stale entry, and upserts a fresh
+    //   one. When the key matches, subscribe() is a cheap upsert no-op (idempotent).
+    // Neither path prompts the user — Notification.requestPermission() is never called here.
     getSubscriptionStatus().then((status) => {
-      if (status === 'granted-unsubscribed') {
+      if (status === 'granted-unsubscribed' || status === 'granted-subscribed') {
         pushSubscribe(session.user.id).catch(() => {});
         return;
       }
