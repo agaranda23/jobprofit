@@ -1,5 +1,5 @@
 /**
- * Tests for netlify/functions/accept-quote.js — Phase G-2.
+ * Tests for netlify/functions/accept-quote.js — Phase G-2 + G-3 push.
  *
  * No network, no Supabase connection. All DB calls are mocked.
  * Pattern: pure-logic + mocked I/O, matches the project's no-DOM test convention.
@@ -9,6 +9,7 @@
  *   B. Idempotency — already-accepted token returns 200 without overwriting
  *   C. Success path — new token writes and returns 200 { acceptedAt }
  *   D. Error paths — token not found → 404, DB failure → 502, missing env → 500
+ *   G. Push notification — sendPushToUser called on success, silent on failure
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -18,6 +19,16 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 // module evaluation time.
 const FAKE_URL = 'https://abc.supabase.co';
 const FAKE_SERVICE_KEY = 'service-role-key-fake';
+
+// ── sendPushToUser mock ───────────────────────────────────────────────────────
+// accept-quote.js imports sendPushToUser at the top level (static import).
+// We mock the whole _lib module so we can assert it was called with the right
+// payload without making real web-push calls.
+const mockSendPush = vi.fn().mockResolvedValue({ sent: 1, failed: 0 });
+
+vi.mock('../_lib/sendPushToUser.js', () => ({
+  sendPushToUser: (...args) => mockSendPush(...args),
+}));
 
 // ── Supabase admin client mock ────────────────────────────────────────────────
 // The module calls createClient() at handler invocation time (not module load),
@@ -330,5 +341,127 @@ describe('F. acceptedSource field in written meta', () => {
       expect(writtenMeta.jobStatus).toBe('active');
       expect(writtenMeta.acceptedSignature).toBe(VALID_SIG);
     }
+  });
+});
+
+// ─── G. Push notification on quote acceptance ─────────────────────────────────
+// Verifies that accept-quote.js calls sendPushToUser after a successful write.
+// This covers the "app closed" notification path — the only mechanism that
+// reaches the trader when the PWA is backgrounded or not running.
+// The in-app realtime toast is handled separately in AppShell (subscribeToJobs).
+
+describe('G. Push notification fired on successful acceptance', () => {
+  function makeSuccessClient(jobRow) {
+    const { createClient } = require('@supabase/supabase-js');
+    // We reach directly into vi.mock — re-import is handled per test via afterEach resetModules.
+    return {
+      from: vi.fn(() => ({
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        single: vi.fn(async () => ({ data: jobRow, error: null })),
+        update: vi.fn(() => ({ eq: vi.fn(async () => ({ error: null })) })),
+      })),
+    };
+  }
+
+  it('calls sendPushToUser with correct title and body after a new acceptance', async () => {
+    const jobRow = {
+      id: 'job-push-test',
+      user_id: 'trader-uuid-abc',
+      customer_name: 'Gemma Thornton',
+      meta: {},
+    };
+
+    mockSelectResult = { data: jobRow, error: null };
+    mockSendPush.mockResolvedValueOnce({ sent: 1, failed: 0 });
+
+    const { createClient } = await import('@supabase/supabase-js');
+    createClient.mockImplementationOnce(() => ({
+      from: vi.fn(() => ({
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        single: vi.fn(async () => mockSelectResult),
+        update: vi.fn(() => ({ eq: vi.fn(async () => ({ error: null })) })),
+      })),
+    }));
+
+    const handler = await getHandler();
+    const res = await handler(makeEvent({
+      token: VALID_TOKEN,
+      signature: VALID_SIG,
+      acceptedName: 'Gemma Thornton',
+      consentGiven: true,
+    }));
+
+    expect(res.statusCode).toBe(200);
+
+    // Give the fire-and-forget push a tick to resolve
+    await new Promise(r => setTimeout(r, 10));
+
+    expect(mockSendPush).toHaveBeenCalledTimes(1);
+    const [calledUserId, calledPayload] = mockSendPush.mock.calls[0];
+    expect(calledUserId).toBe('trader-uuid-abc');
+    expect(calledPayload.title).toBe('Quote accepted');
+    expect(calledPayload.body).toContain('Gemma Thornton');
+    expect(calledPayload.tag).toMatch(/^quote-accepted-/);
+  });
+
+  it('still returns 200 even when sendPushToUser rejects (push is fire-and-forget)', async () => {
+    const jobRow = {
+      id: 'job-push-fail',
+      user_id: 'trader-uuid-xyz',
+      customer_name: null,
+      meta: {},
+    };
+
+    mockSelectResult = { data: jobRow, error: null };
+    mockSendPush.mockRejectedValueOnce(new Error('VAPID misconfigured'));
+
+    const { createClient } = await import('@supabase/supabase-js');
+    createClient.mockImplementationOnce(() => ({
+      from: vi.fn(() => ({
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        single: vi.fn(async () => mockSelectResult),
+        update: vi.fn(() => ({ eq: vi.fn(async () => ({ error: null })) })),
+      })),
+    }));
+
+    const handler = await getHandler();
+    const res = await handler(makeEvent({
+      token: VALID_TOKEN,
+      signature: VALID_SIG,
+      consentGiven: true,
+    }));
+
+    // The handler must return 200 regardless of push failure
+    expect(res.statusCode).toBe(200);
+  });
+
+  it('does NOT call sendPushToUser on an already-accepted (idempotent) submission', async () => {
+    mockSelectResult = {
+      data: {
+        id: 'job-already-done',
+        user_id: 'trader-uuid-idem',
+        customer_name: 'Bob',
+        meta: {
+          acceptedSignature: VALID_SIG,
+          acceptedAt: '2026-05-30T10:00:00Z',
+          acceptedSource: 'remote',
+        },
+      },
+      error: null,
+    };
+
+    const handler = await getHandler();
+    const res = await handler(makeEvent({
+      token: VALID_TOKEN,
+      signature: VALID_SIG,
+      consentGiven: true,
+    }));
+
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(res.body).alreadyAccepted).toBe(true);
+    expect(mockSendPush).not.toHaveBeenCalled();
   });
 });
