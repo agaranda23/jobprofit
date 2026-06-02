@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v53';  // bumped from v52: fix Schedule accordion stacking behind Quote card
+const CACHE_NAME = 'jobprofit-v55';  // bumped from v54: auto-stage Lead→Quoted on quote send, Quoted→On on customer sign
 const PRECACHE = [
   '/',
   '/index.html',

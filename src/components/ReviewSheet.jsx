@@ -43,6 +43,7 @@ import {
 import { logTelemetry } from '../lib/telemetry';
 import { isPro } from '../lib/plan';
 import { canShareFile } from '../lib/webShare';
+import { stagePatch } from '../lib/jobStatus';
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -87,6 +88,107 @@ function PreviewTable({ job }) {
 
 // ── Component ──────────────────────────────────────────────────────────────────
 
+// ── DepositPickerRow — per-quote deposit control (Pro + Stripe-connected only) ──
+//
+// Shown in the quote-send sheet above the WhatsApp button.
+// Pre-filled from profile.default_deposit_percent.
+// Writes deposit_percent + LOCKED deposit_amount_pence onto the job at send time.
+// Free users see "Get deposits with Pro", not the picker.
+// Hidden entirely when no Stripe Connect account is present.
+//
+// Uses the same 0/25/50/Custom button pattern as DefaultDepositRow in Settings.
+
+const DEPOSIT_PRESETS = [
+  { label: '0%',  value: 0 },
+  { label: '25%', value: 25 },
+  { label: '50%', value: 50 },
+];
+
+function DepositPickerRow({ profile, jobTotal, depositPercent, onDepositChange }) {
+  const isConnected = profile?.stripe_connect_status === 'connected' && !!profile?.stripe_user_id;
+  const isProUser   = isPro(profile);
+
+  // Not connected to Stripe — hide the row entirely (customer can't pay anyway)
+  if (!isConnected) return null;
+
+  // Free user — show upsell nudge, not the picker
+  if (!isProUser) {
+    return (
+      <div className="rs-deposit-upsell">
+        Get deposits on acceptance with Pro
+      </div>
+    );
+  }
+
+  const isPreset = DEPOSIT_PRESETS.some(p => p.value === depositPercent);
+  const [showCustom, setShowCustom] = useState(!isPreset && depositPercent > 0);
+  const [customValue, setCustomValue] = useState(!isPreset && depositPercent > 0 ? String(depositPercent) : '');
+
+  // Live preview: "= £X of £Y"
+  const depositGbp = depositPercent > 0 && jobTotal > 0
+    ? gbp(Math.round(jobTotal * (depositPercent / 100) * 100) / 100)
+    : null;
+
+  const handlePreset = (value) => {
+    setShowCustom(false);
+    setCustomValue('');
+    onDepositChange(value);
+  };
+
+  const handleCustomBlur = () => {
+    const n = Math.max(0, Math.min(100, parseInt(customValue, 10) || 0));
+    onDepositChange(n);
+  };
+
+  return (
+    <div className="rs-deposit-row">
+      <div className="rs-deposit-row-label">
+        Deposit on acceptance
+        {depositGbp && <span className="rs-deposit-preview"> = {depositGbp} of {gbp(jobTotal)}</span>}
+      </div>
+      <div className="rs-deposit-picker" role="group" aria-label="Deposit percentage">
+        {DEPOSIT_PRESETS.map(({ label, value }) => (
+          <button
+            key={value}
+            type="button"
+            className={`rs-deposit-btn${depositPercent === value && !showCustom ? ' rs-deposit-btn--active' : ''}`}
+            onClick={() => handlePreset(value)}
+          >
+            {label}
+          </button>
+        ))}
+        <button
+          type="button"
+          className={`rs-deposit-btn${showCustom ? ' rs-deposit-btn--active' : ''}`}
+          onClick={() => {
+            setShowCustom(true);
+            if (!customValue) setCustomValue(String(depositPercent || ''));
+          }}
+        >
+          Custom
+        </button>
+      </div>
+      {showCustom && (
+        <div className="rs-deposit-custom-row">
+          <input
+            type="number"
+            min="0"
+            max="100"
+            step="1"
+            className="rs-deposit-custom-input"
+            value={customValue}
+            onChange={e => setCustomValue(e.target.value)}
+            onBlur={handleCustomBlur}
+            aria-label="Custom deposit percentage"
+            placeholder="e.g. 30"
+          />
+          <span className="rs-deposit-custom-suffix">%</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function ReviewSheet({
   mode,
   job,
@@ -110,6 +212,17 @@ export default function ReviewSheet({
     return d.toISOString().slice(0, 10);
   });
   const [busy, setBusy] = useState(false);
+
+  // Per-quote deposit percent — pre-filled from the profile default or the job's
+  // existing value (in case the sheet is opened on a job that already has one set).
+  // Only active in quote mode.
+  const [depositPercent, setDepositPercent] = useState(() => {
+    if (isInvoice) return 0;
+    // Job already has a deposit set — respect it
+    if (typeof job.deposit_percent === 'number') return job.deposit_percent;
+    // Fall back to the profile default (0 if unset)
+    return Number(profile?.default_deposit_percent ?? 0);
+  });
 
   const jobName = job?.summary || job?.customer || job?.name || 'Job';
   const sheetTitle = isInvoice
@@ -272,13 +385,26 @@ export default function ReviewSheet({
     }
 
     logTelemetry('quote_send', { channel: 'whatsapp', source: 'review_sheet', share_method: shareMethod });
+    // Lock the deposit amount in pence at send time (based on the total at this
+    // moment). The webhook uses deposit_amount_pence if set, so price edits after
+    // the quote was sent don't silently change what the customer owes.
+    const jobTotal = Number(job.total ?? job.amount ?? 0);
+    const lockedDepositPence = depositPercent > 0 && jobTotal > 0
+      ? Math.round(jobTotal * (depositPercent / 100) * 100)
+      : 0;
+    // Advance Lead → Quoted on send. stagePatch('Quoted') handles legacy jobs
+    // where job.status is undefined (which made the old equality check fail and
+    // left the job stranded on Lead even after the quote went out).
+    const isLead = job.status === 'lead' || !job.status;
     onUpdate?.({
       ...job,
-      status: job.status === 'lead' ? 'quoted' : job.status,
+      ...(isLead ? stagePatch('Quoted') : {}),
       quoteStatus: 'sent',
       quoteSentAt: new Date().toISOString(),
       publicAccessToken: token,
       quoteDraft: false,
+      deposit_percent:       depositPercent > 0 ? depositPercent : 0,
+      deposit_amount_pence:  lockedDepositPence > 0 ? lockedDepositPence : null,
     });
     flash?.('Quote sent');
     setBusy(false);
@@ -337,6 +463,16 @@ export default function ReviewSheet({
 
         {/* Document preview */}
         <PreviewTable job={job} />
+
+        {/* Deposit picker — quote mode only, Pro + Stripe-connected traders */}
+        {!isInvoice && (
+          <DepositPickerRow
+            profile={profile}
+            jobTotal={Number(job.total ?? job.amount ?? 0)}
+            depositPercent={depositPercent}
+            onDepositChange={setDepositPercent}
+          />
+        )}
 
         {/* Primary CTA — green WhatsApp button */}
         <button

@@ -1016,6 +1016,32 @@ body {
   text-align: left;
 }
 
+/* Speed mode: "Amount" is a compact field label, not a big question */
+.aj-capture-prompt--label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: 16px 0 4px;
+}
+
+/* Helper hint text below "Log it" CTA */
+.aj-speed-hint {
+  font-size: 13px;
+  color: var(--text-dim);
+  text-align: center;
+  margin: 0 0 4px;
+}
+
+/* Demoted "Add details" text link (replaces full bordered button in Speed mode) */
+.aj-details-link {
+  font-size: 14px;
+  color: var(--jp-green);
+  text-decoration: none;
+  padding: 4px 0;
+}
+
 /* Back button in Stage 2 header */
 .aj-back-btn {
   background: none;
@@ -1123,6 +1149,89 @@ body {
 @keyframes toast-in {
   from { opacity: 0; transform: translate(-50%, 10px); }
   to   { opacity: 1; transform: translate(-50%, 0); }
+}
+
+/* Got Paid chip toast — Speed-mode post-save prompt (Part B) */
+.got-paid-toast {
+  position: fixed;
+  bottom: calc(var(--nav-clearance) + 72px); /* stacks above the standard toast */
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--jp-green);
+  border-radius: 10px;
+  padding: 10px 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  z-index: 201;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  animation: toast-in 0.25s ease-out;
+  white-space: nowrap;
+  max-width: calc(100vw - 32px);
+}
+.got-paid-toast__label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  flex-shrink: 0;
+}
+.got-paid-toast__chips {
+  display: flex;
+  gap: 6px;
+}
+.got-paid-toast__chip {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  min-height: 32px;
+}
+.got-paid-toast__chip:active,
+.got-paid-toast__chip:hover {
+  background: var(--jp-green);
+  border-color: var(--jp-green);
+  color: #000;
+}
+.got-paid-toast__dismiss {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: 18px;
+  cursor: pointer;
+  padding: 0 0 0 4px;
+  line-height: 1;
+  flex-shrink: 0;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+}
+
+/* + Add details chip on bare Lead job tiles (Part C) */
+.jt-add-details-chip {
+  display: inline-flex;
+  align-items: center;
+  margin: 4px 0 0;
+  padding: 3px 10px;
+  border: 1px solid var(--jp-green);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--jp-green);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+  line-height: 1.4;
+}
+.jt-add-details-chip:active,
+.jt-add-details-chip:hover {
+  background: rgba(43, 196, 138, 0.12);
 }
 
 /* Manage header — sits above the legacy CRM */
@@ -9602,6 +9711,99 @@ input[type=number] { -moz-appearance: textfield; }
   background: #1ebe5c;
 }
 
+/* Per-quote deposit picker in ReviewSheet — quote mode only ─────────────── */
+.rs-deposit-row {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 0 4px;
+  border-top: 1px solid var(--border);
+}
+
+.rs-deposit-row-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary, #666);
+}
+
+.rs-deposit-preview {
+  font-weight: 400;
+  color: var(--jp-green, #28b581);
+  margin-left: 4px;
+}
+
+.rs-deposit-picker {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.rs-deposit-btn {
+  flex: 1 1 auto;
+  min-width: 52px;
+  min-height: 36px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.rs-deposit-btn--active {
+  background: var(--jp-green, #28b581);
+  border-color: var(--jp-green, #28b581);
+  color: #fff;
+  font-weight: 700;
+}
+
+.rs-deposit-btn:not(.rs-deposit-btn--active):active {
+  background: var(--surface-2);
+}
+
+.rs-deposit-custom-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.rs-deposit-custom-input {
+  width: 72px;
+  height: 36px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0 8px;
+  font-size: 14px;
+  background: var(--surface);
+  color: var(--text);
+}
+
+.rs-deposit-custom-input:focus {
+  outline: none;
+  border-color: var(--jp-green, #28b581);
+}
+
+.rs-deposit-custom-suffix {
+  font-size: 14px;
+  color: var(--text-secondary, #666);
+}
+
+.rs-deposit-upsell {
+  padding: 10px 0 2px;
+  font-size: 12px;
+  color: var(--text-secondary, #666);
+  text-align: center;
+  border-top: 1px solid var(--border);
+}
+
+/* Negative-balance guard in DepositPaidBadge */
+.deposit-balance-due--warn {
+  color: var(--danger, #e53e3e);
+  font-weight: 600;
+}
+
 /* Auto-chase chip — invoice mode, visual only */
 .rs-autochase-chip {
   align-self: center;
@@ -11481,6 +11683,174 @@ input[type=number] { -moz-appearance: textfield; }
 /* ── Schedule card body (inside CollapsedSectionRow) ─────────────────────── */
 .jd-schedule-card-body {
   padding: 4px 14px 8px;
+}
+
+/* ── Multi-visit schedule — Iteration A ─────────────────────────────────────
+   visit-row-wrap:  relative container for swipe-left action reveal
+   visit-row-inner: the translating row button
+   visit-action-btn: "Mark done" action revealed on swipe-left
+   visit-status-pill: coloured badge (done / today / planned / missed)
+   visit-invoice-prompt: banner shown when last visit is marked done
+   ────────────────────────────────────────────────────────────────────────── */
+
+.visit-row-wrap {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: stretch;
+}
+
+.visit-row-inner {
+  /* Override the default jd-card-row width so it clips cleanly on swipe */
+  flex-shrink: 0;
+  width: 100%;
+  will-change: transform;
+  position: relative;
+  z-index: 1;
+}
+
+/* Swipe-left revealed action — sits to the right, behind the row */
+.visit-action-btn {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--accent, #2BC48A);
+  color: #000;
+  font-size: 13px;
+  font-weight: 600;
+  border: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  padding: 0 16px;
+  white-space: nowrap;
+  z-index: 0;
+}
+
+/* Static "Done" button for prefers-reduced-motion users */
+.visit-mark-done-static {
+  flex-shrink: 0;
+  align-self: center;
+  margin: 0 4px 0 0;
+  padding: 4px 10px;
+  background: none;
+  border: 1px solid var(--accent, #2BC48A);
+  border-radius: 999px;
+  color: var(--accent, #2BC48A);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Status pills */
+.visit-status-pill {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  vertical-align: middle;
+  letter-spacing: 0.1px;
+}
+.visit-status-pill--done {
+  background: rgba(100, 116, 139, 0.2);
+  color: var(--text-dim, #94A3B8);
+}
+.visit-status-pill--today {
+  background: rgba(43, 196, 138, 0.18);
+  color: var(--accent, #2BC48A);
+}
+.visit-status-pill--planned {
+  background: rgba(244, 160, 36, 0.16);
+  color: #F4A024;
+}
+.visit-status-pill--missed {
+  background: rgba(229, 72, 77, 0.16);
+  color: #E5484D;
+}
+.visit-status-pill--cancelled {
+  background: rgba(100, 116, 139, 0.15);
+  color: var(--text-dim, #94A3B8);
+  text-decoration: line-through;
+}
+
+/* Strikethrough date text for done visits */
+.visit-row-val--done {
+  text-decoration: line-through;
+  opacity: 0.65;
+}
+
+/* Visit editor sheet — modal sheet */
+.visit-editor-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 500;
+  background: rgba(0, 0, 0, 0.55);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+.visit-editor-sheet {
+  background: var(--card-bg, #111827);
+  border-radius: 16px 16px 0 0;
+  padding: 20px 20px calc(20px + env(safe-area-inset-bottom));
+  width: 100%;
+  max-width: 480px;
+  box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.3);
+}
+.visit-editor-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text, #F1F5F9);
+  margin-bottom: 16px;
+}
+
+/* Send Invoice prompt — inline banner inside Schedule card */
+.visit-invoice-prompt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 14px 4px;
+  padding: 10px 12px;
+  background: rgba(43, 196, 138, 0.12);
+  border: 1px solid rgba(43, 196, 138, 0.35);
+  border-radius: 10px;
+}
+.visit-invoice-prompt-msg {
+  flex: 1;
+  font-size: 13px;
+  color: var(--text, #F1F5F9);
+  line-height: 1.35;
+}
+.visit-invoice-prompt-btn {
+  flex-shrink: 0;
+  padding: 6px 12px;
+  background: var(--accent, #2BC48A);
+  color: #000;
+  font-size: 13px;
+  font-weight: 700;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  white-space: nowrap;
+}
+.visit-invoice-prompt-dismiss {
+  flex-shrink: 0;
+  background: none;
+  border: none;
+  color: var(--text-dim, #94A3B8);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 0 2px;
+  line-height: 1;
+  -webkit-tap-highlight-color: transparent;
 }
 
 /* ── Logo upload modal ───────────────────────────────────────────────────── */

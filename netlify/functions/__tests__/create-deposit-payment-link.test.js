@@ -48,7 +48,7 @@ vi.mock('stripe', () => {
 let mockGetUser = vi.fn(async () => ({ data: { user: { id: FAKE_USER_ID } }, error: null }));
 
 let mockProfileResult = {
-  data: { stripe_user_id: FAKE_STRIPE_UID, stripe_connect_status: 'connected', business_name: 'Murphy Ltd', first_name: null, last_name: null },
+  data: { stripe_user_id: FAKE_STRIPE_UID, stripe_connect_status: 'connected', business_name: 'Murphy Ltd', first_name: null, last_name: null, plan: 'pro', trial_ends_at: null },
   error: null,
 };
 
@@ -126,7 +126,7 @@ describe('create-deposit-payment-link', () => {
     mockSessionCreate = vi.fn(async () => ({ id: FAKE_SESSION_ID }));
     mockGetUser = vi.fn(async () => ({ data: { user: { id: FAKE_USER_ID } }, error: null }));
     mockProfileResult = {
-      data: { stripe_user_id: FAKE_STRIPE_UID, stripe_connect_status: 'connected', business_name: 'Murphy Ltd', first_name: null, last_name: null },
+      data: { stripe_user_id: FAKE_STRIPE_UID, stripe_connect_status: 'connected', business_name: 'Murphy Ltd', first_name: null, last_name: null, plan: 'pro', trial_ends_at: null },
       error: null,
     };
     mockJobResult = {
@@ -197,13 +197,60 @@ describe('create-deposit-payment-link', () => {
 
   // ── E. Trader not connected ───────────────────────────────────────────────
   it('E: returns 409 NOT_CONNECTED when trader has no stripe_user_id', async () => {
+    // Must include plan:'pro' so the Pro gate passes and NOT_CONNECTED is returned.
     mockSingle.mockImplementationOnce(async () => ({
-      data: { stripe_user_id: null, stripe_connect_status: 'disconnected' },
+      data: { stripe_user_id: null, stripe_connect_status: 'disconnected', plan: 'pro', trial_ends_at: null },
       error: null,
     }));
     const res = await handler(makeEvent({ quoteId: FAKE_QUOTE_ID }));
     expect(res.statusCode).toBe(409);
     expect(JSON.parse(res.body).code).toBe('NOT_CONNECTED');
+  });
+
+  // ── E2. G7 — Server-side Pro gate: free user gets 403 PRO_REQUIRED ──────────
+  it('E2: returns 403 PRO_REQUIRED when trader is on free plan', async () => {
+    mockSingle.mockImplementationOnce(async () => ({
+      data: { stripe_user_id: FAKE_STRIPE_UID, stripe_connect_status: 'connected', plan: 'free', trial_ends_at: null },
+      error: null,
+    }));
+    const res = await handler(makeEvent({ quoteId: FAKE_QUOTE_ID }));
+    expect(res.statusCode).toBe(403);
+    expect(JSON.parse(res.body).code).toBe('PRO_REQUIRED');
+  });
+
+  it('E3: returns 403 PRO_REQUIRED when trader has an expired trial', async () => {
+    const pastDate = new Date(Date.now() - 86400000).toISOString();
+    mockSingle.mockImplementationOnce(async () => ({
+      data: { stripe_user_id: FAKE_STRIPE_UID, stripe_connect_status: 'connected', plan: 'trial', trial_ends_at: pastDate },
+      error: null,
+    }));
+    const res = await handler(makeEvent({ quoteId: FAKE_QUOTE_ID }));
+    expect(res.statusCode).toBe(403);
+    expect(JSON.parse(res.body).code).toBe('PRO_REQUIRED');
+  });
+
+  it('E4: returns 200 when trader is on an active trial', async () => {
+    const futureDate = new Date(Date.now() + 7 * 86400000).toISOString();
+    mockSingle.mockImplementation(async () => {
+      // profile (trial) → job → idempotency
+      return [
+        { data: { stripe_user_id: FAKE_STRIPE_UID, stripe_connect_status: 'connected', plan: 'trial', trial_ends_at: futureDate, business_name: 'Trial Co', first_name: null, last_name: null }, error: null },
+        mockJobResult,
+        mockTokenIdempotentResult,
+      ].shift() || mockTokenIdempotentResult;
+    });
+    // Set up sequential mock using call-count approach
+    let callCount = 0;
+    mockSingle.mockImplementation(async () => {
+      callCount++;
+      if (callCount === 1) return { data: { stripe_user_id: FAKE_STRIPE_UID, stripe_connect_status: 'connected', plan: 'trial', trial_ends_at: futureDate, business_name: 'Trial Co', first_name: null, last_name: null }, error: null };
+      if (callCount === 2) return mockJobResult;
+      return mockTokenIdempotentResult;
+    });
+    const res = await handler(makeEvent({ quoteId: FAKE_QUOTE_ID }));
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(body.payUrl).toMatch(/\/p\//);
   });
 
   // ── F. Quote not found ────────────────────────────────────────────────────
