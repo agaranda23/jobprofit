@@ -131,7 +131,7 @@ export default function TodayScreen({
       // Undo is deferred — there is no existing clean optimistic-delete path that is
       // safe to wire here under time pressure. See follow-up: feat/fast-save-undo.
       const amtLabel = payload?.amount != null ? ` · £${payload.amount}` : '';
-      showToast(`Saved${amtLabel}`, {
+      showToast(`Added to Leads${amtLabel}`, {
         label: 'View',
         onClick: () => onJobTap?.(payload),
       });
