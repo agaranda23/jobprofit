@@ -654,6 +654,7 @@ export default function TodayScreen({
           onOpenDetailed={onOpenDetailed}
           defaultMode={jobOpenMode === 'quote' ? 'quote' : undefined}
           onSaveAndSend={handleSaveAndSend}
+          tradePrimary={profile?.trade_primary ?? null}
         />
       )}
 

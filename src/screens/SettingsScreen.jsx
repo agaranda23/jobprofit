@@ -496,6 +496,211 @@ function CisSetupSheet({ profile, onProfileUpdate, onClose }) {
   );
 }
 
+// ── Trade type setup sheet ────────────────────────────────────────────────────
+// Shown when the "Your trade" row in Settings is tapped.
+// Multi-select chip grid (max 3). When 2+ selected, one must be starred primary.
+// "Other" chip reveals a free-text input stored in trade_other.
+// Saves three profile fields: trade_types, trade_primary, trade_other.
+
+export const TRADE_CHIPS = [
+  { key: 'plumber',              label: 'Plumber' },
+  { key: 'gas_engineer',         label: 'Gas engineer' },
+  { key: 'heating_engineer',     label: 'Heating engineer' },
+  { key: 'electrician',          label: 'Electrician' },
+  { key: 'builder',              label: 'Builder' },
+  { key: 'carpenter_joiner',     label: 'Carpenter/Joiner' },
+  { key: 'decorator',            label: 'Decorator' },
+  { key: 'plasterer',            label: 'Plasterer' },
+  { key: 'roofer',               label: 'Roofer' },
+  { key: 'tiler',                label: 'Tiler' },
+  { key: 'landscaper_groundworker', label: 'Landscaper/Groundworker' },
+  { key: 'other',                label: 'Other' },
+];
+
+const TRADE_MAX = 3;
+
+/** Derive the Settings row value string from profile fields. */
+export function deriveTradeRowValue(profile) {
+  const types   = Array.isArray(profile?.trade_types) ? profile.trade_types : [];
+  const primary = profile?.trade_primary || null;
+  if (types.length === 0) return null; // caller renders "Not set"
+  // "other" key always uses free-text, never the generic chip label
+  let primaryLabel;
+  if (primary === 'other') {
+    primaryLabel = profile?.trade_other?.trim() || 'Other';
+  } else {
+    const chip = TRADE_CHIPS.find(c => c.key === primary);
+    primaryLabel = chip ? chip.label : null;
+  }
+  if (!primaryLabel) return null;
+  const extras = types.filter(k => k !== primary).length;
+  if (extras === 0) return primaryLabel;
+  return `${primaryLabel} · +${extras}`;
+}
+
+function TradeSetupSheet({ profile, onProfileUpdate, onClose }) {
+  const initTypes = Array.isArray(profile?.trade_types) ? profile.trade_types : [];
+  const initPrimary = profile?.trade_primary || (initTypes[0] ?? null);
+  const initOther  = profile?.trade_other || '';
+
+  const [selected, setSelected]   = useState(initTypes);
+  const [primary, setPrimary]     = useState(initPrimary);
+  const [otherText, setOtherText] = useState(initOther);
+  const [saving, setSaving]       = useState(false);
+  const [error, setError]         = useState('');
+
+  function toggleChip(key) {
+    setSelected(prev => {
+      if (prev.includes(key)) {
+        // Deselecting — if this was primary, reassign primary to first remaining
+        const next = prev.filter(k => k !== key);
+        if (primary === key) {
+          setPrimary(next[0] ?? null);
+        }
+        return next;
+      }
+      // Selecting — enforce max
+      if (prev.length >= TRADE_MAX) return prev;
+      const next = [...prev, key];
+      // Auto-assign primary when first chip is picked
+      if (!primary) setPrimary(key);
+      return next;
+    });
+  }
+
+  const handleSave = async () => {
+    setSaving(true);
+    setError('');
+    try {
+      const resolvedPrimary = selected.length > 0
+        ? (primary && selected.includes(primary) ? primary : selected[0])
+        : null;
+      await onProfileUpdate({
+        trade_types:   selected.length > 0 ? selected : null,
+        trade_primary: resolvedPrimary,
+        trade_other:   selected.includes('other') ? (otherText.trim() || null) : null,
+      });
+      logTelemetry('trade_type_saved', {
+        trade_types:   selected.length > 0 ? selected : null,
+        trade_primary: resolvedPrimary,
+      });
+      onClose();
+    } catch {
+      setError('Could not save — try again');
+      setSaving(false);
+    }
+  };
+
+  const showOther = selected.includes('other');
+  const showPrimaryHint = selected.length >= 2;
+
+  return (
+    <div
+      className="modal-backdrop"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Your trade"
+      onClick={onClose}
+    >
+      <div
+        className="modal cis-setup-sheet trade-setup-sheet"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="cis-sheet__header">
+          <h2 className="modal-title">What&rsquo;s your trade?</h2>
+          <button
+            type="button"
+            className="chase-list-close"
+            onClick={onClose}
+            aria-label="Close"
+          >
+            ×
+          </button>
+        </div>
+
+        <div className="cis-sheet__body">
+          <p className="cis-sheet__explainer">
+            Pick what you do. We&rsquo;ll tailor JobProfit to suit — and it helps us
+            build the right tools for your trade.
+          </p>
+
+          <p className="trade-sheet__hint">
+            Do more than one? Add up to three.
+          </p>
+
+          <div className="trade-sheet__chip-grid" role="group" aria-label="Select your trade">
+            {TRADE_CHIPS.map(({ key, label }) => {
+              const isOn      = selected.includes(key);
+              const isPrimary = isOn && primary === key;
+              const isMaxed   = !isOn && selected.length >= TRADE_MAX;
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  className={[
+                    'trade-sheet__chip',
+                    isOn      && 'trade-sheet__chip--on',
+                    isPrimary && 'trade-sheet__chip--primary',
+                    isMaxed   && 'trade-sheet__chip--maxed',
+                  ].filter(Boolean).join(' ')}
+                  onClick={() => toggleChip(key)}
+                  disabled={isMaxed}
+                  aria-pressed={isOn}
+                >
+                  {showPrimaryHint && isOn && (
+                    <span
+                      className={`trade-sheet__star${isPrimary ? ' trade-sheet__star--active' : ''}`}
+                      role="button"
+                      tabIndex={0}
+                      aria-label={isPrimary ? 'Primary trade' : 'Set as primary trade'}
+                      onClick={e => { e.stopPropagation(); if (isOn) setPrimary(key); }}
+                      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); if (isOn) setPrimary(key); } }}
+                    >
+                      {isPrimary ? '★' : '☆'}
+                    </span>
+                  )}
+                  {label}
+                </button>
+              );
+            })}
+          </div>
+
+          {showPrimaryHint && (
+            <p className="trade-sheet__hint trade-sheet__hint--star">
+              Star your main one.
+            </p>
+          )}
+
+          {showOther && (
+            <div className="trade-sheet__other-wrap">
+              <input
+                type="text"
+                className="trade-sheet__other-input"
+                placeholder="Tell us your trade"
+                value={otherText}
+                onChange={e => setOtherText(e.target.value)}
+                aria-label="Your trade (free text)"
+                autoFocus
+              />
+            </div>
+          )}
+
+          {error && <p className="settings-row-error">{error}</p>}
+
+          <button
+            type="button"
+            className="cis-sheet__save-btn"
+            onClick={handleSave}
+            disabled={saving}
+          >
+            {saving ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Voice language picker ─────────────────────────────────────────────────────
 
 const VOICE_LANGS = [
@@ -1503,6 +1708,9 @@ export default function SettingsScreen({
   // ── CIS setup sheet state ─────────────────────────────────────────────────
   const [showCisSheet, setShowCisSheet] = useState(false);
 
+  // ── Trade type setup sheet state ──────────────────────────────────────────
+  const [showTradeSheet, setShowTradeSheet] = useState(false);
+
   // ── Chase reminders state ─────────────────────────────────────────────────
   const [showChaseList, setShowChaseList] = useState(false);
 
@@ -1816,6 +2024,11 @@ export default function SettingsScreen({
           label="Business name"
           value={tradingName || '—'}
           onTap={openEditBusinessName}
+        />
+        <Row
+          label="Your trade"
+          value={deriveTradeRowValue(profile) ?? 'Not set'}
+          onTap={() => setShowTradeSheet(true)}
         />
         <Row
           label="Re-run setup wizard"
@@ -2258,6 +2471,15 @@ export default function SettingsScreen({
           profile={profile}
           onProfileUpdate={handleSave}
           onClose={() => setShowCisSheet(false)}
+        />
+      )}
+
+      {/* ── Trade type setup sheet ───────────────────────────────────────── */}
+      {showTradeSheet && (
+        <TradeSetupSheet
+          profile={profile}
+          onProfileUpdate={handleSave}
+          onClose={() => setShowTradeSheet(false)}
         />
       )}
 
