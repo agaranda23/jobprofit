@@ -17,11 +17,41 @@ import { supabase } from './supabase.js';
 const VAPID_PUBLIC_KEY = import.meta.env.VITE_VAPID_PUBLIC_KEY || '';
 
 /** Convert a base64url string to a Uint8Array for PushManager.subscribe */
-function urlBase64ToUint8Array(base64String) {
+export function urlBase64ToUint8Array(base64String) {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
   const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
   const rawData = atob(base64);
   return Uint8Array.from([...rawData].map(c => c.charCodeAt(0)));
+}
+
+/**
+ * Normalise a VAPID public key from any form to a plain base64url string
+ * so two keys can be compared regardless of how they were encoded.
+ *
+ * PushSubscription.options.applicationServerKey is an ArrayBuffer.
+ * VITE_VAPID_PUBLIC_KEY is a base64url string.
+ * We convert both to base64url before comparing.
+ */
+function arrayBufferToBase64Url(buf) {
+  // buf may be an ArrayBuffer or a Uint8Array
+  const bytes = buf instanceof Uint8Array ? buf : new Uint8Array(buf);
+  let binary = '';
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=/g, '');
+}
+
+/**
+ * Returns true when the existing PushSubscription was created with a
+ * different applicationServerKey than the current VAPID public key.
+ * When true the subscription must be discarded and a new one created.
+ */
+export function subscriptionKeyMismatch(existingSub, currentVapidKey) {
+  if (!existingSub?.options?.applicationServerKey) return false;
+  if (!currentVapidKey) return false;
+  const existingBase64 = arrayBufferToBase64Url(existingSub.options.applicationServerKey);
+  // Strip any padding from the current key before comparing
+  const currentBase64 = currentVapidKey.replace(/=/g, '');
+  return existingBase64 !== currentBase64;
 }
 
 /**
@@ -53,6 +83,13 @@ export async function requestPermission() {
  * Subscribe the current device to push notifications and persist the
  * subscription in Supabase push_subscriptions (upsert on endpoint).
  *
+ * Key-mismatch recovery: if an existing subscription was created with a
+ * different VAPID key (e.g. the keys were rotated), this function detects
+ * the mismatch, unsubscribes the stale entry, removes it from Supabase,
+ * and creates a fresh subscription with the current key. Without this step
+ * all pushes silently fail after a key rotation because the push service
+ * rejects sends to a subscription bound to the old key.
+ *
  * Returns the PushSubscription object on success, null on any failure.
  * Fails silently — push is an enhancement, never a blocker.
  */
@@ -66,6 +103,23 @@ export async function subscribe(userId) {
 
   try {
     const registration = await navigator.serviceWorker.ready;
+
+    // Check whether an existing subscription is bound to a different key.
+    // If so, tear it down first so the push service doesn't reject sends.
+    const existing = await registration.pushManager.getSubscription();
+    if (existing && subscriptionKeyMismatch(existing, VAPID_PUBLIC_KEY)) {
+      const staleEndpoint = existing.endpoint;
+      await existing.unsubscribe();
+      // Best-effort: remove the stale row so the server doesn't keep sending
+      // to a dead endpoint. Don't await — failure here is not fatal.
+      supabase
+        .from('push_subscriptions')
+        .delete()
+        .eq('endpoint', staleEndpoint)
+        .then(() => {})
+        .catch(() => {});
+    }
+
     const sub = await registration.pushManager.subscribe({
       userVisibleOnly: true,
       applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY),
