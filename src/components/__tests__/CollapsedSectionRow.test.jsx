@@ -9,23 +9,26 @@
  *
  * What these tests verify:
  *   1. Initial expanded state derives correctly from defaultExpanded + needsAttention.
- *   2. The panel maxHeight value is '2000px' when expanded, '0' when collapsed.
- *   3. The panel overflow is always 'hidden' regardless of expanded state.
- *   4. Toggling expanded state flips maxHeight between '0' and '2000px'.
+ *   2. When collapsed, children are NOT rendered (conditional render returns null).
+ *   3. When expanded, children ARE rendered (conditional render returns truthy).
+ *   4. Toggling expanded state flips the children-rendered condition correctly.
  *   5. needsAttention forcing expansion is correctly computed.
- *   6. CSS regression guard — .jd-csr does NOT have overflow:hidden.
- *      This was the root cause of the 4th drawer-expansion regression (June 2026):
- *      overflow:hidden on .jd-csr caused iOS Safari / PWA WebKit to hold the
- *      container at its pre-expansion height and clip the panel content. This test
- *      will fail if overflow:hidden is re-added to .jd-csr, catching the regression
- *      at CI time rather than silently in production.
+ *   6. CSS regression guard — .jd-csr does NOT have overflow:hidden (4th regression).
+ *   7. CSS regression guard — .jd-csr--expanded carries no layout-affecting rules
+ *      (8th regression fix: position:relative and z-index both removed; rule kept as
+ *      a class hook only).
+ *   8. CSS regression guard — .jd-csr-panel has an opaque background (6th regression).
+ *   9. Component source uses conditional render, NOT max-height inline styles
+ *      (guard: ensures a future refactor does not silently reintroduce the overflow
+ *      mechanism that caused the 8th regression).
  *
  * These are the exact expressions in CollapsedSectionRow.jsx. If the component
  * changes the logic, these tests break — catching the regression.
  *
  * Limitation: we cannot verify that children are visually revealed (jsdom does
  * not simulate CSS layout). The Netlify deploy-preview checklist in the PR covers
- * the physical tap test at 375px.
+ * the physical tap test at 375px — ESPECIALLY on iOS/PWA/WebKit where the failure
+ * mode (container not reflowing) is not reproducible in static analysis.
  */
 import { describe, it, expect } from 'vitest';
 import fs from 'fs';
@@ -41,14 +44,14 @@ function initialExpanded(defaultExpanded = false, needsAttention = false) {
   return defaultExpanded || needsAttention;
 }
 
-// ── Mirror the exact style object CollapsedSectionRow renders on the panel ────
+// ── Mirror the conditional-render expression ───────────────────────────────────
+// CollapsedSectionRow renders: {expanded ? children : null}
+// We model this with a sentinel value to confirm truthy/null without a DOM.
 
-function panelStyle(expanded, prefersReducedMotion = false) {
-  return {
-    maxHeight: expanded ? '2000px' : '0',
-    overflow: 'hidden',
-    transition: prefersReducedMotion ? 'none' : 'max-height 220ms ease-out',
-  };
+const CHILDREN_SENTINEL = 'children';
+
+function renderChildren(expanded) {
+  return expanded ? CHILDREN_SENTINEL : null;
 }
 
 // ── Mirror the toggle handler ──────────────────────────────────────────────────
@@ -77,43 +80,34 @@ describe('CollapsedSectionRow — initial expanded state', () => {
   });
 });
 
-describe('CollapsedSectionRow — panel maxHeight reflects expanded state', () => {
-  it('maxHeight is "0" when collapsed', () => {
-    expect(panelStyle(false).maxHeight).toBe('0');
+describe('CollapsedSectionRow — conditional render: children in DOM only when expanded', () => {
+  it('children are null (not in DOM) when collapsed', () => {
+    expect(renderChildren(false)).toBeNull();
   });
 
-  it('maxHeight is "2000px" when expanded', () => {
-    expect(panelStyle(true).maxHeight).toBe('2000px');
+  it('children are rendered when expanded', () => {
+    expect(renderChildren(true)).not.toBeNull();
+    expect(renderChildren(true)).toBe(CHILDREN_SENTINEL);
   });
 
-  it('maxHeight is "0" when collapsed (needsAttention=false default)', () => {
+  it('children are null when collapsed (needsAttention=false default)', () => {
     const expanded = initialExpanded(false, false);
-    expect(panelStyle(expanded).maxHeight).toBe('0');
+    expect(renderChildren(expanded)).toBeNull();
   });
 
-  it('maxHeight is "2000px" when needsAttention forces expansion', () => {
+  it('children are rendered when needsAttention forces expansion', () => {
     const expanded = initialExpanded(false, true);
-    expect(panelStyle(expanded).maxHeight).toBe('2000px');
-  });
-});
-
-describe('CollapsedSectionRow — panel overflow is always hidden', () => {
-  it('overflow is "hidden" when collapsed', () => {
-    expect(panelStyle(false).overflow).toBe('hidden');
+    expect(renderChildren(expanded)).not.toBeNull();
   });
 
-  it('overflow is "hidden" when expanded', () => {
-    expect(panelStyle(true).overflow).toBe('hidden');
-  });
-});
-
-describe('CollapsedSectionRow — transition respects prefers-reduced-motion', () => {
-  it('transition is the max-height animation when no preference', () => {
-    expect(panelStyle(true, false).transition).toBe('max-height 220ms ease-out');
+  it('children are null when defaultExpanded=false and needsAttention=false', () => {
+    const expanded = initialExpanded(false, false);
+    expect(renderChildren(expanded)).toBeNull();
   });
 
-  it('transition is "none" when prefers-reduced-motion', () => {
-    expect(panelStyle(true, true).transition).toBe('none');
+  it('children are rendered when defaultExpanded=true', () => {
+    const expanded = initialExpanded(true, false);
+    expect(renderChildren(expanded)).not.toBeNull();
   });
 });
 
@@ -131,14 +125,14 @@ describe('CollapsedSectionRow — toggle logic', () => {
     expect(toggle(toggle(start))).toBe(start);
   });
 
-  it('maxHeight after toggle from collapsed is "2000px"', () => {
+  it('children rendered after toggle from collapsed', () => {
     const afterToggle = toggle(false); // was collapsed, now expanded
-    expect(panelStyle(afterToggle).maxHeight).toBe('2000px');
+    expect(renderChildren(afterToggle)).not.toBeNull();
   });
 
-  it('maxHeight after toggle from expanded is "0"', () => {
+  it('children null after toggle from expanded', () => {
     const afterToggle = toggle(true); // was expanded, now collapsed
-    expect(panelStyle(afterToggle).maxHeight).toBe('0');
+    expect(renderChildren(afterToggle)).toBeNull();
   });
 });
 
@@ -180,37 +174,19 @@ describe('CollapsedSectionRow — wrapper className reflects expanded and attent
 // Root cause of the 4th drawer-expansion regression (June 2026):
 //
 //   overflow:hidden on .jd-csr caused iOS Safari / PWA WebKit to hold the
-//   container element at its pre-expansion height and clip the max-height
-//   panel transition. Result: Schedule / Quote / Costs sections appeared
-//   to tap correctly (JS state did flip) but the content was clipped to 0px
-//   visible height. Three prior animation approaches (scrollHeight JS, CSS
-//   grid-template-rows, max-height) all failed for the same root cause.
-//
-//   Fix: remove overflow:hidden from .jd-csr. The property was placed there
-//   to clip the tap-highlight to the border-radius corners, but:
-//     - .jd-csr-row already sets -webkit-tap-highlight-color: transparent
-//     - The :active style is opacity:0.65, not a background-color change
-//     - .jd-csr-row has background:none — nothing to clip
-//   So overflow:hidden was serving no purpose while silently breaking expand.
+//   container element at its pre-expansion height and clip the content.
+//   Fix: remove overflow:hidden from .jd-csr.
 //
 //   These tests read the live CSS file to detect if overflow:hidden is
-//   re-added to .jd-csr in a future refactor. They will fail at CI time
-//   rather than silently in production.
-//
-// What "overflow:hidden absent from .jd-csr rule" means:
-//   The CSS block that starts with ".jd-csr {" must not contain
-//   "overflow: hidden" (or "overflow:hidden") before the closing brace.
+//   re-added to .jd-csr in a future refactor.
 
 const CSS_PATH = path.resolve(__dirname, '../../../src/index.css');
 
 function extractJdCsrBlock(cssText) {
   // Find the .jd-csr { ... } block (not .jd-csr-- variants, not .jd-csr-row etc.)
-  // Strategy: find the exact selector ".jd-csr {" then grab everything up to
-  // the matching closing brace (accounting for single-depth nesting only — the
-  // .jd-csr rule has no at-rule nesting in our CSS).
   const markerIdx = cssText.indexOf('\n.jd-csr {');
   if (markerIdx === -1) return null;
-  const blockStart = markerIdx + 1; // skip the leading newline
+  const blockStart = markerIdx + 1;
   const openBrace = cssText.indexOf('{', blockStart);
   if (openBrace === -1) return null;
   const closeBrace = cssText.indexOf('}', openBrace);
@@ -220,7 +196,6 @@ function extractJdCsrBlock(cssText) {
 
 function extractJdCsrExpandedBlock(cssText) {
   // Find the .jd-csr--expanded { ... } block.
-  // Uses the same single-depth brace strategy as extractJdCsrBlock.
   const markerIdx = cssText.indexOf('\n.jd-csr--expanded {');
   if (markerIdx === -1) return null;
   const blockStart = markerIdx + 1;
@@ -231,36 +206,36 @@ function extractJdCsrExpandedBlock(cssText) {
   return cssText.slice(blockStart, closeBrace + 1);
 }
 
-// ── CSS regression guard — .jd-csr--expanded stacking (5th + 7th regressions) ───
+// ── CSS regression guard — .jd-csr--expanded (8th regression fix) ─────────────
 //
 // Regression history:
 //
 //   5th regression: expanded panel had no stacking context — later sibling cards
-//     painted over the revealed content. Fix: added position:relative + z-index:1
-//     so the expanded element formed a stacking context above z-index:auto siblings.
+//     painted over. Fix: added position:relative + z-index:1.
 //
-//   6th regression: panel background was transparent — underlying siblings (Money
-//     card, "View profit breakdown" CTA) bled through. Fix: added background on
-//     .jd-csr-panel so the panel area is always opaque.
+//   6th regression: panel background was transparent — siblings bled through.
+//     Fix: added background on .jd-csr-panel.
 //
-//   7th regression: z-index:1 creates a stacking context. The Quote accordion is
-//     default-expanded on Lead/Quoted jobs (also z-index:1, later in DOM). Two
-//     siblings at equal z-index paint in DOM order — Quote's stacking context
-//     painted over Schedule's expanded panel, causing Schedule options to appear
-//     behind the Quote card.
-//     Fix: remove z-index from .jd-csr--expanded. The 6th regression fix (opaque
-//     panel background) prevents bleed-through without any stacking context.
-//     All accordions are in-flow; layout boxes never overlap; z-index ordering is
-//     irrelevant for the bleed-through symptom once the panel background is opaque.
-//     position:relative is retained (harmless without z-index; no stacking context).
+//   7th regression: z-index:1 on both Schedule and Quote (default-expanded) —
+//     Quote's stacking context painted over Schedule. Fix: removed z-index;
+//     retained position:relative.
 //
-//   Guard rules below (read the live CSS so future refactors are caught at CI time):
-//     - .jd-csr--expanded MUST have position:relative (retained from 5th fix).
-//     - .jd-csr--expanded MUST NOT have z-index (7th regression guard: re-adding
-//       z-index recreates the stacking context that causes Schedule to be obscured
-//       behind Quote when both accordions are expanded simultaneously).
+//   8th regression (DEFINITIVE FIX): the max-height panel overflowed the container's
+//     layout box in WebKit PWA. Container never grew; siblings never reflowed; paint
+//     order determined visibility. Fix: conditional render — children only in DOM when
+//     expanded → container grows naturally → siblings push down.
+//     position:relative is also removed from .jd-csr--expanded — it was only a
+//     stacking-context candidate, no longer needed when there is no overflow.
+//
+//   Guard rules (read the live CSS — future refactors caught at CI time):
+//     - .jd-csr--expanded MUST NOT have z-index (7th + 8th regression guard).
+//     - .jd-csr--expanded MUST NOT have position:relative as a load-bearing rule
+//       (8th regression guard: re-adding position context restores the paint-order
+//       asymmetry that was half the problem in the 7th regression). The rule may
+//       exist as an empty/comment-only block; we guard that it has no active
+//       position or z-index declarations.
 
-describe('CSS regression guard — .jd-csr--expanded stacking (5th + 7th regressions)', () => {
+describe('CSS regression guard — .jd-csr--expanded (8th regression fix)', () => {
   const cssText = fs.readFileSync(CSS_PATH, 'utf8');
   const expandedBlock = extractJdCsrExpandedBlock(cssText);
 
@@ -269,17 +244,14 @@ describe('CSS regression guard — .jd-csr--expanded stacking (5th + 7th regress
     expect(expandedBlock).toContain('.jd-csr--expanded');
   });
 
-  it('.jd-csr--expanded has position:relative (retained from 5th regression fix)', () => {
-    const blockWithoutComments = expandedBlock.replace(/\/\*[\s\S]*?\*\//g, '');
-    expect(blockWithoutComments).toMatch(/position\s*:\s*relative/);
-  });
-
-  it('.jd-csr--expanded does NOT have z-index (7th regression guard: z-index at equal value yields DOM-order paint — Quote obscures Schedule)', () => {
-    // z-index:1 on both Schedule and Quote (default-expanded on Lead/Quoted jobs)
-    // means Quote's stacking context paints over Schedule's expanded panel.
-    // This test will fail if z-index is re-added, catching the regression at CI time.
+  it('.jd-csr--expanded does NOT have z-index (7th+8th regression guard: z-index recreates stacking context that obscures Schedule behind Quote)', () => {
     const blockWithoutComments = expandedBlock.replace(/\/\*[\s\S]*?\*\//g, '');
     expect(blockWithoutComments).not.toMatch(/z-index\s*:/);
+  });
+
+  it('.jd-csr--expanded does NOT have position:relative as an active declaration (8th regression guard: position context is no longer needed; reintroducing it restores the paint-order asymmetry)', () => {
+    const blockWithoutComments = expandedBlock.replace(/\/\*[\s\S]*?\*\//g, '');
+    expect(blockWithoutComments).not.toMatch(/position\s*:/);
   });
 });
 
@@ -293,12 +265,8 @@ describe('CSS regression guard — .jd-csr overflow (4th expansion regression)',
   });
 
   it('.jd-csr rule does NOT have an active overflow:hidden declaration (root cause of expansion regression)', () => {
-    // overflow:hidden on .jd-csr clips the max-height panel in iOS Safari PWA.
-    // This test will fail if overflow:hidden is re-added as an active rule —
-    // ensuring the regression is caught at CI time rather than silently in production.
-    //
-    // We strip CSS comments (/* ... */) before checking so that the
-    // "overflow: hidden REMOVED" comment in the CSS does not false-fire.
+    // We strip CSS comments before checking so the "overflow: hidden REMOVED"
+    // comment in the CSS does not false-fire.
     const blockWithoutComments = jdCsrBlock.replace(/\/\*[\s\S]*?\*\//g, '');
     expect(blockWithoutComments).not.toMatch(/overflow\s*:\s*hidden/);
   });
@@ -314,25 +282,12 @@ describe('CSS regression guard — .jd-csr overflow (4th expansion regression)',
 
 // ── CSS regression guard — .jd-csr-panel opaque background (6th regression) ─────
 //
-// Root cause of the 6th drawer regression (June 2026):
-//
-//   When .jd-csr had overflow:hidden it implicitly clipped-but-covered the
-//   panel content with the parent's background. After overflow:hidden was removed
-//   (fix #203) the parent's background only fills its layout box (the trigger row
-//   height). The .jd-csr-panel div has no background of its own so when it expands
-//   beyond the parent's layout box — which it does via max-height animation — the
-//   panel content is rendered over a transparent area. Siblings below in the flex
-//   column (Money card, "View profit breakdown" CTA) bleed through visually.
-//
-//   Fix: add .jd-csr-panel { background: var(--surface-raised, #142035) } so the
-//   panel div itself is always opaque. var(--surface-raised) is themed so both
-//   dark and light modes are handled without hard-coding colours.
-//
-//   This test reads the live CSS file so a future refactor that removes the
-//   background from .jd-csr-panel will fail loudly at CI time.
+// Originally added so the panel area was opaque when the max-height panel overflowed
+// the container's layout box. With conditional render the container now grows in-flow —
+// no overflow to mask. Rule is kept as defensive chrome; guard remains so a future
+// refactor that removes the background from .jd-csr-panel fails loudly at CI time.
 
 function extractJdCsrPanelBlock(cssText) {
-  // Find the .jd-csr-panel { ... } block (exact selector, not child selectors).
   const markerIdx = cssText.indexOf('\n.jd-csr-panel {');
   if (markerIdx === -1) return null;
   const blockStart = markerIdx + 1;
@@ -363,5 +318,36 @@ describe('CSS regression guard — .jd-csr-panel opaque background (6th regressi
 
   it('.jd-csr-panel background fallback is #142035 (dark-mode opaque, matches .jd-csr)', () => {
     expect(panelBlock).toContain('#142035');
+  });
+});
+
+// ── Source-code regression guard — no max-height inline style on the panel ────
+//
+// 8th regression guard: the definitive fix is CONDITIONAL RENDER, not max-height
+// animation. If a future refactor re-introduces `maxHeight` as an inline style on
+// the panel, this guard fails at CI time — ensuring the regression is caught before
+// it ships to the WebKit PWA target where the container-not-reflow failure mode lives.
+
+const COMPONENT_PATH = path.resolve(__dirname, '../CollapsedSectionRow.jsx');
+
+describe('Source-code regression guard — conditional render, no max-height (8th regression)', () => {
+  const src = fs.readFileSync(COMPONENT_PATH, 'utf8');
+
+  it('component source does NOT use maxHeight as an inline style on the panel (8th regression guard)', () => {
+    // maxHeight inline style is the mechanism that caused the overflow-spill bug.
+    // Conditional render replaced it. If maxHeight reappears, this fails.
+    expect(src).not.toMatch(/maxHeight\s*:/);
+  });
+
+  it('component source uses conditional render for children: {expanded ? children : null}', () => {
+    // This is the load-bearing expression. Confirms the render path is present.
+    expect(src).toMatch(/expanded\s*\?\s*children\s*:\s*null/);
+  });
+
+  it('component source does NOT use overflow:hidden as an inline style on the panel', () => {
+    // overflow:hidden on the panel was part of the max-height mechanism.
+    // With conditional render it is not needed and must not be re-added inline.
+    // (The CSS rule on .jd-csr-panel has no overflow:hidden — this guards the JSX.)
+    expect(src).not.toMatch(/overflow\s*:\s*['"]hidden['"]/);
   });
 });

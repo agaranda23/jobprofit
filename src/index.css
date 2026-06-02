@@ -9177,38 +9177,43 @@ input[type=number] { -moz-appearance: textfield; }
   min-height: 48px;
 }
 
-/* 7th drawer regression fix (June 2026) — z-index removed from expanded state.
-   History of stacking regressions on this element:
-     5th: added position:relative + z-index:1 so the expanded panel painted above
-       position:static siblings. This works when only one accordion is expanded
-       at a time, but the Quote accordion is default-expanded on Lead/Quoted jobs.
-       When both Schedule AND Quote have z-index:1, the later sibling (Quote)
-       establishes a stacking context that paints over Schedule's expanded panel,
-       causing the expanded Schedule options to render behind the Quote card.
-     6th: added background:var(--surface-raised) to .jd-csr-panel so the panel
-       area is opaque — underlying siblings can no longer bleed through visually.
-     7th (this change): z-index:1 is no longer needed. The 6th fix (opaque panel
-       background) prevents the bleed-through symptom without a stacking context.
-       All accordions are in-flow, layout boxes never overlap, and z-index ordering
-       between Schedule and Quote is irrelevant for the bleed-through symptom once
-       the panel background is opaque. Removing z-index eliminates the stacking
-       context. position:relative is retained (harmless without an explicit z-index
-       value; does not create a stacking context on its own) and may be useful for
-       future child-element positioning relative to the row wrapper. */
+/* 8th drawer regression fix (June 2026) — definitive fix: conditional render.
+   History of stacking/expansion regressions on this element:
+     4th: overflow:hidden on .jd-csr clipped the max-height panel in iOS Safari PWA.
+       Fix: removed overflow:hidden from .jd-csr.
+     5th: expanded panel had no stacking context — later sibling cards painted over.
+       Fix: added position:relative + z-index:1 to .jd-csr--expanded.
+     6th: panel background was transparent — siblings bled through visually.
+       Fix: added background:var(--surface-raised) to .jd-csr-panel.
+     7th: two accordions both at z-index:1 — Quote (later in DOM) painted over
+       Schedule's panel. Fix: removed z-index; retained position:relative.
+     8th (this change): ALL of the above were treating the SYMPTOM.
+       True root cause: the .jd-csr container NEVER GREW when the max-height panel
+       expanded in the iOS/PWA WebKit target. The container stayed at min-height:48px
+       while the panel's content spilled downward as visual overflow. Siblings
+       (Quote, Costs) were laid out under the 48px box and never reflowed — they
+       simply overlapped the overflowing panel content. Paint order determined who
+       won: Quote was later in DOM and position:relative, so it painted on top.
+       Fix: switch from max-height animation to CONDITIONAL RENDER. When collapsed,
+       {expanded ? children : null} renders nothing → panel div is 0-height →
+       container stays at trigger height → siblings sit immediately below.
+       When expanded, children are real in-flow DOM → panel grows to content height →
+       .jd-csr container grows with it → siblings are PUSHED DOWN by normal block
+       layout. No overflow, no stacking context, no paint-order dependency.
+       .jd-csr--expanded is kept as a CSS hook for any future styling needs but
+       carries no layout-affecting rules. position:relative is removed — it was only
+       retained as a stacking-context candidate, which is no longer needed. */
 .jd-csr--expanded {
-  position: relative;
+  /* Retained as a class hook for styling. No layout rules needed: conditional
+     render means the container always grows in-flow with its children. */
 }
 
 /* 6th drawer regression (June 2026) — opaque panel background.
-   Root cause: .jd-csr has overflow:hidden REMOVED (fix #203) so its
-   background only fills the container's layout box (the trigger-row height).
-   When the panel expands beyond that box via max-height animation, the panel
-   div itself is transparent — underlying siblings (Money card, "View profit
-   breakdown" CTA) bleed through visually.
-   Fix: give .jd-csr-panel its own opaque background matching the card surface.
-   var(--surface-raised) is themed so both dark and light mode are handled;
-   the fallback colour (#142035) matches the dark-mode value already used on
-   .jd-csr. */
+   Originally added so the panel area was opaque when the max-height panel
+   overflowed the container's layout box. With conditional render the container
+   now grows in-flow so there is no overflow to mask — this rule is harmless
+   but kept as defensive chrome (ensures the panel area matches the card surface
+   in any future layout mode). var(--surface-raised) handles dark/light theming. */
 .jd-csr-panel {
   background: var(--surface-raised, #142035);
 }
