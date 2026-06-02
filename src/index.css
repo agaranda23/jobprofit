@@ -7615,6 +7615,63 @@ input[type=number] { -moz-appearance: textfield; }
   line-height: 1.5;
 }
 
+/* ── PoweredByJobProfit attribution footer ──────────────────────────────────
+   Subtle, muted, bottom-of-card — must not compete with the trader's branding.
+   Text wordmark now; swap .pbjp-wordmark for .pbjp-logo-img when logo is ready.
+   All colours pin to light-mode values so they work inside .pqv-card forced-light. */
+.pbjp-root {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 20px;
+  padding-top: 14px;
+  border-top: 1px solid #e5e7eb;
+  font-size: 12px;
+  color: #9ca3af;
+  line-height: 1.4;
+}
+
+.pbjp-wordmark {
+  font-weight: 700;
+  color: #6b7280;
+  letter-spacing: -0.01em;
+}
+
+/* Placeholder rule for when a logo image is slotted in later */
+.pbjp-logo-img {
+  height: 16px;
+  width: auto;
+  object-fit: contain;
+  vertical-align: middle;
+  opacity: 0.7;
+}
+
+.pbjp-separator {
+  color: #d1d5db;
+}
+
+.pbjp-label {
+  color: #9ca3af;
+}
+
+.pbjp-cta {
+  display: block;
+  width: 100%;
+  text-align: center;
+  margin-top: 4px;
+  font-size: 12px;
+  color: #6b7280;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.pbjp-cta:hover,
+.pbjp-cta:focus-visible {
+  color: #2bc48a;
+}
+
 /* Skeleton loading states */
 .pqv-skeleton {
   background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
