@@ -684,14 +684,58 @@ async function _enqueueMetaFallback(jobId, metaObject) {
  */
 export async function fetchPublicJob(token) {
   if (!token) return null;
+  // Use maybeSingle() instead of single(): single() throws a PostgREST error on
+  // zero matches (PGRST116), which is indistinguishable from a network failure in
+  // error logs. maybeSingle() returns { data: null, error: null } on zero matches,
+  // which is the correct semantic for "token not found yet".
   const { data, error } = await supabase
     .from('jobs')
     .select('id, customer_name, summary, amount, paid, line_items, meta, date, created_at')
     .eq('meta->>publicAccessToken', token)
-    .single();
+    .maybeSingle();
 
-  if (error || !data) return null;
+  if (error) {
+    console.warn('[fetchPublicJob] query error for token', token?.slice(0, 8), error?.message);
+    return null;
+  }
+  if (!data) {
+    console.warn('[fetchPublicJob] token not found in jobs.meta', token?.slice(0, 8));
+    return null;
+  }
   return mapCloudJobToToday(data);
+}
+
+/**
+ * Writes the publicAccessToken (and any accompanying meta fields) to the cloud
+ * jobs row and WAITS for the write to confirm before returning.
+ *
+ * This is the replacement for the fire-and-forget syncMetaToCloud path that was
+ * used for token persistence. The quote/invoice/receipt link URL is embedded in
+ * the PDF and the WhatsApp message — if the customer opens it before the cloud
+ * write lands (even 200ms later), fetchPublicJob returns null and the customer
+ * sees "Quote not found."
+ *
+ * Callers (ReviewSheet handleQuoteWhatsApp, handleInvoiceWhatsApp) must await
+ * this before producing the shareable link or PDF.
+ *
+ * Offline handling: when the cloud write fails (no network), the meta is already
+ * in localStorage (written by writeJobMeta before this call). The function
+ * returns { ok: false, offline: true } so the caller can surface a warning to
+ * the trader ("Link may not work yet — you're offline").
+ *
+ * @param {string} jobId    – Supabase UUID of the job row
+ * @param {object} meta     – full meta object from extractJobMeta (includes publicAccessToken)
+ * @returns {Promise<{ ok: boolean, offline?: boolean, error?: string }>}
+ */
+export async function persistPublicToken(jobId, meta) {
+  const result = await updateJobMetaInCloud(jobId, meta);
+  if (!result.ok) {
+    if (result.error === 'offline') {
+      return { ok: false, offline: true };
+    }
+    return { ok: false, error: result.error };
+  }
+  return { ok: true };
 }
 
 /**
