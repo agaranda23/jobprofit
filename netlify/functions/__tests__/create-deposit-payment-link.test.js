@@ -18,6 +18,8 @@
  *   L. No application_fee_amount (trader absorbs fee, decision #1)
  *   M. Public token path (Path B — unauthenticated) — looks up by meta->publicAccessToken
  *   N. Method guard
+ *   O. Consent validation on public path — missing consentGiven → 400
+ *   P. Consent fields in Stripe session metadata on public path
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -341,11 +343,11 @@ describe('create-deposit-payment-link', () => {
 
   // ── M. Public token path (unauthenticated customer flow) ─────────────────
   it('M: publicQuoteToken path looks up job without auth token', async () => {
-    // In public path: no Bearer token, uses publicQuoteToken
+    // In public path: no Bearer token, uses publicQuoteToken + consentGiven
     const event = {
       httpMethod: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ publicQuoteToken: FAKE_PUBLIC_TOK }),
+      body: JSON.stringify({ publicQuoteToken: FAKE_PUBLIC_TOK, consentGiven: true }),
     };
 
     // For public path: single calls are profile → idempotency (job was fetched earlier)
@@ -367,5 +369,66 @@ describe('create-deposit-payment-link', () => {
   it('N: returns 405 for non-POST', async () => {
     const res = await handler({ httpMethod: 'GET', headers: {}, body: '' });
     expect(res.statusCode).toBe(405);
+  });
+
+  // ── O. Consent validation on public path ─────────────────────────────────
+  it('O: returns 400 when publicQuoteToken is present but consentGiven is missing', async () => {
+    const event = {
+      httpMethod: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ publicQuoteToken: FAKE_PUBLIC_TOK }), // no consentGiven
+    };
+    const res = await handler(event);
+    expect(res.statusCode).toBe(400);
+    expect(JSON.parse(res.body).error).toMatch(/consent/i);
+  });
+
+  it('O2: returns 400 when consentGiven is false (not true)', async () => {
+    const event = {
+      httpMethod: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ publicQuoteToken: FAKE_PUBLIC_TOK, consentGiven: false }),
+    };
+    const res = await handler(event);
+    expect(res.statusCode).toBe(400);
+    expect(JSON.parse(res.body).error).toMatch(/consent/i);
+  });
+
+  it('O3: authenticated path (quoteId only) does NOT require consentGiven', async () => {
+    // The trader-initiated path never passes consent — it must not be gated
+    const res = await handler(makeEvent({ quoteId: FAKE_QUOTE_ID }));
+    expect(res.statusCode).toBe(200);
+  });
+
+  // ── P. Consent fields in Stripe metadata on public path ──────────────────
+  it('P: public path attaches consent_given/consent_at/consent_policy_version to Stripe metadata', async () => {
+    const event = {
+      httpMethod: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ publicQuoteToken: FAKE_PUBLIC_TOK, consentGiven: true }),
+    };
+
+    let callCount = 0;
+    mockSingle.mockImplementation(async () => {
+      callCount++;
+      if (callCount === 1) return mockJobResult;
+      if (callCount === 2) return mockProfileResult;
+      return mockTokenIdempotentResult;
+    });
+
+    await handler(event);
+    const [[params]] = mockSessionCreate.mock.calls;
+    const piMeta = params.payment_intent_data.metadata;
+    expect(piMeta.consent_given).toBe('true');
+    expect(piMeta.consent_at).toBeTruthy();
+    expect(piMeta.consent_policy_version).toBe('v1');
+  });
+
+  it('P2: authenticated path does NOT attach consent fields to Stripe metadata', async () => {
+    await handler(makeEvent({ quoteId: FAKE_QUOTE_ID }));
+    const [[params]] = mockSessionCreate.mock.calls;
+    const piMeta = params.payment_intent_data.metadata;
+    expect(piMeta.consent_given).toBeUndefined();
+    expect(piMeta.consent_at).toBeUndefined();
   });
 });

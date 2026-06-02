@@ -96,16 +96,25 @@ export const handler = async function (event) {
   // ── 2. Parse and validate body ───────────────────────────────────────────────
   let quoteId;
   let publicQuoteToken;
+  let consentGiven;
   try {
     const body = JSON.parse(event.body || '{}');
     quoteId = body.quoteId;
     publicQuoteToken = body.publicQuoteToken;
+    consentGiven = body.consentGiven;
   } catch {
     return json(400, { error: 'Invalid request body' });
   }
 
   if (!quoteId && !publicQuoteToken) {
     return json(400, { error: 'quoteId or publicQuoteToken is required' });
+  }
+
+  // Customer consent is required on the public (customer-facing) path.
+  // The trader-initiated path (quoteId + Bearer) doesn't go through this consent
+  // gate — the trader is not the party granting data consent here.
+  if (publicQuoteToken && consentGiven !== true) {
+    return json(400, { error: 'Consent is required to pay a deposit and accept this quote' });
   }
 
   const adminClient = createClient(supabaseUrl, serviceRoleKey, {
@@ -309,6 +318,12 @@ export const handler = async function (event) {
   // This means the webhook can look it up by token without a PI-to-DB scan.
   const token = generatePayToken();
 
+  // Capture the consent timestamp here so the webhook can read the exact moment
+  // the customer ticked the box. On the public path consentGiven===true is
+  // already validated above; on the trader path this will be undefined (fine —
+  // the webhook guards with a fallback).
+  const consentAt = publicQuoteToken ? new Date().toISOString() : undefined;
+
   let session;
   try {
     session = await stripe.checkout.sessions.create(
@@ -329,11 +344,19 @@ export const handler = async function (event) {
         ],
         payment_intent_data: {
           metadata: {
-            jp_type:                   'deposit',
-            jobprofit_quote_id:         quoteId,
-            jobprofit_deposit_token:    token,
-            jobprofit_trader_user_id:   userId,
-            jobprofit_deposit_percent:  String(depositPercent),
+            jp_type:                    'deposit',
+            jobprofit_quote_id:          quoteId,
+            jobprofit_deposit_token:     token,
+            jobprofit_trader_user_id:    userId,
+            jobprofit_deposit_percent:   String(depositPercent),
+            // Consent fields — present on the public customer path only.
+            // The webhook reads these to write consentGiven/consentAt/consentPolicyVersion
+            // into jobs.meta, mirroring what accept-quote.js writes on the sign path.
+            ...(consentAt ? {
+              consent_given:          'true',
+              consent_at:             consentAt,
+              consent_policy_version: 'v1',
+            } : {}),
           },
           statement_descriptor_suffix: rawDescriptor,
         },

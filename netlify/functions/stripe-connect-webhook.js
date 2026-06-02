@@ -587,12 +587,28 @@ async function handleDepositCompleted(session, stripe, adminClient) {
   // Mirrors accept-quote.js step 8 but uses 'deposit_payment' as the acceptedSource.
   // No signature dataURL — the deposit payment IS the acceptance signal.
   const existingMeta = (jobRow.meta && typeof jobRow.meta === 'object') ? jobRow.meta : {};
+
+  // Read consent fields from Stripe session metadata (attached by create-deposit-payment-link.js).
+  // Old in-flight links created before this change won't have these fields — default gracefully:
+  // still mark accepted but record consent as not captured rather than throwing.
+  // consentGiven is stored as the string 'true' in Stripe metadata (Stripe coerces to string).
+  const consentCaptured = meta.consent_given === 'true';
+  const consentAt = meta.consent_at || null;
+  const consentPolicyVersion = meta.consent_policy_version || null;
+
   const updatedMeta = {
     ...existingMeta,
     acceptedAt:     existingMeta.acceptedAt || paidAt, // don't overwrite an existing signature acceptance
     acceptedSource: existingMeta.acceptedSource || 'deposit_payment',
     quoteStatus:    'accepted',
     jobStatus:      'active',
+    // Consent fields — mirror accept-quote.js shape exactly.
+    // Only written if not already present (sign-first then deposit-paid edge case).
+    ...(existingMeta.consentGiven ? {} : {
+      consentGiven:          consentCaptured,
+      consentAt:             consentAt || paidAt,
+      consentPolicyVersion:  consentPolicyVersion || (consentCaptured ? 'v1' : null),
+    }),
   };
 
   // ── Append deposit payment to job.payments[] so it nets off the invoice ────

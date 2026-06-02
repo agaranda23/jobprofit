@@ -345,6 +345,8 @@ function SignSection({ token, onAccepted }) {
 function DepositBlock({ job, token, depositPercent, depositAmountPence, onAcceptWithoutDeposit, depositSuccess, depositCancelled }) {
   const [depositState, setDepositState] = useState('idle'); // 'idle' | 'loading' | 'error'
   const [depositError, setDepositError] = useState('');
+  const [consentChecked, setConsentChecked] = useState(false);
+  const [consentNudge, setConsentNudge] = useState(false);
 
   const depositGbp = depositAmountPence > 0 ? gbp(depositAmountPence / 100) : '';
   const totalGbp = gbp(job.total ?? job.amount ?? 0);
@@ -365,19 +367,20 @@ function DepositBlock({ job, token, depositPercent, depositAmountPence, onAccept
 
   async function handlePayDeposit() {
     if (depositState === 'loading') return;
+    if (!consentChecked) {
+      setConsentNudge(true);
+      return;
+    }
     setDepositState('loading');
     setDepositError('');
 
     try {
-      // create-deposit-payment-link requires auth — for the public page we use
-      // the public access token to identify the job. The function accepts this
-      // by looking up the job by the token field (publicAccessToken stored in meta).
-      // We pass quoteId as the job's ID from the loaded job object.
       const res = await fetch(CREATE_DEPOSIT_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           publicQuoteToken: token, // server validates this against job.meta.publicAccessToken
+          consentGiven: true,
         }),
       });
 
@@ -420,6 +423,31 @@ function DepositBlock({ job, token, depositPercent, depositAmountPence, onAccept
         <div className="pqv-deposit-block-sub">Pay now to lock in your slot</div>
       </div>
 
+      {/* Consent checkbox — mirrors the sign flow; must be ticked before Pay is active */}
+      <label
+        className="pqv-consent-row"
+        style={{ display: 'flex', alignItems: 'flex-start', gap: 10, minHeight: 44, cursor: 'pointer', marginTop: 14, marginBottom: 4 }}
+      >
+        <input
+          type="checkbox"
+          checked={consentChecked}
+          onChange={(e) => { setConsentChecked(e.target.checked); if (e.target.checked) setConsentNudge(false); }}
+          style={{ marginTop: 3, flexShrink: 0, width: 20, height: 20, cursor: 'pointer' }}
+          aria-label="Accept terms and privacy policy"
+        />
+        <span style={{ fontSize: 14, lineHeight: 1.5, color: 'var(--text, #1a1a1a)' }}>
+          I accept this quote and agree to the{' '}
+          <a href="/terms" target="_blank" rel="noopener" style={{ color: 'inherit', textDecoration: 'underline' }}>Terms</a>
+          {' '}and{' '}
+          <a href="/privacy" target="_blank" rel="noopener" style={{ color: 'inherit', textDecoration: 'underline' }}>Privacy Policy</a>.
+        </span>
+      </label>
+      {consentNudge && !consentChecked && (
+        <p className="pqv-sign-error" role="alert" style={{ margin: '0 0 8px' }}>
+          Tick the box to accept.
+        </p>
+      )}
+
       {depositState === 'error' && (
         <p className="pqv-sign-error" role="alert">{depositError}</p>
       )}
@@ -428,7 +456,7 @@ function DepositBlock({ job, token, depositPercent, depositAmountPence, onAccept
         type="button"
         className="pqv-btn-deposit"
         onClick={handlePayDeposit}
-        disabled={depositState === 'loading'}
+        disabled={depositState === 'loading' || !consentChecked}
         aria-busy={depositState === 'loading'}
       >
         {depositState === 'loading' ? 'Preparing payment…' : `Pay ${depositGbp} deposit & accept`}
