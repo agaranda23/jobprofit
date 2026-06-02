@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { parseJobFromSpeech } from '../lib/voiceParse';
+import { generateQuote } from '../lib/generateQuote';
 import { logTelemetry } from '../lib/telemetry';
 
 const SR = typeof window !== 'undefined'
@@ -94,6 +95,20 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMo
   const [quoteVoiceStatus, setQuoteVoiceStatus] = useState('listening');
   const [quoteTranscript, setQuoteTranscript]   = useState('');
   const hasAutoStartedQuote = useRef(false);
+
+  // ── AI Quote Builder state ──────────────────────────────────────────────────
+  // aiStatus: 'idle' | 'building' | 'draft' | 'error'
+  // 'building' = API call in-flight; spinner shown after 400ms (same deferred pattern)
+  // 'draft'    = AI line items populated; review banner shown
+  // 'error'    = generation failed; user stays on manual form
+  const [aiStatus, setAiStatus]         = useState('idle');
+  const [aiError, setAiError]           = useState('');
+  const [showBuildingSpinner, setShowBuildingSpinner] = useState(false);
+  const buildingTimerRef = useRef(null);
+  // Profile hourly rate loaded after first AI build (used for "set your rate" prompt)
+  const [profileHourlyRate, setProfileHourlyRate] = useState(undefined); // undefined = not yet checked
+  const [showRatePrompt, setShowRatePrompt]   = useState(false);
+  const [rateInput, setRateInput]             = useState('');
 
   // ── Voice state (active in 'details' and 'quote' views) ───────────────────
   const [voiceStatus, setVoiceStatus]       = useState('idle');
@@ -426,9 +441,92 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMo
         setQTotal('');
         setQuoteVoiceStatus('manual');
       }
+
+      // Store the parsed description for the "Itemise it for me" CTA
+      // but do NOT auto-trigger the AI build — the user must tap the button.
+      // This preserves the existing confirm/manual flow for non-AI use.
     } catch {
       clearTimeout(spinnerTimerRef.current);
       setShowParsingSpinner(false);
+      setQuoteVoiceStatus('manual');
+    }
+  };
+
+  // ── AI Quote Builder: invoke generate-quote and populate line items ──────────
+
+  /**
+   * Calls the generate-quote function, shows a deferred spinner, and on success
+   * populates lineItems + qTotal from the AI response.
+   * On failure, falls back to the manual form with the description pre-filled.
+   *
+   * @param {string} descriptionText — the typed/spoken job description
+   * @param {number|null} knownHourlyRate — if null, prompts the user to set one first
+   */
+  const runAiQuoteBuild = async (descriptionText, knownHourlyRate) => {
+    // If rate is unknown (undefined = not yet checked), check before proceeding.
+    // This handles the "show rate prompt" path — see the call sites below.
+    if (knownHourlyRate === null) {
+      // No rate set — show the rate prompt first, then retry automatically
+      setShowRatePrompt(true);
+      return;
+    }
+
+    setAiStatus('building');
+    setAiError('');
+    setShowBuildingSpinner(false);
+
+    buildingTimerRef.current = setTimeout(() => setShowBuildingSpinner(true), 400);
+
+    try {
+      const result = await generateQuote(descriptionText);
+
+      clearTimeout(buildingTimerRef.current);
+      setShowBuildingSpinner(false);
+
+      if (result.error === 'quota_exceeded') {
+        // Quota hit — show the upgrade message and fall back to manual form
+        setAiStatus('error');
+        setAiError(result.message || "You've used your free AI quotes this month. Go Pro for unlimited, or build this one by hand.");
+        setQuoteVoiceStatus('manual');
+        return;
+      }
+
+      if (result.error) {
+        // Any other error — fallback to manual form, pre-filled with the description
+        setAiStatus('error');
+        setAiError("Couldn't build it just now — here's what I heard, fill in the prices.");
+        setSummary(descriptionText);
+        setQuoteVoiceStatus('manual');
+        return;
+      }
+
+      // Success — populate line items and total from AI result
+      logTelemetry('ai_quote_built', {
+        lineItemCount: result.lineItems.length,
+        hasLowConfidence: result.lineItems.some(i => i.lowConfidence),
+      });
+
+      const items = result.lineItems.map(i => ({
+        desc: i.desc,
+        cost: String(i.cost),
+        ...(i.qty != null ? { qty: i.qty } : {}),
+        ...(i.unit ? { unit: i.unit } : {}),
+        ...(i.provenance ? { provenance: i.provenance } : {}),
+        ...(i.lowConfidence ? { lowConfidence: true } : {}),
+      }));
+
+      setLineItems(items);
+      setShowLineItems(true);
+      if (result.total != null) setQTotal(String(result.total));
+      if (!summary.trim() && descriptionText) setSummary(descriptionText);
+      setAiStatus('draft');
+      setQuoteVoiceStatus('confirm');
+    } catch (err) {
+      clearTimeout(buildingTimerRef.current);
+      setShowBuildingSpinner(false);
+      setAiStatus('error');
+      setAiError("Couldn't build it just now — here's what I heard, fill in the prices.");
+      setSummary(descriptionText);
       setQuoteVoiceStatus('manual');
     }
   };
@@ -1012,8 +1110,80 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMo
               </>
             )}
 
+            {/* ── AI building state — deferred spinner (>400ms) ── */}
+            {aiStatus === 'building' && (
+              <>
+                {showBuildingSpinner && (
+                  <div className="aj-mic-box aj-mic-box--parsing">
+                    <div className="aj-mic-icon">&#x23F3;</div>
+                    <div className="aj-mic-label">Building your quote…</div>
+                    <div className="aj-mic-sub">Using your prices and history</div>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* ── Rate prompt — shown when hourly_rate is unset ── */}
+            {showRatePrompt && aiStatus !== 'building' && (
+              <div className="aj-rate-prompt">
+                <p className="aj-rate-prompt-text">
+                  Quick one — what&rsquo;s your day rate? I&rsquo;ll price the labour properly.
+                </p>
+                <div className="aj-rate-prompt-row">
+                  <span className="aj-micro-currency">£</span>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    className="aj-rate-prompt-input"
+                    placeholder="e.g. 200"
+                    value={rateInput}
+                    onChange={e => setRateInput(e.target.value)}
+                    aria-label="Your day rate in pounds"
+                  />
+                  <span className="aj-rate-prompt-unit">/day</span>
+                </div>
+                <button
+                  className="btn-primary aj-rate-prompt-save"
+                  onClick={async () => {
+                    const rate = parseFloat(rateInput);
+                    if (!isNaN(rate) && rate > 0) {
+                      // Save hourly_rate = day rate / 8 (8-hour day) to profiles
+                      // via Supabase client directly — this is a profile field, not a job.
+                      try {
+                        const { supabase: sb } = await import('../lib/supabase.js');
+                        const { data: { user } } = await sb.auth.getUser();
+                        if (user?.id) {
+                          // Store as hourly (day rate / 8)
+                          const hourly = Math.round((rate / 8) * 100) / 100;
+                          await sb.from('profiles').update({ hourly_rate: hourly }).eq('id', user.id);
+                          setProfileHourlyRate(hourly);
+                        }
+                      } catch { /* non-blocking — proceed with build anyway */ }
+                      setShowRatePrompt(false);
+                      const desc = summary.trim() || quoteTranscript.trim();
+                      runAiQuoteBuild(desc, parseFloat(rateInput) / 8);
+                    }
+                  }}
+                >
+                  Save &amp; build quote
+                </button>
+                <button
+                  className="link-btn aj-rate-prompt-skip"
+                  onClick={() => {
+                    setShowRatePrompt(false);
+                    // Build without a rate — AI will use placeholder costs
+                    const desc = summary.trim() || quoteTranscript.trim();
+                    // Pass a non-null sentinel so runAiQuoteBuild doesn't loop
+                    runAiQuoteBuild(desc, 0);
+                  }}
+                >
+                  Skip — I&rsquo;ll add my prices
+                </button>
+              </div>
+            )}
+
             {/* ── Quote form: confirm (post-voice) and manual (typed) ── */}
-            {(quoteVoiceStatus === 'confirm' || quoteVoiceStatus === 'manual') && (
+            {(quoteVoiceStatus === 'confirm' || quoteVoiceStatus === 'manual') && aiStatus !== 'building' && !showRatePrompt && (
               <>
                 {quoteVoiceStatus === 'confirm' && quoteTranscript && (
                   <div className="aj-transcript">&ldquo;{quoteTranscript}&rdquo;</div>
@@ -1068,6 +1238,44 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMo
                   </label>
                 </div>
 
+                {/* "Itemise it for me" CTA — triggers AI build from the current description */}
+                {aiStatus === 'idle' && (
+                  <button
+                    type="button"
+                    className="aj-ai-itemise-btn"
+                    onClick={() => {
+                      const desc = summary.trim() || quoteTranscript.trim();
+                      if (!desc) {
+                        setError('Add a job description first');
+                        return;
+                      }
+                      setError('');
+                      // profileHourlyRate: undefined = not yet fetched, null = confirmed unset
+                      // We check at the server and let it prompt if needed — pass undefined as
+                      // sentinel, resolved in runAiQuoteBuild via the rate prompt.
+                      // We optimistically run; if server returns no hourly_rate the AI uses
+                      // placeholder costs, which is acceptable per spec.
+                      runAiQuoteBuild(desc, profileHourlyRate === null ? null : 0);
+                    }}
+                  >
+                    Itemise it for me
+                  </button>
+                )}
+
+                {/* Error from AI build — shown inline above manual form */}
+                {aiStatus === 'error' && aiError && (
+                  <p className={`modal-error${aiError.includes('quota_exceeded') || aiError.includes("free AI quotes") ? ' aj-quota-error' : ''}`}>
+                    {aiError}
+                  </p>
+                )}
+
+                {/* AI draft review banner — shown when AI has populated lines */}
+                {aiStatus === 'draft' && (
+                  <div className="aj-ai-draft-banner" role="status">
+                    Draft — built from your prices. Check it before you send.
+                  </div>
+                )}
+
                 {/* Total — hidden when line items are shown (auto-summed instead) */}
                 {!showLineItems && (
                   <div className="aj-quote-total-row">
@@ -1087,7 +1295,7 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMo
                   </div>
                 )}
 
-                {/* Line items — revealed by "+ Add line item" */}
+                {/* Line items — revealed by "+ Add line item" or populated by AI */}
                 {showLineItems && (
                   <div className="aj-quote-line-items">
                     <div className="aj-quote-line-items-header">
@@ -1095,20 +1303,33 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMo
                     </div>
                     {lineItems.map((li, idx) => (
                       <div key={idx} className="aj-quote-line-row">
-                        <input
-                          type="text"
-                          className="aj-quote-line-desc"
-                          value={li.desc}
-                          onChange={e => updateLineItem(idx, 'desc', e.target.value)}
-                          placeholder="Description"
-                          aria-label={`Line item ${idx + 1} description`}
-                        />
+                        <div className="aj-quote-line-desc-wrap">
+                          <input
+                            type="text"
+                            className="aj-quote-line-desc"
+                            value={li.desc}
+                            onChange={e => updateLineItem(idx, 'desc', e.target.value)}
+                            placeholder="Description"
+                            aria-label={`Line item ${idx + 1} description`}
+                          />
+                          {/* Per-line provenance microcopy — only shown on AI-generated draft */}
+                          {aiStatus === 'draft' && li.provenance === 'labour' && (
+                            <span className="aj-line-provenance">your rate</span>
+                          )}
+                          {aiStatus === 'draft' && li.provenance === 'history' && (
+                            <span className="aj-line-provenance">from your past jobs</span>
+                          )}
+                          {/* Low-confidence flag — amber, "check this" */}
+                          {aiStatus === 'draft' && li.lowConfidence && (
+                            <span className="aj-line-low-confidence" aria-label="Check this price">check this</span>
+                          )}
+                        </div>
                         <div className="aj-quote-line-cost-wrap">
                           <span className="aj-quote-line-currency">£</span>
                           <input
                             type="number"
                             inputMode="decimal"
-                            className="aj-quote-line-cost"
+                            className={`aj-quote-line-cost${li.lowConfidence ? ' aj-quote-line-cost--warn' : ''}`}
                             value={li.cost}
                             onChange={e => updateLineItem(idx, 'cost', e.target.value)}
                             placeholder="0"
@@ -1158,7 +1379,10 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMo
                   <button
                     type="button"
                     className="aj-quote-add-items-link"
-                    onClick={() => setShowLineItems(false)}
+                    onClick={() => {
+                      setShowLineItems(false);
+                      if (aiStatus === 'draft') setAiStatus('idle');
+                    }}
                   >
                     Show flat total instead
                   </button>
