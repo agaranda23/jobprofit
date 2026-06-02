@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v54';  // bumped from v53: Schedule multi-visit + swipe-mark-done + lazy migration
+const CACHE_NAME = 'jobprofit-v55';  // bumped from v54: auto-stage Lead→Quoted on quote send, Quoted→On on customer sign
 const PRECACHE = [
   '/',
   '/index.html',

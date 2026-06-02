@@ -142,6 +142,12 @@ export const handler = async function (event) {
 
   // ── 8. Write acceptance ──────────────────────────────────────────────────────
   const acceptedAt = new Date().toISOString();
+
+  // Only advance to On (active) when the job is currently Quoted — never
+  // time-travel backwards if the trader has already moved it to On/Invoiced/Paid.
+  const currentStatus = existingMeta.status;
+  const isCurrentlyQuoted = currentStatus === 'quoted' || !currentStatus;
+
   const updatedMeta = {
     ...existingMeta,
     acceptedSignature: signature,
@@ -149,7 +155,10 @@ export const handler = async function (event) {
     acceptedName: cleanName,
     acceptedSource: 'remote',
     quoteStatus: 'accepted',
-    jobStatus: 'active',
+    // Set canonical status field (read by mapCloudJobToToday as cloudMeta.status).
+    // Old code only set jobStatus:'active' (legacy field), so the job never
+    // moved from Quoted → On in the trader's app after remote signing.
+    ...(isCurrentlyQuoted ? { status: 'active', jobStatus: 'active' } : {}),
     consentGiven: true,
     consentAt: acceptedAt,
     consentPolicyVersion: 'v1',

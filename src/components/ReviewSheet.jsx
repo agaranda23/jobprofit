@@ -43,6 +43,7 @@ import {
 import { logTelemetry } from '../lib/telemetry';
 import { isPro } from '../lib/plan';
 import { canShareFile } from '../lib/webShare';
+import { stagePatch } from '../lib/jobStatus';
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -391,9 +392,13 @@ export default function ReviewSheet({
     const lockedDepositPence = depositPercent > 0 && jobTotal > 0
       ? Math.round(jobTotal * (depositPercent / 100) * 100)
       : 0;
+    // Advance Lead → Quoted on send. stagePatch('Quoted') handles legacy jobs
+    // where job.status is undefined (which made the old equality check fail and
+    // left the job stranded on Lead even after the quote went out).
+    const isLead = job.status === 'lead' || !job.status;
     onUpdate?.({
       ...job,
-      status: job.status === 'lead' ? 'quoted' : job.status,
+      ...(isLead ? stagePatch('Quoted') : {}),
       quoteStatus: 'sent',
       quoteSentAt: new Date().toISOString(),
       publicAccessToken: token,
