@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 /**
  * telemetry.test.js
  *
@@ -11,6 +12,10 @@
  * Strategy: import.meta.env.DEV is a compile-time constant in Vite/Vitest.
  * vi.stubEnv + vi.resetModules re-evaluates the module per describe block so
  * the DEV branch is correctly exercised in both directions.
+ *
+ * jsdom environment is required because the production consent guard reads
+ * localStorage via consent.js — we exercise the real consent.js by seeding
+ * the key before each production-build test rather than mocking it away.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -32,6 +37,9 @@ describe('telemetry — production build (DEV=false)', () => {
 
   beforeEach(async () => {
     vi.stubEnv('DEV', false);
+    // Grant analytics consent so isConsentGranted() returns true and the
+    // production guard inside logTelemetry / identifyUser doesn't short-circuit.
+    localStorage.setItem('jp.analytics_consent', 'granted');
     vi.resetModules();
     const mod = await import('../telemetry.js');
     logTelemetry = mod.logTelemetry;
@@ -45,6 +53,7 @@ describe('telemetry — production build (DEV=false)', () => {
   });
 
   afterEach(() => {
+    localStorage.removeItem('jp.analytics_consent');
     vi.restoreAllMocks();
     vi.unstubAllEnvs();
   });

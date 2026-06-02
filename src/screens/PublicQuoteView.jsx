@@ -621,8 +621,11 @@ export default function PublicQuoteView({ token }) {
           <div className="pqv-quote-valid-until">Valid until {validUntilStr}</div>
         </div>
 
-        {/* Accepted badge */}
-        {isAccepted && <AcceptedBadge acceptedAt={acceptedAt} />}
+        {/* Accepted badge — suppressed when remoteAccepted is set so that
+            RemoteAcceptedBlock (rendered below) is the sole confirmation
+            after a fresh in-session sign. The badge still shows for the
+            already-accepted-on-load case (remoteAccepted is null). */}
+        {isAccepted && !remoteAccepted && <AcceptedBadge acceptedAt={acceptedAt} />}
 
         {/* Customer + description */}
         <div className="pqv-section">
