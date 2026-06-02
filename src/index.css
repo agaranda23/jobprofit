@@ -1476,7 +1476,7 @@ body {
 }
 .auth-brand {
   text-align: center;
-  margin-bottom: 40px;
+  margin-bottom: 24px;
 }
 .auth-logo {
   width: 56px;
@@ -1487,14 +1487,68 @@ body {
 .auth-title {
   font-size: 28px;
   font-weight: 800;
-  margin: 0 0 6px;
+  margin: 0 0 10px;
   color: var(--text);
   letter-spacing: -0.02em;
 }
-.auth-tagline {
+/* Hero line — replaces the old .auth-tagline */
+.auth-hero {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1.25;
+  margin: 0 0 20px;
+}
+/* Loop strip — four chips with chevron separators */
+.auth-loop {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 4px 2px;
+  margin: 0 0 20px;
+}
+.auth-loop-sep {
   color: var(--text-dim);
-  font-size: 15px;
-  margin: 0;
+  font-size: 14px;
+  padding: 0 2px;
+  user-select: none;
+}
+.auth-loop-chip {
+  display: inline-block;
+  padding: 5px 12px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  background: var(--surface-2);
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+/* Cycling animation: each chip lights up in sequence on a 4 s loop.
+   Reduced-motion users see all chips at rest (static, fully legible). */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes auth-chip-pulse {
+    0%, 20%   { background: var(--accent); color: #0b1f10; }
+    25%, 100% { background: var(--surface-2); color: var(--text-dim); }
+  }
+  .auth-loop-chip--1 { animation: auth-chip-pulse 4s ease-in-out infinite 0s; }
+  .auth-loop-chip--2 { animation: auth-chip-pulse 4s ease-in-out infinite 1s; }
+  .auth-loop-chip--3 { animation: auth-chip-pulse 4s ease-in-out infinite 2s; }
+  .auth-loop-chip--4 { animation: auth-chip-pulse 4s ease-in-out infinite 3s; }
+}
+/* Light-mode contrast fix: --accent (#00a86b) on white is borderline;
+   use --accent-pressed (#007a4d) for the active chip background. */
+[data-theme="light"] {
+  @media (prefers-reduced-motion: no-preference) {
+    @keyframes auth-chip-pulse-light {
+      0%, 20%   { background: var(--accent-pressed); color: #fff; }
+      25%, 100% { background: var(--surface-2); color: var(--text-dim); }
+    }
+    .auth-loop-chip--1 { animation: auth-chip-pulse-light 4s ease-in-out infinite 0s; }
+    .auth-loop-chip--2 { animation: auth-chip-pulse-light 4s ease-in-out infinite 1s; }
+    .auth-loop-chip--3 { animation: auth-chip-pulse-light 4s ease-in-out infinite 2s; }
+    .auth-loop-chip--4 { animation: auth-chip-pulse-light 4s ease-in-out infinite 3s; }
+  }
 }
 .auth-benefits {
   list-style: none;
@@ -1527,7 +1581,21 @@ body {
   background-position: center;
   background-size: 12px 12px;
 }
-.auth-form { display: flex; flex-direction: column; gap: 16px; }
+/* Price/trust line */
+.auth-trust {
+  font-size: 13px;
+  color: var(--text-dim);
+  text-align: center;
+  margin: 18px 0;
+}
+/* Divider separating pitch from the email action */
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  border-top: 1px solid var(--border);
+  padding-top: 20px;
+}
 .auth-label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; color: var(--text-dim); font-weight: 500; }
 .auth-label input {
   background: var(--surface);
