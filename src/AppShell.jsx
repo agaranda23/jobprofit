@@ -333,12 +333,15 @@ export default function AppShell() {
         // Reset PostHog identity so the next sign-in gets a clean anonymous profile.
         try { posthog.reset(); } catch { /* PostHog not initialised or blocked — silently no-op */ }
       }
-      // sign_up: fires on the first SIGNED_IN event for a brand-new account.
-      // Supabase uses event='SIGNED_IN' for both sign-in and sign-up. We
-      // disambiguate by checking created_at ≈ now (within 30 s).
+      // Funnel step 3: signed_in — fires on every SIGNED_IN event.
+      // is_new_user = true when created_at is within the last 60 s, meaning this
+      // is their first ever sign-in rather than a returning login. 60 s gives
+      // enough headroom for slow email delivery + link tap without false positives.
+      // sign_up is kept alongside it for backward-compat with existing dashboards.
       if (_event === 'SIGNED_IN' && newSession?.user) {
         const createdAt = new Date(newSession.user.created_at ?? 0).getTime();
-        const isNew = Date.now() - createdAt < 30_000;
+        const isNew = Date.now() - createdAt < 60_000;
+        logTelemetry('signed_in', { is_new_user: isNew });
         if (isNew) logTelemetry('sign_up', { plan: 'free' });
       }
     });
@@ -521,6 +524,21 @@ export default function AppShell() {
     try {
       await addJobToCloud(job);
       await refreshFromCloud();
+      // Funnel step 4a: every job save — used for funnel volume analysis.
+      logTelemetry('job_logged');
+      // Funnel step 4b: ACTIVATION — fires once per user on their very first job.
+      // Guard: jp.telemetry.activated in localStorage prevents re-firing on
+      // subsequent jobs or re-logins. This is intentionally localStorage-scoped
+      // (not server-side) because we care about first-value on this device.
+      // If the user clears storage they may re-fire once — acceptable for a
+      // funnel signal that only affects analytics, not app behaviour.
+      if (!localStorage.getItem('jp.telemetry.activated')) {
+        localStorage.setItem('jp.telemetry.activated', '1');
+        const userId = session?.user?.id;
+        const createdAt = userId ? new Date(session.user.created_at ?? 0).getTime() : null;
+        const secsSinceSignup = createdAt ? Math.round((Date.now() - createdAt) / 1000) : null;
+        logTelemetry('user_activated', { secs_since_signup: secsSinceSignup });
+      }
     } catch (e) {
       console.error('Add job failed — queuing for offline sync', e);
       // Write locally so the UI reflects the save immediately, then enqueue
