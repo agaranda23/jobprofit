@@ -21,16 +21,15 @@ import { startCheckout } from '../lib/billing';
 import { logTelemetry } from '../lib/telemetry';
 
 const FEATURES = [
+  { label: 'Unlimited invoices', sub: '10/month free — Pro removes the cap' },
+  { label: 'Full chase ladder', sub: 'polite nudge → firm reminder → final notice — escalating chasers are Pro' },
   { label: 'True Profit after overhead', sub: 'see what you actually make, not just what came in' },
   { label: 'Tax pot (year-to-date)', sub: 'keep enough back for the taxman, all year' },
   { label: 'Est. Profit/Hour', sub: 'know if your time is actually worth it' },
   { label: 'Best & worst jobs', sub: 'stop taking work that loses you money' },
   { label: 'Margin nudges', sub: 'get told when your margin slipped this week' },
-  { label: 'Cashflow Profit-vs-Cost view', sub: 'the trend that matters' },
   { label: 'Tax pot reminder on Today', sub: 'every day you open the app' },
   { label: 'VAT this quarter', sub: 'what to set aside for HMRC if VAT-registered' },
-  { label: 'Automatic chase ladder', sub: 'late invoices chased so you don\'t have to' },
-  { label: 'Unlimited invoices', sub: 'vs 3/month on free' },
 ];
 
 const COMPETITORS = [

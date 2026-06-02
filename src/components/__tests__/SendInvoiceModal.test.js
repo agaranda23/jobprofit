@@ -170,30 +170,46 @@ describe('invoiceSentAt — field written on first send', () => {
 });
 
 // ── canSendInvoice paywall gate ───────────────────────────────────────────────
+// canSendInvoice now uses a monthly compute-on-the-fly count (10/month free).
+// The old invoices_sent_count field on the profile is inert for gating.
 
-describe('canSendInvoice — paywall gating', () => {
-  it('free user with 0 sends can send', () => {
-    expect(canSendInvoice(freeProfile())).toBe(true);
+describe('canSendInvoice — paywall gating (10/month)', () => {
+  const NOW = new Date('2026-06-15T10:00:00Z');
+
+  function nSentThisMonth(n) {
+    return Array.from({ length: n }, (_, i) => ({
+      status: 'invoice_sent',
+      invoiceSentAt: `2026-06-${String(i + 1).padStart(2, '0')}T10:00:00Z`,
+    }));
+  }
+
+  it('free user with 0 this-month sends can send', () => {
+    expect(canSendInvoice(freeProfile(), [], NOW)).toBe(true);
   });
 
-  it('free user with 1 send follows the override flag (blocked only when limits are on)', () => {
-    expect(canSendInvoice(freeProfile({ invoices_sent_count: 1 }))).toBe(UNLOCK_PRO_FOR_ALL ? true : false);
+  it('free user with 9 this-month sends can still send', () => {
+    expect(canSendInvoice(freeProfile(), nSentThisMonth(9), NOW)).toBe(true);
   });
 
-  it('free user with 5 sends follows the override flag', () => {
-    expect(canSendInvoice(freeProfile({ invoices_sent_count: 5 }))).toBe(UNLOCK_PRO_FOR_ALL ? true : false);
+  it('free user with 10 this-month sends is blocked (follows override flag)', () => {
+    expect(canSendInvoice(freeProfile(), nSentThisMonth(10), NOW)).toBe(UNLOCK_PRO_FOR_ALL ? true : false);
   });
 
-  it('pro user is always allowed regardless of send count', () => {
-    expect(canSendInvoice(proProfile({ invoices_sent_count: 99 }))).toBe(true);
+  it('invoices_sent_count on the profile is no longer read for gating', () => {
+    // Even if the legacy counter is high, the monthly count (0) is what matters.
+    expect(canSendInvoice(freeProfile({ invoices_sent_count: 999 }), [], NOW)).toBe(true);
+  });
+
+  it('pro user is always allowed regardless of this-month count', () => {
+    expect(canSendInvoice(proProfile(), nSentThisMonth(10), NOW)).toBe(true);
   });
 
   it('null profile (unauthenticated) allows send — first-send free', () => {
-    expect(canSendInvoice(null)).toBe(true);
+    expect(canSendInvoice(null, [], NOW)).toBe(true);
   });
 
   it('undefined profile allows send', () => {
-    expect(canSendInvoice(undefined)).toBe(true);
+    expect(canSendInvoice(undefined, [], NOW)).toBe(true);
   });
 });
 

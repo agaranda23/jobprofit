@@ -48,6 +48,8 @@ import {
 import { buildWhatsAppLink } from '../lib/invoiceMessage';
 import { buildQuoteWhatsAppMessage } from '../lib/quoteMessage';
 import { logTelemetry } from '../lib/telemetry';
+import { isPro } from '../lib/plan';
+import { startCheckout } from '../lib/billing';
 import {
   readVisits,
   writeVisits,
@@ -2271,6 +2273,10 @@ export default function JobDetailDrawer({
   const kebabRef = useRef(null);
   // Profit breakdown sheet — opened by ribbon tap or viewProfitBreakdown action
   const [profitSheetOpen, setProfitSheetOpen] = useState(false);
+  // Chase escalation paywall — tier-2/3 chase is Pro-only. Tier-1 chase is free.
+  const [chasePaywallOpen, setChasePaywallOpen] = useState(false);
+  const [chasePaywallBusy, setChasePaywallBusy] = useState(false);
+  const [chasePaywallError, setChasePaywallError] = useState(null);
 
   // Stage-aware section expansion — Direction 2.
   // Initialised lazily from getDrawerSectionConfig so the default open/closed
@@ -2522,6 +2528,17 @@ export default function JobDetailDrawer({
 
   const handleChase = () => {
     if (chaseBlocked) return;
+
+    // Tier-2 and tier-3 (escalating chasers) are Pro-only.
+    // Tier-1 (polite nudge) and tier-0 (pre-due heads-up) remain free.
+    // 'grace' never reaches this handler (shouldShowChase guards it out).
+    const effectiveTier = typeof tier === 'number' ? tier : 1;
+    if (effectiveTier >= 2 && !isPro(profile)) {
+      logTelemetry('paywall_chase_hit', { tier: effectiveTier, plan: profile?.plan ?? 'free' });
+      setChasePaywallOpen(true);
+      return;
+    }
+
     const phone = resolvePhone(job);
     const outstanding = computeBalance(job);
     const amountPaid = computeAmountPaid(job);
@@ -3974,6 +3991,66 @@ export default function JobDetailDrawer({
           onSave={handleEditPaymentSave}
           onClose={() => setEditingPayment(null)}
         />
+      )}
+
+      {/* Chase escalation paywall — tier-2/3 chasers are Pro-only.
+          Tier-1 (polite nudge) is free and never triggers this sheet. */}
+      {chasePaywallOpen && (
+        <div
+          className="modal-backdrop modal-backdrop--top"
+          onClick={e => { if (e.target === e.currentTarget) setChasePaywallOpen(false); }}
+        >
+          <div className="modal-sheet">
+            <div className="modal-sheet-header">
+              <h3 className="modal-sheet-title">Escalating chasers are Pro</h3>
+              <button
+                className="modal-sheet-close"
+                onClick={() => setChasePaywallOpen(false)}
+                aria-label="Close"
+              >
+                &#x2715;
+              </button>
+            </div>
+            <div className="modal-sheet-body">
+              <p className="modal-sheet-text">
+                £12/mo unlocks the full chase ladder — polite nudge &rarr; firm reminder &rarr; final notice.
+              </p>
+              <p className="modal-sheet-text">
+                Your first (tier-1) chaser is always free.
+              </p>
+            </div>
+            <div className="modal-price-block">
+              <div className="modal-price">£12<span className="modal-price-period">/month</span></div>
+              <div className="modal-price-sub">cancel anytime &middot; 14-day free trial</div>
+            </div>
+            {chasePaywallError && (
+              <p className="modal-sheet-error" role="alert">{chasePaywallError}</p>
+            )}
+            <button
+              type="button"
+              className="btn-primary modal-sheet-btn"
+              disabled={chasePaywallBusy}
+              onClick={async () => {
+                setChasePaywallBusy(true);
+                setChasePaywallError(null);
+                logTelemetry('upgrade_clicked', { source: 'chase_paywall' });
+                const { error } = await startCheckout();
+                if (error) {
+                  setChasePaywallError(error);
+                  setChasePaywallBusy(false);
+                }
+              }}
+            >
+              {chasePaywallBusy ? 'Loading…' : 'Get Pro'}
+            </button>
+            <button
+              className="btn-ghost modal-sheet-btn"
+              onClick={() => setChasePaywallOpen(false)}
+            >
+              Not yet
+            </button>
+          </div>
+        </div>
       )}
     </>
   );

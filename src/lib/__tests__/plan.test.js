@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { isPro, planAllowsPro, canSendInvoice, incrementSendCount, UNLOCK_PRO_FOR_ALL, isTrialActive, trialDaysLeft } from '../plan.js';
+import { isPro, planAllowsPro, canSendInvoice, countInvoicesSentThisMonth, incrementSendCount, UNLOCK_PRO_FOR_ALL, FREE_MONTHLY_INVOICE_LIMIT, isTrialActive, trialDaysLeft } from '../plan.js';
 
 // ──────────────────────────────────────────────────────────────────────────
 // The real entitlement rule — always valid regardless of the temporary
@@ -50,37 +50,117 @@ describe('isPro (with override)', () => {
 });
 
 // ──────────────────────────────────────────────────────────────────────────
+// countInvoicesSentThisMonth — compute-on-the-fly monthly count helper
+// ──────────────────────────────────────────────────────────────────────────
+describe('countInvoicesSentThisMonth', () => {
+  const NOW = new Date('2026-06-15T10:00:00Z');
+  const THIS_MONTH_DATE = '2026-06-03T08:00:00Z';
+  const PREV_MONTH_DATE = '2026-05-31T23:59:59Z';
+
+  function invoicedJob(invoiceSentAt) {
+    return { status: 'invoice_sent', invoiceSentAt };
+  }
+
+  it('returns 0 for an empty jobs array', () => {
+    expect(countInvoicesSentThisMonth([], NOW)).toBe(0);
+  });
+
+  it('counts jobs with status invoice_sent and invoiceSentAt in the current month', () => {
+    const jobs = [invoicedJob(THIS_MONTH_DATE)];
+    expect(countInvoicesSentThisMonth(jobs, NOW)).toBe(1);
+  });
+
+  it('does not count jobs sent in the previous month', () => {
+    const jobs = [invoicedJob(PREV_MONTH_DATE)];
+    expect(countInvoicesSentThisMonth(jobs, NOW)).toBe(0);
+  });
+
+  it('does not count jobs with a non-invoice_sent status', () => {
+    const jobs = [{ status: 'complete', invoiceSentAt: THIS_MONTH_DATE }];
+    expect(countInvoicesSentThisMonth(jobs, NOW)).toBe(0);
+  });
+
+  it('does not count jobs missing invoiceSentAt', () => {
+    const jobs = [{ status: 'invoice_sent', invoiceSentAt: null }];
+    expect(countInvoicesSentThisMonth(jobs, NOW)).toBe(0);
+  });
+
+  it('counts multiple this-month sends correctly', () => {
+    const jobs = [
+      invoicedJob(THIS_MONTH_DATE),
+      invoicedJob('2026-06-10T12:00:00Z'),
+      invoicedJob('2026-06-14T23:59:00Z'),
+      invoicedJob(PREV_MONTH_DATE), // should not count
+    ];
+    expect(countInvoicesSentThisMonth(jobs, NOW)).toBe(3);
+  });
+
+  it('counts a send on UTC midnight of the 1st as this month', () => {
+    const firstOfMonth = new Date('2026-06-01T00:00:00Z');
+    const jobs = [invoicedJob('2026-06-01T00:00:00.000Z')];
+    expect(countInvoicesSentThisMonth(jobs, firstOfMonth)).toBe(1);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// canSendInvoice — 10/month free limit, compute-on-the-fly
+// ──────────────────────────────────────────────────────────────────────────
 describe('canSendInvoice', () => {
-  it('allows send when invoices_sent_count is 0 (first free send)', () => {
-    expect(canSendInvoice({ plan: 'free', invoices_sent_count: 0 })).toBe(true);
+  const NOW = new Date('2026-06-15T10:00:00Z');
+  const THIS_MONTH = '2026-06-03T08:00:00Z';
+  const PREV_MONTH = '2026-05-31T23:59:59Z';
+
+  function freeProfile() { return { plan: 'free' }; }
+  function proProfile()  { return { plan: 'pro' }; }
+
+  function nJobsThisMonth(n) {
+    return Array.from({ length: n }, (_, i) => ({
+      status: 'invoice_sent',
+      invoiceSentAt: `2026-06-${String(i + 1).padStart(2, '0')}T10:00:00Z`,
+    }));
+  }
+
+  it(`allows send when free user has sent 0 invoices this month`, () => {
+    expect(canSendInvoice(freeProfile(), [], NOW)).toBe(true);
   });
 
-  it('over-quota free send follows the override flag (blocked only when limits are on)', () => {
-    expect(canSendInvoice({ plan: 'free', invoices_sent_count: 1 })).toBe(UNLOCK_PRO_FOR_ALL ? true : false);
+  it(`allows send when free user has sent ${FREE_MONTHLY_INVOICE_LIMIT - 1} invoices this month`, () => {
+    const jobs = nJobsThisMonth(FREE_MONTHLY_INVOICE_LIMIT - 1);
+    expect(canSendInvoice(freeProfile(), jobs, NOW)).toBe(true);
   });
 
-  it('over-quota (count > 1) free send follows the override flag', () => {
-    expect(canSendInvoice({ plan: 'free', invoices_sent_count: 5 })).toBe(UNLOCK_PRO_FOR_ALL ? true : false);
+  it(`blocks send when free user has sent ${FREE_MONTHLY_INVOICE_LIMIT} invoices this month`, () => {
+    const jobs = nJobsThisMonth(FREE_MONTHLY_INVOICE_LIMIT);
+    expect(canSendInvoice(freeProfile(), jobs, NOW)).toBe(UNLOCK_PRO_FOR_ALL ? true : false);
   });
 
-  it('allows send for pro regardless of invoices_sent_count', () => {
-    expect(canSendInvoice({ plan: 'pro', invoices_sent_count: 99 })).toBe(true);
+  it('does not count previous-month sends against the free quota', () => {
+    // 10 sends last month + 0 this month = should still be allowed
+    const prevMonthJobs = Array.from({ length: FREE_MONTHLY_INVOICE_LIMIT }, () => ({
+      status: 'invoice_sent',
+      invoiceSentAt: PREV_MONTH,
+    }));
+    expect(canSendInvoice(freeProfile(), prevMonthJobs, NOW)).toBe(true);
   });
 
-  it('allows send for pro with count = 0', () => {
-    expect(canSendInvoice({ plan: 'pro', invoices_sent_count: 0 })).toBe(true);
+  it('allows send for Pro user regardless of this-month count', () => {
+    const jobs = nJobsThisMonth(FREE_MONTHLY_INVOICE_LIMIT);
+    expect(canSendInvoice(proProfile(), jobs, NOW)).toBe(true);
   });
 
-  it('defaults to free (count=0 → allowed) when profile is null', () => {
-    // Null profile means unloaded — we give benefit of the doubt for first send.
-    expect(canSendInvoice(null)).toBe(true);
+  it('allows send for Pro user with no jobs', () => {
+    expect(canSendInvoice(proProfile(), [], NOW)).toBe(true);
+  });
+
+  it('defaults to allowed when profile is null (unloaded — benefit of the doubt)', () => {
+    expect(canSendInvoice(null, [], NOW)).toBe(true);
   });
 
   it('defaults to allowed when profile is undefined', () => {
-    expect(canSendInvoice(undefined)).toBe(true);
+    expect(canSendInvoice(undefined, [], NOW)).toBe(true);
   });
 
-  it('defaults invoices_sent_count to 0 when field is missing (free profile, first send)', () => {
+  it('defaults jobs to [] when not provided (backwards-compatible call)', () => {
     expect(canSendInvoice({ plan: 'free' })).toBe(true);
   });
 });
@@ -279,5 +359,68 @@ describe('isPro — trial-aware entitlement', () => {
 
   it('null profile follows the override flag (defaults to free when off)', () => {
     expect(isPro(null, now)).toBe(UNLOCK_PRO_FOR_ALL ? true : false);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// Chase escalation Pro-gating rule
+// Rule: tier >= 2 is Pro-only; tier 0 and tier 1 are free.
+// This rule is enforced in JobDetailDrawer's handleChase via isPro().
+// These tests verify the isPro() predicate behaviour that drives the gate.
+// ──────────────────────────────────────────────────────────────────────────
+describe('chase escalation Pro-gating — isPro predicate', () => {
+  const now = new Date();
+  const future = new Date(Date.now() + 5 * 86400000);
+
+  // Helper: given a tier and a profile, should the chase be blocked?
+  // Mirrors the guard in handleChase: blocked when tier >= 2 AND !isPro(profile)
+  function isChaseEscalationBlocked(tier, profile) {
+    if (typeof tier !== 'number' || tier < 2) return false;
+    return !isPro(profile, now);
+  }
+
+  it('tier-1 chase is NEVER blocked for a free user', () => {
+    expect(isChaseEscalationBlocked(1, { plan: 'free' })).toBe(false);
+  });
+
+  it('tier-0 (pre-due) chase is NEVER blocked for a free user', () => {
+    expect(isChaseEscalationBlocked(0, { plan: 'free' })).toBe(false);
+  });
+
+  it('"grace" tier is treated as non-escalation (guard short-circuits before tier check)', () => {
+    // 'grace' is not a number, so tier >= 2 is false — never blocked
+    expect(isChaseEscalationBlocked('grace', { plan: 'free' })).toBe(false);
+  });
+
+  it('tier-2 chase is blocked for a free user (when override is off)', () => {
+    expect(isChaseEscalationBlocked(2, { plan: 'free' })).toBe(UNLOCK_PRO_FOR_ALL ? false : true);
+  });
+
+  it('tier-3 chase is blocked for a free user (when override is off)', () => {
+    expect(isChaseEscalationBlocked(3, { plan: 'free' })).toBe(UNLOCK_PRO_FOR_ALL ? false : true);
+  });
+
+  it('tier-2 chase is NOT blocked for a Pro user', () => {
+    expect(isChaseEscalationBlocked(2, { plan: 'pro' })).toBe(false);
+  });
+
+  it('tier-3 chase is NOT blocked for a Pro user', () => {
+    expect(isChaseEscalationBlocked(3, { plan: 'pro' })).toBe(false);
+  });
+
+  it('tier-2 chase is NOT blocked for a user on an active trial', () => {
+    const profile = { plan: 'trial', trial_ends_at: future.toISOString() };
+    // isTrialActive → isPro returns true → not blocked
+    if (!UNLOCK_PRO_FOR_ALL) {
+      expect(isChaseEscalationBlocked(2, profile)).toBe(false);
+    } else {
+      expect(isChaseEscalationBlocked(2, profile)).toBe(false); // override also wins
+    }
+  });
+
+  it('tier-2 chase is blocked for a user with an expired trial (falls back to free)', () => {
+    const pastDate = new Date(Date.now() - 86400000);
+    const profile = { plan: 'trial', trial_ends_at: pastDate.toISOString() };
+    expect(isChaseEscalationBlocked(2, profile)).toBe(UNLOCK_PRO_FOR_ALL ? false : true);
   });
 });

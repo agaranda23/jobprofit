@@ -497,8 +497,15 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
       {!userIsPro && <UpgradeBanner onUpgrade={handleUpgrade} />}
 
       {/* ── 3. Tax Pot card (Pro-gated) ────────────────────────────────── */}
-      {/* hasValue: only when there is positive YTD profit or CIS deducted */}
-      <ProGate locked={!userIsPro} hasValue={ytd.profit > 0 || ytd.cisDeductedYtd > 0} onUpgrade={() => handleUpgrade('progate')}>
+      {/* hasValue logic:
+          - Pro users: always false (they see real content, not the blur chrome).
+          - Free users with data: true → ProGate blurs the real figures.
+          - Free users with NO data: also true → ProGate blurs the example teaser
+            so the temptation exists from day one.
+          Passing `!userIsPro` as the hasValue shorthand achieves this: ProGate
+          only blurs when locked=true AND hasValue=true, and for free users we
+          always want the blur chrome regardless of whether they have data. */}
+      <ProGate locked={!userIsPro} hasValue={!userIsPro} onUpgrade={() => handleUpgrade('progate')}>
         <div className="money-card money-tax-setaside">
           <div className="money-tax-setaside__label">Tax Pot</div>
 
@@ -512,7 +519,14 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
 
               if (ytd.paid === 0 && cisAmt === 0) {
                 return (
-                  <p className="money-tax-setaside__empty">Nothing to set aside yet this tax year</p>
+                  <>
+                    <div className="money-tax-setaside__figure pro-gate__figure money-insight--example-label">
+                      £437
+                    </div>
+                    <p className="money-tax-setaside__sub pro-gate__figure">
+                      Example — go Pro to see yours
+                    </p>
+                  </>
                 );
               }
 
@@ -557,9 +571,17 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
               );
             })()
           ) : (
-            /* ── Standard (non-CIS) view — byte-for-byte unchanged ─────── */
+            /* ── Standard (non-CIS) view ─────────────────────────────────── */
             ytd.profit <= 0 ? (
-              <p className="money-tax-setaside__empty">Nothing to set aside yet this tax year</p>
+              /* No real data yet — render example teaser so it blurs on day one */
+              <>
+                <div className="money-tax-setaside__figure pro-gate__figure">
+                  £437
+                </div>
+                <p className="money-tax-setaside__sub pro-gate__figure">
+                  Example — go Pro to see yours
+                </p>
+              </>
             ) : (
               <>
                 <div className="money-tax-setaside__figure pro-gate__figure">
@@ -674,8 +696,9 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
       </div>
 
       {/* ── 7. Est. Profit/Hour (Pro-gated) ──────────────────────────────── */}
-      {/* hasValue: only when getProfitPerHour returned a real number */}
-      <ProGate locked={!userIsPro} hasValue={profitPerHour.value !== null} onUpgrade={() => handleUpgrade('progate')}>
+      {/* hasValue: always true for free users (show example teaser day one).
+          For Pro users the gate is unlocked so hasValue has no effect. */}
+      <ProGate locked={!userIsPro} hasValue={!userIsPro || profitPerHour.value !== null} onUpgrade={() => handleUpgrade('progate')}>
         {profitPerHour.value !== null ? (
           <div className="money-card money-insight money-insight--pph">
             <div className="money-insight__row">
@@ -701,30 +724,45 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
             )}
           </div>
         ) : (
-          <div className="money-card money-insight money-insight--pph money-insight--empty">
+          /* No real profit/hour data yet — show example teaser for free users so
+             the card is visible and blurred from day one. Pro users with no data
+             see the setup prompt as before (gate is unlocked for them). */
+          <div className="money-card money-insight money-insight--pph">
             <div className="money-insight__row">
               <span className="money-insight__label">Est. Profit/Hour</span>
               <span className="money-insight__tooltip" title="Based on your default hourly rate. Add hours to a job to make this exact.">
                 &#x24D8;
               </span>
             </div>
-            <p className="money-insight__hint">
-              Set your hourly rate in Settings to unlock this insight.
+            <div className="money-insight__value pro-gate__figure">
+              £18/hr
+            </div>
+            <p className="money-insight__rate-compare pro-gate__figure">
+              Example &mdash; go Pro to see yours
             </p>
           </div>
         )}
       </ProGate>
 
       {/* ── 8. Best & worst jobs (Pro-gated) ─────────────────────────────── */}
-      {/* hasValue: only when there is at least one qualifying completed job */}
-      <ProGate locked={!userIsPro} hasValue={!!bestWorstJobs.best} onUpgrade={() => handleUpgrade('progate')}>
+      {/* hasValue: always true for free users (show example teaser day one).
+          For Pro users the gate is unlocked so hasValue has no effect. */}
+      <ProGate locked={!userIsPro} hasValue={!userIsPro || !!bestWorstJobs.best} onUpgrade={() => handleUpgrade('progate')}>
         {bestWorstJobs.best ? (
           <BestWorstCard best={bestWorstJobs.best} worst={bestWorstJobs.worst} />
         ) : (
-          <div className="money-card money-best-worst money-best-worst--empty">
+          /* No real jobs yet — show example teaser for free users.
+             Pro users without completed jobs see the setup prompt as before. */
+          <div className="money-card money-best-worst">
             <div className="money-best-worst__label">Best &amp; worst jobs</div>
-            <p className="money-best-worst__hint">
-              Log a few completed jobs to see which earn the most.
+            <div className="money-best-worst__best pro-gate__figure">
+              Best: Bathroom refit &middot; £620 profit
+            </div>
+            <div className="money-best-worst__worst pro-gate__figure">
+              Worst: Fence repair &middot; £38 profit
+            </div>
+            <p className="money-best-worst__hint pro-gate__figure">
+              Example &mdash; go Pro to see yours
             </p>
           </div>
         )}

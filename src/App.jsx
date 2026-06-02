@@ -10,6 +10,7 @@ import { generatePublicAccessToken } from "./lib/publicQuoteToken";
 import { getMissingInvoiceFields } from "./lib/bizValidation";
 import { writeJobMeta, extractJobMeta, applyJobMetaToJobs } from "./lib/jobMeta";
 import { canSendInvoice, incrementSendCount } from "./lib/plan";
+import { logTelemetry } from "./lib/telemetry";
 import { supabase } from "./lib/supabase";
 import StatusBadge from "./components/StatusBadge";
 import RecordPaymentModal from "./components/RecordPaymentModal";
@@ -186,7 +187,8 @@ function SendInvoiceModal({ job, biz, profile, jobs, onUpdate, onClose, flash })
   // Perform the status transition + send-count increment (first sends only).
   // Returns false if the paywall should open instead.
   const attemptSend = () => {
-    if (isFirstSend && !canSendInvoice(profile)) {
+    if (isFirstSend && !canSendInvoice(profile, jobs)) {
+      logTelemetry('paywall_invoice_cap_hit', { plan: profile?.plan ?? 'free', cap: 'monthly_10' });
       setView('paywall');
       return false;
     }
@@ -204,7 +206,7 @@ function SendInvoiceModal({ job, biz, profile, jobs, onUpdate, onClose, flash })
       // Optimistic: increment locally is handled by AppShell re-fetching profile on next load.
       // Fire the Supabase write without blocking the UI.
       incrementSendCount(supabase, profile?.id);
-      flash("Invoice sent. First one's on us — Pro unlocks the rest.", 5000);
+      flash("Invoice sent", 5000);
     }
     return true;
   };
