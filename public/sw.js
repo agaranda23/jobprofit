@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v55';  // bumped from v54: auto-stage Lead→Quoted on quote send, Quoted→On on customer sign
+const CACHE_NAME = 'jobprofit-v56';  // bumped from v55: Schedule accordion definitive fix — conditional render replaces max-height animation (container now reflows in WebKit PWA)
 const PRECACHE = [
   '/',
   '/index.html',

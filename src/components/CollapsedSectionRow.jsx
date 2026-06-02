@@ -6,8 +6,8 @@ import React, { useState, useEffect } from 'react';
  * Design A Step 2 (PRD 2026-05-30):
  *   - Whole 48px row is the tap target (no separate chevron tap)
  *   - Multi-expand: parent does not coordinate collapse (each row owns state)
- *   - 220ms ease-out height transition via max-height animation
- *   - prefers-reduced-motion: instant snap, no transition
+ *   - Instant show/hide with optional opacity fade-in (does NOT affect layout)
+ *   - prefers-reduced-motion: no transition (snap)
  *   - When needsAttention is true: amber left-border, amber "Fix" pill, default-expanded
  *
  * Props:
@@ -19,22 +19,50 @@ import React, { useState, useEffect } from 'react';
  *   defaultExpanded – boolean; initial open state (can be overridden by needsAttention)
  *   children        – full section body rendered when expanded
  *
- * Expansion technique: max-height animation
- *   Collapsed: max-height: 0  → overflow:hidden clips content to nothing
- *   Expanded:  max-height: 2000px → large enough for any panel (Quote with many
- *              line items, Costs with many receipts). The CSS transition animates
- *              between these values. The 2000px ceiling is intentionally over-sized
- *              so it never clips real content; the actual rendered height is always
- *              smaller. Animation timing feels slightly faster on short panels because
- *              the transition covers less of the 2000px range — acceptable trade-off
- *              for zero JS layout measurement and universal browser support.
+ * Expansion technique: conditional render (children are only in the DOM when expanded)
  *
- * Why we abandoned the CSS grid-template-rows (0fr → 1fr) trick (PR #192):
- *   Four rounds of testing showed the grid trick fails to reveal content in the
- *   production PWA on the devices we tested (375px viewport). Static analysis could
- *   not reproduce the failure, suggesting a browser/PWA cache or rendering-order
- *   interaction. The max-height pattern has been the industry standard for 10+ years,
- *   works in every browser, and requires no inner wrapper div.
+ *   Collapsed: {expanded ? children : null} renders nothing → panel div is naturally
+ *              0-height → .jd-csr container fits only the trigger row (48px).
+ *   Expanded:  children are real in-flow DOM → panel grows to its content height →
+ *              .jd-csr container grows with it → siblings below (Quote, Costs cards)
+ *              are PUSHED DOWN by normal block layout. No overflow, no overlap.
+ *
+ * Why we abandoned all three previous animation approaches:
+ *
+ *   1. JS scrollHeight measurement (earliest approach):
+ *      Too much resize-observer complexity; abandoned before shipping.
+ *
+ *   2. CSS grid-template-rows (0fr → 1fr) trick (PR #192):
+ *      Four rounds of testing showed the grid trick fails to reveal content in the
+ *      production PWA on the devices we tested (375px viewport). Static analysis could
+ *      not reproduce the failure, suggesting a browser/PWA cache or rendering-order
+ *      interaction.
+ *
+ *   3. max-height: 0 → 2000px animation (shipped, caused the 8th regression):
+ *      This is the definitive root cause. The overflow: hidden on the panel clips
+ *      content when collapsed, which requires the .jd-csr container to NOT have
+ *      overflow: hidden (that was the 4th regression). But the real problem is deeper:
+ *      in the iOS/PWA WebKit target, the .jd-csr container does NOT grow to contain
+ *      the expanding panel — it stays at its min-height: 48px layout box. The panel's
+ *      revealed content (up to 2000px) renders as VISUAL OVERFLOW spilling below the
+ *      48px container, overlapping the next sibling card (Quote), which is laid out
+ *      immediately under Schedule's 48px box. Because the panel is overflow (not
+ *      in-flow layout), siblings never reflow/push down. Paint order then decides who
+ *      shows on top: Quote is later in the DOM and was position: relative (from the
+ *      7th fix), so Quote painted over Schedule's spilled panel. Schedule's options
+ *      appeared BEHIND the Quote card.
+ *
+ *      Reproduction: open Schedule while Quote is default-expanded → Schedule options
+ *      render behind Quote. Collapse Quote first, then open Schedule → renders fine.
+ *      (Collapsing Quote removes its position context; Schedule's overflowing panel
+ *      then paints over Quote. Confirms the cause is paint-order on overflow content,
+ *      not a z-index value.)
+ *
+ *      The 5th–7th fixes (position: relative, z-index, opaque panel background) were
+ *      treating the SYMPTOM (paint-order / bleed-through). The actual cause was that
+ *      the container never grew, so the panel was always overflow. Conditional render
+ *      eliminates the overflow entirely — children are real in-flow DOM → container
+ *      grows → siblings push down → no stacking-context dependency needed.
  */
 export default function CollapsedSectionRow({
   id,
@@ -63,6 +91,12 @@ export default function CollapsedSectionRow({
   const panelId = `jd-csr-panel-${id}`;
   const triggerId = `jd-csr-trigger-${id}`;
 
+  // Opacity fade-in on the panel: only affects painting (not layout), so it
+  // is safe in the PWA/WebKit target. Gated on prefers-reduced-motion.
+  const panelStyle = prefersReducedMotion
+    ? {}
+    : { transition: 'opacity 180ms ease-out', opacity: expanded ? 1 : 0 };
+
   return (
     <div className={`jd-csr${expanded ? ' jd-csr--expanded' : ''}${needsAttention ? ' jd-csr--attention' : ''}`}>
       <button
@@ -87,23 +121,23 @@ export default function CollapsedSectionRow({
       </button>
 
       {/*
-        Panel — always in DOM (no conditional render) so aria-controls target exists.
-        max-height transitions between 0 (collapsed) and 2000px (expanded).
-        overflow:hidden clips content when max-height is 0.
-        Children render directly — no inner wrapper div needed.
+        Panel — always in DOM so aria-controls target is always valid.
+        Children are conditionally rendered: present when expanded, null when collapsed.
+        When collapsed: panel div has no children → natural 0 height → .jd-csr
+          container stays at trigger-row height → siblings sit immediately below.
+        When expanded: children are real in-flow DOM → panel grows to content height →
+          .jd-csr container grows with it → siblings are pushed DOWN by block layout.
+        No max-height, no overflow:hidden, no layout animation — the container reflows
+        naturally, eliminating the overflow-spill-behind-sibling failure mode.
       */}
       <div
         id={panelId}
         role="region"
         aria-labelledby={triggerId}
         className="jd-csr-panel"
-        style={{
-          maxHeight: expanded ? '2000px' : '0',
-          overflow: 'hidden',
-          transition: prefersReducedMotion ? 'none' : 'max-height 220ms ease-out',
-        }}
+        style={panelStyle}
       >
-        {children}
+        {expanded ? children : null}
       </div>
     </div>
   );
