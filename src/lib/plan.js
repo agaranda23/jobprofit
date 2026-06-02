@@ -1,4 +1,4 @@
-// Paywall helpers — plan gating for invoice sends.
+// Paywall helpers — plan gating for invoice sends and Pro features.
 // No Stripe wiring in this file. Pro state comes from profiles.plan (Supabase).
 // Supabase migration (run in Studio before deploying this PR):
 //
@@ -13,6 +13,13 @@
 // The underlying plan rule is preserved in planAllowsPro() and stays tested.
 // NOTE: while this is true, trial banners are also suppressed (see TrialBanner).
 export const UNLOCK_PRO_FOR_ALL = false;
+
+/**
+ * Free-tier invoice send limit per calendar month.
+ * Resets at UTC midnight on the 1st of each month.
+ * Pro users are never subject to this limit.
+ */
+export const FREE_MONTHLY_INVOICE_LIMIT = 10;
 
 /**
  * The real entitlement rule (kept intact for when the override is lifted).
@@ -68,20 +75,48 @@ export function isPro(profile, now = new Date()) {
 }
 
 /**
+ * Counts invoice sends in the current UTC calendar month.
+ * A send is counted when a job has status === 'invoice_sent' AND
+ * invoiceSentAt falls on or after UTC midnight on the 1st of the current month.
+ *
+ * This is a compute-on-the-fly approach — no DB counter needed. The count
+ * is derived from the jobs array the caller already holds in memory.
+ *
+ * @param {Array}  jobs  - full jobs array from app state
+ * @param {Date}   [now] - injectable for testing (defaults to new Date())
+ * @returns {number}
+ */
+export function countInvoicesSentThisMonth(jobs = [], now = new Date()) {
+  const startOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  return jobs.filter(j => {
+    if (j.status !== 'invoice_sent') return false;
+    if (!j.invoiceSentAt) return false;
+    return new Date(j.invoiceSentAt) >= startOfMonth;
+  }).length;
+}
+
+/**
  * Returns true when the user is allowed to perform a first-time invoice send.
- * Pro users always return true.
- * Free users get exactly 1 free send (invoices_sent_count === 0).
+ * Pro/trial users always return true (unlimited).
+ * Free users get FREE_MONTHLY_INVOICE_LIMIT sends per calendar month.
+ * The limit resets at UTC midnight on the 1st of each month.
  *
  * Re-sends on the same already-sent invoice do NOT call this — the caller
  * must guard on job.status !== 'invoice_sent' before calling canSendInvoice.
  *
+ * The legacy invoices_sent_count field on the profile row is now inert for
+ * gating. It may still be incremented by incrementSendCount for historical
+ * telemetry purposes but is no longer read here.
+ *
  * @param {object|null|undefined} profile  - Supabase profiles row
+ * @param {Array}  [jobs]  - full jobs array (needed for monthly count)
+ * @param {Date}   [now]   - injectable for testing (defaults to new Date())
  * @returns {boolean}
  */
-export function canSendInvoice(profile) {
-  if (isPro(profile)) return true;
-  // Free tier: 0 means first send available; 1+ means quota used
-  return (profile?.invoices_sent_count ?? 0) === 0;
+export function canSendInvoice(profile, jobs = [], now = new Date()) {
+  if (isPro(profile, now)) return true;
+  // Free tier: allowed until FREE_MONTHLY_INVOICE_LIMIT reached this calendar month.
+  return countInvoicesSentThisMonth(jobs, now) < FREE_MONTHLY_INVOICE_LIMIT;
 }
 
 /**
