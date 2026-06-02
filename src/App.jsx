@@ -186,7 +186,7 @@ function SendInvoiceModal({ job, biz, profile, jobs, onUpdate, onClose, flash })
   // Perform the status transition + send-count increment (first sends only).
   // Returns false if the paywall should open instead.
   const attemptSend = () => {
-    if (isFirstSend && !canSendInvoice(profile)) {
+    if (isFirstSend && !canSendInvoice(profile, jobs)) {
       setView('paywall');
       return false;
     }
@@ -201,10 +201,9 @@ function SendInvoiceModal({ job, biz, profile, jobs, onUpdate, onClose, flash })
         publicAccessToken: pendingToken,
         invoiceLinkSentAt: new Date().toISOString(),
       });
-      // Optimistic: increment locally is handled by AppShell re-fetching profile on next load.
-      // Fire the Supabase write without blocking the UI.
+      // Analytics write — no longer gates sends, but kept for DB analytics continuity.
       incrementSendCount(supabase, profile?.id);
-      flash("Invoice sent. First one's on us — Pro unlocks the rest.", 5000);
+      flash("Invoice sent.", 3000);
     }
     return true;
   };
@@ -254,7 +253,7 @@ function SendInvoiceModal({ job, biz, profile, jobs, onUpdate, onClose, flash })
           <button onClick={onClose} style={{ width: 36, height: 36, borderRadius: "50%", border: "none", background: T.surfaceAlt, cursor: "pointer", fontSize: 16, display: "flex", alignItems: "center", justifyContent: "center" }}>✕</button>
         </div>
         <div style={{ marginBottom: 20, display: "flex", flexDirection: "column", gap: 8 }}>
-          <p style={{ margin: 0, fontSize: 15, color: T.text, lineHeight: 1.5 }}>You sent your first invoice on us.</p>
+          <p style={{ margin: 0, fontSize: 15, color: T.text, lineHeight: 1.5 }}>{"You've used your 3 free invoices this month. Upgrade to Pro for unlimited (£12/mo), or wait until the 1st for your quota to reset."}</p>
           <p style={{ margin: 0, fontSize: 15, color: T.text, lineHeight: 1.5 }}>Pro keeps the loop running — every quote, every invoice, every chase, no cap.</p>
           <p style={{ margin: 0, fontSize: 15, color: T.text, lineHeight: 1.5 }}>Same app, same 30 seconds, no per-invoice fee.</p>
         </div>

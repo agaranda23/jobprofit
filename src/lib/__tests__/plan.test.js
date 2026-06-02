@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { isPro, planAllowsPro, canSendInvoice, incrementSendCount, UNLOCK_PRO_FOR_ALL, isTrialActive, trialDaysLeft } from '../plan.js';
+import { isPro, planAllowsPro, canSendInvoice, countInvoicesSentThisMonth, FREE_MONTHLY_INVOICE_LIMIT, incrementSendCount, UNLOCK_PRO_FOR_ALL, isTrialActive, trialDaysLeft } from '../plan.js';
 
 // ──────────────────────────────────────────────────────────────────────────
 // The real entitlement rule — always valid regardless of the temporary
@@ -50,38 +50,160 @@ describe('isPro (with override)', () => {
 });
 
 // ──────────────────────────────────────────────────────────────────────────
+// countInvoicesSentThisMonth — monthly count helper
+// ──────────────────────────────────────────────────────────────────────────
+describe('countInvoicesSentThisMonth', () => {
+  const NOW = new Date('2026-06-15T12:00:00Z');
+  // Timestamps inside June 2026
+  const juneEarly  = '2026-06-01T00:00:01Z';
+  const juneMid    = '2026-06-10T09:00:00Z';
+  const juneLate   = '2026-06-15T11:59:00Z';
+  // Timestamps outside June 2026
+  const mayLast    = '2026-05-31T23:59:59Z';
+  const julyFirst  = '2026-07-01T00:00:00Z';
+
+  function job(overrides) {
+    return { status: 'invoice_sent', invoiceSentAt: juneMid, ...overrides };
+  }
+
+  it('returns 0 for empty jobs array', () => {
+    expect(countInvoicesSentThisMonth([], NOW)).toBe(0);
+  });
+
+  it('counts jobs with status=invoice_sent and invoiceSentAt in the current month', () => {
+    const jobs = [job({ invoiceSentAt: juneEarly }), job({ invoiceSentAt: juneMid }), job({ invoiceSentAt: juneLate })];
+    expect(countInvoicesSentThisMonth(jobs, NOW)).toBe(3);
+  });
+
+  it('excludes jobs whose invoiceSentAt is in a previous month', () => {
+    const jobs = [job({ invoiceSentAt: mayLast }), job({ invoiceSentAt: juneMid })];
+    expect(countInvoicesSentThisMonth(jobs, NOW)).toBe(1);
+  });
+
+  it('excludes jobs whose invoiceSentAt is in a future month', () => {
+    const jobs = [job({ invoiceSentAt: julyFirst }), job({ invoiceSentAt: juneMid })];
+    expect(countInvoicesSentThisMonth(jobs, NOW)).toBe(1);
+  });
+
+  it('excludes jobs that are not in invoice_sent status', () => {
+    const jobs = [
+      job({ status: 'lead', invoiceSentAt: juneMid }),
+      job({ status: 'paid', invoiceSentAt: juneMid }),
+      job({ status: 'invoice_sent', invoiceSentAt: juneMid }),
+    ];
+    expect(countInvoicesSentThisMonth(jobs, NOW)).toBe(1);
+  });
+
+  it('excludes invoice_sent jobs with a missing invoiceSentAt', () => {
+    const jobs = [job({ invoiceSentAt: null }), job({ invoiceSentAt: undefined }), job({ invoiceSentAt: juneMid })];
+    expect(countInvoicesSentThisMonth(jobs, NOW)).toBe(1);
+  });
+
+  it('counts exactly on the first millisecond of the month (boundary)', () => {
+    const startOfMonth = new Date('2026-06-01T00:00:00.000Z');
+    const jobs = [job({ invoiceSentAt: startOfMonth.toISOString() })];
+    expect(countInvoicesSentThisMonth(jobs, NOW)).toBe(1);
+  });
+
+  it('excludes a send 1ms before the start of the month (boundary)', () => {
+    const jobs = [job({ invoiceSentAt: '2026-05-31T23:59:59.999Z' })];
+    expect(countInvoicesSentThisMonth(jobs, NOW)).toBe(0);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// canSendInvoice — 3/month free-tier rule (replaces the old 1-lifetime rule)
+// ──────────────────────────────────────────────────────────────────────────
 describe('canSendInvoice', () => {
-  it('allows send when invoices_sent_count is 0 (first free send)', () => {
-    expect(canSendInvoice({ plan: 'free', invoices_sent_count: 0 })).toBe(true);
+  const NOW = new Date('2026-06-15T12:00:00Z');
+  const THIS_MONTH = '2026-06-10T09:00:00Z';
+  const LAST_MONTH = '2026-05-10T09:00:00Z';
+
+  function invoiceSentJob(sentAt) {
+    return { status: 'invoice_sent', invoiceSentAt: sentAt };
+  }
+
+  // ── Free tier — monthly limit ──────────────────────────────────────────
+  it('free user with 0 sends this month → allowed', () => {
+    expect(canSendInvoice({ plan: 'free' }, [], NOW)).toBe(UNLOCK_PRO_FOR_ALL ? true : true);
   });
 
-  it('over-quota free send follows the override flag (blocked only when limits are on)', () => {
-    expect(canSendInvoice({ plan: 'free', invoices_sent_count: 1 })).toBe(UNLOCK_PRO_FOR_ALL ? true : false);
+  it('free user with 1 send this month → allowed', () => {
+    const jobs = [invoiceSentJob(THIS_MONTH)];
+    expect(canSendInvoice({ plan: 'free' }, jobs, NOW)).toBe(UNLOCK_PRO_FOR_ALL ? true : true);
   });
 
-  it('over-quota (count > 1) free send follows the override flag', () => {
-    expect(canSendInvoice({ plan: 'free', invoices_sent_count: 5 })).toBe(UNLOCK_PRO_FOR_ALL ? true : false);
+  it('free user with 2 sends this month → allowed', () => {
+    const jobs = [invoiceSentJob(THIS_MONTH), invoiceSentJob(THIS_MONTH)];
+    expect(canSendInvoice({ plan: 'free' }, jobs, NOW)).toBe(UNLOCK_PRO_FOR_ALL ? true : true);
   });
 
-  it('allows send for pro regardless of invoices_sent_count', () => {
-    expect(canSendInvoice({ plan: 'pro', invoices_sent_count: 99 })).toBe(true);
+  it('free user with 3 sends this month → blocked (quota reached)', () => {
+    const jobs = [invoiceSentJob(THIS_MONTH), invoiceSentJob(THIS_MONTH), invoiceSentJob(THIS_MONTH)];
+    expect(canSendInvoice({ plan: 'free' }, jobs, NOW)).toBe(UNLOCK_PRO_FOR_ALL ? true : false);
   });
 
-  it('allows send for pro with count = 0', () => {
-    expect(canSendInvoice({ plan: 'pro', invoices_sent_count: 0 })).toBe(true);
+  it('free user with 4 sends this month → blocked', () => {
+    const jobs = Array.from({ length: 4 }, () => invoiceSentJob(THIS_MONTH));
+    expect(canSendInvoice({ plan: 'free' }, jobs, NOW)).toBe(UNLOCK_PRO_FOR_ALL ? true : false);
   });
 
-  it('defaults to free (count=0 → allowed) when profile is null', () => {
-    // Null profile means unloaded — we give benefit of the doubt for first send.
-    expect(canSendInvoice(null)).toBe(true);
+  it('sends from a previous month do not count toward this month quota', () => {
+    // 3 last-month sends + 1 this month = only 1 counts → allowed
+    const jobs = [
+      invoiceSentJob(LAST_MONTH),
+      invoiceSentJob(LAST_MONTH),
+      invoiceSentJob(LAST_MONTH),
+      invoiceSentJob(THIS_MONTH),
+    ];
+    expect(canSendInvoice({ plan: 'free' }, jobs, NOW)).toBe(UNLOCK_PRO_FOR_ALL ? true : true);
   });
 
-  it('defaults to allowed when profile is undefined', () => {
-    expect(canSendInvoice(undefined)).toBe(true);
+  it('quota resets at start of new month (month boundary)', () => {
+    // 3 sends timestamped to June → blocked in June, but allowed on July 1
+    const july1 = new Date('2026-07-01T00:00:00Z');
+    const jobs = [invoiceSentJob(THIS_MONTH), invoiceSentJob(THIS_MONTH), invoiceSentJob(THIS_MONTH)];
+    // In June: blocked
+    expect(canSendInvoice({ plan: 'free' }, jobs, NOW)).toBe(UNLOCK_PRO_FOR_ALL ? true : false);
+    // In July: those June sends no longer count → allowed
+    expect(canSendInvoice({ plan: 'free' }, jobs, july1)).toBe(true);
   });
 
-  it('defaults invoices_sent_count to 0 when field is missing (free profile, first send)', () => {
-    expect(canSendInvoice({ plan: 'free' })).toBe(true);
+  // ── Pro / trial — always allowed ──────────────────────────────────────
+  it('pro user is always allowed regardless of monthly send count', () => {
+    const jobs = Array.from({ length: 10 }, () => invoiceSentJob(THIS_MONTH));
+    expect(canSendInvoice({ plan: 'pro' }, jobs, NOW)).toBe(true);
+  });
+
+  it('active trial user is always allowed', () => {
+    const trialEndsAt = new Date(NOW.getTime() + 5 * 86400000).toISOString();
+    const jobs = Array.from({ length: 10 }, () => invoiceSentJob(THIS_MONTH));
+    expect(canSendInvoice({ plan: 'trial', trial_ends_at: trialEndsAt }, jobs, NOW)).toBe(true);
+  });
+
+  it('expired trial falls through to free-tier limit', () => {
+    const trialEndsAt = new Date(NOW.getTime() - 86400000).toISOString(); // yesterday
+    const jobs = Array.from({ length: 3 }, () => invoiceSentJob(THIS_MONTH));
+    // 3 this month → blocked
+    expect(canSendInvoice({ plan: 'trial', trial_ends_at: trialEndsAt }, jobs, NOW)).toBe(UNLOCK_PRO_FOR_ALL ? true : false);
+  });
+
+  // ── Null / undefined safety ────────────────────────────────────────────
+  it('null profile with no jobs → allowed (benefit of the doubt)', () => {
+    expect(canSendInvoice(null, [], NOW)).toBe(true);
+  });
+
+  it('undefined profile with no jobs → allowed', () => {
+    expect(canSendInvoice(undefined, [], NOW)).toBe(true);
+  });
+
+  it('null profile with 3 this-month sends → blocked (free-tier rule applies)', () => {
+    const jobs = Array.from({ length: 3 }, () => invoiceSentJob(THIS_MONTH));
+    expect(canSendInvoice(null, jobs, NOW)).toBe(UNLOCK_PRO_FOR_ALL ? true : false);
+  });
+
+  it('FREE_MONTHLY_INVOICE_LIMIT is 3', () => {
+    expect(FREE_MONTHLY_INVOICE_LIMIT).toBe(3);
   });
 });
 

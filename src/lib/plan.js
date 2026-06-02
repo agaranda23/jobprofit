@@ -5,6 +5,11 @@
 //   ALTER TABLE profiles ADD COLUMN plan text DEFAULT 'free';
 //   ALTER TABLE profiles ADD COLUMN invoices_sent_count int DEFAULT 0;
 //   UPDATE profiles SET invoices_sent_count = 0;
+//
+// NOTE: invoices_sent_count is now INERT for gating. The free-tier limit is
+// enforced by countInvoicesSentThisMonth() which counts directly from jobs in
+// app state. The column and incrementSendCount() are retained for analytics
+// continuity but no longer gate sends.
 
 // ⚠️ TEMPORARY OVERRIDE — Pro unlocked for EVERYONE while we finish building the
 // paid features so they can be reviewed end-to-end. Because canSendInvoice()
@@ -68,29 +73,56 @@ export function isPro(profile, now = new Date()) {
 }
 
 /**
+ * Counts how many invoices this user has sent in the current calendar month.
+ * A job counts if its status is 'invoice_sent' AND invoiceSentAt falls within
+ * the current calendar month (UTC midnight on the 1st to now).
+ *
+ * Used by canSendInvoice to enforce the 3/month free-tier limit.
+ * Null/missing invoiceSentAt on an invoice_sent job is excluded from the count
+ * (no timestamp = we can't confirm the month, so we don't penalise).
+ *
+ * @param {Array}  jobs - full jobs array from app state
+ * @param {Date}  [now] - injectable for testing (defaults to new Date())
+ * @returns {number}
+ */
+export function countInvoicesSentThisMonth(jobs = [], now = new Date()) {
+  const startOfMonth = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+  return jobs.filter(j => {
+    if (j.status !== 'invoice_sent') return false;
+    if (!j.invoiceSentAt) return false;
+    const sentAt = new Date(j.invoiceSentAt);
+    return sentAt >= startOfMonth && sentAt <= now;
+  }).length;
+}
+
+/** Free-tier monthly send limit. */
+export const FREE_MONTHLY_INVOICE_LIMIT = 3;
+
+/**
  * Returns true when the user is allowed to perform a first-time invoice send.
- * Pro users always return true.
- * Free users get exactly 1 free send (invoices_sent_count === 0).
+ * Pro/trial users always return true (isPro short-circuits first).
+ * Free users get 3 sends per calendar month, resetting on the 1st.
  *
  * Re-sends on the same already-sent invoice do NOT call this — the caller
  * must guard on job.status !== 'invoice_sent' before calling canSendInvoice.
  *
  * @param {object|null|undefined} profile  - Supabase profiles row
+ * @param {Array}  [jobs]                  - full jobs array from app state
+ * @param {Date}   [now]                   - injectable for testing (defaults to new Date())
  * @returns {boolean}
  */
-export function canSendInvoice(profile) {
-  if (isPro(profile)) return true;
-  // Free tier: 0 means first send available; 1+ means quota used
-  return (profile?.invoices_sent_count ?? 0) === 0;
+export function canSendInvoice(profile, jobs = [], now = new Date()) {
+  if (isPro(profile, now)) return true;
+  return countInvoicesSentThisMonth(jobs, now) < FREE_MONTHLY_INVOICE_LIMIT;
 }
 
 /**
  * Increments invoices_sent_count on the profiles row in Supabase.
- * Optimistic — the caller should update its local profile copy immediately
- * (increment count locally) without waiting for this to settle.
+ * This is now ANALYTICS-ONLY — the free-tier gate uses countInvoicesSentThisMonth
+ * (computed from jobs in app state) rather than this counter.
+ * Retained so the DB column stays populated for any future analytics queries.
  *
- * Silently swallows network errors: the worst case is 1 extra free send
- * when the user is offline (accepted per spec).
+ * Silently swallows network errors — acceptable for an analytics write.
  *
  * @param {object} supabase  - Supabase client
  * @param {string} userId    - auth user id

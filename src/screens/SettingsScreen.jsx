@@ -2326,7 +2326,7 @@ export default function SettingsScreen({
           <p>Log a job, set the amount, then tap the job to open it and hit "Send invoice". Your customer gets a link they can open in any browser — no app needed. They can also pay by card if you&rsquo;ve connected Stripe in Settings &rarr; Card payments.</p>
         </FaqItem>
         <FaqItem question="How does the free trial work? What happens after 14 days?">
-          <p>You get 14 days of Pro free — no card required to start. After that, you drop to the free tier (1 free invoice send). Upgrade to Pro for £12/mo at any time from Settings &rarr; Subscription to keep unlimited invoicing and the full Insight Layer.</p>
+          <p>You get 14 days of Pro free — no card required to start. After that, you drop to the free tier (3 invoice sends per month, resets on the 1st). Upgrade to Pro for £12/mo at any time from Settings &rarr; Subscription to keep unlimited invoicing and the full Insight Layer.</p>
         </FaqItem>
         <FaqItem question="How do I cancel or change my plan?">
           <p>Go to Settings &rarr; Subscription &rarr; Manage billing. That opens the Stripe billing portal where you can cancel or update your card. Cancellation takes effect at the end of your current billing period — no pro-rata charge.</p>

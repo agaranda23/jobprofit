@@ -263,7 +263,7 @@ export default function SendInvoiceModal({
       setView('bank-gate');
       return false;
     }
-    if (isFirstSend && !canSendInvoice(profile)) {
+    if (isFirstSend && !canSendInvoice(profile, jobs)) {
       logTelemetry('paywall_viewed', { source: 'invoice_send', plan: profile?.plan ?? 'free' });
       setView('paywall');
       return false;
@@ -390,7 +390,7 @@ export default function SendInvoiceModal({
             <button className="modal-sheet-close" onClick={onClose} aria-label="Close">✕</button>
           </div>
           <div className="modal-sheet-body">
-            <p className="modal-sheet-text">You sent your first invoice on us.</p>
+            <p className="modal-sheet-text">{"You've used your 3 free invoices this month. Upgrade to Pro for unlimited (£12/mo), or wait until the 1st for your quota to reset."}</p>
             <p className="modal-sheet-text">Pro keeps the loop running — every quote, every invoice, every chase, no cap.</p>
             <p className="modal-sheet-text">Same app, same 30 seconds, no per-invoice fee.</p>
           </div>

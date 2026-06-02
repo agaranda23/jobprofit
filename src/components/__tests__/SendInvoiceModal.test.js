@@ -170,30 +170,51 @@ describe('invoiceSentAt — field written on first send', () => {
 });
 
 // ── canSendInvoice paywall gate ───────────────────────────────────────────────
+// Free tier: 3 sends per calendar month (resets on the 1st).
+// invoices_sent_count on the profile is INERT for gating — the count
+// is now derived from jobs in app state (invoice_sent status + invoiceSentAt).
 
 describe('canSendInvoice — paywall gating', () => {
-  it('free user with 0 sends can send', () => {
-    expect(canSendInvoice(freeProfile())).toBe(true);
+  const NOW = new Date('2026-06-15T12:00:00Z');
+  const THIS_MONTH = '2026-06-10T09:00:00Z';
+
+  function sentJob() {
+    return { status: 'invoice_sent', invoiceSentAt: THIS_MONTH };
+  }
+
+  it('free user with 0 sends this month can send', () => {
+    expect(canSendInvoice(freeProfile(), [], NOW)).toBe(true);
   });
 
-  it('free user with 1 send follows the override flag (blocked only when limits are on)', () => {
-    expect(canSendInvoice(freeProfile({ invoices_sent_count: 1 }))).toBe(UNLOCK_PRO_FOR_ALL ? true : false);
+  it('free user with 1 send this month can still send', () => {
+    expect(canSendInvoice(freeProfile(), [sentJob()], NOW)).toBe(true);
   });
 
-  it('free user with 5 sends follows the override flag', () => {
-    expect(canSendInvoice(freeProfile({ invoices_sent_count: 5 }))).toBe(UNLOCK_PRO_FOR_ALL ? true : false);
+  it('free user with 2 sends this month can still send', () => {
+    expect(canSendInvoice(freeProfile(), [sentJob(), sentJob()], NOW)).toBe(true);
   });
 
-  it('pro user is always allowed regardless of send count', () => {
-    expect(canSendInvoice(proProfile({ invoices_sent_count: 99 }))).toBe(true);
+  it('free user with 3 sends this month is blocked (quota reached)', () => {
+    const jobs = [sentJob(), sentJob(), sentJob()];
+    expect(canSendInvoice(freeProfile(), jobs, NOW)).toBe(UNLOCK_PRO_FOR_ALL ? true : false);
   });
 
-  it('null profile (unauthenticated) allows send — first-send free', () => {
-    expect(canSendInvoice(null)).toBe(true);
+  it('invoices_sent_count on the profile no longer affects gating', () => {
+    // Old behaviour: count=1 would block. New behaviour: only this-month jobs count.
+    expect(canSendInvoice(freeProfile({ invoices_sent_count: 99 }), [], NOW)).toBe(true);
   });
 
-  it('undefined profile allows send', () => {
-    expect(canSendInvoice(undefined)).toBe(true);
+  it('pro user is always allowed regardless of monthly send count', () => {
+    const jobs = [sentJob(), sentJob(), sentJob(), sentJob()];
+    expect(canSendInvoice(proProfile(), jobs, NOW)).toBe(true);
+  });
+
+  it('null profile (unauthenticated) with no jobs allows send', () => {
+    expect(canSendInvoice(null, [], NOW)).toBe(true);
+  });
+
+  it('undefined profile with no jobs allows send', () => {
+    expect(canSendInvoice(undefined, [], NOW)).toBe(true);
   });
 });
 
