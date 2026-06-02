@@ -8992,18 +8992,26 @@ input[type=number] { -moz-appearance: textfield; }
   min-height: 48px;
 }
 
-/* Expanded state: create a stacking context so the revealed panel paints on
-   top of subsequent sibling cards in the flex column.
-   Root cause of the 5th drawer stacking regression (June 2026): when Schedule
-   expands inside .job-detail-body (overflow-y:auto flex column), the expanding
-   panel has no stacking context and later sibling cards (.jd-card, .jd-csr)
-   paint over it. position:relative + z-index:1 promotes this element above
-   position:static siblings (z-index:auto) so the panel content is always
-   visible in front. The class is added/removed by CollapsedSectionRow.jsx as
-   expanded state changes — it is never present when the row is collapsed. */
+/* 7th drawer regression fix (June 2026) — z-index removed from expanded state.
+   History of stacking regressions on this element:
+     5th: added position:relative + z-index:1 so the expanded panel painted above
+       position:static siblings. This works when only one accordion is expanded
+       at a time, but the Quote accordion is default-expanded on Lead/Quoted jobs.
+       When both Schedule AND Quote have z-index:1, the later sibling (Quote)
+       establishes a stacking context that paints over Schedule's expanded panel,
+       causing the expanded Schedule options to render behind the Quote card.
+     6th: added background:var(--surface-raised) to .jd-csr-panel so the panel
+       area is opaque — underlying siblings can no longer bleed through visually.
+     7th (this change): z-index:1 is no longer needed. The 6th fix (opaque panel
+       background) prevents the bleed-through symptom without a stacking context.
+       All accordions are in-flow, layout boxes never overlap, and z-index ordering
+       between Schedule and Quote is irrelevant for the bleed-through symptom once
+       the panel background is opaque. Removing z-index eliminates the stacking
+       context. position:relative is retained (harmless without an explicit z-index
+       value; does not create a stacking context on its own) and may be useful for
+       future child-element positioning relative to the row wrapper. */
 .jd-csr--expanded {
   position: relative;
-  z-index: 1;
 }
 
 /* 6th drawer regression (June 2026) — opaque panel background.

@@ -231,26 +231,36 @@ function extractJdCsrExpandedBlock(cssText) {
   return cssText.slice(blockStart, closeBrace + 1);
 }
 
-// ── CSS regression guard — .jd-csr--expanded stacking fix ────────────────────
+// ── CSS regression guard — .jd-csr--expanded stacking (5th + 7th regressions) ───
 //
-// Root cause of the 5th drawer stacking regression (June 2026):
+// Regression history:
 //
-//   When a CollapsedSectionRow expands inside .job-detail-body (overflow-y:auto
-//   flex column), the expanding panel had no stacking context. Later sibling
-//   cards in the flex column painted on top of the revealed panel content —
-//   the user could tap Schedule/Quote/Costs and the JS state flipped correctly,
-//   but the expanded editing UI was visually obscured behind the next card.
+//   5th regression: expanded panel had no stacking context — later sibling cards
+//     painted over the revealed content. Fix: added position:relative + z-index:1
+//     so the expanded element formed a stacking context above z-index:auto siblings.
 //
-//   Fix: add .jd-csr--expanded { position: relative; z-index: 1 } in index.css
-//   and apply the class from CollapsedSectionRow.jsx when expanded === true.
-//   position:relative promotes the element into a stacking context; z-index:1
-//   ensures it paints above position:static siblings (z-index:auto).
+//   6th regression: panel background was transparent — underlying siblings (Money
+//     card, "View profit breakdown" CTA) bled through. Fix: added background on
+//     .jd-csr-panel so the panel area is always opaque.
 //
-//   These tests read the live CSS file so a future refactor that removes
-//   position:relative or z-index from .jd-csr--expanded fails loudly at CI
-//   time rather than silently in production.
+//   7th regression: z-index:1 creates a stacking context. The Quote accordion is
+//     default-expanded on Lead/Quoted jobs (also z-index:1, later in DOM). Two
+//     siblings at equal z-index paint in DOM order — Quote's stacking context
+//     painted over Schedule's expanded panel, causing Schedule options to appear
+//     behind the Quote card.
+//     Fix: remove z-index from .jd-csr--expanded. The 6th regression fix (opaque
+//     panel background) prevents bleed-through without any stacking context.
+//     All accordions are in-flow; layout boxes never overlap; z-index ordering is
+//     irrelevant for the bleed-through symptom once the panel background is opaque.
+//     position:relative is retained (harmless without z-index; no stacking context).
+//
+//   Guard rules below (read the live CSS so future refactors are caught at CI time):
+//     - .jd-csr--expanded MUST have position:relative (retained from 5th fix).
+//     - .jd-csr--expanded MUST NOT have z-index (7th regression guard: re-adding
+//       z-index recreates the stacking context that causes Schedule to be obscured
+//       behind Quote when both accordions are expanded simultaneously).
 
-describe('CSS regression guard — .jd-csr--expanded stacking (5th stacking regression)', () => {
+describe('CSS regression guard — .jd-csr--expanded stacking (5th + 7th regressions)', () => {
   const cssText = fs.readFileSync(CSS_PATH, 'utf8');
   const expandedBlock = extractJdCsrExpandedBlock(cssText);
 
@@ -259,14 +269,17 @@ describe('CSS regression guard — .jd-csr--expanded stacking (5th stacking regr
     expect(expandedBlock).toContain('.jd-csr--expanded');
   });
 
-  it('.jd-csr--expanded has position:relative (creates stacking context)', () => {
+  it('.jd-csr--expanded has position:relative (retained from 5th regression fix)', () => {
     const blockWithoutComments = expandedBlock.replace(/\/\*[\s\S]*?\*\//g, '');
     expect(blockWithoutComments).toMatch(/position\s*:\s*relative/);
   });
 
-  it('.jd-csr--expanded has z-index:1 (wins over position:static siblings)', () => {
+  it('.jd-csr--expanded does NOT have z-index (7th regression guard: z-index at equal value yields DOM-order paint — Quote obscures Schedule)', () => {
+    // z-index:1 on both Schedule and Quote (default-expanded on Lead/Quoted jobs)
+    // means Quote's stacking context paints over Schedule's expanded panel.
+    // This test will fail if z-index is re-added, catching the regression at CI time.
     const blockWithoutComments = expandedBlock.replace(/\/\*[\s\S]*?\*\//g, '');
-    expect(blockWithoutComments).toMatch(/z-index\s*:\s*1\b/);
+    expect(blockWithoutComments).not.toMatch(/z-index\s*:/);
   });
 });
 

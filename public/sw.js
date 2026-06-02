@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v52';  // bumped from v51: job-profile three fixes (address Maps, schedule save, Lead CTA)
+const CACHE_NAME = 'jobprofit-v53';  // bumped from v52: fix Schedule accordion stacking behind Quote card
 const PRECACHE = [
   '/',
   '/index.html',
