@@ -1045,6 +1045,91 @@ function VisitEditorSheet({ open, visit, onSave, onCancel }) {
 }
 
 /**
+ * QuoteLineEditorSheet — bottom sheet for adding or editing a single quote line item.
+ * Modelled on VisitEditorSheet: same backdrop/sheet chrome, same button pattern.
+ *
+ * Props:
+ *   open     – boolean
+ *   item     – { desc, cost, qty } or null (null = new item)
+ *   onSave(item)   – called with { desc, cost } on Save
+ *   onDelete()     – called when user taps Delete (only shown when item !== null)
+ *   onCancel()     – called on Cancel / backdrop tap
+ */
+function QuoteLineEditorSheet({ open, item, onSave, onDelete, onCancel }) {
+  const [desc, setDesc] = React.useState('');
+  const [cost, setCost] = React.useState('');
+
+  React.useEffect(() => {
+    if (open) {
+      setDesc(item?.desc || '');
+      setCost(item != null ? String(item.cost ?? '') : '');
+    }
+  }, [open, item]);
+
+  if (!open) return null;
+
+  const parsedCost = parseFloat(cost) || 0;
+  const canSave = desc.trim().length > 0 || parsedCost > 0;
+
+  const handleSave = () => {
+    if (!canSave) return;
+    onSave({ desc: desc.trim(), cost: parsedCost });
+  };
+
+  return (
+    <div
+      className="visit-editor-backdrop"
+      role="dialog"
+      aria-modal="true"
+      aria-label={item ? 'Edit line item' : 'Add line item'}
+      onClick={e => { if (e.target === e.currentTarget) onCancel(); }}
+    >
+      <div className="visit-editor-sheet">
+        <div className="visit-editor-title">{item ? 'Edit line' : 'Add a line'}</div>
+        <div className="jd-schedule-edit-form">
+          <div>
+            <div className="jd-schedule-edit-label">Description</div>
+            <input
+              type="text"
+              className="jd-schedule-edit-input"
+              value={desc}
+              onChange={e => setDesc(e.target.value)}
+              placeholder="e.g. Labour, Materials, Skip hire"
+              aria-label="Line item description"
+              autoFocus
+              maxLength={200}
+            />
+          </div>
+          <div>
+            <div className="jd-schedule-edit-label">Amount (£)</div>
+            <input
+              type="number"
+              className="jd-schedule-edit-input"
+              value={cost}
+              onChange={e => setCost(e.target.value)}
+              placeholder="0.00"
+              min="0"
+              step="0.01"
+              aria-label="Line item amount"
+              inputMode="decimal"
+            />
+          </div>
+          <div className="jd-schedule-edit-footer">
+            {item && onDelete && (
+              <button type="button" className="btn-ghost btn-ghost--danger" onClick={onDelete}>
+                Delete
+              </button>
+            )}
+            <button type="button" className="btn-ghost" onClick={onCancel}>Cancel</button>
+            <button type="button" className="btn-primary" onClick={handleSave} disabled={!canSave}>Save</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
  * ProfitBarSection — hero + subline profit display.
  * "Materials" means actual receipts/expenses linked to the job (not quote lineItems).
  * Hidden entirely when job quote value is zero.
@@ -1225,109 +1310,59 @@ function JobTaxMeta({ job, profile, quote, materials, onUpdateJob }) {
 }
 
 /**
- * QuoteBreakdownSection — editable list of job.lineItems[].
+ * QuoteBreakdownSection — Schedule-mirror design (Iteration A, 2026-06-02).
  *
- * Read mode: description + cost per row, total at foot.
- * Edit mode (toggled by "+ Edit" header button): each row gets text + number
- * inputs and an × delete button; a "+ Add line item" row appends a blank entry.
- * Save recomputes job.total from the edited items and calls onUpdateJob.
- * Cancel discards the draft.
+ * Read mode: each line item is a compact tappable row (desc · ×qty if >1 · £total · ›).
+ *   Tap a row → QuoteLineEditorSheet for that specific item.
+ *   Tap "+ Add a line" ghost row → QuoteLineEditorSheet pre-filled empty.
+ *   Footer total shown when items.length > 1 (single-line: total = line total, redundant).
  *
- * Edit props (all optional — section degrades to read-only when absent):
- *   editMode       – boolean
- *   editItems      – draft copy of lineItems
- *   onToggleEdit   – open edit mode (copies items into draft)
- *   onCancelEdit   – discard draft and close edit mode
- *   onSaveEdit     – persist draft via onUpdateJob, close edit mode
- *   onUpdateItem(idx, field, value) – update one field of one draft item
- *   onAddItem      – append a blank draft item
- *   onDeleteItem(idx) – remove a draft item
+ * The old inline edit mode (editMode / editItems / onToggleEdit / etc.) is replaced by
+ * the per-row sheet pattern. Props kept for backwards compat but only onSaveLine /
+ * onDeleteLine / onAddLine are used.
+ *
+ * Props:
+ *   job           – job object (reads job.lineItems)
+ *   onSaveLine(idx, { desc, cost }) – persist edited item (idx = -1 for new)
+ *   onDeleteLine(idx)               – remove item at idx
  */
-function QuoteBreakdownSection({
-  job,
-  editMode,
-  editItems,
-  onToggleEdit,
-  onCancelEdit,
-  onSaveEdit,
-  onUpdateItem,
-  onAddItem,
-  onDeleteItem,
-}) {
+function QuoteBreakdownSection({ job, onSaveLine, onDeleteLine }) {
   const items = Array.isArray(job.lineItems) ? job.lineItems.filter(i => i.desc || i.cost) : [];
 
-  // Hide entirely in read mode when there are no items and no edit handler
-  if (items.length === 0 && !onToggleEdit) return null;
+  // sheetIdx: null = closed, -1 = new item, 0+ = editing existing item
+  const [sheetIdx, setSheetIdx] = React.useState(null);
 
-  const draftTotal = Array.isArray(editItems)
-    ? editItems.reduce((sum, i) => sum + Number(i.cost || 0), 0)
-    : 0;
+  const sheetOpen = sheetIdx !== null;
+  const sheetItem = sheetIdx != null && sheetIdx >= 0 ? items[sheetIdx] : null;
 
-  // Enter edit mode and immediately append a blank line so the user lands on
-  // an editable row — used by the empty-state "Add a line" ghost button.
-  const handleAddFirstLine = () => {
-    onToggleEdit();
-    onAddItem();
+  const handleSave = ({ desc, cost }) => {
+    onSaveLine(sheetIdx, { desc, cost });
+    setSheetIdx(null);
   };
 
-  return (
-    <div className="jd-section">
-      <div className="jd-section-header">
-        <span>Quote breakdown</span>
-      </div>
+  const handleDelete = () => {
+    onDeleteLine(sheetIdx);
+    setSheetIdx(null);
+  };
 
-      {editMode ? (
-        <div className="jd-section-body">
-          {(editItems || []).map((item, idx) => (
-            <div key={idx} className="jd-li-edit-row">
-              <input
-                type="text"
-                className="jd-li-input-desc"
-                placeholder="Description"
-                value={item.desc || ''}
-                onChange={e => onUpdateItem(idx, 'desc', e.target.value)}
-                aria-label={`Line item ${idx + 1} description`}
-              />
-              <input
-                type="number"
-                className="jd-li-input-cost"
-                placeholder="0.00"
-                min="0"
-                step="0.01"
-                value={item.cost ?? ''}
-                onChange={e => onUpdateItem(idx, 'cost', e.target.value)}
-                aria-label={`Line item ${idx + 1} cost`}
-              />
-              <button
-                type="button"
-                className="jd-li-delete-btn"
-                onClick={() => onDeleteItem(idx)}
-                aria-label={`Delete line item ${idx + 1}`}
-              >
-                ✕
-              </button>
-            </div>
-          ))}
-          <button type="button" className="jd-li-add-btn" onClick={onAddItem}>
-            + Add a line
-          </button>
-          <div className="jd-li-edit-footer">
-            <button type="button" className="btn-ghost" onClick={onCancelEdit}>
-              Cancel
-            </button>
-            <button type="button" className="btn-primary" onClick={onSaveEdit}>
-              Save — {gbp(draftTotal)}
-            </button>
-          </div>
-        </div>
-      ) : (
+  const quoteTotal = items.reduce((sum, i) => {
+    const qty = Number(i.qty || i.quantity || 1);
+    const unit = Number(i.cost || i.unitCost || i.price || 0);
+    return sum + qty * unit;
+  }, 0);
+
+  const canEdit = !!onSaveLine;
+
+  return (
+    <>
+      <div className="jd-section">
         <div className="jd-section-body jd-section-body--flush">
           {items.length === 0 ? (
-            onToggleEdit && (
+            canEdit && (
               <button
                 type="button"
                 className="jd-card-row jd-card-row--add"
-                onClick={handleAddFirstLine}
+                onClick={() => setSheetIdx(-1)}
                 aria-label="Add a line item"
               >
                 <span className="jd-card-row-icon" aria-hidden="true">📋</span>
@@ -1340,15 +1375,16 @@ function QuoteBreakdownSection({
                 const qty = Number(item.qty || item.quantity || 1);
                 const unit = Number(item.cost || item.unitCost || item.price || 0);
                 const lineTotal = qty * unit;
-                if (onToggleEdit) {
+                if (canEdit) {
                   return (
                     <button
                       key={idx}
                       type="button"
                       className="jd-card-row jd-card-row--tappable"
-                      onClick={onToggleEdit}
+                      onClick={() => setSheetIdx(idx)}
                       aria-label={`Edit line item: ${item.desc || 'Line item'}`}
                     >
+                      <span className="jd-card-row-icon" aria-hidden="true">📋</span>
                       <span className="jd-card-row-val jd-card-row-val--flex">
                         <span className="jd-line-item-desc">
                           {item.desc || '—'}
@@ -1374,24 +1410,36 @@ function QuoteBreakdownSection({
                   </div>
                 );
               })}
-              {/* Total row removed (Design A): header £ is the canonical total.
-                  Duplicate bold total beneath breakdown identified as noise. */}
-              {onToggleEdit && (
+              {canEdit && (
                 <button
                   type="button"
                   className="jd-card-row jd-card-row--add"
-                  onClick={handleAddFirstLine}
+                  onClick={() => setSheetIdx(-1)}
                   aria-label="Add another line item"
                 >
-                  <span className="jd-card-row-icon" aria-hidden="true">➕</span>
+                  <span className="jd-card-row-icon" aria-hidden="true">📋</span>
                   <span className="jd-card-row-add">+ Add a line</span>
                 </button>
+              )}
+              {items.length > 1 && (
+                <div className="jd-quote-footer-total">
+                  <span className="jd-quote-footer-label">Total</span>
+                  <span className="jd-quote-footer-amount">{gbp(quoteTotal)}</span>
+                </div>
               )}
             </>
           )}
         </div>
-      )}
-    </div>
+      </div>
+
+      <QuoteLineEditorSheet
+        open={sheetOpen}
+        item={sheetItem}
+        onSave={handleSave}
+        onDelete={sheetIdx >= 0 ? handleDelete : undefined}
+        onCancel={() => setSheetIdx(null)}
+      />
+    </>
   );
 }
 
@@ -2264,7 +2312,8 @@ export default function JobDetailDrawer({
   // Receipt edit — null = closed, otherwise the receipt being edited
   const [editingReceipt, setEditingReceipt] = useState(null);
 
-  // LineItems edit — inline draft state
+  // LineItems edit — per-row sheet pattern (replaces old inline draft)
+  // liEditMode / liDraft kept for legacy callers (kebab menu editLineItems ref)
   const [liEditMode, setLiEditMode] = useState(false);
   const [liDraft, setLiDraft] = useState([]);
 
@@ -2835,6 +2884,29 @@ export default function JobDetailDrawer({
     showFlash('Quote updated');
   };
 
+  // ── LineItem per-row sheet handlers (Schedule-mirror, 2026-06-02) ─────────
+  // idx = -1 means "add new", 0+ means edit existing at that index.
+  const handleSaveLiLine = (idx, { desc, cost }) => {
+    const base = Array.isArray(job.lineItems) ? job.lineItems.filter(i => i.desc || i.cost) : [];
+    let next;
+    if (idx === -1) {
+      next = [...base, { desc, cost: Number(cost) }];
+    } else {
+      next = base.map((item, i) => i === idx ? { ...item, desc, cost: Number(cost) } : item);
+    }
+    const newTotal = next.reduce((s, i) => s + Number(i.cost || 0), 0);
+    onUpdateJob({ ...job, lineItems: next, total: newTotal, amount: newTotal });
+    showFlash(idx === -1 ? 'Line added' : 'Line updated');
+  };
+
+  const handleDeleteLiLine = (idx) => {
+    const base = Array.isArray(job.lineItems) ? job.lineItems.filter(i => i.desc || i.cost) : [];
+    const next = base.filter((_, i) => i !== idx);
+    const newTotal = next.reduce((s, i) => s + Number(i.cost || 0), 0);
+    onUpdateJob({ ...job, lineItems: next, total: newTotal, amount: newTotal });
+    showFlash('Line removed');
+  };
+
   // ── Schedule edit ─────────────────────────────────────────────────────────
   const handleScheduleEdit = () => {
     setSchedDate(job.scheduledDate || '');
@@ -3246,11 +3318,9 @@ export default function JobDetailDrawer({
 
             // ── Meta strings for collapsed rows ─────────────────────────────
             const lineItems = Array.isArray(job.lineItems) ? job.lineItems.filter(i => i.desc || i.cost) : [];
-            const lineCount = lineItems.length;
             const quoteTotal = job.total ?? job.amount ?? 0;
-            const quoteMeta = lineCount > 0
-              ? `${lineCount} line${lineCount === 1 ? '' : 's'} · ${gbp(quoteTotal)}`
-              : quoteTotal > 0 ? gbp(quoteTotal) : null;
+            // Schedule-mirror: header shows just the total (or "Not quoted") — no line count noise.
+            const quoteMeta = quoteTotal > 0 ? gbp(quoteTotal) : 'Not quoted';
 
             const jobReceipts = receipts.filter(r =>
               r.jobId && (String(r.jobId) === String(job.id) || String(r.jobId) === String(job.cloudId))
@@ -3304,14 +3374,8 @@ export default function JobDetailDrawer({
             const quoteBodyEl = (
               <QuoteBreakdownSection
                 job={job}
-                editMode={liEditMode}
-                editItems={liDraft}
-                onToggleEdit={onUpdateJob ? handleToggleLiEdit : undefined}
-                onCancelEdit={handleCancelLiEdit}
-                onSaveEdit={handleSaveLiEdit}
-                onUpdateItem={handleUpdateLiItem}
-                onAddItem={handleAddLiItem}
-                onDeleteItem={handleDeleteLiItem}
+                onSaveLine={onUpdateJob ? handleSaveLiLine : undefined}
+                onDeleteLine={onUpdateJob ? handleDeleteLiLine : undefined}
               />
             );
 

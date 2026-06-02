@@ -6681,6 +6681,8 @@ input[type=number] { -moz-appearance: textfield; }
   -webkit-tap-highlight-color: transparent;
 }
 .btn-ghost:hover { background: var(--surface-2); }
+.btn-ghost--danger { color: var(--danger, #E5484D); }
+.btn-ghost--danger:hover { background: rgba(229, 72, 77, 0.08); }
 
 /* SendInvoiceModal uses the shared .modal-backdrop but needs a higher
    z-index so it sits above the JobDetailDrawer (z-index ~900 range).
@@ -7098,6 +7100,30 @@ input[type=number] { -moz-appearance: textfield; }
 .jd-li-edit-footer .btn-primary { flex: 1; }
 .jd-li-edit-footer .btn-ghost   { flex: 1; }
 
+/* ── Quote footer total — Schedule-mirror (2026-06-02) ── */
+/* Shown at the bottom of the expanded Quote accordion when items > 1.
+   Dashed top border mirrors the PRD mockup; font is subtler than the header total. */
+.jd-quote-footer-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px 10px;
+  border-top: 1px dashed var(--border-light, var(--border));
+}
+.jd-quote-footer-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.jd-quote-footer-amount {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--accent, #2BC48A);
+  font-variant-numeric: tabular-nums;
+}
+
 /* ── Schedule edit — Phase E-3 ── */
 .jd-schedule-edit-form {
   display: flex;
@@ -7134,11 +7160,15 @@ input[type=number] { -moz-appearance: textfield; }
 }
 .jd-schedule-edit-footer {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   margin-top: 4px;
+  flex-wrap: wrap;
 }
+/* When a Delete button (btn-ghost--danger) is present it sits left;
+   Cancel and Save share the remaining space equally. */
+.jd-schedule-edit-footer .btn-ghost--danger { flex: 0 0 auto; margin-right: auto; }
 .jd-schedule-edit-footer .btn-primary { flex: 1; }
-.jd-schedule-edit-footer .btn-ghost   { flex: 1; }
+.jd-schedule-edit-footer .btn-ghost:not(.btn-ghost--danger) { flex: 1; }
 
 /* ── SignaturePad — Phase F ─────────────────────────────────────────────────
    The modal sits above the JobDetailDrawer (z-index 201) and the regular

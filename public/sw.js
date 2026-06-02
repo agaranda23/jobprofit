@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v57';  // bumped from v56: Schedule accordion TRUE root cause — flex-shrink:0 on .jd-csr stops the height-constrained flex column squashing expanded cards (content was spilling over the sibling card below)
+const CACHE_NAME = 'jobprofit-v58';  // bumped from v57: Quote section Schedule-mirror — QuoteLineEditorSheet + footer total + per-row sheet tap + ghost add row
 const PRECACHE = [
   '/',
   '/index.html',
