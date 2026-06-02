@@ -3906,6 +3906,7 @@ input[type=number] { -moz-appearance: textfield; }
 .wizard-footer {
   padding: 16px 28px calc(16px + env(safe-area-inset-bottom));
   display: flex;
+  flex-wrap: wrap;
   gap: 12px;
   max-width: 480px;
   width: 100%;
@@ -3945,6 +3946,22 @@ input[type=number] { -moz-appearance: textfield; }
   cursor: not-allowed;
 }
 .wizard-next-btn:not(:disabled):active { opacity: 0.8; }
+
+.wizard-skip-btn {
+  width: 100%;
+  padding: 12px;
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  text-align: center;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  transition: opacity 0.15s;
+}
+.wizard-skip-btn:active { opacity: 0.7; }
 
 /* Partial payments — Phase B */
 .payment-warn {

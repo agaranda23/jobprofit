@@ -2199,6 +2199,9 @@ export default function JobDetailDrawer({
   // Optional: called when the trader taps "Set up" in the Send Invoice connect prompt.
   // AppShell passes () => setSettingsSubView('card-payments').
   onNavigateToCardPayments,
+  // Optional: saves a partial profile update to Supabase. Threaded from AppShell via
+  // WorkScreen so SendInvoiceModal can persist bank details just-in-time.
+  onProfileUpdate,
   // When set, the drawer immediately opens the edit modal for this field on mount.
   // Used by the Call/Map tile buttons to redirect to data entry when the field is empty.
   initialEditingField = null,
@@ -3712,6 +3715,7 @@ export default function JobDetailDrawer({
           flash={showFlash}
           onNeedsPrice={() => { setInvoiceModalOpen(false); setEditingField('amount'); }}
           onNavigateToCardPayments={onNavigateToCardPayments}
+          onProfileUpdate={onProfileUpdate}
         />
       )}
 

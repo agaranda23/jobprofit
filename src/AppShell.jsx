@@ -813,6 +813,7 @@ export default function AppShell() {
               profile={profile}
               initialJobId={pendingJobId}
               onNavigateToCardPayments={() => setSettingsSubView('card-payments')}
+              onProfileUpdate={handleProfileUpdate}
             />
           )}
 
@@ -909,6 +910,7 @@ export default function AppShell() {
               profile={profile}
               initialJobId={pendingJobId}
               onNavigateToCardPayments={() => setSettingsSubView('card-payments')}
+              onProfileUpdate={handleProfileUpdate}
             />
           )}
 
@@ -1119,16 +1121,28 @@ export default function AppShell() {
 }
 
 /**
- * Returns true when all 5 required profile fields are present.
- * Used by both the wizard trigger and the job-create gate.
- * Old-nav callers never reach this — gate is always inside NEW_NAV blocks.
+ * Returns true when the minimum required profile fields are present for
+ * job/quote creation (name fields only — bank is deferred to invoice-send time).
+ *
+ * Bank details were removed from this gate in 2026-06-02 so that a brand-new
+ * trader can create and send their first quote without completing bank setup.
+ * The bank requirement now lives on the invoice-send path (SendInvoiceModal).
+ *
+ * Old-nav callers never reach this — gate is always inside NEW_NAV/slice-3 blocks.
  */
 function isProfileComplete(profile, session) {
   if (!profile) return false;
   const hasName = !!(profile.business_name);
   const hasFirst = !!(profile.first_name);
   const hasLast = !!(profile.last_name);
-  const hasBank = !!(profile.sort_code && profile.account_number);
   const hasEmail = !!(session?.user?.email);
-  return hasName && hasFirst && hasLast && hasBank && hasEmail;
+  return hasName && hasFirst && hasLast && hasEmail;
+}
+
+/**
+ * Returns true when the profile has bank details saved.
+ * Used by the just-in-time bank gate on the invoice-send path (SendInvoiceModal).
+ */
+export function profileHasBank(profile) {
+  return !!(profile?.sort_code && profile?.account_number);
 }

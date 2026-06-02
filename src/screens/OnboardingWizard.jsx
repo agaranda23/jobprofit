@@ -1,14 +1,19 @@
 /**
- * OnboardingWizard — 4-step required-field wizard (NEW NAV only).
+ * OnboardingWizard — 4-step wizard (NEW NAV only), bank step deferrable.
  *
  * Steps:
  *  1. Trading name  → profiles.business_name
  *  2. First name    → profiles.first_name
  *  3. Last name     → profiles.last_name
- *  4. Bank details  → profiles.sort_code + profiles.account_number
+ *  4. Bank details  → profiles.sort_code + profiles.account_number (OPTIONAL — skip-for-now)
  *
- * The previous step 5 (email confirmation) was read-only and provided no
- * value to the user — it only blocked the Finish button. Removed 2026-05-27.
+ * Bank step deferral (2026-06-02):
+ *  - The bank step is the only step with a "Skip for now" affordance.
+ *  - Skipping saves all name fields and calls onComplete without bank details.
+ *  - The invoiceMessage and invoicePDF layers already handle absent bank details
+ *    gracefully (the bank block is omitted from the document, not blank).
+ *  - The just-in-time gate lives in SendInvoiceModal — see the bank-gate comment
+ *    there. This wizard never needs to enforce bank presence.
  *
  * Gate behaviour:
  *  - Shown on first app-open (new nav) when first_name or last_name is NULL.
@@ -57,10 +62,11 @@ const STEPS = [
     id: 'bank',
     step: 4,
     label: 'Bank details',
-    helper: 'Printed on every invoice so customers can pay you.',
+    helper: 'Printed on every invoice so customers can pay you. You can add this later when you send your first invoice.',
     placeholder: null, // bank step has two sub-inputs
     inputMode: null,
     type: 'bank',
+    optional: true, // skip-for-now affordance — only bank step has this
   },
 ];
 
@@ -149,7 +155,7 @@ export default function OnboardingWizard({ session, profile, onComplete }) {
     const isLastStep = stepIndex === STEPS.length - 1;
 
     if (isLastStep) {
-      await saveAll();
+      await saveAll({ skipBank: false });
     } else {
       setStepIndex(i => i + 1);
     }
@@ -159,7 +165,11 @@ export default function OnboardingWizard({ session, profile, onComplete }) {
     if (stepIndex > 0) setStepIndex(i => i - 1);
   }
 
-  async function saveAll() {
+  async function handleSkipBank() {
+    await saveAll({ skipBank: true });
+  }
+
+  async function saveAll({ skipBank = false } = {}) {
     setSaving(true);
     setError(null);
     try {
@@ -171,8 +181,12 @@ export default function OnboardingWizard({ session, profile, onComplete }) {
         business_name: values.trading_name.trim() || null,
         first_name: values.first_name.trim() || null,
         last_name: values.last_name.trim() || null,
-        sort_code: values.sort_code.trim() || null,
-        account_number: values.account_number.trim() || null,
+        // Bank fields are omitted when the user skips — null means "not yet set",
+        // which is distinct from "" and preserves any previously saved bank details.
+        ...(!skipBank && {
+          sort_code: values.sort_code.trim() || null,
+          account_number: values.account_number.trim() || null,
+        }),
       };
 
       const { data, error: dbErr } = await supabase
@@ -186,7 +200,7 @@ export default function OnboardingWizard({ session, profile, onComplete }) {
       // Clear the session flag now that wizard is done
       sessionStorage.removeItem('jp.wizardActive');
 
-      logTelemetry('wizard_completed', {});
+      logTelemetry('wizard_completed', { bank_skipped: skipBank });
 
       // data can be null if Supabase returns nothing despite a successful upsert —
       // fall back to the patch we sent so the caller always gets a profile object.
@@ -280,6 +294,18 @@ export default function OnboardingWizard({ session, profile, onComplete }) {
             </>
           )}
         </button>
+
+        {/* Skip affordance — bank step only. Lets the trader complete setup
+            now and add bank details when they send their first invoice. */}
+        {step.optional && !saving && (
+          <button
+            className="wizard-skip-btn"
+            onClick={handleSkipBank}
+            type="button"
+          >
+            Skip for now — add when I send my first invoice
+          </button>
+        )}
       </div>
     </div>
   );
@@ -333,15 +359,20 @@ function BankStep({ values, touched, onChange, onBlur, onSubmit }) {
 }
 
 /**
- * Returns the index of the first wizard step that is still missing data.
+ * Returns the index of the first wizard step that is still missing required data.
  * Falls back to 0 so the user always starts at step 1 (trading name).
- * If all 4 required fields are already filled, the wizard should not have
- * opened — return 0 as a safe default so it starts at the beginning if it does.
+ *
+ * The bank step (index 3) is optional — a profile is considered complete enough
+ * for the wizard trigger when the three name fields are present. The bank gate
+ * was moved to the invoice-send path (just-in-time in SendInvoiceModal).
  */
 function firstMissingStep(profile) {
   if (!profile?.business_name) return 0;
   if (!profile?.first_name) return 1;
   if (!profile?.last_name) return 2;
+  // Bank missing but name complete → jump straight to bank step so the user
+  // can fill it in now (or skip again). They arrive here only if the wizard
+  // was re-opened explicitly (e.g. from Settings "Re-run setup wizard").
   if (!profile?.sort_code || !profile?.account_number) return 3;
   return 0;
 }

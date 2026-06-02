@@ -18,15 +18,23 @@
  *     prepended to all message paths. Button reads "Send invoice with Pay-now".
  *     Never blocks the send if the link fails to generate — falls back gracefully.
  *
+ * Just-in-time bank-gate (2026-06-02):
+ *   - If the trader skipped bank details during onboarding, the first time
+ *     they try to send an invoice they are prompted to add them here.
+ *   - Entering and saving bank details transitions the modal back to the send view.
+ *   - Traders who already have bank details never see this prompt.
+ *   - The gate only fires on the invoice-send path (not quote-send).
+ *
  * Props:
- *   job         – full job object
- *   biz         – business settings object (name, bank details, VAT flag, etc.)
- *   profile     – Supabase profiles row (or null when unauthenticated)
- *   jobs        – all jobs array (needed by nextInvoiceNumber to avoid gaps)
+ *   job              – full job object
+ *   biz              – business settings object (name, bank details, VAT flag, etc.)
+ *   profile          – Supabase profiles row (or null when unauthenticated)
+ *   jobs             – all jobs array (needed by nextInvoiceNumber to avoid gaps)
  *   onUpdate(updatedJob) – persists the job update (sets invoiceSentAt, etc.)
- *   onClose()   – close the modal
- *   flash(msg)  – toast callback from the parent drawer
+ *   onClose()        – close the modal
+ *   flash(msg)       – toast callback from the parent drawer
  *   onNavigateToCardPayments() – optional; called when trader taps "Set up" in connect prompt
+ *   onProfileUpdate(patch)     – optional; saves bank details to Supabase profile
  */
 import { useState, useEffect } from 'react';
 import { getInvoicePDFBlob, downloadInvoicePDF } from '../lib/invoicePDF';
@@ -48,6 +56,20 @@ const SUPPORTS_FILE_SHARE =
   typeof navigator !== 'undefined' &&
   typeof navigator.share === 'function' &&
   typeof navigator.canShare === 'function';
+
+// Returns true when the profile has bank details (sort code + account number).
+// Used by the just-in-time bank gate — if either is missing, prompt on invoice send.
+function profileHasBank(profile) {
+  return !!(profile?.sort_code && profile?.account_number);
+}
+
+// Formats raw sort code digits as NN-NN-NN. Mirrors the wizard's formatSortCode.
+function formatSortCode(raw) {
+  const digits = raw.replace(/\D/g, '').slice(0, 6);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 4) return digits.slice(0, 2) + '-' + digits.slice(2);
+  return digits.slice(0, 2) + '-' + digits.slice(2, 4) + '-' + digits.slice(4);
+}
 
 function canShareFile(file) {
   if (!SUPPORTS_FILE_SHARE) return false;
@@ -74,6 +96,10 @@ export default function SendInvoiceModal({
   // Optional: called when the trader taps "Set up" in the connect prompt.
   // Typically navigates to Settings → Card payments.
   onNavigateToCardPayments,
+  // Optional: saves a partial profile patch to Supabase. Required for the
+  // just-in-time bank gate — when absent the gate is shown but the save button
+  // writes directly via supabase (fallback, no optimistic profile update in parent).
+  onProfileUpdate,
 }) {
   const [invoiceNumber, setInvoiceNumber] = useState(
     () => job.invoiceNumber || nextInvoiceNumber(jobs)
@@ -85,11 +111,23 @@ export default function SendInvoiceModal({
     return d.toISOString().slice(0, 10);
   });
   const [busy, setBusy] = useState(false);
-  const [view, setView] = useState('send'); // 'send' | 'paywall'
+  const [view, setView] = useState('send'); // 'send' | 'paywall' | 'bank-gate'
   const [checkoutError, setCheckoutError] = useState(null);
   // showPreview: toggles the in-app invoice document preview panel.
   // Collapsed by default so the send CTA is the first thing the founder sees.
   const [showPreview, setShowPreview] = useState(false);
+
+  // ── Bank-gate state — just-in-time bank detail entry ─────────────────────────
+  // localProfile: mirrors the profile prop but is updated optimistically when the
+  // trader saves bank details via the just-in-time gate. This lets the modal
+  // re-derive resolvedBiz and the missing-fields warning without waiting for a
+  // parent re-render. The parent's onProfileUpdate call (if wired) updates the
+  // real profile state in AppShell asynchronously.
+  const [localProfile, setLocalProfile] = useState(profile);
+  const [bankSortCode, setBankSortCode] = useState('');
+  const [bankAccountNumber, setBankAccountNumber] = useState('');
+  const [bankSaving, setBankSaving] = useState(false);
+  const [bankError, setBankError] = useState(null);
 
   // ── Pay-now state ────────────────────────────────────────────────────────────
   // isConnected: true when the trader has a connected Stripe account.
@@ -161,7 +199,9 @@ export default function SendInvoiceModal({
   }, [isConnected, job?.id]);
 
   const isFirstSend = job.status !== 'invoice_sent';
-  const missing = getMissingInvoiceFields(biz, profile);
+  // Use localProfile (optimistically updated after bank-gate save) so the missing
+  // fields warning and bank-gate check reflect the latest saved state.
+  const missing = getMissingInvoiceFields(biz, localProfile);
   // Merge the Stripe Payment Link from profile into biz so the lib functions
   // (invoiceMessage, invoicePDF) can read it regardless of the nav path.
   // biz may be null in the new-nav flow where only profile is available.
@@ -171,13 +211,13 @@ export default function SendInvoiceModal({
   const effectivePaymentLink =
     (isConnected && payNowUrl)
       ? payNowUrl
-      : (profile?.stripe_payment_link || biz?.stripePaymentLink || '');
+      : (localProfile?.stripe_payment_link || biz?.stripePaymentLink || '');
 
-  // Merge biz (legacy localStorage) + profile (Supabase, edited via Settings) so
-  // all document paths — WhatsApp message, PDF share, PDF download — see the
+  // Merge biz (legacy localStorage) + localProfile (optimistically updated after bank-gate
+  // save) so all document paths — WhatsApp message, PDF share, PDF download — see the
   // same complete business identity. Profile fields take priority because Settings
   // writes to profile, not to the stale localStorage biz object.
-  const resolvedBiz = resolveBusinessIdentity(biz, profile);
+  const resolvedBiz = resolveBusinessIdentity(biz, localProfile);
   const bizWithStripe = {
     ...resolvedBiz,
     stripePaymentLink: effectivePaymentLink,
@@ -188,10 +228,18 @@ export default function SendInvoiceModal({
   const isUnpriced = !invAmount || invAmount <= 0;
 
   // Performs the status transition on first send.
-  // Returns false when the paywall should block the send.
+  // Returns false when the paywall or bank gate should block the send.
   const attemptSend = () => {
     // Hard-stop backstop for £0 invoices — belt-and-suspenders behind the UI banner.
     if (isUnpriced) return false;
+    // Just-in-time bank gate: if the trader has no bank details, intercept the send
+    // and show the bank-entry form. Once they save, they return here via setView('send')
+    // with localProfile updated — the gate will not fire again.
+    if (!profileHasBank(localProfile)) {
+      logTelemetry('bank_gate_shown', { source: 'invoice_send' });
+      setView('bank-gate');
+      return false;
+    }
     if (isFirstSend && !canSendInvoice(profile)) {
       logTelemetry('paywall_viewed', { source: 'invoice_send', plan: profile?.plan ?? 'free' });
       setView('paywall');
@@ -333,6 +381,117 @@ export default function SendInvoiceModal({
             onClick={() => setView('send')}
           >
             Not yet
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Bank-gate view ─────────────────────────────────────────────────────────
+  // Shown once, just-in-time, when a trader who skipped onboarding bank details
+  // tries to send their first invoice. Reuses the existing modal-sheet chrome.
+  if (view === 'bank-gate') {
+    const sortCodeValid = /^\d{6}$/.test(bankSortCode.replace(/\D/g, ''));
+    const accountNumberValid = /^\d{6,8}$/.test(bankAccountNumber);
+    const bankCanSave = sortCodeValid && accountNumberValid && !bankSaving;
+
+    const handleBankSave = async () => {
+      if (!bankCanSave) return;
+      setBankSaving(true);
+      setBankError(null);
+      try {
+        const patch = {
+          sort_code: bankSortCode.trim(),
+          account_number: bankAccountNumber.trim(),
+        };
+        if (onProfileUpdate) {
+          await onProfileUpdate(patch);
+        } else {
+          // Fallback: write directly when onProfileUpdate is not threaded.
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session?.user?.id) throw new Error('Not signed in');
+          const { error: dbErr } = await supabase
+            .from('profiles')
+            .update(patch)
+            .eq('id', session.user.id);
+          if (dbErr) throw dbErr;
+        }
+        // Optimistically update localProfile so resolvedBiz and missing-fields
+        // check pick up the new bank details without a parent re-render.
+        setLocalProfile(prev => ({ ...(prev || {}), ...patch }));
+        logTelemetry('bank_gate_completed', { source: 'invoice_send' });
+        setView('send');
+      } catch (e) {
+        setBankError(e?.message || 'Could not save — check your connection and try again');
+      } finally {
+        setBankSaving(false);
+      }
+    };
+
+    return (
+      <div className="modal-backdrop" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+        <div className="modal-sheet">
+          <div className="modal-sheet-header">
+            <h3 className="modal-sheet-title">Add your bank details</h3>
+            <button className="modal-sheet-close" onClick={onClose} aria-label="Close">✕</button>
+          </div>
+          <div className="modal-sheet-body">
+            <p className="modal-sheet-text">
+              Your bank details are printed on the invoice so your customer can pay you by bank transfer.
+            </p>
+          </div>
+
+          <div className="invoice-fields-row" style={{ flexDirection: 'column', gap: 12 }}>
+            <div className="invoice-field-group">
+              <label className="invoice-field-label" htmlFor="bg-sort-code">Sort code</label>
+              <input
+                id="bg-sort-code"
+                className="invoice-field-input"
+                type="text"
+                inputMode="numeric"
+                value={bankSortCode}
+                placeholder="12-34-56"
+                onChange={e => setBankSortCode(formatSortCode(e.target.value))}
+                autoFocus
+                autoComplete="off"
+                aria-label="Sort code"
+              />
+            </div>
+            <div className="invoice-field-group">
+              <label className="invoice-field-label" htmlFor="bg-account-number">Account number</label>
+              <input
+                id="bg-account-number"
+                className="invoice-field-input"
+                type="text"
+                inputMode="numeric"
+                value={bankAccountNumber}
+                placeholder="12345678"
+                onChange={e => setBankAccountNumber(e.target.value.replace(/\D/g, '').slice(0, 8))}
+                autoComplete="off"
+                aria-label="Account number"
+              />
+            </div>
+          </div>
+
+          {bankError && (
+            <p className="modal-sheet-error" role="alert">{bankError}</p>
+          )}
+
+          <button
+            type="button"
+            className="btn-primary modal-sheet-btn"
+            onClick={handleBankSave}
+            disabled={!bankCanSave}
+          >
+            {bankSaving ? 'Saving…' : 'Save and send invoice'}
+          </button>
+          <button
+            type="button"
+            className="btn-ghost modal-sheet-btn"
+            onClick={() => setView('send')}
+            disabled={bankSaving}
+          >
+            Skip — send without bank details
           </button>
         </div>
       </div>
