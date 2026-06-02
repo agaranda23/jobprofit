@@ -113,19 +113,29 @@ export default function SendInvoiceModal({
     return d.toISOString().slice(0, 10);
   });
   const [busy, setBusy] = useState(false);
-  const [view, setView] = useState('send'); // 'send' | 'paywall' | 'bank-gate'
+  const [view, setView] = useState('send'); // 'send' | 'paywall' | 'identity-gate' | 'bank-gate'
   const [checkoutError, setCheckoutError] = useState(null);
   // showPreview: toggles the in-app invoice document preview panel.
   // Collapsed by default so the send CTA is the first thing the founder sees.
   const [showPreview, setShowPreview] = useState(false);
 
-  // ── Bank-gate state — just-in-time bank detail entry ─────────────────────────
+  // ── Identity/bank-gate state — just-in-time detail entry ────────────────────
   // localProfile: mirrors the profile prop but is updated optimistically when the
-  // trader saves bank details via the just-in-time gate. This lets the modal
+  // trader saves details via the just-in-time gates. This lets the modal
   // re-derive resolvedBiz and the missing-fields warning without waiting for a
   // parent re-render. The parent's onProfileUpdate call (if wired) updates the
   // real profile state in AppShell asynchronously.
   const [localProfile, setLocalProfile] = useState(profile);
+
+  // Identity-gate state (business_name / first_name / last_name — shown once,
+  // just-in-time, when a brand-new user who skipped onboarding tries to send).
+  const [idBusinessName, setIdBusinessName] = useState(() => profile?.business_name || '');
+  const [idFirstName, setIdFirstName] = useState(() => profile?.first_name || '');
+  const [idLastName, setIdLastName] = useState(() => profile?.last_name || '');
+  const [idSaving, setIdSaving] = useState(false);
+  const [idError, setIdError] = useState(null);
+
+  // Bank-gate state (sort_code / account_number).
   const [bankSortCode, setBankSortCode] = useState('');
   const [bankAccountNumber, setBankAccountNumber] = useState('');
   const [bankSaving, setBankSaving] = useState(false);
@@ -235,6 +245,16 @@ export default function SendInvoiceModal({
   const attemptSend = async () => {
     // Hard-stop backstop for £0 invoices — belt-and-suspenders behind the UI banner.
     if (isUnpriced) return false;
+    // Just-in-time identity gate: if the trader skipped onboarding they may be
+    // missing business_name / first_name / last_name — all printed on the invoice.
+    // Collect them here before proceeding. Once saved, localProfile is updated
+    // optimistically and the gate will not fire again this session.
+    const identityMissing = !localProfile?.business_name || !localProfile?.first_name || !localProfile?.last_name;
+    if (identityMissing) {
+      logTelemetry('identity_gate_shown', { source: 'invoice_send' });
+      setView('identity-gate');
+      return false;
+    }
     // Just-in-time bank gate: if the trader has no bank details, intercept the send
     // and show the bank-entry form. Once they save, they return here via setView('send')
     // with localProfile updated — the gate will not fire again.
@@ -404,6 +424,122 @@ export default function SendInvoiceModal({
             onClick={() => setView('send')}
           >
             Not yet
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Identity-gate view ────────────────────────────────────────────────────
+  // Shown once, just-in-time, when a brand-new user who never completed onboarding
+  // (business_name / first_name / last_name) tries to send their first invoice.
+  // After saving, falls through to the bank-gate or straight to send.
+  if (view === 'identity-gate') {
+    const idCanSave =
+      idBusinessName.trim().length > 0 &&
+      idFirstName.trim().length > 0 &&
+      idLastName.trim().length > 0 &&
+      !idSaving;
+
+    const handleIdentitySave = async () => {
+      if (!idCanSave) return;
+      setIdSaving(true);
+      setIdError(null);
+      try {
+        const patch = {
+          business_name: idBusinessName.trim(),
+          first_name: idFirstName.trim(),
+          last_name: idLastName.trim(),
+        };
+        if (onProfileUpdate) {
+          await onProfileUpdate(patch);
+        } else {
+          const { data: { session: s } } = await supabase.auth.getSession();
+          if (!s?.user?.id) throw new Error('Not signed in');
+          const { error: dbErr } = await supabase
+            .from('profiles')
+            .update(patch)
+            .eq('id', s.user.id);
+          if (dbErr) throw dbErr;
+        }
+        setLocalProfile(prev => ({ ...(prev || {}), ...patch }));
+        logTelemetry('identity_gate_completed', { source: 'invoice_send' });
+        // Chain to bank-gate if bank details are still missing, otherwise send.
+        setView(profileHasBank({ ...(localProfile || {}), ...patch }) ? 'send' : 'bank-gate');
+      } catch (e) {
+        setIdError(e?.message || 'Could not save — check your connection and try again');
+      } finally {
+        setIdSaving(false);
+      }
+    };
+
+    return (
+      <div className="modal-backdrop" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+        <div className="modal-sheet">
+          <div className="modal-sheet-header">
+            <h3 className="modal-sheet-title">Quick — your business details</h3>
+            <button className="modal-sheet-close" onClick={onClose} aria-label="Close">✕</button>
+          </div>
+          <div className="modal-sheet-body">
+            <p className="modal-sheet-text">
+              Your business name and your name are printed on the invoice so your customer knows who to pay. One time only.
+            </p>
+          </div>
+
+          <div className="invoice-fields-row" style={{ flexDirection: 'column', gap: 12 }}>
+            <div className="invoice-field-group">
+              <label className="invoice-field-label" htmlFor="ig-business-name">Trading name</label>
+              <input
+                id="ig-business-name"
+                className="invoice-field-input"
+                type="text"
+                value={idBusinessName}
+                placeholder="Smith Plumbing Ltd"
+                onChange={e => setIdBusinessName(e.target.value)}
+                autoFocus
+                autoComplete="off"
+                aria-label="Trading name"
+              />
+            </div>
+            <div className="invoice-field-group">
+              <label className="invoice-field-label" htmlFor="ig-first-name">First name</label>
+              <input
+                id="ig-first-name"
+                className="invoice-field-input"
+                type="text"
+                value={idFirstName}
+                placeholder="Alan"
+                onChange={e => setIdFirstName(e.target.value)}
+                autoComplete="off"
+                aria-label="First name"
+              />
+            </div>
+            <div className="invoice-field-group">
+              <label className="invoice-field-label" htmlFor="ig-last-name">Last name</label>
+              <input
+                id="ig-last-name"
+                className="invoice-field-input"
+                type="text"
+                value={idLastName}
+                placeholder="Smith"
+                onChange={e => setIdLastName(e.target.value)}
+                autoComplete="off"
+                aria-label="Last name"
+              />
+            </div>
+          </div>
+
+          {idError && (
+            <p className="modal-sheet-error" role="alert">{idError}</p>
+          )}
+
+          <button
+            type="button"
+            className="btn-primary modal-sheet-btn"
+            onClick={handleIdentitySave}
+            disabled={!idCanSave}
+          >
+            {idSaving ? 'Saving…' : 'Save and continue'}
           </button>
         </div>
       </div>

@@ -12,7 +12,16 @@ import { useState, useEffect } from 'react';
 import { getConsent, setConsent } from '../lib/consent.js';
 
 export default function ConsentBanner() {
+  // Delay rendering so the banner doesn't stack on top of first-load UI.
+  // Consent is opt-out by default (PostHog is suppressed until granted) so
+  // a 2-second delay is PECR-safe — we are not capturing before consent.
+  const [ready, setReady] = useState(false);
   const [visible, setVisible] = useState(() => getConsent() === null);
+
+  useEffect(() => {
+    const t = setTimeout(() => setReady(true), 2000);
+    return () => clearTimeout(t);
+  }, []);
 
   // Listen for consent being set from another tab or from Settings.
   useEffect(() => {
@@ -21,7 +30,7 @@ export default function ConsentBanner() {
     return () => window.removeEventListener('jp:consent', onConsent);
   }, []);
 
-  if (!visible) return null;
+  if (!ready || !visible) return null;
 
   function handleAccept() {
     setConsent('granted');
