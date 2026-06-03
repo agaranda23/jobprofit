@@ -793,7 +793,8 @@ describe('getDataTrustHint', () => {
   it('noCosts: returns hint when paid revenue exists but no receipts and no overheads', () => {
     const hint = getDataTrustHint([dtPaidJob({ amount: 600 })], [], {}, NOW);
     expect(hint?.type).toBe('noCosts');
-    expect(hint.cta).toBe('Add your costs');
+    // CTA copy updated 2026-06-03 (costs-model-v1 rename)
+    expect(hint.cta).toBe('Add monthly bills →');
   });
 
   it('noCosts: suppressed when receipts exist in the tax year', () => {
@@ -946,5 +947,102 @@ describe('Tax pot "to keep" derivation', () => {
     const { profit } = getTaxYearSummary(jobs, recs, NOW);
     // profit = 800; 20% pot = 160; to keep = 640
     expect(toKeep(profit, 20)).toBe(640);
+  });
+});
+
+// ─── Editable tax pot: clamp logic (TaxPotSheet) ─────────────────────────────
+// TaxPotSheet clamps the custom % to 0–60. These tests verify the clamp
+// formula used by the UI before calling onProfileUpdate.
+
+describe('TaxPotSheet clamp logic', () => {
+  // Mirrors TaxPotSheet effectivePct computation:
+  //   Math.min(60, Math.max(0, parseInt(raw, 10) || 0))
+  function clamp(raw) {
+    return Math.min(60, Math.max(0, parseInt(raw, 10) || 0));
+  }
+
+  it('clamps values above 60 to 60', () => {
+    expect(clamp('99')).toBe(60);
+    expect(clamp('61')).toBe(60);
+  });
+
+  it('clamps negative values to 0', () => {
+    expect(clamp('-5')).toBe(0);
+    expect(clamp('-100')).toBe(0);
+  });
+
+  it('passes valid values through unchanged', () => {
+    expect(clamp('20')).toBe(20);
+    expect(clamp('0')).toBe(0);
+    expect(clamp('60')).toBe(60);
+    expect(clamp('15')).toBe(15);
+    expect(clamp('25')).toBe(25);
+  });
+
+  it('returns 0 for non-numeric input (|| 0 guard)', () => {
+    expect(clamp('')).toBe(0);
+    expect(clamp('abc')).toBe(0);
+  });
+
+  it('keepBack formula: monthProfit × pct / 100', () => {
+    // Mirrors TaxPotSheet: keepBack = Math.max(0, monthProfit) * effectivePct / 100
+    const keepBack = (profit, pct) => Math.max(0, profit) * pct / 100;
+    expect(keepBack(1000, 20)).toBe(200);
+    expect(keepBack(1000, 25)).toBe(250);
+    expect(keepBack(0, 20)).toBe(0);
+    expect(keepBack(-500, 20)).toBe(0);   // negative month — no pot
+  });
+
+  it('low-warning fires when pct < 15 and pct > 0', () => {
+    // Mirrors: showLowWarning = effectivePct < 15 && effectivePct > 0
+    const showWarn = (pct) => pct < 15 && pct > 0;
+    expect(showWarn(14)).toBe(true);
+    expect(showWarn(1)).toBe(true);
+    expect(showWarn(0)).toBe(false);  // 0% is explicit — no warning
+    expect(showWarn(15)).toBe(false);
+    expect(showWarn(20)).toBe(false);
+  });
+});
+
+// ─── Per-job monthly bills estimate (ProfitBreakdownSheet) ───────────────────
+// By-count allocation: totalMonthlyBills / jobCountThisMonth.
+// Mirrors ProfitBreakdownSheet's estimate line.
+
+describe('Per-job monthly bills estimate', () => {
+  function perJobBills(totalBills, jobCount) {
+    // Matches component: jobCount floored at 1 to prevent division-by-zero
+    const count = jobCount && jobCount > 0 ? jobCount : 1;
+    return totalBills / count;
+  }
+
+  it('divides total bills evenly by job count', () => {
+    expect(perJobBills(600, 3)).toBe(200);
+    expect(perJobBills(500, 5)).toBe(100);
+    expect(perJobBills(300, 1)).toBe(300);
+  });
+
+  it('floors job count at 1 to prevent division-by-zero', () => {
+    expect(perJobBills(400, 0)).toBe(400);
+    expect(perJobBills(400, null)).toBe(400);
+    expect(perJobBills(400, undefined)).toBe(400);
+  });
+
+  it('returns 0 when total bills is 0', () => {
+    expect(perJobBills(0, 5)).toBe(0);
+  });
+
+  it('getOverheadTotal returns 0 when no bills configured (hides estimate)', () => {
+    expect(getOverheadTotal([])).toBe(0);
+    expect(getOverheadTotal(null)).toBe(0);
+    expect(getOverheadTotal(undefined)).toBe(0);
+  });
+
+  it('getOverheadTotal sums only active bills', () => {
+    const overheads = [
+      { id: 'a', amount: 200, is_active: true },
+      { id: 'b', amount: 100, is_active: false },   // inactive — excluded
+      { id: 'c', amount: 50,  is_active: true },
+    ];
+    expect(getOverheadTotal(overheads)).toBe(250);
   });
 });
