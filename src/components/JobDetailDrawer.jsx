@@ -3708,7 +3708,10 @@ export default function JobDetailDrawer({
         overheads={Array.isArray(profile?.overheads) ? profile.overheads : []}
         jobCountThisMonth={
           Array.isArray(jobs)
-            ? jobs.filter(j => (j.date || '').slice(0, 7) === monthKey(new Date())).length
+            ? jobs.filter(j => {
+                if ((j.date || '').slice(0, 7) !== monthKey(new Date())) return false;
+                return j.paid === true || j.paymentStatus === 'paid' || j.jobStatus === 'paid' || j.status === 'paid';
+              }).length
             : 1
         }
       />
