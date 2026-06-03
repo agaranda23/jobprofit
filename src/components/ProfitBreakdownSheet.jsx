@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { marginState } from '../lib/profitThresholds';
 import { gbp } from '../lib/today';
+import { getOverheadTotal } from '../lib/cashflow';
 
 /**
  * ProfitBreakdownSheet — half-sheet modal for the profit breakdown.
@@ -10,16 +11,19 @@ import { gbp } from '../lib/today';
  *   - Two entry points: ribbon tap, viewProfitBreakdown from hero card
  *   - Hero line: £{profit} profit on £{quote} ({margin}% margin)
  *   - Quote breakdown: line items grouped by category (labour / materials / sundries)
- *   - Costs breakdown: receipts by category (Materials, Fuel, Subbie, Other)
+ *   - Job costs section: receipts by category (Materials, Fuel, Subbie, Other)
  *     - Tappable category row expands to per-receipt list inline
- *   - Footer: overheads line (display-only, settings hook deferred)
+ *   - Monthly bills estimate: shown only when bills are configured, greyed, by-count
  *   - Close: top-right X, tap outside, drag down, Escape
  *
  * Props:
- *   open      – boolean
- *   onClose   – function
- *   job       – full job object
- *   receipts  – flat receipts array from AppShell
+ *   open         – boolean
+ *   onClose      – function
+ *   job          – full job object
+ *   receipts     – flat receipts array from AppShell
+ *   overheads    – profile.overheads array (optional — hides the estimate when absent)
+ *   jobCountThisMonth – number of paid jobs this month (optional — used for by-count allocation)
+ *   onGoToSettings – optional fn to navigate to settings (for the "Add monthly bills" link)
  */
 
 // ── Receipt category heuristic ─────────────────────────────────────────────
@@ -142,7 +146,7 @@ function useDrag(onClose) {
   return { sheetRef, onPointerDown };
 }
 
-export default function ProfitBreakdownSheet({ open, onClose, job, receipts = [] }) {
+export default function ProfitBreakdownSheet({ open, onClose, job, receipts = [], overheads, jobCountThisMonth, onGoToSettings }) {
   const [expandedCats, setExpandedCats] = useState(new Set());
   const { sheetRef, onPointerDown } = useDrag(onClose);
 
@@ -255,10 +259,10 @@ export default function ProfitBreakdownSheet({ open, onClose, job, receipts = []
             </div>
           )}
 
-          {/* Costs breakdown */}
+          {/* Job costs */}
           {costGroups.length > 0 ? (
             <div className="jd-pbs-section">
-              <div className="jd-pbs-section-header">Costs breakdown</div>
+              <div className="jd-pbs-section-header">Job costs</div>
               {costGroups.map(g => (
                 <div key={g.id} className="jd-pbs-group">
                   <button
@@ -285,16 +289,41 @@ export default function ProfitBreakdownSheet({ open, onClose, job, receipts = []
             </div>
           ) : (
             <div className="jd-pbs-section">
-              <div className="jd-pbs-section-header">Costs breakdown</div>
+              <div className="jd-pbs-section-header">Job costs</div>
               <div className="jd-pbs-empty">No costs logged yet.</div>
             </div>
           )}
 
-          {/* Overheads footer — display-only; settings hook deferred to a later sprint */}
-          <div className="jd-pbs-overheads">
-            Overheads allocated: £0
-            <span className="jd-pbs-overheads-hint"> (set up in Settings)</span>
-          </div>
+          {/* Monthly bills estimate — only shown when bills are configured.
+              By-count allocation: totalMonthlyBills / jobCountThisMonth.
+              Never shows £0 — hides entirely when no bills set. */}
+          {(() => {
+            const totalBills = getOverheadTotal(overheads);
+            if (!totalBills || totalBills <= 0) {
+              // No bills configured — show a faint link only
+              return onGoToSettings ? (
+                <div className="jd-pbs-bills-nudge">
+                  <button
+                    type="button"
+                    className="jd-pbs-bills-nudge-link"
+                    onClick={onGoToSettings}
+                  >
+                    Add monthly bills in Settings
+                  </button>
+                </div>
+              ) : null;
+            }
+            const jobCount = jobCountThisMonth && jobCountThisMonth > 0 ? jobCountThisMonth : 1;
+            const perJobBills = totalBills / jobCount;
+            return (
+              <div className="jd-pbs-bills-estimate">
+                <span className="jd-pbs-bills-estimate-label">
+                  Your monthly bills add ~{gbp(perJobBills)}/job this month
+                </span>
+                <span className="jd-pbs-bills-estimate-tag">(estimate)</span>
+              </div>
+            );
+          })()}
         </div>
       </div>
     </>
