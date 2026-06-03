@@ -1019,8 +1019,8 @@ export function getDataTrustHint(jobs, receipts, profile, now = new Date()) {
     if (!hasOverheads && !hasReceiptsInYear) {
       return {
         type:    'noCosts',
-        message: 'No costs logged yet — your profit may look higher than it really is',
-        cta:     'Add your costs',
+        message: "It's only counting job costs. Add your monthly bills — van, insurance, phone — and we'll show what you actually keep.",
+        cta:     'Add monthly bills →',
       };
     }
   }

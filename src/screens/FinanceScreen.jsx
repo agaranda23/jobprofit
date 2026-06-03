@@ -567,11 +567,23 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
                2. Free + overheads set  → blurred locked line (upgrade pitch)
                3. Anyone + no overheads → plain nudge to add costs in Settings */}
           {overheads.length === 0 ? (
-            /* State 3: overheads not configured — show a plain prompt, no blur */
+            /* State 3: overheads not configured — structured nudge prompt */
             <div className="money-hero__true-profit-prompt">
-              <p>
-                Add your monthly bills in Settings to see true profit
+              <p className="money-hero__true-profit-prompt-heading">
+                This profit&rsquo;s missing your bills
               </p>
+              <p className="money-hero__true-profit-prompt-body">
+                It&rsquo;s only counting job costs. Add your monthly bills &mdash; van, insurance, phone &mdash; and we&rsquo;ll show what you actually keep.
+              </p>
+              {onGoToSettings && (
+                <button
+                  type="button"
+                  className="money-hero__true-profit-prompt-cta"
+                  onClick={() => onGoToSettings('overheads')}
+                >
+                  Add monthly bills &rarr;
+                </button>
+              )}
             </div>
           ) : userIsPro ? (
             /* State 1: Pro user — show real True Profit figure */
