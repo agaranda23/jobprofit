@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v59';  // bumped from v58: dashed-border centered "+ Add a line" / "+ Add visit" buttons (Quote + Schedule)
+const CACHE_NAME = 'jobprofit-v60';  // bumped from v59: AddReceiptModal Amount/VAT row overflow fix at 375px
 const PRECACHE = [
   '/',
   '/index.html',
