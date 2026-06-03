@@ -5589,6 +5589,44 @@ input[type=number] { -moz-appearance: textfield; }
   transition: background 0.15s;
 }
 .overheads-add-btn:hover { background: var(--surface-2); }
+.overheads-rough-total-link {
+  display: block;
+  width: 100%;
+  padding: 8px 16px 10px;
+  background: none;
+  border: none;
+  font-family: inherit;
+  font-size: 12px;
+  color: var(--text-dim);
+  text-align: left;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.overheads-rough-total-link:hover { color: var(--accent); }
+.overheads-rough-total-sheet {
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  background: var(--surface-2);
+  border-radius: 0 0 10px 10px;
+}
+.overheads-rough-total-label {
+  font-size: 13px;
+  color: var(--text);
+  margin: 0 0 8px;
+  font-weight: 500;
+}
+.overheads-rough-total-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+.overheads-rough-total-prefix {
+  font-size: 16px;
+  color: var(--text);
+  font-weight: 600;
+}
 
 /* ── JobDetailDrawer (bottom sheet) ──────────────────────────────────────── */
 .job-detail-sheet {
