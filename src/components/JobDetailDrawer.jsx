@@ -1362,12 +1362,11 @@ function QuoteBreakdownSection({ job, onSaveLine, onDeleteLine }) {
             canEdit && (
               <button
                 type="button"
-                className="jd-card-row jd-card-row--add"
+                className="jd-add-dashed"
                 onClick={() => setSheetIdx(-1)}
                 aria-label="Add a line item"
               >
-                <span className="jd-card-row-icon" aria-hidden="true">📋</span>
-                <span className="jd-card-row-add">+ Add a line</span>
+                + Add a line
               </button>
             )
           ) : (
@@ -1414,12 +1413,11 @@ function QuoteBreakdownSection({ job, onSaveLine, onDeleteLine }) {
               {canEdit && (
                 <button
                   type="button"
-                  className="jd-card-row jd-card-row--add"
+                  className="jd-add-dashed"
                   onClick={() => setSheetIdx(-1)}
                   aria-label="Add another line item"
                 >
-                  <span className="jd-card-row-icon" aria-hidden="true">📋</span>
-                  <span className="jd-card-row-add">+ Add a line</span>
+                  + Add a line
                 </button>
               )}
               {items.length > 1 && (
@@ -3568,12 +3566,11 @@ export default function JobDetailDrawer({
                     {onUpdateJob && (
                       <button
                         type="button"
-                        className="jd-card-row jd-card-row--add"
+                        className="jd-add-dashed"
                         onClick={() => setEditingVisit({ _isNew: true, date: tomorrowDateString(), status: 'planned' })}
                         aria-label="Add a visit"
                       >
-                        <span className="jd-card-row-icon" aria-hidden="true">📅</span>
-                        <span className="jd-card-row-add">+ Add visit</span>
+                        + Add visit
                       </button>
                     )}
                   </div>
