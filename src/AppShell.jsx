@@ -193,6 +193,14 @@ export default function AppShell() {
 
   const manageRootRef = useRef(null);
 
+  // settingsScrollTarget: when FinanceScreen's "Add your costs" nudge fires,
+  // navigate to Settings AND tell SettingsScreen to scroll to the overheads
+  // section. Cleared by SettingsScreen via onScrollTargetConsumed once it has
+  // scrolled. Null = no pending scroll.
+  // NOTE: the section naming/structure is pending PRD's overheads redesign —
+  // do not rename 'overheads' here until that spec lands.
+  const [settingsScrollTarget, setSettingsScrollTarget] = useState(null);
+
   // Hash-routed navigation: pushes history before switching view so browser
   // Back returns to the previous in-app screen instead of exiting the SPA.
   const navigate = useCallback((nextView) => {
@@ -836,7 +844,10 @@ export default function AppShell() {
               // No avatar — Settings tab replaces the drawer in slice 3
               // onMarkPaid removed: chase block deleted in Phase 1 Money redesign
               onGoToJobs={() => navigate('work')}
-              onGoToSettings={() => navigate('settings')}
+              onGoToSettings={(target) => {
+                navigate('settings');
+                if (target === 'overheads') setSettingsScrollTarget('overheads');
+              }}
               onNavigateToCardPayments={() => { navigate('settings'); setSettingsSubView('card-payments'); }}
             />
           )}
@@ -869,6 +880,8 @@ export default function AppShell() {
                 if (jobId) setPendingJobId(jobId);
                 navigate('work');
               }}
+              scrollTarget={settingsScrollTarget}
+              onScrollTargetConsumed={() => setSettingsScrollTarget(null)}
             />
           )}
 
