@@ -1,5 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useKeyboardInset } from './lib/useKeyboardInset.js';
+import {
+  shouldShowCostPrompt,
+  costPromptVariant,
+  recordPromptShown,
+  recordDismissal,
+} from './lib/postPaidCost';
+import PostPaidCostRow from './components/PostPaidCostRow';
 import App from './App.jsx';
 import CardPaymentsScreen from './screens/CardPaymentsScreen.jsx';
 import {
@@ -143,6 +150,10 @@ export default function AppShell() {
   // Realtime event toast — shape: { message: string, jobId: string|null } | null
   // jobId lets the trader tap the toast to jump straight to that job.
   const [realtimeToast, setRealtimeToast] = useState(null);
+  // Post-paid cost snackbar — shown after Today quick mark-paid.
+  // null = hidden; { job } = visible for that job.
+  const [costSnackbar, setCostSnackbar] = useState(null);
+  const costSnackbarTimerRef = useRef(null);
   // Ref holding the most recent jobs array so the Realtime handler can compare
   // previous acceptedSignature state without a stale closure.
   const jobsRef = useRef([]);
@@ -637,6 +648,29 @@ export default function AppShell() {
     const merged = writeJobMeta(updated.id, extractJobMeta(updated));
     syncMetaToCloud(updated.id, merged);
     setJobs(prev => prev.map(j => j.id === updated.id ? updated : j));
+
+    // Payment recorded first (state update above). Now decide whether to show
+    // the lightweight cost-capture snackbar. Auto-dismisses after 6 s if the
+    // user does nothing — payment is never affected either way.
+    const jobIncome = job.total ?? job.amount ?? 0;
+    const jobCostTotal = Array.isArray(receipts)
+      ? receipts
+          .filter(r => r.jobId === job.id || r.job_id === job.id)
+          .reduce((s, r) => s + Number(r.amount || 0), 0)
+      : 0;
+    const remindJobCosts = profile?.remind_job_costs !== false;
+    const showSnackbar = shouldShowCostPrompt({
+      jobId: job.id,
+      jobIncome,
+      jobCostTotal,
+      remindJobCosts,
+    });
+    if (showSnackbar) {
+      recordPromptShown(job.id);
+      if (costSnackbarTimerRef.current) clearTimeout(costSnackbarTimerRef.current);
+      setCostSnackbar({ job, jobCostTotal });
+      costSnackbarTimerRef.current = setTimeout(() => setCostSnackbar(null), 6000);
+    }
   };
 
   // Partial-payment add (Phase B of partial-payments PRD). payments[] lives in
@@ -1108,6 +1142,64 @@ export default function AppShell() {
           >
             &#x2715;
           </button>
+        </div>
+      )}
+
+      {/* ── Post-paid cost snackbar — fires after Today quick mark-paid ── */}
+      {/* Payment is already recorded. This is a secondary, skippable nudge.  */}
+      {/* Auto-dismisses after 6 s if the user does nothing.                  */}
+      {costSnackbar && !costSnackbar.expanded && (
+        <div className="nav-toast nav-toast--cost-capture" role="status" aria-live="polite">
+          <span className="nav-toast-cost-msg">
+            Paid &#10003; &mdash; add what this job cost you?
+          </span>
+          <button
+            type="button"
+            className="nav-toast-add-cost"
+            onClick={() => {
+              if (costSnackbarTimerRef.current) clearTimeout(costSnackbarTimerRef.current);
+              setCostSnackbar(prev => prev ? { ...prev, expanded: true } : null);
+            }}
+            aria-label="Add job cost"
+          >
+            + Add cost
+          </button>
+          <button
+            type="button"
+            className="nav-toast-close"
+            onClick={() => {
+              if (costSnackbarTimerRef.current) clearTimeout(costSnackbarTimerRef.current);
+              const { shouldAutoMute } = recordDismissal();
+              if (shouldAutoMute) handleProfileUpdate({ remind_job_costs: false });
+              setCostSnackbar(null);
+            }}
+            aria-label="Dismiss"
+          >
+            &#x2715;
+          </button>
+        </div>
+      )}
+
+      {/* ── Expanded cost-capture modal (from Today snackbar "+ Add cost" tap) ── */}
+      {costSnackbar?.expanded && (
+        <div className="modal-backdrop" onClick={() => setCostSnackbar(null)}>
+          <div className="modal modal--paid-success" onClick={e => e.stopPropagation()}>
+            <div className="modal-paid-badge">
+              <span className="modal-paid-check" aria-hidden="true">&#10003;</span>
+              <span className="modal-paid-label">Paid</span>
+            </div>
+            <PostPaidCostRow
+              job={costSnackbar.job}
+              jobCostTotal={costSnackbar.jobCostTotal ?? 0}
+              variant={costPromptVariant(costSnackbar.jobCostTotal ?? 0)}
+              onSave={handleAddReceipt}
+              onSkip={() => setCostSnackbar(null)}
+              onAutoMute={() => {
+                setCostSnackbar(null);
+                handleProfileUpdate({ remind_job_costs: false });
+              }}
+            />
+          </div>
         </div>
       )}
 

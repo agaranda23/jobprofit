@@ -5,6 +5,12 @@ import {
   validateMethod,
   computeBalance,
 } from '../lib/payments';
+import {
+  shouldShowCostPrompt,
+  costPromptVariant,
+  recordPromptShown,
+} from '../lib/postPaidCost';
+import PostPaidCostRow from './PostPaidCostRow';
 
 // UI segmented control: 4 user-facing methods. 'unknown' is a system-only
 // value used by the migration and the Mark-as-Paid shortcut — never shown
@@ -23,7 +29,23 @@ function todayLocalIsoDate() {
 
 // mode='payment' (default) — post-invoice: prefill with balance, normal copy.
 // mode='deposit'           — pre-invoice: empty prefill, deposit-aware copy.
-export default function RecordPaymentModal({ job, onAddPayment, onClose, flash, mode = 'payment' }) {
+//
+// costCapture props (all optional — safe to omit for deposit mode or V1 exclusions):
+//   receipts      {array}   — all receipts from AppShell (filtered by jobId to get job costs)
+//   onAddReceipt  {function} — async handler that persists the cost record (handleAddReceipt)
+//   profile       {object}  — user profile (reads remind_job_costs preference)
+//   onAutoMute    {function} — () => void — caller writes remind_job_costs: false after 3 dismissals
+export default function RecordPaymentModal({
+  job,
+  onAddPayment,
+  onClose,
+  flash,
+  mode = 'payment',
+  receipts,
+  onAddReceipt,
+  profile,
+  onAutoMute,
+}) {
   const isDeposit = mode === 'deposit';
   const balance = computeBalance(job);
   // Post-invoice: prefill with outstanding balance.
@@ -36,6 +58,10 @@ export default function RecordPaymentModal({ job, onAddPayment, onClose, flash, 
   const [method, setMethod] = useState('cash');
   const [note, setNote] = useState('');
   const [error, setError] = useState('');
+  // paidSuccess: true once payment is recorded and will-clear-balance.
+  // The cost-capture row is shown in this state only.
+  const [paidSuccess, setPaidSuccess] = useState(false);
+  const [costPromptActive, setCostPromptActive] = useState(false);
 
   const quoteTotal = job?.total ?? job?.amount ?? 0;
   const parsedAmount = parseFloat(amount);
@@ -52,18 +78,85 @@ export default function RecordPaymentModal({ job, onAddPayment, onClose, flash, 
       validateDate(date);
       validateMethod(method);
       onAddPayment(job, { amount: parsedAmount, date, method, note: note.trim() });
+
       if (isDeposit) {
-        flash?.('✅ Deposit recorded');
-      } else {
-        const willClearBalance = parsedAmount >= balance;
-        flash?.(willClearBalance ? '💷 Job marked paid' : '✅ Payment recorded');
+        // Deposit — no cost capture prompt; close immediately with flash
+        flash?.('Deposit recorded');
+        onClose();
+        return;
       }
-      onClose();
+
+      const willClearBalance = parsedAmount >= balance;
+
+      if (willClearBalance) {
+        // THE LOAD-BEARING RULE: payment recorded first (flash fires immediately).
+        // Cost capture appears after, never before.
+        flash?.('Job marked paid');
+
+        // Determine whether to show cost prompt
+        const jobIncome = job?.total ?? job?.amount ?? 0;
+        const jobCostTotal = Array.isArray(receipts)
+          ? receipts.filter(r => r.jobId === job?.id || r.job_id === job?.id)
+              .reduce((s, r) => s + Number(r.amount || 0), 0)
+          : 0;
+        const remindJobCosts = profile?.remind_job_costs !== false;
+
+        const show = onAddReceipt && shouldShowCostPrompt({
+          jobId: job?.id,
+          jobIncome,
+          jobCostTotal,
+          remindJobCosts,
+          isPartialPayment: false,
+          isBulkPaid: false,
+        });
+
+        if (show) {
+          recordPromptShown(job?.id);
+          setPaidSuccess(true);
+          setCostPromptActive(true);
+        } else {
+          onClose();
+        }
+      } else {
+        // Partial payment — just flash and close
+        flash?.('Payment recorded');
+        onClose();
+      }
     } catch (e) {
       setError(e.message);
     }
   };
 
+  // ── Paid success state (cost capture) ────────────────────────────────────────
+  if (paidSuccess && costPromptActive) {
+    const jobIncome = job?.total ?? job?.amount ?? 0;
+    const jobCostTotal = Array.isArray(receipts)
+      ? receipts.filter(r => r.jobId === job?.id || r.job_id === job?.id)
+          .reduce((s, r) => s + Number(r.amount || 0), 0)
+      : 0;
+    const variant = costPromptVariant(jobCostTotal);
+
+    return (
+      <div className="modal-backdrop" onClick={onClose}>
+        <div className="modal modal--paid-success" onClick={e => e.stopPropagation()}>
+          <div className="modal-paid-badge" aria-live="polite">
+            <span className="modal-paid-check" aria-hidden="true">&#10003;</span>
+            <span className="modal-paid-label">Paid</span>
+          </div>
+          <PostPaidCostRow
+            job={job}
+            jobCostTotal={jobCostTotal}
+            variant={variant}
+            onSave={onAddReceipt}
+            onSkip={onClose}
+            onAutoMute={onAutoMute}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // ── Normal entry state ────────────────────────────────────────────────────────
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal" onClick={e => e.stopPropagation()}>

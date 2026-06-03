@@ -2,6 +2,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import PaymentSummaryBlock from './PaymentSummaryBlock';
 import PaymentHistoryList from './PaymentHistoryList';
 import RecordPaymentModal from './RecordPaymentModal';
+import PostPaidCostRow from './PostPaidCostRow';
+import {
+  shouldShowCostPrompt,
+  costPromptVariant,
+  recordPromptShown,
+} from '../lib/postPaidCost';
 import SendInvoiceModal from './SendInvoiceModal';
 import ReviewSheet from './ReviewSheet';
 import AddReceiptModal from './AddReceiptModal';
@@ -2310,6 +2316,10 @@ export default function JobDetailDrawer({
   // Receipt edit — null = closed, otherwise the receipt being edited
   const [editingReceipt, setEditingReceipt] = useState(null);
 
+  // Post-paid cost capture — shown after "Mark as Paid" shortcut in the drawer.
+  // null = not shown; true = prompt is active for this job.
+  const [postPaidCostActive, setPostPaidCostActive] = useState(false);
+
   // LineItems edit — per-row sheet pattern (replaces old inline draft)
   // liEditMode / liDraft kept for legacy callers (kebab menu editLineItems ref)
   const [liEditMode, setLiEditMode] = useState(false);
@@ -3347,7 +3357,25 @@ export default function JobDetailDrawer({
                       note: '',
                     });
                     clearChase(job.id);
+                    // Payment recorded first (dopamine). Cost prompt appears after.
                     showFlash('Job marked paid');
+                    const jobIncome = job.total ?? job.amount ?? 0;
+                    const jobCostTotal = Array.isArray(receipts)
+                      ? receipts
+                          .filter(r => r.jobId === job.id || r.job_id === job.id)
+                          .reduce((s, r) => s + Number(r.amount || 0), 0)
+                      : 0;
+                    const remindJobCosts = profile?.remind_job_costs !== false;
+                    const show = onAddReceipt && shouldShowCostPrompt({
+                      jobId: job.id,
+                      jobIncome,
+                      jobCostTotal,
+                      remindJobCosts,
+                    });
+                    if (show) {
+                      recordPromptShown(job.id);
+                      setPostPaidCostActive(true);
+                    }
                   }
                 }}
               />
@@ -3756,7 +3784,44 @@ export default function JobDetailDrawer({
           onClose={() => setPaymentModalOpen(false)}
           flash={showFlash}
           mode={paymentModalMode}
+          receipts={receipts}
+          onAddReceipt={onAddReceipt}
+          profile={profile}
+          onAutoMute={() => onProfileUpdate?.({ remind_job_costs: false })}
         />
+      )}
+
+      {/* Post-paid cost capture — inline row shown after Mark-as-Paid shortcut. */}
+      {postPaidCostActive && (
+        <div className="modal-backdrop" onClick={() => setPostPaidCostActive(false)}>
+          <div className="modal modal--paid-success" onClick={e => e.stopPropagation()}>
+            <div className="modal-paid-badge">
+              <span className="modal-paid-check" aria-hidden="true">&#10003;</span>
+              <span className="modal-paid-label">Paid</span>
+            </div>
+            <PostPaidCostRow
+              job={job}
+              jobCostTotal={Array.isArray(receipts)
+                ? receipts
+                    .filter(r => r.jobId === job.id || r.job_id === job.id)
+                    .reduce((s, r) => s + Number(r.amount || 0), 0)
+                : 0}
+              variant={costPromptVariant(
+                Array.isArray(receipts)
+                  ? receipts
+                      .filter(r => r.jobId === job.id || r.job_id === job.id)
+                      .reduce((s, r) => s + Number(r.amount || 0), 0)
+                  : 0
+              )}
+              onSave={onAddReceipt}
+              onSkip={() => setPostPaidCostActive(false)}
+              onAutoMute={() => {
+                setPostPaidCostActive(false);
+                onProfileUpdate?.({ remind_job_costs: false });
+              }}
+            />
+          </div>
+        </div>
       )}
 
       {/* ReviewSheet — quote or invoice review before sending.
