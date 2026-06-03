@@ -103,6 +103,33 @@ button:focus-visible {
   /* Pivot tile icon colour — SVGs on the green CTA tiles use currentColor,
      which resolves to this variable. Dark default matches tile text (#0B0F17). */
   --tile-icon-color: #0B0F17;
+
+  /* ── Z-index scale (single source of truth) ─────────────────────────────
+     Layer          Token                  Value   Where used
+     ─────────────────────────────────────────────────────────────────────
+     base content   (no z-index)           auto    job tiles, cards
+     nav bar        --z-nav                100     .bottom-nav
+     backdrops      --z-backdrop           200     .drawer-backdrop, .jt-backdrop
+     drawers/sheets --z-sheet              300     .job-detail-sheet, .account-drawer,
+                                                   .jt-menu--sheet, .jt-menu--dropdown
+     modals         --z-modal              400     .modal-backdrop, .modal-overlay
+     high modals    --z-modal-top          500     .modal-backdrop--top, account drawer
+                                                   stacked over job detail
+     toasts         --z-toast              600     .toast, .got-paid-toast
+     pro sheet      --z-pro-sheet          700     .pro-upgrade-overlay
+     ─────────────────────────────────────────────────────────────────────
+     Root cause of bug batch fixed 2026-06-03: .toast was z-index:200 (same
+     as backdrops) and .job-detail-sheet was z-index:201 — toasts painted
+     behind the open drawer/sheet. Bump to --z-toast:600 fixes all three
+     symptoms (toast behind got-paid card, revert drawer hidden, click-to-front).
+  */
+  --z-nav:       100;
+  --z-backdrop:  200;
+  --z-sheet:     300;
+  --z-modal:     400;
+  --z-modal-top: 500;
+  --z-toast:     600;
+  --z-pro-sheet: 700;
 }
 
 /* ── Light theme token overrides ────────────────────────────────────────────
@@ -332,7 +359,8 @@ body { background: var(--bg); color: var(--text); -webkit-font-smoothing: antial
   /* Safe-area folded inside: bar is always opaque down to the physical edge */
   padding: 12px 6px calc(12px + env(safe-area-inset-bottom));
 
-  z-index: 10;
+  /* z-index overridden in the ladder block below — use --z-nav token */
+  z-index: var(--z-nav);
 }
 
 /* Tabs */
@@ -370,9 +398,9 @@ body { background: var(--bg); color: var(--text); -webkit-font-smoothing: antial
   display: flex;
   align-items: flex-end;
   justify-content: center;
-  /* z-index 300 sits above .drawer-backdrop (200) and .job-detail-sheet (201)
-     so RecordPaymentModal blocks all clicks to the drawer underneath. */
-  z-index: 300;
+  /* --z-modal sits above drawers/sheets (--z-sheet:300) so RecordPaymentModal
+     blocks all clicks to the drawer underneath. */
+  z-index: var(--z-modal);
   /* Keyboard inset: --kb-inset is written by useKeyboardInset (AppShell).
      padding-bottom lifts the bottom-aligned sheet above the on-screen keyboard.
      transition matches the keyboard animation so the sheet slides up smoothly. */
@@ -619,9 +647,8 @@ body { background: var(--bg); color: var(--text); -webkit-font-smoothing: antial
 }
 .unpaid-toggle input { width: 18px; height: 18px; accent-color: var(--accent); }
 
-/* Nav sits above page content (z-index 10 in the rule block) but below all overlays.
-   Overlay z-index ladder: drawer-backdrop 200, sheets 201, modal-backdrop 300. */
-.bottom-nav { z-index: 100; }
+/* Nav sits above page content but below all overlays. See --z-nav in :root. */
+.bottom-nav { z-index: var(--z-nav); }
 /* Belt-and-braces: hide the nav entirely when an overlay is open. Toggled by JS
    (JobDetailDrawer, AddJobModal) via document.body.classList. */
 body.overlay-open .bottom-nav { display: none; }
@@ -1129,7 +1156,9 @@ body {
   100% { transform: scale(1); color: var(--accent); }
 }
 
-/* Toast */
+/* Toast — sits above all drawers, sheets and modals (--z-toast: 600).
+   Root cause fix: was z-index:200 (same as backdrops) which caused the "Added
+   to Leads" toast to paint behind the got-paid card/sheet. Now uses --z-toast. */
 .toast {
   position: fixed;
   bottom: calc(var(--nav-clearance) + 8px);
@@ -1142,7 +1171,7 @@ body {
   border: 1px solid var(--border);
   font-size: 15px;
   font-weight: 500;
-  z-index: 200;
+  z-index: var(--z-toast);
   animation: toast-in 0.25s ease-out;
   box-shadow: 0 8px 24px rgba(0,0,0,0.4);
 }
@@ -1151,7 +1180,8 @@ body {
   to   { opacity: 1; transform: translate(-50%, 0); }
 }
 
-/* Got Paid chip toast — Speed-mode post-save prompt (Part B) */
+/* Got Paid chip toast — Speed-mode post-save prompt (Part B).
+   Uses --z-toast like .toast so both float above all sheets and drawers. */
 .got-paid-toast {
   position: fixed;
   bottom: calc(var(--nav-clearance) + 72px); /* stacks above the standard toast */
@@ -1165,7 +1195,7 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
-  z-index: 201;
+  z-index: var(--z-toast);
   box-shadow: 0 8px 24px rgba(0,0,0,0.4);
   animation: toast-in 0.25s ease-out;
   white-space: nowrap;
@@ -2159,7 +2189,7 @@ input[type=number] { -moz-appearance: textfield; }
   position: fixed;
   inset: 0;
   background: rgba(0,0,0,0.55);
-  z-index: 200;
+  z-index: var(--z-backdrop);
   animation: fade-in 0.2s ease;
 }
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
@@ -2172,7 +2202,7 @@ input[type=number] { -moz-appearance: textfield; }
   width: min(320px, 92vw);
   background: var(--surface);
   border-left: 1px solid var(--border);
-  z-index: 201;
+  z-index: var(--z-sheet);
   overflow-y: auto;
   padding: 24px 20px calc(24px + env(safe-area-inset-bottom));
   box-sizing: border-box;
@@ -3746,7 +3776,7 @@ input[type=number] { -moz-appearance: textfield; }
   padding: 12px 16px 12px 18px;
   font-size: 13px;
   font-weight: 500;
-  z-index: 300;
+  z-index: var(--z-toast);
   display: flex;
   align-items: center;
   gap: 10px;
@@ -3775,7 +3805,7 @@ input[type=number] { -moz-appearance: textfield; }
   top: env(safe-area-inset-top, 0px);
   left: 50%;
   transform: translateX(-50%);
-  z-index: 310;
+  z-index: var(--z-toast);
   display: flex;
   align-items: center;
   gap: 6px;
@@ -3829,7 +3859,7 @@ input[type=number] { -moz-appearance: textfield; }
 .modal-overlay {
   position: fixed;
   inset: 0;
-  z-index: 500;
+  z-index: var(--z-modal);
   background: rgba(0, 0, 0, 0.6);
   display: flex;
   align-items: center;
@@ -3856,7 +3886,7 @@ input[type=number] { -moz-appearance: textfield; }
   position: fixed;
   inset: 0;
   background: var(--bg);
-  z-index: 400;
+  z-index: var(--z-modal);
   display: flex;
   flex-direction: column;
   /* safe area padding for notched phones */
@@ -4250,7 +4280,7 @@ input[type=number] { -moz-appearance: textfield; }
   position: absolute;
   right: 0;
   top: 100%;
-  z-index: 200;
+  z-index: var(--z-backdrop);
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -4692,7 +4722,7 @@ input[type=number] { -moz-appearance: textfield; }
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.5);
-  z-index: 200;
+  z-index: var(--z-backdrop);
 }
 .job-overflow-sheet {
   position: fixed;
@@ -4702,7 +4732,7 @@ input[type=number] { -moz-appearance: textfield; }
   background: var(--surface);
   border-radius: 16px 16px 0 0;
   padding: 12px 0 max(24px, env(safe-area-inset-bottom)) 0;
-  z-index: 201;
+  z-index: var(--z-sheet);
   animation: sheet-slide-up 0.2s ease;
 }
 @keyframes sheet-slide-up {
@@ -5568,7 +5598,7 @@ input[type=number] { -moz-appearance: textfield; }
   background: var(--surface);
   border-top: 1px solid var(--border);
   border-radius: 20px 20px 0 0;
-  z-index: 201;
+  z-index: var(--z-sheet);
   display: flex;
   flex-direction: column;
   animation: slide-up 0.25s ease-out;
@@ -6642,6 +6672,7 @@ input[type=number] { -moz-appearance: textfield; }
   display: flex;
   align-items: center;
   justify-content: center;
+  /* Lightbox sits above everything including modals and toasts */
   z-index: 2000;
   padding: 20px;
   cursor: pointer;
@@ -6853,10 +6884,10 @@ input[type=number] { -moz-appearance: textfield; }
 .btn-ghost--danger:hover { background: rgba(229, 72, 77, 0.08); }
 
 /* SendInvoiceModal uses the shared .modal-backdrop but needs a higher
-   z-index so it sits above the JobDetailDrawer (z-index ~900 range).
+   z-index so it sits above the JobDetailDrawer (--z-sheet: 300).
    The modifier overrides only the stacking level — shape stays shared. */
 .modal-backdrop--top {
-  z-index: 1100;
+  z-index: var(--z-modal-top);
 }
 .modal-sheet {
   background: var(--surface);
@@ -7986,7 +8017,7 @@ input[type=number] { -moz-appearance: textfield; }
   border: 1px solid var(--border);
   border-radius: 12px;
   padding: 14px 16px;
-  z-index: 300;
+  z-index: var(--z-toast);
   max-width: calc(100vw - 40px);
   width: 340px;
   box-shadow: 0 8px 24px rgba(0,0,0,0.4);
@@ -8257,13 +8288,12 @@ input[type=number] { -moz-appearance: textfield; }
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.45);
-  z-index: 200;
+  z-index: var(--z-backdrop);
 }
 
 /* Desktop anchored dropdown — portalled to document.body.
-   position:fixed + top/right set via inline style from getBoundingClientRect()
-   so it escapes any tile stacking context. z-index sits above all job tiles,
-   the bottom nav (100), and the backdrop (200). */
+   position:fixed so it escapes any tile stacking context.
+   --z-sheet keeps it in line with other sheets on the new scale. */
 .jt-menu--dropdown {
   position: fixed;
   min-width: 200px;
@@ -8274,11 +8304,10 @@ input[type=number] { -moz-appearance: textfield; }
   border-radius: 12px;
   padding: 8px;
   box-shadow: 0 12px 32px rgba(0,0,0,0.55), 0 2px 4px rgba(0,0,0,0.4);
-  z-index: 600;
+  z-index: var(--z-sheet);
 }
 
 /* Mobile bottom-sheet — hidden on desktop, shown on ≤640px.
-   z-index 201: one above the backdrop (200), well above .bottom-nav (100).
    padding-bottom clears the device home indicator. */
 .jt-menu--sheet {
   display: none;
@@ -8291,7 +8320,7 @@ input[type=number] { -moz-appearance: textfield; }
   border-radius: 16px 16px 0 0;
   padding: 0 12px calc(24px + env(safe-area-inset-bottom));
   box-shadow: 0 -8px 32px rgba(0,0,0,0.55);
-  z-index: 201;
+  z-index: var(--z-sheet);
 }
 @media (max-width: 640px) {
   .jt-menu--dropdown { display: none; }
@@ -8898,7 +8927,7 @@ input[type=number] { -moz-appearance: textfield; }
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.7);
-  z-index: 200;
+  z-index: var(--z-backdrop);
   display: flex;
   align-items: flex-end;
   padding: 0 0 env(safe-area-inset-bottom, 0);
@@ -9685,7 +9714,7 @@ input[type=number] { -moz-appearance: textfield; }
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.55);
-  z-index: 400;
+  z-index: var(--z-modal);
 }
 
 .jd-pbs-sheet {
@@ -9697,7 +9726,7 @@ input[type=number] { -moz-appearance: textfield; }
   height: 60dvh;
   background: var(--surface);
   border-radius: 20px 20px 0 0;
-  z-index: 401;
+  z-index: calc(var(--z-modal) + 1);
   display: flex;
   flex-direction: column;
   box-shadow: 0 -4px 32px rgba(0, 0, 0, 0.4);
@@ -11516,7 +11545,7 @@ input[type=number] { -moz-appearance: textfield; }
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
   font-size: 13.5px;
   color: var(--text);
-  z-index: 200;
+  z-index: var(--z-toast);
 }
 .pay-now-nudge__copy {
   flex: 1;
@@ -12236,7 +12265,7 @@ input[type=number] { -moz-appearance: textfield; }
 .visit-editor-backdrop {
   position: fixed;
   inset: 0;
-  z-index: 500;
+  z-index: var(--z-modal);
   background: rgba(0, 0, 0, 0.55);
   display: flex;
   align-items: flex-end;
@@ -12539,7 +12568,7 @@ input[type=number] { -moz-appearance: textfield; }
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.7);
-  z-index: 900;
+  z-index: var(--z-pro-sheet);
   display: flex;
   align-items: flex-end;
   justify-content: center;
