@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v58';  // bumped from v57: Quote section Schedule-mirror — QuoteLineEditorSheet + footer total + per-row sheet tap + ghost add row
+const CACHE_NAME = 'jobprofit-v59';  // bumped from v58: dashed-border centered "+ Add a line" / "+ Add visit" buttons (Quote + Schedule)
 const PRECACHE = [
   '/',
   '/index.html',
