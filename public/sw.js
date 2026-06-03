@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v60';  // bumped from v59: AddReceiptModal Amount/VAT row overflow fix at 375px
+const CACHE_NAME = 'jobprofit-v61';  // bumped from v60: accordion grey background + bullet points on Quote line items
 const PRECACHE = [
   '/',
   '/index.html',

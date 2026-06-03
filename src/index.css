@@ -9532,7 +9532,7 @@ input[type=number] { -moz-appearance: textfield; }
 .jd-csr {
   /* Match .jd-card chrome exactly so Schedule/Quote/Costs rows align with
      Customer and Money cards (same left/right edge, same border-radius). */
-  background: var(--surface-raised, #142035);
+  background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: 12px;
   /* overflow: hidden REMOVED — it prevented the max-height accordion panel from
@@ -9603,9 +9603,9 @@ input[type=number] { -moz-appearance: textfield; }
    overflowed the container's layout box. With conditional render the container
    now grows in-flow so there is no overflow to mask — this rule is harmless
    but kept as defensive chrome (ensures the panel area matches the card surface
-   in any future layout mode). var(--surface-raised) handles dark/light theming. */
+   in any future layout mode). var(--surface-2) matches the container background. */
 .jd-csr-panel {
-  background: var(--surface-raised, #142035);
+  background: var(--surface-2);
 }
 
 .jd-csr--attention {
@@ -12157,6 +12157,10 @@ input[type=number] { -moz-appearance: textfield; }
   flex-shrink: 0;
   width: 22px;
   text-align: center;
+}
+.jd-card-row-icon--bullet {
+  font-size: 14px;
+  color: var(--text-dim);
 }
 .jd-card-row-val {
   flex: 1;

@@ -1390,7 +1390,7 @@ function QuoteBreakdownSection({ job, onSaveLine, onDeleteLine }) {
                       onClick={() => setSheetIdx(idx)}
                       aria-label={`Edit line item: ${item.desc || 'Line item'}`}
                     >
-                      <span className="jd-card-row-icon" aria-hidden="true">📋</span>
+                      <span className="jd-card-row-icon jd-card-row-icon--bullet" aria-hidden="true">•</span>
                       <span className="jd-card-row-val jd-card-row-val--flex">
                         <span className="jd-line-item-desc">
                           {item.desc || '—'}
