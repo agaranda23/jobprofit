@@ -1614,6 +1614,14 @@ export default function SettingsScreen({
   onProfileUpdate,
   onOpenJob,
   onNavigateToCardPayments,
+  // scrollTarget: 'overheads' | null — signals where to scroll on mount/change.
+  // Passed from AppShell when the user taps "Add your costs" on the Money tab.
+  // NOTE: section naming/structure is pending PRD's overheads redesign — do not
+  // rename 'overheads' here until that spec lands.
+  scrollTarget = null,
+  // onScrollTargetConsumed: called once the scroll has fired so AppShell can
+  // clear the signal and avoid re-scrolling on re-renders.
+  onScrollTargetConsumed,
 }) {
   // ── Theme state ───────────────────────────────────────────────────────────
   const [themePref, setThemePrefState] = useState(() => getStoredPref());
@@ -1622,6 +1630,20 @@ export default function SettingsScreen({
     setThemePrefState(pref);
     setThemePref(pref);
   }
+
+  // ── Scroll-to-overheads (wired from FinanceScreen "Add your costs" nudge) ──
+  // overheadsRef is attached to the wrapper div around the overheads SectionCard.
+  // When scrollTarget === 'overheads', scroll into view and clear the signal.
+  const overheadsRef = useRef(null);
+  useEffect(() => {
+    if (scrollTarget !== 'overheads') return;
+    // requestAnimationFrame: the section may still be rendering on first mount.
+    const frame = requestAnimationFrame(() => {
+      overheadsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      onScrollTargetConsumed?.();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [scrollTarget, onScrollTargetConsumed]);
 
   // ── Logo modal state ──────────────────────────────────────────────────────
   const [showLogoModal, setShowLogoModal] = useState(false);
@@ -2159,13 +2181,17 @@ export default function SettingsScreen({
         />
       </SectionCard>
 
-      {/* Monthly running costs */}
-      <SectionCard title="Monthly running costs">
-        <MonthlyOverheadsSection
-          overheads={Array.isArray(profile?.overheads) ? profile.overheads : []}
-          onSave={handleSave}
-        />
-      </SectionCard>
+      {/* Monthly running costs — overheadsRef targets this wrapper so
+          tapping "Add your costs" on the Money tab scrolls here directly.
+          NOTE: section naming/structure is pending PRD's overheads redesign. */}
+      <div ref={overheadsRef}>
+        <SectionCard title="Monthly running costs">
+          <MonthlyOverheadsSection
+            overheads={Array.isArray(profile?.overheads) ? profile.overheads : []}
+            onSave={handleSave}
+          />
+        </SectionCard>
+      </div>
 
       {/* Voice input language */}
       <SectionCard title="Voice input language">
@@ -2326,7 +2352,7 @@ export default function SettingsScreen({
           <p>Log a job, set the amount, then tap the job to open it and hit "Send invoice". Your customer gets a link they can open in any browser — no app needed. They can also pay by card if you&rsquo;ve connected Stripe in Settings &rarr; Card payments.</p>
         </FaqItem>
         <FaqItem question="How does the free trial work? What happens after 14 days?">
-          <p>You get 14 days of Pro free — no card required to start. After that, you drop to the free tier (10 invoice sends per month, resets on the 1st). Upgrade to Pro for £12/mo at any time from Settings &rarr; Subscription for unlimited invoicing, the full chase ladder, and the Insight Layer.</p>
+          <p>You get 14 days of Pro free — no card required to start. After that, you drop to the free tier: the full Get Paid loop (quotes, invoices, receipts) stays unlimited forever, and your documents carry a &ldquo;Sent with JobProfit&rdquo; footer. Upgrade to Pro for £12/mo at any time from Settings &rarr; Subscription to remove the footer, unlock the Insight Layer, and get the automatic chase ladder.</p>
         </FaqItem>
         <FaqItem question="How do I cancel or change my plan?">
           <p>Go to Settings &rarr; Subscription &rarr; Manage billing. That opens the Stripe billing portal where you can cancel or update your card. Cancellation takes effect at the end of your current billing period — no pro-rata charge.</p>
