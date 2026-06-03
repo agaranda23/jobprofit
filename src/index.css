@@ -3124,7 +3124,7 @@ input[type=number] { -moz-appearance: textfield; }
   font-weight: 500;
   margin-bottom: 8px;
 }
-/* Blurred locked tier — free users see "After your running costs: £•••" blurred */
+/* Blurred locked tier — free users see "After your monthly bills: £•••" blurred */
 .money-hero__true-profit-locked {
   margin-top: 12px;
   border-top: 1px solid var(--border);
@@ -3165,7 +3165,7 @@ input[type=number] { -moz-appearance: textfield; }
   font-weight: 600;
   color: var(--text-dim);
 }
-/* Overheads-unset prompt (no blur — just a nudge link) */
+/* Monthly-bills-unset prompt (no blur — just a nudge link) */
 .money-hero__true-profit-prompt {
   margin-top: 12px;
   border-top: 1px solid var(--border);
@@ -3177,6 +3177,30 @@ input[type=number] { -moz-appearance: textfield; }
   margin: 0;
   line-height: 1.4;
 }
+.money-hero__true-profit-prompt-heading {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0 0 4px;
+}
+.money-hero__true-profit-prompt-body {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin: 0 0 10px;
+  line-height: 1.45;
+}
+.money-hero__true-profit-prompt-cta {
+  background: none;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  padding: 7px 14px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+  cursor: pointer;
+}
+.money-hero__true-profit-prompt-cta:active { opacity: 0.7; }
 .money-hero__chase-cta {
   display: inline-flex;
   align-items: center;
@@ -3501,14 +3525,33 @@ input[type=number] { -moz-appearance: textfield; }
 .money-tax-setaside {
   /* extends .money-card */
 }
+/* Label row holds the "Tax Pot" label + tappable % chip side by side */
+.money-tax-setaside__label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
 .money-tax-setaside__label {
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-dim);
-  margin-bottom: 8px;
 }
+/* Tappable % chip — Pro only */
+.money-tax-setaside__edit-btn {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  cursor: pointer;
+}
+.money-tax-setaside__edit-btn:active { opacity: 0.7; }
 .money-tax-setaside__figure {
   font-size: 36px;
   font-weight: 800;
@@ -5040,8 +5083,15 @@ input[type=number] { -moz-appearance: textfield; }
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--text-dim);
-  margin-bottom: 8px;
+  margin-bottom: 4px;
   padding: 0 4px;
+}
+.settings-section-subline {
+  font-size: 12px;
+  color: var(--text-dim);
+  padding: 0 4px;
+  margin-bottom: 8px;
+  line-height: 1.4;
 }
 
 .settings-section-subtitle {
@@ -5445,7 +5495,7 @@ input[type=number] { -moz-appearance: textfield; }
   margin: 0;
 }
 
-/* ── Monthly Running Costs (overheads) — SettingsScreen ──────────────────── */
+/* ── Monthly Bills (overheads) — SettingsScreen ──────────────────────────── */
 .overheads-section {
   padding: 8px 0 4px;
 }
@@ -5582,6 +5632,44 @@ input[type=number] { -moz-appearance: textfield; }
   transition: background 0.15s;
 }
 .overheads-add-btn:hover { background: var(--surface-2); }
+.overheads-rough-total-link {
+  display: block;
+  width: 100%;
+  padding: 8px 16px 10px;
+  background: none;
+  border: none;
+  font-family: inherit;
+  font-size: 12px;
+  color: var(--text-dim);
+  text-align: left;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.overheads-rough-total-link:hover { color: var(--accent); }
+.overheads-rough-total-sheet {
+  padding: 12px 16px;
+  border-top: 1px solid var(--border);
+  background: var(--surface-2);
+  border-radius: 0 0 10px 10px;
+}
+.overheads-rough-total-label {
+  font-size: 13px;
+  color: var(--text);
+  margin: 0 0 8px;
+  font-weight: 500;
+}
+.overheads-rough-total-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 10px;
+}
+.overheads-rough-total-prefix {
+  font-size: 16px;
+  color: var(--text);
+  font-weight: 600;
+}
 
 /* ── JobDetailDrawer (bottom sheet) ──────────────────────────────────────── */
 .job-detail-sheet {
@@ -9914,19 +10002,170 @@ input[type=number] { -moz-appearance: textfield; }
   border-top: 1px solid var(--border);
 }
 
-.jd-pbs-overheads {
-  font-size: 13px;
-  color: var(--text-dim);
+/* Monthly bills estimate row — greyed secondary line below job costs */
+.jd-pbs-bills-estimate {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   border-top: 1px solid var(--border);
-  padding-top: 12px;
+  padding-top: 10px;
   margin-top: 8px;
 }
-
-.jd-pbs-overheads-hint {
+.jd-pbs-bills-estimate-label {
   font-size: 12px;
   color: var(--text-dim);
+  flex: 1;
+}
+.jd-pbs-bills-estimate-tag {
+  font-size: 11px;
+  color: var(--text-dim);
+  opacity: 0.65;
+  flex-shrink: 0;
+}
+/* Faint "Add monthly bills" link when no bills configured */
+.jd-pbs-bills-nudge {
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+  margin-top: 8px;
+}
+.jd-pbs-bills-nudge-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: inherit;
+  font-size: 12px;
+  color: var(--text-dim);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
   opacity: 0.7;
 }
+.jd-pbs-bills-nudge-link:hover { opacity: 1; }
+
+/* ── TaxPotSheet (FinanceScreen money tab) ───────────────────────────────── */
+.tax-pot-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 700;
+}
+.tax-pot-sheet {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  max-width: 480px;
+  margin: 0 auto;
+  background: var(--surface);
+  border-radius: 16px 16px 0 0;
+  z-index: 701;
+  padding-bottom: env(safe-area-inset-bottom, 16px);
+}
+.tax-pot-sheet__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.tax-pot-sheet__title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+}
+.tax-pot-sheet__close {
+  background: none;
+  border: none;
+  font-size: 22px;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+.tax-pot-sheet__body {
+  padding: 20px;
+}
+.tax-pot-sheet__chips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.tax-pot-sheet__chip {
+  flex: 1;
+  min-width: 60px;
+  padding: 10px 4px;
+  background: var(--surface-2);
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+  text-align: center;
+  transition: border-color 0.12s, background 0.12s;
+}
+.tax-pot-sheet__chip--active {
+  border-color: var(--accent);
+  background: var(--accent-soft, rgba(var(--accent-rgb, 99,102,241),0.1));
+  color: var(--accent);
+}
+.tax-pot-sheet__custom-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+.tax-pot-sheet__custom-input {
+  flex: 1;
+  padding: 10px 12px;
+  font-size: 20px;
+  font-weight: 700;
+  font-family: inherit;
+  background: var(--surface-2);
+  border: 1.5px solid var(--accent);
+  border-radius: 10px;
+  color: var(--text);
+  text-align: right;
+}
+.tax-pot-sheet__custom-pct {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text);
+}
+.tax-pot-sheet__consequence {
+  font-size: 16px;
+  color: var(--text);
+  margin-bottom: 8px;
+  text-align: center;
+}
+.tax-pot-sheet__low-warning {
+  font-size: 13px;
+  color: #f59e0b;
+  margin: 0 0 8px;
+  text-align: center;
+}
+.tax-pot-sheet__reassurance {
+  font-size: 12px;
+  color: var(--text-dim);
+  text-align: center;
+  margin: 0 0 20px;
+}
+.tax-pot-sheet__save {
+  display: block;
+  width: 100%;
+  padding: 14px;
+  background: var(--accent);
+  border: none;
+  border-radius: 12px;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  color: #fff;
+  cursor: pointer;
+}
+.tax-pot-sheet__save:disabled { opacity: 0.6; }
 
 /* ── MoreDisclosure ───────────────────────────────────────────────────────── */
 

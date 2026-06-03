@@ -121,10 +121,11 @@ function validateTaxSetAsidePct(v) {
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
-function SectionCard({ title, children }) {
+function SectionCard({ title, subline, children }) {
   return (
     <div className="settings-section">
       <div className="settings-section-title">{title}</div>
+      {subline && <div className="settings-section-subline">{subline}</div>}
       <div className="settings-card">{children}</div>
     </div>
   );
@@ -776,6 +777,9 @@ function MonthlyOverheadsSection({ overheads, onSave }) {
   const [addState, setAddState] = useState(null);
   const [editId, setEditId] = useState(null);
   const [editState, setEditState] = useState(null);
+  // roughTotal: null | string — controls the escape-hatch single-field sheet
+  const [roughTotalOpen, setRoughTotalOpen] = useState(false);
+  const [roughTotalValue, setRoughTotalValue] = useState('');
 
   // Keep local items in sync if the parent profile reloads
   useEffect(() => {
@@ -842,6 +846,24 @@ function MonthlyOverheadsSection({ overheads, onSave }) {
     if (ok) { setEditId(null); setEditState(null); }
   };
 
+  // Escape-hatch: save a single "Monthly bills" lump-sum item.
+  // Replaces any existing rough-total item (name === 'Monthly bills') so
+  // re-saving doesn't pile up duplicates.
+  const handleRoughTotalSave = async () => {
+    const amount = parseFloat(roughTotalValue);
+    if (isNaN(amount) || amount <= 0) { setError('Enter a valid amount'); return; }
+    const withoutOld = items.filter(i => i.name !== 'Monthly bills' || i.category !== 'Other');
+    const newItem = {
+      id: crypto.randomUUID(),
+      name: 'Monthly bills',
+      amount,
+      category: 'Other',
+      is_active: true,
+    };
+    const ok = await persist([...withoutOld, newItem]);
+    if (ok) { setRoughTotalOpen(false); setRoughTotalValue(''); }
+  };
+
   const activeTotal = getOverheadTotal(items);
   const activeCount = items.filter(i => i.is_active !== false).length;
 
@@ -850,8 +872,8 @@ function MonthlyOverheadsSection({ overheads, onSave }) {
       {items.length > 0 && (
         <div className="overheads-summary">
           {activeCount > 0
-            ? `£${activeTotal.toFixed(2)}/mo across ${activeCount} cost${activeCount === 1 ? '' : 's'}`
-            : 'No active running costs'}
+            ? `£${activeTotal.toFixed(2)}/mo across ${activeCount} bill${activeCount === 1 ? '' : 's'}`
+            : 'No monthly bills added yet'}
         </div>
       )}
 
@@ -989,13 +1011,62 @@ function MonthlyOverheadsSection({ overheads, onSave }) {
           </div>
         </div>
       ) : (
-        <button
-          type="button"
-          className="overheads-add-btn"
-          onClick={() => setAddState({ name: '', amount: '', category: 'Other' })}
-        >
-          + Add running cost
-        </button>
+        <>
+          <button
+            type="button"
+            className="overheads-add-btn"
+            onClick={() => setAddState({ name: '', amount: '', category: 'Other' })}
+          >
+            + Add monthly bill
+          </button>
+          <button
+            type="button"
+            className="overheads-rough-total-link"
+            onClick={() => { setRoughTotalOpen(true); setRoughTotalValue(''); setError(''); }}
+          >
+            Or just put a rough monthly total &rarr;
+          </button>
+        </>
+      )}
+
+      {/* Rough-total escape hatch — single-field inline sheet */}
+      {roughTotalOpen && (
+        <div className="overheads-rough-total-sheet">
+          <p className="overheads-rough-total-label">
+            Roughly, what do your monthly bills come to?
+          </p>
+          <div className="overheads-rough-total-row">
+            <span className="overheads-rough-total-prefix">£</span>
+            <input
+              className="overheads-input overheads-input--amount"
+              type="number"
+              min="0"
+              step="1"
+              placeholder="0"
+              autoFocus
+              value={roughTotalValue}
+              onChange={e => setRoughTotalValue(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') handleRoughTotalSave(); }}
+            />
+          </div>
+          <div className="overheads-item-actions">
+            <button
+              type="button"
+              className="overheads-btn overheads-btn--save"
+              onClick={handleRoughTotalSave}
+              disabled={saving}
+            >
+              Save
+            </button>
+            <button
+              type="button"
+              className="overheads-btn overheads-btn--cancel"
+              onClick={() => { setRoughTotalOpen(false); setError(''); }}
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
       )}
 
       {error && <p className="settings-row-error">{error}</p>}
@@ -2181,11 +2252,11 @@ export default function SettingsScreen({
         />
       </SectionCard>
 
-      {/* Monthly running costs — overheadsRef targets this wrapper so
+      {/* Monthly bills — overheadsRef targets this wrapper so
           tapping "Add your costs" on the Money tab scrolls here directly.
-          NOTE: section naming/structure is pending PRD's overheads redesign. */}
+          Internal code/DB key remains `overheads`. */}
       <div ref={overheadsRef}>
-        <SectionCard title="Monthly running costs">
+        <SectionCard title="Monthly bills" subline="The bills you pay every month whether you work or not — van, insurance, phone, tools.">
           <MonthlyOverheadsSection
             overheads={Array.isArray(profile?.overheads) ? profile.overheads : []}
             onSave={handleSave}

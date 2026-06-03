@@ -28,7 +28,8 @@ import {
 } from '../lib/chaseLadder';
 import { needsPrice, stagePatch } from '../lib/jobStatus';
 import { computeBalance, computeAmountPaid, editPayment, deletePayment } from '../lib/payments';
-import { gbp } from '../lib/today';
+import { gbp, todayKey } from '../lib/today';
+import { getOverheadTotal, monthKey } from '../lib/cashflow';
 import { supabase } from '../lib/supabase';
 import { compressPhoto } from '../lib/photoCompress';
 import {
@@ -3698,11 +3699,21 @@ export default function JobDetailDrawer({
       </div>
 
       {/* Profit breakdown sheet — Step 2. Two entry points: ribbon tap, viewProfitBreakdown action. */}
+      {/* jobCountThisMonth: by-count allocation for the monthly bills estimate row. */}
       <ProfitBreakdownSheet
         open={profitSheetOpen}
         onClose={() => setProfitSheetOpen(false)}
         job={job}
         receipts={receipts}
+        overheads={Array.isArray(profile?.overheads) ? profile.overheads : []}
+        jobCountThisMonth={
+          Array.isArray(jobs)
+            ? jobs.filter(j => {
+                if ((j.date || '').slice(0, 7) !== monthKey(new Date())) return false;
+                return j.paid === true || j.paymentStatus === 'paid' || j.jobStatus === 'paid' || j.status === 'paid';
+              }).length
+            : 1
+        }
       />
 
       {/* Photo lightbox — sits on top of everything.

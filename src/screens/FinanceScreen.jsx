@@ -9,7 +9,7 @@
  *   1. Hero — Profit (this month), big figure, negative state, empty state  [FREE]
  *   2. UpgradeBanner — shown ONCE for free users, just below the hero       [FREE]
  *   3. Tax Set-Aside card                                                    [PRO]
- *   4. True Profit (after running costs) card                               [PRO]
+ *   4. True Profit (after monthly bills) card                               [PRO]
  *   5. Cashflow chart                                                        [FREE]
  *   6. Month pace two-up — Paid in (left) + Jobs done (right)               [FREE]
  *   7. Est. Profit/Hour insight card                                         [PRO]
@@ -29,7 +29,7 @@
  * Tally waitlist URL used by SendInvoiceModal's paywall view.
  */
 
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo, useState, useCallback, useRef, useEffect } from 'react';
 import { gbp, todayKey } from '../lib/today';
 import { isPro } from '../lib/plan';
 import HeaderAvatar from '../components/HeaderAvatar';
@@ -130,7 +130,157 @@ function BestWorstCard({ best, worst }) {
   );
 }
 
-export default function FinanceScreen({ jobs = [], receipts = [], session, profile, biz, onAvatarClick, onUpgrade, onGoToJobs, onGoToSettings, onNavigateToCardPayments }) {
+// ── Tax Pot Sheet ──────────────────────────────────────────────────────────────
+// Preset chips + custom field to change tax_set_aside_pct from the Money tab.
+// Writes via onProfileUpdate (same Supabase path as Settings). One source of truth.
+const TAX_PRESETS = [15, 20, 25, 30];
+
+function TaxPotSheet({ open, onClose, currentPct, monthProfit, onSave }) {
+  const [selected, setSelected] = useState(currentPct ?? 20);
+  const [customRaw, setCustomRaw] = useState('');
+  const [customMode, setCustomMode] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const inputRef = useRef(null);
+
+  // Reset state whenever sheet opens so we reflect current profile value
+  useEffect(() => {
+    if (open) {
+      const pct = currentPct ?? 20;
+      setSelected(pct);
+      setCustomMode(!TAX_PRESETS.includes(pct));
+      setCustomRaw(TAX_PRESETS.includes(pct) ? '' : String(pct));
+    }
+  }, [open, currentPct]);
+
+  // Focus custom input when custom mode activates
+  useEffect(() => {
+    if (customMode && open) inputRef.current?.focus();
+  }, [customMode, open]);
+
+  // Escape to close
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [open, onClose]);
+
+  if (!open) return null;
+
+  const effectivePct = customMode
+    ? Math.min(60, Math.max(0, parseInt(customRaw, 10) || 0))
+    : selected;
+
+  const keepBack = Math.max(0, monthProfit) * effectivePct / 100;
+  const showLowWarning = effectivePct < 15 && effectivePct > 0;
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await onSave(effectivePct);
+      onClose();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <>
+      <div
+        className="tax-pot-sheet-backdrop"
+        onClick={onClose}
+        aria-hidden="true"
+      />
+      <div
+        className="tax-pot-sheet"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Tax pot percentage"
+      >
+        <div className="tax-pot-sheet__header">
+          <span className="tax-pot-sheet__title">Tax pot</span>
+          <button
+            type="button"
+            className="tax-pot-sheet__close"
+            onClick={onClose}
+            aria-label="Close"
+          >
+            &times;
+          </button>
+        </div>
+
+        <div className="tax-pot-sheet__body">
+          {/* Preset chips */}
+          <div className="tax-pot-sheet__chips">
+            {TAX_PRESETS.map(pct => (
+              <button
+                key={pct}
+                type="button"
+                className={`tax-pot-sheet__chip${selected === pct && !customMode ? ' tax-pot-sheet__chip--active' : ''}`}
+                onClick={() => { setSelected(pct); setCustomMode(false); setCustomRaw(''); }}
+              >
+                {pct}%
+              </button>
+            ))}
+            <button
+              type="button"
+              className={`tax-pot-sheet__chip${customMode ? ' tax-pot-sheet__chip--active' : ''}`}
+              onClick={() => { setCustomMode(true); setCustomRaw(String(selected)); }}
+            >
+              Custom %
+            </button>
+          </div>
+
+          {/* Custom input — shown only in custom mode */}
+          {customMode && (
+            <div className="tax-pot-sheet__custom-row">
+              <input
+                ref={inputRef}
+                type="number"
+                min="0"
+                max="60"
+                step="1"
+                className="tax-pot-sheet__custom-input"
+                placeholder="e.g. 22"
+                value={customRaw}
+                onChange={e => setCustomRaw(e.target.value)}
+              />
+              <span className="tax-pot-sheet__custom-pct">%</span>
+            </div>
+          )}
+
+          {/* Live consequence */}
+          <div className="tax-pot-sheet__consequence">
+            Keep back <strong>£{keepBack.toFixed(0)}</strong> this month
+          </div>
+
+          {/* Low-% advisory — non-blocking */}
+          {showLowWarning && (
+            <p className="tax-pot-sheet__low-warning">
+              Most sole traders keep back 20–25%. Your call.
+            </p>
+          )}
+
+          {/* Reassurance */}
+          <p className="tax-pot-sheet__reassurance">
+            This is a guide. We don&rsquo;t touch your money.
+          </p>
+
+          <button
+            type="button"
+            className="tax-pot-sheet__save"
+            onClick={handleSave}
+            disabled={saving}
+          >
+            {saving ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+export default function FinanceScreen({ jobs = [], receipts = [], session, profile, biz, onAvatarClick, onUpgrade, onGoToJobs, onGoToSettings, onNavigateToCardPayments, onProfileUpdate }) {
   const [timelineOpen, setTimelineOpen] = useState(false);
   const [trustHintDismissed, setTrustHintDismissed] = useState(false);
   // chartRange drives which window of data getCashflowByMonth uses.
@@ -145,6 +295,15 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
     setUpgradeSheetSource(source);
     setUpgradeSheetOpen(true);
   }, []);
+
+  // ── Tax Pot Sheet state ──────────────────────────────────────────────────────
+  const [taxPotSheetOpen, setTaxPotSheetOpen] = useState(false);
+
+  const handleTaxPotSave = useCallback(async (newPct) => {
+    if (onProfileUpdate) {
+      await onProfileUpdate({ tax_set_aside_pct: newPct });
+    }
+  }, [onProfileUpdate]);
 
   // ── Pay-now Money banner (Section 1.3 b) ────────────────────────────────────
   // Shown when: trader is not connected to Stripe AND has 2+ unpaid invoices.
@@ -291,7 +450,7 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
   // For non-CIS users: ytd.nonCisProfit === ytd.profit, so the result is identical.
   const ytdSetAsideBase = isCisSubcontractor ? ytd.nonCisProfit : ytd.profit;
   const ytdTaxPot = Math.max(0, ytdSetAsideBase) * taxSetAsidePct / 100;
-  const monthTaxPot = Math.max(0, monthSummary.profit) * taxSetAsidePct / 100;
+  const monthTaxPot = Math.max(0, monthSummary.profit - overheadTotal) * taxSetAsidePct / 100;
   const currentTaxYearLabel = taxYearLabel(now);
   const isYtdProfitNegative = ytd.profit < 0;
 
@@ -388,7 +547,7 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
             {gbp(monthSummary.profit)}
             <span
               className="money-hero__label-gross"
-              title="Before overhead, before tax."
+              title="Before monthly bills, before tax."
             >
               (gross)
             </span>
@@ -408,11 +567,23 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
                2. Free + overheads set  → blurred locked line (upgrade pitch)
                3. Anyone + no overheads → plain nudge to add costs in Settings */}
           {overheads.length === 0 ? (
-            /* State 3: overheads not configured — show a plain prompt, no blur */
+            /* State 3: overheads not configured — structured nudge prompt */
             <div className="money-hero__true-profit-prompt">
-              <p>
-                Add your monthly running costs in Settings to see true profit
+              <p className="money-hero__true-profit-prompt-heading">
+                This profit&rsquo;s missing your bills
               </p>
+              <p className="money-hero__true-profit-prompt-body">
+                It&rsquo;s only counting job costs. Add your monthly bills &mdash; van, insurance, phone &mdash; and we&rsquo;ll show what you actually keep.
+              </p>
+              {onGoToSettings && (
+                <button
+                  type="button"
+                  className="money-hero__true-profit-prompt-cta"
+                  onClick={() => onGoToSettings('overheads')}
+                >
+                  Add monthly bills &rarr;
+                </button>
+              )}
             </div>
           ) : userIsPro ? (
             /* State 1: Pro user — show real True Profit figure */
@@ -422,18 +593,18 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
               return (
                 <>
                   <hr className="money-hero__true-profit-divider" />
-                  <div className="money-hero__true-profit-label">After your running costs</div>
+                  <div className="money-hero__true-profit-label">After your monthly bills</div>
                   <div className={`money-hero__true-profit-figure${isTrueProfitNegative ? ' money-hero__true-profit-figure--negative' : ''}`}>
                     {gbp(trueProfit)}
                     <span
                       className="money-hero__label-net"
-                      title="After materials, overheads, and tax pot."
+                      title="After materials, monthly bills, and tax pot."
                     >
                       (NET)
                     </span>
                   </div>
                   <div className="money-hero__true-profit-sub">
-                    {gbp(overheadTotal)}/mo overheads deducted
+                    {gbp(overheadTotal)}/mo monthly bills deducted
                   </div>
                 </>
               );
@@ -448,13 +619,13 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
               onClick={() => handleUpgrade('progate')}
               aria-label="Unlock true profit — tap to upgrade to Pro"
             >
-              <div className="money-hero__true-profit-locked-label">After your running costs</div>
+              <div className="money-hero__true-profit-locked-label">After your monthly bills</div>
               <div className="money-hero__true-profit-locked-row">
                 {/* amount is blurred; (NET) label sits outside and stays visible */}
                 <span className="money-hero__true-profit-locked-amount">{gbp(monthSummary.profit - overheadTotal)}</span>
                 <span
                   className="money-hero__label-net"
-                  title="After materials, overheads, and tax pot."
+                  title="After materials, monthly bills, and tax pot."
                 >
                   (NET)
                 </span>
@@ -509,7 +680,20 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
           always want the blur chrome regardless of whether they have data. */}
       <ProGate locked={!userIsPro} hasValue={!userIsPro} onUpgrade={() => handleUpgrade('progate')}>
         <div className="money-card money-tax-setaside">
-          <div className="money-tax-setaside__label">Tax Pot</div>
+          <div className="money-tax-setaside__label-row">
+            <div className="money-tax-setaside__label">Tax Pot</div>
+            {/* Only Pro users can edit from here — free users tap to upgrade via ProGate */}
+            {userIsPro && onProfileUpdate && (
+              <button
+                type="button"
+                className="money-tax-setaside__edit-btn"
+                onClick={() => setTaxPotSheetOpen(true)}
+                aria-label="Edit tax pot percentage"
+              >
+                {taxSetAsidePct}% &rsaquo;
+              </button>
+            )}
+          </div>
 
           {isCisSubcontractor ? (
             /* ── CIS-aware two-block view ───────────────────────────────── */
@@ -845,6 +1029,15 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
         open={upgradeSheetOpen}
         source={upgradeSheetSource}
         onClose={() => setUpgradeSheetOpen(false)}
+      />
+
+      {/* ── TaxPotSheet — tapping the Tax Pot % on the Money tab (Pro only) ── */}
+      <TaxPotSheet
+        open={taxPotSheetOpen}
+        onClose={() => setTaxPotSheetOpen(false)}
+        currentPct={taxSetAsidePct}
+        monthProfit={monthSummary.profit - overheadTotal}
+        onSave={handleTaxPotSave}
       />
 
     </div>

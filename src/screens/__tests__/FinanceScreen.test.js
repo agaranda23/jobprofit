@@ -374,15 +374,19 @@ describe('monthKey (FinanceScreen derives currentMonth)', () => {
 });
 
 // ─── Tax Set-Aside card — calculation correctness ─────────────────────────────
-// The card value is: Math.max(0, monthSummary.profit) * pct / 100
-// These tests verify the formula is correct for the boundary cases the UI depends on.
+// Fix (costs-model-v1): the base is now true profit after monthly bills, not gross profit.
+// The card value is: Math.max(0, monthSummary.profit - overheadTotal) * pct / 100
+// UK sole traders are taxed on profit after allowable expenses; monthly bills
+// (van, insurance, phone, tools) are allowable — so the set-aside base must
+// subtract them. When overheadTotal = 0 (no bills set), behaviour is unchanged.
 
 describe('Tax Set-Aside card calculation', () => {
-  function taxSetAside(profit, pct) {
-    return Math.max(0, profit) * pct / 100;
+  // Mirrors FinanceScreen: Math.max(0, monthSummary.profit - overheadTotal) * pct / 100
+  function taxSetAside(profit, pct, overheadTotal = 0) {
+    return Math.max(0, profit - overheadTotal) * pct / 100;
   }
 
-  it('returns 20% of profit at the default 20% rate', () => {
+  it('returns 20% of profit at the default 20% rate (no bills)', () => {
     expect(taxSetAside(1000, 20)).toBe(200);
   });
 
@@ -394,7 +398,7 @@ describe('Tax Set-Aside card calculation', () => {
     expect(taxSetAside(-500, 20)).toBe(0);
   });
 
-  it('returns the full profit when pct is 100', () => {
+  it('returns the full after-bills profit when pct is 100', () => {
     expect(taxSetAside(800, 100)).toBe(800);
   });
 
@@ -402,13 +406,31 @@ describe('Tax Set-Aside card calculation', () => {
     expect(taxSetAside(800, 0)).toBe(0);
   });
 
-  it('uses getMonthSummary profit field as the base figure', () => {
-    // Verify via getMonthSummary: profit = paid - cost
+  it('subtracts monthly bills from the tax-pot base (core fix)', () => {
+    // profit = 800, bills = 300, after-bills base = 500; 20% of 500 = 100
+    expect(taxSetAside(800, 20, 300)).toBe(100);
+  });
+
+  it('returns 0 when monthly bills exceed profit (tax pot cannot be negative)', () => {
+    // profit = 200, bills = 500, after-bills base clamped to 0
+    expect(taxSetAside(200, 20, 500)).toBe(0);
+  });
+
+  it('is unchanged when overheadTotal is 0 (no bills configured)', () => {
+    // With no bills: new formula === old formula
+    const profitWithoutBills = 800;
+    expect(taxSetAside(profitWithoutBills, 20, 0)).toBe(taxSetAside(profitWithoutBills, 20));
+  });
+
+  it('uses getMonthSummary profit minus getOverheadTotal as the base figure', () => {
+    // Verify via real helpers: profit = paid - cost; then subtract bills
     const jobs = [paidJob({ amount: 1000, date: '2026-05-10' })];
     const receipts = [receipt({ amount: 200, date: '2026-05-12' })];
+    const overheads = [{ id: 'oh1', amount: 300, is_active: true }];
     const { profit } = getMonthSummary(jobs, receipts, { month: '2026-05' });
-    // profit = 800; 20% set-aside = 160
-    expect(taxSetAside(profit, 20)).toBe(160);
+    const overheadTotal = getOverheadTotal(overheads);
+    // profit = 800; overheadTotal = 300; after-bills = 500; 20% = 100
+    expect(taxSetAside(profit, 20, overheadTotal)).toBe(100);
   });
 
   it('handles a fractional pct result correctly (no negative)', () => {
@@ -793,7 +815,8 @@ describe('getDataTrustHint', () => {
   it('noCosts: returns hint when paid revenue exists but no receipts and no overheads', () => {
     const hint = getDataTrustHint([dtPaidJob({ amount: 600 })], [], {}, NOW);
     expect(hint?.type).toBe('noCosts');
-    expect(hint.cta).toBe('Add your costs');
+    // CTA copy updated 2026-06-03 (costs-model-v1 rename)
+    expect(hint.cta).toBe('Add monthly bills →');
   });
 
   it('noCosts: suppressed when receipts exist in the tax year', () => {
@@ -946,5 +969,159 @@ describe('Tax pot "to keep" derivation', () => {
     const { profit } = getTaxYearSummary(jobs, recs, NOW);
     // profit = 800; 20% pot = 160; to keep = 640
     expect(toKeep(profit, 20)).toBe(640);
+  });
+});
+
+// ─── Editable tax pot: clamp logic (TaxPotSheet) ─────────────────────────────
+// TaxPotSheet clamps the custom % to 0–60. These tests verify the clamp
+// formula used by the UI before calling onProfileUpdate.
+
+describe('TaxPotSheet clamp logic', () => {
+  // Mirrors TaxPotSheet effectivePct computation:
+  //   Math.min(60, Math.max(0, parseInt(raw, 10) || 0))
+  function clamp(raw) {
+    return Math.min(60, Math.max(0, parseInt(raw, 10) || 0));
+  }
+
+  it('clamps values above 60 to 60', () => {
+    expect(clamp('99')).toBe(60);
+    expect(clamp('61')).toBe(60);
+  });
+
+  it('clamps negative values to 0', () => {
+    expect(clamp('-5')).toBe(0);
+    expect(clamp('-100')).toBe(0);
+  });
+
+  it('passes valid values through unchanged', () => {
+    expect(clamp('20')).toBe(20);
+    expect(clamp('0')).toBe(0);
+    expect(clamp('60')).toBe(60);
+    expect(clamp('15')).toBe(15);
+    expect(clamp('25')).toBe(25);
+  });
+
+  it('returns 0 for non-numeric input (|| 0 guard)', () => {
+    expect(clamp('')).toBe(0);
+    expect(clamp('abc')).toBe(0);
+  });
+
+  it('keepBack formula: monthProfit × pct / 100 (monthProfit is already after-bills)', () => {
+    // TaxPotSheet receives monthProfit = monthSummary.profit - overheadTotal (after-bills).
+    // The sheet's internal formula is unchanged: keepBack = Math.max(0, monthProfit) * pct / 100.
+    // The after-bills base is applied by the caller (FinanceScreen), not inside the sheet.
+    const keepBack = (profit, pct) => Math.max(0, profit) * pct / 100;
+    // profit here is already after-bills (e.g. 1000 gross - 300 bills = 700 base)
+    expect(keepBack(700, 20)).toBe(140);
+    expect(keepBack(700, 25)).toBe(175);
+    expect(keepBack(0, 20)).toBe(0);
+    expect(keepBack(-500, 20)).toBe(0);  // bills exceed gross profit — no pot
+  });
+
+  it('low-warning fires when pct < 15 and pct > 0', () => {
+    // Mirrors: showLowWarning = effectivePct < 15 && effectivePct > 0
+    const showWarn = (pct) => pct < 15 && pct > 0;
+    expect(showWarn(14)).toBe(true);
+    expect(showWarn(1)).toBe(true);
+    expect(showWarn(0)).toBe(false);  // 0% is explicit — no warning
+    expect(showWarn(15)).toBe(false);
+    expect(showWarn(20)).toBe(false);
+  });
+});
+
+// ─── Per-job monthly bills estimate (ProfitBreakdownSheet) ───────────────────
+// Fix (costs-model-v1): denominator is now PAID jobs this month, not all jobs.
+// By-count allocation: totalMonthlyBills / paidJobCountThisMonth.
+// Mirrors ProfitBreakdownSheet's estimate line and JobDetailDrawer's jobCountThisMonth.
+
+describe('Per-job monthly bills estimate', () => {
+  function perJobBills(totalBills, jobCount) {
+    // Matches component: jobCount floored at 1 to prevent division-by-zero
+    const count = jobCount && jobCount > 0 ? jobCount : 1;
+    return totalBills / count;
+  }
+
+  // Mirrors the fixed jobCountThisMonth filter in JobDetailDrawer.
+  // Canonical paid check: job.paid === true || paymentStatus === 'paid' ||
+  //                        jobStatus === 'paid' || status === 'paid'
+  function countPaidJobsThisMonth(jobs, month) {
+    return jobs.filter(j => {
+      if ((j.date || '').slice(0, 7) !== month) return false;
+      return j.paid === true || j.paymentStatus === 'paid' || j.jobStatus === 'paid' || j.status === 'paid';
+    }).length;
+  }
+
+  it('divides total bills evenly by job count', () => {
+    expect(perJobBills(600, 3)).toBe(200);
+    expect(perJobBills(500, 5)).toBe(100);
+    expect(perJobBills(300, 1)).toBe(300);
+  });
+
+  it('floors job count at 1 to prevent division-by-zero', () => {
+    expect(perJobBills(400, 0)).toBe(400);
+    expect(perJobBills(400, null)).toBe(400);
+    expect(perJobBills(400, undefined)).toBe(400);
+  });
+
+  it('returns 0 when total bills is 0', () => {
+    expect(perJobBills(0, 5)).toBe(0);
+  });
+
+  it('countPaidJobsThisMonth: counts only paid jobs in the target month (core fix)', () => {
+    const month = '2026-05';
+    const jobs = [
+      { id: 'p1', date: '2026-05-10', paid: true },
+      { id: 'p2', date: '2026-05-15', paymentStatus: 'paid' },
+      { id: 'u1', date: '2026-05-12', paid: false },           // unpaid — excluded
+      { id: 'u2', date: '2026-05-20', status: 'invoice_sent' }, // not paid — excluded
+      { id: 'o1', date: '2026-04-10', paid: true },            // different month — excluded
+    ];
+    expect(countPaidJobsThisMonth(jobs, month)).toBe(2);
+  });
+
+  it('countPaidJobsThisMonth: recognises status=paid as paid', () => {
+    const jobs = [{ id: 'j1', date: '2026-05-10', status: 'paid' }];
+    expect(countPaidJobsThisMonth(jobs, '2026-05')).toBe(1);
+  });
+
+  it('countPaidJobsThisMonth: recognises jobStatus=paid as paid', () => {
+    const jobs = [{ id: 'j1', date: '2026-05-10', jobStatus: 'paid' }];
+    expect(countPaidJobsThisMonth(jobs, '2026-05')).toBe(1);
+  });
+
+  it('countPaidJobsThisMonth: returns 0 for a month with no paid jobs (denominator floored at 1)', () => {
+    const jobs = [{ id: 'j1', date: '2026-05-10', paid: false }];
+    const count = countPaidJobsThisMonth(jobs, '2026-05');
+    expect(count).toBe(0);
+    // denominator floor: perJobBills uses max(count, 1) so no division-by-zero
+    expect(perJobBills(600, count)).toBe(600);
+  });
+
+  it('estimate uses paid-jobs count: 600 bills / 3 paid jobs = 200/job', () => {
+    const month = '2026-05';
+    const jobs = [
+      { id: 'p1', date: '2026-05-05', paid: true },
+      { id: 'p2', date: '2026-05-12', paid: true },
+      { id: 'p3', date: '2026-05-20', paid: true },
+      { id: 'u1', date: '2026-05-18', paid: false }, // unpaid — not in denominator
+    ];
+    const paidCount = countPaidJobsThisMonth(jobs, month);
+    expect(paidCount).toBe(3);
+    expect(perJobBills(600, paidCount)).toBe(200);
+  });
+
+  it('getOverheadTotal returns 0 when no bills configured (hides estimate)', () => {
+    expect(getOverheadTotal([])).toBe(0);
+    expect(getOverheadTotal(null)).toBe(0);
+    expect(getOverheadTotal(undefined)).toBe(0);
+  });
+
+  it('getOverheadTotal sums only active bills', () => {
+    const overheads = [
+      { id: 'a', amount: 200, is_active: true },
+      { id: 'b', amount: 100, is_active: false },   // inactive — excluded
+      { id: 'c', amount: 50,  is_active: true },
+    ];
+    expect(getOverheadTotal(overheads)).toBe(250);
   });
 });
