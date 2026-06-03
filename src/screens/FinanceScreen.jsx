@@ -450,7 +450,7 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
   // For non-CIS users: ytd.nonCisProfit === ytd.profit, so the result is identical.
   const ytdSetAsideBase = isCisSubcontractor ? ytd.nonCisProfit : ytd.profit;
   const ytdTaxPot = Math.max(0, ytdSetAsideBase) * taxSetAsidePct / 100;
-  const monthTaxPot = Math.max(0, monthSummary.profit) * taxSetAsidePct / 100;
+  const monthTaxPot = Math.max(0, monthSummary.profit - overheadTotal) * taxSetAsidePct / 100;
   const currentTaxYearLabel = taxYearLabel(now);
   const isYtdProfitNegative = ytd.profit < 0;
 
@@ -547,7 +547,7 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
             {gbp(monthSummary.profit)}
             <span
               className="money-hero__label-gross"
-              title="Before overhead, before tax."
+              title="Before monthly bills, before tax."
             >
               (gross)
             </span>
@@ -625,7 +625,7 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
                 <span className="money-hero__true-profit-locked-amount">{gbp(monthSummary.profit - overheadTotal)}</span>
                 <span
                   className="money-hero__label-net"
-                  title="After materials, overheads, and tax pot."
+                  title="After materials, monthly bills, and tax pot."
                 >
                   (NET)
                 </span>
@@ -1036,7 +1036,7 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
         open={taxPotSheetOpen}
         onClose={() => setTaxPotSheetOpen(false)}
         currentPct={taxSetAsidePct}
-        monthProfit={monthSummary.profit}
+        monthProfit={monthSummary.profit - overheadTotal}
         onSave={handleTaxPotSave}
       />
 
