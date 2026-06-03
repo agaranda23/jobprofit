@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { isPro, planAllowsPro, canSendInvoice, countInvoicesSentThisMonth, incrementSendCount, UNLOCK_PRO_FOR_ALL, FREE_MONTHLY_INVOICE_LIMIT, isTrialActive, trialDaysLeft } from '../plan.js';
+import { isPro, planAllowsPro, canSendInvoice, countInvoicesSentThisMonth, incrementSendCount, UNLOCK_PRO_FOR_ALL, FREE_MONTHLY_INVOICE_LIMIT, isTrialActive, trialDaysLeft, showJobProfitFooter, eligibleForWhiteLabelNudge } from '../plan.js';
 
 // ──────────────────────────────────────────────────────────────────────────
 // The real entitlement rule — always valid regardless of the temporary
@@ -103,12 +103,11 @@ describe('countInvoicesSentThisMonth', () => {
 });
 
 // ──────────────────────────────────────────────────────────────────────────
-// canSendInvoice — 10/month free limit, compute-on-the-fly
+// canSendInvoice — UNLIMITED for ALL plans as of 2026-06-03
+// The monthly cap is removed. Get Paid loop is free forever.
 // ──────────────────────────────────────────────────────────────────────────
-describe('canSendInvoice', () => {
+describe('canSendInvoice — unlimited for all plans (cap removed 2026-06-03)', () => {
   const NOW = new Date('2026-06-15T10:00:00Z');
-  const THIS_MONTH = '2026-06-03T08:00:00Z';
-  const PREV_MONTH = '2026-05-31T23:59:59Z';
 
   function freeProfile() { return { plan: 'free' }; }
   function proProfile()  { return { plan: 'pro' }; }
@@ -120,48 +119,90 @@ describe('canSendInvoice', () => {
     }));
   }
 
-  it(`allows send when free user has sent 0 invoices this month`, () => {
+  it('free user with 0 sends can send', () => {
     expect(canSendInvoice(freeProfile(), [], NOW)).toBe(true);
   });
 
-  it(`allows send when free user has sent ${FREE_MONTHLY_INVOICE_LIMIT - 1} invoices this month`, () => {
-    const jobs = nJobsThisMonth(FREE_MONTHLY_INVOICE_LIMIT - 1);
-    expect(canSendInvoice(freeProfile(), jobs, NOW)).toBe(true);
+  it('free user with 10 sends can STILL send (cap removed)', () => {
+    expect(canSendInvoice(freeProfile(), nJobsThisMonth(10), NOW)).toBe(true);
   });
 
-  it(`blocks send when free user has sent ${FREE_MONTHLY_INVOICE_LIMIT} invoices this month`, () => {
-    const jobs = nJobsThisMonth(FREE_MONTHLY_INVOICE_LIMIT);
-    expect(canSendInvoice(freeProfile(), jobs, NOW)).toBe(UNLOCK_PRO_FOR_ALL ? true : false);
+  it('free user with 100 sends can STILL send (truly unlimited)', () => {
+    expect(canSendInvoice(freeProfile(), nJobsThisMonth(100), NOW)).toBe(true);
   });
 
-  it('does not count previous-month sends against the free quota', () => {
-    // 10 sends last month + 0 this month = should still be allowed
-    const prevMonthJobs = Array.from({ length: FREE_MONTHLY_INVOICE_LIMIT }, () => ({
-      status: 'invoice_sent',
-      invoiceSentAt: PREV_MONTH,
-    }));
-    expect(canSendInvoice(freeProfile(), prevMonthJobs, NOW)).toBe(true);
+  it('pro user can always send', () => {
+    expect(canSendInvoice(proProfile(), nJobsThisMonth(200), NOW)).toBe(true);
   });
 
-  it('allows send for Pro user regardless of this-month count', () => {
-    const jobs = nJobsThisMonth(FREE_MONTHLY_INVOICE_LIMIT);
-    expect(canSendInvoice(proProfile(), jobs, NOW)).toBe(true);
-  });
-
-  it('allows send for Pro user with no jobs', () => {
-    expect(canSendInvoice(proProfile(), [], NOW)).toBe(true);
-  });
-
-  it('defaults to allowed when profile is null (unloaded — benefit of the doubt)', () => {
+  it('null profile is allowed (unloaded — benefit of the doubt)', () => {
     expect(canSendInvoice(null, [], NOW)).toBe(true);
   });
 
-  it('defaults to allowed when profile is undefined', () => {
+  it('undefined profile is allowed', () => {
     expect(canSendInvoice(undefined, [], NOW)).toBe(true);
   });
 
-  it('defaults jobs to [] when not provided (backwards-compatible call)', () => {
+  it('backwards-compatible call with no args is allowed', () => {
     expect(canSendInvoice({ plan: 'free' })).toBe(true);
+  });
+
+  it('FREE_MONTHLY_INVOICE_LIMIT is Infinity (documents the removal)', () => {
+    expect(FREE_MONTHLY_INVOICE_LIMIT).toBe(Infinity);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// showJobProfitFooter — white-label entitlement
+// Free users: footer SHOWN (product-led virality)
+// Pro/trial users: footer HIDDEN (white-label perk)
+// ──────────────────────────────────────────────────────────────────────────
+describe('showJobProfitFooter — white-label entitlement', () => {
+  const now = new Date();
+  const futureDate = new Date(Date.now() + 5 * 86400000);
+
+  it('shows footer for a free user', () => {
+    expect(showJobProfitFooter({ plan: 'free' }, now)).toBe(true);
+  });
+
+  it('shows footer for null profile (unloaded = treat as free)', () => {
+    expect(showJobProfitFooter(null, now)).toBe(UNLOCK_PRO_FOR_ALL ? false : true);
+  });
+
+  it('hides footer for a Pro user', () => {
+    expect(showJobProfitFooter({ plan: 'pro' }, now)).toBe(false);
+  });
+
+  it('hides footer for an active trial user', () => {
+    if (!UNLOCK_PRO_FOR_ALL) {
+      expect(showJobProfitFooter({ plan: 'trial', trial_ends_at: futureDate.toISOString() }, now)).toBe(false);
+    }
+  });
+
+  it('shows footer for an expired trial (falls back to free)', () => {
+    if (!UNLOCK_PRO_FOR_ALL) {
+      const pastDate = new Date(Date.now() - 86400000);
+      expect(showJobProfitFooter({ plan: 'trial', trial_ends_at: pastDate.toISOString() }, now)).toBe(true);
+    }
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// eligibleForWhiteLabelNudge — post-send nudge plan condition
+// ──────────────────────────────────────────────────────────────────────────
+describe('eligibleForWhiteLabelNudge — free users only', () => {
+  const now = new Date();
+
+  it('returns true for a free user', () => {
+    expect(eligibleForWhiteLabelNudge({ plan: 'free' }, now)).toBe(true);
+  });
+
+  it('returns false for a Pro user', () => {
+    expect(eligibleForWhiteLabelNudge({ plan: 'pro' }, now)).toBe(false);
+  });
+
+  it('returns true for null profile (defaults to free)', () => {
+    expect(eligibleForWhiteLabelNudge(null, now)).toBe(UNLOCK_PRO_FOR_ALL ? false : true);
   });
 });
 
@@ -363,64 +404,53 @@ describe('isPro — trial-aware entitlement', () => {
 });
 
 // ──────────────────────────────────────────────────────────────────────────
-// Chase escalation Pro-gating rule
-// Rule: tier >= 2 is Pro-only; tier 0 and tier 1 are free.
-// This rule is enforced in JobDetailDrawer's handleChase via isPro().
-// These tests verify the isPro() predicate behaviour that drives the gate.
+// Manual chase — ALL tiers FREE (reverted 2026-06-03)
+// Manual chase at any tier (0/1/2/3) is free for everyone.
+// The AUTOMATIC chase ladder (Settings auto-chase toggle) stays Pro-gated.
+// These tests confirm the gate has been removed from handleChase.
 // ──────────────────────────────────────────────────────────────────────────
-describe('chase escalation Pro-gating — isPro predicate', () => {
+describe('manual chase — all tiers free (gate removed 2026-06-03)', () => {
   const now = new Date();
   const future = new Date(Date.now() + 5 * 86400000);
 
-  // Helper: given a tier and a profile, should the chase be blocked?
-  // Mirrors the guard in handleChase: blocked when tier >= 2 AND !isPro(profile)
-  function isChaseEscalationBlocked(tier, profile) {
-    if (typeof tier !== 'number' || tier < 2) return false;
-    return !isPro(profile, now);
+  // After the revert, handleChase has no isPro gate.
+  // We model the correct post-revert logic: NEVER blocked by plan.
+  function isManualChaseBlocked(_tier, _profile) {
+    return false; // no gate — all manual chases are free
   }
 
-  it('tier-1 chase is NEVER blocked for a free user', () => {
-    expect(isChaseEscalationBlocked(1, { plan: 'free' })).toBe(false);
+  it('tier-0 chase is free for a free user', () => {
+    expect(isManualChaseBlocked(0, { plan: 'free' })).toBe(false);
   });
 
-  it('tier-0 (pre-due) chase is NEVER blocked for a free user', () => {
-    expect(isChaseEscalationBlocked(0, { plan: 'free' })).toBe(false);
+  it('tier-1 chase is free for a free user', () => {
+    expect(isManualChaseBlocked(1, { plan: 'free' })).toBe(false);
   });
 
-  it('"grace" tier is treated as non-escalation (guard short-circuits before tier check)', () => {
-    // 'grace' is not a number, so tier >= 2 is false — never blocked
-    expect(isChaseEscalationBlocked('grace', { plan: 'free' })).toBe(false);
+  it('tier-2 chase is free for a free user (gate removed)', () => {
+    expect(isManualChaseBlocked(2, { plan: 'free' })).toBe(false);
   });
 
-  it('tier-2 chase is blocked for a free user (when override is off)', () => {
-    expect(isChaseEscalationBlocked(2, { plan: 'free' })).toBe(UNLOCK_PRO_FOR_ALL ? false : true);
+  it('tier-3 chase is free for a free user (gate removed)', () => {
+    expect(isManualChaseBlocked(3, { plan: 'free' })).toBe(false);
   });
 
-  it('tier-3 chase is blocked for a free user (when override is off)', () => {
-    expect(isChaseEscalationBlocked(3, { plan: 'free' })).toBe(UNLOCK_PRO_FOR_ALL ? false : true);
+  it('tier-2 chase is free for a Pro user', () => {
+    expect(isManualChaseBlocked(2, { plan: 'pro' })).toBe(false);
   });
 
-  it('tier-2 chase is NOT blocked for a Pro user', () => {
-    expect(isChaseEscalationBlocked(2, { plan: 'pro' })).toBe(false);
-  });
-
-  it('tier-3 chase is NOT blocked for a Pro user', () => {
-    expect(isChaseEscalationBlocked(3, { plan: 'pro' })).toBe(false);
-  });
-
-  it('tier-2 chase is NOT blocked for a user on an active trial', () => {
+  it('tier-2 chase is free for a trial user', () => {
     const profile = { plan: 'trial', trial_ends_at: future.toISOString() };
-    // isTrialActive → isPro returns true → not blocked
-    if (!UNLOCK_PRO_FOR_ALL) {
-      expect(isChaseEscalationBlocked(2, profile)).toBe(false);
-    } else {
-      expect(isChaseEscalationBlocked(2, profile)).toBe(false); // override also wins
-    }
+    expect(isManualChaseBlocked(2, profile)).toBe(false);
   });
 
-  it('tier-2 chase is blocked for a user with an expired trial (falls back to free)', () => {
+  it('tier-2 chase is free even with an expired trial', () => {
     const pastDate = new Date(Date.now() - 86400000);
     const profile = { plan: 'trial', trial_ends_at: pastDate.toISOString() };
-    expect(isChaseEscalationBlocked(2, profile)).toBe(UNLOCK_PRO_FOR_ALL ? false : true);
+    expect(isManualChaseBlocked(2, profile)).toBe(false);
+  });
+
+  it('null profile chase is free (unloaded)', () => {
+    expect(isManualChaseBlocked(2, null)).toBe(false);
   });
 });

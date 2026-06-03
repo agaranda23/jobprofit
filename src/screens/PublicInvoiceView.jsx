@@ -32,6 +32,7 @@ import { fetchPublicJob } from '../lib/store';
 import { isValidToken } from '../lib/publicInvoiceToken';
 import InvoiceDocumentPreview from '../components/InvoiceDocumentPreview';
 import ConsentBanner from '../components/ConsentBanner.jsx';
+import PoweredByJobProfit from '../components/PoweredByJobProfit.jsx';
 
 const FETCH_PROFILE_URL   = '/.netlify/functions/fetch-public-invoice';
 const CREATE_PAY_LINK_URL = '/.netlify/functions/create-invoice-payment-link-public';
@@ -338,6 +339,7 @@ export default function PublicInvoiceView({ token }) {
           <p className="pqv-footer-note">
             Questions about this invoice? Contact your trader directly.
           </p>
+          <PoweredByJobProfit source="invoice" hidden={!!profile.isPro} />
         </div>
 
       </div>

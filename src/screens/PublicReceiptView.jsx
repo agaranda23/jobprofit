@@ -31,6 +31,7 @@ import { isValidToken } from '../lib/publicReceiptToken';
 import { resolvePaidDate, resolveAmountPaid, formatReceiptDate } from '../lib/receiptMessage';
 import { resolvePaymentMethod, resolveReceiptNumber } from '../lib/receiptPDF';
 import ConsentBanner from '../components/ConsentBanner.jsx';
+import PoweredByJobProfit from '../components/PoweredByJobProfit.jsx';
 
 const FETCH_PROFILE_URL = '/.netlify/functions/fetch-public-receipt';
 
@@ -332,6 +333,7 @@ export default function PublicReceiptView({ token }) {
           <p className="pqv-footer-note">
             Questions about this receipt? Contact your trader directly.
           </p>
+          <PoweredByJobProfit source="receipt" hidden={!!profile.isPro} />
         </div>
       </div>
     </div>

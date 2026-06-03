@@ -169,11 +169,11 @@ describe('invoiceSentAt — field written on first send', () => {
   });
 });
 
-// ── canSendInvoice paywall gate ───────────────────────────────────────────────
-// canSendInvoice now uses a monthly compute-on-the-fly count (10/month free).
-// The old invoices_sent_count field on the profile is inert for gating.
+// ── canSendInvoice — UNLIMITED for all plans (cap removed 2026-06-03) ────────
+// Invoice sends are unlimited for FREE and PRO users alike.
+// White-label (remove "Sent with JobProfit" footer) is now the anchor Pro perk.
 
-describe('canSendInvoice — paywall gating (10/month)', () => {
+describe('canSendInvoice — unlimited for all plans (cap removed 2026-06-03)', () => {
   const NOW = new Date('2026-06-15T10:00:00Z');
 
   function nSentThisMonth(n) {
@@ -183,28 +183,23 @@ describe('canSendInvoice — paywall gating (10/month)', () => {
     }));
   }
 
-  it('free user with 0 this-month sends can send', () => {
+  it('free user with 0 sends can send', () => {
     expect(canSendInvoice(freeProfile(), [], NOW)).toBe(true);
   });
 
-  it('free user with 9 this-month sends can still send', () => {
-    expect(canSendInvoice(freeProfile(), nSentThisMonth(9), NOW)).toBe(true);
+  it('free user with 10 sends can STILL send (cap removed)', () => {
+    expect(canSendInvoice(freeProfile(), nSentThisMonth(10), NOW)).toBe(true);
   });
 
-  it('free user with 10 this-month sends is blocked (follows override flag)', () => {
-    expect(canSendInvoice(freeProfile(), nSentThisMonth(10), NOW)).toBe(UNLOCK_PRO_FOR_ALL ? true : false);
+  it('free user with 100 sends can STILL send (truly unlimited)', () => {
+    expect(canSendInvoice(freeProfile(), nSentThisMonth(100), NOW)).toBe(true);
   });
 
-  it('invoices_sent_count on the profile is no longer read for gating', () => {
-    // Even if the legacy counter is high, the monthly count (0) is what matters.
-    expect(canSendInvoice(freeProfile({ invoices_sent_count: 999 }), [], NOW)).toBe(true);
+  it('pro user can always send', () => {
+    expect(canSendInvoice(proProfile(), nSentThisMonth(200), NOW)).toBe(true);
   });
 
-  it('pro user is always allowed regardless of this-month count', () => {
-    expect(canSendInvoice(proProfile(), nSentThisMonth(10), NOW)).toBe(true);
-  });
-
-  it('null profile (unauthenticated) allows send — first-send free', () => {
+  it('null profile (unauthenticated) allows send', () => {
     expect(canSendInvoice(null, [], NOW)).toBe(true);
   });
 

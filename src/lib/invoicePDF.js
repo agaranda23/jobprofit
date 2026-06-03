@@ -502,8 +502,14 @@ function drawTermsBlock(doc, termsText, footerRuleY) {
 
 /**
  * Draws the standard footer line (and terms block above it when set).
+ *
+ * @param {object} doc        - jsPDF instance
+ * @param {object} biz        - business identity object
+ * @param {string} [label]    - override text for the main footer line
+ * @param {string} [termsText]- terms & conditions text to draw above the rule
+ * @param {boolean} [hidePoweredBy] - true for Pro traders (white-label perk); suppresses the "Sent with JobProfit" line
  */
-function drawFooter(doc, biz, label = '', termsText = '') {
+function drawFooter(doc, biz, label = '', termsText = '', hidePoweredBy = false) {
   const w = doc.internal.pageSize.getWidth();
   let footerRuleY = PAGE_H - 14;
 
@@ -516,6 +522,11 @@ function drawFooter(doc, biz, label = '', termsText = '') {
   const text = label
     || `${biz?.name || 'JobProfit'}  •  Generated ${new Date().toLocaleDateString('en-GB')}`;
   doc.text(text, w / 2, footerRuleY + 6, { align: 'center' });
+
+  if (!hidePoweredBy) {
+    doc.setFontSize(6.5);
+    doc.text('Sent with JobProfit — quote, invoice & get paid. getjobprofit.com', w / 2, footerRuleY + 11, { align: 'center' });
+  }
 }
 
 // ── Pay-now button + QR helper (Section 2.1, wireframe 4.4) ─────────────────
@@ -647,6 +658,7 @@ export async function generateInvoicePDF({
   payNowUrl = '',
   depositPaidPence = 0,
   receipts = [],
+  hidePoweredBy = false,
 }) {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   const w = doc.internal.pageSize.getWidth();
@@ -867,7 +879,7 @@ export async function generateInvoicePDF({
   doc.text('Thank you for your business.', MARGIN, y);
 
   // ── Footer (with terms & conditions when set) ────────────────────────
-  drawFooter(doc, effectiveBiz, '', effectiveBiz.termsText);
+  drawFooter(doc, effectiveBiz, '', effectiveBiz.termsText, hidePoweredBy);
 
   return doc;
 }
@@ -896,7 +908,7 @@ export async function getInvoicePDFBlob(args) {
 // acceptedSignature: PNG dataURL string captured in the drawer. Embedded with
 // doc.addImage; silently skipped if the dataURL fails to decode.
 
-export function generateQuotePDF({ job, biz, profile = null, quoteUrl = '', qrDataUrl = '' }) {
+export function generateQuotePDF({ job, biz, profile = null, quoteUrl = '', qrDataUrl = '', hidePoweredBy = false }) {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
 
   const effectiveBiz = {
@@ -1034,7 +1046,7 @@ export function generateQuotePDF({ job, biz, profile = null, quoteUrl = '', qrDa
   }
 
   // ── Footer (with terms & conditions when set) ────────────────────────
-  drawFooter(doc, effectiveBiz, '', effectiveBiz.termsText);
+  drawFooter(doc, effectiveBiz, '', effectiveBiz.termsText, hidePoweredBy);
 
   return doc;
 }

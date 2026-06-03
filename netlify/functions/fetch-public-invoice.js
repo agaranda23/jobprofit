@@ -131,6 +131,8 @@ export const handler = async function (event) {
         'itemise_documents',
         'payment_terms_days',
         'terms_text',
+        'plan',
+        'trial_ends_at',
       ].join(', '))
       .eq('id', job.user_id)
       .single();
@@ -148,6 +150,11 @@ export const handler = async function (event) {
   }
 
   // ── 5. Build the safe public response — never expose internal columns ─────────
+  // isPro: used by the public page to hide the "Sent with JobProfit" footer (white-label perk).
+  // Computed server-side so the public page never receives the raw plan/trial_ends_at fields.
+  const isTraderPro = profile.plan === 'pro' ||
+    (profile.plan === 'trial' && profile.trial_ends_at && new Date(profile.trial_ends_at) > new Date());
+
   return json(200, {
     businessName:       profile.business_name       || '',
     address:            profile.address              || '',
@@ -173,5 +180,7 @@ export const handler = async function (event) {
     itemiseDocuments:   profile.itemise_documents     ?? false,
     paymentTermsDays:   profile.payment_terms_days    ?? 14,
     termsText:          profile.terms_text            || '',
+    // isPro: true hides the "Sent with JobProfit" footer on the public invoice page.
+    isPro:              isTraderPro,
   });
 };

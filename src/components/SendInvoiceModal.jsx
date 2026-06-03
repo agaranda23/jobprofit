@@ -44,13 +44,13 @@ import { generatePublicAccessToken } from '../lib/publicQuoteToken';
 import { nextInvoiceNumber } from '../lib/invoiceNumber';
 import { getMissingInvoiceFields } from '../lib/bizValidation';
 import { resolveBusinessIdentity } from '../lib/resolveBusinessIdentity';
-import { canSendInvoice, incrementSendCount } from '../lib/plan';
+import { incrementSendCount, eligibleForWhiteLabelNudge, countInvoicesSentThisMonth, isPro } from '../lib/plan';
 import { supabase } from '../lib/supabase';
 import { logTelemetry } from '../lib/telemetry';
-import { startCheckout } from '../lib/billing';
 import { persistPublicToken } from '../lib/store';
 import { extractJobMeta, writeJobMeta } from '../lib/jobMeta';
 import InvoiceDocumentPreview from './InvoiceDocumentPreview';
+import ProUpgradeSheet from './ProUpgradeSheet';
 
 // Returns true when this browser supports navigator.share() with a files array.
 // Stored as a module-level constant so we don't recalculate on every render.
@@ -113,8 +113,27 @@ export default function SendInvoiceModal({
     return d.toISOString().slice(0, 10);
   });
   const [busy, setBusy] = useState(false);
-  const [view, setView] = useState('send'); // 'send' | 'paywall' | 'identity-gate' | 'bank-gate'
-  const [checkoutError, setCheckoutError] = useState(null);
+  const [view, setView] = useState('send'); // 'send' | 'identity-gate' | 'bank-gate' | 'post-send-nudge'
+
+  // White-label post-send nudge: shown once per session (first send) and at most
+  // once per week (localStorage gate). Never blocks the send — fires AFTER success.
+  // Key: jp.wl_nudge_last_shown — stores ISO timestamp of last display.
+  const WL_NUDGE_KEY = 'jp.wl_nudge_last_shown';
+  const WL_NUDGE_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000; // 1 week
+  const [nudgeShownThisSession, setNudgeShownThisSession] = useState(false);
+  const [upgradeSheetOpen, setUpgradeSheetOpen] = useState(false);
+
+  // Goodwill notice: shown once to free users who may have hit the old cap
+  // during its brief live window (2026-05-29 → 2026-06-03). Dismissed permanently.
+  const GOODWILL_DISMISSED_KEY = 'jp.cap_removal_goodwill_dismissed';
+  const [goodwillVisible, setGoodwillVisible] = useState(() => {
+    if (!profile || profile?.plan !== 'free') return false;
+    try { return localStorage.getItem(GOODWILL_DISMISSED_KEY) !== 'yes'; } catch { return false; }
+  });
+  const dismissGoodwill = () => {
+    setGoodwillVisible(false);
+    try { localStorage.setItem(GOODWILL_DISMISSED_KEY, 'yes'); } catch { /* ok */ }
+  };
   // showPreview: toggles the in-app invoice document preview panel.
   // Collapsed by default so the send CTA is the first thing the founder sees.
   const [showPreview, setShowPreview] = useState(false);
@@ -263,12 +282,6 @@ export default function SendInvoiceModal({
       setView('bank-gate');
       return false;
     }
-    if (isFirstSend && !canSendInvoice(profile, jobs)) {
-      logTelemetry('paywall_invoice_cap_hit', { plan: profile?.plan ?? 'free', cap: 'monthly_10' });
-      logTelemetry('paywall_viewed', { source: 'invoice_send', plan: profile?.plan ?? 'free' });
-      setView('paywall');
-      return false;
-    }
     if (isFirstSend) {
       const now = new Date().toISOString();
       const updatedJob = {
@@ -306,8 +319,40 @@ export default function SendInvoiceModal({
       onUpdate(updatedJob);
       // Fire-and-forget Supabase increment — silently tolerates offline.
       incrementSendCount(supabase, profile?.id);
+
+      // Telemetry: track when a free user reaches 4 docs sent in the month.
+      // This is the leading indicator cohort the old cap would have hit/lost.
+      // Fire only on the 4th send (not every send after) to avoid noise.
+      if (!profile || profile?.plan === 'free') {
+        const sentThisMonth = countInvoicesSentThisMonth(jobs);
+        if (sentThisMonth === 3) {
+          // This send makes it 4 — fire the milestone once.
+          logTelemetry('free_user_4th_doc_sent_this_month', { plan: profile?.plan ?? 'free' });
+        }
+      }
     }
     return true;
+  };
+
+  // Decides whether to show the white-label nudge after a successful send.
+  // Rules: free user AND (first send this session OR cooldown has expired).
+  // Never blocks the send — called after the send succeeds.
+  const shouldShowWhiteLabelNudge = () => {
+    if (!eligibleForWhiteLabelNudge(profile)) return false;
+    if (nudgeShownThisSession) return false;
+    try {
+      const last = localStorage.getItem(WL_NUDGE_KEY);
+      if (last && Date.now() - new Date(last).getTime() < WL_NUDGE_COOLDOWN_MS) return false;
+    } catch {
+      // localStorage unavailable — show the nudge
+    }
+    return true;
+  };
+
+  const markNudgeShown = () => {
+    setNudgeShownThisSession(true);
+    try { localStorage.setItem(WL_NUDGE_KEY, new Date().toISOString()); } catch { /* ok */ }
+    logTelemetry('white_label_nudge_shown', { source: 'post_send', plan: profile?.plan ?? 'free' });
   };
 
   // Primary path: wa.me deep-link — opens WhatsApp with invoice text + bank
@@ -321,7 +366,12 @@ export default function SendInvoiceModal({
     });
     window.open(link, '_blank', 'noopener');
     flash('Invoice sent');
-    onClose();
+    if (shouldShowWhiteLabelNudge()) {
+      markNudgeShown();
+      setView('post-send-nudge');
+    } else {
+      onClose();
+    }
   };
 
   // Secondary path: Web Share API with PDF file (modern iOS/Android). Attaches
@@ -332,7 +382,7 @@ export default function SendInvoiceModal({
     setBusy(true);
     try {
       // getInvoicePDFBlob is now async (generates QR code if payNowUrl is set).
-      const blob = await getInvoicePDFBlob({ job, biz: bizWithStripe, profile, invoiceNumber, dueDate, payNowUrl });
+      const blob = await getInvoicePDFBlob({ job, biz: bizWithStripe, profile, invoiceNumber, dueDate, payNowUrl, hidePoweredBy: isPro(profile) });
       const file = new File([blob], `${invoiceNumber}.pdf`, { type: 'application/pdf' });
       if (canShareFile(file)) {
         await navigator.share({
@@ -341,17 +391,17 @@ export default function SendInvoiceModal({
           title: `Invoice ${invoiceNumber}`,
         });
         flash('Invoice sent');
-        onClose();
+        if (shouldShowWhiteLabelNudge()) { markNudgeShown(); setView('post-send-nudge'); } else { onClose(); }
       } else {
         // Fallback: download PDF + open WhatsApp deep-link with text.
-        await downloadInvoicePDF({ job, biz: bizWithStripe, profile, invoiceNumber, dueDate, payNowUrl });
+        await downloadInvoicePDF({ job, biz: bizWithStripe, profile, invoiceNumber, dueDate, payNowUrl, hidePoweredBy: isPro(profile) });
         const link = buildWhatsAppLink({
           phone: job.customerPhone || job.phone || '',
           message,
         });
         window.open(link, '_blank', 'noopener');
         flash('Invoice sent');
-        onClose();
+        if (shouldShowWhiteLabelNudge()) { markNudgeShown(); setView('post-send-nudge'); } else { onClose(); }
       }
     } catch (err) {
       // navigator.share throws AbortError when the user dismisses the sheet —
@@ -373,57 +423,47 @@ export default function SendInvoiceModal({
     if (!await attemptSend()) return;
     try {
       // downloadInvoicePDF is now async (QR code generation).
-      await downloadInvoicePDF({ job, biz: bizWithStripe, profile, invoiceNumber, dueDate, payNowUrl });
+      await downloadInvoicePDF({ job, biz: bizWithStripe, profile, invoiceNumber, dueDate, payNowUrl, hidePoweredBy: isPro(profile) });
       flash('Invoice downloaded');
-      onClose();
+      if (shouldShowWhiteLabelNudge()) { markNudgeShown(); setView('post-send-nudge'); } else { onClose(); }
     } catch {
       flash('PDF failed — check Settings for business details');
     }
   };
 
-  // ── Paywall view ───────────────────────────────────────────────────────────
-  if (view === 'paywall') {
+  // ── Post-send white-label nudge view ───────────────────────────────────────
+  // Shown AFTER a successful send, never blocking. Single subtle line + Pro link.
+  // The send is already done; onClose closes both this nudge and the modal.
+  if (view === 'post-send-nudge') {
     return (
-      <div className="modal-backdrop modal-backdrop--top" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div className="modal-backdrop" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
         <div className="modal-sheet">
           <div className="modal-sheet-header">
-            <h3 className="modal-sheet-title">Unlock unlimited sends</h3>
+            <h3 className="modal-sheet-title">Invoice sent</h3>
             <button className="modal-sheet-close" onClick={onClose} aria-label="Close">✕</button>
           </div>
           <div className="modal-sheet-body">
-            <p className="modal-sheet-text">You&rsquo;ve used your 10 free invoices this month.</p>
-            <p className="modal-sheet-text">Upgrade to Pro for unlimited sends (£12/mo), or wait until the 1st for your quota to reset.</p>
+            <p className="modal-sheet-text modal-sheet-text--muted">
+              Your customer will see &ldquo;Sent with JobProfit&rdquo; on this.
+              Make it your name only &mdash;{' '}
+              <button
+                type="button"
+                className="modal-inline-link"
+                onClick={() => {
+                  logTelemetry('pro_upsell_sheet_viewed', { source: 'white_label_nudge', reason: 'white_label' });
+                  setUpgradeSheetOpen(true);
+                }}
+              >
+                Pro &rsaquo;
+              </button>
+            </p>
           </div>
-          <div className="modal-price-block">
-            <div className="modal-price">£12<span className="modal-price-period">/month</span></div>
-            <div className="modal-price-sub">cancel anytime · early access price</div>
-          </div>
-          {checkoutError && (
-            <p className="modal-sheet-error" role="alert">{checkoutError}</p>
-          )}
           <button
             type="button"
-            className="btn-primary modal-sheet-btn"
-            disabled={busy}
-            onClick={async () => {
-              setBusy(true);
-              setCheckoutError(null);
-              const { error } = await startCheckout();
-              if (error) {
-                setCheckoutError(error);
-                setBusy(false);
-              }
-              // On success startCheckout redirects — nothing else runs
-            }}
-          >
-            {busy ? 'Loading…' : 'Get Pro'}
-          </button>
-          {/* "Not yet" returns to send view, not to job detail */}
-          <button
             className="btn-ghost modal-sheet-btn"
-            onClick={() => setView('send')}
+            onClick={onClose}
           >
-            Not yet
+            Got it
           </button>
         </div>
       </div>
@@ -659,6 +699,7 @@ export default function SendInvoiceModal({
 
   // ── Send view ──────────────────────────────────────────────────────────────
   return (
+    <>
     <div className="modal-backdrop" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="modal-sheet">
         <div className="modal-sheet-header">
@@ -692,6 +733,21 @@ export default function SendInvoiceModal({
                 Not now
               </button>
             </div>
+          </div>
+        )}
+
+        {/* Goodwill notice — shown once to free users; cap was removed 2026-06-03 */}
+        {goodwillVisible && (
+          <div className="invoice-goodwill-notice" role="note">
+            <span>Good news &mdash; sending invoices is now unlimited and free, forever. We&rsquo;ve taken the cap off.</span>
+            <button
+              type="button"
+              className="invoice-goodwill-dismiss"
+              onClick={dismissGoodwill}
+              aria-label="Dismiss"
+            >
+              &#x2715;
+            </button>
           </div>
         )}
 
@@ -830,5 +886,13 @@ export default function SendInvoiceModal({
         </div>
       </div>
     </div>
+
+    {/* Upgrade sheet — opened from the post-send white-label nudge */}
+    <ProUpgradeSheet
+      open={upgradeSheetOpen}
+      source="white_label_nudge"
+      onClose={() => { setUpgradeSheetOpen(false); onClose(); }}
+    />
+    </>
   );
 }

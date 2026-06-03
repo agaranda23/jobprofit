@@ -25,6 +25,7 @@ import { fetchPublicJob } from '../lib/store';
 import { isValidToken } from '../lib/publicQuoteToken';
 import SignaturePad from '../components/SignaturePad';
 import ConsentBanner from '../components/ConsentBanner.jsx';
+import PoweredByJobProfit from '../components/PoweredByJobProfit.jsx';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -715,6 +716,10 @@ export default function PublicQuoteView({ token }) {
             <p className="pqv-terms-text">{termsText}</p>
           </div>
         )}
+
+        <div className="pqv-footer">
+          <PoweredByJobProfit source="quote" hidden={!!traderProfile.isPro} />
+        </div>
 
       </div>
     </div>

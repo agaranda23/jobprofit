@@ -1,4 +1,4 @@
-// Paywall helpers — plan gating for invoice sends and Pro features.
+// Paywall helpers — plan gating for Pro features.
 // No Stripe wiring in this file. Pro state comes from profiles.plan (Supabase).
 // Supabase migration (run in Studio before deploying this PR):
 //
@@ -7,19 +7,27 @@
 //   UPDATE profiles SET invoices_sent_count = 0;
 
 // ⚠️ TEMPORARY OVERRIDE — Pro unlocked for EVERYONE while we finish building the
-// paid features so they can be reviewed end-to-end. Because canSendInvoice()
-// short-circuits through isPro(), this ALSO lifts the free invoice-send limit.
+// paid features so they can be reviewed end-to-end.
 // TO RE-ENABLE the free/Pro split when editing is done: set this back to false.
 // The underlying plan rule is preserved in planAllowsPro() and stays tested.
 // NOTE: while this is true, trial banners are also suppressed (see TrialBanner).
 export const UNLOCK_PRO_FOR_ALL = false;
 
 /**
- * Free-tier invoice send limit per calendar month.
- * Resets at UTC midnight on the 1st of each month.
- * Pro users are never subject to this limit.
+ * White-label is the anchor Pro perk: Pro/trial = "Sent with JobProfit" footer
+ * HIDDEN on documents; free = footer SHOWN.
+ * Driven entirely by isPro() — no separate flag needed.
+ * This constant is a documentation anchor. Do not gate on it directly; use isPro().
  */
-export const FREE_MONTHLY_INVOICE_LIMIT = 10;
+export const WHITE_LABEL_PRO_PERK = 'white_label';
+
+/**
+ * Free-tier monthly invoice limit — REMOVED 2026-06-03.
+ * Invoices are now UNLIMITED for ALL plans. The Get Paid loop is free, forever.
+ * Kept as a named export so callers that imported it don't break; value is Infinity.
+ * @deprecated — canSendInvoice always returns true regardless of this value.
+ */
+export const FREE_MONTHLY_INVOICE_LIMIT = Infinity;
 
 /**
  * The real entitlement rule (kept intact for when the override is lifted).
@@ -76,11 +84,8 @@ export function isPro(profile, now = new Date()) {
 
 /**
  * Counts invoice sends in the current UTC calendar month.
- * A send is counted when a job has status === 'invoice_sent' AND
- * invoiceSentAt falls on or after UTC midnight on the 1st of the current month.
- *
- * This is a compute-on-the-fly approach — no DB counter needed. The count
- * is derived from the jobs array the caller already holds in memory.
+ * Kept for telemetry ("free user sent ≥4 docs in a month" event) — no longer
+ * used for gating. Do not add a quota check here.
  *
  * @param {Array}  jobs  - full jobs array from app state
  * @param {Date}   [now] - injectable for testing (defaults to new Date())
@@ -97,26 +102,48 @@ export function countInvoicesSentThisMonth(jobs = [], now = new Date()) {
 
 /**
  * Returns true when the user is allowed to perform a first-time invoice send.
- * Pro/trial users always return true (unlimited).
- * Free users get FREE_MONTHLY_INVOICE_LIMIT sends per calendar month.
- * The limit resets at UTC midnight on the 1st of each month.
+ * Invoices are UNLIMITED for ALL plans as of 2026-06-03.
+ * The monthly cap shipped in PR #266 has been removed — the Get Paid loop is
+ * free forever. White-label (removing the "Sent with JobProfit" footer) is the
+ * anchor Pro perk instead.
  *
- * Re-sends on the same already-sent invoice do NOT call this — the caller
- * must guard on job.status !== 'invoice_sent' before calling canSendInvoice.
+ * Function signature kept so callers need no changes.
+ * The `jobs` and `now` parameters are accepted but ignored for backwards compat.
  *
- * The legacy invoices_sent_count field on the profile row is now inert for
- * gating. It may still be incremented by incrementSendCount for historical
- * telemetry purposes but is no longer read here.
+ * @param {object|null|undefined} profile  - Supabase profiles row (unused for gating)
+ * @param {Array}  [jobs]  - accepted but unused
+ * @param {Date}   [now]   - accepted but unused
+ * @returns {boolean} always true
+ */
+export function canSendInvoice(_profile, _jobs = [], _now = new Date()) {
+  return true;
+}
+
+/**
+ * Returns true when the "Sent with JobProfit" footer should be shown.
+ * Footer is SHOWN for free users (product-led virality); HIDDEN for Pro/trial.
+ * This is the canonical white-label entitlement check — use it in all doc paths.
  *
  * @param {object|null|undefined} profile  - Supabase profiles row
- * @param {Array}  [jobs]  - full jobs array (needed for monthly count)
- * @param {Date}   [now]   - injectable for testing (defaults to new Date())
+ * @param {Date} [now]                     - injectable for testing
  * @returns {boolean}
  */
-export function canSendInvoice(profile, jobs = [], now = new Date()) {
-  if (isPro(profile, now)) return true;
-  // Free tier: allowed until FREE_MONTHLY_INVOICE_LIMIT reached this calendar month.
-  return countInvoicesSentThisMonth(jobs, now) < FREE_MONTHLY_INVOICE_LIMIT;
+export function showJobProfitFooter(profile, now = new Date()) {
+  return !isPro(profile, now);
+}
+
+/**
+ * Returns true when the post-send white-label upgrade nudge should fire.
+ * Rule: free user, and (first send this session OR at most once per week).
+ * The caller owns the session flag and the weekly localStorage gate.
+ * This helper tests only the plan condition.
+ *
+ * @param {object|null|undefined} profile - Supabase profiles row
+ * @param {Date} [now]                    - injectable for testing
+ * @returns {boolean}
+ */
+export function eligibleForWhiteLabelNudge(profile, now = new Date()) {
+  return !isPro(profile, now);
 }
 
 /**
