@@ -331,6 +331,45 @@ function WeeklyDigestRow({ session, profile, onProfileUpdate }) {
   );
 }
 
+// ── RemindJobCostsRow ─────────────────────────────────────────────────────────
+// Bound to profiles.remind_job_costs (boolean, default true).
+// When on: after marking a job paid with £0 costs, the app asks once per job.
+// When off: no cost-capture prompt is shown on mark-paid.
+
+function RemindJobCostsRow({ profile, onProfileUpdate }) {
+  const [enabled, setEnabled] = useState(
+    () => profile?.remind_job_costs !== false
+  );
+  const [working, setWorking] = useState(false);
+
+  useEffect(() => {
+    setEnabled(profile?.remind_job_costs !== false);
+  }, [profile?.remind_job_costs]);
+
+  const handleToggle = async () => {
+    if (working) return;
+    const next = !enabled;
+    setEnabled(next); // optimistic
+    setWorking(true);
+    try {
+      await onProfileUpdate({ remind_job_costs: next });
+    } catch {
+      setEnabled(!next); // revert on failure
+    } finally {
+      setWorking(false);
+    }
+  };
+
+  return (
+    <Row
+      label="Remind me to add job costs"
+      value={working ? 'Updating…' : enabled ? 'On' : 'Off'}
+      onTap={handleToggle}
+      chevron={false}
+    />
+  );
+}
+
 // ── AutoChaseRow ──────────────────────────────────────────────────────────────
 // Bound to profiles.auto_chase_enabled (boolean, default true).
 // Column added by supabase/migrations/20260601200000_add_auto_chase_enabled.sql.
@@ -2263,6 +2302,14 @@ export default function SettingsScreen({
           />
         </SectionCard>
       </div>
+
+      {/* Job costs */}
+      <SectionCard title="Job costs" subline="When you mark a job paid with nothing logged, we'll ask once. Off if you'd rather we didn't.">
+        <RemindJobCostsRow
+          profile={profile}
+          onProfileUpdate={onProfileUpdate}
+        />
+      </SectionCard>
 
       {/* Voice input language */}
       <SectionCard title="Voice input language">
