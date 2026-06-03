@@ -9,7 +9,7 @@
  *   1. Hero — Profit (this month), big figure, negative state, empty state  [FREE]
  *   2. UpgradeBanner — shown ONCE for free users, just below the hero       [FREE]
  *   3. Tax Set-Aside card                                                    [PRO]
- *   4. True Profit (after running costs) card                               [PRO]
+ *   4. True Profit (after monthly bills) card                               [PRO]
  *   5. Cashflow chart                                                        [FREE]
  *   6. Month pace two-up — Paid in (left) + Jobs done (right)               [FREE]
  *   7. Est. Profit/Hour insight card                                         [PRO]
@@ -411,7 +411,7 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
             /* State 3: overheads not configured — show a plain prompt, no blur */
             <div className="money-hero__true-profit-prompt">
               <p>
-                Add your monthly running costs in Settings to see true profit
+                Add your monthly bills in Settings to see true profit
               </p>
             </div>
           ) : userIsPro ? (
@@ -422,18 +422,18 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
               return (
                 <>
                   <hr className="money-hero__true-profit-divider" />
-                  <div className="money-hero__true-profit-label">After your running costs</div>
+                  <div className="money-hero__true-profit-label">After your monthly bills</div>
                   <div className={`money-hero__true-profit-figure${isTrueProfitNegative ? ' money-hero__true-profit-figure--negative' : ''}`}>
                     {gbp(trueProfit)}
                     <span
                       className="money-hero__label-net"
-                      title="After materials, overheads, and tax pot."
+                      title="After materials, monthly bills, and tax pot."
                     >
                       (NET)
                     </span>
                   </div>
                   <div className="money-hero__true-profit-sub">
-                    {gbp(overheadTotal)}/mo overheads deducted
+                    {gbp(overheadTotal)}/mo monthly bills deducted
                   </div>
                 </>
               );
@@ -448,7 +448,7 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
               onClick={() => handleUpgrade('progate')}
               aria-label="Unlock true profit — tap to upgrade to Pro"
             >
-              <div className="money-hero__true-profit-locked-label">After your running costs</div>
+              <div className="money-hero__true-profit-locked-label">After your monthly bills</div>
               <div className="money-hero__true-profit-locked-row">
                 {/* amount is blurred; (NET) label sits outside and stays visible */}
                 <span className="money-hero__true-profit-locked-amount">{gbp(monthSummary.profit - overheadTotal)}</span>

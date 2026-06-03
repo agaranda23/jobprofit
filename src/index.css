@@ -3124,7 +3124,7 @@ input[type=number] { -moz-appearance: textfield; }
   font-weight: 500;
   margin-bottom: 8px;
 }
-/* Blurred locked tier — free users see "After your running costs: £•••" blurred */
+/* Blurred locked tier — free users see "After your monthly bills: £•••" blurred */
 .money-hero__true-profit-locked {
   margin-top: 12px;
   border-top: 1px solid var(--border);
@@ -3165,7 +3165,7 @@ input[type=number] { -moz-appearance: textfield; }
   font-weight: 600;
   color: var(--text-dim);
 }
-/* Overheads-unset prompt (no blur — just a nudge link) */
+/* Monthly-bills-unset prompt (no blur — just a nudge link) */
 .money-hero__true-profit-prompt {
   margin-top: 12px;
   border-top: 1px solid var(--border);
@@ -5040,8 +5040,15 @@ input[type=number] { -moz-appearance: textfield; }
   text-transform: uppercase;
   letter-spacing: 0.06em;
   color: var(--text-dim);
-  margin-bottom: 8px;
+  margin-bottom: 4px;
   padding: 0 4px;
+}
+.settings-section-subline {
+  font-size: 12px;
+  color: var(--text-dim);
+  padding: 0 4px;
+  margin-bottom: 8px;
+  line-height: 1.4;
 }
 
 .settings-section-subtitle {
@@ -5445,7 +5452,7 @@ input[type=number] { -moz-appearance: textfield; }
   margin: 0;
 }
 
-/* ── Monthly Running Costs (overheads) — SettingsScreen ──────────────────── */
+/* ── Monthly Bills (overheads) — SettingsScreen ──────────────────────────── */
 .overheads-section {
   padding: 8px 0 4px;
 }

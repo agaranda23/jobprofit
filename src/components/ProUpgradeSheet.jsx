@@ -23,7 +23,7 @@ import { logTelemetry } from '../lib/telemetry';
 const FEATURES = [
   { label: 'White-label documents', sub: 'remove "Sent with JobProfit" — your brand only on every quote, invoice & receipt' },
   { label: 'Auto-chase ladder', sub: 'polite nudge → firm reminder → final notice — Pro automates the escalation' },
-  { label: 'True Profit after overhead', sub: 'see what you actually make, not just what came in' },
+  { label: 'True profit after your monthly bills', sub: 'see what you actually make, not just what came in' },
   { label: 'Tax pot (year-to-date)', sub: 'keep enough back for the taxman, all year' },
   { label: 'Est. Profit/Hour', sub: 'know if your time is actually worth it' },
   { label: 'Best & worst jobs', sub: 'stop taking work that loses you money' },

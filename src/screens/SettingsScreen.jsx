@@ -121,10 +121,11 @@ function validateTaxSetAsidePct(v) {
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
-function SectionCard({ title, children }) {
+function SectionCard({ title, subline, children }) {
   return (
     <div className="settings-section">
       <div className="settings-section-title">{title}</div>
+      {subline && <div className="settings-section-subline">{subline}</div>}
       <div className="settings-card">{children}</div>
     </div>
   );
@@ -850,8 +851,8 @@ function MonthlyOverheadsSection({ overheads, onSave }) {
       {items.length > 0 && (
         <div className="overheads-summary">
           {activeCount > 0
-            ? `£${activeTotal.toFixed(2)}/mo across ${activeCount} cost${activeCount === 1 ? '' : 's'}`
-            : 'No active running costs'}
+            ? `£${activeTotal.toFixed(2)}/mo across ${activeCount} bill${activeCount === 1 ? '' : 's'}`
+            : 'No monthly bills added yet'}
         </div>
       )}
 
@@ -994,7 +995,7 @@ function MonthlyOverheadsSection({ overheads, onSave }) {
           className="overheads-add-btn"
           onClick={() => setAddState({ name: '', amount: '', category: 'Other' })}
         >
-          + Add running cost
+          + Add monthly bill
         </button>
       )}
 
@@ -2181,11 +2182,11 @@ export default function SettingsScreen({
         />
       </SectionCard>
 
-      {/* Monthly running costs — overheadsRef targets this wrapper so
+      {/* Monthly bills — overheadsRef targets this wrapper so
           tapping "Add your costs" on the Money tab scrolls here directly.
-          NOTE: section naming/structure is pending PRD's overheads redesign. */}
+          Internal code/DB key remains `overheads`. */}
       <div ref={overheadsRef}>
-        <SectionCard title="Monthly running costs">
+        <SectionCard title="Monthly bills" subline="The bills you pay every month whether you work or not — van, insurance, phone, tools.">
           <MonthlyOverheadsSection
             overheads={Array.isArray(profile?.overheads) ? profile.overheads : []}
             onSave={handleSave}
