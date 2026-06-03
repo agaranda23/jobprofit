@@ -27,6 +27,7 @@ import { buildWhatsAppLink } from '../lib/invoiceMessage.js';
 import { logTelemetry } from '../lib/telemetry.js';
 import { generatePublicAccessToken, buildPublicReceiptUrl } from '../lib/publicReceiptToken.js';
 import { resolveBusinessIdentity } from '../lib/resolveBusinessIdentity.js';
+import { isPro } from '../lib/plan.js';
 
 // Module-level capability check — same pattern as SendInvoiceModal.
 const SUPPORTS_FILE_SHARE =
@@ -158,7 +159,8 @@ export default function ReceiptModal({ job, biz, profile = null, onUpdate, onClo
     persistToken();
     setBusy(true);
     try {
-      const blob = getReceiptPDFBlob({ job, biz: effectiveBiz, profile });
+      const hidePoweredBy = isPro(profile);
+      const blob = getReceiptPDFBlob({ job, biz: effectiveBiz, profile, hidePoweredBy });
       const customer = (job?.customer || job?.name || 'receipt').replace(/\s+/g, '-');
       const file = new File([blob], `receipt-${customer}.pdf`, { type: 'application/pdf' });
       if (canShareFile(file)) {
@@ -167,7 +169,7 @@ export default function ReceiptModal({ job, biz, profile = null, onUpdate, onClo
         onClose?.();
       } else {
         // Fallback: download PDF + WhatsApp text
-        downloadReceiptPDF({ job, biz: effectiveBiz, profile });
+        downloadReceiptPDF({ job, biz: effectiveBiz, profile, hidePoweredBy });
         const link = buildWhatsAppLink({ phone, message });
         window.open(link, '_blank', 'noopener');
         flash?.('Receipt sent');
@@ -187,7 +189,7 @@ export default function ReceiptModal({ job, biz, profile = null, onUpdate, onClo
   const handleDownloadPDF = () => {
     logTelemetry('receipt_send', { channel: 'download' });
     try {
-      downloadReceiptPDF({ job, biz: effectiveBiz, profile });
+      downloadReceiptPDF({ job, biz: effectiveBiz, profile, hidePoweredBy: isPro(profile) });
       flash?.('Receipt downloaded');
       onClose?.();
     } catch {

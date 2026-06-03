@@ -339,7 +339,7 @@ export default function PublicInvoiceView({ token }) {
           <p className="pqv-footer-note">
             Questions about this invoice? Contact your trader directly.
           </p>
-          <PoweredByJobProfit source="invoice" />
+          <PoweredByJobProfit source="invoice" hidden={!!profile.isPro} />
         </div>
 
       </div>

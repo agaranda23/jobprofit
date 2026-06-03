@@ -174,3 +174,29 @@ describe('buildPublicReceiptUrl — /r/<token> URL shape', () => {
     expect(receiptUrl).toBe(`https://app.jobprofit.co.uk/r/${token}`);
   });
 });
+
+// ── White-label: hidePoweredBy on receipt PDF ─────────────────────────────────
+// Guards the anchor Pro perk: Pro traders suppress the "Sent with JobProfit"
+// footer from their customer-facing PDFs.
+
+describe('receipt PDF white-label — hidePoweredBy flag', () => {
+  it('getReceiptPDFBlob accepts hidePoweredBy without throwing (free trader, default)', () => {
+    const blob = getReceiptPDFBlob({
+      job: baseJob(),
+      biz: baseBiz(),
+      profile: null,
+      hidePoweredBy: false,
+    });
+    expect(blob).toBeInstanceOf(Blob);
+  });
+
+  it('getReceiptPDFBlob accepts hidePoweredBy:true without throwing (Pro trader)', () => {
+    const blob = getReceiptPDFBlob({
+      job: baseJob(),
+      biz: baseBiz(),
+      profile: { plan: 'pro' },
+      hidePoweredBy: true,
+    });
+    expect(blob).toBeInstanceOf(Blob);
+  });
+});

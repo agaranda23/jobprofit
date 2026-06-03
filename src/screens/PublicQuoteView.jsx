@@ -718,7 +718,7 @@ export default function PublicQuoteView({ token }) {
         )}
 
         <div className="pqv-footer">
-          <PoweredByJobProfit source="quote" />
+          <PoweredByJobProfit source="quote" hidden={!!traderProfile.isPro} />
         </div>
 
       </div>

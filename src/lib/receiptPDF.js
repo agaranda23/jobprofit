@@ -232,7 +232,13 @@ function drawLineItems(doc, job, startY) {
   return doc.lastAutoTable.finalY;
 }
 
-function drawFooter(doc, biz, extra = '') {
+/**
+ * @param {object} doc
+ * @param {object} biz
+ * @param {string} [extra]          - override text for the main footer line
+ * @param {boolean} [hidePoweredBy] - true for Pro traders (white-label perk); suppresses the "Sent with JobProfit" line
+ */
+function drawFooter(doc, biz, extra = '', hidePoweredBy = false) {
   const w = doc.internal.pageSize.getWidth();
   const footerY = PAGE_H - 10;
   rule(doc, footerY - 4);
@@ -241,9 +247,11 @@ function drawFooter(doc, biz, extra = '') {
   doc.setTextColor(...LIGHT);
   const text = extra || `${biz?.name || 'JobProfit'}  •  Generated ${new Date().toLocaleDateString('en-GB')}`;
   doc.text(text, w / 2, footerY, { align: 'center' });
-  // PRD V2: hide this line for Pro traders with white-label enabled.
-  doc.setFontSize(6.5);
-  doc.text('Sent with JobProfit  •  getjobprofit.com', w / 2, footerY + 5, { align: 'center' });
+
+  if (!hidePoweredBy) {
+    doc.setFontSize(6.5);
+    doc.text('Sent with JobProfit — quote, invoice & get paid. getjobprofit.com', w / 2, footerY + 5, { align: 'center' });
+  }
 }
 
 // ── Payment method label resolution ────────────────────────────────────────
@@ -306,7 +314,7 @@ export function resolveReceiptNumber(job) {
 // RECEIPT
 // ═══════════════════════════════════════════════════════════════════════════
 
-export function generateReceiptPDF({ job, biz, profile = null }) {
+export function generateReceiptPDF({ job, biz, profile = null, hidePoweredBy = false }) {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   const w = doc.internal.pageSize.getWidth();
 
@@ -455,18 +463,18 @@ export function generateReceiptPDF({ job, biz, profile = null }) {
   doc.text('Thank you for your business.', MARGIN, y);
 
   // ── Footer ───────────────────────────────────────────────────────────────
-  drawFooter(doc, effectiveBiz, `${effectiveBiz.name || 'JobProfit'}  •  Receipt generated ${new Date().toLocaleDateString('en-GB')}`);
+  drawFooter(doc, effectiveBiz, `${effectiveBiz.name || 'JobProfit'}  •  Receipt generated ${new Date().toLocaleDateString('en-GB')}`, hidePoweredBy);
 
   return doc;
 }
 
-export function downloadReceiptPDF({ job, biz, profile = null }) {
-  const doc = generateReceiptPDF({ job, biz, profile });
+export function downloadReceiptPDF({ job, biz, profile = null, hidePoweredBy = false }) {
+  const doc = generateReceiptPDF({ job, biz, profile, hidePoweredBy });
   const customer = (job?.customer || job?.name || 'receipt').replace(/\s+/g, '-');
   doc.save(`receipt-${customer}.pdf`);
 }
 
-export function getReceiptPDFBlob({ job, biz, profile = null }) {
-  const doc = generateReceiptPDF({ job, biz, profile });
+export function getReceiptPDFBlob({ job, biz, profile = null, hidePoweredBy = false }) {
+  const doc = generateReceiptPDF({ job, biz, profile, hidePoweredBy });
   return doc.output('blob');
 }

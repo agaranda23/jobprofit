@@ -256,7 +256,7 @@ export default function ReviewSheet({
 
     let shareMethod = 'wame_fallback';
     try {
-      const blob = await getInvoicePDFBlob({ job, biz, profile, invoiceNumber, dueDate });
+      const blob = await getInvoicePDFBlob({ job, biz, profile, invoiceNumber, dueDate, hidePoweredBy: isProUser });
       const file = new File([blob], `invoice-${invoiceNumber}.pdf`, { type: 'application/pdf' });
 
       if (canShareFile(file)) {
@@ -269,7 +269,7 @@ export default function ReviewSheet({
         // Web Share Level 2 not available — open wa.me + give the user the PDF to attach manually
         shareMethod = 'wame_fallback';
         window.open(link, '_blank', 'noopener');
-        await downloadInvoicePDF({ job, biz, profile, invoiceNumber, dueDate });
+        await downloadInvoicePDF({ job, biz, profile, invoiceNumber, dueDate, hidePoweredBy: isProUser });
       }
     } catch (err) {
       if (err?.name === 'AbortError') {
@@ -303,7 +303,7 @@ export default function ReviewSheet({
   const handleInvoiceDownloadPDF = async () => {
     logTelemetry('invoice_send', { channel: 'download', source: 'review_sheet' });
     try {
-      await downloadInvoicePDF({ job, biz, profile, invoiceNumber, dueDate });
+      await downloadInvoicePDF({ job, biz, profile, invoiceNumber, dueDate, hidePoweredBy: isProUser });
       flash?.('Saved to Files. Share it however you like.');
     } catch {
       flash?.('PDF failed — check Settings for business details');
@@ -401,7 +401,7 @@ export default function ReviewSheet({
       } else if (phone) {
         shareMethod = 'wame_fallback';
         window.open(link, '_blank', 'noopener');
-        downloadQuotePDF({ job: updatedJob, biz, profile, quoteUrl, qrDataUrl });
+        downloadQuotePDF({ job: updatedJob, biz, profile, quoteUrl, qrDataUrl, hidePoweredBy: isProUser });
       } else {
         // No file share, no phone — copy the quote URL so the user can paste it
         shareMethod = 'web_share_text';
@@ -464,7 +464,7 @@ export default function ReviewSheet({
           // QR generation failed — proceed without it
         }
       }
-      downloadQuotePDF({ job, biz, profile, quoteUrl: downloadQuoteUrl, qrDataUrl: downloadQrDataUrl });
+      downloadQuotePDF({ job, biz, profile, quoteUrl: downloadQuoteUrl, qrDataUrl: downloadQrDataUrl, hidePoweredBy: isProUser });
       flash?.('Saved to Files. Share it however you like.');
     } catch {
       flash?.('PDF failed — check Settings for business details');

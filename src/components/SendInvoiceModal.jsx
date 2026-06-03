@@ -44,7 +44,7 @@ import { generatePublicAccessToken } from '../lib/publicQuoteToken';
 import { nextInvoiceNumber } from '../lib/invoiceNumber';
 import { getMissingInvoiceFields } from '../lib/bizValidation';
 import { resolveBusinessIdentity } from '../lib/resolveBusinessIdentity';
-import { incrementSendCount, eligibleForWhiteLabelNudge, countInvoicesSentThisMonth } from '../lib/plan';
+import { incrementSendCount, eligibleForWhiteLabelNudge, countInvoicesSentThisMonth, isPro } from '../lib/plan';
 import { supabase } from '../lib/supabase';
 import { logTelemetry } from '../lib/telemetry';
 import { persistPublicToken } from '../lib/store';
@@ -382,7 +382,7 @@ export default function SendInvoiceModal({
     setBusy(true);
     try {
       // getInvoicePDFBlob is now async (generates QR code if payNowUrl is set).
-      const blob = await getInvoicePDFBlob({ job, biz: bizWithStripe, profile, invoiceNumber, dueDate, payNowUrl });
+      const blob = await getInvoicePDFBlob({ job, biz: bizWithStripe, profile, invoiceNumber, dueDate, payNowUrl, hidePoweredBy: isPro(profile) });
       const file = new File([blob], `${invoiceNumber}.pdf`, { type: 'application/pdf' });
       if (canShareFile(file)) {
         await navigator.share({
@@ -394,7 +394,7 @@ export default function SendInvoiceModal({
         if (shouldShowWhiteLabelNudge()) { markNudgeShown(); setView('post-send-nudge'); } else { onClose(); }
       } else {
         // Fallback: download PDF + open WhatsApp deep-link with text.
-        await downloadInvoicePDF({ job, biz: bizWithStripe, profile, invoiceNumber, dueDate, payNowUrl });
+        await downloadInvoicePDF({ job, biz: bizWithStripe, profile, invoiceNumber, dueDate, payNowUrl, hidePoweredBy: isPro(profile) });
         const link = buildWhatsAppLink({
           phone: job.customerPhone || job.phone || '',
           message,
@@ -423,7 +423,7 @@ export default function SendInvoiceModal({
     if (!await attemptSend()) return;
     try {
       // downloadInvoicePDF is now async (QR code generation).
-      await downloadInvoicePDF({ job, biz: bizWithStripe, profile, invoiceNumber, dueDate, payNowUrl });
+      await downloadInvoicePDF({ job, biz: bizWithStripe, profile, invoiceNumber, dueDate, payNowUrl, hidePoweredBy: isPro(profile) });
       flash('Invoice downloaded');
       if (shouldShowWhiteLabelNudge()) { markNudgeShown(); setView('post-send-nudge'); } else { onClose(); }
     } catch {
@@ -699,6 +699,7 @@ export default function SendInvoiceModal({
 
   // ── Send view ──────────────────────────────────────────────────────────────
   return (
+    <>
     <div className="modal-backdrop" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="modal-sheet">
         <div className="modal-sheet-header">
@@ -892,5 +893,6 @@ export default function SendInvoiceModal({
       source="white_label_nudge"
       onClose={() => { setUpgradeSheetOpen(false); onClose(); }}
     />
+    </>
   );
 }

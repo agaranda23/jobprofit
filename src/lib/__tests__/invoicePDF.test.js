@@ -898,3 +898,94 @@ describe('XIII. Website in header contact line (PR-C)', () => {
     expect(drawnTexts.some(t => String(t).includes('https://'))).toBe(false);
   });
 });
+
+// ── White-label footer: hidePoweredBy flag ────────────────────────────────────
+// Pro traders → footer HIDDEN. Free traders → footer SHOWN.
+// These tests guard the anchor Pro perk on both invoice and quote PDFs.
+
+describe('white-label footer — hidePoweredBy flag', () => {
+  beforeEach(() => { drawnTexts = []; addImageCalls = []; });
+
+  it('invoice PDF shows "Sent with JobProfit" footer for a free trader (hidePoweredBy omitted)', async () => {
+    await generateInvoicePDF({
+      job: baseJob({ total: 300 }),
+      biz: baseBiz(),
+      invoiceNumber: 'JP-WL-01',
+      dueDate: '2026-07-31',
+    });
+    expect(drawnTexts.some(t => String(t).includes('Sent with JobProfit'))).toBe(true);
+  });
+
+  it('invoice PDF shows "Sent with JobProfit" footer when hidePoweredBy is false', async () => {
+    await generateInvoicePDF({
+      job: baseJob({ total: 300 }),
+      biz: baseBiz(),
+      invoiceNumber: 'JP-WL-02',
+      dueDate: '2026-07-31',
+      hidePoweredBy: false,
+    });
+    expect(drawnTexts.some(t => String(t).includes('Sent with JobProfit'))).toBe(true);
+  });
+
+  it('invoice PDF HIDES "Sent with JobProfit" footer when hidePoweredBy is true (Pro trader)', async () => {
+    await generateInvoicePDF({
+      job: baseJob({ total: 300 }),
+      biz: baseBiz(),
+      invoiceNumber: 'JP-WL-03',
+      dueDate: '2026-07-31',
+      hidePoweredBy: true,
+    });
+    expect(drawnTexts.some(t => String(t).includes('Sent with JobProfit'))).toBe(false);
+  });
+
+  it('invoice PDF footer still has the business name line when hidePoweredBy is true', async () => {
+    await generateInvoicePDF({
+      job: baseJob({ total: 300 }),
+      biz: baseBiz({ name: 'Murphy Plumbing Ltd' }),
+      invoiceNumber: 'JP-WL-04',
+      dueDate: '2026-07-31',
+      hidePoweredBy: true,
+    });
+    // The main footer line (biz name) should still render
+    expect(drawnTexts.some(t => String(t).includes('Murphy Plumbing Ltd') && String(t).includes('Generated'))).toBe(true);
+  });
+
+  it('quote PDF shows "Sent with JobProfit" footer for a free trader (hidePoweredBy omitted)', () => {
+    generateQuotePDF({
+      job: baseJob({ total: 300 }),
+      biz: baseBiz(),
+    });
+    expect(drawnTexts.some(t => String(t).includes('Sent with JobProfit'))).toBe(true);
+  });
+
+  it('quote PDF HIDES "Sent with JobProfit" footer when hidePoweredBy is true (Pro trader)', () => {
+    generateQuotePDF({
+      job: baseJob({ total: 300 }),
+      biz: baseBiz(),
+      hidePoweredBy: true,
+    });
+    expect(drawnTexts.some(t => String(t).includes('Sent with JobProfit'))).toBe(false);
+  });
+
+  it('PDF footer includes getjobprofit.com URL for free traders', async () => {
+    await generateInvoicePDF({
+      job: baseJob({ total: 300 }),
+      biz: baseBiz(),
+      invoiceNumber: 'JP-WL-05',
+      dueDate: '2026-07-31',
+      hidePoweredBy: false,
+    });
+    expect(drawnTexts.some(t => String(t).includes('getjobprofit.com'))).toBe(true);
+  });
+
+  it('PDF footer does NOT include getjobprofit.com URL for Pro traders', async () => {
+    await generateInvoicePDF({
+      job: baseJob({ total: 300 }),
+      biz: baseBiz(),
+      invoiceNumber: 'JP-WL-06',
+      dueDate: '2026-07-31',
+      hidePoweredBy: true,
+    });
+    expect(drawnTexts.some(t => String(t).includes('getjobprofit.com'))).toBe(false);
+  });
+});

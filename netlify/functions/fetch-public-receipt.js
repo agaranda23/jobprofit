@@ -106,6 +106,8 @@ export const handler = async function (event) {
         'vat_registered',
         'vat_number',
         'utr_number',
+        'plan',
+        'trial_ends_at',
       ].join(', '))
       .eq('id', job.user_id)
       .single();
@@ -120,6 +122,10 @@ export const handler = async function (event) {
     return json(502, { error: 'Could not load receipt — please try again' });
   }
 
+  // isPro: used by the public page to hide the "Sent with JobProfit" footer (white-label perk).
+  const isTraderPro = profile.plan === 'pro' ||
+    (profile.plan === 'trial' && profile.trial_ends_at && new Date(profile.trial_ends_at) > new Date());
+
   return json(200, {
     businessName:  profile.business_name  || '',
     address:       profile.address        || '',
@@ -130,5 +136,7 @@ export const handler = async function (event) {
     vatRegistered: profile.vat_registered ?? false,
     vatNumber:     profile.vat_number     || '',
     utrNumber:     profile.utr_number     || '',
+    // isPro: true hides the "Sent with JobProfit" footer on the public receipt page.
+    isPro:         isTraderPro,
   });
 };

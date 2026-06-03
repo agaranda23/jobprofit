@@ -333,7 +333,7 @@ export default function PublicReceiptView({ token }) {
           <p className="pqv-footer-note">
             Questions about this receipt? Contact your trader directly.
           </p>
-          <PoweredByJobProfit source="receipt" />
+          <PoweredByJobProfit source="receipt" hidden={!!profile.isPro} />
         </div>
       </div>
     </div>

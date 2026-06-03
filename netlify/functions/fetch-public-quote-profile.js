@@ -115,6 +115,8 @@ export const handler = async function (event) {
         'utr_number',
         'quote_validity_days',
         'terms_text',
+        'plan',
+        'trial_ends_at',
       ].join(', '))
       .eq('id', job.user_id)
       .single();
@@ -130,6 +132,10 @@ export const handler = async function (event) {
   }
 
   // ── 5. Build the safe public response — only public-safe business fields ───────
+  // isPro: used by the public page to hide the "Sent with JobProfit" footer (white-label perk).
+  const isTraderPro = profile.plan === 'pro' ||
+    (profile.plan === 'trial' && profile.trial_ends_at && new Date(profile.trial_ends_at) > new Date());
+
   return json(200, {
     businessName:      profile.business_name        || '',
     address:           profile.address              || '',
@@ -142,5 +148,7 @@ export const handler = async function (event) {
     utrNumber:         profile.utr_number           || '',
     quoteValidityDays: profile.quote_validity_days  ?? 30,
     termsText:         profile.terms_text           || '',
+    // isPro: true hides the "Sent with JobProfit" footer on the public quote page.
+    isPro:             isTraderPro,
   });
 };

@@ -21,8 +21,8 @@ import { startCheckout } from '../lib/billing';
 import { logTelemetry } from '../lib/telemetry';
 
 const FEATURES = [
-  { label: 'Unlimited invoices', sub: '10/month free — Pro removes the cap' },
-  { label: 'Full chase ladder', sub: 'polite nudge → firm reminder → final notice — escalating chasers are Pro' },
+  { label: 'White-label documents', sub: 'remove "Sent with JobProfit" — your brand only on every quote, invoice & receipt' },
+  { label: 'Auto-chase ladder', sub: 'polite nudge → firm reminder → final notice — Pro automates the escalation' },
   { label: 'True Profit after overhead', sub: 'see what you actually make, not just what came in' },
   { label: 'Tax pot (year-to-date)', sub: 'keep enough back for the taxman, all year' },
   { label: 'Est. Profit/Hour', sub: 'know if your time is actually worth it' },
@@ -30,6 +30,7 @@ const FEATURES = [
   { label: 'Margin nudges', sub: 'get told when your margin slipped this week' },
   { label: 'Tax pot reminder on Today', sub: 'every day you open the app' },
   { label: 'VAT this quarter', sub: 'what to set aside for HMRC if VAT-registered' },
+  { label: 'AI quote builder', sub: 'describe the job, get a costed quote in seconds' },
 ];
 
 const COMPETITORS = [
