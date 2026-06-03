@@ -29,7 +29,7 @@
  * Tally waitlist URL used by SendInvoiceModal's paywall view.
  */
 
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo, useState, useCallback, useRef, useEffect } from 'react';
 import { gbp, todayKey } from '../lib/today';
 import { isPro } from '../lib/plan';
 import HeaderAvatar from '../components/HeaderAvatar';
@@ -130,7 +130,157 @@ function BestWorstCard({ best, worst }) {
   );
 }
 
-export default function FinanceScreen({ jobs = [], receipts = [], session, profile, biz, onAvatarClick, onUpgrade, onGoToJobs, onGoToSettings, onNavigateToCardPayments }) {
+// ── Tax Pot Sheet ──────────────────────────────────────────────────────────────
+// Preset chips + custom field to change tax_set_aside_pct from the Money tab.
+// Writes via onProfileUpdate (same Supabase path as Settings). One source of truth.
+const TAX_PRESETS = [15, 20, 25, 30];
+
+function TaxPotSheet({ open, onClose, currentPct, monthProfit, onSave }) {
+  const [selected, setSelected] = useState(currentPct ?? 20);
+  const [customRaw, setCustomRaw] = useState('');
+  const [customMode, setCustomMode] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const inputRef = useRef(null);
+
+  // Reset state whenever sheet opens so we reflect current profile value
+  useEffect(() => {
+    if (open) {
+      const pct = currentPct ?? 20;
+      setSelected(pct);
+      setCustomMode(!TAX_PRESETS.includes(pct));
+      setCustomRaw(TAX_PRESETS.includes(pct) ? '' : String(pct));
+    }
+  }, [open, currentPct]);
+
+  // Focus custom input when custom mode activates
+  useEffect(() => {
+    if (customMode && open) inputRef.current?.focus();
+  }, [customMode, open]);
+
+  // Escape to close
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [open, onClose]);
+
+  if (!open) return null;
+
+  const effectivePct = customMode
+    ? Math.min(60, Math.max(0, parseInt(customRaw, 10) || 0))
+    : selected;
+
+  const keepBack = Math.max(0, monthProfit) * effectivePct / 100;
+  const showLowWarning = effectivePct < 15 && effectivePct > 0;
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await onSave(effectivePct);
+      onClose();
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <>
+      <div
+        className="tax-pot-sheet-backdrop"
+        onClick={onClose}
+        aria-hidden="true"
+      />
+      <div
+        className="tax-pot-sheet"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Tax pot percentage"
+      >
+        <div className="tax-pot-sheet__header">
+          <span className="tax-pot-sheet__title">Tax pot</span>
+          <button
+            type="button"
+            className="tax-pot-sheet__close"
+            onClick={onClose}
+            aria-label="Close"
+          >
+            &times;
+          </button>
+        </div>
+
+        <div className="tax-pot-sheet__body">
+          {/* Preset chips */}
+          <div className="tax-pot-sheet__chips">
+            {TAX_PRESETS.map(pct => (
+              <button
+                key={pct}
+                type="button"
+                className={`tax-pot-sheet__chip${selected === pct && !customMode ? ' tax-pot-sheet__chip--active' : ''}`}
+                onClick={() => { setSelected(pct); setCustomMode(false); setCustomRaw(''); }}
+              >
+                {pct}%
+              </button>
+            ))}
+            <button
+              type="button"
+              className={`tax-pot-sheet__chip${customMode ? ' tax-pot-sheet__chip--active' : ''}`}
+              onClick={() => { setCustomMode(true); setCustomRaw(String(selected)); }}
+            >
+              Custom %
+            </button>
+          </div>
+
+          {/* Custom input — shown only in custom mode */}
+          {customMode && (
+            <div className="tax-pot-sheet__custom-row">
+              <input
+                ref={inputRef}
+                type="number"
+                min="0"
+                max="60"
+                step="1"
+                className="tax-pot-sheet__custom-input"
+                placeholder="e.g. 22"
+                value={customRaw}
+                onChange={e => setCustomRaw(e.target.value)}
+              />
+              <span className="tax-pot-sheet__custom-pct">%</span>
+            </div>
+          )}
+
+          {/* Live consequence */}
+          <div className="tax-pot-sheet__consequence">
+            Keep back <strong>£{keepBack.toFixed(0)}</strong> this month
+          </div>
+
+          {/* Low-% advisory — non-blocking */}
+          {showLowWarning && (
+            <p className="tax-pot-sheet__low-warning">
+              Most sole traders keep back 20–25%. Your call.
+            </p>
+          )}
+
+          {/* Reassurance */}
+          <p className="tax-pot-sheet__reassurance">
+            This is a guide. We don&rsquo;t touch your money.
+          </p>
+
+          <button
+            type="button"
+            className="tax-pot-sheet__save"
+            onClick={handleSave}
+            disabled={saving}
+          >
+            {saving ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
+export default function FinanceScreen({ jobs = [], receipts = [], session, profile, biz, onAvatarClick, onUpgrade, onGoToJobs, onGoToSettings, onNavigateToCardPayments, onProfileUpdate }) {
   const [timelineOpen, setTimelineOpen] = useState(false);
   const [trustHintDismissed, setTrustHintDismissed] = useState(false);
   // chartRange drives which window of data getCashflowByMonth uses.
@@ -145,6 +295,15 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
     setUpgradeSheetSource(source);
     setUpgradeSheetOpen(true);
   }, []);
+
+  // ── Tax Pot Sheet state ──────────────────────────────────────────────────────
+  const [taxPotSheetOpen, setTaxPotSheetOpen] = useState(false);
+
+  const handleTaxPotSave = useCallback(async (newPct) => {
+    if (onProfileUpdate) {
+      await onProfileUpdate({ tax_set_aside_pct: newPct });
+    }
+  }, [onProfileUpdate]);
 
   // ── Pay-now Money banner (Section 1.3 b) ────────────────────────────────────
   // Shown when: trader is not connected to Stripe AND has 2+ unpaid invoices.
@@ -509,7 +668,20 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
           always want the blur chrome regardless of whether they have data. */}
       <ProGate locked={!userIsPro} hasValue={!userIsPro} onUpgrade={() => handleUpgrade('progate')}>
         <div className="money-card money-tax-setaside">
-          <div className="money-tax-setaside__label">Tax Pot</div>
+          <div className="money-tax-setaside__label-row">
+            <div className="money-tax-setaside__label">Tax Pot</div>
+            {/* Only Pro users can edit from here — free users tap to upgrade via ProGate */}
+            {userIsPro && onProfileUpdate && (
+              <button
+                type="button"
+                className="money-tax-setaside__edit-btn"
+                onClick={() => setTaxPotSheetOpen(true)}
+                aria-label="Edit tax pot percentage"
+              >
+                {taxSetAsidePct}% &rsaquo;
+              </button>
+            )}
+          </div>
 
           {isCisSubcontractor ? (
             /* ── CIS-aware two-block view ───────────────────────────────── */
@@ -845,6 +1017,15 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
         open={upgradeSheetOpen}
         source={upgradeSheetSource}
         onClose={() => setUpgradeSheetOpen(false)}
+      />
+
+      {/* ── TaxPotSheet — tapping the Tax Pot % on the Money tab (Pro only) ── */}
+      <TaxPotSheet
+        open={taxPotSheetOpen}
+        onClose={() => setTaxPotSheetOpen(false)}
+        currentPct={taxSetAsidePct}
+        monthProfit={monthSummary.profit}
+        onSave={handleTaxPotSave}
       />
 
     </div>

@@ -849,6 +849,7 @@ export default function AppShell() {
                 if (target === 'overheads') setSettingsScrollTarget('overheads');
               }}
               onNavigateToCardPayments={() => { navigate('settings'); setSettingsSubView('card-payments'); }}
+              onProfileUpdate={handleProfileUpdate}
             />
           )}
 
@@ -961,6 +962,7 @@ export default function AppShell() {
               // onMarkPaid removed: chase block deleted in Phase 1 Money redesign
               onGoToJobs={() => navigate('jobs')}
               // onGoToSettings omitted: new-nav has no dedicated settings tab
+              onProfileUpdate={handleProfileUpdate}
             />
           )}
 

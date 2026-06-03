@@ -3501,14 +3501,33 @@ input[type=number] { -moz-appearance: textfield; }
 .money-tax-setaside {
   /* extends .money-card */
 }
+/* Label row holds the "Tax Pot" label + tappable % chip side by side */
+.money-tax-setaside__label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
 .money-tax-setaside__label {
   font-size: 11px;
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-dim);
-  margin-bottom: 8px;
 }
+/* Tappable % chip — Pro only */
+.money-tax-setaside__edit-btn {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 3px 8px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  cursor: pointer;
+}
+.money-tax-setaside__edit-btn:active { opacity: 0.7; }
 .money-tax-setaside__figure {
   font-size: 36px;
   font-weight: 800;
@@ -9998,6 +10017,131 @@ input[type=number] { -moz-appearance: textfield; }
   opacity: 0.7;
 }
 .jd-pbs-bills-nudge-link:hover { opacity: 1; }
+
+/* ── TaxPotSheet (FinanceScreen money tab) ───────────────────────────────── */
+.tax-pot-sheet-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  z-index: 700;
+}
+.tax-pot-sheet {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  max-width: 480px;
+  margin: 0 auto;
+  background: var(--surface);
+  border-radius: 16px 16px 0 0;
+  z-index: 701;
+  padding-bottom: env(safe-area-inset-bottom, 16px);
+}
+.tax-pot-sheet__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.tax-pot-sheet__title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+}
+.tax-pot-sheet__close {
+  background: none;
+  border: none;
+  font-size: 22px;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+.tax-pot-sheet__body {
+  padding: 20px;
+}
+.tax-pot-sheet__chips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.tax-pot-sheet__chip {
+  flex: 1;
+  min-width: 60px;
+  padding: 10px 4px;
+  background: var(--surface-2);
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+  text-align: center;
+  transition: border-color 0.12s, background 0.12s;
+}
+.tax-pot-sheet__chip--active {
+  border-color: var(--accent);
+  background: var(--accent-soft, rgba(var(--accent-rgb, 99,102,241),0.1));
+  color: var(--accent);
+}
+.tax-pot-sheet__custom-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+.tax-pot-sheet__custom-input {
+  flex: 1;
+  padding: 10px 12px;
+  font-size: 20px;
+  font-weight: 700;
+  font-family: inherit;
+  background: var(--surface-2);
+  border: 1.5px solid var(--accent);
+  border-radius: 10px;
+  color: var(--text);
+  text-align: right;
+}
+.tax-pot-sheet__custom-pct {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text);
+}
+.tax-pot-sheet__consequence {
+  font-size: 16px;
+  color: var(--text);
+  margin-bottom: 8px;
+  text-align: center;
+}
+.tax-pot-sheet__low-warning {
+  font-size: 13px;
+  color: #f59e0b;
+  margin: 0 0 8px;
+  text-align: center;
+}
+.tax-pot-sheet__reassurance {
+  font-size: 12px;
+  color: var(--text-dim);
+  text-align: center;
+  margin: 0 0 20px;
+}
+.tax-pot-sheet__save {
+  display: block;
+  width: 100%;
+  padding: 14px;
+  background: var(--accent);
+  border: none;
+  border-radius: 12px;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  color: #fff;
+  cursor: pointer;
+}
+.tax-pot-sheet__save:disabled { opacity: 0.6; }
 
 /* ── MoreDisclosure ───────────────────────────────────────────────────────── */
 
