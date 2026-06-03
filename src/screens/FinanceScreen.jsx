@@ -304,13 +304,15 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
   }, [openUpgradeSheet, onUpgrade]);
 
   // handleTrustHintCta: tap-through for the data trust nudge.
-  // markPaid → Jobs tab; noCosts → Settings tab (to add overheads/receipts).
+  // markPaid → Jobs tab; noCosts → Settings tab scrolled to overheads section.
+  // Passes 'overheads' as the scroll target so AppShell can tell SettingsScreen
+  // where to land. NOTE: section naming/structure is pending PRD's redesign.
   const handleTrustHintCta = useCallback(() => {
     if (!dataTrustHint) return;
     if (dataTrustHint.type === 'markPaid' && onGoToJobs) {
       onGoToJobs();
     } else if (dataTrustHint.type === 'noCosts' && onGoToSettings) {
-      onGoToSettings();
+      onGoToSettings('overheads');
     }
   }, [dataTrustHint, onGoToJobs, onGoToSettings]);
 
