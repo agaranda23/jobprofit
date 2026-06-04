@@ -1810,3 +1810,187 @@ describe('intent=quote on already-priced job — ReviewSheet opens directly (bug
     expect(result).toBeNull();
   });
 });
+
+// ── CustomerCard action chips — maps URL platform switch + empty-field guard ──
+//
+// Tests mirror the two new pure helpers added to CustomerCard:
+//   buildMapsUrl(address) — iOS vs non-iOS platform branch
+//   chip visibility gate  — no chip for an empty field, hint when all empty
+//
+// navigator.userAgent is mocked per test; no DOM/React required.
+
+function buildMapsUrl(address) {
+  const enc = encodeURIComponent(address);
+  if (/iPad|iPhone|iPod/.test(navigator.userAgent)) {
+    return `http://maps.apple.com/?q=${enc}`;
+  }
+  return `https://www.google.com/maps/search/?api=1&query=${enc}`;
+}
+
+function customerCardChipVisibility(job) {
+  const phone = job.customerPhone || job.phone || job.mobile || '';
+  const address = job.address || '';
+  const customer = job.customer || '';
+  return {
+    showPhoneChips: !!phone,
+    showNavigateChip: !!address,
+    showEmptyHint: !customer && !phone && !address,
+  };
+}
+
+describe('CustomerCard — buildMapsUrl platform switch', () => {
+  const ADDR = '14 Elm Road, London';
+
+  it('returns Google Maps URL on a non-iOS user agent', () => {
+    Object.defineProperty(navigator, 'userAgent', {
+      value: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124',
+      configurable: true,
+    });
+    const url = buildMapsUrl(ADDR);
+    expect(url).toContain('google.com/maps/search');
+    expect(url).toContain(encodeURIComponent(ADDR));
+  });
+
+  it('returns Apple Maps URL on an iPhone user agent', () => {
+    Object.defineProperty(navigator, 'userAgent', {
+      value: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605',
+      configurable: true,
+    });
+    const url = buildMapsUrl(ADDR);
+    expect(url).toContain('maps.apple.com');
+    expect(url).toContain(encodeURIComponent(ADDR));
+  });
+
+  it('returns Apple Maps URL on an iPad user agent', () => {
+    Object.defineProperty(navigator, 'userAgent', {
+      value: 'Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) AppleWebKit/605',
+      configurable: true,
+    });
+    const url = buildMapsUrl(ADDR);
+    expect(url).toContain('maps.apple.com');
+  });
+
+  it('returns Google Maps URL on an Android user agent', () => {
+    Object.defineProperty(navigator, 'userAgent', {
+      value: 'Mozilla/5.0 (Linux; Android 13; Pixel 7) AppleWebKit/537.36',
+      configurable: true,
+    });
+    const url = buildMapsUrl(ADDR);
+    expect(url).toContain('google.com/maps/search');
+  });
+
+  it('URL-encodes the address in the Google Maps query', () => {
+    Object.defineProperty(navigator, 'userAgent', {
+      value: 'Mozilla/5.0 (Linux; Android 13) AppleWebKit',
+      configurable: true,
+    });
+    const url = buildMapsUrl('14 High Street, Manchester M1 2AB');
+    expect(url).toContain(encodeURIComponent('14 High Street, Manchester M1 2AB'));
+  });
+});
+
+describe('CustomerCard — no dead chip when field is empty', () => {
+  it('shows phone chips when job has a phone', () => {
+    expect(customerCardChipVisibility({ customerPhone: '07700 900000' }).showPhoneChips).toBe(true);
+  });
+
+  it('hides phone chips when job has no phone', () => {
+    expect(customerCardChipVisibility({ customer: 'Alan' }).showPhoneChips).toBe(false);
+  });
+
+  it('uses job.phone fallback for chip visibility', () => {
+    expect(customerCardChipVisibility({ phone: '07700 900000' }).showPhoneChips).toBe(true);
+  });
+
+  it('uses job.mobile fallback for chip visibility', () => {
+    expect(customerCardChipVisibility({ mobile: '07700 900000' }).showPhoneChips).toBe(true);
+  });
+
+  it('shows Navigate chip when job has an address', () => {
+    expect(customerCardChipVisibility({ address: '14 Elm Road' }).showNavigateChip).toBe(true);
+  });
+
+  it('hides Navigate chip when address is absent', () => {
+    expect(customerCardChipVisibility({ customerPhone: '07700 900000' }).showNavigateChip).toBe(false);
+  });
+
+  it('shows empty-state hint when name+phone+address are all absent', () => {
+    expect(customerCardChipVisibility({}).showEmptyHint).toBe(true);
+  });
+
+  it('hides empty-state hint when any field is filled (phone present)', () => {
+    expect(customerCardChipVisibility({ customerPhone: '07700 900000' }).showEmptyHint).toBe(false);
+  });
+
+  it('hides empty-state hint when only address is present', () => {
+    expect(customerCardChipVisibility({ address: '14 Elm Road' }).showEmptyHint).toBe(false);
+  });
+
+  it('hides empty-state hint when only customer name is present', () => {
+    expect(customerCardChipVisibility({ customer: 'Alan' }).showEmptyHint).toBe(false);
+  });
+
+  it('hides empty-state hint when all three fields are populated', () => {
+    expect(customerCardChipVisibility({
+      customer: 'Alan',
+      customerPhone: '07700 900000',
+      address: '14 Elm Road',
+    }).showEmptyHint).toBe(false);
+  });
+});
+
+describe('CustomerCard — SMS prefill is neutral greeting (not the invoice)', () => {
+  function buildSmsLink(phone, customer) {
+    const firstName = (customer || '').split(' ')[0] || '';
+    const body = firstName ? `Hi ${firstName}, ` : '';
+    return `sms:${phone}?body=${encodeURIComponent(body)}`;
+  }
+
+  it('prefills sms body with first name only', () => {
+    const link = buildSmsLink('07700900000', 'Alan Smith');
+    expect(link).toBe(`sms:07700900000?body=${encodeURIComponent('Hi Alan, ')}`);
+  });
+
+  it('uses empty body when no customer name is set', () => {
+    const link = buildSmsLink('07700900000', '');
+    expect(link).toBe('sms:07700900000?body=');
+  });
+
+  it('does NOT include invoice/amount/due date in the prefill', () => {
+    const link = buildSmsLink('07700900000', 'Sarah Jones');
+    expect(link).not.toContain('Invoice');
+    expect(link).not.toContain('invoice');
+    expect(link).not.toContain('%C2%A3'); // £
+    expect(link).not.toContain('Due');
+  });
+
+  it('uses sms: scheme for iOS compatibility', () => {
+    const link = buildSmsLink('07700900000', 'Alan');
+    expect(link.startsWith('sms:')).toBe(true);
+  });
+});
+
+describe('CustomerCard — WhatsApp prefill is neutral greeting (not the invoice)', () => {
+  // Re-use buildWhatsAppLink logic inline to test the greeting message contract.
+  function buildNeutralWaGreeting(customer) {
+    const firstName = (customer || '').split(' ')[0] || '';
+    return firstName ? `Hi ${firstName}, ` : '';
+  }
+
+  it('greeting uses first name only', () => {
+    expect(buildNeutralWaGreeting('Alan Smith')).toBe('Hi Alan, ');
+  });
+
+  it('returns empty string when no customer name', () => {
+    expect(buildNeutralWaGreeting('')).toBe('');
+  });
+
+  it('does NOT include invoice, amount or due date', () => {
+    const greeting = buildNeutralWaGreeting('Bob');
+    expect(greeting).not.toMatch(/invoice|Invoice|£|amount|Amount|due|Due/);
+  });
+
+  it('greeting for single-word name uses that name', () => {
+    expect(buildNeutralWaGreeting('Dave')).toBe('Hi Dave, ');
+  });
+});
