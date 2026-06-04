@@ -12273,6 +12273,81 @@ input[type=number] { -moz-appearance: textfield; }
   cursor: default;
 }
 
+/* ── Customer-block action chips ─────────────────────────────────────────────
+   One-tap contact actions below the phone/address rows in CustomerCard.
+   Three chips after phone (Call · Text · WhatsApp); one chip after address
+   (Navigate). Chips are additive — the existing tap-to-call number link and
+   tap-to-maps address text are kept and unchanged.
+
+   Sizing: min-height 48px satisfies WCAG 2.5.5 target size.
+   Chip strip: full-width flex row, equal spacing. */
+
+.jd-action-chip-row {
+  display: flex;
+  gap: 6px;
+  padding: 4px 0 8px;
+  width: 100%;
+}
+
+.jd-action-chip {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  padding: 0 8px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  text-decoration: none;
+  /* Ghost (secondary) style — default for Call + Text */
+  background: transparent;
+  border: 1.5px solid var(--border);
+  color: var(--text);
+  transition: opacity 0.12s;
+  box-sizing: border-box;
+}
+
+.jd-action-chip:active {
+  opacity: 0.65;
+}
+
+/* Primary chip — WhatsApp gets the accent treatment */
+.jd-action-chip--primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #0b1f10;
+}
+
+[data-theme="light"] .jd-action-chip--primary {
+  color: #fff;
+}
+
+.jd-action-chip--primary:active {
+  opacity: 0.8;
+}
+
+/* Navigate chip row — single chip, left-aligned, narrower than full-width */
+.jd-action-chip-row--navigate {
+  padding-bottom: 4px;
+}
+
+.jd-action-chip--navigate {
+  flex: unset;
+  padding: 0 16px;
+}
+
+/* All-empty helper text — shown only when name+phone+address are all absent */
+.jd-customer-empty-hint {
+  font-size: 13px;
+  color: var(--text-dim);
+  padding: 6px 0 8px;
+  line-height: 1.4;
+}
+
 /* Chevron on tappable rows — right-aligned, muted */
 .jd-card-row-chevron {
   font-size: 18px;

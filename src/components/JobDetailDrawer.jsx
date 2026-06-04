@@ -226,9 +226,34 @@ function CustomerCard({ job, onEditName, onEditPhone, onEditAddress, onEditEmail
   const description = job.description || '';
   const canEdit = typeof onEditPhone === 'function';
 
+  // Derived values for action chips and empty-state hint.
+  const firstName = (customer).split(' ')[0] || '';
+  const smsBody = firstName ? `Hi ${firstName}, ` : '';
+  const waBody = firstName ? `Hi ${firstName}, ` : '';
+  const smsLink = `sms:${phone}?body=${encodeURIComponent(smsBody)}`;
+  const waLink = phone ? buildWhatsAppLink({ phone, message: waBody }) : '';
+
+  // Platform-aware Maps URL: Apple Maps on iOS, Google Maps everywhere else.
+  function buildMapsUrl(addr) {
+    const enc = encodeURIComponent(addr);
+    if (/iPad|iPhone|iPod/.test(navigator.userAgent)) {
+      return `http://maps.apple.com/?q=${enc}`;
+    }
+    return `https://www.google.com/maps/search/?api=1&query=${enc}`;
+  }
+
+  const allEmpty = !customer && !phone && !address;
+
   return (
     <div className="jd-card">
       <div className="jd-card-label">Customer</div>
+
+      {/* All-empty hint — shown only when name+phone+address are all absent */}
+      {allEmpty && (
+        <p className="jd-customer-empty-hint">
+          Add their details to call, text or get directions in one tap.
+        </p>
+      )}
 
       {/* Name — editable when onEditName is provided; ghost-button when no customer set */}
       {customer ? (
@@ -263,28 +288,61 @@ function CustomerCard({ job, onEditName, onEditPhone, onEditAddress, onEditEmail
         )
       )}
 
-      {/* Phone — tap number to call; ghost-button when empty */}
+      {/* Phone — tap number to call; action chips (Call · Text · WhatsApp) below;
+          ghost-button when empty. Chips only render when phone is present. */}
       {phone ? (
-        <div className="jd-card-row jd-card-row--phone">
-          <span className="jd-card-row-icon" aria-hidden="true">📞</span>
-          <a
-            href={`tel:${phone}`}
-            className="jd-card-row-val jd-card-row-val--link"
-            aria-label={`Call ${phone}`}
-          >
-            {phone}
-          </a>
-          {canEdit && (
+        <>
+          <div className="jd-card-row jd-card-row--phone">
+            <span className="jd-card-row-icon" aria-hidden="true">📞</span>
+            <a
+              href={`tel:${phone}`}
+              className="jd-card-row-val jd-card-row-val--link"
+              aria-label={`Call ${phone}`}
+            >
+              {phone}
+            </a>
+            {canEdit && (
+              <button
+                type="button"
+                className="jd-card-row-edit"
+                onClick={onEditPhone}
+                aria-label="Edit customer phone"
+              >
+                ›
+              </button>
+            )}
+          </div>
+          {/* One-tap action chips — additive, never replace the tap-to-call link above */}
+          <div className="jd-action-chip-row" role="group" aria-label="Contact actions">
+            <a
+              href={`tel:${phone}`}
+              className="jd-action-chip"
+              aria-label="Call customer"
+              onClick={() => logTelemetry('drawer_action_call')}
+            >
+              Call
+            </a>
+            <a
+              href={smsLink}
+              className="jd-action-chip"
+              aria-label="Text customer"
+              onClick={() => logTelemetry('drawer_action_text')}
+            >
+              Text
+            </a>
             <button
               type="button"
-              className="jd-card-row-edit"
-              onClick={onEditPhone}
-              aria-label="Edit customer phone"
+              className="jd-action-chip jd-action-chip--primary"
+              aria-label="WhatsApp customer"
+              onClick={() => {
+                logTelemetry('drawer_action_whatsapp');
+                window.open(waLink, '_blank', 'noopener');
+              }}
             >
-              ›
+              WhatsApp
             </button>
-          )}
-        </div>
+          </div>
+        </>
       ) : (
         canEdit && (
           <button
@@ -299,36 +357,51 @@ function CustomerCard({ job, onEditName, onEditPhone, onEditAddress, onEditEmail
         )
       )}
 
-      {/* Address — Maps pin tap on the icon+text, edit tap on the chevron.
-          Two sibling tap targets in one row; no nested button-in-anchor.
+      {/* Address — platform-aware Maps link on icon+text, edit on chevron.
+          Navigate chip rendered below when address is present.
           Read-only branch (canEdit false): whole row links to Maps.
           No-address branch: unchanged ghost-button for adding address. */}
       {address ? (
         canEdit ? (
-          <div className="jd-card-row jd-card-row--split-action">
-            <a
-              href={`https://maps.google.com/?q=${encodeURIComponent(address)}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="jd-card-row-maps-tap"
-              aria-label={`Open ${address} in Maps`}
-              onClick={() => logTelemetry('drawer_action_map', { source: 'drawer' })}
-            >
-              <span className="jd-card-row-icon" aria-hidden="true">📍</span>
-              <span className="jd-card-row-val">{address}</span>
-            </a>
-            <button
-              type="button"
-              className="jd-card-row-edit-btn"
-              onClick={onEditAddress}
-              aria-label="Edit customer address"
-            >
-              <span aria-hidden="true">›</span>
-            </button>
-          </div>
+          <>
+            <div className="jd-card-row jd-card-row--split-action">
+              <a
+                href={buildMapsUrl(address)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="jd-card-row-maps-tap"
+                aria-label={`Open ${address} in Maps`}
+                onClick={() => logTelemetry('drawer_action_map', { source: 'drawer' })}
+              >
+                <span className="jd-card-row-icon" aria-hidden="true">📍</span>
+                <span className="jd-card-row-val">{address}</span>
+              </a>
+              <button
+                type="button"
+                className="jd-card-row-edit-btn"
+                onClick={onEditAddress}
+                aria-label="Edit customer address"
+              >
+                <span aria-hidden="true">›</span>
+              </button>
+            </div>
+            {/* Navigate chip — additive shortcut below the address row */}
+            <div className="jd-action-chip-row jd-action-chip-row--navigate">
+              <a
+                href={buildMapsUrl(address)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="jd-action-chip jd-action-chip--navigate"
+                aria-label={`Navigate to ${address}`}
+                onClick={() => logTelemetry('drawer_action_map', { source: 'drawer' })}
+              >
+                Navigate
+              </a>
+            </div>
+          </>
         ) : (
           <a
-            href={`https://maps.google.com/?q=${encodeURIComponent(address)}`}
+            href={buildMapsUrl(address)}
             target="_blank"
             rel="noopener noreferrer"
             className="jd-card-row jd-card-row--link"
