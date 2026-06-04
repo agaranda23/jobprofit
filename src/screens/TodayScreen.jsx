@@ -380,6 +380,7 @@ export default function TodayScreen({
     <div className="today-screen foreman-screen">
       {/* ── Header ──────────────────────────────────────────────────────────── */}
       <header className="foreman-header">
+        <img src="/jobprofit-logo.png" alt="" className="foreman-logo-mark" aria-hidden="true" />
         <h1 className="foreman-date">{formatToday()}</h1>
       </header>
 
