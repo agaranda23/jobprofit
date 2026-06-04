@@ -3,6 +3,7 @@ import {
   readVisits,
   writeVisits,
   computeVisitStatus,
+  computeFinishStatus,
   getScheduleMeta,
   isLastPlannedVisit,
   tomorrowDateString,
