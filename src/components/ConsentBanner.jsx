@@ -47,12 +47,8 @@ export default function ConsentBanner() {
       role="dialog"
       aria-label="Cookie preferences"
       aria-modal="false"
+      className="consent-banner"
       style={{
-        position: 'fixed',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        zIndex: 9999,
         background: 'var(--color-surface, #fff)',
         borderTop: '1px solid var(--color-border, #e5e5e5)',
         padding: '16px 20px',

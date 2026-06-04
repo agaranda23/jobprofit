@@ -20,7 +20,7 @@
  *   - Next Up card              → removed
  */
 
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import AddJobModal from '../components/AddJobModal';
 import ReviewSheet from '../components/ReviewSheet';
 import GetProPill from '../components/GetProPill';
@@ -107,6 +107,18 @@ export default function TodayScreen({
   // upgradeSheetOpen: controls ProUpgradeSheet visibility on Today.
   const [upgradeSheetOpen, setUpgradeSheetOpen] = useState(false);
 
+  // gotPaidDeferTimers: refs to pending show-delay timers for "Got paid?" chip
+  // toasts. Stored so we can cancel them on unmount or if the user saves another
+  // job before the deferred chip fires (prevents stale-timer leaks).
+  const gotPaidDeferTimers = useRef([]);
+
+  // Cancel all pending chip-show deferral timers when the component unmounts.
+  useEffect(() => {
+    return () => {
+      gotPaidDeferTimers.current.forEach(id => clearTimeout(id));
+    };
+  }, []);
+
   const now = new Date();
 
   const showToast = (msg, action = null) => {
@@ -137,17 +149,27 @@ export default function TodayScreen({
       });
 
       // Speed-mode saves also enqueue the "Got paid?" chip toast (Part B).
-      // The toast appears after the Saved toast clears (~2.4s). If multiple
-      // Speed-mode saves happen quickly, they stack in FIFO order.
+      // Sequential behaviour: "Added to Leads" shows alone for its full 2400ms
+      // auto-dismiss window, then the chip appears 200ms later (2600ms total).
+      // This matches the comment intent — previous code pushed synchronously,
+      // causing both toasts to overlap. The 2600ms figure is 2400ms (showToast
+      // auto-dismiss defined on line ~115) + 200ms breathing room.
       if (payload?.speedMode) {
-        const timerId = setTimeout(() => {
-          setGotPaidToastQueue(q => {
-            if (q.length === 0) return q;
-            const [, ...rest] = q;
-            return rest;
-          });
-        }, 5000);
-        setGotPaidToastQueue(q => [...q, { job: payload, timerId }]);
+        const deferTimerId = setTimeout(() => {
+          // Remove this deferral from the tracking ref.
+          gotPaidDeferTimers.current = gotPaidDeferTimers.current.filter(id => id !== deferTimerId);
+
+          // Schedule the 5s auto-dismiss for this chip entry.
+          const timerId = setTimeout(() => {
+            setGotPaidToastQueue(q => {
+              if (q.length === 0) return q;
+              const [, ...rest] = q;
+              return rest;
+            });
+          }, 5000);
+          setGotPaidToastQueue(q => [...q, { job: payload, timerId }]);
+        }, 2600); // 2400ms toast dismiss + 200ms buffer — see showToast timeout above
+        gotPaidDeferTimers.current = [...gotPaidDeferTimers.current, deferTimerId];
       }
     } else if (isDetailedPath) {
       // Detailed-save path: navigate to the new job's detail view (Jobs tab, drawer open).
