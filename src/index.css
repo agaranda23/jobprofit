@@ -1510,10 +1510,10 @@ body {
   margin-bottom: 24px;
 }
 .auth-logo {
-  width: 56px;
-  height: 56px;
-  border-radius: 12px;
+  width: 64px;
+  height: 64px;
   margin-bottom: 16px;
+  object-fit: contain;
 }
 .auth-title {
   font-size: 28px;
@@ -8692,6 +8692,17 @@ input[type=number] { -moz-appearance: textfield; }
 
 .foreman-header {
   padding: 20px 16px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.foreman-logo-mark {
+  width: 26px;
+  height: 26px;
+  object-fit: contain;
+  flex-shrink: 0;
+  opacity: 0.9;
 }
 
 .foreman-date {

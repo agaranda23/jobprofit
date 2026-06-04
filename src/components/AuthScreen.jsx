@@ -42,7 +42,7 @@ export default function AuthScreen() {
   return (
     <div className="auth-screen">
       <div className="auth-brand">
-        <img src="/icon-192.png" alt="" className="auth-logo" />
+        <img src="/jobprofit-logo.png" alt="" className="auth-logo" />
         <h1 className="auth-title">JobProfit</h1>
         <p className="auth-hero">Quote it, send it, get paid. From the van.</p>
 
