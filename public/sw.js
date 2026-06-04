@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v61';  // bumped from v60: accordion grey background + bullet points on Quote line items
+const CACHE_NAME = 'jobprofit-v62';  // bumped from v61: Quote "+ Add a line" button horizontal inset matches Schedule
 const PRECACHE = [
   '/',
   '/index.html',

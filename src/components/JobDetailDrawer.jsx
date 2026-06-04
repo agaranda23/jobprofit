@@ -59,6 +59,7 @@ import {
   readVisits,
   writeVisits,
   computeVisitStatus,
+  computeFinishStatus,
   getScheduleMeta,
   isLastPlannedVisit,
   generateVisitId,
@@ -953,6 +954,135 @@ function VisitRow({ visit, onTap, onMarkDone, canEdit }) {
 }
 
 /**
+ * ScheduleFinishFooter — finish-line block at the bottom of the Schedule accordion.
+ *
+ * Two interactions:
+ *   1. "Aiming to finish" target date — optional, native date picker.
+ *   2. "End job — today" CTA — price-gated, stamps completedAt, fires invoice prompt.
+ *
+ * Props:
+ *   job        – full job object
+ *   jobVisits  – Visit[] (already read by the parent via readVisits)
+ *   canEdit    – whether onUpdateJob is wired (false = read-only drawer)
+ *   onEndJob   – handler that price-gates and stamps completedAt
+ *   onSetTarget – handler(dateStr) that writes targetFinishDate
+ *   onReopen   – handler that clears completedAt and returns to active
+ *   fmtDate    – the shared fmtDate helper
+ */
+function ScheduleFinishFooter({ job, jobVisits, canEdit, onEndJob, onSetTarget, onReopen, fmtDate }) {
+  const targetFinishDate = job.targetFinishDate || null;
+  const completedAt = job.completedAt || null;
+  const isEnded = !!completedAt;
+
+  const finishStatus = React.useMemo(
+    () => computeFinishStatus(targetFinishDate, completedAt),
+    [targetFinishDate, completedAt],
+  );
+
+  // Default the native date picker to the last visit's date if visits exist,
+  // otherwise today (min value to prevent picking the past by accident).
+  const defaultTargetDate = React.useMemo(() => {
+    const planned = [...jobVisits]
+      .filter(v => v.date)
+      .sort((a, b) => b.date.localeCompare(a.date));
+    if (planned.length > 0) return planned[0].date;
+    const today = new Date();
+    return [
+      today.getFullYear(),
+      String(today.getMonth() + 1).padStart(2, '0'),
+      String(today.getDate()).padStart(2, '0'),
+    ].join('-');
+  }, [jobVisits]);
+
+  // Tone → CSS modifier for the status bar
+  const toneCls = finishStatus
+    ? `jd-finish-status--${finishStatus.tone}`
+    : '';
+
+  return (
+    <div className="jd-finish-line">
+      {/* ── Target date row ───────────────────────────────────────────── */}
+      <div className="jd-finish-target-row">
+        <span className="jd-finish-target-lbl">
+          {isEnded ? '🎯 Aimed for' : '🎯 Aiming to finish'}
+        </span>
+        {targetFinishDate ? (
+          <>
+            <span className="jd-finish-target-val">{fmtDate(targetFinishDate)}</span>
+            {canEdit && !isEnded && (
+              <label className="jd-finish-target-edit" aria-label="Edit target finish date">
+                Edit
+                <input
+                  type="date"
+                  className="jd-finish-date-input"
+                  defaultValue={targetFinishDate}
+                  onChange={e => onSetTarget(e.target.value || null)}
+                  aria-label="Target finish date"
+                />
+              </label>
+            )}
+          </>
+        ) : (
+          canEdit && !isEnded && (
+            <label className="jd-finish-target-set" aria-label="Set target finish date">
+              Set a date
+              <input
+                type="date"
+                className="jd-finish-date-input"
+                defaultValue={defaultTargetDate}
+                onChange={e => onSetTarget(e.target.value || null)}
+                aria-label="Target finish date"
+              />
+            </label>
+          )
+        )}
+      </div>
+
+      {/* ── Actual finish row (only when ended) ───────────────────────── */}
+      {isEnded && (
+        <div className="jd-finish-actual-row">
+          <span className="jd-finish-target-lbl">🏁 Finished</span>
+          <span className="jd-finish-target-val">{fmtDate(completedAt)}</span>
+        </div>
+      )}
+
+      {/* ── Status bar ────────────────────────────────────────────────── */}
+      {finishStatus && (
+        <div className={`jd-finish-status ${toneCls}`} role="status">
+          {finishStatus.tone === 'ontrack' && '✓ '}
+          {finishStatus.tone === 'overdue' && '⚠ '}
+          {finishStatus.tone === 'duetoday' && '📅 '}
+          {finishStatus.label}
+        </div>
+      )}
+
+      {/* ── Primary CTA ───────────────────────────────────────────────── */}
+      {canEdit && (
+        isEnded ? (
+          <button
+            type="button"
+            className="jd-finish-reopen-btn"
+            onClick={onReopen}
+            aria-label="Reopen this job"
+          >
+            Job ended — reopen
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="jd-finish-end-btn"
+            onClick={onEndJob}
+            aria-label="End job today"
+          >
+            ✓ End job — today
+          </button>
+        )
+      )}
+    </div>
+  );
+}
+
+/**
  * VisitEditorSheet — modal sheet for adding/editing a single visit.
  * Reuses the jd-schedule-edit-form chrome pattern.
  */
@@ -1368,7 +1498,7 @@ function QuoteBreakdownSection({ job, onSaveLine, onDeleteLine }) {
             canEdit && (
               <button
                 type="button"
-                className="jd-add-dashed"
+                className="jd-add-dashed jd-add-dashed--inset"
                 onClick={() => setSheetIdx(-1)}
                 aria-label="Add a line item"
               >
@@ -1419,7 +1549,7 @@ function QuoteBreakdownSection({ job, onSaveLine, onDeleteLine }) {
               {canEdit && (
                 <button
                   type="button"
-                  className="jd-add-dashed"
+                  className="jd-add-dashed jd-add-dashed--inset"
                   onClick={() => setSheetIdx(-1)}
                   aria-label="Add another line item"
                 >
@@ -2337,6 +2467,9 @@ export default function JobDetailDrawer({
   // Send invoice prompt: shown when last visit is marked done and job isn't yet invoiced
   const [showInvoicePrompt, setShowInvoicePrompt] = useState(false);
 
+  // Finish-line: reopen confirmation dialog
+  const [showReopenConfirm, setShowReopenConfirm] = useState(false);
+
   // Customer field editing — single EditFieldModal controlled by this key.
   // null = closed; 'name' | 'phone' | 'email' | 'summary' = which field is open.
   const [editingField, setEditingField] = useState(null);
@@ -2977,6 +3110,49 @@ export default function JobDetailDrawer({
     showFlash('Visit marked done');
   };
 
+  // ── Finish-line handlers ──────────────────────────────────────────────────
+
+  // End job — price-gated (same guard as Send invoice).
+  // Closes all open visits, stamps completedAt, fires invoice prompt.
+  const handleEndJob = () => {
+    if (needsPrice(job)) {
+      // Reuse the existing "add a price first" path — one rule, one place.
+      setEditingField('amount');
+      return;
+    }
+    const currentVisits = readVisits(job);
+    const allDone = currentVisits.map(v =>
+      v.status !== 'done' && v.status !== 'cancelled' ? { ...v, status: 'done' } : v,
+    );
+    const completedAt = new Date().toISOString();
+    onUpdateJob({
+      ...job,
+      ...writeVisits(job, allDone),
+      completedAt,
+      jobStatus: 'complete',
+    });
+    if (showSendInvoice) {
+      setShowInvoicePrompt(true);
+    }
+    showFlash('Job ended');
+  };
+
+  // Set / update target finish date — called with a YYYY-MM-DD string.
+  const handleSetTarget = (dateStr) => {
+    onUpdateJob({ ...job, targetFinishDate: dateStr || null });
+  };
+
+  // Reopen a completed job — clears completedAt and returns to active.
+  const handleReopen = () => {
+    onUpdateJob({
+      ...job,
+      completedAt: undefined,
+      jobStatus: 'active',
+    });
+    setShowReopenConfirm(false);
+    showFlash('Job reopened');
+  };
+
   // ── Pipeline transitions ──────────────────────────────────────────────────
   // Mirrors legacy convertToJob (App.jsx line 620) and Mark Sent (line 660).
   const handleMarkSent = () => {
@@ -3423,7 +3599,7 @@ export default function JobDetailDrawer({
 
             // ── Schedule: multi-visit aware display ──────────────────────────
             const jobVisits = readVisits(job);
-            const scheduledDisplay = getScheduleMeta(jobVisits, fmtDate);
+            const scheduledDisplay = getScheduleMeta(jobVisits, fmtDate, job);
 
             // ── Stage-aware payment sections (Invoiced / Paid) ───────────────
             const sectionConfig = getDrawerSectionConfig(status);
@@ -3602,6 +3778,40 @@ export default function JobDetailDrawer({
                       </button>
                     )}
                   </div>
+
+                  {/* Finish-line footer */}
+                  <ScheduleFinishFooter
+                    job={job}
+                    jobVisits={jobVisits}
+                    canEdit={!!onUpdateJob}
+                    onEndJob={handleEndJob}
+                    onSetTarget={handleSetTarget}
+                    onReopen={() => setShowReopenConfirm(true)}
+                    fmtDate={fmtDate}
+                  />
+
+                  {/* Reopen confirmation — inline, no extra modal */}
+                  {showReopenConfirm && (
+                    <div className="jd-finish-reopen-confirm" role="alertdialog" aria-modal="true">
+                      <p className="jd-finish-reopen-confirm__msg">Reopen this job? It&apos;ll go back to On.</p>
+                      <div className="jd-finish-reopen-confirm__actions">
+                        <button
+                          type="button"
+                          className="jd-finish-reopen-confirm__ok"
+                          onClick={handleReopen}
+                        >
+                          Reopen
+                        </button>
+                        <button
+                          type="button"
+                          className="jd-finish-reopen-confirm__cancel"
+                          onClick={() => setShowReopenConfirm(false)}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Visit editor sheet */}
                   <VisitEditorSheet
