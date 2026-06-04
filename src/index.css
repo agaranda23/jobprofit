@@ -116,7 +116,9 @@ button:focus-visible {
      high modals    --z-modal-top          500     .modal-backdrop--top, account drawer
                                                    stacked over job detail
      toasts         --z-toast              600     .toast, .got-paid-toast
-     pro sheet      --z-pro-sheet          700     .pro-upgrade-overlay
+     pro sheet      --z-pro-sheet          700     .pro-upgrade-overlay, .tax-pot-sheet
+     consent banner --z-consent            800     .consent-banner
+     photo lightbox (no token)            2000     inline on <img> lightbox
      ─────────────────────────────────────────────────────────────────────
      Root cause of bug batch fixed 2026-06-03: .toast was z-index:200 (same
      as backdrops) and .job-detail-sheet was z-index:201 — toasts painted
@@ -130,6 +132,7 @@ button:focus-visible {
   --z-modal-top: 500;
   --z-toast:     600;
   --z-pro-sheet: 700;
+  --z-consent:   800;
 }
 
 /* ── Light theme token overrides ────────────────────────────────────────────
@@ -1242,6 +1245,19 @@ body {
   min-height: 32px;
   display: flex;
   align-items: center;
+}
+
+/* Cookie / PECR consent banner — sits above everything including the pro sheet
+   and toasts so it is always readable on first visit. Max-width matches the app
+   content column so it doesn't stretch full-bleed on wide screens. */
+.consent-banner {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  max-width: var(--app-max-width);
+  margin-inline: auto;
+  z-index: var(--z-consent);
 }
 
 /* + Add details chip on bare Lead job tiles (Part C) */
@@ -7459,8 +7475,8 @@ input[type=number] { -moz-appearance: textfield; }
 .jd-schedule-edit-footer .btn-ghost:not(.btn-ghost--danger) { flex: 1; }
 
 /* ── SignaturePad — Phase F ─────────────────────────────────────────────────
-   The modal sits above the JobDetailDrawer (z-index 201) and the regular
-   modal-backdrop (z-index 300). Uses .modal-backdrop--top (z-index 1100)
+   The modal sits above the JobDetailDrawer (--z-sheet: 300) and the regular
+   modal-backdrop (--z-modal: 400). Uses .modal-backdrop--top (--z-modal-top: 500)
    so it stacks cleanly above both layers.
    ────────────────────────────────────────────────────────────────────────── */
 
@@ -10059,7 +10075,7 @@ input[type=number] { -moz-appearance: textfield; }
   position: fixed;
   inset: 0;
   background: rgba(0, 0, 0, 0.5);
-  z-index: 700;
+  z-index: var(--z-pro-sheet);
 }
 .tax-pot-sheet {
   position: fixed;
@@ -10070,7 +10086,7 @@ input[type=number] { -moz-appearance: textfield; }
   margin: 0 auto;
   background: var(--surface);
   border-radius: 16px 16px 0 0;
-  z-index: 701;
+  z-index: calc(var(--z-pro-sheet) + 1);
   padding-bottom: env(safe-area-inset-bottom, 16px);
 }
 .tax-pot-sheet__header {
@@ -11783,7 +11799,7 @@ input[type=number] { -moz-appearance: textfield; }
 /* ── TodayScreen: Pay-now soft nudge (Section 1.3 c) ── */
 .pay-now-nudge {
   position: fixed;
-  bottom: calc(64px + env(safe-area-inset-bottom, 0px));
+  bottom: var(--nav-clearance); /* --nav-clearance already includes env(safe-area-inset-bottom) */
   left: 16px;
   right: 16px;
   background: var(--surface, #fff);
