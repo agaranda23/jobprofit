@@ -2405,6 +2405,9 @@ export default function SettingsScreen({
         <p className="settings-section-subtitle">
           Your data is yours. Export it or delete it anytime — no email to support, no waiting.
         </p>
+        <p className="settings-section-subtitle" style={{ marginTop: 4 }}>
+          We keep your job and invoice records for as long as you do — your accountant and HMRC may need them for up to 6 years. Old leads that never turned into work get tidied away after 6 months.
+        </p>
         <Row
           label="Privacy Policy"
           onTap={() => window.open('/privacy', '_blank', 'noopener')}

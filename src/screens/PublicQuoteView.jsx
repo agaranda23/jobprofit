@@ -144,7 +144,7 @@ function RemoteAcceptedBlock({ signatureDataUrl, acceptedAt }) {
         </div>
       )}
       <div className="pqv-sign-accepted-consent">
-        Agreed to Terms &amp; Privacy (v1)
+        Accepted quote &amp; terms (v1)
       </div>
       {signatureDataUrl && (
         <img
@@ -281,10 +281,10 @@ function SignSection({ token, onAccepted }) {
           aria-label="Accept terms and privacy policy"
         />
         <span style={{ fontSize: 14, lineHeight: 1.5, color: 'var(--text, #1a1a1a)' }}>
-          I accept this quote and agree to the{' '}
-          <a href="/terms" target="_blank" rel="noopener" style={{ color: 'inherit', textDecoration: 'underline' }}>Terms</a>
-          {' '}and{' '}
-          <a href="/privacy" target="_blank" rel="noopener" style={{ color: 'inherit', textDecoration: 'underline' }}>Privacy Policy</a>.
+          I accept this quote and the{' '}
+          <a href="/terms" target="_blank" rel="noopener" style={{ color: 'inherit', textDecoration: 'underline' }}>terms</a>.
+          {' '}&middot;{' '}
+          <a href="/privacy" target="_blank" rel="noopener" style={{ color: 'inherit', textDecoration: 'underline', fontSize: 12, opacity: 0.75 }}>See how your details are used</a>
         </span>
       </label>
       {consentNudge && !consentChecked && (
@@ -437,10 +437,10 @@ function DepositBlock({ job, token, depositPercent, depositAmountPence, onAccept
           aria-label="Accept terms and privacy policy"
         />
         <span style={{ fontSize: 14, lineHeight: 1.5, color: 'var(--text, #1a1a1a)' }}>
-          I accept this quote and agree to the{' '}
-          <a href="/terms" target="_blank" rel="noopener" style={{ color: 'inherit', textDecoration: 'underline' }}>Terms</a>
-          {' '}and{' '}
-          <a href="/privacy" target="_blank" rel="noopener" style={{ color: 'inherit', textDecoration: 'underline' }}>Privacy Policy</a>.
+          I accept this quote and the{' '}
+          <a href="/terms" target="_blank" rel="noopener" style={{ color: 'inherit', textDecoration: 'underline' }}>terms</a>.
+          {' '}&middot;{' '}
+          <a href="/privacy" target="_blank" rel="noopener" style={{ color: 'inherit', textDecoration: 'underline', fontSize: 12, opacity: 0.75 }}>See how your details are used</a>
         </span>
       </label>
       {consentNudge && !consentChecked && (
@@ -718,6 +718,10 @@ export default function PublicQuoteView({ token }) {
         )}
 
         <div className="pqv-footer">
+          <p className="pqv-footer-note">
+            Your details are held by <strong>{businessName || 'your trader'}</strong> to handle this quote, using JobProfit.{' '}
+            <a href="/privacy" target="_blank" rel="noopener">How your data is used</a>
+          </p>
           <PoweredByJobProfit source="quote" hidden={!!traderProfile.isPro} />
         </div>
 
