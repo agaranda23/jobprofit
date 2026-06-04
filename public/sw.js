@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v62';  // bumped from v61: Quote "+ Add a line" button horizontal inset matches Schedule
+const CACHE_NAME = 'jobprofit-v63';  // bumped from v62: schedule finish-line footer (targetFinishDate + End job CTA)
 const PRECACHE = [
   '/',
   '/index.html',

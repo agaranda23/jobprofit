@@ -230,3 +230,23 @@ describe('isLastPlannedVisit', () => {
     expect(isLastPlannedVisit(visits, 'v-2')).toBe(true);
   });
 });
+
+describe('computeFinishStatus', () => {
+  it('null/null returns null', () => { expect(computeFinishStatus(null, null)).toBeNull(); });
+  it('ontrack when future', () => { const r = computeFinishStatus('2026-06-05', null); expect(r.tone).toBe('ontrack'); expect(r.label).toContain('days left'); });
+  it('1 day left singular', () => { expect(computeFinishStatus(TOMORROW, null).label).toBe('On track · 1 day left'); });
+  it('duetoday', () => { expect(computeFinishStatus(TODAY, null).tone).toBe('duetoday'); });
+  it('overdue', () => { const r = computeFinishStatus(YESTERDAY, null); expect(r.tone).toBe('overdue'); expect(r.label).toContain('1 day over'); });
+  it('finished Job ended', () => { expect(computeFinishStatus(null, '2026-06-02T09:00:00Z').label).toBe('Job ended'); });
+  it('finished 2 days early', () => { expect(computeFinishStatus('2026-06-04', '2026-06-02T09:00:00Z').label).toBe('Finished 2 days early'); });
+  it('finished on time', () => { expect(computeFinishStatus('2026-06-02', '2026-06-02T09:00:00Z').label).toBe('Finished on time'); });
+  it('finished 2 days late', () => { expect(computeFinishStatus('2026-05-31', '2026-06-02T09:00:00Z').label).toBe('Finished 2 days late'); });
+});
+
+describe('getScheduleMeta finish-line overrides', () => {
+  it('Done when completedAt', () => { expect(getScheduleMeta([], simpleFmt, { completedAt: '2026-06-02' })).toBe('Done · 2026-06-02'); });
+  it('Due date when on track', () => { expect(getScheduleMeta([], simpleFmt, { targetFinishDate: '2026-06-10' })).toBe('Due 2026-06-10'); });
+  it('Due today', () => { expect(getScheduleMeta([], simpleFmt, { targetFinishDate: TODAY })).toBe('Due today'); });
+  it('N days over short form', () => { expect(getScheduleMeta([], simpleFmt, { targetFinishDate: YESTERDAY })).toBe('1 day over'); });
+  it('completedAt beats targetFinishDate', () => { expect(getScheduleMeta([], simpleFmt, { targetFinishDate: '2026-06-10', completedAt: '2026-06-02' })).toContain('Done'); });
+});

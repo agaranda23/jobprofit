@@ -158,3 +158,13 @@ describe('writeJobMeta / readJobMeta — schedule round-trip', () => {
     expect(stored.scheduledEnd).toBeNull();
   });
 });
+
+const FINISH_JOB_ID = 'test-job-meta-finish-001';
+describe('extractJobMeta targetFinishDate', () => {
+  it('included when present', () => { expect(extractJobMeta({ id: FINISH_JOB_ID, targetFinishDate: '2026-06-20' }).targetFinishDate).toBe('2026-06-20'); });
+  it('absent when not on job', () => { expect('targetFinishDate' in extractJobMeta({ id: FINISH_JOB_ID })).toBe(false); });
+});
+describe('writeJobMeta/readJobMeta targetFinishDate', () => {
+  it('round-trips', () => { writeJobMeta(FINISH_JOB_ID, { targetFinishDate: '2026-06-20' }); expect(readJobMeta(FINISH_JOB_ID).targetFinishDate).toBe('2026-06-20'); });
+  it('null clears', () => { writeJobMeta(FINISH_JOB_ID, { targetFinishDate: null }); expect(readJobMeta(FINISH_JOB_ID).targetFinishDate).toBeNull(); });
+});
