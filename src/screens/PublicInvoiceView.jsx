@@ -337,6 +337,10 @@ export default function PublicInvoiceView({ token }) {
 
         <div className="pqv-footer">
           <p className="pqv-footer-note">
+            Your details are held by <strong>{biz.name || 'your trader'}</strong> to handle this invoice, using JobProfit.{' '}
+            <a href="/privacy" target="_blank" rel="noopener">How your data is used</a>
+          </p>
+          <p className="pqv-footer-note">
             Questions about this invoice? Contact your trader directly.
           </p>
           <PoweredByJobProfit source="invoice" hidden={!!profile.isPro} />
