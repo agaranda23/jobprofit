@@ -47,10 +47,11 @@ function fmtDate(raw) {
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const ACCEPT_QUOTE_URL       = '/.netlify/functions/accept-quote';
-const TRACK_OPEN_URL         = '/.netlify/functions/track-quote-open';
-const CREATE_DEPOSIT_URL     = '/.netlify/functions/create-deposit-payment-link';
-const FETCH_QUOTE_PROFILE_URL = '/.netlify/functions/fetch-public-quote-profile';
+const ACCEPT_QUOTE_URL            = '/.netlify/functions/accept-quote';
+const TRACK_OPEN_URL              = '/.netlify/functions/track-quote-open';
+const CREATE_DEPOSIT_URL          = '/.netlify/functions/create-deposit-payment-link';
+const FETCH_QUOTE_PROFILE_URL     = '/.netlify/functions/fetch-public-quote-profile';
+const SAVE_MARKETING_CONSENT_URL  = '/.netlify/functions/save-marketing-consent';
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
@@ -153,6 +154,77 @@ function RemoteAcceptedBlock({ signatureDataUrl, acceptedAt }) {
           className="pqv-sign-accepted-img"
         />
       )}
+    </div>
+  );
+}
+
+/**
+ * MarketingOptIn — shown AFTER a successful acceptance, below RemoteAcceptedBlock.
+ *
+ * Unticked by default (pre-ticking marketing consent is unlawful under UK GDPR).
+ * Completely optional — the quote, invoices and payment chases come regardless.
+ * Fires save-marketing-consent when the customer ticks or explicitly declines.
+ *
+ * NOT BUILT YET (deferred follow-ups):
+ *   - /m/<token> manage-preferences page
+ *   - Trader-side manual toggle
+ *   - Any marketing send/broadcast feature
+ *
+ * Props:
+ *   token        – the publicAccessToken (used to identify the job row)
+ *   businessName – the trader's business name (shown in the label)
+ */
+function MarketingOptIn({ token, businessName }) {
+  const [checked, setChecked] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+
+  const tradingName = businessName || 'your trader';
+
+  async function handleChange(e) {
+    const next = e.target.checked;
+    setChecked(next);
+    // Fire-and-forget — if it fails we don't surface an error to the customer;
+    // this is entirely optional and non-blocking. The quote acceptance is
+    // already complete at this point.
+    try {
+      await fetch(SAVE_MARKETING_CONSENT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token, granted: next }),
+      });
+    } catch {
+      // Silent — not blocking the customer UX for an optional preference
+    }
+    setSubmitted(true);
+  }
+
+  if (submitted) {
+    return (
+      <div className="pqv-marketing-opt-in pqv-marketing-opt-in--done">
+        {checked
+          ? 'Thanks — you\'ll occasionally hear from ' + tradingName + '.'
+          : 'No problem — you\'ll still get your documents.'}
+      </div>
+    );
+  }
+
+  return (
+    <div className="pqv-marketing-opt-in">
+      <label
+        style={{ display: 'flex', alignItems: 'flex-start', gap: 10, cursor: 'pointer' }}
+      >
+        <input
+          type="checkbox"
+          checked={checked}
+          onChange={handleChange}
+          style={{ marginTop: 3, flexShrink: 0, width: 20, height: 20, cursor: 'pointer' }}
+          aria-label={`${tradingName} can contact me with occasional updates and offers`}
+        />
+        <span style={{ fontSize: 14, lineHeight: 1.5, color: 'var(--text, #1a1a1a)' }}>
+          <strong>{tradingName}</strong> can text or email me occasional updates and offers.{' '}
+          <span style={{ opacity: 0.65 }}>(Optional — your quote, invoices and receipts come either way.)</span>
+        </span>
+      </label>
     </div>
   );
 }
@@ -701,12 +773,18 @@ export default function PublicQuoteView({ token }) {
           />
         )}
 
-        {/* Post-submit confirmation block */}
+        {/* Post-submit confirmation block + optional marketing opt-in */}
         {remoteAccepted && (
-          <RemoteAcceptedBlock
-            signatureDataUrl={remoteAccepted.signatureDataUrl}
-            acceptedAt={remoteAccepted.acceptedAt}
-          />
+          <>
+            <RemoteAcceptedBlock
+              signatureDataUrl={remoteAccepted.signatureDataUrl}
+              acceptedAt={remoteAccepted.acceptedAt}
+            />
+            {/* MarketingOptIn appears AFTER acceptance is complete so it cannot
+                be mistaken for a condition of the contract acceptance.
+                It is unticked by default (pre-ticking is unlawful). */}
+            <MarketingOptIn token={token} businessName={businessName} />
+          </>
         )}
 
         {/* Terms & conditions footer — shown when set by the trader */}
