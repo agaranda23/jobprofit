@@ -1,4 +1,5 @@
 import { logTelemetry } from '../lib/telemetry';
+import Icon from './Icon';
 
 /**
  * BottomNav — supports three nav layouts:
@@ -11,6 +12,10 @@ import { logTelemetry } from '../lib/telemetry';
  * Badge props:
  *   financeBadge — used by slice-3 Money tab (alias of legacy moneyBadge).
  *   moneyBadge   — used by newNav Money tab (kept for back-compat).
+ *
+ * Icon system (Wave 1): Unicode glyphs replaced with <Icon> from Icon.jsx.
+ * Active tab = brand-green filled icon + brand label.
+ * Inactive tabs = muted outline icon.
  */
 export default function BottomNav({
   view,
@@ -24,23 +29,23 @@ export default function BottomNav({
   const resolvedFinanceBadge = financeBadge > 0 ? financeBadge : moneyBadge > 0 ? moneyBadge : 0;
 
   const legacyTabs = [
-    { id: 'today',   label: 'Today',    icon: '●' },
-    { id: 'history', label: 'Insights', icon: '≡' },
-    { id: 'manage',  label: 'Business', icon: '⋯' },
+    { id: 'today',   label: 'Today',    icon: 'today' },
+    { id: 'history', label: 'Insights', icon: 'bar-chart' },
+    { id: 'manage',  label: 'Business', icon: 'more-h' },
   ];
 
   const newTabs = [
-    { id: 'today',    label: 'Today',    icon: '●' },
-    { id: 'jobs',     label: 'Jobs',     icon: '⊞' },
-    { id: 'schedule', label: 'Schedule', icon: '◫' },
-    { id: 'money',    label: 'Money',    icon: '£', badge: moneyBadge > 0 ? moneyBadge : 0 },
+    { id: 'today',    label: 'Today',    icon: 'today' },
+    { id: 'jobs',     label: 'Jobs',     icon: 'jobs' },
+    { id: 'schedule', label: 'Schedule', icon: 'schedule' },
+    { id: 'money',    label: 'Money',    icon: 'money', badge: moneyBadge > 0 ? moneyBadge : 0 },
   ];
 
   const slice3Tabs = [
-    { id: 'today',    label: 'Today',    icon: '●' },
-    { id: 'work',     label: 'Jobs',     icon: '⊞' },
-    { id: 'finance',  label: 'Money',    icon: '£', badge: resolvedFinanceBadge > 0 ? resolvedFinanceBadge : 0 },
-    { id: 'settings', label: 'Settings', icon: '⚙' },
+    { id: 'today',    label: 'Today',    icon: 'today' },
+    { id: 'work',     label: 'Jobs',     icon: 'jobs' },
+    { id: 'finance',  label: 'Money',    icon: 'money', badge: resolvedFinanceBadge > 0 ? resolvedFinanceBadge : 0 },
+    { id: 'settings', label: 'Settings', icon: 'settings' },
   ];
 
   const tabs = slice3 ? slice3Tabs : newNav ? newTabs : legacyTabs;
@@ -52,21 +57,29 @@ export default function BottomNav({
 
   return (
     <nav className="bottom-nav">
-      {tabs.map(t => (
-        <button
-          key={t.id}
-          className={`nav-tab ${view === t.id ? 'active' : ''}`}
-          onClick={() => handleTap(t.id)}
-        >
-          <span className="nav-icon">{t.icon}</span>
-          <span className="nav-label">
-            {t.label}
-            {t.badge > 0 && (
-              <span className="nav-badge" aria-label={`${t.badge} overdue`}>{t.badge}</span>
-            )}
-          </span>
-        </button>
-      ))}
+      {tabs.map(t => {
+        const isActive = view === t.id;
+        return (
+          <button
+            key={t.id}
+            className={`nav-tab ${isActive ? 'active' : ''}`}
+            onClick={() => handleTap(t.id)}
+          >
+            <Icon
+              name={t.icon}
+              size={24}
+              variant={isActive ? 'brand' : 'muted'}
+              label={t.label}
+            />
+            <span className="nav-label">
+              {t.label}
+              {t.badge > 0 && (
+                <span className="nav-badge" aria-label={`${t.badge} overdue`}>{t.badge}</span>
+              )}
+            </span>
+          </button>
+        );
+      })}
     </nav>
   );
 }

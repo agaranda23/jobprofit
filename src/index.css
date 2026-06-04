@@ -389,6 +389,55 @@ body { background: var(--bg); color: var(--text); -webkit-font-smoothing: antial
 }
 .nav-icon { font-size: 18px; }
 
+/* ── Icon system (Wave 0) ───────────────────────────────────────────────────
+   .jp-icon   — wrapper span produced by <Icon>. Inline-flex so the SVG sits
+                at cap-height rather than baseline. Never sets colour here —
+                colour is injected as an inline `color` style from the variant
+                prop so it picks up the right CSS custom property value.
+
+   .jp-icon-label-row — utility for placing an icon beside a text label with
+                        an 8px gap, vertically centred to cap-height.
+
+   Tap-target rule: icon-only interactive elements must wrap <Icon> in a
+   button/touchable that has at least 44×44px of hit area. The .jp-icon span
+   itself is sized to the glyph; hit-area padding lives on the button.
+   ─────────────────────────────────────────────────────────────────────── */
+.jp-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  /* SVG inherits color from this span so variant styles propagate cleanly */
+  line-height: 0;
+}
+
+/* Icon + text label row — 8px gap, cap-height aligned */
+.jp-icon-label-row {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Nav-icon wrapper: size the hit area for the bottom nav icon slot.
+   The glyph is 24px; the wrapper gives the button its vertical presence. */
+.nav-tab .jp-icon {
+  width: 24px;
+  height: 24px;
+}
+
+/* Active filled state — the nav is the only place we use fill.
+   "Filled = you are here" signal. Inactive tabs stay at fill:none (Lucide default).
+   We target the SVG directly inside the active tab's .jp-icon span. */
+.nav-tab.active .jp-icon svg {
+  fill: rgba(52, 214, 114, 0.18);
+  /* Stroke stays on to keep Lucide's outline strokes; the subtle fill overlay
+     creates the "filled" impression without a separate icon set. */
+}
+
+[data-theme="light"] .nav-tab.active .jp-icon svg {
+  fill: rgba(0, 168, 107, 0.15);
+}
+
 /* Desktop: bar is capped at --app-max-width and centered via margin-inline:auto,
    matching the .screen content column. On mobile the viewport is narrower so
    left:0/right:0 + max-width fills the viewport naturally. */
