@@ -59,6 +59,7 @@ import {
   readVisits,
   writeVisits,
   computeVisitStatus,
+  computeFinishStatus,
   getScheduleMeta,
   isLastPlannedVisit,
   generateVisitId,
@@ -952,6 +953,65 @@ function VisitRow({ visit, onTap, onMarkDone, canEdit }) {
   );
 }
 
+function ScheduleFinishFooter({ job, jobVisits, canEdit, onEndJob, onSetTarget, onReopen, fmtDate }) {
+  const targetFinishDate = job.targetFinishDate || null;
+  const completedAt = job.completedAt || null;
+  const isEnded = !!completedAt;
+  const finishStatus = React.useMemo(() => computeFinishStatus(targetFinishDate, completedAt), [targetFinishDate, completedAt]);
+  const defaultTargetDate = React.useMemo(() => {
+    const withDates = [...jobVisits].filter(v => v.date).sort((a, b) => b.date.localeCompare(a.date));
+    if (withDates.length > 0) return withDates[0].date;
+    const t = new Date();
+    return [t.getFullYear(), String(t.getMonth()+1).padStart(2,"0"), String(t.getDate()).padStart(2,"0")].join("-");
+  }, [jobVisits]);
+  const toneCls = finishStatus ? `jd-finish-status--${finishStatus.tone}` : "";
+  return (
+    <div className="jd-finish-line">
+      <div className="jd-finish-target-row">
+        <span className="jd-finish-target-lbl">{isEnded ? "🎯 Aimed for" : "🎯 Aiming to finish"}</span>
+        {targetFinishDate ? (
+          <>
+            <span className="jd-finish-target-val">{fmtDate(targetFinishDate)}</span>
+            {canEdit && !isEnded && (
+              <label className="jd-finish-target-edit" aria-label="Edit target finish date">
+                Edit
+                <input type="date" className="jd-finish-date-input" defaultValue={targetFinishDate} onChange={e => onSetTarget(e.target.value || null)} aria-label="Target finish date" />
+              </label>
+            )}
+          </>
+        ) : (
+          canEdit && !isEnded && (
+            <label className="jd-finish-target-set" aria-label="Set target finish date">
+              Set a date
+              <input type="date" className="jd-finish-date-input" defaultValue={defaultTargetDate} onChange={e => onSetTarget(e.target.value || null)} aria-label="Target finish date" />
+            </label>
+          )
+        )}
+      </div>
+      {isEnded && (
+        <div className="jd-finish-actual-row">
+          <span className="jd-finish-target-lbl">🏁 Finished</span>
+          <span className="jd-finish-target-val">{fmtDate(completedAt)}</span>
+        </div>
+      )}
+      {finishStatus && (
+        <div className={`jd-finish-status ${toneCls}`} role="status">
+          {finishStatus.tone === "ontrack" && "✓ "}
+          {finishStatus.tone === "overdue" && "⚠ "}
+          {finishStatus.tone === "duetoday" && "📅 "}
+          {finishStatus.label}
+        </div>
+      )}
+      {canEdit && (
+        isEnded ? (
+          <button type="button" className="jd-finish-reopen-btn" onClick={onReopen}>Job ended — reopen</button>
+        ) : (
+          <button type="button" className="jd-finish-end-btn" onClick={onEndJob}>✓ End job — today</button>
+        )
+      )}
+    </div>
+  );
+}
 /**
  * VisitEditorSheet — modal sheet for adding/editing a single visit.
  * Reuses the jd-schedule-edit-form chrome pattern.
@@ -1368,7 +1428,7 @@ function QuoteBreakdownSection({ job, onSaveLine, onDeleteLine }) {
             canEdit && (
               <button
                 type="button"
-                className="jd-add-dashed"
+                className="jd-add-dashed jd-add-dashed--inset"
                 onClick={() => setSheetIdx(-1)}
                 aria-label="Add a line item"
               >
@@ -1419,7 +1479,7 @@ function QuoteBreakdownSection({ job, onSaveLine, onDeleteLine }) {
               {canEdit && (
                 <button
                   type="button"
-                  className="jd-add-dashed"
+                  className="jd-add-dashed jd-add-dashed--inset"
                   onClick={() => setSheetIdx(-1)}
                   aria-label="Add another line item"
                 >
@@ -2336,6 +2396,7 @@ export default function JobDetailDrawer({
   const [editingVisit, setEditingVisit] = useState(null);
   // Send invoice prompt: shown when last visit is marked done and job isn't yet invoiced
   const [showInvoicePrompt, setShowInvoicePrompt] = useState(false);
+  const [showReopenConfirm, setShowReopenConfirm] = useState(false);
 
   // Customer field editing — single EditFieldModal controlled by this key.
   // null = closed; 'name' | 'phone' | 'email' | 'summary' = which field is open.
@@ -2977,7 +3038,23 @@ export default function JobDetailDrawer({
     showFlash('Visit marked done');
   };
 
-  // ── Pipeline transitions ──────────────────────────────────────────────────
+  // -- Finish-line handlers
+  const handleEndJob = () => {
+    if (needsPrice(job)) { setEditingField('amount'); return; }
+    const cv = readVisits(job);
+    const allDone = cv.map(v => v.status !== 'done' && v.status !== 'cancelled' ? { ...v, status: 'done' } : v);
+    onUpdateJob({ ...job, ...writeVisits(job, allDone), completedAt: new Date().toISOString(), jobStatus: 'complete' });
+    if (showSendInvoice) setShowInvoicePrompt(true);
+    showFlash('Job ended');
+  };
+  const handleSetTarget = (dateStr) => onUpdateJob({ ...job, targetFinishDate: dateStr || null });
+  const handleReopen = () => {
+    onUpdateJob({ ...job, completedAt: undefined, jobStatus: 'active' });
+    setShowReopenConfirm(false);
+    showFlash('Job reopened');
+  };
+
+    // ── Pipeline transitions ──────────────────────────────────────────────────
   // Mirrors legacy convertToJob (App.jsx line 620) and Mark Sent (line 660).
   const handleMarkSent = () => {
     // stagePatch('Quoted') handles legacy jobs where job.status is undefined,
@@ -3423,7 +3500,7 @@ export default function JobDetailDrawer({
 
             // ── Schedule: multi-visit aware display ──────────────────────────
             const jobVisits = readVisits(job);
-            const scheduledDisplay = getScheduleMeta(jobVisits, fmtDate);
+            const scheduledDisplay = getScheduleMeta(jobVisits, fmtDate, job);
 
             // ── Stage-aware payment sections (Invoiced / Paid) ───────────────
             const sectionConfig = getDrawerSectionConfig(status);
@@ -3603,7 +3680,26 @@ export default function JobDetailDrawer({
                     )}
                   </div>
 
-                  {/* Visit editor sheet */}
+                  {/* Finish-line footer */}
+                  <ScheduleFinishFooter
+                    job={job}
+                    jobVisits={jobVisits}
+                    canEdit={!!onUpdateJob}
+                    onEndJob={handleEndJob}
+                    onSetTarget={handleSetTarget}
+                    onReopen={() => setShowReopenConfirm(true)}
+                    fmtDate={fmtDate}
+                  />
+                  {showReopenConfirm && (
+                    <div className="jd-finish-reopen-confirm" role="alertdialog" aria-modal="true">
+                      <p className="jd-finish-reopen-confirm__msg">Reopen this job? It will go back to On.</p>
+                      <div className="jd-finish-reopen-confirm__actions">
+                        <button type="button" className="jd-finish-reopen-confirm__ok" onClick={handleReopen}>Reopen</button>
+                        <button type="button" className="jd-finish-reopen-confirm__cancel" onClick={() => setShowReopenConfirm(false)}>Cancel</button>
+                      </div>
+                    </div>
+                  )}
+{/* Visit editor sheet */}
                   <VisitEditorSheet
                     open={!!editingVisit}
                     visit={editingVisit}

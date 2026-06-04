@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v61';  // bumped from v60: accordion grey background + bullet points on Quote line items
+const CACHE_NAME = 'jobprofit-v63';  // bumped from v62: schedule finish-line footer (targetFinishDate + End job CTA)
 const PRECACHE = [
   '/',
   '/index.html',
