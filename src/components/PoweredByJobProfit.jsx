@@ -42,8 +42,7 @@ export default function PoweredByJobProfit({ source, hidden = false }) {
 
   return (
     <div className="pbjp-root" aria-label="Powered by JobProfit">
-      {/* Text wordmark — swap this element for <img src="..." alt="JobProfit" className="pbjp-logo-img" />
-          or an inline SVG when the logo redesign is finalised. No layout change needed. */}
+      <img src="/jobprofit-logo.png" alt="" className="pbjp-logo-img" aria-hidden="true" />
       <span className="pbjp-wordmark">JobProfit</span>
       <span className="pbjp-separator" aria-hidden="true">·</span>
       <span className="pbjp-label">{LABEL_TEXT}</span>
