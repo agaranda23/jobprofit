@@ -78,6 +78,8 @@ const META_FIELDS = [
   'scheduledDate',  // ISO date string e.g. "2026-06-10"
   'scheduledStart', // time string e.g. "09:00"
   'scheduledEnd',   // time string e.g. "11:30"
+  'targetFinishDate', // YYYY-MM-DD optional target finish date
+  'visits',           // Visit[]
 ];
 
 export function readJobMeta(id) {

@@ -98,6 +98,29 @@ export function generateVisitId() {
   return `v-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 }
 
+function daysBetween(a, b) {
+  return Math.round((new Date(b+"T00:00:00") - new Date(a+"T00:00:00")) / 86400000);
+}
+
+export function computeFinishStatus(targetFinishDate, completedAt) {
+  const today = new Date();
+  const todayStr = [today.getFullYear(),String(today.getMonth()+1).padStart(2,"0"),String(today.getDate()).padStart(2,"0")].join("-");
+  if (completedAt) {
+    const actual = completedAt.length === 10 ? completedAt : completedAt.slice(0,10);
+    if (!targetFinishDate) return { tone:"finished", label:"Job ended" };
+    const d = daysBetween(targetFinishDate, actual);
+    if (d < 0) { const n=Math.abs(d); return { tone:"finished", label:"Finished "+n+" "+(n===1?"day":"days")+" early" }; }
+    if (d === 0) return { tone:"finished", label:"Finished on time" };
+    return { tone:"finished", label:"Finished "+d+" "+(d===1?"day":"days")+" late" };
+  }
+  if (!targetFinishDate) return null;
+  const d = daysBetween(todayStr, targetFinishDate);
+  if (d > 0) return { tone:"ontrack", label:"On track · "+d+" "+(d===1?"day":"days")+" left" };
+  if (d === 0) return { tone:"duetoday", label:"Due today" };
+  const over=Math.abs(d);
+  return { tone:"overdue", label:over+" "+(over===1?"day":"days")+" over — wrap it up" };
+}
+
 /**
  * getScheduleMeta(visits) — the collapsed-card meta string.
  * Mirrors the spec:
@@ -106,7 +129,18 @@ export function generateVisitId() {
  *   - One visit (not done) → '{date} · {time}' (backwards-compat format)
  *   - Multi-visit → 'Next: {date} · +N more' or just 'Next: {date}'
  */
-export function getScheduleMeta(visits, fmtDate) {
+export function getScheduleMeta(visits, fmtDate, job) {
+  if (job) {
+    if (job.completedAt) return "Done · " + fmtDate(job.completedAt);
+    if (job.targetFinishDate) {
+      const fs2 = computeFinishStatus(job.targetFinishDate, null);
+      if (fs2) {
+        if (fs2.tone === "overdue") return fs2.label.split(" — ")[0];
+        if (fs2.tone === "duetoday") return "Due today";
+        if (fs2.tone === "ontrack") return "Due " + fmtDate(job.targetFinishDate);
+      }
+    }
+  }
   if (!visits || visits.length === 0) return 'Not scheduled';
 
   const active = visits.filter(v => v.status !== 'done' && v.status !== 'cancelled');

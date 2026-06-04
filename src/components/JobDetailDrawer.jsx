@@ -1368,7 +1368,7 @@ function QuoteBreakdownSection({ job, onSaveLine, onDeleteLine }) {
             canEdit && (
               <button
                 type="button"
-                className="jd-add-dashed"
+                className="jd-add-dashed jd-add-dashed--inset"
                 onClick={() => setSheetIdx(-1)}
                 aria-label="Add a line item"
               >
@@ -1419,7 +1419,7 @@ function QuoteBreakdownSection({ job, onSaveLine, onDeleteLine }) {
               {canEdit && (
                 <button
                   type="button"
-                  className="jd-add-dashed"
+                  className="jd-add-dashed jd-add-dashed--inset"
                   onClick={() => setSheetIdx(-1)}
                   aria-label="Add another line item"
                 >
