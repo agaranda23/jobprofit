@@ -176,6 +176,18 @@ export default function RecordPaymentModal({
               onChange={e => setAmount(e.target.value)}
               autoFocus
             />
+            {/* Live % readout — shows what this payment represents of the job total.
+                Hidden when: total is 0 (divide-by-zero guard) or amount is empty/invalid.
+                Shown even when amount > total (e.g. "120% of total") — doesn't break. */}
+            {Number.isFinite(parsedAmount) && parsedAmount > 0 && quoteTotal > 0 && (
+              <span className="payment-pct-hint">
+                {(() => {
+                  const pct = (parsedAmount / quoteTotal) * 100;
+                  const pctStr = Number.isInteger(pct) ? pct.toFixed(0) : pct.toFixed(1);
+                  return `£${parsedAmount.toFixed(2)} · ${pctStr}% of £${quoteTotal.toFixed(2)}`;
+                })()}
+              </span>
+            )}
             {isOverpaymentWarning && (
               <span className="payment-warn">
                 {isDeposit

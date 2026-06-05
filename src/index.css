@@ -4182,6 +4182,13 @@ input[type=number] { -moz-appearance: textfield; }
   color: var(--jp-amber);
   margin-top: 4px;
 }
+/* Live % readout below the amount field in RecordPaymentModal */
+.payment-pct-hint {
+  display: block;
+  font-size: 12px;
+  color: var(--text-dim);
+  margin-top: 4px;
+}
 .payment-method-segmented {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
