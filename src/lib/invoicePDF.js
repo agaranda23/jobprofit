@@ -788,7 +788,25 @@ export async function generateInvoicePDF({
   // Total Payable = gross − CIS deduction (before any deposit offset)
   const totalPayable = grossTotal - cisDeduction;
 
-  const hasDeposit = depositPaidPence > 0;
+  // Auto-derive depositPaidPence from job.payments when the caller did not
+  // explicitly supply it (i.e. depositPaidPence === 0 from default). This
+  // fixes the latent bug where RecordPaymentModal in deposit mode produces a
+  // blank-note payment — the note-matching path in callers never fires, so the
+  // PDF showed no deposit credit line. Resolution order:
+  //   1. type === 'deposit' flag (set by RecordPaymentModal since the bug fix)
+  //   2. /deposit/i note match (back-compat: Stripe "Deposit on acceptance",
+  //      any previously-recorded deposit with a descriptive note)
+  // Only runs when depositPaidPence was not explicitly supplied by the caller.
+  const resolvedDepositPaidPence = (() => {
+    if (depositPaidPence > 0) return depositPaidPence;
+    if (!Array.isArray(job?.payments)) return 0;
+    const depositTotal = job.payments
+      .filter(p => p.type === 'deposit' || /deposit/i.test(p.note || ''))
+      .reduce((sum, p) => sum + Number(p.amount || 0), 0);
+    return Math.round(depositTotal * 100);
+  })();
+
+  const hasDeposit = resolvedDepositPaidPence > 0;
 
   y = drawSummaryBlock(doc, {
     quote,
@@ -803,10 +821,10 @@ export async function generateInvoicePDF({
 
   // ── Deposit deduction row ──────────────────────────────────────────────
   if (hasDeposit) {
-    y = drawDepositRow(doc, depositPaidPence, y);
+    y = drawDepositRow(doc, resolvedDepositPaidPence, y);
 
     // Balance due row
-    const balanceGbp = Math.max(0, totalPayable - depositPaidPence / 100);
+    const balanceGbp = Math.max(0, totalPayable - resolvedDepositPaidPence / 100);
     const panelX2 = w - MARGIN - 88;
     const valX2   = w - MARGIN - 4;
     const labelX2 = panelX2 + 6;
@@ -827,7 +845,7 @@ export async function generateInvoicePDF({
   // ── Pay-now button + QR (Section 2.1, wireframe 4.4) ──────────────────
   if (payNowUrl) {
     const displayAmount = hasDeposit
-      ? Math.max(0, totalPayable - depositPaidPence / 100)
+      ? Math.max(0, totalPayable - resolvedDepositPaidPence / 100)
       : totalPayable;
     y = drawPayNowRow(doc, { amount: displayAmount, payNowUrl, qrDataUrl }, y);
     y += 4;

@@ -9,6 +9,10 @@
 //     amount: number (positive, finite),
 //     method: 'cash' | 'bank' | 'card' | 'other' | 'unknown',
 //     note: string (may be empty),
+//     type: 'deposit' | undefined — structural flag set when mode='deposit' in
+//           RecordPaymentModal. Kept undefined for normal payments so the field
+//           doesn't bloat every payment object. Back-compat: existing deposits that
+//           predate this flag are matched by the /deposit/i note fallback.
 //     createdAt: ISO datetime string (immutable after creation)
 //   }
 
@@ -73,7 +77,7 @@ function assertNote(note) {
 /**
  * Append a payment to a job's payments[] array. Returns a new job.
  */
-export function addPayment(job, { amount, date, method, note = '' } = {}) {
+export function addPayment(job, { amount, date, method, note = '', type } = {}) {
   assertJob(job);
   validateAmount(amount);
   validateDate(date);
@@ -85,6 +89,7 @@ export function addPayment(job, { amount, date, method, note = '' } = {}) {
     amount,
     method,
     note,
+    ...(type !== undefined && { type }),
     createdAt: new Date().toISOString(),
   };
   return applyAutoFlip({

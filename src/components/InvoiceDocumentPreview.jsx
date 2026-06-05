@@ -386,13 +386,14 @@ export default function InvoiceDocumentPreview({
   const itemiseDocuments = (profile?.itemise_documents) ?? false;
   const paymentTermsDays = profile?.payment_terms_days ?? 14;
 
-  // Deposit credit: sum any payments recorded before the invoice was sent
-  // (i.e. payments with a note matching /deposit/i). These surface as a
-  // "Deposit received −£X / Balance due £Y" credit line on the invoice preview.
-  // Uses the same payments[] data the rest of the UI reads — no new DB column.
+  // Deposit credit: sum payments that are structurally flagged as deposits
+  // (type === 'deposit') OR whose note matches /deposit/i for back-compat.
+  // The type flag is set by RecordPaymentModal in deposit mode since the bug
+  // fix — existing deposits (including Stripe "Deposit on acceptance" webhook
+  // payments) are caught by the note fallback.
   const depositCreditAmount = Array.isArray(job?.payments)
     ? job.payments
-        .filter(p => /deposit/i.test(p.note || ''))
+        .filter(p => p.type === 'deposit' || /deposit/i.test(p.note || ''))
         .reduce((sum, p) => sum + Number(p.amount || 0), 0)
     : 0;
 
