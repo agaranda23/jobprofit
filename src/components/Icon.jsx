@@ -66,7 +66,10 @@ import {
   Star,
   Zap,
   TrendingUp,
+  TrendingDown,
   BarChart2,
+  ChartColumn,
+  Lightbulb,
   PieChart,
   Map,
   MapPin,
@@ -219,11 +222,15 @@ const REGISTRY = {
   chase:         MessageCircle,  // 💬 friendly nudge
 
   // Data / finance
-  'trend-up':  TrendingUp,
-  'bar-chart': BarChart2,
-  'pie-chart': PieChart,
-  sparkles:    Sparkles,
-  zap:         Zap,
+  'trend-up':   TrendingUp,
+  'trend-down': TrendingDown,   // Wave 5: 📉 margin-down nudge (danger variant at call site)
+  'bar-chart':  BarChart2,
+  'pie-chart':  PieChart,
+  insights:     ChartColumn,    // Wave 5: 📊 insights / chart header
+  tip:          Lightbulb,      // Wave 5: 💡 tip / insight callout
+  'money-alert': Lightbulb,     // Wave 5: 💰 money alert — Lightbulb reads "take note"; danger at call site
+  sparkles:     Sparkles,
+  zap:          Zap,
 
   // Maps / location
   map:        Map,
