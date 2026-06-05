@@ -55,6 +55,7 @@ import { logTelemetry, identifyUser } from './lib/telemetry';
 import posthog from 'posthog-js';
 import SyncBadge from './components/SyncBadge';
 import ConsentBanner from './components/ConsentBanner.jsx';
+import Icon from './components/Icon.jsx';
 
 // ─── Feature flags ───────────────────────────────────────────────────────────
 // Slice-3 nav (Today / Jobs / Money / Settings) is the default for all users.
@@ -1107,7 +1108,7 @@ export default function AppShell() {
       {navToast && (
         <div className="nav-toast" role="status">
           {navToast}
-          <button className="nav-toast-close" onClick={() => setNavToast(null)} aria-label="Dismiss">✕</button>
+          <button className="nav-toast-close" onClick={() => setNavToast(null)} aria-label="Dismiss"><Icon name="close" size={16} /></button>
         </div>
       )}
 
@@ -1131,7 +1132,7 @@ export default function AppShell() {
             }}
             aria-label={`${realtimeToast.message} — tap to view job`}
           >
-            <span className="nav-toast-check" aria-hidden="true">&#10003;</span>
+            <Icon name="complete" size={16} variant="success" className="nav-toast-check" />
             {realtimeToast.message}
           </button>
           <button
@@ -1140,7 +1141,7 @@ export default function AppShell() {
             onClick={() => setRealtimeToast(null)}
             aria-label="Dismiss"
           >
-            &#x2715;
+            <Icon name="close" size={16} />
           </button>
         </div>
       )}
@@ -1175,7 +1176,7 @@ export default function AppShell() {
             }}
             aria-label="Dismiss"
           >
-            &#x2715;
+            <Icon name="close" size={16} />
           </button>
         </div>
       )}
@@ -1185,7 +1186,7 @@ export default function AppShell() {
         <div className="modal-backdrop" onClick={() => setCostSnackbar(null)}>
           <div className="modal modal--paid-success" onClick={e => e.stopPropagation()}>
             <div className="modal-paid-badge">
-              <span className="modal-paid-check" aria-hidden="true">&#10003;</span>
+              <Icon name="paid" size={24} variant="success" className="modal-paid-check" />
               <span className="modal-paid-label">Paid</span>
             </div>
             <PostPaidCostRow

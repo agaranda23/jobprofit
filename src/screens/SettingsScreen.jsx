@@ -36,6 +36,7 @@ import { logTelemetry } from '../lib/telemetry.js';
 const LOGOS_BUCKET = 'logos';
 const LOGO_MAX_BYTES = 2 * 1024 * 1024; // 2 MB — matches bucket file_size_limit
 import EditFieldModal from '../components/EditFieldModal.jsx';
+import Icon from '../components/Icon.jsx';
 import {
   isPushSupported,
   getSubscriptionStatus,
@@ -696,7 +697,11 @@ function TradeSetupSheet({ profile, onProfileUpdate, onClose }) {
                       onClick={e => { e.stopPropagation(); if (isOn) setPrimary(key); }}
                       onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); if (isOn) setPrimary(key); } }}
                     >
-                      {isPrimary ? '★' : '☆'}
+                      <Icon
+                        name="star"
+                        size={16}
+                        variant={isPrimary ? 'brand' : 'muted'}
+                      />
                     </span>
                   )}
                   {label}
@@ -793,7 +798,9 @@ function VoiceLanguageSection({ session }) {
         >
           <span className="settings-row-label">{label}</span>
           <span className="settings-row-right">
-            {selected === code && <span className="settings-row-check">✓</span>}
+            {selected === code && (
+              <Icon name="check" size={16} variant="brand" />
+            )}
           </span>
         </button>
       ))}
@@ -1584,7 +1591,7 @@ function LogoModal({ currentUrl, session, onSave, onClose }) {
             type="button"
             disabled={uploading}
           >
-            ✕
+            <Icon name="close" size={20} />
           </button>
         </div>
 
