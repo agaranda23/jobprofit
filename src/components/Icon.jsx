@@ -89,6 +89,7 @@ import {
   NotebookPen,
   ReceiptText,
   Wrench,
+  WifiOff,
 } from 'lucide-react';
 
 // ── Custom inline SVG glyphs ─────────────────────────────────────────────────
@@ -174,10 +175,13 @@ const REGISTRY = {
 
   // Content / media
   file:    FileText,
+  pdf:     FileText,           // 📄 PDF action (same glyph as file)
   image:   Image,
   photos:  Image,              // 🖼️ "photos" semantic alias → same glyph as image
   camera:  Camera,
   mic:     Mic,
+  voice:   Mic,                // 🎤 voice / say-it entry point
+  offline: WifiOff,            // ⚡ offline status pill
   note:    NotebookPen,        // 📝 job notes
 
   // People / business / location

@@ -30,6 +30,7 @@
  */
 
 import { useState, useCallback } from 'react';
+import Icon from './Icon';
 import QRCode from 'qrcode';
 import { downloadInvoicePDF, getInvoicePDFBlob } from '../lib/invoicePDF';
 import { downloadQuotePDF, getQuotePDFBlob } from '../lib/invoicePDF';
@@ -489,7 +490,7 @@ export default function ReviewSheet({
             onClick={handleDismiss}
             aria-label="Close"
           >
-            ✕
+            <Icon name="close" size={20} />
           </button>
         </div>
 
