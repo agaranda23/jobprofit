@@ -458,13 +458,18 @@ function StageChipDropdown({ job, currentStage, onUpdateJob, onSendInvoice, onSe
 
   return (
     <>
-      {/* Dim backdrop for mobile bottom-sheet — tapping it closes the menu */}
-      {open && (
+      {/* Dim backdrop for mobile bottom-sheet — portalled to body so it escapes
+          the .jt tile's stacking context (same reason the dropdown is portalled).
+          Without the portal, fixed-position children of a position:relative tile
+          are clipped to that tile's stacking context and paint behind later
+          sibling tiles, even with a high z-index. */}
+      {open && createPortal(
         <div
           className="jt-backdrop"
           aria-hidden="true"
           onClick={e => { e.stopPropagation(); setOpen(false); }}
-        />
+        />,
+        document.body
       )}
 
       {/* Wrapper holds the read-only label + ⋯ trigger; gives the dropdown its anchor */}
@@ -535,18 +540,22 @@ function StageChipDropdown({ job, currentStage, onUpdateJob, onSendInvoice, onSe
               document.body
             )}
 
-            {/* Mobile bottom-sheet — hidden on desktop via CSS.
-                Backdrop (.jt-backdrop) handles the outside-tap close on mobile
-                so no separate ref needed here. */}
-            <div
-              className="jt-menu jt-menu--sheet"
-              role="menu"
-              onClick={e => e.stopPropagation()}
-            >
-              <div className="jt-sheet-grab" aria-hidden="true" />
-              <div className="jt-sheet-title">Move {customerLabel} to</div>
-              {menuContent}
-            </div>
+            {/* Mobile bottom-sheet — portalled to body for the same stacking-
+                context reason as the backdrop and the desktop dropdown above.
+                CSS hides this variant on desktop (jt-menu--sheet display:none
+                above the mobile breakpoint). */}
+            {createPortal(
+              <div
+                className="jt-menu jt-menu--sheet"
+                role="menu"
+                onClick={e => e.stopPropagation()}
+              >
+                <div className="jt-sheet-grab" aria-hidden="true" />
+                <div className="jt-sheet-title">Move {customerLabel} to</div>
+                {menuContent}
+              </div>,
+              document.body
+            )}
           </>
         )}
       </div>
