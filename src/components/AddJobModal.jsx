@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { parseJobFromSpeech } from '../lib/voiceParse';
 import { generateQuote } from '../lib/generateQuote';
 import { logTelemetry } from '../lib/telemetry';
+import Icon from './Icon';
 
 const SR = typeof window !== 'undefined'
   ? (window.SpeechRecognition || window.webkitSpeechRecognition)
@@ -708,10 +709,14 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMo
               <h3 className="modal-title">
                 New job
                 {!isOnline() && (
-                  <span className="aj-offline-pill" aria-label="Offline">⚡ Offline</span>
+                  <span className="aj-offline-pill" aria-label="Offline">
+                    <Icon name="offline" size={16} /> Offline
+                  </span>
                 )}
               </h3>
-              <button className="aj-close-btn" onClick={onClose} aria-label="Close">✕</button>
+              <button className="aj-close-btn" onClick={onClose} aria-label="Close">
+                <Icon name="close" size={20} />
+              </button>
             </div>
 
             {/* Field label — no chip strip on Stage 1 in Speed mode */}
@@ -776,7 +781,9 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMo
                   setView('details');
                 }}
               >
-                <span className="aj-say-it-mic" aria-hidden="true">🎤</span>
+                <span className="aj-say-it-mic" aria-hidden="true">
+                  <Icon name="voice" size={20} />
+                </span>
                 <span className="aj-say-it-label">Say it instead</span>
               </button>
             )}
@@ -799,10 +806,12 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMo
                 }}
                 aria-label="Back to Step 1"
               >
-                ←
+                <Icon name="arrow-left" size={20} />
               </button>
               <h3 className="modal-title">Add details</h3>
-              <button className="aj-close-btn" onClick={onClose} aria-label="Close">✕</button>
+              <button className="aj-close-btn" onClick={onClose} aria-label="Close">
+                <Icon name="close" size={20} />
+              </button>
             </div>
 
             {/* 2-dot stepper: ● ● = Stage 2 of 2 */}
@@ -820,7 +829,7 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMo
             {voiceStatus === 'listening' && (
               <>
                 <div className="aj-mic-box">
-                  <div className="aj-mic-icon">🎤</div>
+                  <div className="aj-mic-icon"><Icon name="voice" size={32} /></div>
                   <div className="aj-mic-label">Listening…</div>
                   <div className="aj-mic-sub">Say the job, customer, and amount</div>
                 </div>
@@ -863,7 +872,7 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMo
                   onClick={startListening}
                   aria-label="Tap to try the microphone again"
                 >
-                  <div className="aj-mic-icon aj-mic-icon--idle">&#127908;</div>
+                  <div className="aj-mic-icon aj-mic-icon--idle"><Icon name="voice" size={32} /></div>
                   <div className="aj-mic-label">Nothing heard</div>
                   <div className="aj-mic-sub">Tap to try again</div>
                 </button>
@@ -886,7 +895,7 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMo
               <>
                 {showParsingSpinner && (
                   <div className="aj-mic-box aj-mic-box--parsing">
-                    <div className="aj-mic-icon">&#x23F3;</div>
+                    <div className="aj-mic-icon"><Icon name="loading" size={32} /></div>
                     <div className="aj-mic-label">Understanding…</div>
                   </div>
                 )}
@@ -917,7 +926,7 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMo
                     aria-label="Edit amount and payment method"
                     onClick={() => setAmountEditOpen(v => !v)}
                   >
-                    ✎
+                    <Icon name="edit" size={16} />
                   </button>
                 </div>
 
@@ -1006,8 +1015,8 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMo
                     onClick={() => { setMoreOpen(v => !v); }}
                   >
                     {moreOpen
-                      ? <><span className="aj-more-toggle-icon">⌃</span> Less</>
-                      : <><span className="aj-more-toggle-icon aj-more-toggle-icon--plus">+</span> More</>}
+                      ? <><Icon name="chevron-up" size={16} className="aj-more-toggle-icon" /> Less</>
+                      : <><Icon name="add" size={16} className="aj-more-toggle-icon aj-more-toggle-icon--plus" /> More</>}
                   </button>
                 </div>
 
@@ -1049,14 +1058,16 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMo
           <>
             <div className="aj-header">
               <h3 className="modal-title">Create quote</h3>
-              <button className="aj-close-btn" onClick={onClose} aria-label="Close">✕</button>
+              <button className="aj-close-btn" onClick={onClose} aria-label="Close">
+                <Icon name="close" size={20} />
+              </button>
             </div>
 
             {/* ── Voice: listening state ── */}
             {quoteVoiceStatus === 'listening' && (
               <>
                 <div className="aj-mic-box">
-                  <div className="aj-mic-icon">&#127908;</div>
+                  <div className="aj-mic-icon"><Icon name="voice" size={32} /></div>
                   <div className="aj-mic-label">Listening…</div>
                   <div className="aj-mic-sub">Say the job, customer, and price</div>
                 </div>
@@ -1099,7 +1110,7 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMo
                   onClick={startQuoteListening}
                   aria-label="Tap to try the microphone again"
                 >
-                  <div className="aj-mic-icon aj-mic-icon--idle">&#127908;</div>
+                  <div className="aj-mic-icon aj-mic-icon--idle"><Icon name="voice" size={32} /></div>
                   <div className="aj-mic-label">Nothing heard</div>
                   <div className="aj-mic-sub">Tap to try again</div>
                 </button>
@@ -1122,7 +1133,7 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMo
               <>
                 {showParsingSpinner && (
                   <div className="aj-mic-box aj-mic-box--parsing">
-                    <div className="aj-mic-icon">&#x23F3;</div>
+                    <div className="aj-mic-icon"><Icon name="loading" size={32} /></div>
                     <div className="aj-mic-label">Understanding…</div>
                   </div>
                 )}
@@ -1137,7 +1148,7 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMo
               <>
                 {showBuildingSpinner && (
                   <div className="aj-mic-box aj-mic-box--parsing">
-                    <div className="aj-mic-icon">&#x23F3;</div>
+                    <div className="aj-mic-icon"><Icon name="loading" size={32} /></div>
                     <div className="aj-mic-label">Building your quote…</div>
                     <div className="aj-mic-sub">Using your prices and history</div>
                   </div>
@@ -1223,7 +1234,7 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMo
                       startQuoteListening();
                     }}
                   >
-                    &#127908; Use voice instead
+                    <Icon name="voice" size={16} /> Use voice instead
                   </button>
                 )}
 
@@ -1364,7 +1375,7 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMo
                           onClick={() => removeLineItem(idx)}
                           aria-label={`Remove line item ${idx + 1}`}
                         >
-                          ✕
+                          <Icon name="close" size={16} />
                         </button>
                       </div>
                     ))}
