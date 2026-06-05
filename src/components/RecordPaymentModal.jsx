@@ -77,7 +77,16 @@ export default function RecordPaymentModal({
       validateAmount(parsedAmount);
       validateDate(date);
       validateMethod(method);
-      onAddPayment(job, { amount: parsedAmount, date, method, note: note.trim() });
+      onAddPayment(job, {
+        amount: parsedAmount,
+        date,
+        method,
+        note: note.trim(),
+        // Structural flag so invoice preview/PDF can key off type instead of free
+        // text. Set only in deposit mode — undefined for normal payments so the
+        // field doesn't appear on every payment object.
+        ...(isDeposit && { type: 'deposit' }),
+      });
 
       if (isDeposit) {
         // Deposit — no cost capture prompt; close immediately with flash

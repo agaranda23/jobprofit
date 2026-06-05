@@ -989,3 +989,88 @@ describe('white-label footer — hidePoweredBy flag', () => {
     expect(drawnTexts.some(t => String(t).includes('getjobprofit.com'))).toBe(false);
   });
 });
+
+// ── Z. Auto-derive deposit from job.payments (bug fix: blank-note deposits) ──
+//
+// When depositPaidPence is not explicitly passed (defaults to 0), the PDF
+// generator now reads job.payments[] and applies:
+//   type === 'deposit'  →  structural flag (set by RecordPaymentModal v2)
+//   /deposit/i on note  →  back-compat (Stripe webhook, old records)
+// This ensures a blank-note deposit recorded via the Record Payment modal still
+// shows the "Deposit paid" + "BALANCE DUE" credit lines on the PDF.
+
+describe('Z. generateInvoicePDF — auto-derive deposit from job.payments', () => {
+  beforeEach(() => { drawnTexts = []; addImageCalls = []; vi.clearAllMocks(); });
+
+  it('renders "Deposit paid" when a payment has type:"deposit" and blank note (bug scenario)', async () => {
+    const job = baseJob({
+      total: 500,
+      payments: [
+        { id: 'p1', amount: 125, type: 'deposit', note: '', method: 'bank', date: '2026-06-01', createdAt: '2026-06-01T10:00:00Z' },
+      ],
+    });
+    await generateInvoicePDF({ job, biz: baseBiz(), invoiceNumber: 'INV-Z1', dueDate: '2026-06-30' });
+    expect(drawnTexts.some(t => String(t).includes('Deposit paid'))).toBe(true);
+  });
+
+  it('renders "BALANCE DUE" when a payment has type:"deposit" and blank note (bug scenario)', async () => {
+    const job = baseJob({
+      total: 500,
+      payments: [
+        { id: 'p1', amount: 125, type: 'deposit', note: '', method: 'bank', date: '2026-06-01', createdAt: '2026-06-01T10:00:00Z' },
+      ],
+    });
+    await generateInvoicePDF({ job, biz: baseBiz(), invoiceNumber: 'INV-Z2', dueDate: '2026-06-30' });
+    expect(drawnTexts).toContain('BALANCE DUE');
+  });
+
+  it('renders correct balance (£500 − £125 = £375.00) for blank-note type:deposit payment', async () => {
+    const job = baseJob({
+      total: 500,
+      payments: [
+        { id: 'p1', amount: 125, type: 'deposit', note: '', method: 'bank', date: '2026-06-01', createdAt: '2026-06-01T10:00:00Z' },
+      ],
+    });
+    await generateInvoicePDF({ job, biz: baseBiz(), invoiceNumber: 'INV-Z3', dueDate: '2026-06-30' });
+    expect(drawnTexts.some(t => String(t).includes('375.00'))).toBe(true);
+  });
+
+  it('still renders deposit credit via note fallback (Stripe "Deposit on acceptance")', async () => {
+    const job = baseJob({
+      total: 500,
+      payments: [
+        { id: 'p1', amount: 100, note: 'Deposit on acceptance', method: 'card', date: '2026-06-01', createdAt: '2026-06-01T10:00:00Z' },
+      ],
+    });
+    await generateInvoicePDF({ job, biz: baseBiz(), invoiceNumber: 'INV-Z4', dueDate: '2026-06-30' });
+    expect(drawnTexts.some(t => String(t).includes('Deposit paid'))).toBe(true);
+    expect(drawnTexts).toContain('BALANCE DUE');
+  });
+
+  it('does NOT render deposit credit for a non-deposit payment with blank note and no type flag', async () => {
+    const job = baseJob({
+      total: 500,
+      payments: [
+        { id: 'p1', amount: 200, note: '', method: 'bank', date: '2026-06-01', createdAt: '2026-06-01T10:00:00Z' },
+      ],
+    });
+    await generateInvoicePDF({ job, biz: baseBiz(), invoiceNumber: 'INV-Z5', dueDate: '2026-06-30' });
+    expect(drawnTexts.some(t => String(t).includes('Deposit paid'))).toBe(false);
+    expect(drawnTexts).not.toContain('BALANCE DUE');
+  });
+
+  it('explicit depositPaidPence still takes precedence over job.payments derivation', async () => {
+    // Caller-supplied value wins — existing tests that pass depositPaidPence
+    // explicitly should not change behaviour.
+    const job = baseJob({ total: 500 }); // no payments[]
+    await generateInvoicePDF({
+      job,
+      biz: baseBiz(),
+      invoiceNumber: 'INV-Z6',
+      dueDate: '2026-06-30',
+      depositPaidPence: 5000, // £50 supplied explicitly
+    });
+    expect(drawnTexts.some(t => String(t).includes('Deposit paid'))).toBe(true);
+    expect(drawnTexts).toContain('BALANCE DUE');
+  });
+});

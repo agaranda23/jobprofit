@@ -21,6 +21,15 @@ import { describe, it, expect } from 'vitest';
 import { addPayment, computeBalance, computeAmountPaid } from '../payments.js';
 import { buildQuoteWhatsAppMessage } from '../quoteMessage.js';
 
+// ── Shared deposit-credit filter — mirrors InvoiceDocumentPreview + invoicePDF logic ──
+// Both surfaces now use: type === 'deposit' || /deposit/i.test(note || '')
+function computeDepositCredit(payments) {
+  if (!Array.isArray(payments)) return 0;
+  return payments
+    .filter(p => p.type === 'deposit' || /deposit/i.test(p.note || ''))
+    .reduce((sum, p) => sum + Number(p.amount || 0), 0);
+}
+
 // ── A. Picker un-gating logic ─────────────────────────────────────────────────
 // The old gate was: if (!isConnected) return null.
 // V1 removes this — picker always renders.
@@ -222,43 +231,87 @@ describe('G. depositNetting — bank method (method:"bank")', () => {
   });
 });
 
-// ── H. Deposit credit note — payments[] /deposit/i filter ─────────────────────
+// ── H. Deposit credit line — type flag (primary) + note fallback (back-compat) ──
+//
+// The bug: RecordPaymentModal in deposit mode produced a blank-note payment, so
+// the old note-only filter missed it and the invoice credit line was invisible.
+// Fix: tag deposits structurally with type:'deposit'. The filter now checks
+// type first, with note as a fallback for existing/Stripe deposits.
 
-describe('H. Invoice deposit credit line — payments[] filter', () => {
-  function computeDepositCredit(payments) {
-    if (!Array.isArray(payments)) return 0;
-    return payments
-      .filter(p => /deposit/i.test(p.note || ''))
-      .reduce((sum, p) => sum + Number(p.amount || 0), 0);
-  }
+describe('H. Invoice deposit credit line — type flag (primary path)', () => {
+  it('matches a deposit recorded with blank note via type:"deposit" flag', () => {
+    // This is the bug scenario: trader records a deposit with no note.
+    // Previously the credit line was invisible. Now type flag catches it.
+    const payments = [
+      { id: 'p1', amount: 250, type: 'deposit', note: '', method: 'bank', date: PAST_DATE },
+    ];
+    expect(computeDepositCredit(payments)).toBe(250);
+  });
 
-  it('sums payments whose note matches /deposit/i', () => {
+  it('matches a deposit with type:"deposit" regardless of note content', () => {
+    const payments = [
+      { id: 'p1', amount: 150, type: 'deposit', note: 'anything', method: 'bank', date: PAST_DATE },
+    ];
+    expect(computeDepositCredit(payments)).toBe(150);
+  });
+
+  it('does NOT match a non-deposit payment that has type undefined and blank note', () => {
+    const payments = [
+      { id: 'p1', amount: 500, note: '', method: 'bank', date: PAST_DATE },
+    ];
+    expect(computeDepositCredit(payments)).toBe(0);
+  });
+
+  it('addPayment with type:"deposit" persists the field', () => {
+    const job = quotedJob(800);
+    const result = addPayment(job, { amount: 200, date: PAST_DATE, method: 'bank', note: '', type: 'deposit' });
+    expect(result.payments[0].type).toBe('deposit');
+  });
+
+  it('addPayment without type leaves the field absent (normal payment)', () => {
+    const job = quotedJob(800);
+    const result = addPayment(job, { amount: 200, date: PAST_DATE, method: 'bank', note: '' });
+    expect(result.payments[0].type).toBeUndefined();
+  });
+});
+
+describe('H2. Invoice deposit credit line — note fallback (back-compat)', () => {
+  it('matches a pre-flag deposit whose note contains "deposit" (back-compat)', () => {
     const payments = [
       { id: 'p1', amount: 250, note: 'Deposit received', method: 'bank', date: PAST_DATE },
     ];
     expect(computeDepositCredit(payments)).toBe(250);
   });
 
-  it('ignores payments whose note does not match /deposit/i', () => {
+  it('is case-insensitive on note (matches Stripe "Deposit on acceptance")', () => {
+    const payments = [
+      { id: 'p1', amount: 300, note: 'Deposit on acceptance', method: 'card', date: PAST_DATE },
+    ];
+    expect(computeDepositCredit(payments)).toBe(300);
+  });
+
+  it('ignores payments whose note does not match /deposit/i and have no type flag', () => {
     const payments = [
       { id: 'p1', amount: 500, note: 'Final payment', method: 'bank', date: PAST_DATE },
     ];
     expect(computeDepositCredit(payments)).toBe(0);
   });
 
-  it('sums multiple deposit payments', () => {
+  it('sums multiple deposits — mix of type flag and note', () => {
     const payments = [
-      { id: 'p1', amount: 100, note: 'Deposit 1', method: 'bank', date: PAST_DATE },
-      { id: 'p2', amount: 150, note: 'Deposit 2', method: 'bank', date: PAST_DATE },
+      { id: 'p1', amount: 100, type: 'deposit', note: '', method: 'bank', date: PAST_DATE },
+      { id: 'p2', amount: 150, note: 'Deposit on acceptance', method: 'card', date: PAST_DATE },
+      { id: 'p3', amount: 200, note: 'Final payment', method: 'cash', date: PAST_DATE },
     ];
+    // p1 matched by type, p2 by note, p3 ignored
     expect(computeDepositCredit(payments)).toBe(250);
   });
 
-  it('is case-insensitive (matches "Deposit on acceptance" from Stripe webhook)', () => {
+  it('does not double-count a payment that has both type:"deposit" and a deposit note', () => {
     const payments = [
-      { id: 'p1', amount: 300, note: 'Deposit on acceptance', method: 'card', date: PAST_DATE },
+      { id: 'p1', amount: 100, type: 'deposit', note: 'Deposit received', method: 'bank', date: PAST_DATE },
     ];
-    expect(computeDepositCredit(payments)).toBe(300);
+    expect(computeDepositCredit(payments)).toBe(100);
   });
 
   it('returns 0 for empty payments array', () => {
