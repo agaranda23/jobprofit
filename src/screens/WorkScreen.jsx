@@ -1076,6 +1076,9 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
   const [toast, setToast] = useState('');
   // addJobOpen drives the inline AddJobModal — same pattern as TodayScreen.
   const [addJobOpen, setAddJobOpen] = useState(false);
+  // addJobDate — pre-filled ISO date when AddJobModal is opened from the calendar.
+  // Null when opened via the regular "+ New job" CTA (no date pre-fill).
+  const [addJobDate, setAddJobDate] = useState(null);
   // chaseStepIndex — tracks which job to nudge next in the batch-chase flow
   const [chaseStepIndex, setChaseStepIndex] = useState(0);
   // chaseBarJustChased — job that was just chased; drives the 1.5s "Chased" transition
@@ -1313,11 +1316,20 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
 
   const handleJobSave = (job) => {
     setAddJobOpen(false);
+    setAddJobDate(null);
     onAddJob?.(job);
     showToast('Job saved');
   };
 
   const openAddJob = () => setAddJobOpen(true);
+
+  // Opens the inline AddJobModal pre-filled with the tapped calendar date.
+  // Called from WorkCalendar — passes the ISO date so the form lands on the
+  // details view with the correct date already set (no voice auto-start).
+  const handleNewJobOnDate = (iso) => {
+    setAddJobDate(iso || null);
+    setAddJobOpen(true);
+  };
 
   // Wraps onUpdateJob to fire a confirmation toast when a job is moved to Paid
   // via the stage-chip dropdown. JobDetailDrawer has its own showFlash for the
@@ -1560,49 +1572,56 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
 
 
       {/* Stage Strip — 6 equal segments, no "All" tile. "Show all" lives in the
-           controls row below. deriveStatus + formatAmount passed as props to avoid
-           a circular import. */}
-      <StageStrip
-        jobs={visibleJobs}
-        selectedStage={selectedStage}
-        showAll={showAll}
-        onSelectStage={handleSelectStage}
-        deriveStatus={deriveDisplayStatus}
-        formatAmount={formatAmount}
-      />
-
-      {/* 1B: Search bar — sticky under the stage strip, pure client-side filter */}
-      <div className="jobs-search-wrap">
-        <input
-          type="search"
-          className={`jobs-search${searchQuery ? ' jobs-search--has-value' : ''}`}
-          placeholder="Search name, job or street"
-          value={searchQuery}
-          onChange={e => setSearchQuery(e.target.value)}
-          aria-label="Search jobs"
-          autoComplete="off"
-          autoCorrect="off"
-          autoCapitalize="off"
-          spellCheck="false"
+           controls row below. Hidden in calendar mode: the stage filter has no
+           meaning over a calendar view (every dated job shows regardless of stage). */}
+      {subview === 'list' && (
+        <StageStrip
+          jobs={visibleJobs}
+          selectedStage={selectedStage}
+          showAll={showAll}
+          onSelectStage={handleSelectStage}
+          deriveStatus={deriveDisplayStatus}
+          formatAmount={formatAmount}
         />
-        {searchQuery && (
-          <button
-            type="button"
-            className="jobs-search-clear"
-            aria-label="Clear search"
-            onClick={() => setSearchQuery('')}
-          >
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-              <line x1="4" y1="4" x2="12" y2="12"/>
-              <line x1="12" y1="4" x2="4" y2="12"/>
-            </svg>
-          </button>
-        )}
-      </div>
+      )}
+
+      {/* 1B: Search bar — sticky under the stage strip, pure client-side filter.
+           Hidden in calendar mode: search is a list concept; calendar shows all dated jobs. */}
+      {subview === 'list' && (
+        <div className="jobs-search-wrap">
+          <input
+            type="search"
+            className={`jobs-search${searchQuery ? ' jobs-search--has-value' : ''}`}
+            placeholder="Search name, job or street"
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            aria-label="Search jobs"
+            autoComplete="off"
+            autoCorrect="off"
+            autoCapitalize="off"
+            spellCheck="false"
+          />
+          {searchQuery && (
+            <button
+              type="button"
+              className="jobs-search-clear"
+              aria-label="Clear search"
+              onClick={() => setSearchQuery('')}
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+                <line x1="4" y1="4" x2="12" y2="12"/>
+                <line x1="12" y1="4" x2="4" y2="12"/>
+              </svg>
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Controls row: List/Calendar toggle (left) + Show all pill (right).
            Show all activates showAll mode (all stages visible at once).
-           Tapping any stage tile exits show-all and filters to that stage. */}
+           Tapping any stage tile exits show-all and filters to that stage.
+           The "All" pill is hidden in calendar mode — the stage filter has no
+           meaning over a calendar (every dated job shows regardless of stage). */}
       <div className="work-controls-row">
         <div className="work-segments" role="group" aria-label="Switch between list and calendar view">
           <button
@@ -1620,15 +1639,17 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
             Calendar
           </button>
         </div>
-        <button
-          type="button"
-          className={`show-all-pill${showAll ? ' show-all-pill--active' : ''}`}
-          onClick={handleSelectAll}
-          aria-pressed={showAll}
-          aria-label={showAll ? `Back to ${selectedStage}` : 'Show all stages'}
-        >
-          All
-        </button>
+        {subview === 'list' && (
+          <button
+            type="button"
+            className={`show-all-pill${showAll ? ' show-all-pill--active' : ''}`}
+            onClick={handleSelectAll}
+            aria-pressed={showAll}
+            aria-label={showAll ? `Back to ${selectedStage}` : 'Show all stages'}
+          >
+            All
+          </button>
+        )}
       </div>
 
       {/* Subview */}
@@ -1653,7 +1674,7 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
           onActionRedirect={handleActionRedirect}
         />
       ) : (
-        <WorkCalendar jobs={visibleJobs} onNewJobOnDate={onNewJob} onJobTap={setSelectedJob} />
+        <WorkCalendar jobs={visibleJobs} onNewJobOnDate={handleNewJobOnDate} onJobTap={setSelectedJob} />
       )}
 
       {/* Job detail drawer — wrapped in an error boundary so a render crash
@@ -1702,11 +1723,14 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
         />
       )}
 
-      {/* AddJobModal — mounted inline, same pattern as TodayScreen */}
+      {/* AddJobModal — mounted inline, same pattern as TodayScreen.
+          When opened from the calendar (addJobDate set), lands on the details
+          form with the tapped date pre-filled and no mic auto-start. */}
       {addJobOpen && (
         <AddJobModal
-          onClose={() => setAddJobOpen(false)}
+          onClose={() => { setAddJobOpen(false); setAddJobDate(null); }}
           onSave={handleJobSave}
+          {...(addJobDate ? { initialDate: addJobDate, defaultMode: 'details-manual' } : {})}
         />
       )}
 

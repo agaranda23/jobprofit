@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v64';  // bumped from v63: promote Photos & notes out of More accordion; photo source chooser sheet
+const CACHE_NAME = 'jobprofit-v67';  // bumped from v66: Day + Month calendar views, stage-chip hiding in calendar mode
 const PRECACHE = [
   '/',
   '/index.html',

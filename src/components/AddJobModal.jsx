@@ -66,25 +66,27 @@ export function getTradeVoiceHint(tradePrimary) {
   return map[key] || 'Kitchen job Sarah three eighty cash';
 }
 
-export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMode, onSaveAndSend, tradePrimary }) {
-  // 'micro'    — Stage 1: fast capture (amount + paid-by + Save it)
-  // 'details'  — Stage 2: full form (name, customer, date, more options)
-  // 'quote'    — Create-quote surface: voice OR type, summary + total + optional line items
+export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMode, onSaveAndSend, tradePrimary, initialDate }) {
+  // 'micro'          — Stage 1: fast capture (amount + paid-by + Save it)
+  // 'details'        — Stage 2: full form (name, customer, date, more options)
+  // 'quote'          — Create-quote surface: voice OR type, summary + total + optional line items
   // Voice sub-states within 'details' and 'quote': 'listening' | 'parsing' | 'confirm' | 'manual'
   //
-  // defaultMode="voice"  — mounts into 'details', starts voice immediately (user tapped mic on Today).
-  // defaultMode="quote"  — mounts into 'quote', starts voice immediately.
-  // No prop (or 'micro') — default 'micro' keypad view (Stage 1).
+  // defaultMode="voice"          — mounts into 'details', starts voice immediately (user tapped mic on Today).
+  // defaultMode="quote"          — mounts into 'quote', starts voice immediately.
+  // defaultMode="details-manual" — mounts into 'details', no mic auto-start (opened from calendar).
+  // No prop (or 'micro')         — default 'micro' keypad view (Stage 1).
   const [view, setView] = useState(
-    defaultMode === 'voice' ? 'details' :
-    defaultMode === 'quote' ? 'quote'   : 'micro'
+    defaultMode === 'voice'          ? 'details' :
+    defaultMode === 'details-manual' ? 'details' :
+    defaultMode === 'quote'          ? 'quote'   : 'micro'
   );
 
   // When the user navigates from Stage 1 to Stage 2 via the "+ Add the details →" button,
   // we do NOT want voice to auto-start (building-site noise). This ref tracks whether the
   // entry into details was an explicit voice request (defaultMode="voice") vs a manual nav.
   // true  = voice was explicitly requested on mount → auto-start is allowed once.
-  // false = user navigated from micro → no auto-start.
+  // false = user navigated from micro, opened from calendar (details-manual), etc. → no auto-start.
   const voiceEntryExplicit = useRef(defaultMode === 'voice');
 
   // ── Shared field state (micro + details share these) ──────────────────────
@@ -93,7 +95,7 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMo
   const [name, setName]               = useState('');
   const [customer, setCustomer]       = useState('');
   const [phone, setPhone]             = useState('');
-  const [jobDate, setJobDate]         = useState(todayISODate());
+  const [jobDate, setJobDate]         = useState(initialDate || todayISODate());
   const [materials, setMaterials]     = useState('');
   const [labourHours, setLabourHours] = useState('');
   const [notes, setNotes]             = useState('');
@@ -134,7 +136,9 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMo
   const [rateInput, setRateInput]             = useState('');
 
   // ── Voice state (active in 'details' and 'quote' views) ───────────────────
-  const [voiceStatus, setVoiceStatus]       = useState('idle');
+  // details-manual: initialise directly to 'form' so the user sees the form
+  // immediately — no mic auto-start, no idle mic screen (building sites are noisy).
+  const [voiceStatus, setVoiceStatus]       = useState(defaultMode === 'details-manual' ? 'form' : 'idle');
   const [transcript, setTranscript]         = useState('');
   const [retryCount, setRetryCount]         = useState(0);
   // showParsingSpinner: only true when parsing has taken >400ms — avoids a
@@ -991,7 +995,7 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMo
                       className="aj-date-input"
                       value={jobDate}
                       onChange={e => setJobDate(e.target.value)}
-                      max={todayISODate()}
+                      // max removed: future-dated jobs allowed for scheduling
                     />
                     <span className="aj-date-label">{formatDateLabel(jobDate)}</span>
                   </div>
