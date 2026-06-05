@@ -79,8 +79,13 @@ function UnscheduledStrip({ jobs }) {
   );
 }
 
+function formatDayAriaLabel(day) {
+  return day.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+}
+
 function DayColumn({ day, dayJobs, isToday, onAddOnDate, onJobTap }) {
   const key = isoDate(day);
+  const dayLabel = formatDayAriaLabel(day);
   return (
     <div className={`wc-day ${isToday ? 'wc-day--today' : ''}`}>
       <div className="wc-day-header">
@@ -92,7 +97,7 @@ function DayColumn({ day, dayJobs, isToday, onAddOnDate, onJobTap }) {
           <button
             className="wc-slot-empty"
             onClick={() => onAddOnDate(key)}
-            aria-label={`Add job on ${key}`}
+            aria-label={`Add job on ${dayLabel}`}
           >
             +
           </button>
@@ -115,7 +120,7 @@ function DayColumn({ day, dayJobs, isToday, onAddOnDate, onJobTap }) {
           <button
             className="wc-slot-add"
             onClick={() => onAddOnDate(key)}
-            aria-label={`Add job on ${key}`}
+            aria-label={`Add job on ${dayLabel}`}
           >
             +
           </button>
@@ -137,12 +142,7 @@ export default function WorkCalendar({ jobs = [], onNewJobOnDate, onJobTap }) {
 
   const handleAddOnDate = (dateKey) => {
     logTelemetry('calendar_add_tap', { date: dateKey });
-    // The brief says "open the existing AddJob modal with date pre-filled".
-    // Judgement call: the AddJob modal lives inside App.jsx and isn't yet
-    // exposed as a standalone component. For slice 3 we call onNewJobOnDate
-    // which opens the new-job flow (same as "+ New job" CTA).
-    // TODO(slice-4): pass dateKey into the AddJob modal so the date field is pre-filled.
-    onNewJobOnDate();
+    onNewJobOnDate(dateKey);
   };
 
   return (

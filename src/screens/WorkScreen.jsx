@@ -1076,6 +1076,9 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
   const [toast, setToast] = useState('');
   // addJobOpen drives the inline AddJobModal — same pattern as TodayScreen.
   const [addJobOpen, setAddJobOpen] = useState(false);
+  // addJobDate — pre-filled ISO date when AddJobModal is opened from the calendar.
+  // Null when opened via the regular "+ New job" CTA (no date pre-fill).
+  const [addJobDate, setAddJobDate] = useState(null);
   // chaseStepIndex — tracks which job to nudge next in the batch-chase flow
   const [chaseStepIndex, setChaseStepIndex] = useState(0);
   // chaseBarJustChased — job that was just chased; drives the 1.5s "Chased" transition
@@ -1313,11 +1316,20 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
 
   const handleJobSave = (job) => {
     setAddJobOpen(false);
+    setAddJobDate(null);
     onAddJob?.(job);
     showToast('Job saved');
   };
 
   const openAddJob = () => setAddJobOpen(true);
+
+  // Opens the inline AddJobModal pre-filled with the tapped calendar date.
+  // Called from WorkCalendar — passes the ISO date so the form lands on the
+  // details view with the correct date already set (no voice auto-start).
+  const handleNewJobOnDate = (iso) => {
+    setAddJobDate(iso || null);
+    setAddJobOpen(true);
+  };
 
   // Wraps onUpdateJob to fire a confirmation toast when a job is moved to Paid
   // via the stage-chip dropdown. JobDetailDrawer has its own showFlash for the
@@ -1653,7 +1665,7 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
           onActionRedirect={handleActionRedirect}
         />
       ) : (
-        <WorkCalendar jobs={visibleJobs} onNewJobOnDate={onNewJob} onJobTap={setSelectedJob} />
+        <WorkCalendar jobs={visibleJobs} onNewJobOnDate={handleNewJobOnDate} onJobTap={setSelectedJob} />
       )}
 
       {/* Job detail drawer — wrapped in an error boundary so a render crash
@@ -1702,11 +1714,14 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
         />
       )}
 
-      {/* AddJobModal — mounted inline, same pattern as TodayScreen */}
+      {/* AddJobModal — mounted inline, same pattern as TodayScreen.
+          When opened from the calendar (addJobDate set), lands on the details
+          form with the tapped date pre-filled and no mic auto-start. */}
       {addJobOpen && (
         <AddJobModal
-          onClose={() => setAddJobOpen(false)}
+          onClose={() => { setAddJobOpen(false); setAddJobDate(null); }}
           onSave={handleJobSave}
+          {...(addJobDate ? { initialDate: addJobDate, defaultMode: 'details-manual' } : {})}
         />
       )}
 

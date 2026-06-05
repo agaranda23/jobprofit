@@ -5030,7 +5030,7 @@ input[type=number] { -moz-appearance: textfield; }
   padding: 6px;
   cursor: pointer;
   width: 100%;
-  min-height: 34px;
+  min-height: 44px;
   display: flex;
   align-items: center;
   justify-content: center;
