@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v68';  // bumped from v67: Week view nav header — shared chevron/Today pill parity with Day + Month
+const CACHE_NAME = 'jobprofit-v69';  // bumped from v68: SyncBadge microcopy — backed-up framing, auth-failure escalation, tap affordance
 const PRECACHE = [
   '/',
   '/index.html',

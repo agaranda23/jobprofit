@@ -3956,10 +3956,17 @@ input[type=number] { -moz-appearance: textfield; }
   to { transform: rotate(360deg); }
 }
 
-/* Stuck state — red pill with danger palette */
+/* Stuck state — amber/warning pill (generic: offline too long, RLS, timeout) */
 .sync-badge--stuck {
-  border-color: rgba(239, 68, 68, 0.35);
-  background: rgba(239, 68, 68, 0.18);
+  border-color: rgba(245, 158, 11, 0.4);
+  background: rgba(120, 65, 0, 0.88);
+  color: #fbbf24;
+}
+
+/* Stuck auth state — red/error pill (session expired; escalates immediately) */
+.sync-badge--stuck-auth {
+  border-color: rgba(239, 68, 68, 0.4);
+  background: rgba(127, 29, 29, 0.92);
   color: #ef4444;
 }
 

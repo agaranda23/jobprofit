@@ -710,6 +710,11 @@ export default function AppShell() {
     }
   };
 
+  // Called by SyncBadge when the queue is stuck due to an auth failure.
+  // Signing out clears the Supabase session, which causes AppShell to render
+  // <AuthScreen /> so the user can sign back in and the queue can flush.
+  const handleSyncSignIn = () => supabase.auth.signOut().catch(() => {});
+
   /**
    * Update a subset of the user's profile.
    * Writes to Supabase first, then updates local state optimistically.
@@ -1022,7 +1027,7 @@ export default function AppShell() {
       )}
 
       {/* ── Offline sync badge — shown when IndexedDB queue has pending rows ── */}
-      <SyncBadge />
+      <SyncBadge onSignIn={handleSyncSignIn} />
 
       {/* ── One-time orientation toast ──────────────────────────────────── */}
       {navToast && (
