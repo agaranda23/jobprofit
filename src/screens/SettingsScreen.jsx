@@ -1387,6 +1387,9 @@ function DefaultDepositRow({ profile, onProfileUpdate }) {
   return (
     <div className="settings-row settings-row--passive settings-row--deposit">
       <span className="settings-row-label">Default deposit %</span>
+      <span className="settings-row-hint">
+        Asked for on every quote. Customers pay by bank transfer — or by card on acceptance with Pro.
+      </span>
       <div className="deposit-picker" role="group" aria-label="Default deposit percentage">
         {DEPOSIT_PRESET_BUTTONS.map(({ label, value }) => (
           <button

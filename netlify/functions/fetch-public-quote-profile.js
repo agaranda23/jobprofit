@@ -18,7 +18,14 @@
  *     vatRegistered, vatNumber,
  *     utrNumber,
  *     quoteValidityDays,
+ *     accountName, sortCode, accountNumber,   ← added for bank-transfer deposit block (V1)
  *   }
+ *
+ * ⚠️ QA note (V1 bank-transfer-deposits): account_name, sort_code, account_number now
+ * reach this token-gated public endpoint. These same fields already appear on every
+ * invoice the customer receives, so there is no new data-exposure posture. The endpoint
+ * remains token-gated (UUID v4 must match a live job row). Response is intentionally
+ * minimal — only the 3 extra fields added, no other trader PII expanded.
  *
  * Response 400  { error } — missing token
  * Response 404  { error } — token not matched to any job
@@ -117,6 +124,11 @@ export const handler = async function (event) {
         'terms_text',
         'plan',
         'trial_ends_at',
+        // Bank fields — for bank-transfer deposit block on the public quote page (V1).
+        // These are already on every invoice the customer receives; no new posture.
+        'account_name',
+        'sort_code',
+        'account_number',
       ].join(', '))
       .eq('id', job.user_id)
       .single();
@@ -148,6 +160,11 @@ export const handler = async function (event) {
     utrNumber:         profile.utr_number           || '',
     quoteValidityDays: profile.quote_validity_days  ?? 30,
     termsText:         profile.terms_text           || '',
+    // Bank details — rendered in BankDepositBlock on the public quote page (V1).
+    // Minimal expansion: only the 3 fields needed for the bank-transfer deposit CTA.
+    accountName:       profile.account_name         || '',
+    sortCode:          profile.sort_code            || '',
+    accountNumber:     profile.account_number       || '',
     // isPro: true hides the "Sent with JobProfit" footer on the public quote page.
     isPro:             isTraderPro,
   });

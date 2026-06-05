@@ -320,6 +320,49 @@ function SignSection({ token, onAccepted }) {
   );
 }
 
+// ── BankDepositBlock ──────────────────────────────────────────────────────────
+//
+// V1 bank-transfer path: shown ABOVE SignSection when deposit_percent > 0 and
+// the trader is NOT on the Stripe online path. Informational only — the customer
+// accepts the quote normally (signs on screen). The deposit is a request paid
+// off-platform and is NOT a precondition of acceptance in V1.
+
+/**
+ * @param {{
+ *   depositPercent:     number,
+ *   depositAmountPence: number,
+ *   accountName:        string,
+ *   sortCode:           string,
+ *   accountNumber:      string,
+ * }} props
+ */
+function BankDepositBlock({ depositPercent, depositAmountPence, accountName, sortCode, accountNumber }) {
+  const depositGbp = depositAmountPence > 0 ? gbp(depositAmountPence / 100) : '';
+  if (!depositGbp || !sortCode || !accountNumber) return null;
+
+  return (
+    <div className="pqv-section">
+      <div className="pqv-deposit-block pqv-deposit-block--bank">
+        <div className="pqv-deposit-block-row">
+          <span>Deposit ({depositPercent}%)</span>
+          <span>{depositGbp}</span>
+        </div>
+        <div className="pqv-deposit-block-sub">
+          Pay by bank transfer to secure your booking
+        </div>
+        <div className="pqv-bank-details" style={{ marginTop: 10, fontSize: 13, lineHeight: 1.7 }}>
+          {accountName && <div><strong>Name:</strong> {accountName}</div>}
+          <div><strong>Sort code:</strong> {sortCode}</div>
+          <div><strong>Account:</strong> {accountNumber}</div>
+          <div style={{ marginTop: 6, color: 'var(--text-mid, #505050)', fontSize: 12 }}>
+            Use your name as the reference, then message your trader to confirm.
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── DepositBlock ─────────────────────────────────────────────────────────────
 
 /**
@@ -567,6 +610,10 @@ export default function PublicQuoteView({ token }) {
   const vatRegistered   = traderProfile.vatRegistered ?? false;
   const vatNumber       = traderProfile.vatNumber || '';
   const termsText       = traderProfile.termsText || traderProfile.terms_text || '';
+  // Bank details — provided by fetch-public-quote-profile (V1 bank-transfer-deposits).
+  const traderAccountName   = traderProfile.accountName   || '';
+  const traderSortCode      = traderProfile.sortCode      || '';
+  const traderAccountNumber = traderProfile.accountNumber || '';
 
   // Quote number and valid-until date from the server profile / job
   const quoteValidityDays = traderProfile.quoteValidityDays ?? 30;
@@ -601,12 +648,27 @@ export default function PublicQuoteView({ token }) {
   const acceptedAt = remoteAccepted?.acceptedAt || job.acceptedAt || null;
   const quoteDate = job.date || job.createdAt || null;
 
+  // Determine which deposit path to render.
+  // stripeOnline: true when the trader profile indicates an online Stripe deposit link
+  // was embedded — in V1 we infer this from whether the public profile has an account_name
+  // that is empty BUT depositAmountPence is set (Stripe path sets deposit_amount_pence too).
+  // Simpler heuristic: if bank details are present on the profile, show bank path;
+  // if the job has a Stripe-paid deposit, show the existing DepositBlock.
+  // V1 decision: if deposit_paid_at exists → already online-paid → not bank path.
+  // For V1 we check: is there a Stripe deposit already (deposit_paid_at)?
+  // If yes → existing DepositBlock handles success state.
+  // If no deposit_paid_at and bank details are present → show BankDepositBlock (informational).
+  // If no deposit_paid_at and no bank details → fall through to existing DepositBlock (Stripe).
+  const hasBankDetails = !!(traderSortCode && traderAccountNumber);
+  const isOnlineStripeDeposit = hasDeposit && !hasBankDetails;
   // When should we show the deposit flow vs the sign flow vs nothing?
   // - isAccepted: show accepted badge only (no action needed)
-  // - hasDeposit && !isAccepted && !showSignSection: show DepositBlock
+  // - hasDeposit && isOnlineStripeDeposit && !isAccepted && !showSignSection: show DepositBlock (Stripe)
+  // - hasDeposit && !isOnlineStripeDeposit && !isAccepted: show BankDepositBlock (informational) ABOVE sign
   // - !hasDeposit || showSignSection: show SignSection (existing flow)
-  const showDepositBlock = hasDeposit && !isAccepted && !showSignSection;
-  const showSignFlow = !isAccepted && (!hasDeposit || showSignSection);
+  const showDepositBlock = hasDeposit && isOnlineStripeDeposit && !isAccepted && !showSignSection;
+  const showBankDepositBlock = hasDeposit && !isOnlineStripeDeposit && !isAccepted;
+  const showSignFlow = !isAccepted && (!hasDeposit || showSignSection || showBankDepositBlock);
 
   return (
     <>
@@ -680,7 +742,7 @@ export default function PublicQuoteView({ token }) {
           )
         )}
 
-        {/* Deposit flow — shown when deposit > 0% and not yet accepted */}
+        {/* Stripe deposit flow — Pro+Stripe traders: card-on-acceptance */}
         {showDepositBlock && (
           <DepositBlock
             job={job}
@@ -693,7 +755,18 @@ export default function PublicQuoteView({ token }) {
           />
         )}
 
-        {/* Sign section — shown when no deposit, or customer chose "Accept without deposit" */}
+        {/* Bank-transfer deposit block — shown informational above sign for bank-path traders */}
+        {showBankDepositBlock && (
+          <BankDepositBlock
+            depositPercent={depositPercent}
+            depositAmountPence={depositAmountPence}
+            accountName={traderAccountName}
+            sortCode={traderSortCode}
+            accountNumber={traderAccountNumber}
+          />
+        )}
+
+        {/* Sign section — shown when no deposit, or bank-deposit path (always signable), or customer chose "Accept without deposit" */}
         {showSignFlow && (
           <SignSection
             token={token}

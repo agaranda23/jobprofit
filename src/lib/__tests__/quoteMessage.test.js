@@ -188,3 +188,105 @@ describe('buildQuoteWhatsAppMessage', () => {
     expect(msg.indexOf('sign')).toBeLessThan(msg.indexOf(QUOTE_URL));
   });
 });
+
+// ── Bank-transfer deposit branch (V1 bank-transfer-deposits) ──────────────────
+
+describe('buildQuoteWhatsAppMessage — bank-transfer deposit block', () => {
+  const BIZ_WITH_BANK = {
+    name: 'A Plumbing Co',
+    accountName: 'Alan Smith',
+    sortCode: '12-34-56',
+    accountNumber: '12345678',
+  };
+
+  it('appends bank details when deposit_percent > 0 and bank details are present', () => {
+    const msg = buildQuoteWhatsAppMessage({
+      job: { customer: 'Jane', total: 1000, deposit_percent: 25 },
+      biz: BIZ_WITH_BANK,
+      quoteUrl: QUOTE_URL,
+    });
+    expect(msg).toContain('Sort code: 12-34-56');
+    expect(msg).toContain('Account: 12345678');
+    expect(msg).toContain('Name: Alan Smith');
+    expect(msg).toContain('£250.00 (25%)');
+  });
+
+  it('includes "Pay by bank transfer to:" instruction', () => {
+    const msg = buildQuoteWhatsAppMessage({
+      job: { customer: 'Jane', total: 500, deposit_percent: 50 },
+      biz: BIZ_WITH_BANK,
+      quoteUrl: QUOTE_URL,
+    });
+    expect(msg).toContain('Pay by bank transfer to:');
+  });
+
+  it('includes reference instruction', () => {
+    const msg = buildQuoteWhatsAppMessage({
+      job: { customer: 'Jane', total: 500, deposit_percent: 25 },
+      biz: BIZ_WITH_BANK,
+      quoteUrl: QUOTE_URL,
+    });
+    expect(msg).toContain("Use your name as the reference");
+  });
+
+  it('does NOT append bank block when deposit_percent is 0', () => {
+    const msg = buildQuoteWhatsAppMessage({
+      job: { customer: 'Jane', total: 500, deposit_percent: 0 },
+      biz: BIZ_WITH_BANK,
+      quoteUrl: QUOTE_URL,
+    });
+    expect(msg).not.toContain('Sort code:');
+    expect(msg).not.toContain('Pay by bank transfer');
+  });
+
+  it('does NOT append bank block when bank details are absent', () => {
+    const msg = buildQuoteWhatsAppMessage({
+      job: { customer: 'Jane', total: 500, deposit_percent: 25 },
+      biz: { name: 'A Plumbing' }, // no sortCode / accountNumber
+      quoteUrl: QUOTE_URL,
+    });
+    expect(msg).not.toContain('Sort code:');
+  });
+
+  it('does NOT append bank block when depositPayUrl is set (Stripe path wins)', () => {
+    const msg = buildQuoteWhatsAppMessage({
+      job: { customer: 'Jane', total: 500, deposit_percent: 25 },
+      biz: BIZ_WITH_BANK,
+      quoteUrl: QUOTE_URL,
+      depositPayUrl: 'https://pay.stripe.com/abc',
+    });
+    // Stripe path fires
+    expect(msg).toContain('https://pay.stripe.com/abc');
+    // Bank block does NOT fire in parallel
+    expect(msg).not.toContain('Pay by bank transfer to:');
+  });
+
+  it('reads sortCode from snake_case fallback (biz.sort_code)', () => {
+    const msg = buildQuoteWhatsAppMessage({
+      job: { customer: 'Jane', total: 400, deposit_percent: 25 },
+      biz: { name: 'Pipes Ltd', sort_code: '11-22-33', account_number: '87654321' },
+      quoteUrl: QUOTE_URL,
+    });
+    expect(msg).toContain('Sort code: 11-22-33');
+    expect(msg).toContain('Account: 87654321');
+  });
+
+  it('does not include account name line when accountName is empty', () => {
+    const msg = buildQuoteWhatsAppMessage({
+      job: { customer: 'Jane', total: 400, deposit_percent: 25 },
+      biz: { name: 'Pipes Ltd', sortCode: '11-22-33', accountNumber: '87654321' },
+      quoteUrl: QUOTE_URL,
+    });
+    expect(msg).not.toContain('Name:');
+    expect(msg).toContain('Sort code: 11-22-33');
+  });
+
+  it('quote URL still appears above the bank block', () => {
+    const msg = buildQuoteWhatsAppMessage({
+      job: { customer: 'Jane', total: 1000, deposit_percent: 25 },
+      biz: BIZ_WITH_BANK,
+      quoteUrl: QUOTE_URL,
+    });
+    expect(msg.indexOf(QUOTE_URL)).toBeLessThan(msg.indexOf('Sort code:'));
+  });
+});
