@@ -2187,10 +2187,9 @@ input[type=number] { -moz-appearance: textfield; }
   color: var(--text-dim);
 }
 .screen-empty-icon {
-  font-size: 36px;
-  line-height: 1;
+  display: flex;
+  justify-content: center;
   margin-bottom: 16px;
-  display: block;
 }
 .screen-empty-title {
   font-size: 17px;

@@ -28,6 +28,7 @@
  */
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
+import Icon from '../components/Icon';
 import WorkCalendar from './WorkCalendar';
 import AddJobModal from '../components/AddJobModal';
 import JobDetailDrawer from '../components/JobDetailDrawer';
@@ -966,20 +967,26 @@ function JobTile({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJo
 
 // ── Empty state copy per stage ────────────────────────────────────────────────
 
+// Overdue empty-state is the "all caught up" celebratory moment — brand-green
+// CircleCheck at hero size gives warmth from colour + copy, not from emoji.
 function EmptyState({ stage, onAddJob }) {
   const copy = {
-    Lead:     { icon: '📋', title: 'No leads yet', hint: 'Got a phone enquiry? Log it now and JobProfit tracks it from here.', cta: true },
-    Quoted:   { icon: '📨', title: 'No quotes out', hint: 'Tap + New job to create a quote — it lands here once sent.', cta: true },
-    On:       { icon: '🔨', title: 'Nothing on the go', hint: "Either you're on holiday or it's time to chase a quote." },
-    Invoiced: { icon: '🧾', title: 'No invoices waiting', hint: 'Finish a job and send the invoice — it sits here until paid.' },
-    Overdue:  { icon: '✅', title: 'Nothing overdue', hint: 'Good week. All invoices are in date.' },
-    Paid:     { icon: '💷', title: 'No paid jobs yet', hint: 'Paid jobs show here once the money lands.' },
-    All:      { icon: '📋', title: 'No jobs yet', hint: 'Log your first job and JobProfit does the maths.', cta: true },
+    Lead:     { iconName: 'lead',       title: 'No leads yet',         hint: 'Got a phone enquiry? Log it now and JobProfit tracks it from here.', cta: true },
+    Quoted:   { iconName: 'quote-sent', title: 'No quotes out',        hint: 'Tap + New job to create a quote — it lands here once sent.', cta: true },
+    On:       { iconName: 'active-job', title: 'Nothing on the go',    hint: "Either you're on holiday or it's time to chase a quote." },
+    Invoiced: { iconName: 'invoice',    title: 'No invoices waiting',  hint: 'Finish a job and send the invoice — it sits here until paid.' },
+    Overdue:  { iconName: 'complete',   title: 'Nothing overdue',      hint: 'Good week. All invoices are in date.', branded: true },
+    Paid:     { iconName: 'paid',       title: 'No paid jobs yet',     hint: 'Paid jobs show here once the money lands.' },
+    All:      { iconName: 'lead',       title: 'No jobs yet',          hint: 'Log your first job and JobProfit does the maths.', cta: true },
   };
-  const { icon, title, hint, cta } = copy[stage] ?? { icon: '📋', title: 'No jobs', hint: 'Tap + New job to get started.', cta: true };
+  const { iconName, title, hint, cta, branded } = copy[stage] ?? { iconName: 'lead', title: 'No jobs', hint: 'Tap + New job to get started.', cta: true };
+  // branded: Overdue all-clear gets brand-green (earned positive signal); others muted
+  const variant = branded ? 'brand' : 'muted';
   return (
     <div className="screen-empty">
-      <div className="screen-empty-icon" aria-hidden="true">{icon}</div>
+      <div className="screen-empty-icon">
+        <Icon name={iconName} size={32} variant={variant} />
+      </div>
       <p className="screen-empty-title">{title}</p>
       <p className="screen-empty-hint">{hint}</p>
       {cta && onAddJob && (
