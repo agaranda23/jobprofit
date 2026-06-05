@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import Icon from './Icon';
 import PaymentSummaryBlock from './PaymentSummaryBlock';
 import PaymentHistoryList from './PaymentHistoryList';
 import RecordPaymentModal from './RecordPaymentModal';
@@ -264,13 +265,13 @@ function CustomerCard({ job, onEditName, onEditPhone, onEditAddress, onEditEmail
             onClick={onEditName}
             aria-label="Edit customer name"
           >
-            <span className="jd-card-row-icon" aria-hidden="true">👤</span>
+            <span className="jd-card-row-icon"><Icon name="customer" size={16} variant="muted" /></span>
             <span className="jd-card-row-val">{customer}</span>
             <span className="jd-card-row-edit" aria-hidden="true">›</span>
           </button>
         ) : (
           <div className="jd-card-row">
-            <span className="jd-card-row-icon" aria-hidden="true">👤</span>
+            <span className="jd-card-row-icon"><Icon name="customer" size={16} variant="muted" /></span>
             <span className="jd-card-row-val">{customer}</span>
           </div>
         )
@@ -282,7 +283,7 @@ function CustomerCard({ job, onEditName, onEditPhone, onEditAddress, onEditEmail
             onClick={onEditName}
             aria-label="Add customer name"
           >
-            <span className="jd-card-row-icon" aria-hidden="true">👤</span>
+            <span className="jd-card-row-icon"><Icon name="customer" size={16} variant="muted" /></span>
             <span className="jd-card-row-add">+ Add customer name</span>
           </button>
         )
@@ -293,7 +294,7 @@ function CustomerCard({ job, onEditName, onEditPhone, onEditAddress, onEditEmail
       {phone ? (
         <>
           <div className="jd-card-row jd-card-row--phone">
-            <span className="jd-card-row-icon" aria-hidden="true">📞</span>
+            <span className="jd-card-row-icon"><Icon name="phone" size={16} variant="muted" /></span>
             <a
               href={`tel:${phone}`}
               className="jd-card-row-val jd-card-row-val--link"
@@ -351,7 +352,7 @@ function CustomerCard({ job, onEditName, onEditPhone, onEditAddress, onEditEmail
             onClick={onEditPhone}
             aria-label="Add customer phone"
           >
-            <span className="jd-card-row-icon" aria-hidden="true">📞</span>
+            <span className="jd-card-row-icon"><Icon name="phone" size={16} variant="muted" /></span>
             <span className="jd-card-row-add">+ Add phone</span>
           </button>
         )
@@ -373,7 +374,7 @@ function CustomerCard({ job, onEditName, onEditPhone, onEditAddress, onEditEmail
                 aria-label={`Open ${address} in Maps`}
                 onClick={() => logTelemetry('drawer_action_map', { source: 'drawer' })}
               >
-                <span className="jd-card-row-icon" aria-hidden="true">📍</span>
+                <span className="jd-card-row-icon"><Icon name="address" size={16} variant="muted" /></span>
                 <span className="jd-card-row-val">{address}</span>
               </a>
               <button
@@ -407,7 +408,7 @@ function CustomerCard({ job, onEditName, onEditPhone, onEditAddress, onEditEmail
             className="jd-card-row jd-card-row--link"
             aria-label={`Open ${address} in Maps`}
           >
-            <span className="jd-card-row-icon" aria-hidden="true">📍</span>
+            <span className="jd-card-row-icon"><Icon name="address" size={16} variant="muted" /></span>
             <span className="jd-card-row-val">{address}</span>
           </a>
         )
@@ -419,7 +420,7 @@ function CustomerCard({ job, onEditName, onEditPhone, onEditAddress, onEditEmail
             onClick={onEditAddress}
             aria-label="Add address"
           >
-            <span className="jd-card-row-icon" aria-hidden="true">📍</span>
+            <span className="jd-card-row-icon"><Icon name="address" size={16} variant="muted" /></span>
             <span className="jd-card-row-add">+ Add address</span>
           </button>
         )
@@ -434,13 +435,13 @@ function CustomerCard({ job, onEditName, onEditPhone, onEditAddress, onEditEmail
             onClick={onEditEmail}
             aria-label="Edit customer email"
           >
-            <span className="jd-card-row-icon" aria-hidden="true">✉️</span>
+            <span className="jd-card-row-icon"><Icon name="email" size={16} variant="muted" /></span>
             <span className="jd-card-row-val">{email}</span>
             <span className="jd-card-row-edit" aria-hidden="true">›</span>
           </button>
         ) : (
           <a href={`mailto:${email}`} className="jd-card-row jd-card-row--link">
-            <span className="jd-card-row-icon" aria-hidden="true">✉️</span>
+            <span className="jd-card-row-icon"><Icon name="email" size={16} variant="muted" /></span>
             <span className="jd-card-row-val">{email}</span>
           </a>
         )
@@ -452,7 +453,7 @@ function CustomerCard({ job, onEditName, onEditPhone, onEditAddress, onEditEmail
             onClick={onEditEmail}
             aria-label="Add customer email"
           >
-            <span className="jd-card-row-icon" aria-hidden="true">✉️</span>
+            <span className="jd-card-row-icon"><Icon name="email" size={16} variant="muted" /></span>
             <span className="jd-card-row-add">+ Add email</span>
           </button>
         )
@@ -467,13 +468,13 @@ function CustomerCard({ job, onEditName, onEditPhone, onEditAddress, onEditEmail
             onClick={onEditDescription}
             aria-label="Edit job description"
           >
-            <span className="jd-card-row-icon" aria-hidden="true">📋</span>
+            <span className="jd-card-row-icon"><Icon name="note" size={16} variant="muted" /></span>
             <span className="jd-card-row-val">{description}</span>
             <span className="jd-card-row-edit" aria-hidden="true">›</span>
           </button>
         ) : (
           <div className="jd-card-row">
-            <span className="jd-card-row-icon" aria-hidden="true">📋</span>
+            <span className="jd-card-row-icon"><Icon name="note" size={16} variant="muted" /></span>
             <span className="jd-card-row-val">{description}</span>
           </div>
         )
@@ -485,7 +486,7 @@ function CustomerCard({ job, onEditName, onEditPhone, onEditAddress, onEditEmail
             onClick={onEditDescription}
             aria-label="Add job description"
           >
-            <span className="jd-card-row-icon" aria-hidden="true">📋</span>
+            <span className="jd-card-row-icon"><Icon name="note" size={16} variant="muted" /></span>
             <span className="jd-card-row-add">+ Add description</span>
           </button>
         )
@@ -705,7 +706,7 @@ function DetailsSection({
         {(hasPhone || canEditFields) && (
           hasPhone ? (
             <div className="jd-phone-action-row">
-              <span className="jd-detail-icon" aria-hidden="true">📞</span>
+              <span className="jd-detail-icon"><Icon name="phone" size={16} variant="muted" /></span>
               <a
                 href={`tel:${phone}`}
                 className="jd-phone-action-val"
@@ -733,7 +734,7 @@ function DetailsSection({
                 aria-label="Add customer phone"
               >
                 <span className="jd-detail-edit-row-left">
-                  <span className="jd-detail-icon">📞</span>
+                  <span className="jd-detail-icon"><Icon name="phone" size={16} variant="muted" /></span>
                   <span className="jd-detail-edit-row-add--dim">+ Add phone</span>
                 </span>
                 <span className="jd-detail-edit-chevron" aria-hidden="true">›</span>
@@ -752,7 +753,7 @@ function DetailsSection({
               aria-label={hasEmail ? 'Edit customer email' : 'Add customer email'}
             >
               <span className="jd-detail-edit-row-left">
-                <span className="jd-detail-icon">✉️</span>
+                <span className="jd-detail-icon"><Icon name="email" size={16} variant="muted" /></span>
                 {hasEmail
                   ? <span className="jd-detail-edit-row-value">{email}</span>
                   : <span className="jd-detail-edit-row-add--dim">+ Add email</span>
@@ -762,20 +763,20 @@ function DetailsSection({
             </button>
           ) : (
             <a href={`mailto:${email}`} className="jd-detail-row jd-detail-link">
-              <span className="jd-detail-icon">✉️</span>
+              <span className="jd-detail-icon"><Icon name="email" size={16} variant="muted" /></span>
               <span>{email}</span>
             </a>
           )
         )}
         {hasCompleted && (
           <div className="jd-detail-row">
-            <span className="jd-detail-icon">✅</span>
+            <span className="jd-detail-icon"><Icon name="complete" size={16} variant="success" /></span>
             <span>Completed {fmtDate(job.completedAt)}</span>
           </div>
         )}
         {hasHours && (
           <div className="jd-detail-row">
-            <span className="jd-detail-icon">⏱️</span>
+            <span className="jd-detail-icon"><Icon name="hours" size={16} variant="muted" /></span>
             <span>{job.hoursEstimate || job.hours} hrs estimated</span>
           </div>
         )}
@@ -950,7 +951,7 @@ function VisitRow({ visit, onTap, onMarkDone, canEdit }) {
 
   const rowContent = (
     <>
-      <span className="jd-card-row-icon" aria-hidden="true">📅</span>
+      <span className="jd-card-row-icon"><Icon name="date" size={16} variant="muted" /></span>
       <span className={`jd-card-row-val${isDone ? ' visit-row-val--done' : ''}`}>
         {dateStr}{timeStr}
         <VisitStatusPill status={computedStatus} />
@@ -1040,7 +1041,7 @@ function ScheduleFinishFooter({ job, jobVisits, canEdit, onEndJob, onSetTarget, 
   return (
     <div className="jd-finish-line">
       <div className="jd-finish-target-row">
-        <span className="jd-finish-target-lbl">{isEnded ? "🎯 Aimed for" : "🎯 Aiming to finish"}</span>
+        <span className="jd-finish-target-lbl">{isEnded ? "Aimed for" : "Aiming to finish"}</span>
         {targetFinishDate ? (
           <>
             <span className="jd-finish-target-val">{fmtDate(targetFinishDate)}</span>
@@ -1062,23 +1063,23 @@ function ScheduleFinishFooter({ job, jobVisits, canEdit, onEndJob, onSetTarget, 
       </div>
       {isEnded && (
         <div className="jd-finish-actual-row">
-          <span className="jd-finish-target-lbl">🏁 Finished</span>
+          <span className="jd-finish-target-lbl">Finished</span>
           <span className="jd-finish-target-val">{fmtDate(completedAt)}</span>
         </div>
       )}
       {finishStatus && (
         <div className={`jd-finish-status ${toneCls}`} role="status">
-          {finishStatus.tone === "ontrack" && "✓ "}
-          {finishStatus.tone === "overdue" && "⚠ "}
-          {finishStatus.tone === "duetoday" && "📅 "}
-          {finishStatus.label}
+          {finishStatus.tone === "ontrack" && <Icon name="check" size={14} variant="success" />}
+          {finishStatus.tone === "overdue" && <Icon name="warning" size={14} variant="danger" />}
+          {finishStatus.tone === "duetoday" && <Icon name="date" size={14} variant="brand" />}
+          {' '}{finishStatus.label}
         </div>
       )}
       {canEdit && (
         isEnded ? (
           <button type="button" className="jd-finish-reopen-btn" onClick={onReopen}>Job ended — reopen</button>
         ) : (
-          <button type="button" className="jd-finish-end-btn" onClick={onEndJob}>✓ End job — today</button>
+          <button type="button" className="jd-finish-end-btn" onClick={onEndJob}>End job — today</button>
         )
       )}
     </div>
@@ -1653,7 +1654,7 @@ function ReceiptsSection({ job, receipts, onAddReceipt, onDeleteReceipt, onEditR
           <img src={r.photo} alt="" className="jd-receipt-thumb" />
         </div>
       ) : (
-        <div className="jd-receipt-icon" aria-hidden="true">🧾</div>
+        <div className="jd-receipt-icon"><Icon name="receipt" size={16} variant="muted" /></div>
       )}
       <div className="jd-receipt-meta">
         <div className="jd-receipt-label">{r.label || 'Receipt'}</div>
@@ -1686,7 +1687,7 @@ function ReceiptsSection({ job, receipts, onAddReceipt, onDeleteReceipt, onEditR
           onClick={onAddReceipt}
           aria-label="Add receipt"
         >
-          <span className="jd-card-row-icon" aria-hidden="true">🧾</span>
+          <span className="jd-card-row-icon"><Icon name="receipt" size={16} variant="muted" /></span>
           <span className="jd-card-row-add">+ Add receipt</span>
         </button>
       </div>
@@ -1704,7 +1705,7 @@ function ReceiptsSection({ job, receipts, onAddReceipt, onDeleteReceipt, onEditR
           onClick={onAddReceipt}
           aria-label="Add another receipt"
         >
-          <span className="jd-card-row-icon" aria-hidden="true">➕</span>
+          <span className="jd-card-row-icon"><Icon name="add" size={16} variant="muted" /></span>
           <span className="jd-card-row-add">+ Add receipt</span>
         </button>
       )}
@@ -2395,7 +2396,7 @@ function PhotoSourceSheet({ open, onTakePhoto, onUploadPhoto, onClose, triggerRe
           className="photo-source-row"
           onClick={onTakePhoto}
         >
-          <span className="photo-source-icon" aria-hidden="true">📷</span>
+          <span className="photo-source-icon"><Icon name="camera" size={20} variant="muted" /></span>
           Take photo
         </button>
         <button
@@ -2403,7 +2404,7 @@ function PhotoSourceSheet({ open, onTakePhoto, onUploadPhoto, onClose, triggerRe
           className="photo-source-row"
           onClick={onUploadPhoto}
         >
-          <span className="photo-source-icon" aria-hidden="true">🖼️</span>
+          <span className="photo-source-icon"><Icon name="photos" size={20} variant="muted" /></span>
           Upload from photos
         </button>
         <button
@@ -3773,7 +3774,7 @@ export default function JobDetailDrawer({
                 <CollapsedSectionRow
                   key="schedule"
                   id="schedule"
-                  icon="🗓️"
+                  icon={<Icon name="date" size={16} variant="muted" />}
                   title="Schedule"
                   meta={scheduledDisplay}
                   defaultExpanded={false}
@@ -3861,7 +3862,7 @@ export default function JobDetailDrawer({
                 <CollapsedSectionRow
                   key="quote"
                   id="quote"
-                  icon="📋"
+                  icon={<Icon name="lead" size={16} variant="muted" />}
                   title="Quote"
                   meta={quoteMeta}
                   needsAttention={attention.quote}
@@ -3874,7 +3875,7 @@ export default function JobDetailDrawer({
                 <CollapsedSectionRow
                   key="costs"
                   id="costs"
-                  icon="🧰"
+                  icon={<Icon name="materials" size={16} variant="muted" />}
                   title="Costs"
                   meta={costsMeta}
                   needsAttention={attention.costs}
@@ -3918,7 +3919,7 @@ export default function JobDetailDrawer({
                         disabled={photoAdding}
                         aria-label="Add photo"
                       >
-                        {photoAdding ? 'Adding…' : '📷 Add photo'}
+                        {photoAdding ? 'Adding…' : <><Icon name="camera" size={16} />{' '}Add photo</>}
                       </button>
                       <button
                         type="button"
@@ -3926,7 +3927,7 @@ export default function JobDetailDrawer({
                         onClick={() => setNoteFormOpen(true)}
                         aria-label="Add note"
                       >
-                        📝 Add note
+                        <Icon name="note" size={16} />{' '}Add note
                       </button>
                     </div>
                   )}
@@ -4078,7 +4079,8 @@ export default function JobDetailDrawer({
         <div className="modal-backdrop" onClick={() => setPostPaidCostActive(false)}>
           <div className="modal modal--paid-success" onClick={e => e.stopPropagation()}>
             <div className="modal-paid-badge">
-              <span className="modal-paid-check" aria-hidden="true">&#10003;</span>
+              {/* Branded micro-touch: brand-green CircleCheck — warmth from colour + copy below */}
+              <span className="modal-paid-check"><Icon name="paid" size={32} variant="brand" /></span>
               <span className="modal-paid-label">Paid</span>
             </div>
             <PostPaidCostRow
