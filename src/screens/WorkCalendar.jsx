@@ -528,7 +528,15 @@ export default function WorkCalendar({ jobs = [], onNewJobOnDate, onJobTap }) {
         />
       )}
       {calView === 'week' && (
-        <div className="wc-week-label">{weekLabel}</div>
+        <NavHeader
+          label={weekLabel}
+          onPrev={() => stepWeek(-1)}
+          onNext={() => stepWeek(1)}
+          onPickDate={openDatePicker}
+          onToday={goToToday}
+          prevAriaLabel="Previous week"
+          nextAriaLabel="Next week"
+        />
       )}
       {calView === 'month' && (
         <NavHeader

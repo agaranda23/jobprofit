@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v67';  // bumped from v66: Day + Month calendar views, stage-chip hiding in calendar mode
+const CACHE_NAME = 'jobprofit-v68';  // bumped from v67: Week view nav header — shared chevron/Today pill parity with Day + Month
 const PRECACHE = [
   '/',
   '/index.html',
