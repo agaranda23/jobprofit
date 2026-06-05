@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v63';  // bumped from v62: schedule finish-line footer (targetFinishDate + End job CTA)
+const CACHE_NAME = 'jobprofit-v64';  // bumped from v63: promote Photos & notes out of More accordion; photo source chooser sheet
 const PRECACHE = [
   '/',
   '/index.html',

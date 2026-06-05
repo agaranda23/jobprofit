@@ -17,7 +17,6 @@ import NextStepCard from './NextStepCard';
 import CollapsedSectionRow from './CollapsedSectionRow';
 import ProfitRibbon from './ProfitRibbon';
 import ProfitBreakdownSheet from './ProfitBreakdownSheet';
-import MoreDisclosure from './MoreDisclosure';
 import { getDrawerSectionConfig } from '../lib/drawerSectionConfig';
 import { deriveNextStepContent } from '../lib/nextStepContent';
 import { sectionsNeedingAttention } from '../lib/sectionAttention';
@@ -2340,6 +2339,85 @@ function CardPaymentBlock({ job, token }) {
   );
 }
 
+// ── Photo source chooser sheet ────────────────────────────────────────────
+
+/**
+ * PhotoSourceSheet — bottom action sheet that asks the user whether to take
+ * a new photo or pick from their gallery.  Reuses .visit-editor-backdrop /
+ * .visit-editor-sheet chrome so it matches the existing bottom-sheet look.
+ *
+ * Props:
+ *   open            – boolean; controlled by parent
+ *   onTakePhoto     – callback: close sheet then open camera input
+ *   onUploadPhoto   – callback: close sheet then open gallery input
+ *   onClose         – callback: close with no action
+ *   triggerRef      – ref to the Add-photo button; focus returned on close
+ */
+function PhotoSourceSheet({ open, onTakePhoto, onUploadPhoto, onClose, triggerRef }) {
+  const firstRowRef = React.useRef(null);
+
+  // Focus first row on open; return focus to trigger on close
+  React.useEffect(() => {
+    if (open) {
+      // rAF ensures the sheet is in the DOM before we focus
+      const id = requestAnimationFrame(() => { firstRowRef.current?.focus(); });
+      return () => cancelAnimationFrame(id);
+    } else {
+      triggerRef?.current?.focus();
+    }
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Escape closes the sheet
+  React.useEffect(() => {
+    if (!open) return;
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [open, onClose]);
+
+  if (!open) return null;
+
+  return (
+    <div
+      className="photo-source-backdrop"
+      role="dialog"
+      aria-modal="true"
+      aria-label="Add photo — choose source"
+      onClick={onClose}
+    >
+      <div
+        className="photo-source-sheet"
+        onClick={e => e.stopPropagation()}
+      >
+        <button
+          type="button"
+          ref={firstRowRef}
+          className="photo-source-row"
+          onClick={onTakePhoto}
+        >
+          <span className="photo-source-icon" aria-hidden="true">📷</span>
+          Take photo
+        </button>
+        <button
+          type="button"
+          className="photo-source-row"
+          onClick={onUploadPhoto}
+        >
+          <span className="photo-source-icon" aria-hidden="true">🖼️</span>
+          Upload from photos
+        </button>
+        <button
+          type="button"
+          className="photo-source-row photo-source-row--cancel"
+          onClick={onClose}
+        >
+          Cancel
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ── Main component ────────────────────────────────────────────────────────
 
 /**
@@ -2431,9 +2509,15 @@ export default function JobDetailDrawer({
     return new Set(config.filter(s => s.display === 'expanded').map(s => s.id));
   });
 
-  // Photo add — hidden file input, ref kept here so the button can trigger it
-  const photoInputRef = useRef(null);
+  // Photo add — refs for the two hidden file inputs (camera + gallery)
+  // photoInputRef kept for any legacy callers that still reference it directly.
+  const photoInputRef = useRef(null);   // legacy alias → points at galleryInputRef target
+  const cameraInputRef = useRef(null);
+  const galleryInputRef = useRef(null);
+  const addPhotoBtnRef = useRef(null);  // focus-return target when sheet closes
   const [photoAdding, setPhotoAdding] = useState(false);
+  // Photo source chooser sheet — opened when user taps "📷 Add photo"
+  const [photoSheetOpen, setPhotoSheetOpen] = useState(false);
 
   // Note add — inline form state
   const [noteFormOpen, setNoteFormOpen] = useState(false);
@@ -2475,11 +2559,12 @@ export default function JobDetailDrawer({
   // null = closed; 'name' | 'phone' | 'email' | 'summary' = which field is open.
   const [editingField, setEditingField] = useState(null);
 
-  // Close on Escape — also closes lightbox, kebab, or customer-field edit modal if open
+  // Close on Escape — also closes lightbox, photo sheet, kebab, or edit modals if open
   useEffect(() => {
     const onKey = (e) => {
       if (e.key === 'Escape') {
         if (lightboxSrc) { setLightboxSrc(null); setLightboxReceipt(null); return; }
+        if (photoSheetOpen) { setPhotoSheetOpen(false); return; }
         if (kebabOpen) { setKebabOpen(false); return; }
         if (editingField) { setEditingField(null); return; }
         if (editingNote) { setEditingNote(null); return; }
@@ -2489,7 +2574,7 @@ export default function JobDetailDrawer({
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [onClose, lightboxSrc, kebabOpen, editingField, editingNote, editingPayment]);
+  }, [onClose, lightboxSrc, photoSheetOpen, kebabOpen, editingField, editingNote, editingPayment]);
 
   // Scroll-chain bug fix: lock body scroll while the drawer is open.
   // Saves and restores the prior scroll position so the user lands back
@@ -2820,8 +2905,9 @@ export default function JobDetailDrawer({
       showFlash('Photo added');
     }
     setPhotoAdding(false);
-    // Reset input so the same file can be re-added if needed
-    if (photoInputRef.current) photoInputRef.current.value = '';
+    // Reset whichever input fired so the same file can be re-added if needed.
+    // Previously reset photoInputRef unconditionally — that broke the camera input.
+    e.target.value = '';
   };
 
   // ── Photo caption ─────────────────────────────────────────────────────────
@@ -3628,12 +3714,14 @@ export default function JobDetailDrawer({
             // ── Costs accordion: default expanded at Active stage ────────────
             const costsDefaultExpanded = status === 'Active' || attention.costs;
 
-            // ── More (Photos · Notes · Exclude) ─────────────────────────────
+            // ── Photos & Notes — always-visible section (no More accordion) ──
+            // onAddPhoto opens the PhotoSourceSheet; PhotosSection still receives
+            // it so the in-grid "+ Add photo" button also routes through the sheet.
             const photosEl = (
               <PhotosSection
                 photos={job.photos}
                 onViewPhoto={setLightboxSrc}
-                onAddPhoto={onUpdateJob ? () => photoInputRef.current?.click() : undefined}
+                onAddPhoto={onUpdateJob ? () => setPhotoSheetOpen(true) : undefined}
                 photoAdding={photoAdding}
                 onDeletePhoto={onUpdateJob ? handleDeletePhoto : undefined}
                 onSetCaption={onUpdateJob ? handleSetCaption : undefined}
@@ -3661,18 +3749,6 @@ export default function JobDetailDrawer({
               (typeof job.notes === 'string' && job.notes.trim());
             // hasExcludeToggle is used only by ExcludeTaxRow now (lifted out of More).
             const hasExcludeToggle = !isCisUser && !!onUpdateJob;
-            const hasAnyMoreContent = hasPhotoContent || hasNoteContent;
-            const moreSummaryParts = [];
-            if (hasPhotoContent) moreSummaryParts.push(`Photos (${photoCount})`);
-            else if (onUpdateJob) moreSummaryParts.push('Photos');
-            if (hasNoteContent) {
-              const noteCount = Array.isArray(job.jobNotes) ? job.jobNotes.length : 0;
-              moreSummaryParts.push(noteCount > 0 ? `Notes (${noteCount})` : 'Notes');
-            } else if (onUpdateJob) {
-              moreSummaryParts.push('Notes');
-            }
-            const moreSummary = moreSummaryParts.join(' · ');
-            const showMore = !!moreSummary;
 
             return (
               <>
@@ -3829,16 +3905,34 @@ export default function JobDetailDrawer({
                   View profit breakdown
                 </button>
 
-                {/* 10. More (Photos · Notes) */}
-                {showMore && (
-                  <MoreDisclosure
-                    summary={moreSummary}
-                    hasContent={hasAnyMoreContent || noteFormOpen}
-                  >
-                    {photosEl}
-                    {(hasNoteContent || noteFormOpen || onUpdateJob) && notesEl}
-                  </MoreDisclosure>
-                )}
+                {/* 10. Photos & notes — always visible, no accordion */}
+                <div className="jd-photos-notes-section">
+                  <div className="jd-section-label jd-photos-notes-label">Photos &amp; notes</div>
+                  {onUpdateJob && (
+                    <div className="jd-photos-notes-btns">
+                      <button
+                        ref={addPhotoBtnRef}
+                        type="button"
+                        className="jd-photos-notes-btn"
+                        onClick={() => setPhotoSheetOpen(true)}
+                        disabled={photoAdding}
+                        aria-label="Add photo"
+                      >
+                        {photoAdding ? 'Adding…' : '📷 Add photo'}
+                      </button>
+                      <button
+                        type="button"
+                        className="jd-photos-notes-btn"
+                        onClick={() => setNoteFormOpen(true)}
+                        aria-label="Add note"
+                      >
+                        📝 Add note
+                      </button>
+                    </div>
+                  )}
+                  {hasPhotoContent && photosEl}
+                  {(hasNoteContent || noteFormOpen) && notesEl}
+                </div>
 
                 {/* 11. B2B settings row — no card chrome, below More */}
                 <B2BSettingsRow
@@ -3863,16 +3957,35 @@ export default function JobDetailDrawer({
             );
           })()}
 
-          {/* Hidden file input for photo capture — rendered here so handlePhotoFiles
-              has access to onUpdateJob via closure. The button lives in PhotosSection. */}
+          {/* Hidden file inputs — camera (single shot) + gallery (multi).
+              Both share the same handlePhotoFiles handler; reset is done via
+              e.target.value so both inputs work on repeat selections. */}
           <input
-            ref={photoInputRef}
+            ref={cameraInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            style={{ display: 'none' }}
+            onChange={handlePhotoFiles}
+            aria-hidden="true"
+          />
+          <input
+            ref={(node) => { galleryInputRef.current = node; photoInputRef.current = node; }}
             type="file"
             accept="image/*"
             multiple
             style={{ display: 'none' }}
             onChange={handlePhotoFiles}
             aria-hidden="true"
+          />
+
+          {/* Photo source chooser — bottom action sheet opened by 📷 Add photo */}
+          <PhotoSourceSheet
+            open={photoSheetOpen}
+            triggerRef={addPhotoBtnRef}
+            onTakePhoto={() => { setPhotoSheetOpen(false); cameraInputRef.current?.click(); }}
+            onUploadPhoto={() => { setPhotoSheetOpen(false); galleryInputRef.current?.click(); }}
+            onClose={() => setPhotoSheetOpen(false)}
           />
         </div>
 
