@@ -32,6 +32,7 @@
 import { useMemo, useState, useCallback, useRef, useEffect } from 'react';
 import { gbp, todayKey } from '../lib/today';
 import { isPro } from '../lib/plan';
+import Icon from '../components/Icon';
 import HeaderAvatar from '../components/HeaderAvatar';
 import CashflowChart from '../components/CashflowChart';
 import ProGate from '../components/ProGate';
@@ -630,7 +631,7 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
                   (NET)
                 </span>
                 <span className="money-hero__true-profit-locked-badge">
-                  <span>&#x1F512;</span>
+                  <Icon name="lock" size={16} />
                   <span>Pro</span>
                 </span>
               </div>
@@ -642,7 +643,7 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
       {/* ── 1b. Data trust nudge — shown when data is incomplete, below hero ── */}
       {dataTrustHint && !trustHintDismissed && (
         <div className="money-trust-hint" role="note">
-          <span className="money-trust-hint__icon" aria-hidden="true">&#x24D8;</span>
+          <Icon name="info" size={16} className="money-trust-hint__icon" />
           <div className="money-trust-hint__body">
             <span className="money-trust-hint__msg">{dataTrustHint.message}</span>
             {(dataTrustHint.type === 'markPaid' ? !!onGoToJobs : !!onGoToSettings) && (
@@ -890,7 +891,7 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
             <div className="money-insight__row">
               <span className="money-insight__label">Est. Profit/Hour</span>
               <span className="money-insight__tooltip" title="Based on your default hourly rate. Add hours to a job to make this exact.">
-                &#x24D8;
+                <Icon name="info" size={16} />
               </span>
             </div>
             <div className="money-insight__value pro-gate__figure">
@@ -917,7 +918,7 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
             <div className="money-insight__row">
               <span className="money-insight__label">Est. Profit/Hour</span>
               <span className="money-insight__tooltip" title="Based on your default hourly rate. Add hours to a job to make this exact.">
-                &#x24D8;
+                <Icon name="info" size={16} />
               </span>
             </div>
             <div className="money-insight__value pro-gate__figure">
@@ -960,7 +961,10 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
       {showMarginNudge && (
         <ProGate locked={!userIsPro} hasValue={true} onUpgrade={() => handleUpgrade('progate')}>
           <div className={`money-card money-nudge money-nudge--${marginTrend.deltaSign}`}>
-            <span className="money-nudge__icon">{marginTrend.deltaSign === 'up' ? '📈' : '📉'}</span>
+            {marginTrend.deltaSign === 'up'
+              ? <Icon name="trend-up" size={20} variant="success" className="money-nudge__icon" />
+              : <Icon name="trend-down" size={20} variant="danger" className="money-nudge__icon" />
+            }
             <span className="money-nudge__copy pro-gate__figure">{marginNudgeCopy}</span>
             {marginTrend.deltaSign !== 'up' && (
               <span className="money-nudge__caret"> →</span>
@@ -981,9 +985,12 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
             <span className="money-timeline__title">
               Recent transactions &middot; {totalTimelineEntries} {totalTimelineEntries === 1 ? 'entry' : 'entries'}
             </span>
-            <span className={`money-timeline__chevron${timelineOpen ? ' money-timeline__chevron--open' : ''}`} aria-hidden="true">
-              &#x25BE;
-            </span>
+            <Icon
+              name="chevron-down"
+              size={16}
+              variant="muted"
+              className={`money-timeline__chevron${timelineOpen ? ' money-timeline__chevron--open' : ''}`}
+            />
           </button>
 
           {timelineOpen && (
@@ -1011,7 +1018,7 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
       {/* ── Full empty state ─────────────────────────────────────────────── */}
       {!hasActivity && (
         <div className="screen-empty">
-          <div className="screen-empty-icon" aria-hidden="true">💷</div>
+          <Icon name="money" size={32} variant="muted" label="No money activity yet" />
           <p className="screen-empty-title">Nothing here yet.</p>
           <p className="screen-empty-hint">
             Your profit shows up once you log a job and mark it paid.
