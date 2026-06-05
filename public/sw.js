@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v65';  // bumped from v64: calendar "+" date pre-fill, future-dated jobs, 44px tap targets
+const CACHE_NAME = 'jobprofit-v66';  // bumped from v65: fix JSX comment-in-props syntax error in AddJobModal, rebase onto icon-system PRs
 const PRECACHE = [
   '/',
   '/index.html',

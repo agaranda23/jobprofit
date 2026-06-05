@@ -995,7 +995,7 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMo
                       className="aj-date-input"
                       value={jobDate}
                       onChange={e => setJobDate(e.target.value)}
-                      {/* max removed: future-dated jobs allowed for scheduling */}
+                      // max removed: future-dated jobs allowed for scheduling
                     />
                     <span className="aj-date-label">{formatDateLabel(jobDate)}</span>
                   </div>
