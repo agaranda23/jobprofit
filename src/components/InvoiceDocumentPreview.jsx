@@ -196,7 +196,9 @@ function PreviewLineItems({ job }) {
   );
 }
 
-function PreviewSummary({ quote, materials, showVat, vatNumber, isCisJob, cisRate, itemiseDocuments = false }) {
+// depositCreditAmount: pre-invoice deposit total (pounds, number) surfaced as a credit on
+// the invoice. Reduces the balance due line. 0 = no credit line shown.
+function PreviewSummary({ quote, materials, showVat, vatNumber, isCisJob, cisRate, itemiseDocuments = false, depositCreditAmount = 0 }) {
   const labour       = Math.max(0, quote - materials);
   const vat          = showVat ? Math.round(quote * 0.2 * 100) / 100 : 0;
   const grossTotal   = quote + vat;
@@ -249,6 +251,22 @@ function PreviewSummary({ quote, materials, showVat, vatNumber, isCisJob, cisRat
           <span style={{ color: DARK }}>Total Payable</span>
           <span style={{ color: DARK }}>{gbp(totalPayable)}</span>
         </div>
+
+        {/* Deposit credit line — shown when a pre-invoice deposit has been recorded
+            in payments[]. Reduces the balance due shown on the invoice. */}
+        {depositCreditAmount > 0 && (
+          <>
+            <div style={{ ...rowStyle, color: GREEN }}>
+              <span>Deposit received</span>
+              <span>−{gbp(depositCreditAmount)}</span>
+            </div>
+            <div style={{ borderTop: `1.5px solid ${GREEN}`, margin: '4px 8px 0' }} />
+            <div style={{ ...rowStyle, fontWeight: 800, paddingTop: 6 }}>
+              <span style={{ color: DARK }}>Balance due</span>
+              <span style={{ color: DARK }}>{gbp(Math.max(0, totalPayable - depositCreditAmount))}</span>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
@@ -368,6 +386,16 @@ export default function InvoiceDocumentPreview({
   const itemiseDocuments = (profile?.itemise_documents) ?? false;
   const paymentTermsDays = profile?.payment_terms_days ?? 14;
 
+  // Deposit credit: sum any payments recorded before the invoice was sent
+  // (i.e. payments with a note matching /deposit/i). These surface as a
+  // "Deposit received −£X / Balance due £Y" credit line on the invoice preview.
+  // Uses the same payments[] data the rest of the UI reads — no new DB column.
+  const depositCreditAmount = Array.isArray(job?.payments)
+    ? job.payments
+        .filter(p => /deposit/i.test(p.note || ''))
+        .reduce((sum, p) => sum + Number(p.amount || 0), 0)
+    : 0;
+
   return (
     <div
       className="invoice-doc-preview"
@@ -403,6 +431,7 @@ export default function InvoiceDocumentPreview({
         isCisJob={isCisJob}
         cisRate={cisRate}
         itemiseDocuments={itemiseDocuments}
+        depositCreditAmount={depositCreditAmount}
       />
 
       <PreviewPaymentDetails

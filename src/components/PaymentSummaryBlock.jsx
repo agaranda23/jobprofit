@@ -78,11 +78,22 @@ export default function PaymentSummaryBlock({
 
   // ── Variant A: pre-invoice, no payments yet ─────────────────────────────
   if (isPreInvoice && payments.length === 0) {
+    const depositPercent = Number(job.deposit_percent ?? 0);
+    const depositRequested = depositPercent > 0;
+    const quoteTotal = job.total ?? job.amount ?? 0;
+    const depositGbpStr = depositRequested && quoteTotal > 0
+      ? ` (£${((quoteTotal * depositPercent) / 100).toFixed(2)})`
+      : '';
     return (
       <div className="payment-summary payment-summary--pre-invoice-empty">
+        {depositRequested && (
+          <div className="payment-summary-deposit-notice">
+            Deposit requested{depositGbpStr} &middot; not yet received
+          </div>
+        )}
         <div className="payment-summary-actions">
           <button type="button" className="btn-primary" onClick={onRecordPayment}>
-            Record Payment
+            {depositRequested ? 'Record deposit' : 'Record Payment'}
           </button>
         </div>
       </div>

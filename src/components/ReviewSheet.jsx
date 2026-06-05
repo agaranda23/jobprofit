@@ -47,6 +47,7 @@ import { logTelemetry } from '../lib/telemetry';
 import { isPro } from '../lib/plan';
 import { canShareFile } from '../lib/webShare';
 import { stagePatch } from '../lib/jobStatus';
+import { supabase } from '../lib/supabase';
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -91,14 +92,16 @@ function PreviewTable({ job }) {
 
 // ── Component ──────────────────────────────────────────────────────────────────
 
-// ── DepositPickerRow — per-quote deposit control (Pro + Stripe-connected only) ──
+// ── DepositPickerRow — per-quote deposit control ───────────────────────────────
 //
-// Shown in the quote-send sheet above the WhatsApp button.
+// V1 (bank-transfer-deposits): renders for ALL traders in quote mode.
+// - Pro + Stripe-connected: "Deposit on acceptance" — customer can pay by card
+//   on the public quote page, with bank-transfer as the fallback sub-line.
+// - Everyone else: "Deposit to secure the booking" — bank transfer only.
+//   A single capped Pro tease appears as the sub-line.
+//
 // Pre-filled from profile.default_deposit_percent.
 // Writes deposit_percent + LOCKED deposit_amount_pence onto the job at send time.
-// Free users see "Get deposits with Pro", not the picker.
-// Hidden entirely when no Stripe Connect account is present.
-//
 // Uses the same 0/25/50/Custom button pattern as DefaultDepositRow in Settings.
 
 const DEPOSIT_PRESETS = [
@@ -110,18 +113,7 @@ const DEPOSIT_PRESETS = [
 function DepositPickerRow({ profile, jobTotal, depositPercent, onDepositChange }) {
   const isConnected = profile?.stripe_connect_status === 'connected' && !!profile?.stripe_user_id;
   const isProUser   = isPro(profile);
-
-  // Not connected to Stripe — hide the row entirely (customer can't pay anyway)
-  if (!isConnected) return null;
-
-  // Free user — show upsell nudge, not the picker
-  if (!isProUser) {
-    return (
-      <div className="rs-deposit-upsell">
-        Get deposits on acceptance with Pro
-      </div>
-    );
-  }
+  const isOnlineDeposit = isProUser && isConnected;
 
   const isPreset = DEPOSIT_PRESETS.some(p => p.value === depositPercent);
   const [showCustom, setShowCustom] = useState(!isPreset && depositPercent > 0);
@@ -143,10 +135,19 @@ function DepositPickerRow({ profile, jobTotal, depositPercent, onDepositChange }
     onDepositChange(n);
   };
 
+  // Method-aware label and sub-line copy
+  const rowLabel = isOnlineDeposit ? 'Deposit on acceptance' : 'Deposit to secure the booking';
+  const subLine = isOnlineDeposit
+    ? 'Customer can tap to pay by card, or transfer it.'
+    : "Customer pays this by bank transfer. You'll mark it received when it lands.";
+  const proTease = !isOnlineDeposit && depositPercent > 0
+    ? 'Customers transfer the deposit to you. Want tap-and-pay by card on acceptance? That\'s Pro.'
+    : null;
+
   return (
     <div className="rs-deposit-row">
       <div className="rs-deposit-row-label">
-        Deposit on acceptance
+        {rowLabel}
         {depositGbp && <span className="rs-deposit-preview"> = {depositGbp} of {gbp(jobTotal)}</span>}
       </div>
       <div className="rs-deposit-picker" role="group" aria-label="Deposit percentage">
@@ -188,8 +189,29 @@ function DepositPickerRow({ profile, jobTotal, depositPercent, onDepositChange }
           <span className="rs-deposit-custom-suffix">%</span>
         </div>
       )}
+      {depositPercent > 0 && (
+        <div className="rs-deposit-subline">{subLine}</div>
+      )}
+      {proTease && (
+        <div className="rs-deposit-pro-tease">{proTease}</div>
+      )}
     </div>
   );
+}
+
+// Returns true when the profile has sort_code + account_number.
+// Mirrors profileHasBank in SendInvoiceModal — the JIT bank-gate fires whenever
+// either field is absent (not just when both are null).
+function profileHasBank(profile) {
+  return !!(profile?.sort_code && profile?.account_number);
+}
+
+// Formats raw sort code digits as NN-NN-NN.
+function formatSortCode(raw) {
+  const digits = raw.replace(/\D/g, '').slice(0, 6);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 4) return digits.slice(0, 2) + '-' + digits.slice(2);
+  return digits.slice(0, 2) + '-' + digits.slice(2, 4) + '-' + digits.slice(4);
 }
 
 export default function ReviewSheet({
@@ -202,6 +224,7 @@ export default function ReviewSheet({
   onDismiss,
   onUpdate,
   flash,
+  onProfileUpdate,
 }) {
   const isInvoice = mode === 'invoice';
 
@@ -226,6 +249,24 @@ export default function ReviewSheet({
     // Fall back to the profile default (0 if unset)
     return Number(profile?.default_deposit_percent ?? 0);
   });
+
+  // localProfile: optimistically updated when the trader saves bank details via
+  // the bank-gate inside this sheet. Mirrors the pattern from SendInvoiceModal.
+  const [localProfile, setLocalProfile] = useState(profile);
+
+  // Bank-gate view: 'main' | 'bank-gate'
+  const [sheetView, setSheetView] = useState('main');
+
+  // Bank-gate form fields
+  const [bankSortCode, setBankSortCode] = useState('');
+  const [bankAccountNumber, setBankAccountNumber] = useState('');
+  const [bankSaving, setBankSaving] = useState(false);
+  const [bankError, setBankError] = useState(null);
+
+  // First-send teach: shown once when a deposit is set and the quote is sent.
+  // Stored in localStorage so it appears only on the first send.
+  const DEPOSIT_TEACH_KEY = 'jp.deposit_bank_teach_shown';
+  const [depositTeachPending, setDepositTeachPending] = useState(false);
 
   const jobName = job?.summary || job?.customer || job?.name || 'Job';
   const sheetTitle = isInvoice
@@ -311,20 +352,71 @@ export default function ReviewSheet({
     }
   };
 
+  // ── Bank-gate save handler ─────────────────────────────────────────────────
+  // Mirrors the same pattern from SendInvoiceModal. Called when the trader
+  // saves bank details in the bank-gate sheet. On success transitions back to
+  // the main quote sheet so the send can proceed.
+  const handleBankGateSave = async () => {
+    const sortCodeValid = /^\d{6}$/.test(bankSortCode.replace(/\D/g, ''));
+    const accountNumberValid = /^\d{6,8}$/.test(bankAccountNumber);
+    if (!sortCodeValid || !accountNumberValid || bankSaving) return;
+
+    setBankSaving(true);
+    setBankError(null);
+    try {
+      const patch = {
+        sort_code:      bankSortCode.trim(),
+        account_number: bankAccountNumber.trim(),
+      };
+      if (onProfileUpdate) {
+        await onProfileUpdate(patch);
+      } else {
+        // Fallback: write directly when onProfileUpdate is not threaded.
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session?.user?.id) throw new Error('Not signed in');
+        const { error: dbErr } = await supabase
+          .from('profiles')
+          .update(patch)
+          .eq('id', session.user.id);
+        if (dbErr) throw dbErr;
+      }
+      setLocalProfile(prev => ({ ...(prev || {}), ...patch }));
+      setSheetView('main');
+    } catch (e) {
+      setBankError(e?.message || 'Could not save — check your connection and try again');
+    } finally {
+      setBankSaving(false);
+    }
+  };
+
   // ── Quote: WhatsApp send ───────────────────────────────────────────────────
   // Decision tree:
-  //   1. Mint/reuse publicAccessToken and AWAIT its write to the cloud BEFORE
+  //   0. deposit > 0 + no bank details → bank-gate (collect sort code / account)
+  //   1. Clamp stale deposit_amount_pence to current job total at send time.
+  //   2. Mint/reuse publicAccessToken and AWAIT its write to the cloud BEFORE
   //      generating the PDF or share link — this is the fix for the "Quote not
   //      found" bug. The URL is embedded in both the QR code and the PDF; if the
   //      customer opens the link before the cloud write completes (even 200ms),
   //      fetchPublicJob returns null → "Quote not found."
-  //   2. If the cloud write fails offline → warn the trader and abort the send.
-  //   3. canShareFile(file) + has phone  → navigator.share({ files, text })
-  //   4. canShareFile(file), no phone    → navigator.share({ files, text }) only
-  //   5. No Web Share Level 2 + phone    → wa.me text-only + auto-trigger PDF download
-  //   6. No Web Share Level 2, no phone  → clipboard copy of quote URL
-  //   7. AbortError                      → don't close, don't flash error
+  //   3. If the cloud write fails offline → warn the trader and abort the send.
+  //   4. canShareFile(file) + has phone  → navigator.share({ files, text })
+  //   5. canShareFile(file), no phone    → navigator.share({ files, text }) only
+  //   6. No Web Share Level 2 + phone    → wa.me text-only + auto-trigger PDF download
+  //   7. No Web Share Level 2, no phone  → clipboard copy of quote URL
+  //   8. AbortError                      → don't close, don't flash error
   const handleQuoteWhatsApp = async () => {
+    // Step 0: Bank-gate — only fires when a deposit is requested by bank transfer
+    // (i.e. NOT Pro+Stripe-connected). We do NOT fire the identity gate here —
+    // that is invoice-send territory.
+    const isOnlineDeposit = isPro(localProfile) &&
+      localProfile?.stripe_connect_status === 'connected' &&
+      !!localProfile?.stripe_user_id;
+
+    if (depositPercent > 0 && !isOnlineDeposit && !profileHasBank(localProfile)) {
+      setSheetView('bank-gate');
+      return;
+    }
+
     setBusy(true);
     let token = job.publicAccessToken;
     if (!token) {
@@ -336,9 +428,12 @@ export default function ReviewSheet({
     // the single cloud write captures everything in one round-trip.
     const isLead = job.status === 'lead' || !job.status;
     const jobTotal = Number(job.total ?? job.amount ?? 0);
-    const lockedDepositPence = depositPercent > 0 && jobTotal > 0
+    // Clamp: if deposit_amount_pence from a previous send exceeds current total
+    // (e.g. trader edited the price after the first send), recompute from current total.
+    const rawDepositPence = depositPercent > 0 && jobTotal > 0
       ? Math.round(jobTotal * (depositPercent / 100) * 100)
       : 0;
+    const lockedDepositPence = Math.min(rawDepositPence, Math.round(jobTotal * 100));
     const updatedJob = {
       ...job,
       ...(isLead ? stagePatch('Quoted') : {}),
@@ -369,7 +464,16 @@ export default function ReviewSheet({
     // Token is now committed to the cloud. The URL is safe to share.
     const quoteUrl = buildPublicQuoteUrl(token);
     const phone = resolvePhone(job);
-    const message = buildQuoteWhatsAppMessage({ job: updatedJob, biz, quoteUrl });
+    // Merge biz with localProfile bank details so the bank-transfer deposit block
+    // appears in the WhatsApp message for traders who saved bank details via the
+    // bank-gate (localProfile is optimistically updated at that point).
+    const bizWithBank = {
+      ...(biz || {}),
+      accountName:   biz?.accountName   || localProfile?.account_name   || '',
+      sortCode:      biz?.sortCode      || biz?.sort_code || localProfile?.sort_code || '',
+      accountNumber: biz?.accountNumber || biz?.account_number || localProfile?.account_number || '',
+    };
+    const message = buildQuoteWhatsAppMessage({ job: updatedJob, biz: bizWithBank, quoteUrl });
     const link = buildWhatsAppLink({ phone: phone || '', message });
 
     // Pre-generate QR for embedding in the PDF.
@@ -439,7 +543,28 @@ export default function ReviewSheet({
     // (in-memory jobs list) — it will call writeJobMeta+syncMetaToCloud again but
     // that is idempotent (same meta object, no-op cloud write).
     onUpdate?.(updatedJob);
-    flash?.('Quote sent');
+
+    // First-send teach: fire once when the trader sends their first deposit request
+    // by bank transfer. Shown AFTER the quote is sent (not before — don't block).
+    const isOnlineDepositAfterSend = isPro(localProfile) &&
+      localProfile?.stripe_connect_status === 'connected' &&
+      !!localProfile?.stripe_user_id;
+    if (depositPercent > 0 && !isOnlineDepositAfterSend) {
+      try {
+        const alreadyShown = localStorage.getItem(DEPOSIT_TEACH_KEY) === 'yes';
+        if (!alreadyShown) {
+          localStorage.setItem(DEPOSIT_TEACH_KEY, 'yes');
+          flash?.('Deposit asked for. When it lands, open the job and tap Record deposit.');
+        } else {
+          flash?.('Quote sent');
+        }
+      } catch {
+        flash?.('Quote sent');
+      }
+    } else {
+      flash?.('Quote sent');
+    }
+
     setBusy(false);
     onClose?.();
   };
@@ -476,6 +601,86 @@ export default function ReviewSheet({
   const primaryLabel = isInvoice ? 'Send invoice via WhatsApp' : 'Send via WhatsApp';
   const handleDownloadPDF = isInvoice ? handleInvoiceDownloadPDF : handleQuoteDownloadPDF;
 
+  const bankSortCodeValid = /^\d{6}$/.test(bankSortCode.replace(/\D/g, ''));
+  const bankAccountNumberValid = /^\d{6,8}$/.test(bankAccountNumber);
+  const bankCanSave = bankSortCodeValid && bankAccountNumberValid && !bankSaving;
+
+  // ── Bank-gate view ─────────────────────────────────────────────────────────
+  if (sheetView === 'bank-gate') {
+    return (
+      <div className="modal-backdrop modal-backdrop--top" onClick={e => { if (e.target === e.currentTarget) onClose?.(); }}>
+        <div className="modal-sheet rs-sheet" role="dialog" aria-modal="true" aria-label="Add your bank details">
+          <div className="modal-sheet-header">
+            <h3 className="modal-sheet-title">Add your bank details</h3>
+            <button className="modal-sheet-close" onClick={onClose} aria-label="Close">
+              <Icon name="close" size={20} />
+            </button>
+          </div>
+          <div className="modal-sheet-body">
+            <p className="modal-sheet-text">
+              Your bank details are included in the quote message so your customer knows where to send the deposit.
+            </p>
+          </div>
+          <div className="invoice-fields-row" style={{ flexDirection: 'column', gap: 12 }}>
+            <div className="invoice-field-group">
+              <label className="invoice-field-label" htmlFor="rs-bg-sort-code">Sort code</label>
+              <input
+                id="rs-bg-sort-code"
+                className="invoice-field-input"
+                type="text"
+                inputMode="numeric"
+                value={bankSortCode}
+                placeholder="12-34-56"
+                onChange={e => setBankSortCode(formatSortCode(e.target.value))}
+                autoFocus
+                autoComplete="off"
+                aria-label="Sort code"
+              />
+            </div>
+            <div className="invoice-field-group">
+              <label className="invoice-field-label" htmlFor="rs-bg-account-number">Account number</label>
+              <input
+                id="rs-bg-account-number"
+                className="invoice-field-input"
+                type="text"
+                inputMode="numeric"
+                value={bankAccountNumber}
+                placeholder="12345678"
+                onChange={e => setBankAccountNumber(e.target.value.replace(/\D/g, '').slice(0, 8))}
+                autoComplete="off"
+                aria-label="Account number"
+              />
+            </div>
+          </div>
+          {bankError && (
+            <p className="modal-sheet-error" role="alert">{bankError}</p>
+          )}
+          <button
+            type="button"
+            className="btn-primary modal-sheet-btn"
+            onClick={handleBankGateSave}
+            disabled={!bankCanSave}
+          >
+            {bankSaving ? 'Saving…' : 'Save and continue'}
+          </button>
+          <button
+            type="button"
+            className="btn-ghost modal-sheet-btn"
+            style={{ marginTop: 8 }}
+            onClick={() => {
+              // Send without deposit — zero out the percent and proceed
+              setDepositPercent(0);
+              setSheetView('main');
+              flash?.('Sending without a deposit');
+            }}
+          >
+            Send without a deposit
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       className="modal-backdrop modal-backdrop--top"
@@ -497,10 +702,10 @@ export default function ReviewSheet({
         {/* Document preview */}
         <PreviewTable job={job} />
 
-        {/* Deposit picker — quote mode only, Pro + Stripe-connected traders */}
+        {/* Deposit picker — quote mode only, available to all traders */}
         {!isInvoice && (
           <DepositPickerRow
-            profile={profile}
+            profile={localProfile}
             jobTotal={Number(job.total ?? job.amount ?? 0)}
             depositPercent={depositPercent}
             onDepositChange={setDepositPercent}
