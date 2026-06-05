@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useKeyboardInset } from './lib/useKeyboardInset.js';
 import {
   shouldShowCostPrompt,
@@ -7,10 +7,6 @@ import {
   recordDismissal,
 } from './lib/postPaidCost';
 import PostPaidCostRow from './components/PostPaidCostRow';
-// Lazy-loaded: App.jsx is only reachable via the debug escape-hatch
-// (localStorage.jp.navSlice3='0'). Keeping it out of the critical-path bundle
-// prevents App.jsx + its xlsx dependency from loading for every user.
-const App = lazy(() => import('./App.jsx'));
 import CardPaymentsScreen from './screens/CardPaymentsScreen.jsx';
 import {
   isPushSupported,
@@ -28,12 +24,9 @@ import BottomNav from './components/BottomNav';
 import HeaderAvatar from './components/HeaderAvatar';
 import AccountDrawer from './components/AccountDrawer';
 import LinkReceiptModal from './components/LinkReceiptModal';
-import { startHidingLegacyDupes, stopHidingLegacyDupes } from './lib/hideLegacyDupes';
-import { startHidingLegacyWrites, stopHidingLegacyWrites } from './lib/hideLegacyWrites';
-import { clickCreateDetailedJobTab } from './lib/manageDeepLink';
 import { supabase } from './lib/supabase';
 import AuthScreen from './components/AuthScreen';
-import { parseHash, navigateToView, replaceHistory, TOP_VIEWS } from './lib/navigation';
+import { parseHash, replaceHistory } from './lib/navigation';
 import { writeJobMeta, extractJobMeta, applyJobMetaToJobs } from './lib/jobMeta';
 import { subscribeToJobs } from './lib/realtime';
 import { addPayment } from './lib/payments';
@@ -117,7 +110,7 @@ function migrateLegacyTodayData() {
 function parseViewFromHash() {
   if (NAV_SLICE_3) {
     // Read the hash directly so slice-3 view names ('work', 'finance', 'settings')
-    // are not filtered out by parseHash(), which only knows legacy TOP_VIEWS.
+    // are not filtered out by parseHash(), which only knows the older view set.
     const raw = window.location.hash.replace(/^#\/?/, '').split('/')[0];
     // Map legacy deep-link aliases that may still appear in the wild
     if (raw === 'jobs' || raw === 'schedule') return 'work';
@@ -139,7 +132,6 @@ export default function AppShell() {
   useKeyboardInset();
 
   const [view, setView] = useState(() => parseViewFromHash());
-  const [moreKey, setMoreKey] = useState(0);
   const [pendingDeepLink, setPendingDeepLink] = useState(null);
   const [jobs, setJobs] = useState(() => getTodayJobs());
   const [receipts, setReceipts] = useState(() => getTodayReceipts());
@@ -206,8 +198,6 @@ export default function AppShell() {
     }
   );
 
-  const manageRootRef = useRef(null);
-
   // settingsScrollTarget: when FinanceScreen's "Add your costs" nudge fires,
   // navigate to Settings AND tell SettingsScreen to scroll to the overheads
   // section. Cleared by SettingsScreen via onScrollTargetConsumed once it has
@@ -219,15 +209,9 @@ export default function AppShell() {
   // Hash-routed navigation: pushes history before switching view so browser
   // Back returns to the previous in-app screen instead of exiting the SPA.
   const navigate = useCallback((nextView) => {
-    // navigateToView only knows legacy TOP_VIEWS; for new-nav / slice-3 tabs
-    // we push the hash directly so Back still works.
-    if (NEW_NAV || NAV_SLICE_3) {
-      const hash = `#/${nextView}`;
-      if (window.location.hash !== hash) {
-        window.history.pushState({ view: nextView }, '', hash);
-      }
-    } else {
-      navigateToView(nextView);
+    const hash = `#/${nextView}`;
+    if (window.location.hash !== hash) {
+      window.history.pushState({ view: nextView }, '', hash);
     }
     setView(nextView);
   }, []);
@@ -262,7 +246,7 @@ export default function AppShell() {
   }, [authReady]);
 
   // Single popstate listener: re-derive view from hash on Back/Forward.
-  // Do NOT bump moreKey here — App.jsx state must survive a Back navigation.
+  // Re-derive view from hash on Back/Forward press.
   useEffect(() => {
     const onPop = () => {
       setView(parseViewFromHash());
@@ -384,9 +368,7 @@ export default function AppShell() {
   }, [session, refreshFromCloud, refreshProfile]);
 
   // Register service worker for PWA (required for push and offline caching).
-  // Located here (AppShell) so it fires on every authenticated session, not just
-  // inside the legacy App.jsx monolith. Safe to call multiple times — the browser
-  // deduplicates registrations to the same script URL.
+  // Safe to call multiple times — the browser deduplicates registrations to the same script URL.
   useEffect(() => {
     if ('serviceWorker' in navigator) {
       navigator.serviceWorker.register('/sw.js').catch((err) => {
@@ -491,21 +473,8 @@ export default function AppShell() {
   }, [session, refreshFromCloud]);
 
   useEffect(() => {
-    const legacyRefreshViews = (NEW_NAV || NAV_SLICE_3) ? ['today'] : ['today', 'history'];
-    if (legacyRefreshViews.includes(view)) refreshLocal();
-
-    if (!NEW_NAV && view === 'manage' && manageRootRef.current) {
-      startHidingLegacyDupes(manageRootRef.current);
-      startHidingLegacyWrites(manageRootRef.current);
-      if (pendingDeepLink === 'create-detailed-job') {
-        setTimeout(() => clickCreateDetailedJobTab(manageRootRef.current), 100);
-        setPendingDeepLink(null);
-      }
-    } else {
-      stopHidingLegacyDupes();
-      stopHidingLegacyWrites();
-    }
-  }, [view, refreshLocal, pendingDeepLink]);
+    if (view === 'today') refreshLocal();
+  }, [view, refreshLocal]);
 
   useEffect(() => {
     const onStorage = (e) => {
@@ -772,9 +741,7 @@ export default function AppShell() {
     // Users can create jobs immediately after sign-in. Missing business/bank
     // details are collected just-in-time at the invoice-send step.
     setPendingDeepLink('create-detailed-job');
-    setMoreKey(k => k + 1);
-    // Slice 3: route to 'work'; New nav: 'jobs'; Legacy: 'manage'
-    navigate(NAV_SLICE_3 ? 'work' : NEW_NAV ? 'jobs' : 'manage');
+    navigate(NAV_SLICE_3 ? 'work' : 'jobs');
   };
 
   /**
@@ -806,8 +773,6 @@ export default function AppShell() {
    *  Defined before conditional early returns to keep hook order stable (Rules of Hooks). */
   const handleTabChange = useCallback((nextView) => {
     resetTransientUI(nextView);
-    // Legacy manage tab still needs its moreKey bump.
-    if (!NAV_SLICE_3 && !NEW_NAV && nextView === 'manage') setMoreKey(k => k + 1);
     // Reset settings sub-view when navigating away from the settings tab so
     // CardPaymentsScreen doesn't persist on the next visit to Settings.
     if (nextView !== 'settings') setSettingsSubView(null);
@@ -1012,56 +977,6 @@ export default function AppShell() {
         </>
       )}
 
-      {/* ── LEGACY NAV (unchanged) ────────────────────────────────────── */}
-      {!NAV_SLICE_3 && !NEW_NAV && (
-        <>
-          {view === 'today' && (
-            <TodayScreen
-              onOpenDetailed={() => { setPendingDeepLink('create-detailed-job'); setMoreKey(k => k + 1); navigate('manage'); }}
-              onChase={() => { setMoreKey(k => k + 1); navigate('manage'); }}
-              onMarkPaid={onMarkPaidFromToday}
-              onJobTap={() => navigate('manage')}
-              jobs={jobs}
-              receipts={receipts}
-              onAddJob={handleAddJob}
-              onUpdateJob={onUpdateJob}
-              onAddReceipt={handleAddReceipt}
-              profile={profile}
-              onNavigateToMoney={() => { setMoreKey(k => k + 1); navigate('manage'); }}
-              onNavigateToCardPayments={() => setSettingsSubView('card-payments')}
-            />
-          )}
-
-          {view === 'history' && (
-            <HistoryScreen
-              jobs={jobs}
-              receipts={receipts}
-              onMarkPaid={handleMarkPaid}
-            />
-          )}
-
-          <div ref={manageRootRef} className="legacy-manage-root" style={{ display: view === 'manage' ? 'block' : 'none' }}>
-            <div className="manage-header">
-              <div className="manage-header-top">
-                <h1>Business</h1>
-                <button className="signout-btn" onClick={handleSignOut} title="Sign out">
-                  <span>{session?.user?.email || 'Account'}</span>
-                  <span className="signout-btn-label">Sign out</span>
-                </button>
-              </div>
-              <p>Quotes, jobs, customers & insights</p>
-            </div>
-            <Suspense fallback={<div className="auth-loading"><div className="ocr-spinner" /></div>}>
-              <App key={moreKey} cloudJobs={applyJobMetaToJobs(jobs)} profile={profile} onAddPayment={onAddPayment} />
-            </Suspense>
-          </div>
-
-          <BottomNav
-            view={view}
-            onChange={handleTabChange}
-          />
-        </>
-      )}
 
       {/* ── Account drawer (new nav only — slice 3 uses Settings tab instead) ─ */}
       {!NAV_SLICE_3 && NEW_NAV && (
