@@ -21,6 +21,7 @@ import {
   Home,
   LayoutGrid,
   Calendar,
+  CalendarDays,
   Settings,
   ChevronRight,
   ChevronDown,
@@ -68,6 +69,7 @@ import {
   BarChart2,
   PieChart,
   Map,
+  MapPin,
   Navigation,
   Send,
   Copy,
@@ -84,7 +86,9 @@ import {
   Sparkles,
   ClipboardList,
   Hammer,
+  NotebookPen,
   ReceiptText,
+  Wrench,
 } from 'lucide-react';
 
 // ── Custom inline SVG glyphs ─────────────────────────────────────────────────
@@ -160,26 +164,33 @@ const REGISTRY = {
   attach:   Paperclip,
 
   // Communication
-  phone:   Phone,
-  sms:     MessageSquare,
-  email:   Mail,
-  bell:    Bell,
+  phone:     Phone,
+  sms:       MessageSquare,
+  text:      MessageSquare,    // 💬 SMS/text chip in CustomerCard
+  whatsapp:  MessageCircle,    // WhatsApp chip (no brand glyph in Lucide; MessageCircle reads clearly)
+  email:     Mail,
+  bell:      Bell,
   'bell-off': BellOff,
 
   // Content / media
   file:    FileText,
   image:   Image,
+  photos:  Image,              // 🖼️ "photos" semantic alias → same glyph as image
   camera:  Camera,
   mic:     Mic,
+  note:    NotebookPen,        // 📝 job notes
 
-  // People / business
+  // People / business / location
   user:     User,
+  customer: User,              // 👤 customer name row
   team:     Users,
   business: Building2,
   job:      Briefcase,
+  address:  MapPin,            // 📍 address / maps
 
   // Status / feedback
   clock:    Clock,
+  hours:    Clock,             // ⏱️ estimated hours row
   warning:  AlertTriangle,
   info:     Info,
   success:  CheckCircle2,
@@ -194,6 +205,9 @@ const REGISTRY = {
   'quote-sent':  Send,           // 📨 quote out / sent
   'active-job':  Hammer,         // 🔨 job on / active
   invoice:       ReceiptText,    // 🧾 invoiced
+  receipt:       ReceiptText,    // 🧾 receipt row (alias for invoice glyph)
+  materials:     Wrench,         // 🧰 costs / materials section
+  date:          CalendarDays,   // 📅 visit date / schedule row
   complete:      CircleCheck,    // ✅ job complete
   paid:          CircleCheck,    // 💷 paid (brand variant applied at call site)
   overdue:       AlertTriangle,  // 🚨 overdue / final notice
@@ -208,8 +222,9 @@ const REGISTRY = {
   zap:         Zap,
 
   // Maps / location
-  map:      Map,
-  navigate: Navigation,
+  map:        Map,
+  navigate:   Navigation,
+  'map-pin':  MapPin,
 
   // Auth
   lock:   Lock,
