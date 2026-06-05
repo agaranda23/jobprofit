@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, lazy, Suspense } from 'react';
 import { useKeyboardInset } from './lib/useKeyboardInset.js';
 import {
   shouldShowCostPrompt,
@@ -7,7 +7,10 @@ import {
   recordDismissal,
 } from './lib/postPaidCost';
 import PostPaidCostRow from './components/PostPaidCostRow';
-import App from './App.jsx';
+// Lazy-loaded: App.jsx is only reachable via the debug escape-hatch
+// (localStorage.jp.navSlice3='0'). Keeping it out of the critical-path bundle
+// prevents App.jsx + its xlsx dependency from loading for every user.
+const App = lazy(() => import('./App.jsx'));
 import CardPaymentsScreen from './screens/CardPaymentsScreen.jsx';
 import {
   isPushSupported,
@@ -1048,7 +1051,9 @@ export default function AppShell() {
               </div>
               <p>Quotes, jobs, customers & insights</p>
             </div>
-            <App key={moreKey} cloudJobs={applyJobMetaToJobs(jobs)} profile={profile} onAddPayment={onAddPayment} />
+            <Suspense fallback={<div className="auth-loading"><div className="ocr-spinner" /></div>}>
+              <App key={moreKey} cloudJobs={applyJobMetaToJobs(jobs)} profile={profile} onAddPayment={onAddPayment} />
+            </Suspense>
           </div>
 
           <BottomNav
