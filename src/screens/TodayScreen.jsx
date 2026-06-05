@@ -22,6 +22,7 @@
 
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import AddJobModal from '../components/AddJobModal';
+import Icon from '../components/Icon';
 import ReviewSheet from '../components/ReviewSheet';
 import GetProPill from '../components/GetProPill';
 import ProUpgradeSheet from '../components/ProUpgradeSheet';
@@ -425,14 +426,14 @@ export default function TodayScreen({
                 onClick={() => handleAcceptedTap(job)}
                 aria-label={`${buildAcceptedLabel(job)} — tap to open job`}
               >
-                <span className="accepted-banner__icon" aria-hidden="true">&#10003;</span>
+                <Icon name="complete" size={16} variant="success" />
                 <span className="accepted-banner__text">
                   <span className="accepted-banner__label">{buildAcceptedLabel(job)}</span>
                   {job.acceptedAt && (
                     <span className="accepted-banner__date">{formatAcceptedDate(job.acceptedAt)}</span>
                   )}
                 </span>
-                <span className="accepted-banner__open" aria-hidden="true">&#8250;</span>
+                <Icon name="chevron-right" size={16} />
               </button>
               <button
                 type="button"
@@ -549,7 +550,9 @@ export default function TodayScreen({
       ) : (
         /* ── All-clear state (slim, no duplicate Log a job) ─────────────── */
         <section className="foreman-empty-card foreman-empty-card--slim">
-          <div className="foreman-empty-check" aria-hidden="true">&#10003;</div>
+          <div className="foreman-empty-check" aria-hidden="true">
+            <Icon name="complete" size={32} variant="success" />
+          </div>
           <div className="foreman-empty-headline">
             <p>All clear.</p>
           </div>
@@ -577,12 +580,7 @@ export default function TodayScreen({
           className="foreman-pivot-btn"
           onClick={() => setJobOpen(true)}
         >
-          <span className="foreman-pivot-icon" aria-hidden="true">
-            {/* Hammer — PRD 2026-06-01 pick for Job CTA */}
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M14 3l7 7-3 3-2-2-8 8a2 2 0 0 1-3-3l8-8-2-2 3-3z"/>
-            </svg>
-          </span>
+          <Icon name="active-job" size={24} className="foreman-pivot-icon" />
           Job
         </button>
         <button
@@ -590,14 +588,7 @@ export default function TodayScreen({
           className="foreman-pivot-btn"
           onClick={() => { setJobOpenMode('quote'); setJobOpen(true); }}
         >
-          <span className="foreman-pivot-icon" aria-hidden="true">
-            {/* Pen on paper — PRD 2026-06-01 pick for Quote CTA */}
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M5 4h9l5 5v11a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/>
-              <path d="M14 4v5h5"/>
-              <path d="M8.5 16.5l5-5 2 2-5 5H8.5v-2z"/>
-            </svg>
-          </span>
+          <Icon name="file" size={24} className="foreman-pivot-icon" />
           Quote
         </button>
         <button
@@ -605,13 +596,7 @@ export default function TodayScreen({
           className="foreman-pivot-btn"
           onClick={handleSendInvoicePivot}
         >
-          <span className="foreman-pivot-icon" aria-hidden="true">
-            {/* Paper plane — PRD 2026-06-01 pick for Invoice CTA */}
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 3L3 11l7 2 2 7 9-17z"/>
-              <path d="M10 13l11-10"/>
-            </svg>
-          </span>
+          <Icon name="send" size={24} className="foreman-pivot-icon" />
           Invoice
         </button>
       </div>
@@ -644,7 +629,7 @@ export default function TodayScreen({
                 aria-label="Close"
                 onClick={() => setInvoicePickerOpen(false)}
               >
-                &#10005;
+                <Icon name="close" size={20} />
               </button>
             </div>
             <ul className="foreman-invoice-picker-list">
