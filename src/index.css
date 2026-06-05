@@ -11024,6 +11024,200 @@ input[type=number] { -moz-appearance: textfield; }
 }
 .aj-quote-add-items-link:active { opacity: 0.7; }
 
+/* ── Margin-aware quote section — TRADER-ONLY ────────────────────────────────
+   Never visible in customer quote, PDF, or public page.
+   Default state = collapsed (just the trigger row).
+   ─────────────────────────────────────────────────────────────────────────── */
+
+/* Collapsed trigger — the only thing visible before the user taps */
+.aj-margin-trigger {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: transparent;
+  border: none;
+  color: #6B7280;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: inherit;
+  padding: 10px 0 4px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  width: 100%;
+  text-align: left;
+}
+.aj-margin-trigger:active { opacity: 0.7; }
+.aj-margin-trigger-arrow {
+  font-size: 10px;
+  color: #9CA3AF;
+}
+
+/* Expanded section container */
+.aj-margin-section {
+  margin-top: 8px;
+  padding: 14px;
+  border-radius: 10px;
+  border: 1.5px solid rgba(99, 102, 241, 0.25);
+  background: rgba(30, 30, 50, 0.55);
+}
+
+/* Header row with label + collapse button */
+.aj-margin-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+.aj-margin-header-label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #9CA3AF;
+}
+.aj-margin-collapse-btn {
+  background: transparent;
+  border: none;
+  color: #6B7280;
+  font-size: 12px;
+  padding: 2px 4px;
+  cursor: pointer;
+  line-height: 1;
+  -webkit-tap-highlight-color: transparent;
+}
+.aj-margin-collapse-btn:active { opacity: 0.7; }
+
+/* First-use reassurance */
+.aj-margin-reassurance {
+  font-size: 12px;
+  color: #9CA3AF;
+  margin: 0 0 10px;
+  line-height: 1.4;
+  font-style: italic;
+}
+
+/* Cost input */
+.aj-margin-cost-label {
+  display: block;
+  margin-bottom: 10px;
+}
+.aj-margin-cost-label-text {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: #D1D5DB;
+  margin-bottom: 6px;
+}
+.aj-margin-cost-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  border-bottom: 1.5px solid rgba(255, 255, 255, 0.15);
+  padding-bottom: 4px;
+  margin-bottom: 6px;
+}
+.aj-margin-cost-input {
+  background: transparent;
+  border: none;
+  outline: none;
+  color: #F9FAFB;
+  font-size: 20px;
+  font-weight: 600;
+  font-family: inherit;
+  width: 100%;
+  min-width: 0;
+  padding: 0;
+}
+.aj-margin-cost-input::placeholder { color: #4B5563; }
+.aj-margin-cost-input::-webkit-outer-spin-button,
+.aj-margin-cost-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.aj-margin-cost-input:focus { border-bottom-color: rgba(99, 102, 241, 0.6); }
+.aj-margin-cost-helper {
+  display: block;
+  font-size: 12px;
+  color: #6B7280;
+  line-height: 1.4;
+}
+
+/* Nudge — shown when no cost entered */
+.aj-margin-nudge {
+  font-size: 13px;
+  color: #6B7280;
+  margin: 6px 0 0;
+  font-style: italic;
+}
+
+/* Main readout — profit hero + margin secondary */
+.aj-margin-readout {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 2px;
+  margin-top: 8px;
+}
+.aj-margin-profit {
+  font-size: 22px;
+  font-weight: 700;
+  color: #34D672; /* green — healthy */
+  line-height: 1.1;
+}
+.aj-margin-pct {
+  font-size: 14px;
+  font-weight: 500;
+  color: #9CA3AF;
+}
+
+/* Loss state — amber */
+.aj-margin-readout--loss .aj-margin-profit,
+.aj-margin-profit--loss {
+  color: #F59E0B;
+  font-size: 22px;
+  font-weight: 700;
+}
+.aj-margin-pct--loss {
+  font-size: 14px;
+  font-weight: 500;
+  color: #F59E0B;
+}
+
+/* Thin margin state — muted amber tint on profit number */
+.aj-margin-readout--thin .aj-margin-profit {
+  color: #FBBF24;
+}
+.aj-margin-thin-advisory {
+  font-size: 12px;
+  color: #FBBF24;
+  margin: 4px 0 0;
+}
+
+/* Markup reveal button */
+.aj-margin-markup-reveal-btn {
+  display: inline-block;
+  margin-top: 8px;
+  background: transparent;
+  border: none;
+  color: #818CF8;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: inherit;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  -webkit-tap-highlight-color: transparent;
+}
+.aj-margin-markup-reveal-btn:active { opacity: 0.7; }
+
+/* Markup teach copy — the most important copy */
+.aj-margin-markup-teach {
+  font-size: 13px;
+  color: #D1D5DB;
+  line-height: 1.5;
+  margin: 8px 0 0;
+  border-left: 3px solid #818CF8;
+  padding-left: 10px;
+}
+
 /* ── Phase G-3: Accepted-quote notification ─────────────────────────────────── */
 
 /* ── Persistent accepted-quote banner (TodayScreen, above prompt card) ── */
