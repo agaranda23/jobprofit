@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { parseJobFromSpeech } from '../lib/voiceParse';
 import { generateQuote } from '../lib/generateQuote';
 import { logTelemetry } from '../lib/telemetry';
+import { calcMarginForecast, marginForecastState, markupTeachCopy } from '../lib/marginForecast';
 import Icon from './Icon';
 
 const SR = typeof window !== 'undefined'
@@ -120,6 +121,20 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMo
   const [quoteVoiceStatus, setQuoteVoiceStatus] = useState('listening');
   const [quoteTranscript, setQuoteTranscript]   = useState('');
   const hasAutoStartedQuote = useRef(false);
+
+  // ── Margin-aware quote state (TRADER-ONLY — never passed to customer surfaces) ──
+  // estCost: optional trader spend in pounds (materials, parts, hire).
+  //   Stored separately from line-item `cost` (which holds the customer price).
+  //   Key name is estCost, never `cost`, to avoid any confusion with the existing field.
+  // showMarginSection: collapsed by default so the 30-sec quote flow is untouched.
+  // showMarkupReveal: one-tap reveal for the markup teach copy.
+  // seenMarginReassurance: localStorage gate for the first-use "only you see this" message.
+  const [estCost, setEstCost]                   = useState('');
+  const [showMarginSection, setShowMarginSection] = useState(false);
+  const [showMarkupReveal, setShowMarkupReveal]   = useState(false);
+  const seenMarginReassurance = typeof localStorage !== 'undefined'
+    ? localStorage.getItem('jp.margin_reassurance_shown') === 'yes'
+    : true;
 
   // ── AI Quote Builder state ──────────────────────────────────────────────────
   // aiStatus: 'idle' | 'building' | 'draft' | 'error'
@@ -640,6 +655,12 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMo
     }
 
     setError('');
+
+    // estCost is TRADER-ONLY — it is stored on the job object for persistence
+    // and V2 forecast-vs-actual, but is never included in lineItems, the PDF,
+    // the WhatsApp message, or the public quote payload.
+    const parsedEstCost = estCost.trim() ? parseFloat(estCost) : undefined;
+
     return {
       id:           crypto.randomUUID(),
       name:         resolvedSummary,
@@ -655,6 +676,12 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMo
       quoteStatus:  'draft',
       date:         new Date().toISOString(),
       createdAt:    new Date().toISOString(),
+      // Trader-only spend estimate. Included only when the user entered a value.
+      // ReviewSheet, invoicePDF, PublicQuoteView, and fetch-public-quote-profile
+      // do not read this field — they only access lineItems, total, amount, etc.
+      ...(parsedEstCost !== undefined && !isNaN(parsedEstCost) && parsedEstCost >= 0
+        ? { estCost: parsedEstCost }
+        : {}),
     };
   }
 
@@ -1425,6 +1452,25 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMo
                   </button>
                 )}
 
+                {/* ── Margin-aware quote section — TRADER-ONLY ─────────────────────────
+                    Collapsed by default so the default voice→price→Send flow is untouched.
+                    estCost and all derived figures (profit/margin/markup) are for the
+                    tradesperson only — they never appear in the customer quote or PDF. */}
+                <MarginSection
+                  estCost={estCost}
+                  setEstCost={setEstCost}
+                  price={
+                    showLineItems
+                      ? lineItemsTotal(lineItems)
+                      : (qTotal.trim() ? parseFloat(qTotal) : 0)
+                  }
+                  showMarginSection={showMarginSection}
+                  setShowMarginSection={setShowMarginSection}
+                  showMarkupReveal={showMarkupReveal}
+                  setShowMarkupReveal={setShowMarkupReveal}
+                  seenReassurance={seenMarginReassurance}
+                />
+
                 {error && <p className="modal-error">{error}</p>}
 
                 {/* Save as draft */}
@@ -1537,6 +1583,161 @@ function MoreOptionsFields({
             in Settings → Default deposit %, applied at quote-send time.
             Existing jobs with a stored `deposit` value are unaffected. */}
       </div>
+    </div>
+  );
+}
+
+// ── MarginSection — TRADER-ONLY profit/margin forecast ────────────────────────
+//
+// Collapsed by default. Tapping "See your margin" expands the cost field + live
+// readout. estCost and all derived figures (profit/margin/markup) are for the
+// tradesperson only — they never appear in the customer quote, PDF, or public page.
+//
+// Props:
+//   estCost, setEstCost        — the trader's spend estimate (string while typing)
+//   price                      — the current quote total (number)
+//   showMarginSection          — whether the section is expanded
+//   setShowMarginSection       — setter for showMarginSection
+//   showMarkupReveal           — whether the markup teach copy is visible
+//   setShowMarkupReveal        — setter for showMarkupReveal
+//   seenReassurance            — whether the "only you see this" message has shown
+function MarginSection({
+  estCost, setEstCost,
+  price,
+  showMarginSection, setShowMarginSection,
+  showMarkupReveal, setShowMarkupReveal,
+  seenReassurance,
+}) {
+  // Collapsed trigger row — the only thing the user sees by default
+  if (!showMarginSection) {
+    return (
+      <button
+        type="button"
+        className="aj-margin-trigger"
+        onClick={() => {
+          setShowMarginSection(true);
+          // Mark reassurance as shown the first time the section is opened
+          if (!seenReassurance) {
+            try { localStorage.setItem('jp.margin_reassurance_shown', 'yes'); } catch {}
+          }
+        }}
+        aria-expanded="false"
+        aria-label="See your margin on this quote"
+      >
+        See your margin <span className="aj-margin-trigger-arrow" aria-hidden="true">&#9658;</span>
+      </button>
+    );
+  }
+
+  // Derive forecast from current inputs
+  const parsedPrice   = Number(price)   || 0;
+  const parsedCost    = estCost.trim() ? parseFloat(estCost) : null;
+  const forecastState = marginForecastState(parsedCost, parsedPrice);
+
+  let forecast = null;
+  if (parsedCost !== null && !isNaN(parsedCost) && parsedPrice > 0) {
+    forecast = calcMarginForecast(parsedPrice, parsedCost);
+  }
+
+  return (
+    <div className="aj-margin-section" role="region" aria-label="Your margin on this quote">
+      {/* Section header with collapse */}
+      <div className="aj-margin-header">
+        <span className="aj-margin-header-label">Your margin</span>
+        <button
+          type="button"
+          className="aj-margin-collapse-btn"
+          onClick={() => setShowMarginSection(false)}
+          aria-label="Hide margin section"
+        >
+          <span aria-hidden="true">&#9660;</span>
+        </button>
+      </div>
+
+      {/* First-use reassurance — shown once when the section is first opened */}
+      {!seenReassurance && (
+        <p className="aj-margin-reassurance">
+          Only you see this. Your customer&rsquo;s quote shows the price, nothing else.
+        </p>
+      )}
+
+      {/* Cost input */}
+      <label className="aj-margin-cost-label">
+        <span className="aj-margin-cost-label-text">What&rsquo;ll this job cost you?</span>
+        <div className="aj-margin-cost-input-wrap">
+          <span className="aj-micro-currency">£</span>
+          <input
+            type="number"
+            inputMode="decimal"
+            className="aj-margin-cost-input"
+            value={estCost}
+            onChange={e => {
+              setEstCost(e.target.value);
+              setShowMarkupReveal(false); // reset reveal on change
+            }}
+            placeholder="e.g. 140"
+            aria-label="Estimated job cost in pounds"
+          />
+        </div>
+        <span className="aj-margin-cost-helper">
+          Just what you&rsquo;ll spend — materials, parts, hire. Don&rsquo;t include your own time; your time is the profit.
+        </span>
+      </label>
+
+      {/* Live forecast readout */}
+      {forecastState === 'empty' && (
+        <p className="aj-margin-nudge">Add your costs to see your profit.</p>
+      )}
+
+      {forecastState === 'loss' && forecast && (
+        <div className="aj-margin-readout aj-margin-readout--loss" role="status" aria-live="polite">
+          <span className="aj-margin-profit aj-margin-profit--loss">
+            &minus;£{Math.abs(forecast.profit).toFixed(2)}
+          </span>
+          <span className="aj-margin-pct aj-margin-pct--loss">
+            &nbsp;&middot;&nbsp;you&rsquo;d lose money on this job.
+          </span>
+        </div>
+      )}
+
+      {(forecastState === 'ok' || forecastState === 'thin') && forecast && (
+        <>
+          <div
+            className={`aj-margin-readout${forecastState === 'thin' ? ' aj-margin-readout--thin' : ''}`}
+            role="status"
+            aria-live="polite"
+          >
+            <span className="aj-margin-profit">
+              You keep £{forecast.profit.toFixed(2)}
+            </span>
+            <span className="aj-margin-pct">
+              &nbsp;&middot;&nbsp;Margin {Math.round(forecast.margin)}%
+            </span>
+          </div>
+          {forecastState === 'thin' && (
+            <p className="aj-margin-thin-advisory">Thin margin.</p>
+          )}
+
+          {/* Markup reveal — one tap, the teaching moment */}
+          {forecast.markup !== null && !showMarkupReveal && (
+            <button
+              type="button"
+              className="aj-margin-markup-reveal-btn"
+              onClick={() => setShowMarkupReveal(true)}
+            >
+              What&rsquo;s my markup?
+            </button>
+          )}
+          {forecast.markup !== null && showMarkupReveal && (
+            <p className="aj-margin-markup-teach" role="status">
+              {markupTeachCopy(
+                Math.round(forecast.markup * 10) / 10,
+                Math.round(forecast.margin * 10) / 10,
+              )}
+            </p>
+          )}
+        </>
+      )}
     </div>
   );
 }
