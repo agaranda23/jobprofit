@@ -1,4 +1,5 @@
 import { deriveStatus, STATUS_LABELS } from '../lib/jobStatus';
+import Icon from './Icon';
 
 // Single badge per job, sourced from deriveStatus. Replaces the legacy
 // dual-badge pattern (jobStatus + paymentStatus side by side) which often
@@ -13,16 +14,29 @@ const STATUS_COLORS = {
   paid:         { bg: '#D1FAE5', fg: '#065F46' }, // green
 };
 
+// Map each deriveStatus key to the Wave 2 semantic icon name.
+// Colour inherits from the pill's fg via currentColor (no variant override needed).
+const STATUS_ICON = {
+  draft:        'lead',
+  completed:    'invoice',
+  invoice_sent: 'quote-sent',
+  awaiting:     'overdue',
+  paid:         'paid',
+};
+
 export default function StatusBadge({ job, size = 'sm' }) {
   const status = deriveStatus(job);
   const { bg, fg } = STATUS_COLORS[status] || STATUS_COLORS.draft;
   const label = STATUS_LABELS[status] || status;
   const padding = size === 'sm' ? '3px 8px' : '5px 12px';
   const fontSize = size === 'sm' ? 11 : 13;
+  const iconName = STATUS_ICON[status];
 
   return (
     <span style={{
-      display: 'inline-block',
+      display: 'inline-flex',
+      alignItems: 'center',
+      gap: 4,
       padding,
       borderRadius: 999,
       background: bg,
@@ -32,6 +46,7 @@ export default function StatusBadge({ job, size = 'sm' }) {
       lineHeight: 1.2,
       whiteSpace: 'nowrap',
     }}>
+      {iconName && <Icon name={iconName} size={12} />}
       {label}
     </span>
   );

@@ -34,6 +34,7 @@ import {
   Edit2,
   Phone,
   MessageSquare,
+  MessageCircle,
   Mail,
   FileText,
   Download,
@@ -76,10 +77,14 @@ import {
   Image,
   Loader2,
   CheckCircle2,
+  CircleCheck,
   XCircle,
   AlertCircle,
   HelpCircle,
   Sparkles,
+  ClipboardList,
+  Hammer,
+  ReceiptText,
 } from 'lucide-react';
 
 // ── Custom inline SVG glyphs ─────────────────────────────────────────────────
@@ -183,6 +188,17 @@ const REGISTRY = {
   help:     HelpCircle,
   loading:  Loader2,
   star:     Star,
+
+  // Wave 2 — Jobs/Work pipeline stages
+  lead:          ClipboardList,  // 📋 pipeline lead / job list
+  'quote-sent':  Send,           // 📨 quote out / sent
+  'active-job':  Hammer,         // 🔨 job on / active
+  invoice:       ReceiptText,    // 🧾 invoiced
+  complete:      CircleCheck,    // ✅ job complete
+  paid:          CircleCheck,    // 💷 paid (brand variant applied at call site)
+  overdue:       AlertTriangle,  // 🚨 overdue / final notice
+  'chase-firm':  Clock,          // ⏰ firm reminder (danger variant at call site)
+  chase:         MessageCircle,  // 💬 friendly nudge
 
   // Data / finance
   'trend-up':  TrendingUp,

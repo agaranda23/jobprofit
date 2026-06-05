@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import Icon from './Icon';
 
 /**
  * CollapsedSectionRow — one-liner row that expands in place via accordion.
@@ -116,7 +117,7 @@ export default function CollapsedSectionRow({
           <span className="jd-csr-attention-pill" aria-label="Needs attention">Fix</span>
         )}
         <span className="jd-csr-chev" aria-hidden="true">
-          {expanded ? '▴' : '›'}
+          <Icon name={expanded ? 'chevron-up' : 'chevron-right'} size={16} />
         </span>
       </button>
 
