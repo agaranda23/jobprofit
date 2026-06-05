@@ -22,7 +22,7 @@ import {
 
 const STUCK_THRESHOLD_MS = 60_000;
 
-export default function SyncBadge() {
+export default function SyncBadge({ onSignIn }) {
   // queueLength is the TOTAL count (new jobs + meta updates) — from subscribe()
   // which already calls getTotalQueueLength() since PR feat/offline-meta-queue.
   const [queueLength, setQueueLength]   = useState(0);
@@ -79,11 +79,12 @@ export default function SyncBadge() {
   // Hidden when queue is empty and not actively syncing
   if (queueLength === 0 && !syncing) return null;
 
+  const isAuthFailure = errorState.lastError?.message === 'Not signed in';
   const isStuck =
     queueLength > 0 &&
     !!errorState.lastError &&
     errorState.lastAttemptAt !== null &&
-    (now - errorState.lastAttemptAt) > STUCK_THRESHOLD_MS;
+    (isAuthFailure || (now - errorState.lastAttemptAt) > STUCK_THRESHOLD_MS);
 
   const handleBadgeTap = () => {
     if (syncing) return;
@@ -131,32 +132,36 @@ export default function SyncBadge() {
     : 'unknown';
 
   // Build a human-readable label that breaks down the pending count.
-  // New-job count = total minus meta updates (both tracked independently).
+  // Job count = total minus meta updates (both tracked independently).
   const jobCount  = Math.max(0, queueLength - metaCount);
   const parts     = [];
-  if (jobCount > 0)   parts.push(`${jobCount} new job${jobCount  !== 1 ? 's' : ''}`);
+  if (jobCount > 0)   parts.push(`${jobCount} job${jobCount  !== 1 ? 's' : ''}`);
   if (metaCount > 0)  parts.push(`${metaCount} edit${metaCount !== 1 ? 's' : ''}`);
   const pendingDescription = parts.length > 0 ? parts.join(' + ') : `${queueLength} change${queueLength !== 1 ? 's' : ''}`;
 
   const label = syncing
-    ? 'Syncing…'
-    : isStuck
-      ? 'Sync failed — tap for options'
-      : `⚡ ${pendingDescription} waiting to sync`;
+    ? 'Backing up…'
+    : isStuck && isAuthFailure
+      ? `⚠ Sign in to back up ${pendingDescription} — tap`
+      : isStuck
+        ? `⚠ ${pendingDescription} didn't back up — tap to fix`
+        : `⚡ ${pendingDescription} not backed up — tap to back up`;
 
   return (
     <>
       <button
-        className={`sync-badge${syncing ? ' sync-badge--syncing' : ''}${isStuck ? ' sync-badge--stuck' : ''}`}
+        className={`sync-badge${syncing ? ' sync-badge--syncing' : ''}${isStuck && isAuthFailure ? ' sync-badge--stuck-auth' : isStuck ? ' sync-badge--stuck' : ''}`}
         onClick={handleBadgeTap}
         disabled={syncing}
         aria-live="polite"
         aria-label={
           syncing
-            ? 'Syncing changes'
-            : isStuck
-              ? 'Sync failed — tap for options'
-              : `${pendingDescription} waiting to sync — tap to retry`
+            ? 'Backing up your changes'
+            : isStuck && isAuthFailure
+              ? `Sign in to back up ${pendingDescription} — tap for options`
+              : isStuck
+                ? `${pendingDescription} failed to back up — tap for options`
+                : `${pendingDescription} not backed up yet — tap to back up now`
         }
         type="button"
       >
@@ -168,10 +173,21 @@ export default function SyncBadge() {
       {sheetOpen && !confirmDiscard && !detailOpen && (
         <div className="modal-overlay" role="dialog" aria-modal="true" aria-label="Sync options">
           <div className="modal-card sync-stuck-sheet">
-            <p className="modal-card-title">This job hasn&apos;t synced</p>
-            <p className="modal-card-body">
-              Last tried {timeAgo}. You can retry, see what went wrong, or discard it.
-            </p>
+            {isAuthFailure ? (
+              <>
+                <p className="modal-card-title">Sign in to save this job</p>
+                <p className="modal-card-body">
+                  You&apos;re signed out, so this job is stuck on this phone. Sign in and it backs up straight away.
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="modal-card-title">This job isn&apos;t backed up</p>
+                <p className="modal-card-body">
+                  Last tried {timeAgo}. Retry it, see what went wrong, or discard it.
+                </p>
+              </>
+            )}
             <div className="modal-card-actions sync-stuck-actions">
               <button
                 type="button"
@@ -194,14 +210,28 @@ export default function SyncBadge() {
               >
                 Discard
               </button>
-              <button
-                type="button"
-                className="modal-btn"
-                style={{ background: 'var(--accent)', color: '#0b1f10' }}
-                onClick={handleRetry}
-              >
-                Retry now
-              </button>
+              {isAuthFailure ? (
+                <button
+                  type="button"
+                  className="modal-btn"
+                  style={{ background: 'var(--accent)', color: '#0b1f10' }}
+                  onClick={() => {
+                    setSheetOpen(false);
+                    if (onSignIn) onSignIn();
+                  }}
+                >
+                  Sign in
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="modal-btn"
+                  style={{ background: 'var(--accent)', color: '#0b1f10' }}
+                  onClick={handleRetry}
+                >
+                  Retry now
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -232,8 +262,8 @@ export default function SyncBadge() {
       {confirmDiscard && (
         <div className="modal-overlay" role="dialog" aria-modal="true" aria-label="Confirm discard">
           <div className="modal-card">
-            <p className="modal-card-title">Discard 1 unsynced job?</p>
-            <p className="modal-card-body">You won&apos;t get it back.</p>
+            <p className="modal-card-title">Discard {queueLength} unsaved job{queueLength !== 1 ? 's' : ''}?</p>
+            <p className="modal-card-body">This job only exists on this phone. Discard it and it&apos;s gone for good.</p>
             <div className="modal-card-actions">
               <button
                 type="button"
