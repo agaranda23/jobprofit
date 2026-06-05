@@ -12,14 +12,29 @@
  * tests remain fast and deterministic without real IndexedDB.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, act, cleanup } from '@testing-library/react';
 import React from 'react';
 
 // --- Mock offlineQueue -----------------------------------------------------------
-const mockSubscriptions = { queue: null, syncing: null, error: null };
+// The component calls subscribe() twice in its useEffect:
+//   1. subscribe(setQueueLength)              — the primary queue-length watcher
+//   2. subscribe(() => refreshMetaCount())    — re-reads meta count on every change
+//
+// A single-slot mockSubscriptions.queue would be overwritten by the second call,
+// so pushQueue() would trigger refreshMetaCount() instead of setQueueLength().
+// We store ALL queue subscribers in an array and broadcast to every one of them,
+// mirroring the fan-out behaviour of the real subscribe() implementation.
+const queueSubscribers = [];
+const mockSubscriptions = { syncing: null, error: null };
 
 vi.mock('../../lib/offlineQueue', () => ({
-  subscribe: vi.fn((cb) => { mockSubscriptions.queue = cb; return () => {}; }),
+  subscribe: vi.fn((cb) => {
+    queueSubscribers.push(cb);
+    return () => {
+      const idx = queueSubscribers.indexOf(cb);
+      if (idx !== -1) queueSubscribers.splice(idx, 1);
+    };
+  }),
   subscribeToSyncState: vi.fn((cb) => { mockSubscriptions.syncing = cb; return () => {}; }),
   subscribeToErrorState: vi.fn((cb) => { mockSubscriptions.error = cb; return () => {}; }),
   runSync: vi.fn(() => Promise.resolve()),
@@ -32,14 +47,28 @@ vi.mock('../../lib/offlineQueue', () => ({
 
 import SyncBadge from '../SyncBadge';
 
-// Helpers to push state into the component via the subscription callbacks
-function pushQueue(n) { mockSubscriptions.queue?.(n); }
-function pushSyncing(b) { mockSubscriptions.syncing?.(b); }
-function pushError(state) { mockSubscriptions.error?.(state); }
+// Helpers to push state into the component via the subscription callbacks.
+// Wrapped in act() so React flushes state updates synchronously before
+// assertions run — required when calling setState outside a React event handler.
+function pushQueue(n) { act(() => { queueSubscribers.forEach(cb => cb(n)); }); }
+function pushSyncing(b) { act(() => { mockSubscriptions.syncing?.(b); }); }
+function pushError(state) { act(() => { mockSubscriptions.error?.(state); }); }
 
 // Override Date.now so time-based stuck calculations are deterministic
 const BASE_NOW = 1_700_000_000_000;
 const STUCK_THRESHOLD_MS = 60_000;
+
+// Explicit cleanup after every test — belt-and-suspenders on top of the
+// globals:true auto-cleanup in vitest.config.js. Prevents rendered component
+// instances accumulating in the DOM across tests.
+afterEach(cleanup);
+
+// Reset shared subscription references so a new render always gets a fresh slot
+beforeEach(() => {
+  queueSubscribers.length = 0;
+  mockSubscriptions.syncing = null;
+  mockSubscriptions.error = null;
+});
 
 describe('SyncBadge — hidden state', () => {
   it('renders nothing when queue is empty and not syncing', () => {
@@ -58,7 +87,7 @@ describe('SyncBadge — pending state (queue > 0, no error)', () => {
     rerender(<SyncBadge />);
     // Allow the async metaCount refresh to settle
     await vi.waitFor(() => {
-      expect(screen.getByRole('button').textContent).toContain('not backed up — tap to back up');
+      expect(screen.getByRole('button', { name: /not backed up yet/i }).textContent).toContain('not backed up — tap to back up');
     });
   });
 
@@ -68,7 +97,7 @@ describe('SyncBadge — pending state (queue > 0, no error)', () => {
     getMetaQueueLength.mockResolvedValue(0);
     pushQueue(3);
     await vi.waitFor(() => {
-      expect(screen.getByRole('button').textContent).toContain('3 jobs not backed up');
+      expect(screen.getByRole('button', { name: /not backed up yet/i }).textContent).toContain('3 jobs not backed up');
     });
   });
 
@@ -78,7 +107,7 @@ describe('SyncBadge — pending state (queue > 0, no error)', () => {
     getMetaQueueLength.mockResolvedValue(1);
     pushQueue(3); // total=3, meta=1 → jobCount=2
     await vi.waitFor(() => {
-      const text = screen.getByRole('button').textContent;
+      const text = screen.getByRole('button', { name: /not backed up yet/i }).textContent;
       expect(text).toContain('2 jobs + 1 edit');
       expect(text).toContain('not backed up — tap to back up');
     });
@@ -90,7 +119,7 @@ describe('SyncBadge — pending state (queue > 0, no error)', () => {
     getMetaQueueLength.mockResolvedValue(0);
     pushQueue(2);
     await vi.waitFor(() => {
-      expect(screen.getByRole('button').textContent).not.toMatch(/\bnew\b/i);
+      expect(screen.getByRole('button', { name: /not backed up yet/i }).textContent).not.toMatch(/\bnew\b/i);
     });
   });
 
@@ -100,7 +129,7 @@ describe('SyncBadge — pending state (queue > 0, no error)', () => {
     getMetaQueueLength.mockResolvedValue(0);
     pushQueue(1);
     await vi.waitFor(() => {
-      const btn = screen.getByRole('button');
+      const btn = screen.getByRole('button', { name: /not backed up yet/i });
       expect(btn.getAttribute('aria-label')).toContain('not backed up yet — tap to back up now');
     });
   });
@@ -111,7 +140,7 @@ describe('SyncBadge — pending state (queue > 0, no error)', () => {
     getMetaQueueLength.mockResolvedValue(0);
     pushQueue(1);
     await vi.waitFor(() => {
-      const btn = screen.getByRole('button');
+      const btn = screen.getByRole('button', { name: /not backed up yet/i });
       expect(btn.className).not.toContain('sync-badge--stuck');
     });
   });
@@ -123,7 +152,7 @@ describe('SyncBadge — syncing state', () => {
     pushQueue(1);
     pushSyncing(true);
     await vi.waitFor(() => {
-      expect(screen.getByRole('button').textContent).toContain('Backing up…');
+      expect(screen.getByRole('button', { name: 'Backing up your changes' }).textContent).toContain('Backing up…');
     });
   });
 
@@ -132,7 +161,7 @@ describe('SyncBadge — syncing state', () => {
     pushQueue(1);
     pushSyncing(true);
     await vi.waitFor(() => {
-      expect(screen.getByRole('button').getAttribute('aria-label')).toBe('Backing up your changes');
+      expect(screen.getByRole('button', { name: 'Backing up your changes' }).getAttribute('aria-label')).toBe('Backing up your changes');
     });
   });
 
@@ -141,7 +170,7 @@ describe('SyncBadge — syncing state', () => {
     pushQueue(1);
     pushSyncing(true);
     await vi.waitFor(() => {
-      expect(screen.getByRole('button').textContent).not.toContain('Syncing');
+      expect(screen.getByRole('button', { name: 'Backing up your changes' }).textContent).not.toContain('Syncing');
     });
   });
 });
@@ -164,8 +193,8 @@ describe('SyncBadge — stuck state: generic (60s threshold)', () => {
       lastAttemptAt: BASE_NOW - STUCK_THRESHOLD_MS - 1,
     });
     await vi.waitFor(() => {
-      const text = screen.getByRole('button').textContent;
-      expect(text).toContain("didn't back up — tap to fix");
+      const btn = screen.getByRole('button', { name: /failed to back up/i });
+      expect(btn.textContent).toContain("didn't back up — tap to fix");
     });
   });
 
@@ -179,7 +208,7 @@ describe('SyncBadge — stuck state: generic (60s threshold)', () => {
       lastAttemptAt: BASE_NOW - STUCK_THRESHOLD_MS - 1,
     });
     await vi.waitFor(() => {
-      const btn = screen.getByRole('button');
+      const btn = screen.getByRole('button', { name: /failed to back up/i });
       expect(btn.className).toContain('sync-badge--stuck');
       expect(btn.className).not.toContain('sync-badge--stuck-auth');
     });
@@ -195,7 +224,7 @@ describe('SyncBadge — stuck state: generic (60s threshold)', () => {
       lastAttemptAt: BASE_NOW - 30_000, // only 30s ago
     });
     await vi.waitFor(() => {
-      const text = screen.getByRole('button').textContent;
+      const text = screen.getByRole('button', { name: /not backed up yet/i }).textContent;
       // Should still show the pending label, not stuck
       expect(text).toContain('not backed up — tap to back up');
     });
@@ -210,8 +239,8 @@ describe('SyncBadge — stuck state: generic (60s threshold)', () => {
       lastError: new Error('RLS error'),
       lastAttemptAt: BASE_NOW - STUCK_THRESHOLD_MS - 1,
     });
-    await vi.waitFor(() => screen.getByRole('button').textContent.includes("didn't back up"));
-    fireEvent.click(screen.getByRole('button'));
+    await vi.waitFor(() => screen.getByRole('button', { name: /failed to back up/i }));
+    fireEvent.click(screen.getByRole('button', { name: /failed to back up/i }));
     expect(screen.getByText("This job isn't backed up")).toBeInTheDocument();
   });
 
@@ -224,8 +253,8 @@ describe('SyncBadge — stuck state: generic (60s threshold)', () => {
       lastError: new Error('RLS error'),
       lastAttemptAt: BASE_NOW - STUCK_THRESHOLD_MS - 1,
     });
-    await vi.waitFor(() => screen.getByRole('button').textContent.includes("didn't back up"));
-    fireEvent.click(screen.getByRole('button'));
+    await vi.waitFor(() => screen.getByRole('button', { name: /failed to back up/i }));
+    fireEvent.click(screen.getByRole('button', { name: /failed to back up/i }));
     expect(screen.getByText('Retry now')).toBeInTheDocument();
     expect(screen.queryByText('Sign in')).toBeNull();
   });
@@ -249,7 +278,7 @@ describe('SyncBadge — stuck state: auth failure (immediate escalation)', () =>
       lastAttemptAt: BASE_NOW - 5_000, // only 5s ago — well within the 60s threshold
     });
     await vi.waitFor(() => {
-      const text = screen.getByRole('button').textContent;
+      const text = screen.getByRole('button', { name: /sign in to back up/i }).textContent;
       expect(text).toContain('Sign in to back up');
     });
   });
@@ -264,7 +293,7 @@ describe('SyncBadge — stuck state: auth failure (immediate escalation)', () =>
       lastAttemptAt: BASE_NOW - 5_000,
     });
     await vi.waitFor(() => {
-      const btn = screen.getByRole('button');
+      const btn = screen.getByRole('button', { name: /sign in to back up/i });
       expect(btn.className).toContain('sync-badge--stuck-auth');
       expect(btn.className).not.toContain('sync-badge--stuck-auth sync-badge--stuck');
     });
@@ -281,7 +310,7 @@ describe('SyncBadge — stuck state: auth failure (immediate escalation)', () =>
       lastAttemptAt: BASE_NOW - 5_000,
     });
     await vi.waitFor(() => {
-      const text = screen.getByRole('button').textContent;
+      const text = screen.getByRole('button', { name: /not backed up yet/i }).textContent;
       // Still pending (not stuck) because 5s < 60s threshold and it's not an exact match
       expect(text).toContain('not backed up — tap to back up');
     });
@@ -296,8 +325,8 @@ describe('SyncBadge — stuck state: auth failure (immediate escalation)', () =>
       lastError: new Error('Not signed in'),
       lastAttemptAt: BASE_NOW - 5_000,
     });
-    await vi.waitFor(() => screen.getByRole('button').textContent.includes('Sign in to back up'));
-    fireEvent.click(screen.getByRole('button'));
+    await vi.waitFor(() => screen.getByRole('button', { name: /sign in to back up/i }));
+    fireEvent.click(screen.getByRole('button', { name: /sign in to back up/i }));
     expect(screen.getByText('Sign in to save this job')).toBeInTheDocument();
   });
 
@@ -310,8 +339,8 @@ describe('SyncBadge — stuck state: auth failure (immediate escalation)', () =>
       lastError: new Error('Not signed in'),
       lastAttemptAt: BASE_NOW - 5_000,
     });
-    await vi.waitFor(() => screen.getByRole('button').textContent.includes('Sign in to back up'));
-    fireEvent.click(screen.getByRole('button'));
+    await vi.waitFor(() => screen.getByRole('button', { name: /sign in to back up/i }));
+    fireEvent.click(screen.getByRole('button', { name: /sign in to back up/i }));
     expect(screen.getByText('Sign in')).toBeInTheDocument();
     expect(screen.queryByText('Retry now')).toBeNull();
   });
@@ -326,8 +355,8 @@ describe('SyncBadge — stuck state: auth failure (immediate escalation)', () =>
       lastError: new Error('Not signed in'),
       lastAttemptAt: BASE_NOW - 5_000,
     });
-    await vi.waitFor(() => screen.getByRole('button').textContent.includes('Sign in to back up'));
-    fireEvent.click(screen.getByRole('button'));
+    await vi.waitFor(() => screen.getByRole('button', { name: /sign in to back up/i }));
+    fireEvent.click(screen.getByRole('button', { name: /sign in to back up/i }));
     fireEvent.click(screen.getByText('Sign in'));
     expect(onSignIn).toHaveBeenCalledOnce();
   });
@@ -342,7 +371,7 @@ describe('SyncBadge — stuck state: auth failure (immediate escalation)', () =>
       lastAttemptAt: BASE_NOW - 5_000,
     });
     await vi.waitFor(() => {
-      const text = screen.getByRole('button').textContent;
+      const text = screen.getByRole('button', { name: /sign in to back up/i }).textContent;
       expect(text).toContain('Sign in to back up 3 jobs');
     });
   });
@@ -365,8 +394,8 @@ describe('SyncBadge — discard modal', () => {
       lastError: new Error('Network timeout'),
       lastAttemptAt: BASE_NOW - STUCK_THRESHOLD_MS - 1,
     });
-    await vi.waitFor(() => screen.getByRole('button'));
-    fireEvent.click(screen.getByRole('button'));
+    await vi.waitFor(() => screen.getByRole('button', { name: /failed to back up/i }));
+    fireEvent.click(screen.getByRole('button', { name: /failed to back up/i }));
     fireEvent.click(screen.getByText('Discard'));
     expect(screen.getByText('Discard 1 unsaved job?')).toBeInTheDocument();
   });
@@ -380,8 +409,8 @@ describe('SyncBadge — discard modal', () => {
       lastError: new Error('Network timeout'),
       lastAttemptAt: BASE_NOW - STUCK_THRESHOLD_MS - 1,
     });
-    await vi.waitFor(() => screen.getByRole('button'));
-    fireEvent.click(screen.getByRole('button'));
+    await vi.waitFor(() => screen.getByRole('button', { name: /failed to back up/i }));
+    fireEvent.click(screen.getByRole('button', { name: /failed to back up/i }));
     fireEvent.click(screen.getByText('Discard'));
     expect(screen.getByText('Discard 3 unsaved jobs?')).toBeInTheDocument();
   });
@@ -395,8 +424,8 @@ describe('SyncBadge — discard modal', () => {
       lastError: new Error('Network timeout'),
       lastAttemptAt: BASE_NOW - STUCK_THRESHOLD_MS - 1,
     });
-    await vi.waitFor(() => screen.getByRole('button'));
-    fireEvent.click(screen.getByRole('button'));
+    await vi.waitFor(() => screen.getByRole('button', { name: /failed to back up/i }));
+    fireEvent.click(screen.getByRole('button', { name: /failed to back up/i }));
     fireEvent.click(screen.getByText('Discard'));
     expect(screen.getByText(/only exists on this phone/i)).toBeInTheDocument();
     expect(screen.getByText(/gone for good/i)).toBeInTheDocument();

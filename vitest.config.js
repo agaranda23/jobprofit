@@ -12,6 +12,12 @@ export default defineConfig({
     // Render smoke tests (*.test.jsx) override this per-file via:
     //   // @vitest-environment jsdom
     environment: 'node',
+    // globals: true exposes describe/it/expect/beforeEach/afterEach as
+    // true globals. @testing-library/react's auto-cleanup checks
+    // `typeof afterEach === 'function'` at module load time — without
+    // globals it finds nothing and skips cleanup, so rendered components
+    // pile up across tests and cause "multiple elements found" failures.
+    globals: true,
     // setupFiles runs before every test file in every environment.
     // It extends vitest's expect with @testing-library/jest-dom matchers
     // so the render smoke tests can use toBeInTheDocument etc.
