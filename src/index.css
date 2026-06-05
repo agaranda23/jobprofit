@@ -5059,6 +5059,293 @@ input[type=number] { -moz-appearance: textfield; }
 }
 .wc-slot-add:hover { opacity: 1; }
 
+/* Week view: overflow chip — drills to Day view */
+.wc-slot-overflow {
+  background: none;
+  border: none;
+  color: var(--jp-green);
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 4px;
+  cursor: pointer;
+  width: 100%;
+  text-align: center;
+  opacity: 0.8;
+  border-radius: 4px;
+}
+.wc-slot-overflow:hover { opacity: 1; }
+
+/* ── WorkCalendar: shared nav header ──────────── */
+.wc-nav-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.wc-nav-chevron {
+  background: none;
+  border: none;
+  color: var(--text);
+  font-size: 24px;
+  line-height: 1;
+  padding: 4px 8px;
+  cursor: pointer;
+  border-radius: 6px;
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.wc-nav-chevron:hover { background: var(--surface-2); }
+.wc-nav-label {
+  background: none;
+  border: none;
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 6px 10px;
+  border-radius: 6px;
+  flex: 1;
+  text-align: center;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.wc-nav-label:hover { background: var(--surface-2); }
+.wc-today-pill {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 10px;
+  border-radius: 20px;
+  cursor: pointer;
+  min-height: 44px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.wc-today-pill:hover { color: var(--text); border-color: var(--jp-green); }
+
+/* ── WorkCalendar: Day view ───────────────────── */
+.wc-day-view {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.wc-day-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 40px 24px 24px;
+  gap: 10px;
+}
+.wc-day-empty-icon {
+  font-size: 36px;
+}
+.wc-day-empty-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0;
+}
+.wc-day-empty-hint {
+  font-size: 13px;
+  color: var(--text-dim);
+  margin: 0;
+  max-width: 260px;
+  line-height: 1.5;
+}
+.wc-day-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.wc-day-tile {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  cursor: pointer;
+  transition: border-color 0.15s;
+  min-height: 60px;
+}
+.wc-day-tile:hover { border-color: var(--jp-green); }
+.wc-day-tile-label {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+.wc-day-tile-customer {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.wc-day-tile-amount {
+  font-size: 13px;
+  color: var(--jp-green);
+  font-weight: 700;
+}
+/* Sticky footer for the Day-view Add button */
+.wc-day-sticky-footer {
+  padding: 16px 0 8px;
+  position: sticky;
+  bottom: 0;
+  background: var(--bg);
+  /* Subtle separator so the button feels floating over the list */
+  box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.3);
+  border-radius: 0 0 12px 12px;
+}
+.wc-day-add-btn {
+  display: block;
+  width: 100%;
+  min-height: 48px;
+  background: var(--jp-green);
+  color: #000;
+  border: none;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 12px 16px;
+  text-align: center;
+  transition: opacity 0.15s;
+}
+.wc-day-add-btn:hover { opacity: 0.88; }
+
+/* ── WorkCalendar: Month view ─────────────────── */
+.wc-month-grid-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.wc-month-dow-row {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+.wc-month-dow {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-dim);
+  text-align: center;
+  padding: 4px 0;
+}
+.wc-month-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+.wc-month-cell {
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 4px 4px;
+  min-height: 52px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  cursor: pointer;
+  transition: border-color 0.15s;
+  overflow: hidden;
+}
+.wc-month-cell:hover { border-color: var(--jp-green); }
+.wc-month-cell--today {
+  background: rgba(94, 217, 166, 0.08);
+  border-color: var(--jp-green);
+}
+.wc-month-cell--out {
+  opacity: 0.3;
+}
+/* Subtle fill when a day has jobs — readable at a glance */
+.wc-month-cell--has-jobs {
+  background: rgba(94, 217, 166, 0.04);
+}
+.wc-month-cell--today.wc-month-cell--has-jobs {
+  background: rgba(94, 217, 166, 0.12);
+}
+.wc-month-cell-num {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1;
+  display: block;
+}
+.wc-month-cell--today .wc-month-cell-num { color: var(--jp-green); }
+.wc-month-cell--out .wc-month-cell-num { color: var(--text-dim); }
+
+/* Mobile: coloured dots (default) */
+.wc-month-cell-dots {
+  display: flex;
+  gap: 3px;
+  align-items: center;
+  margin-top: 4px;
+  flex-wrap: nowrap;
+}
+.wc-month-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--jp-green);
+  flex-shrink: 0;
+}
+.wc-month-dot-count {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--jp-green);
+}
+
+/* Desktop job labels — hidden on mobile by default, shown at ≥640px */
+.wc-month-cell-labels {
+  display: none;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 3px;
+  width: 100%;
+  overflow: hidden;
+}
+.wc-month-cell-label {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--jp-green);
+  background: rgba(94, 217, 166, 0.12);
+  border-radius: 3px;
+  padding: 1px 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+}
+.wc-month-cell-more {
+  font-size: 9px;
+  color: var(--text-dim);
+  font-weight: 600;
+}
+
+/* At ≥640px: show labels, hide dots */
+@media (min-width: 640px) {
+  .wc-month-cell {
+    min-height: 72px;
+    padding: 8px 6px 6px;
+  }
+  .wc-month-cell-dots { display: none; }
+  .wc-month-cell-labels { display: flex; }
+  .wc-month-cell-num { font-size: 14px; }
+}
+
 /* ── SettingsScreen ───────────────────────────── */
 .settings-screen { /* inherits .screen */ }
 
