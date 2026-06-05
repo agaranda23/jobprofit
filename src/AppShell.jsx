@@ -952,7 +952,7 @@ export default function AppShell() {
               session={session}
               profile={profile}
               onAvatarClick={() => setDrawerOpen(true)}
-              onAddJob={openDetailed}
+              onSaveJob={handleAddJob}
               onJobTap={(job) => {
                 if (job?.id) setPendingJobId(job.id);
                 navigate('work');

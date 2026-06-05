@@ -2,15 +2,43 @@
  * ScheduleScreen — Tab 3 in the new nav.
  * Slice 1: stub with week-list view showing scheduled jobs for the next 7 days.
  * Full calendar grid with drag-to-reschedule ships in slice 6.
+ *
+ * Bug fix (fix/calendar-add-and-payment-pct): "+" buttons previously called
+ * onAddJob which was wired to openDetailed() in AppShell — that navigates to
+ * the Work tab instead of opening the Add-Job form.  ScheduleScreen now owns
+ * its own addJobOpen state and mounts AddJobModal directly, matching the
+ * pattern used by WorkScreen and TodayScreen.  When a specific day slot is
+ * tapped the date is pre-filled via initialDate + defaultMode='details-manual'.
  */
+import { useState } from 'react';
 import HeaderAvatar from '../components/HeaderAvatar';
+import AddJobModal from '../components/AddJobModal';
 
 const DAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTH_LABELS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-export default function ScheduleScreen({ jobs = [], session, profile, onAvatarClick, onAddJob, onJobTap }) {
+export default function ScheduleScreen({ jobs = [], session, profile, onAvatarClick, onSaveJob, onJobTap }) {
   const week = buildWeek();
   const jobsByDay = groupJobsByDay(jobs, week);
+
+  // addJobOpen: controls whether AddJobModal is mounted.
+  // addJobDate: ISO date string pre-filled when opening from a specific day slot.
+  // Null = no pre-fill (opened from the primary CTA).
+  const [addJobOpen, setAddJobOpen] = useState(false);
+  const [addJobDate, setAddJobDate] = useState(null);
+
+  const openAddJobForDate = (isoDate) => {
+    setAddJobDate(isoDate || null);
+    setAddJobOpen(true);
+  };
+
+  const openAddJob = () => openAddJobForDate(null);
+
+  const handleJobSave = (job) => {
+    setAddJobOpen(false);
+    setAddJobDate(null);
+    onSaveJob?.(job);
+  };
 
   return (
     <div className="screen schedule-screen">
@@ -39,7 +67,7 @@ export default function ScheduleScreen({ jobs = [], session, profile, onAvatarCl
               </div>
               <div className="schedule-day-slots">
                 {dayJobs.length === 0 ? (
-                  <button className="schedule-slot-empty" onClick={onAddJob}>
+                  <button className="schedule-slot-empty" onClick={() => openAddJobForDate(key)}>
                     — free — <span className="schedule-add">+ Add</span>
                   </button>
                 ) : (
@@ -67,9 +95,17 @@ export default function ScheduleScreen({ jobs = [], session, profile, onAvatarCl
         })}
       </div>
 
-      <button className="btn-primary btn-large" style={{ marginTop: 16 }} onClick={onAddJob}>
+      <button className="btn-primary btn-large" style={{ marginTop: 16 }} onClick={openAddJob}>
         + Schedule a job
       </button>
+
+      {addJobOpen && (
+        <AddJobModal
+          onClose={() => { setAddJobOpen(false); setAddJobDate(null); }}
+          onSave={handleJobSave}
+          {...(addJobDate ? { initialDate: addJobDate, defaultMode: 'details-manual' } : {})}
+        />
+      )}
     </div>
   );
 }
