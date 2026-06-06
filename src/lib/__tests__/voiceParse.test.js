@@ -11,6 +11,22 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+
+// voiceParse.js now imports supabase.js to get the session token for the auth
+// header on the AI proxy call. Mock it so the test environment doesn't need
+// real Supabase env vars. The supabase client behaviour under test is just
+// auth.getSession() — we return a valid session by default and let individual
+// tests override global.fetch to control the proxy response.
+vi.mock('../supabase.js', () => ({
+  supabase: {
+    auth: {
+      getSession: vi.fn().mockResolvedValue({
+        data: { session: { access_token: 'test-token' } },
+      }),
+    },
+  },
+}));
+
 import { parseJobFromSpeech } from '../voiceParse.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

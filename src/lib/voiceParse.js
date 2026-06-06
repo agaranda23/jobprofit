@@ -3,6 +3,8 @@
 //           Portuguese (pt-PT), Spanish (es-ES).
 // Falls back to regex if the AI proxy is unreachable.
 
+import { supabase } from './supabase';
+
 const MULTILINGUAL_SYSTEM_PROMPT = `Extract a job name, customer name (only if explicitly named), amount in GBP, and optional payment type from the transcript.
 Respond ONLY with JSON: {"name": string, "customer": string|null, "amount": number|null, "paymentType": "cash"|"bank transfer"|"card"|"cheque"|null}.
 
@@ -34,9 +36,15 @@ export async function parseJobFromSpeech(transcript) {
   if (!text) return { name: '', customer: null, amount: null, paymentType: null };
 
   try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) throw new Error('Not signed in');
+
     const res = await fetch('/.netlify/functions/ai', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+      },
       body: JSON.stringify({
         model: 'claude-haiku-4-5-20251001',
         max_tokens: 160,

@@ -1,6 +1,8 @@
 // Send a receipt photo (data URL) to the Netlify AI proxy for extraction.
 // Returns { merchant, total, vat, items, date } with nulls where data isn't found.
 
+import { supabase } from './supabase';
+
 const MAX_DIM = 1568;            // Anthropic's recommended max image dimension
 const TARGET_QUALITY = 0.85;     // JPEG quality for re-encode
 
@@ -69,11 +71,17 @@ Rules:
     }],
   };
 
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.access_token) return { error: 'Not signed in' };
+
   let res;
   try {
     res = await fetch('/.netlify/functions/ai', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+      },
       body: JSON.stringify(payload),
     });
   } catch (e) {

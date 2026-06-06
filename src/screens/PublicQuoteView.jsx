@@ -21,8 +21,23 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { fetchPublicJob } from '../lib/store';
 import { isValidToken } from '../lib/publicQuoteToken';
+
+// Fetch job data via the server-side function so the anon Supabase client is
+// never used for job data. See fix/security-stop-the-line (H-1).
+async function fetchPublicJobViaFunction(token) {
+  try {
+    const res = await fetch('/.netlify/functions/fetch-public-job', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token }),
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
 import SignaturePad from '../components/SignaturePad';
 import ConsentBanner from '../components/ConsentBanner.jsx';
 import PoweredByJobProfit from '../components/PoweredByJobProfit.jsx';
@@ -557,7 +572,7 @@ export default function PublicQuoteView({ token }) {
 
       // Fetch job + profile in parallel
       const [jobResult, profileResult] = await Promise.allSettled([
-        fetchPublicJob(token),
+        fetchPublicJobViaFunction(token),
         fetch(FETCH_QUOTE_PROFILE_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
