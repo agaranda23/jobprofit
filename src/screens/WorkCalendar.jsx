@@ -254,71 +254,108 @@ function DayView({ focusedDate, byDay, todayKey, onAddOnDate, onJobTap }) {
   );
 }
 
-// ── Week day column (existing, now with tappable header) ──────────────────────
+// ── Week day column ───────────────────────────────────────────────────────────
+// Desktop: solid bordered box matching Month cell style, 7-column grid.
+// Mobile (<640px): full-width stacked row — layout controlled purely via CSS.
 
 function DayColumn({ day, dayJobs, isToday, onAddOnDate, onJobTap, onDayHeaderTap }) {
   const key = isoDate(day);
   const dayLabel = formatDayLabel(day);
-  const visibleJobs = dayJobs.slice(0, 2);
+  const hasJobs = dayJobs.length > 0;
+
+  // Desktop: cap at 3 visible chips; mobile: show all (CSS removes the overflow chip via display:none).
+  const DESKTOP_CAP = 3;
+  const visibleJobs = dayJobs.slice(0, DESKTOP_CAP);
   const overflowCount = dayJobs.length - visibleJobs.length;
 
+  const cellClasses = [
+    'wc-week-cell',
+    isToday ? 'wc-week-cell--today' : '',
+    hasJobs ? 'wc-week-cell--has-jobs' : '',
+  ].filter(Boolean).join(' ');
+
   return (
-    <div className={`wc-day ${isToday ? 'wc-day--today' : ''}`}>
+    <div className={cellClasses}>
       {/* Tappable day header — drills to Day view */}
       <button
         type="button"
-        className="wc-day-header wc-day-header--tap"
+        className="wc-week-cell-header"
         onClick={() => onDayHeaderTap?.(key)}
         aria-label={`View ${dayLabel}`}
-        style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', width: '100%', textAlign: 'center' }}
       >
         <span className="wc-day-name">{DAY_LABELS[day.getDay()]}</span>
-        <span className={`wc-day-num ${isToday ? 'wc-day-num--today' : ''}`}>{day.getDate()}</span>
+        <span className={`wc-day-num${isToday ? ' wc-day-num--today' : ''}`}>{day.getDate()}</span>
       </button>
-      <div className="wc-day-slots">
-        {dayJobs.length === 0 ? (
-          <button
-            className="wc-slot-empty"
-            onClick={() => onAddOnDate(key)}
-            aria-label={`Add job on ${dayLabel}`}
-          >
-            +
-          </button>
-        ) : (
-          <>
-            {visibleJobs.map(j => (
-              <button
-                key={j.id || j.cloudId}
-                type="button"
-                className="wc-slot-job"
-                title={jobLabel(j)}
-                onClick={() => onJobTap?.(j)}
-                aria-label={`Open ${jobLabel(j)}`}
-                style={{ minHeight: 44, width: '100%', textAlign: 'left', cursor: 'pointer', background: 'none', border: 'none', padding: 0 }}
-              >
-                <span className="wc-slot-job-label">{jobLabel(j).slice(0, 14)}{jobLabel(j).length > 14 ? '…' : ''}</span>
-              </button>
-            ))}
-            {overflowCount > 0 && (
-              <button
-                type="button"
-                className="wc-slot-overflow"
-                onClick={() => onDayHeaderTap?.(key)}
-                aria-label={`View all ${dayJobs.length} jobs on ${dayLabel}`}
-              >
-                +{overflowCount} more
-              </button>
-            )}
+
+      {/* Job chips */}
+      <div className="wc-week-cell-jobs">
+        {visibleJobs.map(j => {
+          const amount = j.total ?? j.amount;
+          return (
             <button
-              className="wc-slot-add"
-              onClick={() => onAddOnDate(key)}
-              aria-label={`Add job on ${dayLabel}`}
+              key={j.id || j.cloudId}
+              type="button"
+              className="wc-slot-job"
+              title={jobLabel(j)}
+              onClick={() => onJobTap?.(j)}
+              aria-label={`Open ${jobLabel(j)}`}
             >
-              +
+              <span className="wc-slot-job-label">{jobLabel(j).slice(0, 14)}{jobLabel(j).length > 14 ? '…' : ''}</span>
+              {amount > 0 && (
+                <span className="wc-slot-job-amount">
+                  £{Number(amount).toLocaleString('en-GB', { minimumFractionDigits: 0 })}
+                </span>
+              )}
             </button>
-          </>
+          );
+        })}
+
+        {/* Mobile-only: show all remaining chips (desktop shows overflow chip instead) */}
+        {dayJobs.slice(DESKTOP_CAP).map(j => {
+          const amount = j.total ?? j.amount;
+          return (
+            <button
+              key={j.id || j.cloudId}
+              type="button"
+              className="wc-slot-job wc-slot-job--mobile-only"
+              title={jobLabel(j)}
+              onClick={() => onJobTap?.(j)}
+              aria-label={`Open ${jobLabel(j)}`}
+            >
+              <span className="wc-slot-job-label">{jobLabel(j).slice(0, 14)}{jobLabel(j).length > 14 ? '…' : ''}</span>
+              {amount > 0 && (
+                <span className="wc-slot-job-amount">
+                  £{Number(amount).toLocaleString('en-GB', { minimumFractionDigits: 0 })}
+                </span>
+              )}
+            </button>
+          );
+        })}
+
+        {/* Desktop-only: +N more overflow chip */}
+        {overflowCount > 0 && (
+          <button
+            type="button"
+            className="wc-slot-overflow wc-slot-overflow--desktop-only"
+            onClick={() => onDayHeaderTap?.(key)}
+            aria-label={`View all ${dayJobs.length} jobs on ${dayLabel}`}
+          >
+            +{overflowCount} more
+          </button>
         )}
       </div>
+
+      {/* Ghost "+ Add" row — quiet, not a primary CTA */}
+      <button
+        type="button"
+        className={`wc-week-cell-add-ghost${!hasJobs ? ' wc-week-cell-add-ghost--empty' : ''}`}
+        onClick={() => onAddOnDate(key)}
+        aria-label={`Add job on ${dayLabel}`}
+      >
+        <span className="wc-week-cell-add-text">
+          {hasJobs ? '+ Add' : '+ Add a job'}
+        </span>
+      </button>
     </div>
   );
 }

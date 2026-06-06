@@ -5025,30 +5025,63 @@ input[type=number] { -moz-appearance: textfield; }
   font-weight: 600;
 }
 
-/* 7-column week grid */
+/* ── WorkCalendar: Week view ──────────────────────
+ * Mobile (<640px): single-column stacked list of full-width day rows.
+ * Desktop (≥640px): 7-column grid matching Month layout.
+ * No overflow-x scroll — layout reflows via CSS only, no JS branching.
+ */
 .wc-grid {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 4px;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
+  grid-template-columns: 1fr;   /* mobile: stacked */
+  gap: 6px;
 }
 
-.wc-day {
+/* Week cell — solid bordered box matching .wc-month-cell visual tokens.
+ * Mobile: header left, chips right (row layout).
+ * Desktop (≥640px): header top, chips below (column layout — see breakpoint). */
+.wc-week-cell {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 8px 4px;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;   /* mobile: date left, chips right */
+  align-items: flex-start;
   gap: 4px;
-  min-width: 0;
+  transition: border-color 0.15s;
+  overflow: hidden;
 }
-.wc-day--today .wc-day-header { color: var(--jp-green); }
+.wc-week-cell:focus-within { border-color: var(--jp-green); }
+.wc-week-cell--today {
+  background: rgba(94, 217, 166, 0.08);
+  border-color: var(--jp-green);
+}
+.wc-week-cell--has-jobs {
+  background: rgba(94, 217, 166, 0.04);
+}
+.wc-week-cell--today.wc-week-cell--has-jobs {
+  background: rgba(94, 217, 166, 0.12);
+}
 
-.wc-day-header {
+/* Day header button (weekday name + date number) — taps to Day view */
+.wc-week-cell-header {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding-bottom: 6px;
-  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  width: 36px;
+  gap: 2px;
+  min-height: 44px;
+  justify-content: flex-start;
+  padding-top: 2px;
 }
+.wc-week-cell-header:hover .wc-day-num { color: var(--jp-green); }
+
+/* Shared weekday label tokens (used by DayColumn header) */
 .wc-day-name {
   font-size: 10px;
   font-weight: 700;
@@ -5061,73 +5094,59 @@ input[type=number] { -moz-appearance: textfield; }
   font-weight: 700;
   color: var(--text);
   line-height: 1.2;
+  transition: color 0.15s;
 }
 .wc-day-num--today {
   color: var(--jp-green);
 }
 
-.wc-day-slots {
+/* Jobs area — chips + ghost add row */
+.wc-week-cell-jobs {
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 3px;
-  min-height: 40px;
+  min-width: 0;
 }
 
+/* Green event-chip pill — kept from original, extended with amount */
 .wc-slot-job {
   background: var(--surface);
   border: 1px solid var(--jp-green);
   border-radius: 5px;
-  padding: 4px 5px;
+  padding: 4px 6px;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  min-height: 30px;
 }
+.wc-slot-job:hover { background: rgba(94, 217, 166, 0.08); }
 .wc-slot-job-label {
   font-size: 10px;
   font-weight: 600;
   color: var(--jp-green);
-  display: block;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  flex: 1;
+  min-width: 0;
 }
-
-.wc-slot-empty {
-  background: none;
-  border: 1px dashed var(--border);
-  border-radius: 5px;
-  color: var(--text-dim);
-  font-size: 16px;
-  padding: 6px;
-  cursor: pointer;
-  width: 100%;
-  min-height: 44px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: border-color 0.15s, color 0.15s;
-}
-.wc-slot-empty:hover {
-  border-color: var(--jp-green);
+.wc-slot-job-amount {
+  font-size: 10px;
+  font-weight: 700;
   color: var(--jp-green);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
-.wc-slot-add {
-  background: none;
-  border: 1px dashed var(--border);
-  border-radius: 5px;
-  color: var(--text-dim);
-  font-size: 14px;
-  padding: 2px;
-  cursor: pointer;
-  width: 100%;
-  min-height: 22px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  opacity: 0.5;
-  transition: opacity 0.15s;
-}
-.wc-slot-add:hover { opacity: 1; }
+/* Mobile-only chips: shown on mobile (stacked), hidden on desktop (capped at 3 + overflow) */
+.wc-slot-job--mobile-only { display: flex; }
 
-/* Week view: overflow chip — drills to Day view */
+/* Week view: overflow chip — plain green text, drills to Day view */
 .wc-slot-overflow {
   background: none;
   border: none;
@@ -5137,11 +5156,82 @@ input[type=number] { -moz-appearance: textfield; }
   padding: 2px 4px;
   cursor: pointer;
   width: 100%;
-  text-align: center;
+  text-align: left;
   opacity: 0.8;
   border-radius: 4px;
 }
 .wc-slot-overflow:hover { opacity: 1; }
+/* Desktop-only overflow chip — hidden on mobile (all chips shown) */
+.wc-slot-overflow--desktop-only { display: none; }
+
+/* Ghost "+ Add" row — quiet, NOT the primary CTA green-bg style */
+.wc-week-cell-add-ghost {
+  background: none;
+  border: none;
+  padding: 4px 0 2px;
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}
+/* Empty cell: the ghost IS the whole cell tap target, text centred */
+.wc-week-cell-add-ghost--empty {
+  justify-content: center;
+  flex: 1;
+  min-height: 44px;
+}
+.wc-week-cell-add-text {
+  font-size: 11px;
+  color: var(--text-dim);
+  opacity: 0.7;
+  transition: color 0.15s, opacity 0.15s;
+}
+.wc-week-cell-add-ghost:hover .wc-week-cell-add-text {
+  color: var(--jp-green);
+  opacity: 1;
+}
+
+/* At ≥640px: 7-column grid, column layout per cell, desktop overflow behaviour */
+@media (min-width: 640px) {
+  .wc-grid {
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+  }
+  .wc-week-cell {
+    flex-direction: column;
+    align-items: stretch;
+    min-height: 80px;
+    padding: 6px 4px 4px;
+  }
+  .wc-week-cell-header {
+    width: 100%;
+    align-items: center;
+    padding-bottom: 4px;
+    border-bottom: 1px solid var(--border);
+    min-height: unset;
+    padding-top: 0;
+  }
+  /* Desktop: ghost add row hidden by default, revealed on hover */
+  .wc-week-cell-add-ghost {
+    opacity: 0;
+    pointer-events: none;
+    min-height: 24px;
+    transition: opacity 0.15s;
+  }
+  .wc-week-cell:hover .wc-week-cell-add-ghost,
+  .wc-week-cell:focus-within .wc-week-cell-add-ghost {
+    opacity: 1;
+    pointer-events: auto;
+  }
+  .wc-week-cell-add-ghost--empty {
+    justify-content: center;
+  }
+  /* Show desktop overflow chip; hide mobile-only chips */
+  .wc-slot-job--mobile-only { display: none; }
+  .wc-slot-overflow--desktop-only { display: block; }
+}
 
 /* ── WorkCalendar: shared nav header ──────────── */
 .wc-nav-header {
