@@ -368,6 +368,23 @@ describe('StageStrip render smoke', () => {
       )
     ).not.toThrow();
   });
+
+  it('Overdue tile renders alert dot; Paid tile does not', () => {
+    const { container } = render(
+      <StageStrip
+        jobs={[]}
+        selectedStage="On"
+        showAll={false}
+        onSelectStage={NOOP}
+        deriveStatus={deriveStatusFn}
+        formatAmount={formatAmountFn}
+      />
+    );
+    const overdueTile = container.querySelector('.stage-tile--overdue');
+    const paidTile    = container.querySelector('.stage-tile--paid');
+    expect(overdueTile.querySelector('.stage-tile-alert-dot')).not.toBeNull();
+    expect(paidTile.querySelector('.stage-tile-alert-dot')).toBeNull();
+  });
 });
 
 // ── ProfitBreakdownSheet ──────────────────────────────────────────────────────

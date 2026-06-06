@@ -58,6 +58,9 @@ function StageTile({ stage, count, total, selected, onSelect, tileRef, formatAmo
           <path d="M1.5 5l2.5 2.5 4.5-4.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
         </svg>
       )}
+      {stage === 'Overdue' && (
+        <span className="stage-tile-alert-dot" aria-hidden="true" />
+      )}
       <span className="stage-tile-name">{stage.toUpperCase()}</span>
       <span className="stage-tile-count">{count} {count === 1 ? 'job' : 'jobs'}</span>
       <span className={amountClass}>{amountText}</span>
