@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v69';  // bumped from v68: SyncBadge microcopy — backed-up framing, auth-failure escalation, tap affordance
+const CACHE_NAME = 'jobprofit-v70';  // bumped from v69: Week view parity — solid box cells, mobile stacked layout, ghost add row, amount on chips
 const PRECACHE = [
   '/',
   '/index.html',
