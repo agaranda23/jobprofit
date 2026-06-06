@@ -406,7 +406,7 @@ export default function InvoiceDocumentPreview({
         border: '1px solid #e0e0e0',
         padding: 16,
         boxShadow: '0 1px 6px rgba(0,0,0,0.08)',
-        fontFamily: 'system-ui, -apple-system, sans-serif',
+        fontFamily: "'DM Sans', system-ui, -apple-system, sans-serif",
         color: DARK,
       }}
     >

@@ -10,7 +10,12 @@
 }
 
 :root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  /* Brand typography — loaded via Google Fonts in index.html.
+     All font-family declarations should reference these variables. */
+  --font-sans: 'DM Sans', system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', Menlo, Consolas, monospace;
+
+  font-family: var(--font-sans);
   line-height: 1.5;
   font-weight: 400;
 
@@ -276,7 +281,7 @@ body { background: var(--bg); color: var(--text); -webkit-font-smoothing: antial
 }
 .total-row:last-child { border-bottom: none; }
 .total-label { color: var(--text-dim); font-size: 16px; }
-.total-value { font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.total-value { font-size: 20px; font-weight: 600; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 .profit-row .total-label { color: var(--text); font-weight: 600; }
 .profit-value { font-size: 32px; font-weight: 700; color: var(--accent); letter-spacing: -0.01em; }
 .total-awaiting-row { padding: 4px 0 14px; border: none !important; justify-content: flex-end; }
@@ -330,8 +335,8 @@ body { background: var(--bg); color: var(--text); -webkit-font-smoothing: antial
 .recent-item > :first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .recent-amount { flex-shrink: 0; }
 .recent-item:last-child { border-bottom: none; }
-.recent-amount.pos { color: var(--accent); font-variant-numeric: tabular-nums; }
-.recent-amount.neg { color: var(--danger); font-variant-numeric: tabular-nums; }
+.recent-amount.pos { color: var(--accent); font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.recent-amount.neg { color: var(--danger); font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 
 /* ── Bottom nav — solid full-width bar anchored to the bottom edge ────────────
    Spans the full viewport width (left:0; right:0; bottom:0) with no floating
@@ -642,7 +647,7 @@ body { background: var(--bg); color: var(--text); -webkit-font-smoothing: antial
 }
 .unpaid-name-group { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; flex: 1; min-width: 0; }
 .unpaid-label { font-size: 16px; font-weight: 500; }
-.unpaid-amount { font-size: 16px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; flex-shrink: 0; }
+.unpaid-amount { font-size: 16px; font-weight: 600; font-family: var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; flex-shrink: 0; }
 .mark-paid-btn {
   width: 100%;
   background: var(--surface-2);
@@ -763,7 +768,7 @@ body {
 .preview-row:last-child { border-bottom: none; }
 .preview-label { color: var(--text-dim); font-size: 14px; }
 .preview-value { font-size: 17px; font-weight: 500; }
-.preview-amount { font-size: 22px; font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; }
+.preview-amount { font-size: 22px; font-weight: 700; color: var(--accent); font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 .preview-input {
   background: transparent;
   border: none;
@@ -1926,7 +1931,7 @@ input[type=number] { -moz-appearance: textfield; }
 .awaiting-job-meta { font-size: 12px; color: var(--text-dim); margin-top: 2px; font-weight: 500; }
 .awaiting-job-meta-warn { color: var(--jp-amber); }
 .awaiting-job-meta-late { color: #ef4444; }
-.awaiting-job-amount { font-size: 17px; font-weight: 700; color: var(--text); margin-left: 12px; font-variant-numeric: tabular-nums; }
+.awaiting-job-amount { font-size: 17px; font-weight: 700; color: var(--text); margin-left: 12px; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 
 /* Mark Paid action */
 .awaiting-job-paid-btn { width: 100%; background: var(--accent); color: #0b1f10; border: none; padding: 12px; font-family: inherit; font-size: 14px; font-weight: 700; cursor: pointer; transition: background 0.15s, transform 0.05s; }
@@ -1956,7 +1961,7 @@ input[type=number] { -moz-appearance: textfield; }
 .chase-row-meta { font-size: 12px; color: var(--text-dim); margin-top: 2px; font-weight: 500; }
 .chase-row-meta-warn { color: var(--jp-amber); }
 .chase-row-meta-overdue { color: #ef4444; }
-.chase-row-amount { font-size: 15px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap; flex-shrink: 0; }
+.chase-row-amount { font-size: 15px; font-weight: 700; color: var(--text); font-family: var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; flex-shrink: 0; }
 .chase-row-actions { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid var(--border); }
 .chase-row-btn-chase { padding: 10px; background: var(--jp-amber); color: #1a0e00; border: none; font-family: inherit; font-size: 13px; font-weight: 700; cursor: pointer; transition: opacity 0.15s; border-right: 1px solid var(--border); }
 .chase-row-btn-chase:active { opacity: 0.8; }
@@ -2105,7 +2110,7 @@ input[type=number] { -moz-appearance: textfield; }
 .outlook-card-rows { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
 .outlook-card-row { display: flex; justify-content: space-between; font-size: 14px; color: var(--text); }
 .outlook-card-row > :first-child { color: var(--text-dim); font-weight: 500; }
-.outlook-card-row > :last-child { font-weight: 700; font-variant-numeric: tabular-nums; }
+.outlook-card-row > :last-child { font-weight: 700; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
 .outlook-card-verdict { font-size: 16px; font-weight: 700; padding-top: 10px; border-top: 1px solid var(--border); }
 .outlook-card-good .outlook-card-verdict { color: var(--accent); }
 .outlook-card-tight .outlook-card-verdict, .outlook-card-short .outlook-card-verdict { color: var(--jp-amber); }
