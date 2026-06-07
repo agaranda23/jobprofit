@@ -163,6 +163,10 @@ export default function AppShell() {
   // pendingJobId: when Today navigates to Work with a specific job to open, store
   // the job ID here so WorkScreen can pre-open the drawer on mount.
   const [pendingJobId, setPendingJobId] = useState(null);
+  // pendingWorkView: when "See the week" deep-links to Jobs, force WorkScreen into
+  // Calendar + Week view for that navigation only. Consumed on WorkScreen mount.
+  // 'calendar-week' | null
+  const [pendingWorkView, setPendingWorkView] = useState(null);
   // workResetKey: bumped on every explicit tab-click to the work/jobs tab.
   // WorkScreen receives this as its React key, which causes a full remount and
   // therefore discards any open drawer or modal state. Programmatic navigation
@@ -769,8 +773,10 @@ export default function AppShell() {
     const workView = NAV_SLICE_3 ? 'work' : 'jobs';
     if (nextView === workView) {
       setWorkResetKey(k => k + 1);
-      // Also clear the pending job so a remounted WorkScreen has no initialJobId.
+      // Also clear the pending job and any pending work view so a remounted
+      // WorkScreen has no initialJobId or forced subview.
       setPendingJobId(null);
+      setPendingWorkView(null);
     }
   }, []);
 
@@ -783,6 +789,19 @@ export default function AppShell() {
     if (nextView !== 'settings') setSettingsSubView(null);
     navigate(nextView);
   }, [resetTransientUI, navigate]);
+
+  /**
+   * "See the week" deep-link from TodayScreen's all-clear card.
+   * Forces WorkScreen into Calendar + Week view, anchored to today.
+   * Does NOT go through resetTransientUI / handleTabChange so workResetKey
+   * is NOT bumped — the pending state must survive into the mounted WorkScreen
+   * (same lifecycle as pendingJobId from onJobTap).
+   * Defined before conditional early returns (Rules of Hooks).
+   */
+  const handleSeeTheWeek = useCallback(() => {
+    setPendingWorkView('calendar-week');
+    navigate(NAV_SLICE_3 ? 'work' : 'jobs');
+  }, [navigate]);
 
   if (!authReady) {
     return <div className="auth-loading"><div className="ocr-spinner" /></div>;
@@ -819,6 +838,7 @@ export default function AppShell() {
               avatarProps={avatarProps}
               profile={profile}
               onNavigateToMoney={() => navigate('finance')}
+              onSeeTheWeek={handleSeeTheWeek}
               onNavigateToCardPayments={() => setSettingsSubView('card-payments')}
             />
           )}
@@ -838,6 +858,8 @@ export default function AppShell() {
               biz={null}
               profile={profile}
               initialJobId={pendingJobId}
+              pendingWorkView={pendingWorkView}
+              onPendingWorkViewConsumed={() => setPendingWorkView(null)}
               onNavigateToCardPayments={() => setSettingsSubView('card-payments')}
               onProfileUpdate={handleProfileUpdate}
             />
@@ -922,6 +944,7 @@ export default function AppShell() {
               avatarProps={avatarProps}
               profile={profile}
               onNavigateToMoney={() => navigate('money')}
+              onSeeTheWeek={handleSeeTheWeek}
               onNavigateToCardPayments={() => setSettingsSubView('card-payments')}
             />
           )}
@@ -941,6 +964,8 @@ export default function AppShell() {
               biz={null}
               profile={profile}
               initialJobId={pendingJobId}
+              pendingWorkView={pendingWorkView}
+              onPendingWorkViewConsumed={() => setPendingWorkView(null)}
               onNavigateToCardPayments={() => setSettingsSubView('card-payments')}
               onProfileUpdate={handleProfileUpdate}
             />

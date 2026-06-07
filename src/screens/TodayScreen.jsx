@@ -69,6 +69,7 @@ export default function TodayScreen({
   onMarkPaid,
   onJobTap,
   onNavigateToMoney,
+  onSeeTheWeek,
   onNavigateToCardPayments,
   profile,
 }) {
@@ -566,7 +567,7 @@ export default function TodayScreen({
           <button
             type="button"
             className="foreman-empty-secondary"
-            onClick={() => onNavigateToMoney?.()}
+            onClick={() => onSeeTheWeek?.()}
           >
             See the week
           </button>
