@@ -23,7 +23,7 @@
  * TODO(v2): add drag-and-drop rescheduling via HTML5 drag API or @dnd-kit.
  */
 
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { logTelemetry } from '../lib/telemetry';
 
 const DAY_LABELS   = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -530,7 +530,7 @@ function MonthView({ year, month, byDay, todayKey, onCellTap }) {
 
 // ── WorkCalendar ──────────────────────────────────────────────────────────────
 
-export default function WorkCalendar({ jobs = [], onNewJobOnDate, onJobTap }) {
+export default function WorkCalendar({ jobs = [], onNewJobOnDate, onJobTap, forceWeekOnMount = false }) {
   // All hooks must sit above any early return (lesson from PR #125).
   const [calView, setCalView] = useState(getPersistedCalView);
   // weekWindowStart: the first day of the 7-day rolling window.
@@ -561,6 +561,21 @@ export default function WorkCalendar({ jobs = [], onNewJobOnDate, onJobTap }) {
     logTelemetry('calendar_add_tap', { date: dateKey, view: calView });
     onNewJobOnDate?.(dateKey);
   }, [calView, onNewJobOnDate]);
+
+  // "See the week" deep-link: if WorkScreen received pendingWorkView='calendar-week',
+  // it passes forceWeekOnMount=true. Switch to Week, persist, and re-anchor to today.
+  // One-shot empty-dep effect — fires once on this WorkCalendar instance so it
+  // doesn't re-trigger on every jobs data refresh. Placed above any early return
+  // (Rules of Hooks; same discipline as PR #125 fix).
+  useEffect(() => {
+    if (!forceWeekOnMount) return;
+    switchCalView('week');
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    setFocusedDate(today);
+    setWeekWindowStart(new Date(today));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Rolling week window — 7 days from weekWindowStart
   const weekDays = buildRollingWeek(weekWindowStart);

@@ -1060,7 +1060,7 @@ function JobsList({ jobs, selectedStage, showAll, searchQuery, onJobSelect, onSe
 
 // ── WorkScreen (root) ─────────────────────────────────────────────────────────
 
-export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJob, onAddPayment, onUpdateJob, onDeleteJob, onAddReceipt, onDeleteReceipt, biz, profile, initialJobId, onNavigateToCardPayments, onProfileUpdate }) {
+export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJob, onAddPayment, onUpdateJob, onDeleteJob, onAddReceipt, onDeleteReceipt, biz, profile, initialJobId, pendingWorkView, onPendingWorkViewConsumed, onNavigateToCardPayments, onProfileUpdate }) {
   const [subview, setSubview] = useState(getPersistedView);
   const [selectedStage, setSelectedStage] = useState(() => getPersistedFilter().selectedStage);
   const [showAll, setShowAll] = useState(() => getPersistedFilter().showAll);
@@ -1194,6 +1194,18 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
     logTelemetry('work_subview', { subview: v });
     setSubview(v);
     persistView(v);
+  }, []);
+
+  // "See the week" deep-link: force Calendar + Week on mount when AppShell
+  // has set pendingWorkView. One-shot empty-dep effect mirrors initialJobId
+  // above — fires once on this WorkScreen instance, never on data refresh.
+  // Placed after switchSubview so the closure captures the defined callback.
+  // switchSubview persists + fires telemetry so the subview write is canonical.
+  useEffect(() => {
+    if (pendingWorkView !== 'calendar-week') return;
+    switchSubview('calendar');
+    onPendingWorkViewConsumed?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Keep the drawer's job in sync when AppShell refreshes jobs[] after a payment.
@@ -1684,7 +1696,7 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
           onActionRedirect={handleActionRedirect}
         />
       ) : (
-        <WorkCalendar jobs={visibleJobs} onNewJobOnDate={handleNewJobOnDate} onJobTap={setSelectedJob} />
+        <WorkCalendar jobs={visibleJobs} onNewJobOnDate={handleNewJobOnDate} onJobTap={setSelectedJob} forceWeekOnMount={pendingWorkView === 'calendar-week'} />
       )}
 
       {/* Job detail drawer — wrapped in an error boundary so a render crash
