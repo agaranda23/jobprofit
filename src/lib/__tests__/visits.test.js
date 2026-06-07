@@ -6,7 +6,6 @@ import {
   computeFinishStatus,
   getScheduleMeta,
   isLastPlannedVisit,
-  tomorrowDateString,
 } from '../visits.js';
 
 // ── Helpers ────────────────────────────────────────────────────────────────

@@ -4,7 +4,6 @@ import {
   subscribeToSyncState,
   subscribeToErrorState,
   runSync,
-  getQueueLength,
   getMetaQueueLength,
   getPending,
   discardEntry,

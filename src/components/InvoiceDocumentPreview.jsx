@@ -198,7 +198,7 @@ function PreviewLineItems({ job }) {
 
 // depositCreditAmount: pre-invoice deposit total (pounds, number) surfaced as a credit on
 // the invoice. Reduces the balance due line. 0 = no credit line shown.
-function PreviewSummary({ quote, materials, showVat, vatNumber, isCisJob, cisRate, itemiseDocuments = false, depositCreditAmount = 0 }) {
+function PreviewSummary({ quote, materials, showVat, isCisJob, cisRate, itemiseDocuments = false, depositCreditAmount = 0 }) {
   const labour       = Math.max(0, quote - materials);
   const vat          = showVat ? Math.round(quote * 0.2 * 100) / 100 : 0;
   const grossTotal   = quote + vat;

@@ -84,7 +84,7 @@ function setDismissalCount(n) {
 export function shouldShowCostPrompt({
   jobId,
   jobIncome,
-  jobCostTotal,
+  jobCostTotal: _jobCostTotal,
   remindJobCosts,
   isPartialPayment = false,
   isBulkPaid = false,

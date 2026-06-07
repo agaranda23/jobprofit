@@ -222,7 +222,7 @@ export function nbaMeta(tier, job, now) {
   return { amount: null, suffix: '', negative: false };
 }
 
-export function nbaCta(tier, job, profile) {
+export function nbaCta(tier, job, _profile) {
   if (tier === 1) {
     const phone = job?.customerPhone || job?.phone || '';
     const email = job?.customerEmail || job?.email || '';

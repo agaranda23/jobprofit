@@ -93,15 +93,6 @@ function makeSelectChain(tableResult) {
   };
 }
 
-function makeEqChain(result) {
-  return {
-    eq: () => makeEqChain(result),
-    then: (res) => Promise.resolve(result).then(res),
-    // Supabase update chain resolves via awaiting the final .eq()
-    // The actual resolution needs to be awaitable — wrap in a promise-like.
-    ...result,
-  };
-}
 
 // We return a fresh adminClient mock that routes by table name.
 function buildAdminClient() {

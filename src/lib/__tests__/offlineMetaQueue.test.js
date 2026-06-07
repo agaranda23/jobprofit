@@ -221,7 +221,6 @@ const {
   __setCloudMetaUpdate,
   __setCloudInsert,
   enqueueJob,
-  getQueueLength,
 } = await import('../offlineQueue.js');
 
 const { updateJobMetaInCloud } = await import('../store.js');

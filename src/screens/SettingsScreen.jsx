@@ -293,7 +293,7 @@ function NotificationsSection({ session }) {
 // The column is added by supabase/migrations/20260531100000_add_weekly_digest_enabled.sql.
 // The push itself is a no-op until VAPID keys are set in Netlify env (founder action).
 
-function WeeklyDigestRow({ session, profile, onProfileUpdate }) {
+function WeeklyDigestRow({ profile, onProfileUpdate }) {
   // Derive initial state from profile; treat null/undefined as true (opt-out default)
   const [enabled, setEnabled] = useState(
     () => profile?.weekly_digest_enabled !== false

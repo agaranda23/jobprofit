@@ -9,8 +9,8 @@
  *      three nav layouts; active/inactive colour variant applied correctly.
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { render } from '@testing-library/react';
 
 // ── Mocks (must come before component imports) ────────────────────────────────
 

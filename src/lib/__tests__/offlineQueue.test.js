@@ -161,7 +161,6 @@ vi.mock('../offlineQueue.js', async () => {
 
 // ── Import after mock is registered ─────────────────────────────────────────
 const {
-  subscribe,
   subscribeToSyncState,
   subscribeToErrorState,
   enqueueJob,

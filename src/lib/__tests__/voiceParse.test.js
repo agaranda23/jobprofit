@@ -10,7 +10,7 @@
  *   2. Regex fallback path: fetch throws (simulates offline / proxy down).
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { parseJobFromSpeech } from '../voiceParse.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

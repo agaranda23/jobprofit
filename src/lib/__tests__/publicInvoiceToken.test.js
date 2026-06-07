@@ -9,7 +9,7 @@
  *   C. Token survives the same META_FIELDS round-trip via writeJobMeta/readJobMeta
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import {
   buildPublicInvoiceUrl,
   isValidToken,

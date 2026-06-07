@@ -1359,7 +1359,7 @@ describe('VAT_RATE', () => {
 describe('vatQuarterRange', () => {
   it('Q1: date in January returns Jan–Mar quarter starting Jan 1', () => {
     const now = new Date(2026, 0, 15); // 2026-01-15
-    const { start, end, label } = vatQuarterRange(now);
+    const { start, label } = vatQuarterRange(now);
     expect(start.getMonth()).toBe(0);  // January
     expect(start.getDate()).toBe(1);
     expect(start.getFullYear()).toBe(2026);
