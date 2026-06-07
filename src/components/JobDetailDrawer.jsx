@@ -32,7 +32,7 @@ import {
   isDoubleSendBlocked,
   lastChasedLabel,
 } from '../lib/chaseLadder';
-import { needsPrice, stagePatch } from '../lib/jobStatus';
+import { deriveDisplayStatus, needsPrice, stagePatch } from '../lib/jobStatus';
 import { computeBalance, computeAmountPaid, editPayment, deletePayment } from '../lib/payments';
 import { gbp, todayKey } from '../lib/today';
 import { getOverheadTotal, monthKey } from '../lib/cashflow';
@@ -106,27 +106,8 @@ function daysSinceDue(job) {
   return Math.max(0, Math.floor(diffMs / (24 * 60 * 60 * 1000)));
 }
 
-/**
- * Maps the job's status fields to the display badge used in the card list.
- * Mirrors deriveDisplayStatus in WorkScreen — kept inline so JobDetailDrawer
- * has no import from WorkScreen (no circular dep).
- */
-function deriveStatus(job) {
-  // Canonical status field takes priority — short-circuit before subordinate
-  // field checks so residual jobStatus/paymentStatus cannot override a stage move.
-  if (job.status === 'lead') return 'Lead';
-  if (job.status === 'quoted') return 'Quoted';
-  if (job.status === 'paid') return 'Paid';
-  if (job.status === 'invoice_sent') return job.overdue === true ? 'Overdue' : 'Invoiced';
-  if (job.status === 'complete') return 'Done';
-  if (job.status === 'active') return 'Active';
-  // Subordinate field fallbacks — legacy jobs that pre-date the canonical status column.
-  if (job.paid || job.paymentStatus === 'paid' || job.jobStatus === 'paid') return 'Paid';
-  if (job.invoiceStatus === 'invoiced') return 'Invoiced';
-  if (job.jobStatus === 'complete') return 'Done';
-  if (job.jobStatus === 'active') return 'Active';
-  return 'Lead';
-}
+// deriveDisplayStatus is imported from lib/jobStatus — single source of truth
+// for the six pipeline stages: Lead · Quoted · On · Invoiced · Overdue · Paid.
 
 /** Formats an ISO date string or YYYY-MM-DD to en-GB display date. Returns '' for falsy. */
 function fmtDate(raw) {
@@ -141,10 +122,11 @@ function fmtDate(raw) {
 }
 
 const STATUS_CLASS = {
+  Lead:     'status--lead',
   Quoted:   'status--quoted',
-  Active:   'status--active',
-  Done:     'status--done',
+  On:       'status--active',
   Invoiced: 'status--invoiced',
+  Overdue:  'status--overdue',
   Paid:     'status--paid',
 };
 
@@ -2493,20 +2475,7 @@ export default function JobDetailDrawer({
   // state is always correct for the job's current stage without a useEffect.
   // The user can tap any collapsed row to expand it; tapping again collapses it.
   const [expandedSections, setExpandedSections] = useState(() => {
-    const initialStatus = (() => {
-      if (job.status === 'lead') return 'Lead';
-      if (job.status === 'quoted') return 'Quoted';
-      if (job.status === 'paid') return 'Paid';
-      if (job.status === 'invoice_sent') return job.overdue === true ? 'Overdue' : 'Invoiced';
-      if (job.status === 'complete') return 'Done';
-      if (job.status === 'active') return 'Active';
-      if (job.paid || job.paymentStatus === 'paid' || job.jobStatus === 'paid') return 'Paid';
-      if (job.invoiceStatus === 'invoiced') return 'Invoiced';
-      if (job.jobStatus === 'complete') return 'Done';
-      if (job.jobStatus === 'active') return 'Active';
-      return 'Lead';
-    })();
-    const config = getDrawerSectionConfig(initialStatus);
+    const config = getDrawerSectionConfig(deriveDisplayStatus(job));
     return new Set(config.filter(s => s.display === 'expanded').map(s => s.id));
   });
 
@@ -2619,7 +2588,7 @@ export default function JobDetailDrawer({
     if (!isDrawerConnected || !job?.id) return;
     // Only prefetch for chase-eligible statuses — avoids a pointless network call
     // for Lead / Quoted / On / Paid jobs that will never show the Chase button.
-    const s = deriveStatus(job);
+    const s = deriveDisplayStatus(job);
     if (s !== 'Invoiced' && s !== 'Overdue') return;
     if (!Number(job.total ?? job.amount ?? 0)) return;
 
@@ -2717,7 +2686,7 @@ export default function JobDetailDrawer({
     return () => { cancelled = true; };
   }, [job?.id, job?.deposit_paid_at, job?.deposit_payment_token_id]);
 
-  const status = deriveStatus(job);
+  const status = deriveDisplayStatus(job);
   const statusClass = STATUS_CLASS[status] || '';
   const displayName = job.customer || job.name || 'Unnamed job';
   // Only show the customer sub-line when it's present and differs from the job name —
@@ -2738,7 +2707,7 @@ export default function JobDetailDrawer({
   // Pre-invoice flag: drives deposit mode in RecordPaymentModal and the
   // PaymentSummaryBlock variant (Received/Quote instead of Received/Balance).
   const isPreInvoiceJob = !invoiceAlreadySent && (
-    status === 'Lead' || status === 'Quoted' || status === 'Active' || status === 'Done'
+    status === 'Lead' || status === 'Quoted' || status === 'On'
   );
   const paymentModalMode = isPreInvoiceJob ? 'deposit' : 'payment';
 
@@ -3713,7 +3682,7 @@ export default function JobDetailDrawer({
               status === 'Lead' || status === 'Quoted' || attention.quote;
 
             // ── Costs accordion: default expanded at Active stage ────────────
-            const costsDefaultExpanded = status === 'Active' || attention.costs;
+            const costsDefaultExpanded = status === 'On' || attention.costs;
 
             // ── Photos & Notes — always-visible section (no More accordion) ──
             // onAddPhoto opens the PhotoSourceSheet; PhotosSection still receives

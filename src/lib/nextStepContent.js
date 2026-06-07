@@ -23,8 +23,8 @@
  *   'viewProfitBreakdown'– scroll to ProfitBarSection (no-op scroll; card is its own prompt)
  *   'noop'               – no handler (read-only label)
  *
- * Stage derivation mirrors deriveStatus() in JobDetailDrawer — caller passes
- * the output of deriveStatus (a string) plus enrichment args.
+ * Stage derivation uses deriveDisplayStatus() from lib/jobStatus — caller passes
+ * the output of that function (a string) plus enrichment args.
  */
 
 /**

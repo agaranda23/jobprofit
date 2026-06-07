@@ -1,58 +1,17 @@
 /**
- * Unit tests for the deriveDisplayStatus logic used in WorkScreen.jsx.
+ * Unit tests for deriveDisplayStatus — now imported from lib/jobStatus.js,
+ * the single source of truth for job stage display logic.
  *
- * deriveDisplayStatus is module-internal (not exported), so this file mirrors
- * its logic as a pure function — the same pattern used for the coerceAmount
- * mirror in needsPrice.test.js. Tests cover:
- *
+ * Tests cover:
  *  1. Canonical status field short-circuits correctly for every stage.
  *  2. 'quoted' status returns 'Quoted' (Bug 2 fix).
  *  3. A previously-Paid job moved to a non-Paid stage is not re-derived as
  *     'Paid' when the canonical status field is set (Bug 1 root-cause guard).
  *  4. Legacy fallback fields still work for pre-canonical jobs.
- *
- * If deriveDisplayStatus is ever extracted to its own module, import it
- * directly and delete the mirrored implementation below.
  */
 
 import { describe, it, expect } from 'vitest';
-import { DEFAULT_PAYMENT_TERMS_DAYS } from '../../lib/chaseLadder.js';
-
-// ── Mirror of WorkScreen.deriveDisplayStatus (keep in sync) ──────────────────
-// Canonical status first; subordinate field fallbacks for legacy records.
-function isOverdue(job) {
-  if (job.invoiceDueDate) {
-    const due = new Date(job.invoiceDueDate);
-    due.setHours(0, 0, 0, 0);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return due < today;
-  }
-  // Simplified fallback: daysSinceInvoice > DEFAULT_PAYMENT_TERMS_DAYS (net-7) — not needed for the tested paths
-  return false;
-}
-
-function deriveDisplayStatus(job) {
-  if (job.status === 'lead') return 'Lead';
-  if (job.status === 'quoted') return 'Quoted';
-  if (job.status === 'paid') return 'Paid';
-  if (job.status === 'active') return 'On';
-  if (job.status === 'complete') return 'On';
-  if (job.status === 'invoice_sent') {
-    if (job.overdue === true) return 'Overdue'; // manual override wins over date-driven check
-    if (isOverdue(job)) return 'Overdue';
-    return 'Invoiced';
-  }
-  if (job.paid || job.paymentStatus === 'paid' || job.jobStatus === 'paid') return 'Paid';
-  if (job.invoiceStatus === 'invoiced') {
-    if (isOverdue(job)) return 'Overdue';
-    return 'Invoiced';
-  }
-  if (job.jobStatus === 'complete') return 'On';
-  if (job.jobStatus === 'active') return 'On';
-  return 'Lead';
-}
-// ─────────────────────────────────────────────────────────────────────────────
+import { deriveDisplayStatus, DEFAULT_PAYMENT_TERMS_DAYS } from '../../lib/jobStatus.js';
 
 // ── Canonical status field — each stage ──────────────────────────────────────
 
@@ -151,7 +110,6 @@ describe('deriveDisplayStatus: manual overdue flag', () => {
   });
 
   it("status:'invoice_sent', overdue:false → 'Invoiced' (when no date trigger)", () => {
-    // No invoiceDueDate, no daysSinceInvoice fallback (isOverdue returns false in mirror)
     expect(deriveDisplayStatus({ status: 'invoice_sent', overdue: false })).toBe('Invoiced');
   });
 
@@ -167,11 +125,9 @@ describe('deriveDisplayStatus: manual overdue flag', () => {
 });
 
 // ── DEFAULT_PAYMENT_TERMS_DAYS: shared net-N constant ─────────────────────────
-// Verifies the constant is net-7 and that the invoiceDueDate date path honours
-// explicit due dates regardless of the terms days value.
 
 describe('DEFAULT_PAYMENT_TERMS_DAYS: shared net-N constant', () => {
-  it('equals 7 (net-7 default, shared between chaseLadder and WorkScreen isOverdue)', () => {
+  it('equals 7 (net-7 default, shared between chaseLadder and isOverdue)', () => {
     expect(DEFAULT_PAYMENT_TERMS_DAYS).toBe(7);
   });
 
