@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v71';  // bumped from v70: Unify Today header with screen titles + centered brand mark across all four tab headers
+const CACHE_NAME = 'jobprofit-v72';  // bumped from v71: logo parity fix (50vw viewport anchor) + 48px size across all four tab headers
 const PRECACHE = [
   '/',
   '/index.html',
