@@ -5046,212 +5046,225 @@ input[type=number] { -moz-appearance: textfield; }
   font-weight: 600;
 }
 
-/* ── WorkCalendar: Week view ──────────────────────
- * Mobile (<640px): single-column stacked list of full-width day rows.
- * Desktop (≥640px): 7-column grid matching Month layout.
- * No overflow-x scroll — layout reflows via CSS only, no JS branching.
+/* ── WorkCalendar: Week view — vertical stacked rows ──────────────────────────
+ * Single layout for ALL viewport widths. Desktop's extra width is spent on
+ * richer per-row detail (inline address) via ≥640px overrides, NOT on reverting
+ * to a 7-column grid. One component, one mental model.
  */
-.wc-grid {
-  display: grid;
-  grid-template-columns: 1fr;   /* mobile: stacked */
+
+/* ── vw-list: outer container ── */
+.vw-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+/* ── vw-day: full-width day row ── */
+.vw-day {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  display: flex;
+  overflow: hidden;
+  transition: border-color 0.15s;
+}
+.vw-day--has-jobs { background: rgba(94, 217, 166, 0.04); }
+.vw-day--today    { background: rgba(94, 217, 166, 0.08); border-color: var(--jp-green); }
+.vw-day--today.vw-day--has-jobs { background: rgba(94, 217, 166, 0.12); }
+.vw-day:focus-within { border-color: var(--jp-green); }
+
+/* ── vw-gutter: fixed left date rail — anchor for visual scanning ── */
+.vw-gutter {
+  flex: 0 0 58px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 4px;
+  border-right: 1px solid var(--border);
+  text-align: center;
+  background: none;
+  border-top: none;
+  border-bottom: none;
+  border-left: none;
+  cursor: pointer;
+  min-height: 44px;
+}
+.vw-gutter:hover .vw-dom { color: var(--jp-green); }
+.vw-dow {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.vw-dom {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--text);
+  transition: color 0.15s;
+}
+.vw-day--today .vw-dom,
+.vw-day--today .vw-dow { color: var(--jp-green); }
+.vw-today-tag {
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  color: var(--jp-green);
+  margin-top: 2px;
+}
+
+/* ── vw-body: right content area ── */
+.vw-body {
+  flex: 1;
+  min-width: 0;
+  padding: 9px 11px;
+  display: flex;
+  flex-direction: column;
   gap: 6px;
 }
 
-/* Week cell — solid bordered box matching .wc-month-cell visual tokens.
- * Mobile: header left, chips right (row layout).
- * Desktop (≥640px): header top, chips below (column layout — see breakpoint). */
-.wc-week-cell {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  padding: 6px 8px 4px;
-  display: flex;
-  flex-direction: row;   /* mobile: date left, chips right */
-  align-items: flex-start;
-  gap: 4px;
-  transition: border-color 0.15s;
-  overflow: hidden;
-}
-.wc-week-cell:focus-within { border-color: var(--jp-green); }
-.wc-week-cell--today {
-  background: rgba(94, 217, 166, 0.08);
-  border-color: var(--jp-green);
-}
-.wc-week-cell--has-jobs {
-  background: rgba(94, 217, 166, 0.04);
-}
-.wc-week-cell--today.wc-week-cell--has-jobs {
-  background: rgba(94, 217, 166, 0.12);
-}
-
-/* Day header button (weekday name + date number) — taps to Day view */
-.wc-week-cell-header {
-  background: none;
-  border: none;
-  padding: 0;
-  cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  flex-shrink: 0;
-  width: 36px;
-  gap: 2px;
-  min-height: 44px;
-  justify-content: flex-start;
-  padding-top: 2px;
-}
-.wc-week-cell-header:hover .wc-day-num { color: var(--jp-green); }
-
-/* Shared weekday label tokens (used by DayColumn header) */
-.wc-day-name {
-  font-size: 10px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--text-dim);
-}
-.wc-day-num {
-  font-size: 16px;
-  font-weight: 700;
-  color: var(--text);
-  line-height: 1.2;
-  transition: color 0.15s;
-}
-.wc-day-num--today {
-  color: var(--jp-green);
-}
-
-/* Jobs area — chips + ghost add row */
-.wc-week-cell-jobs {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  min-width: 0;
-}
-
-/* Green event-chip pill — kept from original, extended with amount */
-.wc-slot-job {
+/* ── vw-job: single job row ── */
+.vw-job {
   background: var(--surface);
   border: 1px solid var(--jp-green);
-  border-radius: 5px;
-  padding: 4px 6px;
-  cursor: pointer;
-  width: 100%;
-  text-align: left;
+  border-radius: 8px;
+  padding: 9px 11px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 4px;
-  min-height: 30px;
+  gap: 12px;
+  cursor: pointer;
+  text-align: left;
+  width: 100%;
+  min-height: 44px;
 }
-.wc-slot-job:hover { background: rgba(94, 217, 166, 0.08); }
-.wc-slot-job-label {
-  font-size: 10px;
-  font-weight: 600;
+.vw-day--has-jobs .vw-job { background: rgba(43, 196, 138, 0.06); }
+.vw-job:hover { background: rgba(94, 217, 166, 0.12); }
+
+.vw-job-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.vw-job-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.vw-job-meta {
+  font-size: 12px;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Address snippet — hidden on mobile, shown on desktop */
+.vw-job-meta-address { display: none; }
+.vw-job-meta-dot     { display: none; }
+
+.vw-job-right {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+.vw-amount {
+  font-size: 14px;
+  font-weight: 800;
   color: var(--jp-green);
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}
+
+/* ── vw-pill: stage status pills ── */
+.vw-pill {
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 100px;
+  white-space: nowrap;
+}
+.vw-pill--quoted   { background: rgba(244, 160, 36, 0.14);   color: var(--jp-amber); }
+.vw-pill--on       { background: rgba(43, 196, 138, 0.14);   color: var(--jp-green); }
+.vw-pill--invoiced { background: rgba(59, 130, 246, 0.16);   color: #6ea8fe; }
+.vw-pill--overdue  { background: rgba(229, 72, 77, 0.16);    color: var(--jp-rose); }
+.vw-pill--paid     { background: rgba(43, 196, 138, 0.22);   color: var(--jp-green); }
+
+/* ── vw-add-ghost: empty day affordance — quiet, NOT the green primary CTA ── */
+.vw-add-ghost {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  background: none;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  padding: 9px 11px;
+  cursor: pointer;
+  color: var(--text-dim);
+  font-size: 13px;
+  font-weight: 600;
+  width: 100%;
+  text-align: left;
+  min-height: 44px;
+  transition: border-color 0.15s, color 0.15s;
+}
+.vw-add-ghost:hover { border-color: var(--jp-green); color: var(--jp-green); }
+.vw-add-plus { font-size: 15px; font-weight: 800; }
+
+/* ── vw-day-foot: per-day subtotal (shown when >1 job) ── */
+.vw-day-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  color: var(--text-dim);
+  padding: 2px 2px 0;
+  font-family: var(--font-mono);
+}
+
+/* ── vw-week-total: week summary strip below the day rows ── */
+.vw-week-total {
+  margin-top: 5px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 11px 14px;
+  gap: 8px;
+}
+.vw-week-total-lbl {
+  font-size: 12px;
+  color: var(--text-dim);
+  font-weight: 600;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  flex: 1;
-  min-width: 0;
 }
-.wc-slot-job-amount {
-  font-size: 10px;
-  font-weight: 700;
+.vw-week-total-val {
+  font-size: 17px;
+  font-weight: 800;
   color: var(--jp-green);
-  white-space: nowrap;
+  font-family: var(--font-mono);
   flex-shrink: 0;
 }
 
-/* Mobile-only chips: shown on mobile (stacked), hidden on desktop (capped at 3 + overflow) */
-.wc-slot-job--mobile-only { display: flex; }
-
-/* Week view: overflow chip — plain green text, drills to Day view */
-.wc-slot-overflow {
-  background: none;
-  border: none;
-  color: var(--jp-green);
-  font-size: 10px;
-  font-weight: 700;
-  padding: 2px 4px;
-  cursor: pointer;
-  width: 100%;
-  text-align: left;
-  opacity: 0.8;
-  border-radius: 4px;
-}
-.wc-slot-overflow:hover { opacity: 1; }
-/* Desktop-only overflow chip — hidden on mobile (all chips shown) */
-.wc-slot-overflow--desktop-only { display: none; }
-
-/* Ghost "+ Add" row — quiet, NOT the primary CTA green-bg style */
-.wc-week-cell-add-ghost {
-  background: none;
-  border: none;
-  padding: 4px 0 2px;
-  cursor: pointer;
-  width: 100%;
-  text-align: left;
-  min-height: 44px;
-  display: flex;
-  align-items: center;
-}
-/* Empty cell: the ghost IS the whole cell tap target, text centred */
-.wc-week-cell-add-ghost--empty {
-  justify-content: center;
-  flex: 1;
-  min-height: 44px;
-}
-.wc-week-cell-add-text {
-  font-size: 11px;
-  color: var(--text-dim);
-  opacity: 0.7;
-  transition: color 0.15s, opacity 0.15s;
-}
-.wc-week-cell-add-ghost:hover .wc-week-cell-add-text {
-  color: var(--jp-green);
-  opacity: 1;
-}
-
-/* At ≥640px: 7-column grid, column layout per cell, desktop overflow behaviour */
+/* ── Desktop (≥640px): unlock inline address in meta ── */
 @media (min-width: 640px) {
-  .wc-grid {
-    grid-template-columns: repeat(7, 1fr);
-    gap: 4px;
-  }
-  .wc-week-cell {
-    flex-direction: column;
-    align-items: stretch;
-    min-height: 80px;
-    padding: 6px 4px 4px;
-  }
-  .wc-week-cell-header {
-    width: 100%;
-    align-items: center;
-    padding-bottom: 4px;
-    border-bottom: 1px solid var(--border);
-    min-height: unset;
-    padding-top: 0;
-  }
-  /* Desktop: ghost add row hidden by default, revealed on hover */
-  .wc-week-cell-add-ghost {
-    opacity: 0;
-    pointer-events: none;
-    min-height: 24px;
-    transition: opacity 0.15s;
-  }
-  .wc-week-cell:hover .wc-week-cell-add-ghost,
-  .wc-week-cell:focus-within .wc-week-cell-add-ghost {
-    opacity: 1;
-    pointer-events: auto;
-  }
-  .wc-week-cell-add-ghost--empty {
-    justify-content: center;
-  }
-  /* Show desktop overflow chip; hide mobile-only chips */
-  .wc-slot-job--mobile-only { display: none; }
-  .wc-slot-overflow--desktop-only { display: block; }
+  .vw-job-meta-address { display: inline; }
+  .vw-job-meta-dot     { display: inline; }
+  .vw-gutter { flex-basis: 66px; }
 }
 
 /* ── WorkCalendar: shared nav header ──────────── */

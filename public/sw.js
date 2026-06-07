@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v73';  // bumped from v72: fix logo centring — revert 50vw to left:50% (correct for both full-width and centred header containers)
+
 const PRECACHE = [
   '/',
   '/index.html',
