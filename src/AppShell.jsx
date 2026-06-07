@@ -46,8 +46,9 @@ import {
   updateJobMetaInCloud,
 } from './lib/store';
 import { flipExpiredTrialToFree } from './lib/plan';
+import { getJobProfit } from './lib/cashflow';
 import { enqueueJob, wireOnlineSync } from './lib/offlineQueue';
-import { logTelemetry, identifyUser } from './lib/telemetry';
+import { logTelemetry, identifyUser, getLastUpgradeTrigger } from './lib/telemetry';
 import posthog from 'posthog-js';
 import SyncBadge from './components/SyncBadge';
 import ConsentBanner from './components/ConsentBanner.jsx';
@@ -192,8 +193,17 @@ export default function AppShell() {
         }
         // upgrade_succeeded: Stripe redirects back to /#/settings?upgraded=1.
         // Fire once per device session; clear the param so Back/refresh don't re-fire.
+        // subscription_active carries last_trigger so we can attribute the conversion
+        // to the pillar that drove it (Insight vs white-label vs auto-chase vs settings).
+        // The trigger was written to sessionStorage by ProUpgradeSheet on checkout_started
+        // and survives the Stripe redirect because Stripe opens Checkout in the same tab.
         if (params.has('upgraded')) {
+          const lastTrigger = getLastUpgradeTrigger();
           logTelemetry('upgrade_succeeded', { plan: 'pro' });
+          logTelemetry('subscription_active', {
+            last_trigger: lastTrigger,
+            plan: 'pro',
+          });
           const clean = window.location.pathname + window.location.hash;
           window.history.replaceState(null, '', clean);
         }
@@ -587,6 +597,14 @@ export default function AppShell() {
 
   const handleMarkPaid = async (id) => {
     logTelemetry('mark_paid', { source: 'history' });
+    // job_paid: fire before the cloud write so the job object is still in local state.
+    // Look up by both id and cloudId since HistoryScreen may pass either.
+    const jobForEvent = jobs.find(j => j.id === id || j.cloudId === id);
+    if (jobForEvent) {
+      const { quote: headline_price, materials: job_costs, profit: true_profit } =
+        getJobProfit(jobForEvent, receipts);
+      logTelemetry('job_paid', { headline_price, job_costs, true_profit, source: 'history' });
+    }
     try {
       await markJobPaidCloud(id);
       await refreshFromCloud();
@@ -612,6 +630,10 @@ export default function AppShell() {
   // into the jobMeta side-channel, then fires the cloud write async.
   const onMarkPaidFromToday = (job, method) => {
     logTelemetry('mark_paid', { source: 'today', method: method ?? 'unknown' });
+    // job_paid: compute profit props here while the full receipts array is in scope.
+    const { quote: headline_price, materials: job_costs, profit: true_profit } =
+      getJobProfit(job, receipts);
+    logTelemetry('job_paid', { headline_price, job_costs, true_profit, source: 'today' });
     const updated = {
       ...job,
       status: 'paid',

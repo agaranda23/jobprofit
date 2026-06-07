@@ -13,6 +13,7 @@
  */
 import { UNLOCK_PRO_FOR_ALL, isTrialActive, trialDaysLeft } from '../lib/plan.js';
 import { startCheckout } from '../lib/billing.js';
+import { logTelemetry, setLastUpgradeTrigger, UPGRADE_TRIGGERS } from '../lib/telemetry.js';
 
 export default function TrialBanner({ profile, onError }) {
   // While the global override is on, show nothing — everyone is already Pro.
@@ -24,6 +25,11 @@ export default function TrialBanner({ profile, onError }) {
   const dayLabel = days === 1 ? '1 day' : `${days} days`;
 
   const handleUpgrade = async () => {
+    // TrialBanner skips ProUpgradeSheet and calls checkout directly.
+    // Set trigger in sessionStorage so subscription_active.last_trigger is correct
+    // after the Stripe redirect, and fire checkout_started for funnel visibility.
+    setLastUpgradeTrigger(UPGRADE_TRIGGERS.TRIAL_BANNER);
+    logTelemetry('checkout_started', { trigger: UPGRADE_TRIGGERS.TRIAL_BANNER });
     const { error } = await startCheckout();
     if (error) onError?.(error);
   };

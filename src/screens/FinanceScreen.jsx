@@ -37,6 +37,7 @@ import HeaderAvatar from '../components/HeaderAvatar';
 import CashflowChart from '../components/CashflowChart';
 import ProGate from '../components/ProGate';
 import ProUpgradeSheet from '../components/ProUpgradeSheet';
+import { logTelemetry, UPGRADE_TRIGGERS } from '../lib/telemetry';
 import {
   getCashflowByMonth,
   getMonthSummary,
@@ -281,7 +282,7 @@ function TaxPotSheet({ open, onClose, currentPct, monthProfit, onSave }) {
   );
 }
 
-export default function FinanceScreen({ jobs = [], receipts = [], session, profile, biz, onAvatarClick, onUpgrade, onGoToJobs, onGoToSettings, onNavigateToCardPayments, onProfileUpdate }) {
+export default function FinanceScreen({ jobs = [], receipts = [], session, profile, biz, onAvatarClick, onUpgrade, onGoToJobs, onGoToSettings, onNavigateToCardPayments, onProfileUpdate, entryPoint = 'nav' }) {
   const [timelineOpen, setTimelineOpen] = useState(false);
   const [trustHintDismissed, setTrustHintDismissed] = useState(false);
   // chartRange drives which window of data getCashflowByMonth uses.
@@ -292,10 +293,22 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
   const [upgradeSheetOpen, setUpgradeSheetOpen] = useState(false);
   const [upgradeSheetSource, setUpgradeSheetSource] = useState('upgrade_banner');
 
-  const openUpgradeSheet = useCallback((source = 'upgrade_banner') => {
-    setUpgradeSheetSource(source);
+  const openUpgradeSheet = useCallback((trigger = UPGRADE_TRIGGERS.INSIGHT_LOCKED) => {
+    setUpgradeSheetSource(trigger);
     setUpgradeSheetOpen(true);
   }, []);
+
+  // ── Insight tab open event ───────────────────────────────────────────────────
+  // Fires once per mount (the component is conditionally rendered, so each mount
+  // = a new tab visit). 'unprompted' is true only when the user navigated here
+  // via the nav bar (entry_point='nav'), not from a push/deeplink/notification.
+  useEffect(() => {
+    logTelemetry('insight_tab_opened', {
+      entry_point: entryPoint,
+      unprompted: entryPoint === 'nav',
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // intentionally empty — fires once on mount only
 
   // ── Tax Pot Sheet state ──────────────────────────────────────────────────────
   const [taxPotSheetOpen, setTaxPotSheetOpen] = useState(false);
@@ -458,10 +471,44 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
   // handleUpgrade: opens the ProUpgradeSheet. The onUpgrade prop is kept for
   // backward-compatibility with any parent that may wire it, but the primary
   // path is always the sheet (which then calls startCheckout internally).
-  const handleUpgrade = useCallback((source = 'upgrade_banner') => {
-    openUpgradeSheet(source);
+  // All callers pass an UPGRADE_TRIGGERS value as the trigger argument.
+  const handleUpgrade = useCallback((trigger = UPGRADE_TRIGGERS.INSIGHT_LOCKED) => {
+    openUpgradeSheet(trigger);
     onUpgrade?.();
   }, [openUpgradeSheet, onUpgrade]);
+
+  // ── Insight card view events (Pro users only — free users see blurred teasers) ─
+  // Fired once per mount, only when the user is Pro and the card has real data.
+  // A ref guards against re-fire if the component re-renders on the same mount.
+  const insightEventsFiredRef = useRef(false);
+  useEffect(() => {
+    if (insightEventsFiredRef.current) return;
+    if (!userIsPro) return;
+    insightEventsFiredRef.current = true;
+
+    // tax_pot_viewed: fire when Tax Pot card has real data.
+    if (ytd.profit > 0 || ytd.cisDeductedYtd > 0) {
+      const taxPotKey = 'jp.telemetry.taxPotFirstView';
+      const firstViewRaw = localStorage.getItem(taxPotKey);
+      const isReturnVisit = !!firstViewRaw;
+      const daysSinceFirst = firstViewRaw
+        ? Math.floor((Date.now() - Number(firstViewRaw)) / 86400000)
+        : 0;
+      if (!firstViewRaw) {
+        try { localStorage.setItem(taxPotKey, String(Date.now())); } catch { /* localStorage full */ }
+      }
+      logTelemetry('tax_pot_viewed', { is_return_visit: isReturnVisit, days_since_first_view: daysSinceFirst });
+    }
+
+    // profit_per_hour_viewed: fire when the card has a real computed value.
+    if (profitPerHour.value !== null) {
+      logTelemetry('profit_per_hour_viewed');
+    }
+  });
+  // Note: no deps array — the ref guards against re-fire within the same mount.
+  // This fires after every render but exits immediately after the first Pro render.
+  // An empty deps array would miss the case where userIsPro flips from false to true
+  // within the same mount (e.g. plan refresh after webhook).
 
   // handleTrustHintCta: tap-through for the data trust nudge.
   // markPaid → Jobs tab; noCosts → Settings tab scrolled to overheads section.
@@ -614,11 +661,11 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
           ) : (
             /* State 2: Free user + overheads configured — blurred locked line.
                (NET) label is a sibling of the blurred amount so it stays readable.
-               Tapping the row opens ProUpgradeSheet with source='progate'. */
+               Tapping the row opens ProUpgradeSheet with trigger='insight_locked'. */
             <button
               type="button"
               className="money-hero__true-profit-locked"
-              onClick={() => handleUpgrade('progate')}
+              onClick={() => handleUpgrade(UPGRADE_TRIGGERS.INSIGHT_LOCKED)}
               aria-label="Unlock true profit — tap to upgrade to Pro"
             >
               <div className="money-hero__true-profit-locked-label">After your monthly bills</div>
@@ -669,7 +716,7 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
       )}
 
       {/* ── 2. Upgrade banner — shown once for free users, just below hero ── */}
-      {!userIsPro && <UpgradeBanner onUpgrade={handleUpgrade} />}
+      {!userIsPro && <UpgradeBanner onUpgrade={() => handleUpgrade(UPGRADE_TRIGGERS.UPGRADE_BANNER)} />}
 
       {/* ── 3. Tax Pot card (Pro-gated) ────────────────────────────────── */}
       {/* hasValue logic:
@@ -680,7 +727,7 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
           Passing `!userIsPro` as the hasValue shorthand achieves this: ProGate
           only blurs when locked=true AND hasValue=true, and for free users we
           always want the blur chrome regardless of whether they have data. */}
-      <ProGate locked={!userIsPro} hasValue={!userIsPro} onUpgrade={() => handleUpgrade('progate')}>
+      <ProGate locked={!userIsPro} hasValue={!userIsPro} onUpgrade={() => handleUpgrade(UPGRADE_TRIGGERS.INSIGHT_LOCKED)}>
         <div className="money-card money-tax-setaside">
           <div className="money-tax-setaside__label-row">
             <div className="money-tax-setaside__label">Tax Pot</div>
@@ -791,7 +838,7 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
       {/* ── 3b. VAT this quarter (Pro-gated, VAT-registered users only) ───── */}
       {/* Only rendered when the user has a VAT number set. No teaser for non-VAT users. */}
       {isVatRegistered && (
-        <ProGate locked={!userIsPro} hasValue={vatSummary.netSales > 0 || vatSummary.inputVat > 0} onUpgrade={() => handleUpgrade('progate')}>
+        <ProGate locked={!userIsPro} hasValue={vatSummary.netSales > 0 || vatSummary.inputVat > 0} onUpgrade={() => handleUpgrade(UPGRADE_TRIGGERS.INSIGHT_LOCKED)}>
           <div className="money-card money-vat">
             <div className="money-vat__header">
               <span className="money-vat__label">VAT this quarter</span>
@@ -886,7 +933,7 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
       {/* ── 7. Est. Profit/Hour (Pro-gated) ──────────────────────────────── */}
       {/* hasValue: always true for free users (show example teaser day one).
           For Pro users the gate is unlocked so hasValue has no effect. */}
-      <ProGate locked={!userIsPro} hasValue={!userIsPro || profitPerHour.value !== null} onUpgrade={() => handleUpgrade('progate')}>
+      <ProGate locked={!userIsPro} hasValue={!userIsPro || profitPerHour.value !== null} onUpgrade={() => handleUpgrade(UPGRADE_TRIGGERS.INSIGHT_LOCKED)}>
         {profitPerHour.value !== null ? (
           <div className="money-card money-insight money-insight--pph">
             <div className="money-insight__row">
@@ -935,7 +982,7 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
       {/* ── 8. Best & worst jobs (Pro-gated) ─────────────────────────────── */}
       {/* hasValue: always true for free users (show example teaser day one).
           For Pro users the gate is unlocked so hasValue has no effect. */}
-      <ProGate locked={!userIsPro} hasValue={!userIsPro || !!bestWorstJobs.best} onUpgrade={() => handleUpgrade('progate')}>
+      <ProGate locked={!userIsPro} hasValue={!userIsPro || !!bestWorstJobs.best} onUpgrade={() => handleUpgrade(UPGRADE_TRIGGERS.INSIGHT_LOCKED)}>
         {bestWorstJobs.best ? (
           <BestWorstCard best={bestWorstJobs.best} worst={bestWorstJobs.worst} />
         ) : (
@@ -960,7 +1007,7 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
       {/* hasValue is always true here: nudge only renders when showMarginNudge is true,
           which means there is real delta data — the copy is the value being gated. */}
       {showMarginNudge && (
-        <ProGate locked={!userIsPro} hasValue={true} onUpgrade={() => handleUpgrade('progate')}>
+        <ProGate locked={!userIsPro} hasValue={true} onUpgrade={() => handleUpgrade(UPGRADE_TRIGGERS.INSIGHT_LOCKED)}>
           <div className={`money-card money-nudge money-nudge--${marginTrend.deltaSign}`}>
             {marginTrend.deltaSign === 'up'
               ? <Icon name="trend-up" size={20} variant="success" className="money-nudge__icon" />

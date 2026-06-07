@@ -44,6 +44,7 @@ import {
 import { persistPublicToken } from '../lib/store';
 import { extractJobMeta, writeJobMeta } from '../lib/jobMeta';
 import { logTelemetry } from '../lib/telemetry';
+import { getJobProfit } from '../lib/cashflow';
 import { isPro } from '../lib/plan';
 import { canShareFile } from '../lib/webShare';
 import { stagePatch } from '../lib/jobStatus';
@@ -220,6 +221,7 @@ export default function ReviewSheet({
   biz,
   jobs,
   profile,
+  receipts = [],
   onClose,
   onDismiss,
   onUpdate,
@@ -327,6 +329,8 @@ export default function ReviewSheet({
     }
 
     logTelemetry('invoice_send', { channel: 'whatsapp', source: 'review_sheet', share_method: shareMethod });
+    const _inv1 = getJobProfit(job, receipts);
+    logTelemetry('invoice_sent', { headline_price: _inv1.quote, job_costs: _inv1.materials, true_profit: _inv1.profit, channel: 'whatsapp' });
     onUpdate?.({
       ...job,
       status: 'invoice_sent',
@@ -345,6 +349,8 @@ export default function ReviewSheet({
   // ReviewSheet doesn't have a payNowUrl — omitting it renders the PDF as before.
   const handleInvoiceDownloadPDF = async () => {
     logTelemetry('invoice_send', { channel: 'download', source: 'review_sheet' });
+    const _inv2 = getJobProfit(job, receipts);
+    logTelemetry('invoice_sent', { headline_price: _inv2.quote, job_costs: _inv2.materials, true_profit: _inv2.profit, channel: 'download' });
     try {
       await downloadInvoicePDF({ job, biz, profile, invoiceNumber, dueDate, hidePoweredBy: isProUser });
       flash?.('Saved to Files. Share it however you like.');
@@ -540,6 +546,8 @@ export default function ReviewSheet({
     }
 
     logTelemetry('quote_send', { channel: 'whatsapp', source: 'review_sheet', share_method: shareMethod });
+    const _q1 = getJobProfit(job, receipts);
+    logTelemetry('quote_sent', { headline_price: _q1.quote, job_costs: _q1.materials, true_profit: _q1.profit, channel: 'whatsapp' });
     // The cloud write already happened above. onUpdate here updates React state
     // (in-memory jobs list) — it will call writeJobMeta+syncMetaToCloud again but
     // that is idempotent (same meta object, no-op cloud write).
@@ -576,6 +584,8 @@ export default function ReviewSheet({
   // token hasn't been minted yet, so quoteUrl = '' and the sign block is skipped.
   const handleQuoteDownloadPDF = async () => {
     logTelemetry('quote_send', { channel: 'download', source: 'review_sheet' });
+    const _q2 = getJobProfit(job, receipts);
+    logTelemetry('quote_sent', { headline_price: _q2.quote, job_costs: _q2.materials, true_profit: _q2.profit, channel: 'download' });
     try {
       const existingToken = job.publicAccessToken || '';
       const downloadQuoteUrl = existingToken ? buildPublicQuoteUrl(existingToken) : '';

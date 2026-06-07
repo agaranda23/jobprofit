@@ -16,7 +16,7 @@
  *   hasValue   — true when the card has a real number to protect (default: true)
  *                Pass false when the card is in its empty/setup state.
  *   onUpgrade  — optional callback; when provided the lock badge becomes a button
- *                that calls this to open ProUpgradeSheet (source='progate')
+ *                that calls this to open ProUpgradeSheet (trigger='insight_locked')
  *   children   — card content; add `pro-gate__figure` to the number element
  */
 export default function ProGate({ locked, hasValue = true, onUpgrade, children }) {

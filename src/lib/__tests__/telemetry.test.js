@@ -136,3 +136,55 @@ describe('telemetry — DEV build (DEV=true)', () => {
     expect(phIdentify).not.toHaveBeenCalled();
   });
 });
+
+// ── UPGRADE_TRIGGERS enum ────────────────────────────────────────────────────
+
+describe('UPGRADE_TRIGGERS enum', () => {
+  it('exports the required trigger values', async () => {
+    vi.stubEnv('DEV', false);
+    vi.resetModules();
+    const { UPGRADE_TRIGGERS } = await import('../telemetry.js');
+    expect(UPGRADE_TRIGGERS.INSIGHT_LOCKED).toBe('insight_locked');
+    expect(UPGRADE_TRIGGERS.WHITELABEL_FOOTER).toBe('whitelabel_footer');
+    expect(UPGRADE_TRIGGERS.AUTO_CHASE_LOCKED).toBe('auto_chase_locked');
+    expect(UPGRADE_TRIGGERS.SETTINGS).toBe('settings');
+    expect(UPGRADE_TRIGGERS.TRIAL_BANNER).toBe('trial_banner');
+    expect(UPGRADE_TRIGGERS.TODAY_PILL).toBe('today_pill');
+    expect(UPGRADE_TRIGGERS.UPGRADE_BANNER).toBe('upgrade_banner');
+    vi.unstubAllEnvs();
+  });
+});
+
+// ── getLastUpgradeTrigger / setLastUpgradeTrigger ────────────────────────────
+
+describe('upgrade trigger sessionStorage helpers', () => {
+  beforeEach(() => {
+    vi.stubEnv('DEV', false);
+    vi.resetModules();
+    // jsdom provides sessionStorage — clear it before each test.
+    sessionStorage.clear();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    sessionStorage.clear();
+  });
+
+  it('getLastUpgradeTrigger returns null when nothing has been set', async () => {
+    const { getLastUpgradeTrigger } = await import('../telemetry.js');
+    expect(getLastUpgradeTrigger()).toBeNull();
+  });
+
+  it('setLastUpgradeTrigger persists and getLastUpgradeTrigger reads it back', async () => {
+    const { getLastUpgradeTrigger, setLastUpgradeTrigger, UPGRADE_TRIGGERS } = await import('../telemetry.js');
+    setLastUpgradeTrigger(UPGRADE_TRIGGERS.INSIGHT_LOCKED);
+    expect(getLastUpgradeTrigger()).toBe('insight_locked');
+  });
+
+  it('setLastUpgradeTrigger overwrites a previous value', async () => {
+    const { getLastUpgradeTrigger, setLastUpgradeTrigger, UPGRADE_TRIGGERS } = await import('../telemetry.js');
+    setLastUpgradeTrigger(UPGRADE_TRIGGERS.TODAY_PILL);
+    setLastUpgradeTrigger(UPGRADE_TRIGGERS.SETTINGS);
+    expect(getLastUpgradeTrigger()).toBe('settings');
+  });
+});
