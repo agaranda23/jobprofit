@@ -1433,6 +1433,7 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
       {/* Header */}
       <div className="screen-header">
         <h1 className="screen-title">Jobs</h1>
+        <img src="/jobprofit-logo.png" alt="" className="screen-header-logo" aria-hidden="true" />
         <div className="screen-header-right">
           <button className="new-btn" onClick={openAddJob}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">

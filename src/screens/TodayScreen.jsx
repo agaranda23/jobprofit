@@ -402,9 +402,9 @@ export default function TodayScreen({
   return (
     <div className="today-screen foreman-screen">
       {/* ── Header ──────────────────────────────────────────────────────────── */}
-      <header className="foreman-header">
-        <img src="/jobprofit-logo.png" alt="" className="foreman-logo-mark" aria-hidden="true" />
-        <h1 className="foreman-date">{formatToday()}</h1>
+      <header className="foreman-header screen-header">
+        <h1 className="screen-title">{formatToday()}</h1>
+        <img src="/jobprofit-logo.png" alt="" className="screen-header-logo" aria-hidden="true" />
       </header>
 
       {/* ── Get Pro upsell pill (free users + active trials only) ──────── */}
