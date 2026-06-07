@@ -3461,6 +3461,21 @@ input[type=number] { -moz-appearance: textfield; }
   margin: 0;
   line-height: 1.5;
 }
+/* Unblurred "Example" label shown above blurred teaser figures.
+   Sits outside .pro-gate__figure so it stays readable under the ProGate blur.
+   Prevents example numbers reading as hidden real data. */
+.money-insight__example-label {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border-radius: 4px;
+  padding: 2px 6px;
+  display: inline-block;
+  margin: 0 0 8px 0;
+}
 
 /* ── Money tab M3 — margin nudge ──────────────── */
 .money-nudge {
@@ -5617,6 +5632,15 @@ input[type=number] { -moz-appearance: textfield; }
   box-sizing: border-box;
 }
 .settings-complete-banner:active { opacity: 0.8; }
+
+/* Divider separating frequently-used sections from rarely-touched ones.
+   Sits between Monthly bills and Job costs in the Settings scroll. */
+.settings-section-divider {
+  height: 1px;
+  background: var(--border, rgba(0,0,0,0.1));
+  margin: 8px 0 24px;
+  opacity: 0.6;
+}
 
 .settings-section {
   margin-bottom: 24px;

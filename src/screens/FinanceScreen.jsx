@@ -755,11 +755,13 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
               if (ytd.paid === 0 && cisAmt === 0) {
                 return (
                   <>
-                    <div className="money-tax-setaside__figure pro-gate__figure money-insight--example-label">
+                    {/* "Example" sits outside pro-gate__figure so it's readable under the blur */}
+                    <p className="money-insight__example-label">Example — your numbers appear here on Pro</p>
+                    <div className="money-tax-setaside__figure pro-gate__figure">
                       £437
                     </div>
                     <p className="money-tax-setaside__sub pro-gate__figure">
-                      Example — go Pro to see yours
+                      Tax pot estimate
                     </p>
                   </>
                 );
@@ -808,13 +810,17 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
           ) : (
             /* ── Standard (non-CIS) view ─────────────────────────────────── */
             ytd.profit <= 0 ? (
-              /* No real data yet — render example teaser so it blurs on day one */
+              /* No real data yet — render example teaser so it blurs on day one.
+                 The "Example" label sits OUTSIDE pro-gate__figure so it stays
+                 readable when ProGate applies the blur — never looks like a
+                 hidden real number. */
               <>
+                <p className="money-insight__example-label">Example — your numbers appear here on Pro</p>
                 <div className="money-tax-setaside__figure pro-gate__figure">
                   £437
                 </div>
                 <p className="money-tax-setaside__sub pro-gate__figure">
-                  Example — go Pro to see yours
+                  Tax pot estimate
                 </p>
               </>
             ) : (
@@ -961,7 +967,10 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
         ) : (
           /* No real profit/hour data yet — show example teaser for free users so
              the card is visible and blurred from day one. Pro users with no data
-             see the setup prompt as before (gate is unlocked for them). */
+             see the setup prompt as before (gate is unlocked for them).
+             The "Example" label sits OUTSIDE pro-gate__figure so it stays
+             readable when ProGate applies the blur — never looks like a
+             hidden real number. */
           <div className="money-card money-insight money-insight--pph">
             <div className="money-insight__row">
               <span className="money-insight__label">Est. Profit/Hour</span>
@@ -969,12 +978,10 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
                 <Icon name="info" size={16} />
               </span>
             </div>
+            <p className="money-insight__example-label">Example — your numbers appear here on Pro</p>
             <div className="money-insight__value pro-gate__figure">
               £18/hr
             </div>
-            <p className="money-insight__rate-compare pro-gate__figure">
-              Example &mdash; go Pro to see yours
-            </p>
           </div>
         )}
       </ProGate>
@@ -987,18 +994,18 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
           <BestWorstCard best={bestWorstJobs.best} worst={bestWorstJobs.worst} />
         ) : (
           /* No real jobs yet — show example teaser for free users.
-             Pro users without completed jobs see the setup prompt as before. */
+             Pro users without completed jobs see the setup prompt as before.
+             The "Example" label sits OUTSIDE pro-gate__figure so it stays
+             readable when ProGate applies the blur. */
           <div className="money-card money-best-worst">
             <div className="money-best-worst__label">Best &amp; worst jobs</div>
+            <p className="money-insight__example-label">Example — your numbers appear here on Pro</p>
             <div className="money-best-worst__best pro-gate__figure">
               Best: Bathroom refit &middot; £620 profit
             </div>
             <div className="money-best-worst__worst pro-gate__figure">
               Worst: Fence repair &middot; £38 profit
             </div>
-            <p className="money-best-worst__hint pro-gate__figure">
-              Example &mdash; go Pro to see yours
-            </p>
           </div>
         )}
       </ProGate>

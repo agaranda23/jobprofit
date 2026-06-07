@@ -718,8 +718,10 @@ export default function TodayScreen({
       })()}
 
       {/* Pay-now soft prompt (Section 1.3 c) — shown after job completion when not connected.
-          Not modal, not blocking. Dismissed for this session when trader taps the X. */}
-      {showPayNowNudge && !payNowNudgeDismissed && (
+          Not modal, not blocking. Dismissed for this session when trader taps the X.
+          Frequency cap: suppressed while a toast or got-paid chip is showing so at most
+          one transient nudge appears at a time (priority: toast > got-paid chip > pay-now). */}
+      {showPayNowNudge && !payNowNudgeDismissed && !toast && gotPaidToastQueue.length === 0 && (
         <div className="pay-now-nudge" role="status">
           <span className="pay-now-nudge__copy">
             Pay-now button available{' '}
