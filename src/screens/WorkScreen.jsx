@@ -23,8 +23,8 @@
  *   - SendInvoiceModal wiring + invoiceJob/setInvoiceJob state
  *   - paidAt timestamp on Mark paid
  *
- * TODO(consolidate): JobsScreen + WorkScreen both claim "Jobs" tab — one renders behind NEW_NAV flag,
- * the other behind NAV_SLICE_3. Pick one and delete the other in a separate PR.
+ * Note: WorkScreen is the single canonical "Jobs" tab. The legacy JobsScreen stub was
+ * deleted in the stage-consolidation PR; stage derivation now lives solely in lib/jobStatus.js.
  */
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
