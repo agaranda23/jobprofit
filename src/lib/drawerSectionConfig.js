@@ -6,8 +6,8 @@
  *
  * Imported by JobDetailDrawer.jsx to drive the stage-aware layout (Direction 2).
  *
- * Stage values match deriveStatus() output:
- *   'Lead' | 'Quoted' | 'Active' | 'Done' | 'Invoiced' | 'Overdue' | 'Paid'
+ * Stage values match deriveDisplayStatus() output (six canonical stages):
+ *   'Lead' | 'Quoted' | 'On' | 'Invoiced' | 'Overdue' | 'Paid'
  *
  * Return shape per section entry:
  *   id        – unique key used as React key and aria-controls target
@@ -57,21 +57,11 @@ export function getDrawerSectionConfig(stage) {
         { id: 'quote',     display: 'expanded'  },
       ];
 
-    case 'Active':
+    case 'On':
       return [
         { id: 'nextStep',  display: 'expanded'  },
         { id: 'payment',   display: 'expanded'  },
         { id: 'payments',  display: 'expanded'  },
-        { id: 'profit',    display: 'collapsed' },
-        { id: 'customer',  display: 'collapsed' },
-        { id: 'quote',     display: 'collapsed' },
-      ];
-
-    case 'Done':
-      return [
-        { id: 'nextStep',  display: 'expanded'  },
-        { id: 'payment',   display: 'hidden'    },
-        { id: 'payments',  display: 'hidden'    },
         { id: 'profit',    display: 'collapsed' },
         { id: 'customer',  display: 'collapsed' },
         { id: 'quote',     display: 'collapsed' },

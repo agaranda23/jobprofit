@@ -1,22 +1,24 @@
 // DEFAULT_PAYMENT_TERMS_DAYS is the single source of truth for net-N default.
-// Imported from chaseLadder.js so isOverdue (WorkScreen) and daysPastDue (chaseLadder)
+// Imported from chaseLadder.js so isOverdue and daysPastDue (chaseLadder)
 // can never drift independently when the default changes.
 import { DEFAULT_PAYMENT_TERMS_DAYS } from './chaseLadder.js';
 
 // Re-export so callers can reference it from jobStatus if they prefer.
 export { DEFAULT_PAYMENT_TERMS_DAYS };
 
-// TODO(stage-cleanup): This file uses a legacy lifecycle model
-// (draft -> completed -> invoice_sent -> awaiting -> paid) that disagrees with
-// the canonical stage model used in StageStrip.jsx and JobsScreen.jsx
-// (Lead -> Quoted -> On -> Invoiced -> Overdue -> Paid).
-// Do NOT use this file for tile rendering or stage display logic.
-// Clean up in a dedicated follow-up PR -- do not touch in the tile redesign branch.
+// This file is the single source of truth for job stage display logic.
 //
-// `deriveStatus(job)` is the single source of truth for legacy code. New code writes the
-// new `status` field; legacy jobs without it fall back to the old fields
-// (paid, paymentStatus, jobStatus, completedAt, invoiceSentAt). This lets
-// PRD #3 ship without migrating existing rows.
+// Canonical pipeline stages (six): Lead · Quoted · On · Invoiced · Overdue · Paid
+// These are the stage names shown in the UI (StageStrip, JobDetailDrawer badge,
+// job tile chip). All new code must derive stage from deriveDisplayStatus() below.
+//
+// `deriveStatus(job)` is retained for legacy internal uses that key off the old
+// lifecycle model (draft / completed / invoice_sent / awaiting / paid). It is not
+// used for any visible UI stage label.
+//
+// Legacy jobs without the canonical `status` field fall back to subordinate fields
+// (paid, paymentStatus, jobStatus, completedAt, invoiceSentAt). This lets old
+// records resolve correctly without a DB migration.
 
 export const STATUSES = ['draft', 'completed', 'invoice_sent', 'awaiting', 'paid'];
 
@@ -47,6 +49,74 @@ export function daysSinceInvoice(job) {
   if (!job?.invoiceSentAt) return null;
   const ms = Date.now() - new Date(job.invoiceSentAt).getTime();
   return Math.floor(ms / (1000 * 60 * 60 * 24));
+}
+
+// -- Six-stage display derivation -------------------------------------------
+// Canonical overdue check. Rule:
+//   1. If invoiceDueDate is set, compare local-midnight dates (due < today).
+//   2. Else fall back to daysSinceInvoice > DEFAULT_PAYMENT_TERMS_DAYS (net-7).
+//
+// Both use local-time midnight (setHours(0,0,0,0)). At the BST/GMT changeover
+// the local clock shifts by 1 hour, which can make "today" land on the wrong
+// UTC day for sub-millisecond boundary cases; however both sides of the
+// comparison use the SAME local-time rounding so the relative result is stable.
+// A pure UTC comparison would not change user-visible behaviour because due dates
+// are YYYY-MM-DD calendar dates, not timestamps. Treat this as current behaviour;
+// any future change must ship independently with its own test coverage.
+export function isOverdue(job) {
+  if (job?.invoiceDueDate) {
+    const due = new Date(job.invoiceDueDate);
+    due.setHours(0, 0, 0, 0);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return due < today;
+  }
+  const days = daysSinceInvoice(job);
+  return days !== null && days > DEFAULT_PAYMENT_TERMS_DAYS;
+}
+
+/**
+ * Derive one of the six pipeline stage labels from a raw job record.
+ *
+ * Stages: Lead · Quoted · On · Invoiced · Overdue · Paid
+ *
+ * Priority order:
+ *   1. Canonical `status` field — written by stagePatch() on every stage move.
+ *   2. Subordinate legacy fields — for records predating the canonical column.
+ *
+ * Returns 'Lead' for null/undefined jobs (safe default, no throw).
+ *
+ * This is the single source of truth for stage display. Both WorkScreen tile
+ * labels and the JobDetailDrawer badge import from here — they must show the
+ * same word as each other and as the pipeline strip.
+ */
+export function deriveDisplayStatus(job) {
+  if (!job) return 'Lead';
+  // Canonical status field takes priority — short-circuit before any subordinate
+  // field checks so residual jobStatus/paymentStatus from a previous Paid state
+  // cannot override a deliberate stage move.
+  if (job.status === 'lead') return 'Lead';
+  if (job.status === 'quoted') return 'Quoted';
+  if (job.status === 'paid') return 'Paid';
+  if (job.status === 'active') return 'On';
+  if (job.status === 'complete') return 'On';
+  if (job.status === 'invoice_sent') {
+    if (job.overdue === true) return 'Overdue'; // manual override wins over date-driven check
+    if (isOverdue(job)) return 'Overdue';
+    return 'Invoiced';
+  }
+  // Subordinate field fallbacks — for legacy jobs that pre-date the canonical
+  // status column and for jobs written by older code paths.
+  if (job.paid || job.paymentStatus === 'paid' || job.jobStatus === 'paid') return 'Paid';
+  // Overdue must be checked before Invoiced — overdue takes priority
+  if (job.invoiceStatus === 'invoiced') {
+    if (isOverdue(job)) return 'Overdue';
+    return 'Invoiced';
+  }
+  // complete-but-not-invoiced → On: work done, invoice not sent yet
+  if (job.jobStatus === 'complete') return 'On';
+  if (job.jobStatus === 'active') return 'On';
+  return 'Lead';
 }
 
 // -- Price guard (canonical stage model) ------------------------------------

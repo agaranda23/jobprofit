@@ -23,8 +23,8 @@
  *   - SendInvoiceModal wiring + invoiceJob/setInvoiceJob state
  *   - paidAt timestamp on Mark paid
  *
- * TODO(consolidate): JobsScreen + WorkScreen both claim "Jobs" tab — one renders behind NEW_NAV flag,
- * the other behind NAV_SLICE_3. Pick one and delete the other in a separate PR.
+ * Note: WorkScreen is the single canonical "Jobs" tab. The legacy JobsScreen stub was
+ * deleted in the stage-consolidation PR; stage derivation now lives solely in lib/jobStatus.js.
  */
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
@@ -36,7 +36,7 @@ import DrawerErrorBoundary from '../components/DrawerErrorBoundary';
 import ReviewSheet from '../components/ReviewSheet';
 import StageStrip from '../components/StageStrip';
 import { logTelemetry } from '../lib/telemetry';
-import { daysSinceInvoice, requiresPriceForStage, stagePatch } from '../lib/jobStatus';
+import { deriveDisplayStatus, daysSinceInvoice, requiresPriceForStage, stagePatch } from '../lib/jobStatus';
 import { deleteJobFromCloud } from '../lib/store';
 import { shouldShowPartPaidChip, formatPartPaidLabel } from '../lib/partPaidChip';
 import { jobMatchesQuery, sortJobsByStage, firstLineOfAddress } from '../lib/jobSort';
@@ -99,71 +99,6 @@ function getPersistedFilter() {
     // malformed JSON or localStorage unavailable — fall back to defaults
   }
   return { selectedStage: 'On', showAll: false };
-}
-
-// ── Status helpers (ported verbatim from PR #62) ──────────────────────────────
-
-/**
- * Canonical overdue check — shared by deriveDisplayStatus AND calcRiskFigures.
- *
- * Rule: overdue if invoiceDueDate is set and in the past;
- *       else fall back to daysSinceInvoice > DEFAULT_PAYMENT_TERMS_DAYS (net-7 default,
- *       sourced from chaseLadder.js so both never drift independently).
- *
- * Both the OVERDUE pipeline card and the banner key off this function so
- * they are guaranteed to agree.
- */
-function isOverdue(job) {
-  if (job.invoiceDueDate) {
-    const due = new Date(job.invoiceDueDate);
-    due.setHours(0, 0, 0, 0);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    return due < today;
-  }
-  const days = daysSinceInvoice(job);
-  return days !== null && days > DEFAULT_PAYMENT_TERMS_DAYS;
-}
-
-/**
- * Derive one of the six pipeline stages from the raw job record.
- *
- *  - Lead:     job.status === 'lead'
- *  - Paid:     any paid signal (takes priority before invoice checks)
- *  - Overdue:  invoiced && (invoiceDueDate past, else daysSinceInvoice > DEFAULT_PAYMENT_TERMS_DAYS)
- *  - Invoiced: invoiced && not yet overdue
- *  - On:       active or complete-but-not-yet-invoiced
- *  - Quoted:   default (quote sent, not yet accepted)
- *
- * Mirrors JobDetailDrawer's own deriveDisplayStatus (~L75 in that file).
- * If you change this, change it there too.
- */
-function deriveDisplayStatus(job) {
-  // Canonical status field takes priority — short-circuit before any subordinate
-  // field checks so residual jobStatus/paymentStatus from a previous Paid state
-  // cannot override a deliberate stage move.
-  if (job.status === 'lead') return 'Lead';
-  if (job.status === 'quoted') return 'Quoted';
-  if (job.status === 'paid') return 'Paid';
-  if (job.status === 'active') return 'On';
-  if (job.status === 'complete') return 'On';
-  if (job.status === 'invoice_sent') {
-    if (job.overdue === true) return 'Overdue'; // manual override wins over date-driven check
-    if (isOverdue(job)) return 'Overdue';
-    return 'Invoiced';
-  }
-  // Subordinate field fallbacks — for legacy jobs that pre-date the canonical
-  // status column and for jobs written by older code paths.
-  if (job.paid || job.paymentStatus === 'paid' || job.jobStatus === 'paid') return 'Paid';
-  // Overdue must be checked before Invoiced — overdue takes priority
-  if (job.invoiceStatus === 'invoiced') {
-    if (isOverdue(job)) return 'Overdue';
-    return 'Invoiced';
-  }
-  // complete-but-not-invoiced → On: work done, invoice not sent yet
-  if (job.jobStatus === 'complete') return 'On';
-  if (job.jobStatus === 'active') return 'On';
-  return 'Lead';
 }
 
 /** Format a number as en-GB integer string (no pence). */
