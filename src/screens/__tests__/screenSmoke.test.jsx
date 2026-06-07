@@ -55,6 +55,17 @@ vi.mock('../../lib/store', () => ({
 
 vi.mock('../../lib/telemetry', () => ({
   logTelemetry: vi.fn(),
+  setLastUpgradeTrigger: vi.fn(),
+  getLastUpgradeTrigger: vi.fn(),
+  UPGRADE_TRIGGERS: {
+    INSIGHT_LOCKED:     'insight_locked',
+    WHITELABEL_FOOTER:  'whitelabel_footer',
+    AUTO_CHASE_LOCKED:  'auto_chase_locked',
+    SETTINGS:           'settings',
+    TRIAL_BANNER:       'trial_banner',
+    TODAY_PILL:         'today_pill',
+    UPGRADE_BANNER:     'upgrade_banner',
+  },
 }));
 
 vi.mock('../../lib/billing', () => ({
