@@ -5,6 +5,9 @@
  * The mock mimics the shape of a real Claude response:
  *   { content: [{ type: 'text', text: '<JSON string>' }] }
  *
+ * supabase.auth.getSession is mocked so the JWT gate doesn't block the AI
+ * path in tests. The mock returns a fake access_token so fetch is reached.
+ *
  * Two code paths are tested:
  *   1. AI path: fetch succeeds, response contains a valid JSON block.
  *   2. Regex fallback path: fetch throws (simulates offline / proxy down).
@@ -12,6 +15,20 @@
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { parseJobFromSpeech } from '../voiceParse.js';
+
+// ── Mock Supabase module ──────────────────────────────────────────────────────
+// voiceParse.js now imports { supabase } from './supabase' and calls
+// supabase.auth.getSession() before hitting the AI proxy. We stub it here so
+// the AI path tests receive a valid (fake) access token and reach the fetch mock.
+vi.mock('../supabase.js', () => ({
+  supabase: {
+    auth: {
+      getSession: vi.fn().mockResolvedValue({
+        data: { session: { access_token: 'test-token' } },
+      }),
+    },
+  },
+}));
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

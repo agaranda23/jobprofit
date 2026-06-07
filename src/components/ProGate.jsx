@@ -8,9 +8,6 @@
  *     the setup prompt is useful to everyone and must not look locked.
  *   - When !locked (Pro user): render children plain, no chrome.
  *
- * The upgrade CTA (UpgradeBanner) is NOT rendered here. FinanceScreen renders
- * it once, at the top of the gated section, so it never repeats per-card.
- *
  * Props:
  *   locked     — true when the viewing user is on the free plan
  *   hasValue   — true when the card has a real number to protect (default: true)
@@ -19,6 +16,8 @@
  *                that calls this to open ProUpgradeSheet (trigger='insight_locked')
  *   children   — card content; add `pro-gate__figure` to the number element
  */
+import Icon from './Icon';
+
 export default function ProGate({ locked, hasValue = true, onUpgrade, children }) {
   if (!locked || !hasValue) return children;
 
@@ -33,12 +32,12 @@ export default function ProGate({ locked, hasValue = true, onUpgrade, children }
             onClick={onUpgrade}
             aria-label="Upgrade to Pro to unlock this"
           >
-            <span className="pro-gate__lock-icon">&#x1F512;</span>
+            <Icon name="lock" size={14} />
             <span className="pro-gate__lock-label">Pro</span>
           </button>
         ) : (
           <div className="pro-gate__lock-badge" aria-hidden="true">
-            <span className="pro-gate__lock-icon">&#x1F512;</span>
+            <Icon name="lock" size={14} />
             <span className="pro-gate__lock-label">Pro</span>
           </div>
         )}

@@ -2322,6 +2322,11 @@ export default function SettingsScreen({
         </SectionCard>
       </div>
 
+      {/* ── Visual divider — separates frequently-used sections (Get paid,
+              Invoice settings, Monthly bills) from the less-touched
+              configuration sections below ── */}
+      <div className="settings-section-divider" aria-hidden="true" />
+
       {/* Job costs */}
       <SectionCard title="Job costs" subline="When you mark a job paid with nothing logged, we'll ask once. Off if you'd rather we didn't.">
         <RemindJobCostsRow

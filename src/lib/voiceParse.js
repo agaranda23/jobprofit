@@ -1,7 +1,9 @@
 // Parse job transcripts via the Netlify AI proxy.
 // Supports: English (en-GB), Polish (pl-PL), Romanian (ro-RO),
 //           Portuguese (pt-PT), Spanish (es-ES).
-// Falls back to regex if the AI proxy is unreachable.
+// Falls back to regex if the AI proxy is unreachable or the user is not signed in.
+
+import { supabase } from './supabase';
 
 const MULTILINGUAL_SYSTEM_PROMPT = `Extract a job name, customer name (only if explicitly named), amount in GBP, and optional payment type from the transcript.
 Respond ONLY with JSON: {"name": string, "customer": string|null, "amount": number|null, "paymentType": "cash"|"bank transfer"|"card"|"cheque"|null}.
@@ -33,32 +35,47 @@ export async function parseJobFromSpeech(transcript) {
   const text = (transcript || '').trim();
   if (!text) return { name: '', customer: null, amount: null, paymentType: null };
 
+  // Get the session token so the server-side function can verify identity.
+  // If not signed in, fall through to the regex fallback — no error thrown.
+  let accessToken;
   try {
-    const res = await fetch('/.netlify/functions/ai', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'claude-haiku-4-5-20251001',
-        max_tokens: 160,
-        system: MULTILINGUAL_SYSTEM_PROMPT,
-        messages: [{ role: 'user', content: text }],
-      }),
-    });
-    if (res.ok) {
-      const data = await res.json();
-      const block = (data.content || []).find(b => b.type === 'text');
-      if (block?.text) {
-        const clean = block.text.replace(/```json|```/g, '').trim();
-        const parsed = JSON.parse(clean);
-        return {
-          name: parsed.name || regexName(text),
-          customer: parsed.customer ?? null,
-          amount: parsed.amount ?? regexAmount(text),
-          paymentType: parsed.paymentType ?? regexPayment(text),
-        };
+    const { data: { session } } = await supabase.auth.getSession();
+    accessToken = session?.access_token;
+  } catch {
+    // Session fetch failed — fall through to regex
+  }
+
+  if (accessToken) {
+    try {
+      const res = await fetch('/.netlify/functions/ai', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`,
+        },
+        body: JSON.stringify({
+          model: 'claude-haiku-4-5-20251001',
+          max_tokens: 160,
+          system: MULTILINGUAL_SYSTEM_PROMPT,
+          messages: [{ role: 'user', content: text }],
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const block = (data.content || []).find(b => b.type === 'text');
+        if (block?.text) {
+          const clean = block.text.replace(/```json|```/g, '').trim();
+          const parsed = JSON.parse(clean);
+          return {
+            name: parsed.name || regexName(text),
+            customer: parsed.customer ?? null,
+            amount: parsed.amount ?? regexAmount(text),
+            paymentType: parsed.paymentType ?? regexPayment(text),
+          };
+        }
       }
-    }
-  } catch {}
+    } catch {}
+  }
 
   // Fallback: regex can't reliably extract personal names without false positives,
   // so customer is always null here. User fills it in via the manual form.

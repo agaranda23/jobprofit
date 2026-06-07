@@ -1,6 +1,8 @@
 // Send a receipt photo (data URL) to the Netlify AI proxy for extraction.
 // Returns { merchant, total, vat, items, date } with nulls where data isn't found.
 
+import { supabase } from './supabase';
+
 const MAX_DIM = 1568;            // Anthropic's recommended max image dimension
 const TARGET_QUALITY = 0.85;     // JPEG quality for re-encode
 
@@ -43,6 +45,19 @@ export async function extractReceipt(photoDataUrl) {
   const mediaType = m[1];
   const base64 = m[2];
 
+  // Get the session token so the server-side function can verify identity.
+  let accessToken;
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    accessToken = session?.access_token;
+  } catch {
+    // Session fetch failed — proceed without token; server will return 401
+  }
+
+  if (!accessToken) {
+    return { error: 'Not signed in' };
+  }
+
   const payload = {
     model: 'claude-sonnet-4-5-20250929',
     max_tokens: 800,
@@ -73,7 +88,10 @@ Rules:
   try {
     res = await fetch('/.netlify/functions/ai', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${accessToken}`,
+      },
       body: JSON.stringify(payload),
     });
   } catch (e) {
