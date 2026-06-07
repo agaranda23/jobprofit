@@ -2126,6 +2126,7 @@ export default function SettingsScreen({
     <div className="screen settings-screen">
       <div className="screen-header">
         <h1 className="screen-title">Settings</h1>
+        <img src="/jobprofit-logo.png" alt="" className="screen-header-logo" aria-hidden="true" />
       </div>
 
       {/* Account identity card */}

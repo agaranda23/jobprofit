@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v70';  // bumped from v69: Week view parity — solid box cells, mobile stacked layout, ghost add row, amount on chips
+const CACHE_NAME = 'jobprofit-v71';  // bumped from v70: Unify Today header with screen titles + centered brand mark across all four tab headers
 const PRECACHE = [
   '/',
   '/index.html',

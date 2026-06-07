@@ -2169,10 +2169,12 @@ input[type=number] { -moz-appearance: textfield; }
 }
 
 .screen-header {
+  position: relative; /* anchor for the centered brand mark */
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 16px;
+  min-height: 40px; /* reserve room for the centered logo */
 }
 .screen-title {
   font-size: 32px;
@@ -2184,6 +2186,21 @@ input[type=number] { -moz-appearance: textfield; }
   display: flex;
   align-items: center;
   gap: 10px;
+}
+
+/* Centered brand mark — shared across Today / Jobs / Money / Settings headers.
+   Absolutely centered on the header's own axis so it never collides with the
+   left-aligned title or the right-side action (New job button / avatar). */
+.screen-header-logo {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 40px;
+  height: 40px;
+  object-fit: contain;
+  opacity: 0.9;
+  pointer-events: none; /* purely decorative — taps fall through to controls */
 }
 
 .screen-empty {
@@ -9199,27 +9216,15 @@ input[type=number] { -moz-appearance: textfield; }
 
 /* ── Header ─────────────────────────────────────────────────────────────────── */
 
+/* Today header now reuses .screen-header / .screen-title (see ~line 2171) so the
+   date matches the Jobs/Money/Settings title in size AND position.
+   NOTE: the .today-screen wrapper (line ~718) already forces 20px side padding
+   and padding-top:8px (line ~1499) with !important, so the header must NOT add
+   side padding or it would double to 40px. The other screens get padding-top:20px
+   from .screen; Today's wrapper only gives 8px, so add 12px here to align the
+   date's vertical position with the Jobs/Money/Settings titles (8 + 12 = 20). */
 .foreman-header {
-  padding: 20px 16px 12px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.foreman-logo-mark {
-  width: 52px;
-  height: 52px;
-  object-fit: contain;
-  flex-shrink: 0;
-  opacity: 0.9;
-}
-
-.foreman-date {
-  font-size: 32px;
-  font-weight: 700;
-  color: var(--text, #f5f7fa);
-  margin: 0;
-  letter-spacing: -0.02em;
+  padding-top: 12px;
 }
 
 .foreman-divider {
