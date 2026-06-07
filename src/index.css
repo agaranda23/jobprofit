@@ -2189,13 +2189,15 @@ input[type=number] { -moz-appearance: textfield; }
 }
 
 /* Centered brand mark — shared across Today / Jobs / Money / Settings headers.
-   Uses left:50vw (viewport-relative) instead of left:50% (header-box-relative)
-   so the logo sits at the same horizontal pixel regardless of which container
-   wraps the header (.today-screen flex vs .screen block, different max-widths).
-   top:50% stays header-relative so the logo vertically centres within the header. */
+   left:50% works correctly on every tab because:
+   - .today-screen is full-width (max-width:100%), so 50% of its header = 50% of viewport = true centre.
+   - .screen (Jobs/Money/Settings) is centred (max-width:480px, margin:0 auto), so 50% of its
+     header = centre of the centred column = (viewport - 480)/2 + 240 = viewport/2 = true centre.
+   Using left:50vw was wrong: it measures 50vw *from the header's left edge*, not from the viewport
+   origin — producing a right-shifted logo on any viewport wider than the container. */
 .screen-header-logo {
   position: absolute;
-  left: 50vw;
+  left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
   width: 48px;

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v73';  // bumped from v72: Week view vertical redesign — rolling 7-day window, stacked rows, date gutter, stage pills, week-total strip
+
 const PRECACHE = [
   '/',
   '/index.html',
