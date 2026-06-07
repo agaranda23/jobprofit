@@ -28,8 +28,23 @@
  */
 
 import { useState, useEffect } from 'react';
-import { fetchPublicJob } from '../lib/store';
 import { isValidToken } from '../lib/publicInvoiceToken';
+
+// Fetch job data via the server-side function so the anon Supabase client is
+// never used for job data. See fix/security-stop-the-line (H-1).
+async function fetchPublicJobViaFunction(token) {
+  try {
+    const res = await fetch('/.netlify/functions/fetch-public-job', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token }),
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
 import InvoiceDocumentPreview from '../components/InvoiceDocumentPreview';
 import ConsentBanner from '../components/ConsentBanner.jsx';
 import PoweredByJobProfit from '../components/PoweredByJobProfit.jsx';
@@ -180,9 +195,9 @@ export default function PublicInvoiceView({ token }) {
         return;
       }
 
-      // Fetch job (anon Supabase client) + profile (service-role function) in parallel.
+      // Fetch job + profile in parallel.
       const [jobResult, profileResult] = await Promise.allSettled([
-        fetchPublicJob(token),
+        fetchPublicJobViaFunction(token),
         fetch(FETCH_PROFILE_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -192,7 +207,6 @@ export default function PublicInvoiceView({ token }) {
 
       if (cancelled) return;
 
-      // Handle job result.
       const job = jobResult.status === 'fulfilled' ? jobResult.value : null;
       if (!job) {
         setJobState({ status: 'error', job: null, errorMsg: 'Invoice not found. The link may have expired or been removed.' });
