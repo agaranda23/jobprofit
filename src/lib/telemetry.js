@@ -15,11 +15,70 @@
  * or a public route that skips AppShell) both functions are silent no-ops.
  *
  * Exports:
- *   logTelemetry(event, data)         — capture a named event
- *   identifyUser(userId, traits)      — link events to a known user
+ *   UPGRADE_TRIGGERS                        — canonical enum for the attribution chain
+ *   logTelemetry(event, data)               — capture a named event
+ *   identifyUser(userId, traits)            — link events to a known user
+ *   getLastUpgradeTrigger()                 — read the persisted trigger from sessionStorage
+ *   setLastUpgradeTrigger(trigger)          — write the trigger into sessionStorage
+ *
+ * Attribution chain:
+ *   Every entry point that opens ProUpgradeSheet must call setLastUpgradeTrigger()
+ *   with the appropriate UPGRADE_TRIGGERS value. ProUpgradeSheet reads it on open
+ *   (upgrade_sheet_viewed) and on CTA tap (checkout_started). AppShell reads it
+ *   after Stripe redirect (upgrade_succeeded / subscription_active).
+ *   sessionStorage is used so the trigger survives the Stripe redirect round-trip
+ *   within the same tab but does not persist across sessions (each conversion
+ *   event is attributed to the most-recent trigger in that session).
  */
 import posthog from 'posthog-js';
 import { isConsentGranted } from './consent.js';
+
+/**
+ * Canonical trigger values for the upgrade attribution chain.
+ * Every callsite that opens ProUpgradeSheet must pass one of these.
+ * Define once here so grep finds every reference.
+ *
+ * @readonly
+ */
+export const UPGRADE_TRIGGERS = /** @type {const} */ ({
+  INSIGHT_LOCKED:     'insight_locked',
+  WHITELABEL_FOOTER:  'whitelabel_footer',
+  AUTO_CHASE_LOCKED:  'auto_chase_locked',
+  SETTINGS:           'settings',
+  TRIAL_BANNER:       'trial_banner',
+  TODAY_PILL:         'today_pill',
+  UPGRADE_BANNER:     'upgrade_banner',
+});
+
+const TRIGGER_SESSION_KEY = 'jp.lastUpgradeTrigger';
+
+/**
+ * Persist the upgrade trigger into sessionStorage so it survives the
+ * Stripe Checkout redirect round-trip within the same tab.
+ *
+ * @param {string} trigger — one of UPGRADE_TRIGGERS values
+ */
+export function setLastUpgradeTrigger(trigger) {
+  try {
+    sessionStorage.setItem(TRIGGER_SESSION_KEY, trigger);
+  } catch {
+    // sessionStorage unavailable (private browsing) — no-op; attribution degrades gracefully.
+  }
+}
+
+/**
+ * Read the most-recently set upgrade trigger.
+ * Returns null if nothing was set in this session.
+ *
+ * @returns {string|null}
+ */
+export function getLastUpgradeTrigger() {
+  try {
+    return sessionStorage.getItem(TRIGGER_SESSION_KEY) || null;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Capture a named event with an optional flat payload.

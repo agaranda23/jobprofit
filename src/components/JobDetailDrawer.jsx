@@ -4133,6 +4133,7 @@ export default function JobDetailDrawer({
           biz={biz ?? {}}
           profile={profile ?? null}
           jobs={jobs ?? []}
+          receipts={receipts}
           onUpdate={onUpdateJob ?? (() => {})}
           onClose={() => setInvoiceModalOpen(false)}
           flash={showFlash}

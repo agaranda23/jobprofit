@@ -12,7 +12,7 @@
  *
  * Props:
  *   profile    — Supabase profiles row (may be null while loading)
- *   onOpen     — called when the pill is tapped (opens ProUpgradeSheet with source='today_pill')
+ *   onOpen     — called when the pill is tapped (opens ProUpgradeSheet with trigger='today_pill')
  */
 
 import { useState } from 'react';

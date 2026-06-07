@@ -42,6 +42,7 @@ import {
   jobAmount,
 } from '../lib/nextBestAction';
 import { isPro } from '../lib/plan';
+import { UPGRADE_TRIGGERS } from '../lib/telemetry';
 
 // ── Snooze helpers (delegate to nextBestAction.js store, keep SNOOZE_MS local) ──
 const SNOOZE_MS = 24 * 60 * 60 * 1000;
@@ -667,6 +668,7 @@ export default function TodayScreen({
           job={reviewQuoteJob}
           biz={{ name: profile?.business_name || '' }}
           jobs={jobs}
+          receipts={receipts}
           onUpdate={(updatedJob) => { onUpdateJob?.(updatedJob); setReviewQuoteJob(null); }}
           onClose={() => setReviewQuoteJob(null)}
           onDismiss={() => setReviewQuoteJob(null)}
@@ -750,7 +752,7 @@ export default function TodayScreen({
       {/* ── ProUpgradeSheet — opened by GetProPill on Today ──────────────── */}
       <ProUpgradeSheet
         open={upgradeSheetOpen}
-        source="today_pill"
+        trigger={UPGRADE_TRIGGERS.TODAY_PILL}
         onClose={() => setUpgradeSheetOpen(false)}
       />
     </div>

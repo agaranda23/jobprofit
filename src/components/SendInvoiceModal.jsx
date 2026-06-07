@@ -46,7 +46,8 @@ import { getMissingInvoiceFields } from '../lib/bizValidation';
 import { resolveBusinessIdentity } from '../lib/resolveBusinessIdentity';
 import { incrementSendCount, eligibleForWhiteLabelNudge, countInvoicesSentThisMonth, isPro } from '../lib/plan';
 import { supabase } from '../lib/supabase';
-import { logTelemetry } from '../lib/telemetry';
+import { logTelemetry, UPGRADE_TRIGGERS } from '../lib/telemetry';
+import { getJobProfit } from '../lib/cashflow';
 import { persistPublicToken } from '../lib/store';
 import { extractJobMeta, writeJobMeta } from '../lib/jobMeta';
 import InvoiceDocumentPreview from './InvoiceDocumentPreview';
@@ -89,6 +90,7 @@ export default function SendInvoiceModal({
   biz,
   profile,
   jobs,
+  receipts = [],
   onUpdate,
   onClose,
   flash,
@@ -358,6 +360,8 @@ export default function SendInvoiceModal({
   // details. Fast, no PDF generation overhead, works on any phone.
   const handleWhatsApp = async () => {
     logTelemetry('invoice_send', { channel: 'whatsapp' });
+    const _iwa = getJobProfit(job, receipts);
+    logTelemetry('invoice_sent', { headline_price: _iwa.quote, job_costs: _iwa.materials, true_profit: _iwa.profit, channel: 'whatsapp' });
     if (!await attemptSend()) return;
     const link = buildWhatsAppLink({
       phone: job.customerPhone || job.phone || '',
@@ -377,6 +381,8 @@ export default function SendInvoiceModal({
   // the actual PDF so customers who need a formal document get one.
   const handleSharePDF = async () => {
     logTelemetry('invoice_send', { channel: 'share' });
+    const _ish = getJobProfit(job, receipts);
+    logTelemetry('invoice_sent', { headline_price: _ish.quote, job_costs: _ish.materials, true_profit: _ish.profit, channel: 'share' });
     if (!await attemptSend()) return;
     setBusy(true);
     try {
@@ -419,6 +425,8 @@ export default function SendInvoiceModal({
 
   const handleDownloadPDF = async () => {
     logTelemetry('invoice_send', { channel: 'download' });
+    const _idl = getJobProfit(job, receipts);
+    logTelemetry('invoice_sent', { headline_price: _idl.quote, job_costs: _idl.materials, true_profit: _idl.profit, channel: 'download' });
     if (!await attemptSend()) return;
     try {
       // downloadInvoicePDF is now async (QR code generation).
@@ -449,7 +457,6 @@ export default function SendInvoiceModal({
                 type="button"
                 className="modal-inline-link"
                 onClick={() => {
-                  logTelemetry('pro_upsell_sheet_viewed', { source: 'white_label_nudge', reason: 'white_label' });
                   setUpgradeSheetOpen(true);
                 }}
               >
@@ -889,7 +896,7 @@ export default function SendInvoiceModal({
     {/* Upgrade sheet — opened from the post-send white-label nudge */}
     <ProUpgradeSheet
       open={upgradeSheetOpen}
-      source="white_label_nudge"
+      trigger={UPGRADE_TRIGGERS.WHITELABEL_FOOTER}
       onClose={() => { setUpgradeSheetOpen(false); onClose(); }}
     />
     </>

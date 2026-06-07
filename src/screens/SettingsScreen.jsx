@@ -28,10 +28,10 @@
  *   5. Editable rows use EditFieldModal (single or composite). Saves bubble
  *      up via onProfileUpdate — AppShell writes to Supabase + updates profile.
  */
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import pkg from '../../package.json';
 import { supabase } from '../lib/supabase.js';
-import { logTelemetry } from '../lib/telemetry.js';
+import { logTelemetry, UPGRADE_TRIGGERS } from '../lib/telemetry.js';
 
 const LOGOS_BUCKET = 'logos';
 const LOGO_MAX_BYTES = 2 * 1024 * 1024; // 2 MB — matches bucket file_size_limit
@@ -376,7 +376,7 @@ function RemindJobCostsRow({ profile, onProfileUpdate }) {
 // Column added by supabase/migrations/20260601200000_add_auto_chase_enabled.sql.
 // Pro/trial only — free users see a Pro upsell label instead of an active toggle.
 
-function AutoChaseRow({ profile, onProfileUpdate }) {
+function AutoChaseRow({ profile, onProfileUpdate, onUpgrade }) {
   const proUser = isPro(profile);
 
   const [enabled, setEnabled] = useState(
@@ -390,12 +390,13 @@ function AutoChaseRow({ profile, onProfileUpdate }) {
   }, [profile?.auto_chase_enabled]);
 
   if (!proUser) {
-    // Free user — show upsell, not a toggle that does nothing
+    // Free user — tapping opens the upgrade sheet with auto_chase_locked attribution.
     return (
       <Row
         label="Auto-chase reminders"
         value="Pro"
-        chevron={false}
+        chevron={!!onUpgrade}
+        onTap={onUpgrade ?? undefined}
       />
     );
   }
@@ -1821,7 +1822,14 @@ export default function SettingsScreen({
   const [saveToast, setSaveToast] = useState('');
   const toastTimerRef = useRef(null);
   // upgradeSheetOpen: controls ProUpgradeSheet on Settings.
+  // upgradeSheetTrigger: the attribution trigger passed to ProUpgradeSheet.
   const [upgradeSheetOpen, setUpgradeSheetOpen] = useState(false);
+  const [upgradeSheetTrigger, setUpgradeSheetTrigger] = useState(UPGRADE_TRIGGERS.SETTINGS);
+
+  const openUpgradeSheet = useCallback((trigger = UPGRADE_TRIGGERS.SETTINGS) => {
+    setUpgradeSheetTrigger(trigger);
+    setUpgradeSheetOpen(true);
+  }, []);
 
   // ── Export state ──────────────────────────────────────────────────────────
   const [exporting, setExporting] = useState(false);
@@ -2348,6 +2356,7 @@ export default function SettingsScreen({
         <AutoChaseRow
           profile={profile}
           onProfileUpdate={onProfileUpdate}
+          onUpgrade={() => openUpgradeSheet(UPGRADE_TRIGGERS.AUTO_CHASE_LOCKED)}
         />
       </SectionCard>
 
@@ -2365,7 +2374,7 @@ export default function SettingsScreen({
             <Row
               label="Add card to stay Pro"
               action="£12/mo"
-              onTap={() => setUpgradeSheetOpen(true)}
+              onTap={() => openUpgradeSheet(UPGRADE_TRIGGERS.SETTINGS)}
               highlight
             />
           </>
@@ -2394,7 +2403,7 @@ export default function SettingsScreen({
             <Row
               label="Upgrade to Pro"
               action="£12/mo"
-              onTap={() => setUpgradeSheetOpen(true)}
+              onTap={() => openUpgradeSheet(UPGRADE_TRIGGERS.SETTINGS)}
               highlight
             />
           </>
@@ -2671,7 +2680,7 @@ export default function SettingsScreen({
       {/* ── Pro upgrade sheet — opened by Subscription upgrade rows ─────── */}
       <ProUpgradeSheet
         open={upgradeSheetOpen}
-        source="settings"
+        trigger={upgradeSheetTrigger}
         onClose={() => setUpgradeSheetOpen(false)}
       />
     </div>

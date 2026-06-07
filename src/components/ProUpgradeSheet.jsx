@@ -2,23 +2,30 @@
  * ProUpgradeSheet — the "why upgrade" sales surface.
  *
  * Opens from every upgrade tap across the app:
- *   - UpgradeBanner ("Start free trial" on Money tab)
- *   - ProGate lock badge
- *   - Today GetProPill
- *   - Settings → Subscription → Upgrade to Pro row
+ *   - UpgradeBanner ("Start free trial" on Money tab)    → trigger='upgrade_banner'
+ *   - ProGate lock badge on Insight cards                → trigger='insight_locked'
+ *   - Today GetProPill                                   → trigger='today_pill'
+ *   - Settings → Subscription → Upgrade to Pro row      → trigger='settings'
+ *   - TrialBanner → startCheckout() direct (no sheet)
+ *   - White-label nudge in SendInvoiceModal              → trigger='whitelabel_footer'
+ *   - Auto-chase locked row in Settings                  → trigger='auto_chase_locked'
  *
- * The sheet presents the value proposition and has a single primary CTA
- * that calls startCheckout() to begin the Stripe Checkout flow.
+ * The sheet fires upgrade_sheet_viewed on open (with trigger) and
+ * checkout_started on CTA tap (with the same trigger), forming the
+ * attribution chain that feeds subscription_active.last_trigger.
  *
  * Props:
  *   open    — boolean, controls visibility
- *   source  — string for telemetry: 'today_pill' | 'progate' | 'upgrade_banner' | 'settings'
+ *   trigger — string from UPGRADE_TRIGGERS enum; defaults to 'settings'
  *   onClose — called when the sheet should close (ESC, overlay tap, "Maybe later")
+ *
+ * @deprecated prop `source` is accepted as a fallback alias for `trigger` so
+ *   existing callers keep working during the migration — remove by 2026-Q3.
  */
 
 import { useEffect, useRef } from 'react';
 import { startCheckout } from '../lib/billing';
-import { logTelemetry } from '../lib/telemetry';
+import { logTelemetry, setLastUpgradeTrigger, UPGRADE_TRIGGERS } from '../lib/telemetry';
 
 const FEATURES = [
   { label: 'White-label documents', sub: 'remove "Sent with JobProfit" — your brand only on every quote, invoice & receipt' },
@@ -39,15 +46,20 @@ const COMPETITORS = [
   { name: 'ServiceM8', price: '~£24/user/mo', highlight: false },
 ];
 
-export default function ProUpgradeSheet({ open, source = 'unknown', onClose }) {
+export default function ProUpgradeSheet({ open, trigger: triggerProp, source: sourceProp, onClose }) {
+  // Accept either `trigger` (new) or `source` (legacy alias) so old callers keep working.
+  const trigger = triggerProp ?? sourceProp ?? UPGRADE_TRIGGERS.SETTINGS;
+
   const sheetRef = useRef(null);
   const closeRef = useRef(null);
 
-  // Fire telemetry on open
+  // Fire upgrade_sheet_viewed on open and persist the trigger for the
+  // checkout_started → subscription_active attribution chain.
   useEffect(() => {
     if (!open) return;
-    logTelemetry('pro_upsell_sheet_viewed', { source });
-  }, [open, source]);
+    setLastUpgradeTrigger(trigger);
+    logTelemetry('upgrade_sheet_viewed', { trigger });
+  }, [open, trigger]);
 
   // Focus trap + ESC close
   useEffect(() => {
@@ -99,7 +111,12 @@ export default function ProUpgradeSheet({ open, source = 'unknown', onClose }) {
   if (!open) return null;
 
   const handleUpgrade = async () => {
-    logTelemetry('upgrade_clicked', { source });
+    // checkout_started carries the same trigger as upgrade_sheet_viewed so
+    // PostHog can funnel: sheet_viewed → checkout_started → subscription_active.
+    // setLastUpgradeTrigger was already called on open; call again here in case
+    // the user somehow reaches this handler without the open effect having fired.
+    setLastUpgradeTrigger(trigger);
+    logTelemetry('checkout_started', { trigger });
     const { error } = await startCheckout();
     if (error) {
       // startCheckout redirects on success; on error show it briefly
