@@ -2,7 +2,7 @@
  * WorkCalendar — week/day/month calendar for the Work tab.
  *
  * Views:
- *   - Week (default): 7-column grid, Monday-first.
+ *   - Week (default): vertical stacked rows, today-anchored rolling 7-day window.
  *   - Day:  single-day agenda list (no time slots — jobs are date-only).
  *   - Month: standard month grid, tapping a cell drills to Day view.
  *
@@ -11,6 +11,13 @@
  *
  * Persists the active Day/Week/Month sub-mode in localStorage under 'jp.workCalView'.
  * Focused date is kept in component state so Day/Week/Month stay coherent when switching.
+ *
+ * Week view — rolling window:
+ *   Row 1 = the window's start day (today when first loaded or after Today pill).
+ *   Prev/Next chevrons shift the window ±7 days. The "Today" pill resets to today-anchored.
+ *   Header label shows "Sun 7 – Sat 13 Jun" (date range, single month) or
+ *   "Sun 31 May – Sat 6 Jun" (cross-month). No "W/c" prefix — it no longer fits a
+ *   rolling window that can start on any day.
  *
  * Drag-to-reschedule: v2 — not implemented in this PR.
  * TODO(v2): add drag-and-drop rescheduling via HTML5 drag API or @dnd-kit.
@@ -46,17 +53,36 @@ function parseIso(iso) {
   return new Date(y, m - 1, day);
 }
 
-/** Build the 7 Date objects for the week containing `anchor`, Monday-first. */
-function buildWeekForDate(anchor) {
-  const dow = anchor.getDay(); // 0=Sun
-  const monday = new Date(anchor);
-  monday.setDate(anchor.getDate() - ((dow + 6) % 7));
-  monday.setHours(0, 0, 0, 0);
+/** Build a rolling 7-day window starting at `anchor` (inclusive). */
+function buildRollingWeek(anchor) {
+  const start = new Date(anchor);
+  start.setHours(0, 0, 0, 0);
   return Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(monday);
-    d.setDate(monday.getDate() + i);
+    const d = new Date(start);
+    d.setDate(start.getDate() + i);
     return d;
   });
+}
+
+/**
+ * Build the week-range label for the nav header.
+ * Same-month: "Sun 7 – Sat 13 Jun"
+ * Cross-month: "Sun 31 May – Sat 6 Jun"
+ */
+function buildWeekRangeLabel(days) {
+  const first = days[0];
+  const last  = days[days.length - 1];
+  const firstDayName = DAY_LABELS[first.getDay()];
+  const lastDayName  = DAY_LABELS[last.getDay()];
+  const firstDate    = first.getDate();
+  const lastDate     = last.getDate();
+  const lastMonth    = MONTH_SHORT[last.getMonth()];
+
+  if (first.getMonth() === last.getMonth()) {
+    return `${firstDayName} ${firstDate} – ${lastDayName} ${lastDate} ${lastMonth}`;
+  }
+  const firstMonth = MONTH_SHORT[first.getMonth()];
+  return `${firstDayName} ${firstDate} ${firstMonth} – ${lastDayName} ${lastDate} ${lastMonth}`;
 }
 
 function groupByDay(jobs) {
@@ -78,6 +104,28 @@ function isUnscheduled(job) {
 
 function jobLabel(job) {
   return job.summary || job.customer || job.name || 'Job';
+}
+
+/**
+ * Derive a simple display stage label from a job for the calendar pill.
+ * Uses the canonical `status` field first (fast path), then legacy field fallbacks.
+ * Does NOT compute date-driven Overdue — the manual `overdue` flag is honoured.
+ * Mirrors the logic in WorkScreen.deriveDisplayStatus and JobDetailDrawer.
+ */
+function deriveCalStage(job) {
+  if (job.status === 'lead')         return 'Lead';
+  if (job.status === 'quoted')       return 'Quoted';
+  if (job.status === 'paid')         return 'Paid';
+  if (job.status === 'active' || job.status === 'complete') return 'On';
+  if (job.status === 'invoice_sent') {
+    if (job.overdue === true) return 'Overdue';
+    return 'Invoiced';
+  }
+  // Legacy fallbacks
+  if (job.paid || job.paymentStatus === 'paid' || job.jobStatus === 'paid') return 'Paid';
+  if (job.invoiceStatus === 'invoiced') return 'Invoiced';
+  if (job.jobStatus === 'complete' || job.jobStatus === 'active') return 'On';
+  return 'Lead';
 }
 
 /** Build all Date cells for a month grid (Monday-first, padding with prev/next month days). */
@@ -244,7 +292,7 @@ function DayView({ focusedDate, byDay, todayKey, onAddOnDate, onJobTap }) {
         <button
           type="button"
           className="wc-day-add-btn"
-          onClick={() => onAddOnDate(key)}
+          onClick={() => onAddOnDate?.(key)}
           aria-label={btnLabel}
         >
           {btnLabel}
@@ -254,108 +302,156 @@ function DayView({ focusedDate, byDay, todayKey, onAddOnDate, onJobTap }) {
   );
 }
 
-// ── Week day column ───────────────────────────────────────────────────────────
-// Desktop: solid bordered box matching Month cell style, 7-column grid.
-// Mobile (<640px): full-width stacked row — layout controlled purely via CSS.
+// ── Week view — vertical stacked rows ─────────────────────────────────────────
+// One layout for both mobile and desktop. Desktop's extra width shows inline
+// address snippet via CSS at ≥640px — no JS branching between widths.
 
-function DayColumn({ day, dayJobs, isToday, onAddOnDate, onJobTap, onDayHeaderTap }) {
-  const key = isoDate(day);
-  const dayLabel = formatDayLabel(day);
-  const hasJobs = dayJobs.length > 0;
+/** Stage pill for the vertical week row. */
+function StagePill({ stage }) {
+  if (!stage || stage === 'Lead') return null;
+  const cls = {
+    Quoted:   'vw-pill--quoted',
+    On:       'vw-pill--on',
+    Invoiced: 'vw-pill--invoiced',
+    Overdue:  'vw-pill--overdue',
+    Paid:     'vw-pill--paid',
+  }[stage] ?? '';
+  return <span className={`vw-pill ${cls}`}>{stage}</span>;
+}
 
-  // Desktop: cap at 3 visible chips; mobile: show all (CSS removes the overflow chip via display:none).
-  const DESKTOP_CAP = 3;
-  const visibleJobs = dayJobs.slice(0, DESKTOP_CAP);
-  const overflowCount = dayJobs.length - visibleJobs.length;
-
-  const cellClasses = [
-    'wc-week-cell',
-    isToday ? 'wc-week-cell--today' : '',
-    hasJobs ? 'wc-week-cell--has-jobs' : '',
-  ].filter(Boolean).join(' ');
+/** A single job row inside a vertical week day. */
+function WeekJobRow({ job, onJobTap }) {
+  const label    = jobLabel(job);
+  const amount   = job.total ?? job.amount;
+  const stage    = deriveCalStage(job);
+  // customer shown in meta if it differs from the summary/name
+  const customer = (job.customer && job.customer !== job.summary) ? job.customer : null;
+  // address shown on desktop via CSS .vw-job-meta-address (≥640px only)
+  const address  = job.address || null;
 
   return (
-    <div className={cellClasses}>
-      {/* Tappable day header — drills to Day view */}
+    <button
+      type="button"
+      className="vw-job"
+      onClick={() => onJobTap?.(job)}
+      aria-label={`Open ${label}`}
+    >
+      <span className="vw-job-main">
+        <span className="vw-job-title">{label}</span>
+        {(customer || address) && (
+          <span className="vw-job-meta">
+            {customer && <span className="vw-job-meta-customer">{customer}</span>}
+            {customer && address && <span className="vw-job-meta-dot" aria-hidden="true"> · </span>}
+            {address && <span className="vw-job-meta-address">{address}</span>}
+          </span>
+        )}
+      </span>
+      <span className="vw-job-right">
+        {amount > 0 && (
+          <span className="vw-amount">
+            £{Number(amount).toLocaleString('en-GB', { minimumFractionDigits: 0 })}
+          </span>
+        )}
+        <StagePill stage={stage} />
+      </span>
+    </button>
+  );
+}
+
+/** A single full-width day row in the vertical week list. */
+function WeekDayRow({ day, dayJobs, isToday, onAddOnDate, onJobTap, onDayHeaderTap }) {
+  const key      = isoDate(day);
+  const dayLabel = formatDayLabel(day);
+  const hasJobs  = dayJobs.length > 0;
+
+  const rowClasses = [
+    'vw-day',
+    isToday  ? 'vw-day--today'    : '',
+    hasJobs  ? 'vw-day--has-jobs' : '',
+  ].filter(Boolean).join(' ');
+
+  // Per-day subtotal — only shown when >1 job
+  const dayTotal = hasJobs
+    ? dayJobs.reduce((sum, j) => sum + (Number(j.total ?? j.amount) || 0), 0)
+    : 0;
+
+  return (
+    <div className={rowClasses}>
+      {/* Left date gutter — taps to Day view */}
       <button
         type="button"
-        className="wc-week-cell-header"
+        className="vw-gutter"
         onClick={() => onDayHeaderTap?.(key)}
         aria-label={`View ${dayLabel}`}
       >
-        <span className="wc-day-name">{DAY_LABELS[day.getDay()]}</span>
-        <span className={`wc-day-num${isToday ? ' wc-day-num--today' : ''}`}>{day.getDate()}</span>
+        <span className="vw-dow">{DAY_LABELS[day.getDay()]}</span>
+        <span className="vw-dom">{day.getDate()}</span>
+        {isToday && <span className="vw-today-tag" aria-hidden="true">TODAY</span>}
       </button>
 
-      {/* Job chips */}
-      <div className="wc-week-cell-jobs">
-        {visibleJobs.map(j => {
-          const amount = j.total ?? j.amount;
-          return (
-            <button
-              key={j.id || j.cloudId}
-              type="button"
-              className="wc-slot-job"
-              title={jobLabel(j)}
-              onClick={() => onJobTap?.(j)}
-              aria-label={`Open ${jobLabel(j)}`}
-            >
-              <span className="wc-slot-job-label">{jobLabel(j).slice(0, 14)}{jobLabel(j).length > 14 ? '…' : ''}</span>
-              {amount > 0 && (
-                <span className="wc-slot-job-amount">
-                  £{Number(amount).toLocaleString('en-GB', { minimumFractionDigits: 0 })}
+      {/* Right: day body */}
+      <div className="vw-body">
+        {hasJobs ? (
+          <>
+            {dayJobs.map(j => (
+              <WeekJobRow key={j.id || j.cloudId} job={j} onJobTap={onJobTap} />
+            ))}
+            {dayJobs.length > 1 && (
+              <div className="vw-day-foot">
+                <span>{dayJobs.length} jobs</span>
+                <span>
+                  £{dayTotal.toLocaleString('en-GB', { minimumFractionDigits: 0 })}
                 </span>
-              )}
-            </button>
-          );
-        })}
-
-        {/* Mobile-only: show all remaining chips (desktop shows overflow chip instead) */}
-        {dayJobs.slice(DESKTOP_CAP).map(j => {
-          const amount = j.total ?? j.amount;
-          return (
-            <button
-              key={j.id || j.cloudId}
-              type="button"
-              className="wc-slot-job wc-slot-job--mobile-only"
-              title={jobLabel(j)}
-              onClick={() => onJobTap?.(j)}
-              aria-label={`Open ${jobLabel(j)}`}
-            >
-              <span className="wc-slot-job-label">{jobLabel(j).slice(0, 14)}{jobLabel(j).length > 14 ? '…' : ''}</span>
-              {amount > 0 && (
-                <span className="wc-slot-job-amount">
-                  £{Number(amount).toLocaleString('en-GB', { minimumFractionDigits: 0 })}
-                </span>
-              )}
-            </button>
-          );
-        })}
-
-        {/* Desktop-only: +N more overflow chip */}
-        {overflowCount > 0 && (
+              </div>
+            )}
+          </>
+        ) : (
           <button
             type="button"
-            className="wc-slot-overflow wc-slot-overflow--desktop-only"
-            onClick={() => onDayHeaderTap?.(key)}
-            aria-label={`View all ${dayJobs.length} jobs on ${dayLabel}`}
+            className="vw-add-ghost"
+            onClick={() => onAddOnDate?.(key)}
+            aria-label={`Add job on ${dayLabel}`}
           >
-            +{overflowCount} more
+            <span className="vw-add-plus" aria-hidden="true">+</span>
+            Add a job
           </button>
         )}
       </div>
+    </div>
+  );
+}
 
-      {/* Ghost "+ Add" row — quiet, not a primary CTA */}
-      <button
-        type="button"
-        className={`wc-week-cell-add-ghost${!hasJobs ? ' wc-week-cell-add-ghost--empty' : ''}`}
-        onClick={() => onAddOnDate(key)}
-        aria-label={`Add job on ${dayLabel}`}
-      >
-        <span className="wc-week-cell-add-text">
-          {hasJobs ? '+ Add' : '+ Add a job'}
-        </span>
-      </button>
+/** Week total strip — shown below the day rows. */
+function WeekTotalStrip({ days, byDay, todayIsInWindow }) {
+  let totalJobs   = 0;
+  let totalAmount = 0;
+  let daysWithJobs = 0;
+  let openDays    = 0;
+
+  for (const day of days) {
+    const key  = isoDate(day);
+    const jobs = byDay[key] || [];
+    if (jobs.length > 0) {
+      daysWithJobs++;
+      totalJobs   += jobs.length;
+      totalAmount += jobs.reduce((s, j) => s + (Number(j.total ?? j.amount) || 0), 0);
+    } else {
+      openDays++;
+    }
+  }
+
+  const windowLabel = todayIsInWindow ? 'This week' : '7-day window';
+  const jobsPart    = totalJobs === 0
+    ? 'No jobs booked'
+    : `${totalJobs} job${totalJobs === 1 ? '' : 's'}${daysWithJobs > 1 ? ` across ${daysWithJobs} days` : ''}`;
+  const openPart    = openDays > 0 ? ` · ${openDays} open day${openDays === 1 ? '' : 's'}` : '';
+
+  return (
+    <div className="vw-week-total">
+      <span className="vw-week-total-lbl">{windowLabel} · {jobsPart}{openPart}</span>
+      <span className="vw-week-total-val">
+        £{totalAmount.toLocaleString('en-GB', { minimumFractionDigits: 0 })}
+      </span>
     </div>
   );
 }
@@ -437,6 +533,13 @@ function MonthView({ year, month, byDay, todayKey, onCellTap }) {
 export default function WorkCalendar({ jobs = [], onNewJobOnDate, onJobTap }) {
   // All hooks must sit above any early return (lesson from PR #125).
   const [calView, setCalView] = useState(getPersistedCalView);
+  // weekWindowStart: the first day of the 7-day rolling window.
+  // Initialised to today so today is always row 1 on first load.
+  const [weekWindowStart, setWeekWindowStart] = useState(() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+  });
   const [focusedDate, setFocusedDate] = useState(() => {
     const d = new Date();
     d.setHours(0, 0, 0, 0);
@@ -456,12 +559,14 @@ export default function WorkCalendar({ jobs = [], onNewJobOnDate, onJobTap }) {
 
   const handleAddOnDate = useCallback((dateKey) => {
     logTelemetry('calendar_add_tap', { date: dateKey, view: calView });
-    onNewJobOnDate(dateKey);
+    onNewJobOnDate?.(dateKey);
   }, [calView, onNewJobOnDate]);
 
-  // Week helpers
-  const week = buildWeekForDate(focusedDate);
-  const weekLabel = `W/c ${DAY_LABELS[week[0].getDay()]} ${week[0].getDate()} ${MONTH_SHORT[week[0].getMonth()]}`;
+  // Rolling week window — 7 days from weekWindowStart
+  const weekDays = buildRollingWeek(weekWindowStart);
+  const weekLabel = buildWeekRangeLabel(weekDays);
+  // Is today inside the current window?
+  const todayInWindow = weekDays.some(d => isoDate(d) === todayKey);
 
   // Month helpers
   const monthYear = `${MONTH_NAMES[focusedDate.getMonth()]} ${focusedDate.getFullYear()}`;
@@ -473,8 +578,8 @@ export default function WorkCalendar({ jobs = [], onNewJobOnDate, onJobTap }) {
     return next;
   });
 
-  // Week nav — step by 7 days
-  const stepWeek = (delta) => setFocusedDate(d => {
+  // Week nav — shift rolling window by 7 days
+  const stepWeek = (delta) => setWeekWindowStart(d => {
     const next = new Date(d);
     next.setDate(d.getDate() + delta * 7);
     return next;
@@ -490,6 +595,8 @@ export default function WorkCalendar({ jobs = [], onNewJobOnDate, onJobTap }) {
     const d = new Date();
     d.setHours(0, 0, 0, 0);
     setFocusedDate(d);
+    // Reset week window so today is row 1 again
+    setWeekWindowStart(new Date(d));
   };
 
   const openDatePicker = () => {
@@ -501,7 +608,12 @@ export default function WorkCalendar({ jobs = [], onNewJobOnDate, onJobTap }) {
 
   const onPickerChange = (iso) => {
     if (!iso) return;
-    setFocusedDate(parseIso(iso));
+    const d = parseIso(iso);
+    setFocusedDate(d);
+    // In week view, jump the window start to the picked date
+    if (calView === 'week') {
+      setWeekWindowStart(new Date(d));
+    }
   };
 
   // When a month-grid cell is tapped → switch to Day view for that date
@@ -510,7 +622,7 @@ export default function WorkCalendar({ jobs = [], onNewJobOnDate, onJobTap }) {
     switchCalView('day');
   };
 
-  // When a week-view day header is tapped → switch to Day view for that date
+  // When a week-view day gutter is tapped → switch to Day view for that date
   const handleWeekDayHeaderTap = (iso) => {
     setFocusedDate(parseIso(iso));
     switchCalView('day');
@@ -547,7 +659,7 @@ export default function WorkCalendar({ jobs = [], onNewJobOnDate, onJobTap }) {
       <div style={{ position: 'relative', height: 0, overflow: 'hidden' }}>
         <DatePickerTrigger
           triggerRef={datePickerRef}
-          value={isoDate(focusedDate)}
+          value={isoDate(calView === 'week' ? weekWindowStart : focusedDate)}
           onChange={onPickerChange}
         />
       </div>
@@ -571,8 +683,8 @@ export default function WorkCalendar({ jobs = [], onNewJobOnDate, onJobTap }) {
           onNext={() => stepWeek(1)}
           onPickDate={openDatePicker}
           onToday={goToToday}
-          prevAriaLabel="Previous week"
-          nextAriaLabel="Next week"
+          prevAriaLabel="Previous 7 days"
+          nextAriaLabel="Next 7 days"
         />
       )}
       {calView === 'month' && (
@@ -602,11 +714,11 @@ export default function WorkCalendar({ jobs = [], onNewJobOnDate, onJobTap }) {
       )}
 
       {calView === 'week' && (
-        <div className="wc-grid">
-          {week.map(day => {
+        <div className="vw-list">
+          {weekDays.map(day => {
             const key = isoDate(day);
             return (
-              <DayColumn
+              <WeekDayRow
                 key={key}
                 day={day}
                 dayJobs={byDay[key] || []}
@@ -617,6 +729,7 @@ export default function WorkCalendar({ jobs = [], onNewJobOnDate, onJobTap }) {
               />
             );
           })}
+          <WeekTotalStrip days={weekDays} byDay={byDay} todayIsInWindow={todayInWindow} />
         </div>
       )}
 
