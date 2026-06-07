@@ -227,7 +227,7 @@ describe('handleCopyJob payload shape', () => {
   });
 
   it('falls back to amount when total is absent', () => {
-    const { total, ...jobNoTotal } = paidJob;
+    const { total: _total, ...jobNoTotal } = paidJob;
     const p = buildCopyPayload(jobNoTotal);
     expect(p.amount).toBe(1000);
   });

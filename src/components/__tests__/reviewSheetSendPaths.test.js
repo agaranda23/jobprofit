@@ -30,7 +30,7 @@
  *     - uses clipboard path when no file share + no phone
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { canShareFile } from '../../lib/webShare.js';
 import { getInvoicePDFBlob } from '../../lib/invoicePDF.js';
 import { getQuotePDFBlob } from '../../lib/invoicePDF.js';

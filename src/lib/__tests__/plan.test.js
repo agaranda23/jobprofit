@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { isPro, planAllowsPro, canSendInvoice, countInvoicesSentThisMonth, incrementSendCount, UNLOCK_PRO_FOR_ALL, FREE_MONTHLY_INVOICE_LIMIT, isTrialActive, trialDaysLeft, showJobProfitFooter, eligibleForWhiteLabelNudge } from '../plan.js';
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -210,7 +210,6 @@ describe('eligibleForWhiteLabelNudge — free users only', () => {
 describe('incrementSendCount', () => {
   function makeSupabase({ rpcError = false, selectData = { invoices_sent_count: 0 }, updateError = false } = {}) {
     const updateFn = vi.fn().mockResolvedValue({ error: updateError ? new Error('update failed') : null });
-    const eqUpdate = vi.fn().mockReturnValue({ eq: vi.fn().mockReturnValue(updateFn()) });
     const supabase = {
       rpc: rpcError
         ? vi.fn().mockRejectedValue(new Error('rpc not found'))
@@ -410,7 +409,6 @@ describe('isPro — trial-aware entitlement', () => {
 // These tests confirm the gate has been removed from handleChase.
 // ──────────────────────────────────────────────────────────────────────────
 describe('manual chase — all tiers free (gate removed 2026-06-03)', () => {
-  const now = new Date();
   const future = new Date(Date.now() + 5 * 86400000);
 
   // After the revert, handleChase has no isPro gate.

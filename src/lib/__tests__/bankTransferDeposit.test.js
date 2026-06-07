@@ -19,7 +19,6 @@
 
 import { describe, it, expect } from 'vitest';
 import { addPayment, computeBalance, computeAmountPaid } from '../payments.js';
-import { buildQuoteWhatsAppMessage } from '../quoteMessage.js';
 
 // ── Shared deposit-credit filter — mirrors InvoiceDocumentPreview + invoicePDF logic ──
 // Both surfaces now use: type === 'deposit' || /deposit/i.test(note || '')

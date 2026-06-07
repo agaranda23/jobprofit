@@ -19,7 +19,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { isPro, isTrialActive } from '../plan.js';
+import { isPro } from '../plan.js';
 
 // ── Inline mirror of the server gate rule (from create-deposit-payment-link.js) ──
 function serverAllowsDeposit(profile) {
@@ -41,8 +41,6 @@ const trialActiveProfile    = { plan: 'trial', trial_ends_at: FUTURE_DATE };
 const trialExpiredProfile   = { plan: 'trial', trial_ends_at: PAST_DATE };
 const freeProfile           = { plan: 'free' };
 const noProfilePlan         = { plan: null };
-const undefinedProfile      = null;
-
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe('G7 server-side Pro gate — deposit link creation', () => {

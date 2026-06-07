@@ -262,7 +262,6 @@ describe('AppShell.jsx — inline copy left intact (content emoji, not icon slot
 
 describe('navigation.js — no emoji present (pure metadata, no rendered glyphs)', () => {
   it('contains no emoji characters', () => {
-    // eslint-disable-next-line no-control-regex
     const emojiPattern = /[\u{1F000}-\u{1FFFF}\u{2600}-\u{27FF}\u{1F300}-\u{1F9FF}]/u;
     expect(emojiPattern.test(navigationSrc)).toBe(false);
   });

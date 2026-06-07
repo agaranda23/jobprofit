@@ -248,7 +248,7 @@ function DatePickerTrigger({ value, onChange, triggerRef }) {
 
 // ── Day view ──────────────────────────────────────────────────────────────────
 
-function DayView({ focusedDate, byDay, todayKey, onAddOnDate, onJobTap }) {
+function DayView({ focusedDate, byDay, onAddOnDate, onJobTap }) {
   const key = isoDate(focusedDate);
   const dayJobs = byDay[key] || [];
   const dayLabel = formatDayLabel(focusedDate);

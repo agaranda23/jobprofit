@@ -46,12 +46,6 @@ import { isPro } from '../lib/plan';
 // ── Snooze helpers (delegate to nextBestAction.js store, keep SNOOZE_MS local) ──
 const SNOOZE_MS = 24 * 60 * 60 * 1000;
 
-function isJobSnoozed(jobId, now = new Date()) {
-  const store = readSnoozeStore();
-  const until = store[jobId];
-  return !!(until && new Date(until) > now);
-}
-
 function snoozeJob(jobId) {
   const store = readSnoozeStore();
   store[jobId] = new Date(Date.now() + SNOOZE_MS).toISOString();
@@ -211,7 +205,7 @@ export default function TodayScreen({
   // ── Ranking (re-runs on jobs or rankVersion change) ──────────────────────────
   // Delegates to the pure rankNextBestAction helper in src/lib/nextBestAction.js.
   // Real function refs are passed so the helper stays free of React imports.
-  const { tier, job: promptJob, poolSize } = useMemo(() => {
+  const { tier, job: promptJob, poolSize: _poolSize } = useMemo(() => {
     const snoozeStore = readSnoozeStore();
     return rankNextBestAction(
       jobs,

@@ -701,8 +701,6 @@ function JobTile({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJo
   const isPaid = stage === 'Paid';
 
   const timeSignal = deriveTimeSignal(job, stage);
-  const photoCount = Array.isArray(job.photos) ? job.photos.length : 0;
-  const noteCount = Array.isArray(job.jobNotes) ? job.jobNotes.length : (job.notes ? 1 : 0);
   const moneySub = deriveMoneySub(job, stage);
 
   const rawAmount = job.total ?? job.amount;
@@ -1187,7 +1185,6 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
 
     prefetchAll();
     return () => { cancelled = true; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isConnected, jobs]);
 
   const switchSubview = useCallback((v) => {

@@ -38,7 +38,7 @@ vi.mock('@supabase/supabase-js', () => ({
           select: vi.fn().mockReturnThis(),
           eq:     vi.fn().mockReturnThis(),
           single: vi.fn(async () => mockProfileResult),
-          update: vi.fn((payload) => ({
+          update: vi.fn((_payload) => ({
             eq: vi.fn(async () => mockUpdateResult ?? { error: null }),
           })),
         };

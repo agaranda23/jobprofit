@@ -138,7 +138,6 @@ export default function RecordPaymentModal({
 
   // ── Paid success state (cost capture) ────────────────────────────────────────
   if (paidSuccess && costPromptActive) {
-    const jobIncome = job?.total ?? job?.amount ?? 0;
     const jobCostTotal = Array.isArray(receipts)
       ? receipts.filter(r => r.jobId === job?.id || r.job_id === job?.id)
           .reduce((s, r) => s + Number(r.amount || 0), 0)

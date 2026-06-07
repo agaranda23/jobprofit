@@ -226,7 +226,6 @@ export default function SendInvoiceModal({
 
     generate();
     return () => { cancelled = true; };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isConnected, job?.id]);
 
   const isFirstSend = job.status !== 'invoice_sent';

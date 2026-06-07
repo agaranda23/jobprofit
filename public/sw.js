@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v74';  // bumped from v73: "See the week" deep-link — Calendar+Week from Today all-clear card
+const CACHE_NAME = 'jobprofit-v75';  // bumped from v74: chore/code-cleanup — lint fixes, dead imports removed
 const PRECACHE = [
   '/',
   '/index.html',

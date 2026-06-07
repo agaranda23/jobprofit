@@ -8,7 +8,7 @@
  * where we need to exercise specific branches.
  */
 
-import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   STORAGE_KEY,
   getStoredPref,

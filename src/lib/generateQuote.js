@@ -25,7 +25,7 @@ export async function generateQuote(description) {
   try {
     const { data: { session } } = await supabase.auth.getSession();
     accessToken = session?.access_token;
-  } catch (e) {
+  } catch (_e) {
     return { error: 'Not signed in' };
   }
 
@@ -50,7 +50,7 @@ export async function generateQuote(description) {
   let data;
   try {
     data = await res.json();
-  } catch (e) {
+  } catch (_e) {
     return { error: 'Bad response from server' };
   }
 

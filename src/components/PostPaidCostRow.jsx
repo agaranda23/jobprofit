@@ -110,7 +110,7 @@ export default function PostPaidCostRow({ job, jobCostTotal = 0, variant = 'zero
   };
 
   const handleSkip = () => {
-    const { count, shouldAutoMute } = recordDismissal();
+    const { count: _count, shouldAutoMute } = recordDismissal();
     if (shouldAutoMute) {
       onAutoMute?.();
     }

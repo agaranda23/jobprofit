@@ -227,6 +227,7 @@ export default function ReviewSheet({
   onProfileUpdate,
 }) {
   const isInvoice = mode === 'invoice';
+  const isProUser = isPro(profile);
 
   const [invoiceNumber] = useState(
     () => job.invoiceNumber || nextInvoiceNumber(jobs)

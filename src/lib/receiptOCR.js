@@ -87,7 +87,7 @@ Rules:
   let data;
   try {
     data = await res.json();
-  } catch (e) {
+  } catch (_e) {
     return { error: 'Bad JSON response' };
   }
 
@@ -118,7 +118,7 @@ Rules:
       paymentMethod: parsed.paymentMethod || null,
       items: Array.isArray(parsed.items) ? parsed.items.filter(i => i?.desc) : [],
     };
-  } catch (e) {
+  } catch (_e) {
     console.warn('Parse failed:', block.text);
     return { error: 'Could not parse model output' };
   }

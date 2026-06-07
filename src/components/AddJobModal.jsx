@@ -563,7 +563,7 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMo
       if (!summary.trim() && descriptionText) setSummary(descriptionText);
       setAiStatus('draft');
       setQuoteVoiceStatus('confirm');
-    } catch (err) {
+    } catch (_err) {
       clearTimeout(buildingTimerRef.current);
       setShowBuildingSpinner(false);
       setAiStatus('error');
@@ -831,7 +831,7 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMo
                 type="button"
                 onClick={() => {
                   // Stop any active mic before going back
-                  try { recogRef.current?.abort(); } catch {} // eslint-disable-line no-empty
+                  try { recogRef.current?.abort(); } catch {}
                   voiceEntryExplicit.current = false;
                   setView('micro');
                 }}
