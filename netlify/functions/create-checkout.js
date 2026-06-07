@@ -112,6 +112,22 @@ export const handler = async function (event) {
   const successUrl = `${appBase}/#/settings?upgraded=1`;
   const cancelUrl  = `${appBase}/#/money`;
 
+  // ── 4b. Parse coupon_mode from body ─────────────────────────────────────────
+  // coupon_mode:
+  //   'trial_extension' — Moment-1: apply the +1-free-month Stripe coupon
+  //                        (STRIPE_TRIAL_EXTENSION_COUPON_ID env var must be set)
+  //   'none'           — Moment-2: no coupon, charge immediately
+  //   (absent)         — default checkout (14-day trial, standard flow)
+  let couponMode = null;
+  try {
+    const bodyObj = event.body ? JSON.parse(event.body) : {};
+    if (bodyObj.coupon_mode === 'trial_extension' || bodyObj.coupon_mode === 'none') {
+      couponMode = bodyObj.coupon_mode;
+    }
+  } catch {
+    // Malformed body — treat as default checkout
+  }
+
   // ── 5. Create Stripe Checkout Session ───────────────────────────────────────
   const stripe = new Stripe(stripeSecretKey, { apiVersion: '2024-06-20' });
 
@@ -121,7 +137,7 @@ export const handler = async function (event) {
       mode: 'subscription',
       line_items: [{ price: stripePriceId, quantity: 1 }],
       client_reference_id: userId,
-      metadata: { user_id: userId },
+      metadata: { user_id: userId, coupon_mode: couponMode ?? 'default' },
       success_url: successUrl,
       cancel_url: cancelUrl,
     };
@@ -132,6 +148,24 @@ export const handler = async function (event) {
     } else {
       // New customer — pre-fill email so they don't have to type it
       sessionParams.customer_email = userEmail;
+    }
+
+    // Apply the trial-extension coupon for Moment-1 ("Add card, free month").
+    // STUB: requires STRIPE_TRIAL_EXTENSION_COUPON_ID to be set in Netlify env.
+    // If not set, the session is created without the coupon (degrades gracefully —
+    // user still subscribes, just doesn't get the extra free month until founder
+    // creates the coupon and sets the env var).
+    if (couponMode === 'trial_extension') {
+      const couponId = process.env.STRIPE_TRIAL_EXTENSION_COUPON_ID;
+      if (couponId) {
+        sessionParams.discounts = [{ coupon: couponId }];
+      } else {
+        console.warn(
+          'create-checkout: STRIPE_TRIAL_EXTENSION_COUPON_ID not set — ' +
+          'trial_extension checkout created without coupon. ' +
+          'Set this env var in Netlify to enable the +1-free-month offer.'
+        );
+      }
     }
 
     session = await stripe.checkout.sessions.create(sessionParams);

@@ -14266,3 +14266,298 @@ input[type=number] { -moz-appearance: textfield; }
   opacity: 0.65;
   line-height: 1.5;
 }
+
+/* ── ProUpgradeSheet — trial_end variant additions ────────────────────────── */
+
+.pro-upgrade-sheet__eyebrow {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--gold, #D4A017);
+  text-align: center;
+  margin-bottom: 6px;
+}
+
+.trial-end-title {
+  font-size: 20px;
+  font-weight: 700;
+  text-align: center;
+  color: var(--text);
+  line-height: 1.3;
+}
+
+.pro-upgrade-sheet__proof-line {
+  font-size: 15px;
+  color: var(--text);
+  text-align: center;
+  font-weight: 500;
+  margin: 0 0 12px;
+  line-height: 1.5;
+}
+
+.pro-upgrade-sheet__body {
+  font-size: 14px;
+  color: var(--text-dim);
+  text-align: center;
+  margin: 0 0 20px;
+  line-height: 1.55;
+}
+
+/* LEG compliance disclosure — smaller, dimmer, but always present */
+.pro-upgrade-sheet__legal {
+  font-size: 11px;
+  color: var(--text-dim);
+  text-align: center;
+  margin: 8px 0 4px;
+  line-height: 1.55;
+  opacity: 0.8;
+}
+
+/* ── DropToFreeScreen ─────────────────────────────────────────────────────── */
+
+.drop-to-free-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 900; /* above nav, below toasts */
+  background: var(--bg, #fff);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  overflow: hidden;
+}
+
+.drop-to-free-screen {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.drop-to-free-scroll {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 40px 24px 48px;
+  max-width: 480px;
+  margin: 0 auto;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.drop-to-free-headline {
+  font-size: 24px;
+  font-weight: 800;
+  color: var(--text);
+  margin: 0 0 12px;
+  line-height: 1.2;
+}
+
+.drop-to-free-sub {
+  font-size: 15px;
+  color: var(--text-dim);
+  line-height: 1.6;
+  margin: 0 0 28px;
+}
+
+.drop-to-free-block {
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.drop-to-free-block--keep {
+  background: color-mix(in srgb, var(--green, #00A86B) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--green, #00A86B) 25%, transparent);
+}
+
+.drop-to-free-block--lose {
+  background: color-mix(in srgb, var(--text-dim) 6%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text-dim) 15%, transparent);
+}
+
+.drop-to-free-block-title {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+  margin-bottom: 10px;
+}
+
+.drop-to-free-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.drop-to-free-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--text);
+}
+
+.drop-to-free-item-icon {
+  flex-shrink: 0;
+  width: 18px;
+  font-size: 14px;
+  margin-top: 1px;
+}
+
+.drop-to-free-item--keep .drop-to-free-item-icon {
+  color: var(--green, #00A86B);
+}
+
+.drop-to-free-item--lose .drop-to-free-item-icon {
+  color: var(--text-dim);
+}
+
+.drop-to-free-footer-note {
+  background: color-mix(in srgb, var(--text-dim) 5%, transparent);
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-bottom: 28px;
+}
+
+.drop-to-free-footer-note-title {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+  margin-bottom: 6px;
+}
+
+.drop-to-free-footer-note-body {
+  font-size: 13px;
+  color: var(--text-dim);
+  line-height: 1.55;
+  margin: 0;
+}
+
+.drop-to-free-cta {
+  width: 100%;
+  padding: 16px;
+  border-radius: 12px;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: opacity 0.15s;
+  border: none;
+  margin-bottom: 8px;
+}
+
+.drop-to-free-cta--upgrade {
+  background: var(--gold-gradient, linear-gradient(135deg, #D4A017, #E8B820));
+  color: #fff;
+  box-shadow: 0 4px 16px rgba(212, 160, 23, 0.4);
+}
+
+.drop-to-free-cta--upgrade:hover { opacity: 0.92; }
+.drop-to-free-cta--upgrade:active { opacity: 0.78; }
+.drop-to-free-cta--upgrade:disabled { opacity: 0.6; cursor: wait; }
+
+.drop-to-free-cta--dismiss {
+  background: none;
+  color: var(--text-dim);
+  font-weight: 500;
+  font-size: 14px;
+  padding: 12px;
+}
+
+.drop-to-free-cta--dismiss:hover { color: var(--text); }
+
+.drop-to-free-legal {
+  font-size: 11px;
+  color: var(--text-dim);
+  text-align: center;
+  line-height: 1.55;
+  margin: 4px 0 12px;
+  opacity: 0.8;
+}
+
+.drop-to-free-error {
+  font-size: 13px;
+  color: var(--red, #D32F2F);
+  text-align: center;
+  margin: 4px 0 8px;
+}
+
+/* ── PreChargeReminderBanner ──────────────────────────────────────────────── */
+
+.pre-charge-banner {
+  position: fixed;
+  bottom: calc(64px + env(safe-area-inset-bottom, 0px)); /* above BottomNav */
+  left: 12px;
+  right: 12px;
+  z-index: 650;
+  background: var(--surface, #f9f9f9);
+  border: 1px solid color-mix(in srgb, var(--gold, #D4A017) 40%, transparent);
+  border-radius: 14px;
+  padding: 14px 16px 12px;
+  box-shadow: 0 4px 24px rgba(0,0,0,0.12);
+}
+
+.pre-charge-banner__close {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  background: none;
+  border: none;
+  font-size: 18px;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 2px 4px;
+  line-height: 1;
+}
+
+.pre-charge-banner__headline {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0 28px 6px 0;
+  line-height: 1.3;
+}
+
+.pre-charge-banner__body {
+  font-size: 13px;
+  color: var(--text-dim);
+  margin: 0 0 12px;
+  line-height: 1.5;
+}
+
+.pre-charge-banner__actions {
+  display: flex;
+  gap: 10px;
+}
+
+.pre-charge-banner__btn {
+  flex: 1;
+  padding: 10px 0;
+  border-radius: 10px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  transition: opacity 0.15s;
+}
+
+.pre-charge-banner__btn--keep {
+  background: var(--gold-gradient, linear-gradient(135deg, #D4A017, #E8B820));
+  color: #fff;
+}
+
+.pre-charge-banner__btn--cancel {
+  background: color-mix(in srgb, var(--text-dim) 10%, transparent);
+  color: var(--text-dim);
+}
+
+.pre-charge-banner__btn:hover { opacity: 0.88; }
+.pre-charge-banner__btn:active { opacity: 0.72; }

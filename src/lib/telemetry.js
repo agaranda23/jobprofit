@@ -48,6 +48,9 @@ export const UPGRADE_TRIGGERS = /** @type {const} */ ({
   TRIAL_BANNER:       'trial_banner',
   TODAY_PILL:         'today_pill',
   UPGRADE_BANNER:     'upgrade_banner',
+  // Trial-end conversion events (Moment 1 + Moment 2)
+  TRIAL_END:          'trial_end',       // Moment-1 sheet (Day 14)
+  DROP_TO_FREE:       'drop_to_free',    // Moment-2 full-screen
 });
 
 const TRIGGER_SESSION_KEY = 'jp.lastUpgradeTrigger';

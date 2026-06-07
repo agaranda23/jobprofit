@@ -183,8 +183,123 @@ export async function incrementSendCount(supabase, userId) {
 }
 
 /**
+ * Returns true when the trial has just expired (plan='trial', trial_ends_at in
+ * the past) but the user has NOT yet seen the Moment-2 drop-to-free screen.
+ * Used by AppShell to gate the "honesty fix" — never flip silently; render
+ * Moment 2 first, then flip as part of dismissal.
+ *
+ * @param {object|null|undefined} profile
+ * @param {Date} [now]
+ * @returns {boolean}
+ */
+export function trialJustExpired(profile, now = new Date()) {
+  if (profile?.plan !== 'trial') return false;
+  if (!profile?.trial_ends_at) return false;
+  if (new Date(profile.trial_ends_at) > now) return false; // still active
+  return true;
+}
+
+/**
+ * Returns true when it is the final day of the trial (trialDaysLeft === 0
+ * but trial has NOT yet expired). Used to trigger the Day-14 Moment-1 sheet.
+ *
+ * "Days left === 0 but trial still active" means trial_ends_at is today (within
+ * the next 24 hours). trialDaysLeft uses Math.ceil so 0 means expired; we use
+ * Math.floor < 1 to catch the last partial day differently.
+ *
+ * @param {object|null|undefined} profile
+ * @param {Date} [now]
+ * @returns {boolean}
+ */
+export function isTrialLastDay(profile, now = new Date()) {
+  if (!isTrialActive(profile, now)) return false;
+  const msLeft = new Date(profile.trial_ends_at) - now;
+  // Last day = less than 24 hours remaining but trial still active
+  return msLeft > 0 && msLeft <= 86400000;
+}
+
+/**
+ * localStorage key for the Moment-2 "drop to free" seen flag.
+ * A per-device flag is set when the user dismisses Moment 2 so it never
+ * re-fires. A server-side flag (profiles.drop_to_free_seen) also exists for
+ * cross-device consistency — see AppShell for the write.
+ */
+export const DROP_TO_FREE_SEEN_KEY = 'jp.dropToFreeSeen';
+
+/**
+ * Returns true when the user has already seen and dismissed the Moment-2
+ * drop-to-free screen on this device.
+ *
+ * @returns {boolean}
+ */
+export function hasDropToFreeSeen() {
+  try {
+    return !!localStorage.getItem(DROP_TO_FREE_SEEN_KEY);
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Mark the Moment-2 drop-to-free screen as seen on this device.
+ * Also triggers the server-side write in AppShell (passed as a callback).
+ */
+export function markDropToFreeSeen() {
+  try {
+    localStorage.setItem(DROP_TO_FREE_SEEN_KEY, '1');
+  } catch {
+    // Private browsing — degraded gracefully.
+  }
+}
+
+/**
+ * localStorage key for the Day-14 Moment-1 sheet "not now / shown today" gate.
+ * Stores the date string (YYYY-MM-DD) when the sheet was last dismissed so it
+ * does not re-nag within the same day.
+ */
+export const TRIAL_END_SHEET_DISMISSED_KEY = 'jp.trialEndSheetDismissed';
+
+/**
+ * Returns true when the Moment-1 trial-end sheet has already been shown and
+ * dismissed today (suppresses re-nag within the same calendar day).
+ *
+ * @param {Date} [now]
+ * @returns {boolean}
+ */
+export function trialEndSheetDismissedToday(now = new Date()) {
+  try {
+    const stored = localStorage.getItem(TRIAL_END_SHEET_DISMISSED_KEY);
+    if (!stored) return false;
+    const today = now.toISOString().slice(0, 10); // YYYY-MM-DD
+    return stored === today;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Record a "Not now" dismissal of the Moment-1 trial-end sheet.
+ * Stores today's date so the sheet does not re-appear on the same day.
+ *
+ * @param {Date} [now]
+ */
+export function recordTrialEndSheetDismissed(now = new Date()) {
+  try {
+    const today = now.toISOString().slice(0, 10);
+    localStorage.setItem(TRIAL_END_SHEET_DISMISSED_KEY, today);
+  } catch {
+    // Private browsing — degraded gracefully.
+  }
+}
+
+/**
  * If the user is on plan='trial' but trial_ends_at has passed, persist
  * plan='free' to Supabase so the DB stays clean.
+ *
+ * IMPORTANT: This function is NOT called automatically on expiry any more.
+ * The AppShell honesty fix requires Moment 2 (drop-to-free screen) to be
+ * seen FIRST before the plan is flipped. Call this only after marking
+ * drop_to_free_seen on both the profile and localStorage.
  *
  * Fire-and-forget. Never throws. Does not block render.
  * Mirrors the optimistic pattern in incrementSendCount.
@@ -202,7 +317,7 @@ export async function flipExpiredTrialToFree(supabaseClient, userId, profile) {
   try {
     await supabaseClient
       .from('profiles')
-      .update({ plan: 'free' })
+      .update({ plan: 'free', drop_to_free_seen: true })
       .eq('id', userId);
   } catch {
     // Offline — next app load will retry.
