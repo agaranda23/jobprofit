@@ -3812,6 +3812,11 @@ export default function JobDetailDrawer({
             const hasPhotoContent = photoCount > 0;
             const hasNoteContent = (Array.isArray(job.jobNotes) && job.jobNotes.length > 0) ||
               (typeof job.notes === 'string' && job.notes.trim());
+            const structuredNoteCount = Array.isArray(job.jobNotes) ? job.jobNotes.length : 0;
+            const noteCount = structuredNoteCount > 0
+              ? structuredNoteCount
+              : (typeof job.notes === 'string' && job.notes.trim() ? 1 : 0);
+            const noteCountMeta = `${noteCount} note${noteCount !== 1 ? 's' : ''}`;
             // hasExcludeToggle is used only by ExcludeTaxRow now (lifted out of More).
             const hasExcludeToggle = !isCisUser && !!onUpdateJob;
 
@@ -3963,7 +3968,43 @@ export default function JobDetailDrawer({
                   {costsBodyEl}
                 </CollapsedSectionRow>
 
-                {/* 7b. Payment block — moved below Costs, above View profit breakdown.
+                {/* 7b. Add note accordion — re-housed from the old flat Photos & notes block */}
+                <CollapsedSectionRow
+                  key="add-note"
+                  id="add-note"
+                  icon={<Icon name="note" size={16} variant="muted" />}
+                  title="Add note"
+                  meta={hasNoteContent ? noteCountMeta : 'None yet'}
+                  defaultExpanded={noteFormOpen}
+                >
+                  {notesEl}
+                </CollapsedSectionRow>
+
+                {/* 7c. Add photo accordion */}
+                <CollapsedSectionRow
+                  key="add-photo"
+                  id="add-photo"
+                  icon={<Icon name="camera" size={16} variant="muted" />}
+                  title="Add photo"
+                  meta={photoCount > 0 ? `${photoCount} photo${photoCount !== 1 ? 's' : ''}` : 'None yet'}
+                  defaultExpanded={false}
+                >
+                  {onUpdateJob && (
+                    <button
+                      ref={addPhotoBtnRef}
+                      type="button"
+                      className="jd-photos-notes-btn"
+                      onClick={() => setPhotoSheetOpen(true)}
+                      disabled={photoAdding}
+                      aria-label="Add photo"
+                    >
+                      {photoAdding ? 'Adding…' : <><Icon name="camera" size={16} />{' '}Add photo</>}
+                    </button>
+                  )}
+                  {photosEl}
+                </CollapsedSectionRow>
+
+                {/* 7d. Payment block — moved below Costs, above View profit breakdown.
                     Variant A (pre-invoice, no payments yet) gets a "Deposit (optional)"
                     label so the lone Record Payment button doesn't look adrift. */}
                 {paymentSections.length > 0 && (
@@ -3984,35 +4025,6 @@ export default function JobDetailDrawer({
                 >
                   View profit breakdown
                 </button>
-
-                {/* 10. Photos & notes — always visible, no accordion */}
-                <div className="jd-photos-notes-section">
-                  <div className="jd-section-label jd-photos-notes-label">Photos &amp; notes</div>
-                  {onUpdateJob && (
-                    <div className="jd-photos-notes-btns">
-                      <button
-                        ref={addPhotoBtnRef}
-                        type="button"
-                        className="jd-photos-notes-btn"
-                        onClick={() => setPhotoSheetOpen(true)}
-                        disabled={photoAdding}
-                        aria-label="Add photo"
-                      >
-                        {photoAdding ? 'Adding…' : <><Icon name="camera" size={16} />{' '}Add photo</>}
-                      </button>
-                      <button
-                        type="button"
-                        className="jd-photos-notes-btn"
-                        onClick={() => setNoteFormOpen(true)}
-                        aria-label="Add note"
-                      >
-                        <Icon name="note" size={16} />{' '}Add note
-                      </button>
-                    </div>
-                  )}
-                  {hasPhotoContent && photosEl}
-                  {(hasNoteContent || noteFormOpen) && notesEl}
-                </div>
 
                 {/* 11. B2B settings row — no card chrome, below More */}
                 <B2BSettingsRow
