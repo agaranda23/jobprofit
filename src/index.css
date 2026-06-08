@@ -13997,6 +13997,88 @@ input[type=number] { -moz-appearance: textfield; }
   color: var(--text);
 }
 
+/* ─── Profit reveal — paid-success screen (Touch 1, 2026-06-08) ──────────────
+   Shown above PostPaidCostRow (or alone when cost prompt is suppressed).
+   Colour state mirrors ProfitRibbon tokens — never invent new thresholds.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+.rpm-profit-reveal {
+  margin: 4px 0 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+}
+
+.rpm-profit-reveal--neutral {
+  background: transparent;
+  padding: 4px 0 8px;
+}
+
+.rpm-profit-reveal--neutral .rpm-profit-reveal-headline {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-dim);
+  margin: 0;
+}
+
+/* healthy — dark navy, green profit text (mirrors ribbon--healthy) */
+.rpm-profit-reveal--healthy {
+  background: #0F1B2D;
+}
+
+.rpm-profit-reveal--healthy .rpm-profit-reveal-headline {
+  color: #2BC48A;
+}
+
+.rpm-profit-reveal--healthy .rpm-profit-reveal-sub {
+  color: #B7C2D6;
+}
+
+/* thin — amber, cream text (mirrors ribbon--thin) */
+.rpm-profit-reveal--thin {
+  background: #8A5A00;
+}
+
+.rpm-profit-reveal--thin .rpm-profit-reveal-headline {
+  color: #FFE9C2;
+}
+
+.rpm-profit-reveal--thin .rpm-profit-reveal-sub {
+  color: #FFD08A;
+}
+
+/* underwater — rose, soft rose text (mirrors ribbon--underwater) */
+.rpm-profit-reveal--underwater {
+  background: #962024;
+}
+
+.rpm-profit-reveal--underwater .rpm-profit-reveal-headline {
+  color: #FBD8D9;
+}
+
+.rpm-profit-reveal--underwater .rpm-profit-reveal-sub {
+  color: #FBD8D9;
+  opacity: 0.85;
+}
+
+.rpm-profit-reveal-headline {
+  font-size: 15px;
+  font-weight: 700;
+  margin: 0 0 2px;
+  line-height: 1.3;
+}
+
+.rpm-profit-reveal-sub {
+  font-size: 12px;
+  font-weight: 500;
+  margin: 0;
+  line-height: 1.4;
+}
+
+.rpm-profit-reveal-done {
+  width: 100%;
+  margin-top: 4px;
+}
+
 /* ─── Cost snackbar additions ─────────────────────────────────────────────────
    Builds on the existing .nav-toast base in index.css.
    ─────────────────────────────────────────────────────────────────────────── */

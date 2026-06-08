@@ -604,7 +604,10 @@ export default function TodayScreen({
           className="foreman-week-line"
           onClick={() => onNavigateToMoney?.()}
         >
-          This week: <span className="foreman-week-profit">{gbp(weekProfit)}</span> · {weekCount} job{weekCount === 1 ? '' : 's'}
+          {weekCount === 1
+            ? <>Your week so far: <span className="foreman-week-profit">{gbp(weekProfit)}</span> from 1 job</>
+            : <>This week: <span className="foreman-week-profit">{gbp(weekProfit)}</span> &middot; {weekCount} jobs</>
+          }
         </button>
       )}
 
