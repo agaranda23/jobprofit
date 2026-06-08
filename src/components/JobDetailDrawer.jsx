@@ -46,7 +46,7 @@ import {
   setCaption,
   reorderPhotos,
 } from '../lib/jobPhotos';
-import { uploadJobPhoto, getSignedPhotoUrl, deleteJobPhoto } from '../lib/store';
+import { uploadJobPhoto, getSignedPhotoUrl, deleteJobPhoto, getReceiptSignedUrl } from '../lib/store';
 import {
   generatePublicAccessToken,
   buildPublicQuoteUrl,
@@ -1593,47 +1593,64 @@ function QuoteBreakdownSection({ job, onSaveLine, onDeleteLine }) {
  * The old separate thumbnail-tap-to-enlarge is removed — the row tap now does
  * the right thing for both photo and no-photo receipts.
  */
-function ReceiptsSection({ job, receipts, onAddReceipt, onDeleteReceipt, onEditReceipt, onReceiptRowTap }) {
-  // receipts shape from getTodayReceipts: { id, label, amount, photo, date, jobId, imagePath }
-  // Match on both string UUID (cloud) and legacy integer-style IDs
-  const jobReceipts = receipts.filter(r => {
-    if (!r.jobId) return false;
-    return String(r.jobId) === String(job.id) || String(r.jobId) === String(job.cloudId);
-  });
+/**
+ * Single receipt row that resolves a Supabase-storage imagePath to a signed
+ * URL on mount — mirroring the PhotoThumb pattern for job photos.
+ *
+ * Receipt photo sources (in priority order):
+ *   1. r.photo — a base64 data-URL written by legacy localStorage path, OR
+ *      a previously-resolved URL already in state (rare).
+ *   2. r.imagePath — a Supabase storage path (cloud receipts).  Resolved to
+ *      a 1-hour signed URL via getReceiptSignedUrl().
+ *
+ * When neither is set the row shows a plain receipt icon (no photo).
+ */
+function ReceiptRow({ r, isRowTappable, onRowTap, onDeleteReceipt, onReceiptRowTap }) {
+  // Seed with whatever the receipt already carries (base64 or nothing).
+  const [resolvedPhoto, setResolvedPhoto] = useState(r.photo || null);
 
-  // Nothing to show and no handler — render nothing
-  if (jobReceipts.length === 0 && !onAddReceipt) return null;
+  useEffect(() => {
+    // Already have a usable URL — nothing to resolve.
+    if (resolvedPhoto) return;
+    // Cloud receipt with a storage path but no pre-resolved photo.
+    if (!r.imagePath) return;
+    let cancelled = false;
+    getReceiptSignedUrl(r.imagePath).then((url) => {
+      if (!cancelled && url) setResolvedPhoto(url);
+    });
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [r.imagePath]);
 
-  const handleRowTap = (r) => {
-    if (r.photo) {
-      // Has photo: open lightbox with receipt details overlaid
-      onReceiptRowTap?.(r);
-    } else if (onEditReceipt) {
-      // No photo: go straight to edit/detail sheet
-      onEditReceipt(r);
+  const hasPhoto = !!resolvedPhoto;
+
+  const handleTap = () => {
+    if (hasPhoto && onReceiptRowTap) {
+      // Pass the receipt with the resolved photo URL so the lightbox can show it.
+      onReceiptRowTap({ ...r, photo: resolvedPhoto });
+    } else if (!hasPhoto && onRowTap) {
+      onRowTap(r);
     }
   };
-  const isRowTappable = !!(onReceiptRowTap || onEditReceipt);
 
-  const receiptRows = jobReceipts.map(r => (
+  return (
     <div
-      key={r.id}
       className={`jd-receipt-row${isRowTappable ? ' jd-receipt-row--tappable' : ''}`}
-      onClick={isRowTappable ? () => handleRowTap(r) : undefined}
+      onClick={isRowTappable ? handleTap : undefined}
       role={isRowTappable ? 'button' : undefined}
       tabIndex={isRowTappable ? 0 : undefined}
-      onKeyDown={isRowTappable ? e => { if (e.key === 'Enter' || e.key === ' ') handleRowTap(r); } : undefined}
+      onKeyDown={isRowTappable ? e => { if (e.key === 'Enter' || e.key === ' ') handleTap(); } : undefined}
       aria-label={
-        r.photo
+        hasPhoto
           ? `View ${r.label || 'Receipt'} — tap to enlarge`
           : isRowTappable
           ? `Edit receipt ${r.label || 'Receipt'}`
           : undefined
       }
     >
-      {r.photo ? (
+      {hasPhoto ? (
         <div className="jd-receipt-icon" aria-hidden="true">
-          <img src={r.photo} alt="" className="jd-receipt-thumb" />
+          <img src={resolvedPhoto} alt="" className="jd-receipt-thumb" />
         </div>
       ) : (
         <div className="jd-receipt-icon"><Icon name="receipt" size={16} variant="muted" /></div>
@@ -1657,6 +1674,34 @@ function ReceiptsSection({ job, receipts, onAddReceipt, onDeleteReceipt, onEditR
         )}
       </div>
     </div>
+  );
+}
+
+function ReceiptsSection({ job, receipts, onAddReceipt, onDeleteReceipt, onEditReceipt, onReceiptRowTap }) {
+  // receipts shape from getTodayReceipts: { id, label, amount, photo, date, jobId, imagePath }
+  // Match on both string UUID (cloud) and legacy integer-style IDs
+  const jobReceipts = receipts.filter(r => {
+    if (!r.jobId) return false;
+    return String(r.jobId) === String(job.id) || String(r.jobId) === String(job.cloudId);
+  });
+
+  // Nothing to show and no handler — render nothing
+  if (jobReceipts.length === 0 && !onAddReceipt) return null;
+
+  const isRowTappable = !!(onReceiptRowTap || onEditReceipt);
+
+  // handleEditFallback is used by ReceiptRow when a receipt has no photo
+  const handleEditFallback = onEditReceipt || null;
+
+  const receiptRows = jobReceipts.map(r => (
+    <ReceiptRow
+      key={r.id}
+      r={r}
+      isRowTappable={isRowTappable}
+      onRowTap={handleEditFallback}
+      onDeleteReceipt={onDeleteReceipt}
+      onReceiptRowTap={onReceiptRowTap}
+    />
   ));
 
   // Empty state: ghost row (consistent with Schedule / Customer card pattern)
@@ -2525,6 +2570,10 @@ export default function JobDetailDrawer({
   const [showInvoicePrompt, setShowInvoicePrompt] = useState(false);
   const [showReopenConfirm, setShowReopenConfirm] = useState(false);
 
+  // In-app delete confirmation — replaces window.confirm for photo/receipt/note/payment deletes.
+  // null = no confirm pending; otherwise { title, message, onConfirm }
+  const [pendingDeleteAction, setPendingDeleteAction] = useState(null);
+
   // Customer field editing — single EditFieldModal controlled by this key.
   // null = closed; 'name' | 'phone' | 'email' | 'summary' = which field is open.
   const [editingField, setEditingField] = useState(null);
@@ -2536,6 +2585,7 @@ export default function JobDetailDrawer({
         if (lightboxSrc) { setLightboxSrc(null); setLightboxReceipt(null); return; }
         if (photoSheetOpen) { setPhotoSheetOpen(false); return; }
         if (kebabOpen) { setKebabOpen(false); return; }
+        if (pendingDeleteAction) { setPendingDeleteAction(null); return; }
         if (editingField) { setEditingField(null); return; }
         if (editingNote) { setEditingNote(null); return; }
         if (editingPayment) { setEditingPayment(null); return; }
@@ -2544,7 +2594,7 @@ export default function JobDetailDrawer({
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [onClose, lightboxSrc, photoSheetOpen, kebabOpen, editingField, editingNote, editingPayment]);
+  }, [onClose, lightboxSrc, photoSheetOpen, kebabOpen, pendingDeleteAction, editingField, editingNote, editingPayment]);
 
   // Scroll-chain bug fix: lock body scroll while the drawer is open.
   // Saves and restores the prior scroll position so the user lands back
@@ -2969,26 +3019,36 @@ export default function JobDetailDrawer({
   // For bucket-path entries ({ path, uploadedAt }), also removes the storage
   // object from the job-photos bucket — best-effort, failure does not block UI.
   // For legacy base64 string entries, nothing to clean up in storage.
-  const handleDeletePhoto = async (idx) => {
-    if (!window.confirm('Delete this photo?')) return;
-    const entry = (job.photos || [])[idx];
-    const updated = (job.photos || []).filter((_, i) => i !== idx);
-    onUpdateJob({ ...job, photos: updated });
-    showFlash('Photo deleted');
-
-    // Best-effort storage cleanup for bucket entries
-    if (entry && !isLegacyPhoto(entry) && entry.path) {
-      deleteJobPhoto(entry.path); // fire-and-forget; failure is logged inside deleteJobPhoto
-    }
+  const handleDeletePhoto = (idx) => {
+    setPendingDeleteAction({
+      title: 'Delete this photo?',
+      message: 'This photo will be permanently removed.',
+      confirmLabel: 'Delete photo',
+      onConfirm: async () => {
+        const entry = (job.photos || [])[idx];
+        const updated = (job.photos || []).filter((_, i) => i !== idx);
+        onUpdateJob({ ...job, photos: updated });
+        showFlash('Photo deleted');
+        if (entry && !isLegacyPhoto(entry) && entry.path) {
+          deleteJobPhoto(entry.path);
+        }
+      },
+    });
   };
 
   // ── Note delete ───────────────────────────────────────────────────────────
   // Mirrors deleteNote in App.jsx (line 617): filter by id, write via onUpdateJob.
   const handleDeleteNote = (noteId) => {
-    if (!window.confirm('Delete this note?')) return;
-    const updated = (job.jobNotes || []).filter(n => n.id !== noteId);
-    onUpdateJob({ ...job, jobNotes: updated });
-    showFlash('Note deleted');
+    setPendingDeleteAction({
+      title: 'Delete this note?',
+      message: 'This note will be permanently removed.',
+      confirmLabel: 'Delete note',
+      onConfirm: () => {
+        const updated = (job.jobNotes || []).filter(n => n.id !== noteId);
+        onUpdateJob({ ...job, jobNotes: updated });
+        showFlash('Note deleted');
+      },
+    });
   };
 
   // ── Note edit ─────────────────────────────────────────────────────────────
@@ -3025,23 +3085,35 @@ export default function JobDetailDrawer({
   };
 
   const handleDeletePayment = (payment) => {
-    if (!window.confirm(`Delete the ${gbp(payment.amount)} payment? You can't undo this.`)) return;
-    const updated = deletePayment(job, payment.id);
-    onUpdateJob(updated);
-    showFlash('Payment deleted');
+    setPendingDeleteAction({
+      title: 'Delete this payment?',
+      message: `The ${gbp(payment.amount)} payment will be permanently removed. You can't undo this.`,
+      confirmLabel: 'Delete payment',
+      onConfirm: () => {
+        const updated = deletePayment(job, payment.id);
+        onUpdateJob(updated);
+        showFlash('Payment deleted');
+      },
+    });
   };
 
   // ── Receipt delete ────────────────────────────────────────────────────────
-  const handleDeleteReceipt = async (receiptId) => {
-    if (!window.confirm('Delete this receipt?')) return;
-    if (onDeleteReceipt) {
-      try {
-        await onDeleteReceipt(receiptId);
-        showFlash('Receipt deleted');
-      } catch {
-        showFlash('Could not delete receipt — try again');
-      }
-    }
+  const handleDeleteReceipt = (receiptId) => {
+    setPendingDeleteAction({
+      title: 'Delete this receipt?',
+      message: 'The receipt and its photo will be permanently removed.',
+      confirmLabel: 'Delete receipt',
+      onConfirm: async () => {
+        if (onDeleteReceipt) {
+          try {
+            await onDeleteReceipt(receiptId);
+            showFlash('Receipt deleted');
+          } catch {
+            showFlash('Could not delete receipt — try again');
+          }
+        }
+      },
+    });
   };
 
   // ── LineItems edit ────────────────────────────────────────────────────────
@@ -4259,6 +4331,50 @@ export default function JobDetailDrawer({
           onSave={handleSaveNoteEdit}
           onClose={() => setEditingNote(null)}
         />
+      )}
+
+      {/* Delete confirmation overlay — replaces window.confirm for photo/receipt/note/payment deletes.
+          Rendered on top of all other modals (z-index via .jd-delete-confirm-backdrop). */}
+      {pendingDeleteAction && (
+        <div
+          className="jd-delete-confirm-backdrop"
+          onClick={() => setPendingDeleteAction(null)}
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby="jd-delete-confirm-title"
+        >
+          <div
+            className="jd-delete-confirm-sheet"
+            onClick={e => e.stopPropagation()}
+          >
+            <p id="jd-delete-confirm-title" className="jd-delete-confirm__title">
+              {pendingDeleteAction.title}
+            </p>
+            {pendingDeleteAction.message && (
+              <p className="jd-delete-confirm__msg">{pendingDeleteAction.message}</p>
+            )}
+            <div className="jd-delete-confirm__actions">
+              <button
+                type="button"
+                className="jd-delete-confirm__cancel"
+                onClick={() => setPendingDeleteAction(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="jd-delete-confirm__ok"
+                onClick={() => {
+                  const action = pendingDeleteAction;
+                  setPendingDeleteAction(null);
+                  action.onConfirm();
+                }}
+              >
+                {pendingDeleteAction.confirmLabel || 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Payment edit — composite mode with amount, date, method, note fields */}

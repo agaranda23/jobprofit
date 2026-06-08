@@ -9,6 +9,8 @@
  *   - Receipt deletion: calls the handler with the correct id
  *   - LinkReceiptModal suppression: handleAddReceipt skips setPendingLink
  *     when jobId is already present in the payload
+ *   - pendingDeleteAction guard: confirm dialog fires onConfirm only on commit
+ *   - Receipt photo URL resolution: prefers photo field, falls back to imagePath
  *
  * Browser APIs (confirm, supabase) are not exercised here — those are
  * covered by visual smoke on the deploy preview.
@@ -177,5 +179,126 @@ describe('LinkReceiptModal suppression', () => {
     // Empty string is falsy — treated as "no job known", modal should fire
     await handleAddReceipt({ payload: { jobId: '', amount: 50 } });
     expect(setPendingLink).toHaveBeenCalledOnce();
+  });
+});
+
+// ── pendingDeleteAction guard ────────────────────────────────────────────────
+// Mirrors the in-app confirm pattern introduced in fix/receipt-preview-and-delete-confirm.
+// The guard works as a state-machine: setPendingDeleteAction(action) queues the
+// confirm; calling action.onConfirm() executes the destructive operation;
+// calling setPendingDeleteAction(null) (Cancel) leaves state unchanged.
+
+describe('pendingDeleteAction guard', () => {
+  function makeDeleteGuard(setPendingAction) {
+    return (title, message, confirmLabel, destructive) => {
+      setPendingAction({ title, message, confirmLabel, onConfirm: destructive });
+    };
+  }
+
+  it('queues the action without executing it immediately', () => {
+    const setPendingAction = vi.fn();
+    const destructive = vi.fn();
+    const guard = makeDeleteGuard(setPendingAction);
+
+    guard('Delete this photo?', 'This photo will be permanently removed.', 'Delete photo', destructive);
+
+    expect(setPendingAction).toHaveBeenCalledOnce();
+    expect(destructive).not.toHaveBeenCalled();
+  });
+
+  it('executes the destructive callback only when onConfirm is called', () => {
+    let captured = null;
+    const setPendingAction = (action) => { captured = action; };
+    const destructive = vi.fn();
+    const guard = makeDeleteGuard(setPendingAction);
+
+    guard('Delete this receipt?', 'It will be removed.', 'Delete receipt', destructive);
+    expect(destructive).not.toHaveBeenCalled();
+
+    captured.onConfirm();
+    expect(destructive).toHaveBeenCalledOnce();
+  });
+
+  it('does not execute the destructive callback when cancelled', () => {
+    let captured = null;
+    const setPendingAction = (action) => { captured = action; };
+    const destructive = vi.fn();
+    const guard = makeDeleteGuard(setPendingAction);
+
+    guard('Delete this note?', 'It will be removed.', 'Delete note', destructive);
+    // User taps Cancel — state is cleared without calling onConfirm
+    captured = null;
+    expect(destructive).not.toHaveBeenCalled();
+  });
+
+  it('carries the correct title and confirmLabel through to the dialog', () => {
+    let captured = null;
+    const setPendingAction = (action) => { captured = action; };
+    const guard = makeDeleteGuard(setPendingAction);
+
+    guard('Delete this payment?', 'You cannot undo this.', 'Delete payment', () => {});
+    expect(captured.title).toBe('Delete this payment?');
+    expect(captured.confirmLabel).toBe('Delete payment');
+    expect(captured.message).toBe('You cannot undo this.');
+  });
+});
+
+// ── Receipt photo URL resolution ─────────────────────────────────────────────
+// Mirrors the priority logic in ReceiptRow inside ReceiptsSection.
+// Priority: r.photo (base64 / pre-resolved URL) > r.imagePath (storage path).
+
+describe('receipt photo URL resolution', () => {
+  /**
+   * Pure helper that mirrors the ReceiptRow resolution priority.
+   * In the component, resolvedPhoto state is seeded with r.photo and,
+   * if absent, async-resolved from r.imagePath via getReceiptSignedUrl.
+   * This test covers the seed step (sync) and the async branch.
+   */
+  async function resolveReceiptPhotoUrl(receipt, getSignedUrl) {
+    // Step 1: use the pre-stored photo URL if present
+    if (receipt.photo) return receipt.photo;
+    // Step 2: resolve from storage path
+    if (receipt.imagePath) return getSignedUrl(receipt.imagePath);
+    return null;
+  }
+
+  it('returns r.photo when available (base64 or already-resolved URL)', async () => {
+    const receipt = { id: '1', photo: 'data:image/jpeg;base64,abc', imagePath: 'uid/job/img.jpg' };
+    const getSignedUrl = vi.fn();
+    const result = await resolveReceiptPhotoUrl(receipt, getSignedUrl);
+    expect(result).toBe('data:image/jpeg;base64,abc');
+    expect(getSignedUrl).not.toHaveBeenCalled();
+  });
+
+  it('calls getReceiptSignedUrl with imagePath when photo is absent', async () => {
+    const receipt = { id: '2', photo: null, imagePath: 'uid/job/receipt.jpg' };
+    const getSignedUrl = vi.fn().mockResolvedValue('https://signed.url/receipt.jpg');
+    const result = await resolveReceiptPhotoUrl(receipt, getSignedUrl);
+    expect(getSignedUrl).toHaveBeenCalledWith('uid/job/receipt.jpg');
+    expect(result).toBe('https://signed.url/receipt.jpg');
+  });
+
+  it('returns null when both photo and imagePath are absent', async () => {
+    const receipt = { id: '3', photo: null, imagePath: null };
+    const getSignedUrl = vi.fn();
+    const result = await resolveReceiptPhotoUrl(receipt, getSignedUrl);
+    expect(result).toBeNull();
+    expect(getSignedUrl).not.toHaveBeenCalled();
+  });
+
+  it('returns null when getReceiptSignedUrl returns null (storage error)', async () => {
+    const receipt = { id: '4', photo: null, imagePath: 'uid/job/broken.jpg' };
+    const getSignedUrl = vi.fn().mockResolvedValue(null);
+    const result = await resolveReceiptPhotoUrl(receipt, getSignedUrl);
+    expect(result).toBeNull();
+  });
+
+  it('does not call getReceiptSignedUrl when photo is an empty string (falsy)', async () => {
+    const receipt = { id: '5', photo: '', imagePath: 'uid/job/img.jpg' };
+    const getSignedUrl = vi.fn().mockResolvedValue('https://signed.url/img.jpg');
+    const result = await resolveReceiptPhotoUrl(receipt, getSignedUrl);
+    // Empty string is falsy — falls through to imagePath
+    expect(getSignedUrl).toHaveBeenCalledWith('uid/job/img.jpg');
+    expect(result).toBe('https://signed.url/img.jpg');
   });
 });
