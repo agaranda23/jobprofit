@@ -1021,6 +1021,19 @@ function ScheduleFinishFooter({ job, jobVisits, canEdit, onEndJob, onSetTarget, 
     return [t.getFullYear(), String(t.getMonth()+1).padStart(2,"0"), String(t.getDate()).padStart(2,"0")].join("-");
   }, [jobVisits]);
   const toneCls = finishStatus ? `jd-finish-status--${finishStatus.tone}` : "";
+  const dateInputRef = React.useRef(null);
+  const openTargetPicker = () => {
+    const el = dateInputRef.current;
+    if (!el) return;
+    // showPicker() is the reliable way to open the native picker on a tap
+    // (iOS Safari 16+, Android Chrome). Fall back to focus()+click() where
+    // it's unavailable. Both are wrapped to swallow the NotAllowedError some
+    // browsers throw when not called from a trusted gesture.
+    try {
+      if (typeof el.showPicker === 'function') { el.showPicker(); return; }
+    } catch { /* fall through to focus fallback */ }
+    try { el.focus(); el.click(); } catch { /* no-op */ }
+  };
   return (
     <div className="jd-finish-line">
       <div className="jd-finish-target-row">
@@ -1029,19 +1042,28 @@ function ScheduleFinishFooter({ job, jobVisits, canEdit, onEndJob, onSetTarget, 
           <>
             <span className="jd-finish-target-val">{fmtDate(targetFinishDate)}</span>
             {canEdit && !isEnded && (
-              <label className="jd-finish-target-edit" aria-label="Edit target finish date">
+              <button type="button" className="jd-finish-target-edit" onClick={openTargetPicker} aria-label="Edit target finish date">
                 Edit
-                <input type="date" className="jd-finish-date-input" defaultValue={targetFinishDate} onChange={e => onSetTarget(e.target.value || null)} aria-label="Target finish date" />
-              </label>
+              </button>
             )}
           </>
         ) : (
           canEdit && !isEnded && (
-            <label className="jd-finish-target-set" aria-label="Set target finish date">
+            <button type="button" className="jd-finish-target-set" onClick={openTargetPicker} aria-label="Set target finish date">
               Set a date
-              <input type="date" className="jd-finish-date-input" defaultValue={defaultTargetDate} onChange={e => onSetTarget(e.target.value || null)} aria-label="Target finish date" />
-            </label>
+            </button>
           )
+        )}
+        {canEdit && !isEnded && (
+          <input
+            ref={dateInputRef}
+            type="date"
+            className="jd-finish-date-input"
+            value={targetFinishDate || defaultTargetDate}
+            onChange={e => onSetTarget(e.target.value || null)}
+            aria-hidden="true"
+            tabIndex={-1}
+          />
         )}
       </div>
       {isEnded && (

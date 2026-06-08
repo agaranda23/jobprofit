@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v76';  // bumped from v75: fix/customer-card-green-chips — chip border/colour → accent, navigate chip centred + sized, address chevron flush-right
+const CACHE_NAME = 'jobprofit-v77';  // bumped from v76: fix/schedule-set-a-date — "Set a date"/"Edit" finish-target buttons now call showPicker() on a referenced date input (label-over-invisible-input never opened the native picker on mobile)
 const PRECACHE = [
   '/',
   '/index.html',
