@@ -137,8 +137,8 @@ describe('getInvoicePDFBlob', () => {
 });
 
 describe('getQuotePDFBlob', () => {
-  it('returns a Blob with type application/pdf and non-zero size for a minimal job', () => {
-    const blob = getQuotePDFBlob({
+  it('returns a Blob with type application/pdf and non-zero size for a minimal job', async () => {
+    const blob = await getQuotePDFBlob({
       job: baseJob(),
       biz: baseBiz(),
     });

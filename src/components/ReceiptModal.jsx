@@ -160,7 +160,7 @@ export default function ReceiptModal({ job, biz, profile = null, onUpdate, onClo
     setBusy(true);
     try {
       const hidePoweredBy = isPro(profile);
-      const blob = getReceiptPDFBlob({ job, biz: effectiveBiz, profile, hidePoweredBy });
+      const blob = await getReceiptPDFBlob({ job, biz: effectiveBiz, profile, hidePoweredBy });
       const customer = (job?.customer || job?.name || 'receipt').replace(/\s+/g, '-');
       const file = new File([blob], `receipt-${customer}.pdf`, { type: 'application/pdf' });
       if (canShareFile(file)) {
@@ -169,7 +169,7 @@ export default function ReceiptModal({ job, biz, profile = null, onUpdate, onClo
         onClose?.();
       } else {
         // Fallback: download PDF + WhatsApp text
-        downloadReceiptPDF({ job, biz: effectiveBiz, profile, hidePoweredBy });
+        await downloadReceiptPDF({ job, biz: effectiveBiz, profile, hidePoweredBy });
         const link = buildWhatsAppLink({ phone, message });
         window.open(link, '_blank', 'noopener');
         flash?.('Receipt sent');
@@ -186,10 +186,10 @@ export default function ReceiptModal({ job, biz, profile = null, onUpdate, onClo
   };
 
   // Tertiary: plain PDF download
-  const handleDownloadPDF = () => {
+  const handleDownloadPDF = async () => {
     logTelemetry('receipt_send', { channel: 'download' });
     try {
-      downloadReceiptPDF({ job, biz: effectiveBiz, profile, hidePoweredBy: isPro(profile) });
+      await downloadReceiptPDF({ job, biz: effectiveBiz, profile, hidePoweredBy: isPro(profile) });
       flash?.('Receipt downloaded');
       onClose?.();
     } catch {

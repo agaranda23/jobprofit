@@ -1,6 +1,7 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { resolvePaidDate, resolveAmountPaid, formatReceiptDate } from './receiptMessage.js';
+import { logoUrlToBase64 } from './invoicePDF.js';
 
 /**
  * Generates a branded RECEIPT PDF.
@@ -331,7 +332,7 @@ export function resolveReceiptNumber(job) {
 // RECEIPT
 // ═══════════════════════════════════════════════════════════════════════════
 
-export function generateReceiptPDF({ job, biz, profile = null, hidePoweredBy = false }) {
+export async function generateReceiptPDF({ job, biz, profile = null, hidePoweredBy = false }) {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   const w = doc.internal.pageSize.getWidth();
 
@@ -363,6 +364,14 @@ export function generateReceiptPDF({ job, biz, profile = null, hidePoweredBy = f
   // We use the settled amountPaid as the gross figure.
   const vatAmount  = showVat ? Math.round(amountPaid / 6 * 100) / 100 : 0; // VAT at 20% = gross/6
   const netAmount  = showVat ? Math.round((amountPaid - vatAmount) * 100) / 100 : 0;
+
+  // ── Logo pre-fetch ────────────────────────────────────────────────────
+  const rawLogoUrlR = effectiveBiz.logoUrl || effectiveBiz.logo_url || null;
+  if (rawLogoUrlR) {
+    const b64 = await logoUrlToBase64(rawLogoUrlR);
+    effectiveBiz.logoUrl = b64 || '';
+    effectiveBiz.logo_url = b64 || '';
+  }
 
   // ── Business header ──────────────────────────────────────────────────────
   let y = drawHeader(doc, effectiveBiz);
@@ -485,13 +494,13 @@ export function generateReceiptPDF({ job, biz, profile = null, hidePoweredBy = f
   return doc;
 }
 
-export function downloadReceiptPDF({ job, biz, profile = null, hidePoweredBy = false }) {
-  const doc = generateReceiptPDF({ job, biz, profile, hidePoweredBy });
+export async function downloadReceiptPDF({ job, biz, profile = null, hidePoweredBy = false }) {
+  const doc = await generateReceiptPDF({ job, biz, profile, hidePoweredBy });
   const customer = (job?.customer || job?.name || 'receipt').replace(/\s+/g, '-');
   doc.save(`receipt-${customer}.pdf`);
 }
 
-export function getReceiptPDFBlob({ job, biz, profile = null, hidePoweredBy = false }) {
-  const doc = generateReceiptPDF({ job, biz, profile, hidePoweredBy });
+export async function getReceiptPDFBlob({ job, biz, profile = null, hidePoweredBy = false }) {
+  const doc = await generateReceiptPDF({ job, biz, profile, hidePoweredBy });
   return doc.output('blob');
 }

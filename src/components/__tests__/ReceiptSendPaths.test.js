@@ -115,7 +115,7 @@ describe('logo flow — generateReceiptPDF accepts logo via multiple field shape
   const LOGO_DATA_URL = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
 
   it('generates a PDF (blob) without throwing when biz.logoUrl is a data URL', async () => {
-    const blob = getReceiptPDFBlob({
+    const blob = await getReceiptPDFBlob({
       job: baseJob(),
       biz: baseBiz({ logoUrl: LOGO_DATA_URL }),
     });
@@ -124,7 +124,7 @@ describe('logo flow — generateReceiptPDF accepts logo via multiple field shape
   });
 
   it('generates a PDF (blob) without throwing when biz.logo_url is a data URL (snake_case)', async () => {
-    const blob = getReceiptPDFBlob({
+    const blob = await getReceiptPDFBlob({
       job: baseJob(),
       biz: baseBiz({ logo_url: LOGO_DATA_URL }),
     });
@@ -133,7 +133,7 @@ describe('logo flow — generateReceiptPDF accepts logo via multiple field shape
   });
 
   it('generates a PDF without throwing when profile.logo_url is set and biz is null', async () => {
-    const blob = getReceiptPDFBlob({
+    const blob = await getReceiptPDFBlob({
       job: baseJob(),
       biz: null,
       profile: { business_name: 'Alan Plumbing', logo_url: LOGO_DATA_URL },
@@ -143,7 +143,7 @@ describe('logo flow — generateReceiptPDF accepts logo via multiple field shape
   });
 
   it('generates a PDF without throwing when biz is null and profile is null (graceful no-logo)', async () => {
-    const blob = getReceiptPDFBlob({ job: baseJob(), biz: null, profile: null });
+    const blob = await getReceiptPDFBlob({ job: baseJob(), biz: null, profile: null });
     expect(blob).toBeInstanceOf(Blob);
     expect(blob.size).toBeGreaterThan(500);
   });
@@ -151,7 +151,7 @@ describe('logo flow — generateReceiptPDF accepts logo via multiple field shape
   it('profile.logo_url is used when biz has no logo fields', async () => {
     // Just checking it does not throw — PDF content inspection is not possible
     // without a canvas environment. Logo is visually verified on deploy preview.
-    const blob = getReceiptPDFBlob({
+    const blob = await getReceiptPDFBlob({
       job: baseJob(),
       biz: baseBiz(), // no logoUrl field
       profile: { logo_url: LOGO_DATA_URL, business_name: 'Test Co' },
@@ -180,8 +180,8 @@ describe('buildPublicReceiptUrl — /r/<token> URL shape', () => {
 // footer from their customer-facing PDFs.
 
 describe('receipt PDF white-label — hidePoweredBy flag', () => {
-  it('getReceiptPDFBlob accepts hidePoweredBy without throwing (free trader, default)', () => {
-    const blob = getReceiptPDFBlob({
+  it('getReceiptPDFBlob accepts hidePoweredBy without throwing (free trader, default)', async () => {
+    const blob = await getReceiptPDFBlob({
       job: baseJob(),
       biz: baseBiz(),
       profile: null,
@@ -190,8 +190,8 @@ describe('receipt PDF white-label — hidePoweredBy flag', () => {
     expect(blob).toBeInstanceOf(Blob);
   });
 
-  it('getReceiptPDFBlob accepts hidePoweredBy:true without throwing (Pro trader)', () => {
-    const blob = getReceiptPDFBlob({
+  it('getReceiptPDFBlob accepts hidePoweredBy:true without throwing (Pro trader)', async () => {
+    const blob = await getReceiptPDFBlob({
       job: baseJob(),
       biz: baseBiz(),
       profile: { plan: 'pro' },

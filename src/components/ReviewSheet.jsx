@@ -500,7 +500,7 @@ export default function ReviewSheet({
 
     let shareMethod = 'wame_fallback';
     try {
-      const blob = getQuotePDFBlob({ job: updatedJob, biz, profile, quoteUrl, qrDataUrl });
+      const blob = await getQuotePDFBlob({ job: updatedJob, biz, profile, quoteUrl, qrDataUrl });
       const customer = (job?.customer || 'quote').replace(/\s/g, '-');
       const file = new File([blob], `quote-${customer}.pdf`, { type: 'application/pdf' });
 
@@ -513,7 +513,7 @@ export default function ReviewSheet({
       } else if (phone) {
         shareMethod = 'wame_fallback';
         window.open(link, '_blank', 'noopener');
-        downloadQuotePDF({ job: updatedJob, biz, profile, quoteUrl, qrDataUrl, hidePoweredBy: isProUser });
+        await downloadQuotePDF({ job: updatedJob, biz, profile, quoteUrl, qrDataUrl, hidePoweredBy: isProUser });
       } else {
         // No file share, no phone — copy the quote URL so the user can paste it
         shareMethod = 'web_share_text';
@@ -601,7 +601,7 @@ export default function ReviewSheet({
           // QR generation failed — proceed without it
         }
       }
-      downloadQuotePDF({ job, biz, profile, quoteUrl: downloadQuoteUrl, qrDataUrl: downloadQrDataUrl, hidePoweredBy: isProUser });
+      await downloadQuotePDF({ job, biz, profile, quoteUrl: downloadQuoteUrl, qrDataUrl: downloadQrDataUrl, hidePoweredBy: isProUser });
       flash?.('Saved to Files. Share it however you like.');
     } catch {
       flash?.('PDF failed — check Settings for business details');

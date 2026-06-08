@@ -75,7 +75,7 @@ vi.mock('qrcode', () => ({
 }));
 
 // ── Import under test (after mocks) ──────────────────────────────────────────
-const { generateInvoicePDF, generateQuotePDF } = await import('../invoicePDF.js');
+const { generateInvoicePDF, generateQuotePDF, logoUrlToBase64 } = await import('../invoicePDF.js');
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -604,6 +604,62 @@ describe('VII. Bank details rendered from effectiveBiz (profile fallback)', () =
       dueDate: '2026-07-31',
     });
     expect(drawnTexts.some(t => String(t).includes('87654321'))).toBe(true);
+  });
+});
+
+// ── VIII. logoUrlToBase64 — converts remote URLs to base64 data URLs ──────────
+//
+// This is the fix for the logo-not-rendering bug: jsPDF.addImage() cannot
+// reliably fetch remote https:// URLs. logoUrlToBase64 pre-fetches the image
+// so addImage always receives a data URL.
+
+describe('VIII. logoUrlToBase64', () => {
+  it('returns null for a null/empty input', async () => {
+    expect(await logoUrlToBase64(null)).toBeNull();
+    expect(await logoUrlToBase64('')).toBeNull();
+  });
+
+  it('passes through an already-base64 data URL unchanged', async () => {
+    const dataUrl = 'data:image/png;base64,abc123==';
+    expect(await logoUrlToBase64(dataUrl)).toBe(dataUrl);
+  });
+
+  it('returns null when fetch fails (network error)', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('Network error')));
+    const result = await logoUrlToBase64('https://example.com/logo.png');
+    expect(result).toBeNull();
+    vi.unstubAllGlobals();
+  });
+
+  it('returns null when fetch returns a non-ok status', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, blob: vi.fn() }));
+    const result = await logoUrlToBase64('https://example.com/logo.png');
+    expect(result).toBeNull();
+    vi.unstubAllGlobals();
+  });
+
+  it('converts a remote URL to a base64 data URL via FileReader', async () => {
+    const fakeBlob = new Blob(['fake-image-bytes'], { type: 'image/png' });
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, blob: async () => fakeBlob }));
+
+    // Mock FileReader as a class so `new FileReader()` works.
+    const fakeDataUrl = 'data:image/png;base64,ZmFrZS1pbWFnZS1ieXRlcw==';
+    class MockFileReader {
+      constructor() {
+        this.result = fakeDataUrl;
+        this.onloadend = null;
+        this.onerror = null;
+      }
+      readAsDataURL() {
+        Promise.resolve().then(() => { if (this.onloadend) this.onloadend(); });
+      }
+    }
+    vi.stubGlobal('FileReader', MockFileReader);
+
+    const result = await logoUrlToBase64('https://example.com/logo.png');
+    expect(result).toBe(fakeDataUrl);
+
+    vi.unstubAllGlobals();
   });
 });
 
