@@ -3778,8 +3778,10 @@ export default function JobDetailDrawer({
             // at the founder's request for UI consistency.
             const quoteDefaultExpanded = false;
 
-            // ── Costs accordion: default expanded at Active stage ────────────
-            const costsDefaultExpanded = status === 'On' || attention.costs;
+            // ── Costs accordion: always collapsed on open (matches Schedule/Quote),
+            // at founder's request for UI consistency. Previously expanded for
+            // active jobs (status === 'On') and when attention.costs was set.
+            const costsDefaultExpanded = false;
 
             // ── Photos & Notes — always-visible section (no More accordion) ──
             // onAddPhoto opens the PhotoSourceSheet; PhotosSection still receives

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v81';  // bumped from v80: fix/quote-default-collapsed-empty-text — Quote defaults collapsed; empty-state strings normalised to "None yet"
+const CACHE_NAME = 'jobprofit-v82';  // bumped from v81: fix/quote-default-collapsed-empty-text — Costs accordion also defaults collapsed (full Schedule/Quote/Costs consistency)
 const PRECACHE = [
   '/',
   '/index.html',
