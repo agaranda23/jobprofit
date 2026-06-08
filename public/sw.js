@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v75';  // bumped from v74: chore/code-cleanup — lint fixes, dead imports removed
+const CACHE_NAME = 'jobprofit-v76';  // bumped from v75: fix/customer-card-green-chips — chip border/colour → accent, navigate chip centred + sized, address chevron flush-right
 const PRECACHE = [
   '/',
   '/index.html',
