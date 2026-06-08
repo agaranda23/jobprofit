@@ -6697,7 +6697,7 @@ input[type=number] { -moz-appearance: textfield; }
 .jd-line-item:last-of-type { border-bottom: none; }
 
 .jd-line-item-desc {
-  color: var(--text-dim);
+  color: var(--text);
   flex: 1;
 }
 
@@ -7968,7 +7968,7 @@ input[type=number] { -moz-appearance: textfield; }
 .jd-quote-footer-label {
   font-size: 12px;
   font-weight: 600;
-  color: var(--text-dim);
+  color: var(--text);
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v77';  // bumped from v76: fix/schedule-set-a-date — "Set a date"/"Edit" finish-target buttons now call showPicker() on a referenced date input (label-over-invisible-input never opened the native picker on mobile)
+const CACHE_NAME = 'jobprofit-v78';  // bumped from v77: fix/quote-label-contrast — quote card line-item name + TOTAL label contrast improved (var(--text-dim) → var(--text))
 const PRECACHE = [
   '/',
   '/index.html',
