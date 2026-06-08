@@ -42,7 +42,6 @@ import {
   getCashflowByMonth,
   getMonthSummary,
   getTaxYearSummary,
-  taxYearLabel,
   getProfitPerHour,
   getMarginTrend,
   buildDateRange,
@@ -465,7 +464,6 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
   const ytdSetAsideBase = isCisSubcontractor ? ytd.nonCisProfit : ytd.profit;
   const ytdTaxPot = Math.max(0, ytdSetAsideBase) * taxSetAsidePct / 100;
   const monthTaxPot = Math.max(0, monthSummary.profit - overheadTotal) * taxSetAsidePct / 100;
-  const currentTaxYearLabel = taxYearLabel(now);
   const isYtdProfitNegative = ytd.profit < 0;
 
   // handleUpgrade: opens the ProUpgradeSheet. The onUpgrade prop is kept for

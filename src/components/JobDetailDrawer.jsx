@@ -34,8 +34,8 @@ import {
 } from '../lib/chaseLadder';
 import { deriveDisplayStatus, needsPrice, stagePatch } from '../lib/jobStatus';
 import { computeBalance, computeAmountPaid, editPayment, deletePayment } from '../lib/payments';
-import { gbp, todayKey } from '../lib/today';
-import { getOverheadTotal, monthKey } from '../lib/cashflow';
+import { gbp } from '../lib/today';
+import { monthKey } from '../lib/cashflow';
 import { supabase } from '../lib/supabase';
 import { compressPhoto } from '../lib/photoCompress';
 import {
@@ -47,13 +47,7 @@ import {
   reorderPhotos,
 } from '../lib/jobPhotos';
 import { uploadJobPhoto, getSignedPhotoUrl, deleteJobPhoto, getReceiptSignedUrl } from '../lib/store';
-import {
-  generatePublicAccessToken,
-  buildPublicQuoteUrl,
-  buildShareMessage,
-} from '../lib/publicQuoteToken';
 import { buildWhatsAppLink } from '../lib/invoiceMessage';
-import { buildQuoteWhatsAppMessage } from '../lib/quoteMessage';
 import { logTelemetry } from '../lib/telemetry';
 import {
   readVisits,
@@ -3623,13 +3617,11 @@ export default function JobDetailDrawer({
               .filter(r => r.jobId && (String(r.jobId) === String(job.id) || String(r.jobId) === String(job.cloudId)))
               .reduce((sum, r) => sum + Number(r.amount || 0), 0);
             const profit = quote - materials;
-            const margin = quote > 0 ? Math.round((profit / quote) * 100) : 0;
 
             // ── Attention state ──────────────────────────────────────────────
             const attention = sectionsNeedingAttention(job, nextStepContent, receipts);
 
             // ── Meta strings for collapsed rows ─────────────────────────────
-            const lineItems = Array.isArray(job.lineItems) ? job.lineItems.filter(i => i.desc || i.cost) : [];
             const quoteTotal = job.total ?? job.amount ?? 0;
             // Schedule-mirror: header shows just the total (or empty-state) — no line count noise.
             const quoteMeta = quoteTotal > 0 ? gbp(quoteTotal) : 'None yet';
@@ -3813,7 +3805,6 @@ export default function JobDetailDrawer({
               />
             );
             const photoCount = Array.isArray(job.photos) ? job.photos.length : 0;
-            const hasPhotoContent = photoCount > 0;
             const hasNoteContent = (Array.isArray(job.jobNotes) && job.jobNotes.length > 0) ||
               (typeof job.notes === 'string' && job.notes.trim());
             const structuredNoteCount = Array.isArray(job.jobNotes) ? job.jobNotes.length : 0;
