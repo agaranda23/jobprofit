@@ -648,26 +648,6 @@ export default function AppShell() {
     }
   };
 
-  const handleMarkPaid = async (id) => {
-    logTelemetry('mark_paid', { source: 'history' });
-    // job_paid: fire before the cloud write so the job object is still in local state.
-    // Look up by both id and cloudId since HistoryScreen may pass either.
-    const jobForEvent = jobs.find(j => j.id === id || j.cloudId === id);
-    if (jobForEvent) {
-      const { quote: headline_price, materials: job_costs, profit: true_profit } =
-        getJobProfit(jobForEvent, receipts);
-      logTelemetry('job_paid', { headline_price, job_costs, true_profit, source: 'history' });
-    }
-    try {
-      await markJobPaidCloud(id);
-      await refreshFromCloud();
-    } catch (e) {
-      console.error('Mark paid failed', e);
-      markJobPaid(id);
-      setJobs(applyJobMetaToJobs(getTodayJobs()));
-    }
-  };
-
   // Fires the cloud write after every writeJobMeta call. Fire-and-forget —
   // the UI does not await this. localStorage write already succeeded by the
   // time this runs. Errors are logged; they do not surface to the user because
@@ -1349,25 +1329,6 @@ export default function AppShell() {
       )}
     </>
   );
-}
-
-/**
- * Returns true when the minimum required profile fields are present for
- * job/quote creation (name fields only — bank is deferred to invoice-send time).
- *
- * Bank details were removed from this gate in 2026-06-02 so that a brand-new
- * trader can create and send their first quote without completing bank setup.
- * The bank requirement now lives on the invoice-send path (SendInvoiceModal).
- *
- * Old-nav callers never reach this — gate is always inside NEW_NAV/slice-3 blocks.
- */
-function isProfileComplete(profile, session) {
-  if (!profile) return false;
-  const hasName = !!(profile.business_name);
-  const hasFirst = !!(profile.first_name);
-  const hasLast = !!(profile.last_name);
-  const hasEmail = !!(session?.user?.email);
-  return hasName && hasFirst && hasLast && hasEmail;
 }
 
 /**

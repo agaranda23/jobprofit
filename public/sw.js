@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v82';  // bumped from v81: fix/quote-default-collapsed-empty-text — Costs accordion also defaults collapsed (full Schedule/Quote/Costs consistency)
+const CACHE_NAME = 'jobprofit-v83';  // bumped from v82: chore/lint-hygiene-pass — remove dead code, fix marginForecast test
 const PRECACHE = [
   '/',
   '/index.html',

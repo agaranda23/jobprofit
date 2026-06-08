@@ -294,8 +294,7 @@ describe('TRADER-ONLY guardrail — estCost excluded from all customer-facing su
   it('calcMarginForecast with FIN loss example produces negative profit', () => {
     // Regression: loss case must always produce a negative number, never be
     // swallowed silently. This is what triggers the amber "you'd lose money" state.
-    const { calcMarginForecast: calc } = require('../marginForecast');
-    const { profit, margin } = calc(350, 400);
+    const { profit, margin } = calcMarginForecast(350, 400);
     expect(profit).toBeLessThan(0);
     expect(margin).toBeLessThan(0);
   });
