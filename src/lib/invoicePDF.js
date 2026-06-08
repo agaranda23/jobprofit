@@ -46,6 +46,38 @@ function bizLogoUrl(biz) {
 }
 
 /**
+ * Fetches a remote image URL and returns it as a base64 data URL that jsPDF
+ * can embed without a browser fetch at addImage() time.
+ *
+ * jsPDF's addImage() cannot reliably fetch remote https:// URLs in all browsers
+ * (it works in some but silently fails in others). Pre-converting to base64 here
+ * guarantees the image is available synchronously when addImage() runs.
+ *
+ * Already-base64 strings (data:image/...) are passed through unchanged.
+ * Any fetch / decode failure returns null so callers can skip the logo gracefully.
+ *
+ * @param {string|null} url
+ * @returns {Promise<string|null>} base64 data URL or null
+ */
+export async function logoUrlToBase64(url) {
+  if (!url) return null;
+  if (url.startsWith('data:')) return url; // already a data URL — nothing to do
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(reader.result || null);
+      reader.onerror = () => resolve(null);
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Infers jsPDF image type from a data-URL or a URL pathname.
  * Returns 'JPEG' for .jpg/.jpeg/data:image/jpeg, 'PNG' for everything else
  * (PNG is the safe default; jsPDF handles it without needing EXIF data).
@@ -751,6 +783,16 @@ export async function generateInvoicePDF({
     ))
     .reduce((sum, r) => sum + Number(r.amount || 0), 0);
 
+  // ── Logo pre-fetch ────────────────────────────────────────────────────
+  // jsPDF.addImage() cannot reliably fetch remote https:// URLs in all browsers.
+  // Convert to base64 first so addImage() always receives a data URL.
+  const rawLogoUrl = effectiveBiz.logoUrl || effectiveBiz.logo_url || null;
+  if (rawLogoUrl) {
+    const b64 = await logoUrlToBase64(rawLogoUrl);
+    effectiveBiz.logoUrl = b64 || '';
+    effectiveBiz.logo_url = b64 || '';
+  }
+
   // ── Header ──────────────────────────────────────────────────────────────
   let y = drawHeader(doc, effectiveBiz);
 
@@ -943,7 +985,7 @@ export async function getInvoicePDFBlob(args) {
 // acceptedSignature: PNG dataURL string captured in the drawer. Embedded with
 // doc.addImage; silently skipped if the dataURL fails to decode.
 
-export function generateQuotePDF({ job, biz, profile = null, quoteUrl = '', qrDataUrl = '', hidePoweredBy = false }) {
+export async function generateQuotePDF({ job, biz, profile = null, quoteUrl = '', qrDataUrl = '', hidePoweredBy = false }) {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
 
   const effectiveBiz = {
@@ -979,6 +1021,14 @@ export function generateQuotePDF({ job, biz, profile = null, quoteUrl = '', qrDa
   const validUntil = new Date(issueDate);
   validUntil.setDate(validUntil.getDate() + quoteValidityDays);
   const validUntilStr = validUntil.toLocaleDateString('en-GB');
+
+  // ── Logo pre-fetch ────────────────────────────────────────────────────
+  const rawLogoUrlQ = effectiveBiz.logoUrl || effectiveBiz.logo_url || null;
+  if (rawLogoUrlQ) {
+    const b64 = await logoUrlToBase64(rawLogoUrlQ);
+    effectiveBiz.logoUrl = b64 || '';
+    effectiveBiz.logo_url = b64 || '';
+  }
 
   // ── Header ──────────────────────────────────────────────────────────────
   let y = drawHeader(doc, effectiveBiz);
@@ -1086,13 +1136,13 @@ export function generateQuotePDF({ job, biz, profile = null, quoteUrl = '', qrDa
   return doc;
 }
 
-export function downloadQuotePDF(args) {
-  const doc = generateQuotePDF(args);
+export async function downloadQuotePDF(args) {
+  const doc = await generateQuotePDF(args);
   const customer = (args.job?.customer || 'quote').replace(/\s/g, '-');
   doc.save(`quote-${customer}.pdf`);
 }
 
-export function getQuotePDFBlob(args) {
-  const doc = generateQuotePDF(args);
+export async function getQuotePDFBlob(args) {
+  const doc = await generateQuotePDF(args);
   return doc.output('blob');
 }
