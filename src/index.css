@@ -86,6 +86,7 @@ button:focus-visible {
   --bg: #0b0d10;
   --surface: #151a1f;
   --surface-2: #1d242b;
+  --surface-expanded: #11161b; /* one shade below --surface-2 for expanded accordion cards */
   --text: #f5f7fa;
   --text-dim: #a8b3c0;
   --accent: #34d672;
@@ -160,6 +161,7 @@ button:focus-visible {
   --bg:          #f9fafb;
   --surface:     #ffffff;
   --surface-2:   #f3f4f6;
+  --surface-expanded: #e9ebef; /* one shade below --surface-2 for expanded accordion cards */
 
   /* Text */
   --text:        #111827;
@@ -10160,8 +10162,10 @@ input[type=number] { -moz-appearance: textfield; }
        carries no layout-affecting rules. position:relative is removed — it was only
        retained as a stacking-context candidate, which is no longer needed. */
 .jd-csr--expanded {
-  /* Retained as a class hook for styling. No layout rules needed: conditional
-     render means the container always grows in-flow with its children. */
+  background: var(--surface-expanded);
+}
+.jd-csr--expanded .jd-csr-panel {
+  background: var(--surface-expanded);
 }
 
 /* 6th drawer regression (June 2026) — opaque panel background.
