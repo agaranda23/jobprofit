@@ -12997,7 +12997,10 @@ input[type=number] { -moz-appearance: textfield; }
 .jd-card-row-edit-btn {
   display: flex;
   align-items: center;
-  justify-content: center;
+  /* Right-align the glyph so it lands flush with the chevrons on the
+     phone/email/description rows (.jd-card-row-edit, padding 0 4px).
+     The 44px-wide centred box previously pushed the glyph inward. */
+  justify-content: flex-end;
   min-width: 44px;
   min-height: 44px;
   font-size: 18px;
@@ -13047,10 +13050,12 @@ input[type=number] { -moz-appearance: textfield; }
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   text-decoration: none;
-  /* Ghost (secondary) style — default for Call + Text */
+  /* Outlined-accent style — default for Call + Text + Navigate.
+     Solid green border + green label, matching the WhatsApp (--primary)
+     accent. WhatsApp stays filled via .jd-action-chip--primary below. */
   background: transparent;
-  border: 1.5px solid var(--border);
-  color: var(--text);
+  border: 1.5px solid var(--accent);
+  color: var(--accent);
   transition: opacity 0.12s;
   box-sizing: border-box;
 }
@@ -13074,14 +13079,19 @@ input[type=number] { -moz-appearance: textfield; }
   opacity: 0.8;
 }
 
-/* Navigate chip row — single chip, left-aligned, narrower than full-width */
+/* Navigate chip row — single chip, centre-aligned, sized to match one of
+   the three contact chips (Call/Text/WhatsApp) in the row above. */
 .jd-action-chip-row--navigate {
   padding-bottom: 4px;
+  justify-content: center;
 }
 
 .jd-action-chip--navigate {
-  flex: unset;
-  padding: 0 16px;
+  /* Same rendered width as the Text chip above: three flex:1 chips share
+     a row with two 6px gaps, so each is (100% - 12px) / 3. Reproduce that
+     exact width here. Padding/height already match via .jd-action-chip. */
+  flex: 0 0 calc((100% - 12px) / 3);
+  max-width: calc((100% - 12px) / 3);
 }
 
 /* All-empty helper text — shown only when name+phone+address are all absent */
