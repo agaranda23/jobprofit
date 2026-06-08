@@ -150,9 +150,9 @@ describe('computeVisitStatus', () => {
 // ── getScheduleMeta ────────────────────────────────────────────────────────
 
 describe('getScheduleMeta', () => {
-  it('returns "Not scheduled" for empty visits', () => {
-    expect(getScheduleMeta([], simpleFmt)).toBe('Not scheduled');
-    expect(getScheduleMeta(null, simpleFmt)).toBe('Not scheduled');
+  it('returns "None yet" for empty visits', () => {
+    expect(getScheduleMeta([], simpleFmt)).toBe('None yet');
+    expect(getScheduleMeta(null, simpleFmt)).toBe('None yet');
   });
 
   it('returns single-visit legacy format for one visit', () => {

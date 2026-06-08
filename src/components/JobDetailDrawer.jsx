@@ -3631,15 +3631,15 @@ export default function JobDetailDrawer({
             // ── Meta strings for collapsed rows ─────────────────────────────
             const lineItems = Array.isArray(job.lineItems) ? job.lineItems.filter(i => i.desc || i.cost) : [];
             const quoteTotal = job.total ?? job.amount ?? 0;
-            // Schedule-mirror: header shows just the total (or "Not quoted") — no line count noise.
-            const quoteMeta = quoteTotal > 0 ? gbp(quoteTotal) : 'Not quoted';
+            // Schedule-mirror: header shows just the total (or empty-state) — no line count noise.
+            const quoteMeta = quoteTotal > 0 ? gbp(quoteTotal) : 'None yet';
 
             const jobReceipts = receipts.filter(r =>
               r.jobId && (String(r.jobId) === String(job.id) || String(r.jobId) === String(job.cloudId))
             );
             const costsMeta = jobReceipts.length > 0
               ? `${gbp(materials)} · ${jobReceipts.length} receipt${jobReceipts.length !== 1 ? 's' : ''}`
-              : 'none logged yet';
+              : 'None yet';
 
             // ── Section body elements ────────────────────────────────────────
             const paymentEl = (
@@ -3772,9 +3772,11 @@ export default function JobDetailDrawer({
               }
             }
 
-            // ── Quote accordion: default expanded for Lead/Quoted ────────────
-            const quoteDefaultExpanded =
-              status === 'Lead' || status === 'Quoted' || attention.quote;
+            // ── Quote accordion: always collapsed on open (matches Schedule/Costs).
+            // Previously expanded for Lead/Quoted statuses and when attention.quote
+            // was set — that "prompt to quote" onboarding behaviour has been removed
+            // at the founder's request for UI consistency.
+            const quoteDefaultExpanded = false;
 
             // ── Costs accordion: default expanded at Active stage ────────────
             const costsDefaultExpanded = status === 'On' || attention.costs;
