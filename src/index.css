@@ -14629,3 +14629,135 @@ input[type=number] { -moz-appearance: textfield; }
 .jd-delete-confirm__ok:hover { opacity: 0.9; }
 .jd-delete-confirm__cancel:active { opacity: 0.7; }
 .jd-delete-confirm__ok:active { opacity: 0.8; }
+
+/* ── Pipeline Phase 2 — Workflow Visibility (feat/pipeline-phase-2-workflow-visibility) ──
+   JobProgressDots, StageTimeline, FunnelStrip
+   ────────────────────────────────────────────────────────────────────────── */
+
+/* ── JobProgressDots — 4-segment progress bar on job tiles ──────────────── */
+.jp-dots {
+  display: flex;
+  gap: 4px;
+  padding: 6px 0 2px;
+  align-items: center;
+}
+.jp-dot {
+  flex: 1;
+  height: 3px;
+  border-radius: 2px;
+  transition: background 0.2s;
+}
+/* Filled dots get a subtle glow on Overdue to draw the eye */
+.jp-dot--overdue {
+  box-shadow: 0 0 4px rgba(229, 72, 77, 0.5);
+}
+/* Light mode: muted unfilled dots need more contrast on white */
+[data-theme="light"] .jp-dot:not(.jp-dot--filled) {
+  background: rgba(0, 0, 0, 0.12) !important;
+}
+
+/* ── FunnelStrip — single-line pipeline count summary ──────────────────── */
+.funnel-strip {
+  padding: 5px 16px 4px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  /* No background — floats visually between chase bar and StageStrip */
+}
+
+/* ── StageTimeline — milestone history in the job detail drawer ─────────── */
+.stage-timeline {
+  padding: 8px 0 4px;
+  position: relative;
+}
+
+.stage-timeline__item {
+  display: grid;
+  /* dot | content  — line is absolute-positioned behind the dots */
+  grid-template-columns: 20px 1fr;
+  grid-template-rows: auto;
+  align-items: center;
+  gap: 0 8px;
+  position: relative;
+  min-height: 32px;
+}
+
+/* Connector line — runs from the bottom of one dot to the top of the next.
+   Positioned absolutely inside the item so it always aligns with the dots column. */
+.stage-timeline__line {
+  position: absolute;
+  left: 9px; /* centres on the 20px dot column */
+  top: -16px; /* reaches up to the previous dot */
+  width: 2px;
+  height: 16px;
+  background: rgba(255, 255, 255, 0.1);
+  z-index: 0;
+}
+.stage-timeline__line--reached {
+  background: rgba(40, 181, 129, 0.4);
+}
+[data-theme="light"] .stage-timeline__line {
+  background: rgba(0, 0, 0, 0.08);
+}
+[data-theme="light"] .stage-timeline__line--reached {
+  background: rgba(40, 181, 129, 0.35);
+}
+
+/* Dot */
+.stage-timeline__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1.5px solid rgba(255, 255, 255, 0.2);
+  position: relative;
+  z-index: 1;
+  margin: 0 auto;
+}
+.stage-timeline__dot--reached {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+[data-theme="light"] .stage-timeline__dot {
+  background: rgba(0, 0, 0, 0.1);
+  border-color: rgba(0, 0, 0, 0.15);
+}
+[data-theme="light"] .stage-timeline__dot--reached {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+/* Content */
+.stage-timeline__content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 0;
+}
+.stage-timeline__label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text);
+}
+.stage-timeline__label--muted {
+  color: var(--text-dim);
+  font-weight: 400;
+}
+.stage-timeline__date {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.stage-timeline__hint {
+  font-size: 11px;
+  color: var(--text-dim);
+  opacity: 0.6;
+  white-space: nowrap;
+}

@@ -1,36 +1,37 @@
-import { deriveStatus, STATUS_LABELS } from '../lib/jobStatus';
+import { deriveDisplayStatus } from '../lib/jobStatus';
 import Icon from './Icon';
 
-// Single badge per job, sourced from deriveStatus. Replaces the legacy
-// dual-badge pattern (jobStatus + paymentStatus side by side) which often
-// duplicated information. Inline color values rather than T.* tokens —
-// the existing token set doesn't have a complete 5-state palette and
-// scope creep into the design tokens belongs in a follow-up.
-const STATUS_COLORS = {
-  draft:        { bg: '#E5E7EB', fg: '#374151' }, // grey
-  completed:    { bg: '#FEF3C7', fg: '#92400E' }, // yellow — action needed
-  invoice_sent: { bg: '#DBEAFE', fg: '#1E40AF' }, // blue
-  awaiting:     { bg: '#FED7AA', fg: '#9A3412' }, // orange — getting urgent
-  paid:         { bg: '#D1FAE5', fg: '#065F46' }, // green
+// Pill badge sourced from deriveDisplayStatus — the canonical six-stage helper.
+// Previously used the legacy deriveStatus (five "internal" states like "draft",
+// "invoice_sent") which diverged from the stage words shown in the job tile and
+// the StageStrip. Now both sources of truth agree.
+
+// Colour palette mirrors the STAGE_META hues in WorkScreen (explicit hex, no
+// color-mix() — keeps Safari 15 compatible).
+const STAGE_COLORS = {
+  Lead:     { bg: 'rgba(59,130,246,0.15)', fg: '#93bbf6' },
+  Quoted:   { bg: 'rgba(179,240,213,0.18)', fg: '#1E8A5C' },
+  On:       { bg: 'rgba(95,217,166,0.18)', fg: '#28B581' },
+  Invoiced: { bg: 'rgba(40,181,129,0.18)', fg: '#28B581' },
+  Overdue:  { bg: 'rgba(229,72,77,0.15)', fg: '#E5484D' },
+  Paid:     { bg: 'rgba(14,107,67,0.20)', fg: '#28B581' },
 };
 
-// Map each deriveStatus key to the Wave 2 semantic icon name.
-// Colour inherits from the pill's fg via currentColor (no variant override needed).
-const STATUS_ICON = {
-  draft:        'lead',
-  completed:    'invoice',
-  invoice_sent: 'quote-sent',
-  awaiting:     'overdue',
-  paid:         'paid',
+const STAGE_ICON = {
+  Lead:     'lead',
+  Quoted:   'quote-sent',
+  On:       'active-job',
+  Invoiced: 'invoice',
+  Overdue:  'overdue',
+  Paid:     'paid',
 };
 
 export default function StatusBadge({ job, size = 'sm' }) {
-  const status = deriveStatus(job);
-  const { bg, fg } = STATUS_COLORS[status] || STATUS_COLORS.draft;
-  const label = STATUS_LABELS[status] || status;
+  const stage = deriveDisplayStatus(job);
+  const { bg, fg } = STAGE_COLORS[stage] || STAGE_COLORS.Lead;
   const padding = size === 'sm' ? '3px 8px' : '5px 12px';
   const fontSize = size === 'sm' ? 11 : 13;
-  const iconName = STATUS_ICON[status];
+  const iconName = STAGE_ICON[stage];
 
   return (
     <span style={{
@@ -47,7 +48,7 @@ export default function StatusBadge({ job, size = 'sm' }) {
       whiteSpace: 'nowrap',
     }}>
       {iconName && <Icon name={iconName} size={12} />}
-      {label}
+      {stage}
     </span>
   );
 }

@@ -65,6 +65,7 @@ import {
   generateVisitId,
   tomorrowDateString,
 } from '../lib/visits';
+import StageTimeline from './StageTimeline';
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -3796,6 +3797,21 @@ export default function JobDetailDrawer({
               <>
                 {/* 1. Slim hint card — stage-aware "Next: …" copy, no button */}
                 <HintCard content={nextStepContent} />
+
+                {/* 1b. Stage timeline — milestone history, collapsed by default.
+                     Only rendered when at least two milestones exist (additive, non-breaking).
+                     Placement: below the hint card, before customer details, so it reads
+                     as "where has this job been?" before the current-state cards. */}
+                <CollapsedSectionRow
+                  key="timeline"
+                  id="timeline"
+                  icon={<Icon name="date" size={16} variant="muted" />}
+                  title="Timeline"
+                  meta={status}
+                  defaultExpanded={false}
+                >
+                  <StageTimeline job={job} />
+                </CollapsedSectionRow>
 
                 {/* 2. Customer card — name · phone · address · email · description */}
                 <CustomerCard
