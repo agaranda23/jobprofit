@@ -124,7 +124,7 @@ export function computeFinishStatus(targetFinishDate, completedAt) {
 /**
  * getScheduleMeta(visits) — the collapsed-card meta string.
  * Mirrors the spec:
- *   - No visits → 'Not scheduled'
+ *   - No visits → 'None yet'
  *   - All done/cancelled → 'All visits done · last {date}'
  *   - One visit (not done) → '{date} · {time}' (backwards-compat format)
  *   - Multi-visit → 'Next: {date} · +N more' or just 'Next: {date}'
@@ -141,7 +141,7 @@ export function getScheduleMeta(visits, fmtDate, job) {
       }
     }
   }
-  if (!visits || visits.length === 0) return 'Not scheduled';
+  if (!visits || visits.length === 0) return 'None yet';
 
   const active = visits.filter(v => v.status !== 'done' && v.status !== 'cancelled');
 

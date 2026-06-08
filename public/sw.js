@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v80';  // bumped from v79: feat/note-photo-accordions — Add note + Add photo re-housed as CollapsedSectionRow accordion cards
+const CACHE_NAME = 'jobprofit-v82';  // bumped from v81: fix/quote-default-collapsed-empty-text — Costs accordion also defaults collapsed (full Schedule/Quote/Costs consistency)
 const PRECACHE = [
   '/',
   '/index.html',
