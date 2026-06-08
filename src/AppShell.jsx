@@ -45,7 +45,16 @@ import {
   deleteReceiptFromCloud,
   updateJobMetaInCloud,
 } from './lib/store';
-import { flipExpiredTrialToFree } from './lib/plan';
+import {
+  flipExpiredTrialToFree,
+  trialJustExpired,
+  hasDropToFreeSeen,
+  markDropToFreeSeen,
+  isTrialLastDay,
+  trialEndSheetDismissedToday,
+  recordTrialEndSheetDismissed,
+} from './lib/plan';
+import { formatChargeDate, shouldShowPreChargeReminder } from './lib/trialConversion';
 import { getJobProfit } from './lib/cashflow';
 import { enqueueJob, wireOnlineSync } from './lib/offlineQueue';
 import { logTelemetry, identifyUser, getLastUpgradeTrigger } from './lib/telemetry';
@@ -53,6 +62,10 @@ import posthog from 'posthog-js';
 import SyncBadge from './components/SyncBadge';
 import ConsentBanner from './components/ConsentBanner.jsx';
 import Icon from './components/Icon.jsx';
+import ProUpgradeSheet from './components/ProUpgradeSheet.jsx';
+import DropToFreeScreen from './components/DropToFreeScreen.jsx';
+import PreChargeReminderBanner from './components/PreChargeReminderBanner.jsx';
+import { startCheckoutImmediate, openBillingPortal } from './lib/billing';
 
 // ─── Feature flags ───────────────────────────────────────────────────────────
 // Slice-3 nav (Today / Jobs / Money / Settings) is the default for all users.
@@ -174,6 +187,18 @@ export default function AppShell() {
   // from Today (onJobTap) does NOT bump this key — the drawer-open path must
   // survive. Only the BottomNav onChange handler bumps it.
   const [workResetKey, setWorkResetKey] = useState(0);
+
+  // ── Trial-end conversion state ─────────────────────────────────────────────
+  // trialEndSheetOpen: show the Moment-1 "keep Pro free another month" sheet
+  //   on the last day of trial (Day-14 trigger). Suppressed if dismissed today.
+  const [trialEndSheetOpen, setTrialEndSheetOpen] = useState(false);
+  // dropToFreeOpen: show the Moment-2 drop-to-free full-screen on first post-
+  //   expiry open. Set to true before plan is flipped (honesty fix).
+  const [dropToFreeOpen, setDropToFreeOpen] = useState(false);
+  const [dropToFreeUpgradeLoading, setDropToFreeUpgradeLoading] = useState(false);
+  const [dropToFreeUpgradeError, setDropToFreeUpgradeError] = useState(null);
+  // preChargeReminderVisible: Day-~43 in-app banner (external push/email stubbed).
+  const [preChargeReminderVisible, setPreChargeReminderVisible] = useState(false);
 
   // settingsSubView: which sub-screen within Settings is active.
   // null          → top-level SettingsScreen
@@ -318,9 +343,37 @@ export default function AppShell() {
         if (data.preferred_voice_lang) {
           localStorage.setItem('jp.voiceLang', data.preferred_voice_lang);
         }
-        // If the trial has expired, flip plan to 'free' in the DB so the row
-        // stays clean. Fire-and-forget — never blocks render, never throws.
-        flipExpiredTrialToFree(supabase, userId, data);
+        // ── Honesty fix: trial expiry handling ─────────────────────────────
+        // Rule: NEVER flip silently. If the trial has expired and the user
+        // hasn't seen Moment 2, show DropToFreeScreen FIRST. The plan flip
+        // and drop_to_free_seen mark happen AFTER the user dismisses Moment 2
+        // (in handleDropToFreeDismiss). This prevents "surprise footer" on the
+        // first send after expiry.
+        if (trialJustExpired(data)) {
+          const alreadySeen = hasDropToFreeSeen() || data?.drop_to_free_seen;
+          if (!alreadySeen) {
+            setDropToFreeOpen(true);
+          } else {
+            // User has already seen Moment 2 (cross-device or same device) —
+            // flip the plan in the DB if it hasn't been flipped yet.
+            flipExpiredTrialToFree(supabase, userId, data);
+          }
+        }
+
+        // ── Day-14 trigger: fire Moment-1 sheet on the last trial day ───────
+        // Fires once per day (localStorage gate) when trial has <= 1 day left
+        // but is still active. "Not now" sets the gate; upgrade redirects to
+        // Stripe so the gate is never needed in that path.
+        if (isTrialLastDay(data) && !trialEndSheetDismissedToday()) {
+          setTrialEndSheetOpen(true);
+        }
+
+        // ── Day-~43 pre-charge reminder ──────────────────────────────────────
+        // Show in-app banner within 5 days of the Moment-1 charge date.
+        // External push/email is STUBBED — see PreChargeReminderBanner.jsx.
+        if (shouldShowPreChargeReminder(data)) {
+          setPreChargeReminderVisible(true);
+        }
 
         // Identify the user in PostHog (PII-light: UUID + plan only, no email).
         identifyUser(userId, {
@@ -740,6 +793,50 @@ export default function AppShell() {
   // Signing out clears the Supabase session, which causes AppShell to render
   // <AuthScreen /> so the user can sign back in and the queue can flush.
   const handleSyncSignIn = () => supabase.auth.signOut().catch(() => {});
+
+  // ── Trial-end conversion handlers ──────────────────────────────────────────
+
+  /**
+   * Moment-1 "Not now" dismiss — record the per-day localStorage gate so
+   * the sheet doesn't re-nag today, then close.
+   */
+  const handleTrialEndSheetDismiss = () => {
+    recordTrialEndSheetDismissed();
+    setTrialEndSheetOpen(false);
+  };
+
+  /**
+   * Moment-2 "Stay on free" dismiss — this is the point where we:
+   *   1. Mark drop_to_free_seen on this device (localStorage)
+   *   2. Write drop_to_free_seen=true + plan='free' to Supabase (flip)
+   *   3. Update local profile state optimistically
+   *   4. Close the screen
+   */
+  const handleDropToFreeDismiss = () => {
+    markDropToFreeSeen();
+    setDropToFreeOpen(false);
+    // Optimistic local update so the UI reflects free immediately
+    setProfile(prev => prev ? { ...prev, plan: 'free', drop_to_free_seen: true } : prev);
+    // Fire-and-forget DB write (flipExpiredTrialToFree now also writes drop_to_free_seen)
+    if (session?.user?.id && profile) {
+      flipExpiredTrialToFree(supabase, session.user.id, profile).catch(() => {});
+    }
+  };
+
+  /**
+   * Moment-2 "Go Pro — £12/month" — immediate checkout, no coupon.
+   * On success Stripe redirects away; on error show inline.
+   */
+  const handleDropToFreeUpgrade = async () => {
+    setDropToFreeUpgradeLoading(true);
+    setDropToFreeUpgradeError(null);
+    const { error } = await startCheckoutImmediate({ source: 'drop_to_free' });
+    if (error) {
+      setDropToFreeUpgradeError(error);
+      setDropToFreeUpgradeLoading(false);
+    }
+    // On success Stripe navigates away — loading state is naturally abandoned.
+  };
 
   /**
    * Update a subset of the user's profile.
@@ -1182,6 +1279,50 @@ export default function AppShell() {
           jobs={jobs}
           onLink={handleLinkReceipt}
           onSkip={() => setPendingLink(null)}
+        />
+      )}
+
+      {/* ── Day-14 trial-end sheet (Moment 1) ─────────────────────────── */}
+      {/* Shown once on first app-open when trial has <= 24h left.        */}
+      {/* "Not now" gates per-day; upgrade redirects to Stripe.           */}
+      <ProUpgradeSheet
+        open={trialEndSheetOpen}
+        variant="trial_end"
+        trigger="trial_end"
+        profile={profile}
+        jobs={jobs}
+        onClose={handleTrialEndSheetDismiss}
+      />
+
+      {/* ── Drop-to-free screen (Moment 2) — honesty fix ──────────────── */}
+      {/* Shown BEFORE plan is flipped on first post-expiry open.         */}
+      {/* Closing this screen triggers the plan flip + mark-seen.         */}
+      {dropToFreeOpen && (
+        <DropToFreeScreen
+          onDismiss={handleDropToFreeDismiss}
+          onUpgrade={handleDropToFreeUpgrade}
+          upgradeLoading={dropToFreeUpgradeLoading}
+          upgradeError={dropToFreeUpgradeError}
+        />
+      )}
+
+      {/* ── Day-~43 pre-charge reminder banner ─────────────────────────── */}
+      {/* Shown in-app within 5 days of the Moment-1 charge date.          */}
+      {/* Push/email delivery is STUBBED — see PreChargeReminderBanner.jsx  */}
+      {preChargeReminderVisible && profile && (
+        <PreChargeReminderBanner
+          chargeDate={formatChargeDate(profile.trial_ends_at)}
+          onKeep={async () => {
+            setPreChargeReminderVisible(false);
+            const { error } = await openBillingPortal();
+            if (error) console.warn('billing portal error', error);
+          }}
+          onCancel={async () => {
+            setPreChargeReminderVisible(false);
+            const { error } = await openBillingPortal();
+            if (error) console.warn('billing portal error', error);
+          }}
+          onDismiss={() => setPreChargeReminderVisible(false)}
         />
       )}
 

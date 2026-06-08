@@ -6,10 +6,13 @@
  *     no trial copy makes sense).
  *   - Shown only when the user is on an active trial (plan='trial',
  *     trial_ends_at in the future).
- *   - When ≤ 2 days left the text is slightly emphasised (bold + amber tint)
- *     — still inline, never a modal.
+ *   - When > 2 days left: standard countdown copy.
+ *   - When ≤ 2 days left (urgent): escalate to "keep it another month" framing
+ *     + amber tint emphasis. The CTA still calls startCheckout() directly
+ *     (skips ProUpgradeSheet) to minimise friction on the last day.
  *
- * The "Add a card to stay Pro" CTA calls startCheckout() from billing.js.
+ * The CTA calls startCheckout() from billing.js (not the coupon path — that
+ * requires the user to reach ProUpgradeSheet with variant='trial_end').
  */
 import { UNLOCK_PRO_FOR_ALL, isTrialActive, trialDaysLeft } from '../lib/plan.js';
 import { startCheckout } from '../lib/billing.js';
@@ -29,7 +32,7 @@ export default function TrialBanner({ profile, onError }) {
     // Set trigger in sessionStorage so subscription_active.last_trigger is correct
     // after the Stripe redirect, and fire checkout_started for funnel visibility.
     setLastUpgradeTrigger(UPGRADE_TRIGGERS.TRIAL_BANNER);
-    logTelemetry('checkout_started', { trigger: UPGRADE_TRIGGERS.TRIAL_BANNER });
+    logTelemetry('checkout_started', { trigger: UPGRADE_TRIGGERS.TRIAL_BANNER, urgent });
     const { error } = await startCheckout();
     if (error) onError?.(error);
   };
@@ -37,14 +40,16 @@ export default function TrialBanner({ profile, onError }) {
   return (
     <div className={`trial-banner${urgent ? ' trial-banner--urgent' : ''}`} role="status" aria-live="polite">
       <span className="trial-banner__text">
-        Pro trial &middot; {dayLabel} left
+        {urgent
+          ? `Trial ends in ${dayLabel} — keep Pro free another month`
+          : `Pro trial · ${dayLabel} left`}
       </span>
       <button
         type="button"
         className="trial-banner__cta"
         onClick={handleUpgrade}
       >
-        Add a card to stay Pro
+        {urgent ? 'Keep Pro free' : 'Add a card to stay Pro'}
       </button>
     </div>
   );
