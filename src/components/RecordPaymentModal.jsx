@@ -10,7 +10,67 @@ import {
   costPromptVariant,
   recordPromptShown,
 } from '../lib/postPaidCost';
+import { getJobProfit } from '../lib/cashflow';
+import { marginState } from '../lib/profitThresholds';
+import { gbp } from '../lib/today';
 import PostPaidCostRow from './PostPaidCostRow';
+
+/**
+ * Renders the profit reveal line shown on the paid-success screen.
+ *
+ * Honesty rules (spec 2026-06-08):
+ *   - profit > 0, quote > 0 and healthy (≥25%): headline + healthy margin sub
+ *   - profit > 0, quote > 0 and thin (5–24%): headline + thin margin sub
+ *   - profit > 0, quote <= 0: headline only (no margin sub — quote unknown)
+ *   - profit <= 0 (loss/break-even, costs logged): loss headline + advice sub
+ *   - profit === 0 and no data (quote=0, materials=0): "Paid. Logged." — no fake £0 celebration
+ *
+ * Never paywalled — it's the free taste of the Insight Layer.
+ */
+function ProfitRevealBlock({ job, receipts }) {
+  const { quote, materials, profit, margin } = getJobProfit(job, receipts);
+
+  // No data at all — don't show a fake £0 result
+  if (profit === 0 && materials === 0 && quote === 0) {
+    return (
+      <p className="rpm-profit-reveal rpm-profit-reveal--neutral">
+        Paid. Logged.
+      </p>
+    );
+  }
+
+  if (profit <= 0) {
+    const lossAbs = Math.round(Math.abs(profit)).toLocaleString('en-GB');
+    return (
+      <div className="rpm-profit-reveal rpm-profit-reveal--underwater">
+        <p className="rpm-profit-reveal-headline">This one cost you £{lossAbs}.</p>
+        <p className="rpm-profit-reveal-sub">Worth knowing before the next quote.</p>
+      </div>
+    );
+  }
+
+  const state = marginState(margin);
+  const profitFormatted = gbp(profit).replace(/\.00$/, '').replace(/^£/, '');
+
+  let subLine = null;
+  if (quote > 0) {
+    if (state === 'healthy') {
+      subLine = `${margin}% margin on this one.`;
+    } else if (state === 'thin') {
+      subLine = `${margin}% margin — tighter than usual.`;
+    }
+    // underwater with profit > 0 is impossible (profit > 0 means margin >= 0,
+    // and marginState(0) is underwater but profit === 0 is caught above).
+    // Any positive profit with quote > 0 produces margin 0..100, handled above.
+  }
+
+  return (
+    <div className={`rpm-profit-reveal rpm-profit-reveal--${state}`}>
+      <p className="rpm-profit-reveal-headline">That&apos;s £{profitFormatted} in your pocket.</p>
+      {subLine && <p className="rpm-profit-reveal-sub">{subLine}</p>}
+    </div>
+  );
+}
 
 // UI segmented control: 4 user-facing methods. 'unknown' is a system-only
 // value used by the migration and the Mark-as-Paid shortcut — never shown
@@ -62,6 +122,9 @@ export default function RecordPaymentModal({
   // The cost-capture row is shown in this state only.
   const [paidSuccess, setPaidSuccess] = useState(false);
   const [costPromptActive, setCostPromptActive] = useState(false);
+  // profitRevealActive: true when the job cleared balance but the cost prompt
+  // was suppressed — show the profit reveal on its own before closing.
+  const [profitRevealActive, setProfitRevealActive] = useState(false);
 
   const quoteTotal = job?.total ?? job?.amount ?? 0;
   const parsedAmount = parseFloat(amount);
@@ -124,7 +187,10 @@ export default function RecordPaymentModal({
           setPaidSuccess(true);
           setCostPromptActive(true);
         } else {
-          onClose();
+          // Cost prompt suppressed — show the profit reveal, then let the user
+          // close. Keeps the paid-success state consistent.
+          setPaidSuccess(true);
+          setProfitRevealActive(true);
         }
       } else {
         // Partial payment — just flash and close
@@ -136,7 +202,7 @@ export default function RecordPaymentModal({
     }
   };
 
-  // ── Paid success state (cost capture) ────────────────────────────────────────
+  // ── Paid success state (profit reveal + cost capture) ───────────────────────
   if (paidSuccess && costPromptActive) {
     const jobCostTotal = Array.isArray(receipts)
       ? receipts.filter(r => r.jobId === job?.id || r.job_id === job?.id)
@@ -151,6 +217,7 @@ export default function RecordPaymentModal({
             <span className="modal-paid-check" aria-hidden="true">&#10003;</span>
             <span className="modal-paid-label">Paid</span>
           </div>
+          <ProfitRevealBlock job={job} receipts={receipts} />
           <PostPaidCostRow
             job={job}
             jobCostTotal={jobCostTotal}
@@ -159,6 +226,24 @@ export default function RecordPaymentModal({
             onSkip={onClose}
             onAutoMute={onAutoMute}
           />
+        </div>
+      </div>
+    );
+  }
+
+  // ── Paid success state (profit reveal only — cost prompt was suppressed) ─────
+  if (paidSuccess && profitRevealActive) {
+    return (
+      <div className="modal-backdrop" onClick={onClose}>
+        <div className="modal modal--paid-success" onClick={e => e.stopPropagation()}>
+          <div className="modal-paid-badge" aria-live="polite">
+            <span className="modal-paid-check" aria-hidden="true">&#10003;</span>
+            <span className="modal-paid-label">Paid</span>
+          </div>
+          <ProfitRevealBlock job={job} receipts={receipts} />
+          <button type="button" className="btn-primary rpm-profit-reveal-done" onClick={onClose}>
+            Done
+          </button>
         </div>
       </div>
     );
