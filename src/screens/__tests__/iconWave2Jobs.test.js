@@ -152,13 +152,13 @@ describe('StatusBadge — icon system', () => {
     expect(badgeSrc).toContain("import Icon from './Icon'");
   });
 
-  it('defines a STATUS_ICON map', () => {
-    expect(badgeSrc).toContain('STATUS_ICON');
+  it('defines a STAGE_ICON map (updated from STATUS_ICON to use deriveDisplayStatus stages)', () => {
+    expect(badgeSrc).toContain('STAGE_ICON');
   });
 
-  it('STATUS_ICON covers all five deriveStatus values', () => {
-    const statuses = ['draft', 'completed', 'invoice_sent', 'awaiting', 'paid'];
-    statuses.forEach(s => {
+  it('STAGE_ICON covers all six deriveDisplayStatus pipeline stages', () => {
+    const stages = ['Lead', 'Quoted', 'On', 'Invoiced', 'Overdue', 'Paid'];
+    stages.forEach(s => {
       expect(badgeSrc).toContain(s + ':');
     });
   });

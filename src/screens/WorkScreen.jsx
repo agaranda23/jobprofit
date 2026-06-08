@@ -40,6 +40,7 @@ import { deriveDisplayStatus, daysSinceInvoice, requiresPriceForStage, stagePatc
 import { deleteJobFromCloud } from '../lib/store';
 import { shouldShowPartPaidChip, formatPartPaidLabel } from '../lib/partPaidChip';
 import { jobMatchesQuery, sortJobsByStage, firstLineOfAddress } from '../lib/jobSort';
+import JobProgressDots from '../components/JobProgressDots';
 import ReceiptModal from '../components/ReceiptModal';
 import {
   computeTier,
@@ -817,6 +818,9 @@ function JobTile({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJo
         </div>
       )}
 
+      {/* Progress dots — 4-segment bar showing pipeline position */}
+      <JobProgressDots job={job} />
+
       {/* CTA row — stopPropagation so taps don't open the drawer */}
       {cta && (
         <div className="jt-foot" onClick={e => e.stopPropagation()}>
@@ -1524,6 +1528,29 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
         </div>
       ) : null}
 
+
+      {/* Funnel summary strip — compact text count of active (non-Paid) stages.
+           Paid is excluded from the summary to keep the line short: the Paid
+           tile in the StageStrip already gives the full count + £. Only shown
+           when there are any jobs to summarise. Visual only — tapping does nothing. */}
+      {subview === 'list' && (() => {
+        const SUMMARY_STAGES = ['Lead', 'Quoted', 'On', 'Invoiced', 'Overdue'];
+        const counts = SUMMARY_STAGES.reduce((acc, s) => {
+          acc[s] = visibleJobs.filter(j => deriveDisplayStatus(j) === s).length;
+          return acc;
+        }, {});
+        const paidCount = visibleJobs.filter(j => deriveDisplayStatus(j) === 'Paid').length;
+        const parts = SUMMARY_STAGES
+          .filter(s => counts[s] > 0)
+          .map(s => `${counts[s]} ${s.toLowerCase()}`);
+        if (paidCount > 0) parts.push(`${paidCount} paid`);
+        if (parts.length === 0) return null;
+        return (
+          <div className="funnel-strip" aria-label="Pipeline summary" role="status" aria-live="polite">
+            {parts.join(' · ')}
+          </div>
+        );
+      })()}
 
       {/* Stage Strip — 6 equal segments, no "All" tile. "Show all" lives in the
            controls row below. Hidden in calendar mode: the stage filter has no
