@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v78';  // bumped from v77: fix/quote-label-contrast — quote card line-item name + TOTAL label contrast improved (var(--text-dim) → var(--text))
+const CACHE_NAME = 'jobprofit-v79';  // bumped from v78: feat/expanded-card-dark-state — expanded accordion cards use --surface-expanded token (darker than collapsed --surface-2)
 const PRECACHE = [
   '/',
   '/index.html',
