@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v84';  // bumped from v83: chore/stage-tile-overdue-paid-tweaks — remove tick/dot, brighten overdue red + paid green
+const CACHE_NAME = 'jobprofit-v85';  // bumped from v84: chore/whatsapp-endjob-outline-style — outline treatment for WhatsApp + End job buttons
 const PRECACHE = [
   '/',
   '/index.html',

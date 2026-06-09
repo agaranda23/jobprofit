@@ -310,7 +310,7 @@ function CustomerCard({ job, onEditName, onEditPhone, onEditAddress, onEditEmail
             </a>
             <button
               type="button"
-              className="jd-action-chip jd-action-chip--primary"
+              className="jd-action-chip"
               aria-label="WhatsApp customer"
               onClick={() => {
                 logTelemetry('drawer_action_whatsapp');

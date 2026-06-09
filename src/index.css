@@ -13025,9 +13025,7 @@ input[type=number] { -moz-appearance: textfield; }
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   text-decoration: none;
-  /* Outlined-accent style — default for Call + Text + Navigate.
-     Solid green border + green label, matching the WhatsApp (--primary)
-     accent. WhatsApp stays filled via .jd-action-chip--primary below. */
+  /* Outlined-accent style — all four contact chips: Call, Text, WhatsApp, Navigate. */
   background: transparent;
   border: 1.5px solid var(--accent);
   color: var(--accent);
@@ -13039,7 +13037,7 @@ input[type=number] { -moz-appearance: textfield; }
   opacity: 0.65;
 }
 
-/* Primary chip — WhatsApp gets the accent treatment */
+/* Primary chip — solid-fill accent variant (currently unused; kept for potential future use) */
 .jd-action-chip--primary {
   background: var(--accent);
   border-color: var(--accent);
@@ -13521,8 +13519,8 @@ input[type=number] { -moz-appearance: textfield; }
 .jd-finish-status--duetoday { background:rgba(230,162,60,.14); color:#E6A23C; }
 .jd-finish-status--overdue  { background:rgba(239,106,94,.13); color:#EF6A5E; }
 .jd-finish-status--finished { background:rgba(43,196,138,.10); color:var(--accent,#2BC48A); }
-.jd-finish-end-btn { display:block; width:100%; margin-top:11px; padding:13px 16px; background:var(--accent,#2BC48A); color:#000; font-size:14px; font-weight:800; border:none; border-radius:10px; cursor:pointer; -webkit-tap-highlight-color:transparent; text-align:center; min-height:44px; }
-.jd-finish-end-btn:active { opacity:.85; }
+.jd-finish-end-btn { display:block; width:100%; margin-top:11px; padding:13px 16px; background:transparent; color:var(--accent,#2BC48A); font-size:14px; font-weight:800; border:1.5px solid var(--accent,#2BC48A); border-radius:10px; cursor:pointer; -webkit-tap-highlight-color:transparent; text-align:center; min-height:44px; font-family:inherit; }
+.jd-finish-end-btn:active { opacity:.65; }
 .jd-finish-reopen-btn { display:block; width:100%; margin-top:11px; padding:12px 16px; background:transparent; color:var(--accent,#2BC48A); font-size:13.5px; font-weight:600; border:1px solid rgba(43,196,138,.35); border-radius:10px; cursor:pointer; -webkit-tap-highlight-color:transparent; text-align:center; min-height:44px; }
 .jd-finish-reopen-confirm { margin-top:10px; padding:12px 14px; background:var(--card,#1A212B); border:1px solid var(--border,#2C3744); border-radius:10px; }
 .jd-finish-reopen-confirm__msg { margin:0 0 10px; font-size:13px; color:var(--text,#F1F5F9); line-height:1.4; }
