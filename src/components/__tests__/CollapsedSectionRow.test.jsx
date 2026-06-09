@@ -312,14 +312,18 @@ describe('CSS regression guard — .jd-csr-panel opaque background (6th regressi
     expect(blockWithoutComments).toMatch(/background\s*:/);
   });
 
-  it('.jd-csr-panel background references --surface-2 (palette variable, differentiates from --bg)', () => {
-    expect(panelBlock).toContain('--surface-2');
+  it('.jd-csr-panel background references --surface (palette variable, lighter than --surface-expanded so the header row is visually distinct from the body)', () => {
+    // Changed from --surface-2 to --surface in chore/accordion-headline-colour-consistency:
+    // .jd-csr--expanded sets the container to --surface-expanded (darker); the panel body
+    // uses --surface (lighter) so every accordion header appears visually distinct from its
+    // content, matching the existing Quote section behaviour uniformly across all sections.
+    expect(panelBlock).toContain('--surface');
   });
 
   it('.jd-csr-panel background does not use a hardcoded hex fallback (palette variable is sufficient)', () => {
-    // --surface-2 is defined in :root for both dark and light modes — no hardcoded fallback needed.
+    // --surface is defined in :root for both dark and light modes — no hardcoded fallback needed.
     const blockWithoutComments = panelBlock.replace(/\/\*[\s\S]*?\*\//g, '');
-    expect(blockWithoutComments).toMatch(/background\s*:\s*var\(--surface-2\)/);
+    expect(blockWithoutComments).toMatch(/background\s*:\s*var\(--surface\)/);
   });
 });
 
