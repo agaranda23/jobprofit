@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v95';  // bumped from v94: feat/today-document-search-popup — view-buttons row on Today, DocumentSearchOverlay (jobs/quotes/invoices), verb upgrade (Log a job / Quote it / Send invoice), amount search in jobMatchesQuery
+const CACHE_NAME = 'jobprofit-v96';  // bumped from v95: fix DSO sheet width — max-width:var(--app-max-width) + margin-inline:auto so overlay matches app column on wide viewports
 const PRECACHE = [
   '/',
   '/index.html',
