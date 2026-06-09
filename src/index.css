@@ -716,8 +716,10 @@ body.overlay-open .bottom-nav { display: none; }
    don't double-count against .screen's --nav-clearance padding. */
 .legacy-manage-root { padding-bottom: var(--nav-clearance); }
 
-/* Full-width fix for Today + History */
-.today-screen {
+/* Full-width shell for History (Insights) screen.
+   Today now uses .screen directly; History keeps its own full-bleed shell
+   via .history-screen so legacy layout is unchanged. */
+.history-screen {
   max-width: 100% !important;
   width: 100%;
   margin: 0 !important;
@@ -726,7 +728,7 @@ body.overlay-open .bottom-nav { display: none; }
   box-sizing: border-box;
 }
 @media (min-width: 640px) {
-  .today-screen {
+  .history-screen {
     max-width: 560px !important;
     margin: 0 auto !important;
   }
@@ -1498,7 +1500,6 @@ body {
   color: var(--text);
   letter-spacing: -0.01em;
 }
-.today-screen { padding-top: 8px !important; }
 
 
 /* Real logo replaces the JP placeholder */
@@ -2191,12 +2192,12 @@ input[type=number] { -moz-appearance: textfield; }
 }
 
 /* Centered brand mark — shared across Today / Jobs / Money / Settings headers.
-   left:50% works correctly on every tab because:
-   - .today-screen is full-width (max-width:100%), so 50% of its header = 50% of viewport = true centre.
-   - .screen (Jobs/Money/Settings) is centred (max-width:480px, margin:0 auto), so 50% of its
-     header = centre of the centred column = (viewport - 480)/2 + 240 = viewport/2 = true centre.
-   Using left:50vw was wrong: it measures 50vw *from the header's left edge*, not from the viewport
-   origin — producing a right-shifted logo on any viewport wider than the container. */
+   left:50% works correctly on every tab because all four tabs now use .screen
+   (max-width:480px, margin:0 auto), so 50% of the header = centre of the centred
+   column = (viewport - 480)/2 + 240 = viewport/2 = true centre.
+   Using left:50vw was wrong: it measures 50vw from the header's left edge, not from
+   the viewport origin — producing a right-shifted logo on any viewport wider than
+   the container. */
 .screen-header-logo {
   position: absolute;
   left: 50%;
@@ -9225,22 +9226,14 @@ input[type=number] { -moz-appearance: textfield; }
   color: var(--text, #f5f7fa);
   display: flex;
   flex-direction: column;
-  padding: 0 0 80px; /* room for bottom nav */
+  padding: 0; /* .screen parent now owns all padding including bottom nav clearance */
   -webkit-tap-highlight-color: transparent;
 }
 
 /* ── Header ─────────────────────────────────────────────────────────────────── */
 
-/* Today header now reuses .screen-header / .screen-title (see ~line 2171) so the
-   date matches the Jobs/Money/Settings title in size AND position.
-   NOTE: the .today-screen wrapper (line ~718) already forces 20px side padding
-   and padding-top:8px (line ~1499) with !important, so the header must NOT add
-   side padding or it would double to 40px. The other screens get padding-top:20px
-   from .screen; Today's wrapper only gives 8px, so add 12px here to align the
-   date's vertical position with the Jobs/Money/Settings titles (8 + 12 = 20). */
-.foreman-header {
-  padding-top: 12px;
-}
+/* Today header reuses .screen-header / .screen-title (see ~line 2171).
+   .screen now provides padding-top:20px so .foreman-header needs no extra compensation. */
 
 .foreman-divider {
   height: 1px;

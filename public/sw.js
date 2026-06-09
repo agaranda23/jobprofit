@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v89';  // bumped from v88: fix/address-text-left-align — text-align:left on .jd-card-row-maps-tap
+const CACHE_NAME = 'jobprofit-v90';  // bumped from v89: fix/today-tab-width-shell — Today tab now uses .screen shell, matches Jobs/Money/Settings width
 const PRECACHE = [
   '/',
   '/index.html',
