@@ -12971,6 +12971,8 @@ input[type=number] { -moz-appearance: textfield; }
   color: inherit;
   gap: 8px;
   -webkit-tap-highlight-color: transparent;
+  background: none;
+  border: none;
 }
 .jd-card-row-maps-tap:active {
   opacity: 0.7;
