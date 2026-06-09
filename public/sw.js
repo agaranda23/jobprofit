@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v92';  // bumped from v91: feat/document-records-design1 — Quotes + Invoices record accordions in JobDetailDrawer
+
 const PRECACHE = [
   '/',
   '/index.html',

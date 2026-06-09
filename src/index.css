@@ -2210,6 +2210,13 @@ input[type=number] { -moz-appearance: textfield; }
   pointer-events: none; /* purely decorative — taps fall through to controls */
 }
 
+/* Money and Settings render the logo ~5px too far left relative to Today/Jobs.
+   Nudge right without touching the base rule or the Today/Jobs screens. */
+.finance-screen .screen-header-logo,
+.settings-screen .screen-header-logo {
+  transform: translate(calc(-50% + 5px), -50%);
+}
+
 .screen-empty {
   text-align: center;
   padding: 48px 24px;
