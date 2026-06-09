@@ -80,6 +80,10 @@ const META_FIELDS = [
   'scheduledEnd',   // time string e.g. "11:30"
   'targetFinishDate', // YYYY-MM-DD optional target finish date
   'visits',           // Visit[]
+  // Document record accordion fields (Design 1, 2026-06).
+  // Not previously in whitelist — added so Sent/Signed audit states survive cloud-sync.
+  'quoteSentAt',    // ISO timestamp — set when trader sends the quote link/WhatsApp
+  'acceptedSource', // 'remote' | 'deposit_payment' | absent — how the quote was accepted
 ];
 
 export function readJobMeta(id) {
