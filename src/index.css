@@ -12973,6 +12973,10 @@ input[type=number] { -moz-appearance: textfield; }
   -webkit-tap-highlight-color: transparent;
   background: none;
   border: none;
+  /* Browser <button> UA default is text-align:center; override so the address
+     text left-aligns to match the phone/email rows (.jd-card-row base sets
+     text-align:left, but .jd-card-row-maps-tap doesn't carry that class). */
+  text-align: left;
 }
 .jd-card-row-maps-tap:active {
   opacity: 0.7;
