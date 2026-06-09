@@ -865,7 +865,7 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMo
                   <div className="aj-mic-sub">Say the job, customer, and amount</div>
                 </div>
                 {transcript && (
-                  <div className="aj-transcript">&ldquo;{transcript}&rdquo;</div>
+                  <div className="aj-transcript" dir="auto">&ldquo;{transcript}&rdquo;</div>
                 )}
                 {!transcript && (
                   <div className="aj-transcript aj-transcript--hint">
@@ -931,7 +931,7 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMo
                   </div>
                 )}
                 {transcript && (
-                  <div className="aj-transcript">&ldquo;{transcript}&rdquo;</div>
+                  <div className="aj-transcript" dir="auto">&ldquo;{transcript}&rdquo;</div>
                 )}
               </>
             )}
@@ -943,7 +943,7 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMo
               <>
                 {/* Transcript whisper — shows what the mic heard when voice was used */}
                 {transcript && (
-                  <div className="aj-transcript">&ldquo;{transcript}&rdquo;</div>
+                  <div className="aj-transcript" dir="auto">&ldquo;{transcript}&rdquo;</div>
                 )}
 
                 {/* Amount / payment edit chip — the safety check for voice mishears.
@@ -1103,7 +1103,7 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMo
                   <div className="aj-mic-sub">Say the job, customer, and price</div>
                 </div>
                 {quoteTranscript && (
-                  <div className="aj-transcript">&ldquo;{quoteTranscript}&rdquo;</div>
+                  <div className="aj-transcript" dir="auto">&ldquo;{quoteTranscript}&rdquo;</div>
                 )}
                 {!quoteTranscript && (
                   <div className="aj-transcript aj-transcript--hint">
@@ -1169,7 +1169,7 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMo
                   </div>
                 )}
                 {quoteTranscript && (
-                  <div className="aj-transcript">&ldquo;{quoteTranscript}&rdquo;</div>
+                  <div className="aj-transcript" dir="auto">&ldquo;{quoteTranscript}&rdquo;</div>
                 )}
               </>
             )}
@@ -1250,7 +1250,7 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMo
             {(quoteVoiceStatus === 'confirm' || quoteVoiceStatus === 'manual') && aiStatus !== 'building' && !showRatePrompt && (
               <>
                 {quoteVoiceStatus === 'confirm' && quoteTranscript && (
-                  <div className="aj-transcript">&ldquo;{quoteTranscript}&rdquo;</div>
+                  <div className="aj-transcript" dir="auto">&ldquo;{quoteTranscript}&rdquo;</div>
                 )}
 
                 {/* When voice is not available or user chose type-first, show a mic button */}

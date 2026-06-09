@@ -755,6 +755,11 @@ const VOICE_LANGS = [
   { code: 'ro-RO', label: 'Română' },
   { code: 'pt-PT', label: 'Português' },
   { code: 'es-ES', label: 'Español' },
+  { code: 'it-IT', label: 'Italiano' },
+  { code: 'ru-RU', label: 'Русский' },
+  { code: 'lt-LT', label: 'Lietuvių' },
+  { code: 'uk-UA', label: 'Українська' },
+  { code: 'ar-SA', label: 'العربية' },
 ];
 
 function VoiceLanguageSection({ session }) {
