@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v91';  // bumped from v90: fix/today-tab-width-shell — remove foreman-screen padding:0 override so Today header matches Jobs header position
+const CACHE_NAME = 'jobprofit-v92';  // bumped from v91: fix/money-settings-logo-nudge — shift JP logo 5px right on Money + Settings screens only
 const PRECACHE = [
   '/',
   '/index.html',
