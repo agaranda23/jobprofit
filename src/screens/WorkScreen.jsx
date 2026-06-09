@@ -1701,6 +1701,16 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
           onUpdate={onUpdateJob ?? (() => {})}
           onClose={() => setReviewJob(null)}
           onDismiss={() => setReviewJob(null)}
+          onEdit={() => {
+            // Close ReviewSheet and open the drawer for this job so the user
+            // can edit price / line items. Auto-return-to-review is deferred
+            // here: the drawer's own edit-save flow does not know to re-open
+            // this WorkScreen-level ReviewSheet without a separate state bridge.
+            // The user lands on the drawer and can tap "Send invoice" again.
+            const jobToEdit = reviewJob;
+            setReviewJob(null);
+            setSelectedJob(jobToEdit);
+          }}
           flash={showToast}
         />
       )}

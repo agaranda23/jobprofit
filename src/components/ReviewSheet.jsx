@@ -26,6 +26,7 @@
  *   onClose()     – close without draft save
  *   onDismiss()   – close + save draft (called when user taps X or backdrop)
  *   onUpdate(job) – persists job update (invoiceSentAt, quoteSentAt, draft flags)
+ *   onEdit()      – close without draft save and open the job edit form (price / line items)
  *   flash(msg)    – toast callback
  */
 
@@ -225,6 +226,7 @@ export default function ReviewSheet({
   onClose,
   onDismiss,
   onUpdate,
+  onEdit,
   flash,
   onProfileUpdate,
 }) {
@@ -777,6 +779,16 @@ export default function ReviewSheet({
           >
             Download PDF
           </button>
+          {onEdit && (
+            <button
+              type="button"
+              className="btn-ghost rs-peer-btn"
+              onClick={onEdit}
+              aria-label={isInvoice ? 'Edit invoice' : 'Edit quote'}
+            >
+              {isInvoice ? 'Edit invoice' : 'Edit quote'}
+            </button>
+          )}
         </div>
       </div>
     </div>
