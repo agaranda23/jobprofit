@@ -9712,6 +9712,11 @@ input[type=number] { -moz-appearance: textfield; }
   border-top: 1px solid var(--border);
   border-radius: 16px 16px 0 0;
   width: 100%;
+  /* Cap to the app content column and centre it on wide viewports.
+     On a real phone (<480px) width:100% wins and it stays edge-to-edge.
+     The backdrop remains full-viewport so the dim covers the whole screen. */
+  max-width: var(--app-max-width);
+  margin-inline: auto;
   /* Near full-screen — leave a small gap at the top so the trader can see
      they're on an overlay and can tap the backdrop to close */
   max-height: calc(95dvh - env(safe-area-inset-top, 0px));
