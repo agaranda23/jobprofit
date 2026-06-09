@@ -1,6 +1,8 @@
 // Parse job transcripts via the Netlify AI proxy.
 // Supports: English (en-GB), Polish (pl-PL), Romanian (ro-RO),
-//           Portuguese (pt-PT), Spanish (es-ES).
+//           Portuguese (pt-PT), Spanish (es-ES), Italian (it-IT),
+//           Russian (ru-RU), Lithuanian (lt-LT), Ukrainian (uk-UA),
+//           Arabic (ar-SA).
 // Falls back to regex if the AI proxy is unreachable or the user is not signed in.
 
 import { supabase } from './supabase';
@@ -8,19 +10,19 @@ import { supabase } from './supabase';
 const MULTILINGUAL_SYSTEM_PROMPT = `Extract a job name, customer name (only if explicitly named), amount in GBP, and optional payment type from the transcript.
 Respond ONLY with JSON: {"name": string, "customer": string|null, "amount": number|null, "paymentType": "cash"|"bank transfer"|"card"|"cheque"|null}.
 
-The transcript may be in English, Polish, Romanian, Portuguese, or Spanish. Keep the job name and customer name in the source language — the trader recognises their own words.
+The transcript may be in English, Polish, Romanian, Portuguese, Spanish, Italian, Russian, Lithuanian, Ukrainian, or Arabic. Keep the job name and customer name in the source language — the trader recognises their own words.
 
 Rules:
-- name: the job description (e.g. "Kitchen renovation", "Kuchnia", "Bucătărie", "Cozinha", "Cocina"). NOT the customer name.
+- name: the job description (e.g. "Kitchen renovation", "Kuchnia", "Bucătărie", "Cozinha", "Cocina", "Cucina", "Кухня", "Virtuvė", "مطبخ"). NOT the customer name.
 - customer: a person's name if EXPLICITLY mentioned. Set to null if no name is clearly given. Do NOT guess names from job descriptions or locations.
-- amount: number in pounds with no symbol. null if not present.
+- amount: number in pounds with no symbol. null if not present. IMPORTANT: convert Arabic-Indic numerals (٠١٢٣٤٥٦٧٨٩) to Western digits (e.g. ٣٨٠ → 380).
 - paymentType: normalise to the English enum below regardless of input language.
 
 Payment type word list (normalise any of these to the English enum value):
-- "cash": cash, gotówka (PL), numerar (RO), dinheiro (PT), efectivo (ES)
-- "bank transfer": bank transfer, przelew (PL), transfer bancar (RO), transferência (PT), transferencia (ES), bacs
-- "card": card, karta (PL), card (RO), cartão (PT), tarjeta (ES), credit, debit
-- "cheque": cheque, czek (PL), cec (RO), cheque (PT/ES)
+- "cash": cash, gotówka (PL), numerar (RO), dinheiro (PT), efectivo (ES), contanti (IT), наличные/нал (RU), grynais (LT), готівка (UK), نقدا/كاش (AR)
+- "bank transfer": bank transfer, przelew (PL), transfer bancar (RO), transferência (PT), transferencia (ES), bonifico (IT), перевод (RU), pavedimas (LT), переказ (UK), تحويل (AR), bacs
+- "card": card, karta (PL), card (RO), cartão (PT), tarjeta (ES), carta (IT), картой/карта (RU), kortele (LT), карткою/карта (UK), بطاقة (AR), credit, debit
+- "cheque": cheque, czek (PL), cec (RO), cheque (PT/ES), assegno (IT), чек (RU/UK), čekis (LT), شيك (AR)
 
 Examples:
 - "Kitchen job Sarah £380 cash" → {"name": "Kitchen job", "customer": "Sarah", "amount": 380, "paymentType": "cash"}
@@ -28,6 +30,11 @@ Examples:
 - "Bucătărie pentru Maria 250 numerar" → {"name": "Bucătărie", "customer": "Maria", "amount": 250, "paymentType": "cash"}
 - "Cozinha 500 dinheiro" → {"name": "Cozinha", "customer": null, "amount": 500, "paymentType": "cash"}
 - "Cocina 300 efectivo" → {"name": "Cocina", "customer": null, "amount": 300, "paymentType": "cash"}
+- "Cucina Maria 380 contanti" → {"name": "Cucina", "customer": "Maria", "amount": 380, "paymentType": "cash"}
+- "Кухня Сара 380 наличные" → {"name": "Кухня", "customer": "Сара", "amount": 380, "paymentType": "cash"}
+- "Virtuvė 250 grynais" → {"name": "Virtuvė", "customer": null, "amount": 250, "paymentType": "cash"}
+- "Кухня для Марії 300 готівка" → {"name": "Кухня", "customer": "Марія", "amount": 300, "paymentType": "cash"}
+- "مطبخ ٣٨٠ نقدا" → {"name": "مطبخ", "customer": null, "amount": 380, "paymentType": "cash"}
 - "Plastering 250" → {"name": "Plastering", "customer": null, "amount": 250, "paymentType": null}
 - "Bathroom refit for Mrs Mitchell £2950 bank transfer" → {"name": "Bathroom refit", "customer": "Mrs Mitchell", "amount": 2950, "paymentType": "bank transfer"}`;
 
@@ -87,8 +94,15 @@ export async function parseJobFromSpeech(transcript) {
   };
 }
 
+// Arabic-Indic → Western digit map for the regex fallback path.
+// The AI prompt handles this for the AI path; the regex fallback needs it too.
+function normaliseArabicNumerals(text) {
+  return text.replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d));
+}
+
 function regexAmount(text) {
-  const m = text.match(/£?\s*([\d,]+(?:\.\d+)?)\s*(k|pounds?|quid)?/i);
+  const t = normaliseArabicNumerals(text);
+  const m = t.match(/£?\s*([\d,]+(?:\.\d+)?)\s*(k|pounds?|quid)?/i);
   if (!m) return null;
   let n = parseFloat(m[1].replace(/,/g, ''));
   if (m[2] && /^k$/i.test(m[2])) n *= 1000;
@@ -107,33 +121,63 @@ function regexName(text) {
     .replace(/\b(dinheiro|transferência|cartão)\b/gi, '')
     // Spanish payment words
     .replace(/\b(efectivo|transferencia|tarjeta)\b/gi, '')
-    .replace(/\b(pentru|para|for|at|cost(s|ing)?|priced|paid|via|by)\b/gi, '')
+    // Italian payment words
+    .replace(/\b(contanti|bonifico)\b/gi, '')
+    // Russian payment words (Cyrillic — no \b boundary; replace directly)
+    .replace(/наличные|нал|перевод|картой/g, '')
+    // Lithuanian payment words
+    .replace(/\b(grynais|pavedimas|kortele)\b/gi, '')
+    // Ukrainian payment words (Cyrillic)
+    .replace(/готівка|переказ|карткою/g, '')
+    // Arabic payment words
+    .replace(/نقدا|كاش|تحويل|بطاقة|شيك/g, '')
+    .replace(/\b(untuk|pentru|para|for|at|cost(s|ing)?|priced|paid|via|by)\b/gi, '')
     .replace(/\s+/g, ' ')
     .trim();
 }
 
 function regexPayment(text) {
   const t = text.toLowerCase();
-  // Cash — EN + PL + RO + PT + ES
+  // Cash — EN + PL + RO + PT + ES + IT + RU + LT + UK + AR
   if (/\bcash\b/.test(t)) return 'cash';
   if (/\bgotówka\b/.test(t)) return 'cash';
   if (/\bnumerar\b/.test(t)) return 'cash';
   if (/\bdinheiro\b/.test(t)) return 'cash';
   if (/\befectivo\b/.test(t)) return 'cash';
-  // Bank transfer — EN + PL + RO + PT + ES
-  if (/\bbank (transfer|payment)\b|\btransfer\b|\bbacs\b/.test(t)) return 'bank transfer';
+  if (/\bcontanti\b/.test(t)) return 'cash';
+  if (/наличные|нал\b/.test(t)) return 'cash';        // RU (Cyrillic, no \b)
+  if (/\bgrynais\b/.test(t)) return 'cash';
+  if (/готівка/.test(t)) return 'cash';               // UK (Cyrillic)
+  if (/نقدا|كاش/.test(t)) return 'cash';             // AR
+  // Bank transfer — EN + PL + RO + PT + ES + IT + RU + LT + UK + AR
+  if (/\bbank (transfer|payment)\b|\bbacs\b/.test(t)) return 'bank transfer';
+  if (/\btransfer\b/.test(t)) return 'bank transfer';
   if (/\bprzelew\b/.test(t)) return 'bank transfer';
   if (/\btransfer bancar\b/.test(t)) return 'bank transfer';
   if (/\btransferên(cia)?\b/.test(t)) return 'bank transfer';
   if (/\btransferencia\b/.test(t)) return 'bank transfer';
-  // Card — EN + PL + RO + PT + ES
+  if (/\bbonifico\b/.test(t)) return 'bank transfer';
+  if (/перевод/.test(t)) return 'bank transfer';      // RU (Cyrillic)
+  if (/\bpavedimas\b/.test(t)) return 'bank transfer';
+  if (/переказ/.test(t)) return 'bank transfer';      // UK (Cyrillic)
+  if (/تحويل/.test(t)) return 'bank transfer';        // AR
+  // Card — EN + PL + RO + PT + ES + IT + RU + LT + UK + AR
   if (/\bcard\b|\bcredit\b|\bdebit\b/.test(t)) return 'card';
   if (/\bkarta\b/.test(t)) return 'card';
   if (/\bcartão\b/.test(t)) return 'card';
   if (/\btarjeta\b/.test(t)) return 'card';
-  // Cheque — EN + PL + RO + PT/ES
+  if (/\bcarta\b/.test(t)) return 'card';             // IT
+  if (/картой|карта/.test(t)) return 'card';          // RU (Cyrillic)
+  if (/\bkortele\b/.test(t)) return 'card';
+  if (/карткою/.test(t)) return 'card';               // UK (Cyrillic)
+  if (/بطاقة/.test(t)) return 'card';                // AR
+  // Cheque — EN + PL + RO + PT/ES + IT + RU + LT + UK + AR
   if (/\bcheque\b|\bcheck\b/.test(t)) return 'cheque';
   if (/\bczek\b/.test(t)) return 'cheque';
   if (/\bcec\b/.test(t)) return 'cheque';
+  if (/\bassegno\b/.test(t)) return 'cheque';         // IT
+  if (/\bčekis\b/.test(t)) return 'cheque';           // LT
+  if (/чек/.test(t)) return 'cheque';                 // RU + UK (Cyrillic)
+  if (/شيك/.test(t)) return 'cheque';                // AR
   return null;
 }

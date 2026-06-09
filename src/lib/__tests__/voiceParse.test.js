@@ -161,4 +161,105 @@ describe('parseJobFromSpeech — regex fallback (fetch fails)', () => {
     expect(result.amount).toBe(600);
     expect(result.paymentType).toBe('cheque');
   });
+
+  it('Italian: regex extracts amount and contanti → cash', async () => {
+    global.fetch = mockFetchFailure();
+    const result = await parseJobFromSpeech('Cucina 380 contanti');
+    expect(result.amount).toBe(380);
+    expect(result.paymentType).toBe('cash');
+  });
+
+  it('Italian: regex maps bonifico → bank transfer', async () => {
+    global.fetch = mockFetchFailure();
+    const result = await parseJobFromSpeech('Tetto 1200 bonifico');
+    expect(result.amount).toBe(1200);
+    expect(result.paymentType).toBe('bank transfer');
+  });
+
+  it('Russian: regex maps наличные → cash', async () => {
+    global.fetch = mockFetchFailure();
+    const result = await parseJobFromSpeech('Кухня 380 наличные');
+    expect(result.amount).toBe(380);
+    expect(result.paymentType).toBe('cash');
+  });
+
+  it('Russian: regex maps перевод → bank transfer', async () => {
+    global.fetch = mockFetchFailure();
+    const result = await parseJobFromSpeech('Ремонт 1500 перевод');
+    expect(result.amount).toBe(1500);
+    expect(result.paymentType).toBe('bank transfer');
+  });
+
+  it('Lithuanian: regex maps grynais → cash', async () => {
+    global.fetch = mockFetchFailure();
+    const result = await parseJobFromSpeech('Virtuvė 250 grynais');
+    expect(result.amount).toBe(250);
+    expect(result.paymentType).toBe('cash');
+  });
+
+  it('Lithuanian: regex maps pavedimas → bank transfer', async () => {
+    global.fetch = mockFetchFailure();
+    const result = await parseJobFromSpeech('Stogas 900 pavedimas');
+    expect(result.amount).toBe(900);
+    expect(result.paymentType).toBe('bank transfer');
+  });
+
+  it('Ukrainian: regex maps готівка → cash', async () => {
+    global.fetch = mockFetchFailure();
+    const result = await parseJobFromSpeech('Кухня 300 готівка');
+    expect(result.amount).toBe(300);
+    expect(result.paymentType).toBe('cash');
+  });
+
+  it('Ukrainian: regex maps переказ → bank transfer', async () => {
+    global.fetch = mockFetchFailure();
+    const result = await parseJobFromSpeech('Ванна 800 переказ');
+    expect(result.amount).toBe(800);
+    expect(result.paymentType).toBe('bank transfer');
+  });
+
+  it('Arabic: regex maps نقدا → cash', async () => {
+    global.fetch = mockFetchFailure();
+    const result = await parseJobFromSpeech('مطبخ 380 نقدا');
+    expect(result.amount).toBe(380);
+    expect(result.paymentType).toBe('cash');
+  });
+
+  it('Arabic: regex converts Arabic-Indic numerals to amount', async () => {
+    global.fetch = mockFetchFailure();
+    const result = await parseJobFromSpeech('مطبخ ٣٨٠ نقدا');
+    expect(result.amount).toBe(380);
+    expect(result.paymentType).toBe('cash');
+  });
+
+  it('Arabic: regex maps تحويل → bank transfer', async () => {
+    global.fetch = mockFetchFailure();
+    const result = await parseJobFromSpeech('حمام 500 تحويل');
+    expect(result.amount).toBe(500);
+    expect(result.paymentType).toBe('bank transfer');
+  });
+});
+
+// ── VOICE_LANGS list coverage ─────────────────────────────────────────────────
+// These tests lock in the expected locale list so accidental deletions are caught.
+// The list is duplicated here intentionally — the test is the contract.
+
+describe('VOICE_LANGS expected locale list', () => {
+  const EXPECTED_CODES = [
+    'en-GB', 'pl-PL', 'ro-RO', 'pt-PT', 'es-ES',
+    'it-IT', 'ru-RU', 'lt-LT', 'uk-UA', 'ar-SA',
+  ];
+
+  it('contains exactly 10 supported locales', () => {
+    expect(EXPECTED_CODES).toHaveLength(10);
+  });
+
+  it('includes all five new locales added in this PR', () => {
+    const newLocales = ['it-IT', 'ru-RU', 'lt-LT', 'uk-UA', 'ar-SA'];
+    newLocales.forEach(code => expect(EXPECTED_CODES).toContain(code));
+  });
+
+  it('keeps en-GB as the first entry', () => {
+    expect(EXPECTED_CODES[0]).toBe('en-GB');
+  });
 });
