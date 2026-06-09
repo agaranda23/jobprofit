@@ -2516,6 +2516,10 @@ export default function JobDetailDrawer({
   const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
   // reviewSheetMode: null = closed, 'quote' | 'invoice' = open in that mode
   const [reviewSheetMode, setReviewSheetMode] = useState(null);
+  // When the user taps "Edit quote/invoice" inside ReviewSheet, we close the
+  // sheet, open the price editor, and set this so handleAmountSave knows to
+  // re-open ReviewSheet automatically after saving.
+  const postEditReopenReview = useRef(null); // null | 'quote' | 'invoice'
   const [receiptModalOpen, setReceiptModalOpen] = useState(false);
   const [sigPadOpen, setSigPadOpen] = useState(false);
   const [lightboxSrc, setLightboxSrc] = useState(null);
@@ -2837,6 +2841,16 @@ export default function JobDetailDrawer({
   };
 
   // ── Price add / edit ─────────────────────────────────────────────────────
+  // Called when the user taps "Edit quote/invoice" inside ReviewSheet.
+  // Closes ReviewSheet without saving a draft (the user explicitly chose to edit),
+  // records the mode so handleAmountSave can re-open ReviewSheet after saving,
+  // and surfaces the price/line-items edit field immediately.
+  const handleReviewEdit = (mode) => {
+    postEditReopenReview.current = mode;
+    setReviewSheetMode(null);
+    setEditingField('amount');
+  };
+
   // Called by EditFieldModal when editingField === 'amount'.
   const handleAmountSave = (patch) => {
     if (!onUpdateJob) return;
@@ -2862,6 +2876,15 @@ export default function JobDetailDrawer({
     }
     setEditingField(null);
     onClearIntent?.();
+
+    // Return-to-review: if the user arrived here via "Edit quote/invoice" from
+    // ReviewSheet, re-open it so they can re-check and send immediately.
+    const reopenMode = postEditReopenReview.current;
+    if (reopenMode) {
+      postEditReopenReview.current = null;
+      setReviewSheetMode(reopenMode);
+      return;
+    }
 
     // If the user arrived here via the Lead-tile "Send quote →" CTA, continue the
     // funnel by opening ReviewSheet in quote mode so they can actually send it.
@@ -4203,6 +4226,7 @@ export default function JobDetailDrawer({
           onUpdate={onUpdateJob ?? (() => {})}
           onClose={() => setReviewSheetMode(null)}
           onDismiss={() => setReviewSheetMode(null)}
+          onEdit={onUpdateJob ? () => handleReviewEdit(reviewSheetMode) : undefined}
           flash={showFlash}
         />
       )}
