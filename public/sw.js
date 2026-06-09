@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v83';  // bumped from v82: chore/lint-hygiene-pass — remove dead code, fix marginForecast test
+const CACHE_NAME = 'jobprofit-v84';  // bumped from v83: chore/stage-tile-overdue-paid-tweaks — remove tick/dot, brighten overdue red + paid green
 const PRECACHE = [
   '/',
   '/index.html',

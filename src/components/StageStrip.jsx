@@ -30,7 +30,6 @@ export const STAGES = ['Lead', 'Quoted', 'On', 'Invoiced', 'Overdue', 'Paid'];
  */
 function StageTile({ stage, count, total, selected, onSelect, tileRef, formatAmount }) {
   const accentClass = `stage-tile--${stage.toLowerCase()}`;
-  const isPaid = stage === 'Paid';
 
   // Lead has no £ value; £0 reads as a failure state — both render a faint em-dash instead
   const isEmpty = stage === 'Lead' || total === 0;
@@ -41,26 +40,10 @@ function StageTile({ stage, count, total, selected, onSelect, tileRef, formatAmo
     <button
       ref={tileRef}
       type="button"
-      className={`stage-tile ${accentClass}${selected ? ' stage-tile--selected' : ''}${isPaid ? ' stage-tile--paid-finish' : ''}`}
+      className={`stage-tile ${accentClass}${selected ? ' stage-tile--selected' : ''}${stage === 'Paid' ? ' stage-tile--paid-finish' : ''}`}
       onClick={() => onSelect(stage)}
       aria-pressed={selected}
     >
-      {/* Paid tile: small tick sits above the stage name as a finish-line cue */}
-      {isPaid && (
-        <svg
-          className="stage-tile-paid-tick"
-          width="10"
-          height="10"
-          viewBox="0 0 10 10"
-          fill="none"
-          aria-hidden="true"
-        >
-          <path d="M1.5 5l2.5 2.5 4.5-4.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/>
-        </svg>
-      )}
-      {stage === 'Overdue' && (
-        <span className="stage-tile-alert-dot" aria-hidden="true" />
-      )}
       <span className="stage-tile-name">{stage.toUpperCase()}</span>
       <span className="stage-tile-count">{count} {count === 1 ? 'job' : 'jobs'}</span>
       <span className={amountClass}>{amountText}</span>
