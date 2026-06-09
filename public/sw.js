@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v91';  // bumped from v90: fix/today-tab-width-shell — remove foreman-screen padding:0 override so Today header matches Jobs header position
+const CACHE_NAME = 'jobprofit-v92';  // bumped from v91: feat/document-records-design1 — Quotes + Invoices record accordions in JobDetailDrawer
 const PRECACHE = [
   '/',
   '/index.html',
