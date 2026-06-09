@@ -1,4 +1,4 @@
-
+const CACHE_NAME = 'jobprofit-v93';  // bumped from v92: feat/document-records-design2 — Documents hub replaces Design 1 accordions; signature gated behind reveal
 const PRECACHE = [
   '/',
   '/index.html',
