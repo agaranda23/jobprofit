@@ -3828,39 +3828,64 @@ export default function JobDetailDrawer({
 
             return (
               <>
-                {/* 1. Slim hint card — stage-aware "Next: …" copy, no button */}
+                {/* 1. Slim hint card — stage-aware "Next: …" copy, no button. Pinned at top. */}
                 <HintCard content={nextStepContent} />
 
-                {/* 1b. Stage timeline — milestone history, collapsed by default.
-                     Only rendered when at least two milestones exist (additive, non-breaking).
-                     Placement: below the hint card, before customer details, so it reads
-                     as "where has this job been?" before the current-state cards. */}
+                {/* 2. Price accordion — the number the job lives or dies on; first thing
+                     both the tradesperson and customer ask. */}
                 <CollapsedSectionRow
-                  key="timeline"
-                  id="timeline"
-                  icon={<Icon name="date" size={16} variant="muted" />}
-                  title="Timeline"
-                  meta={status}
-                  defaultExpanded={false}
+                  key="quote"
+                  id="quote"
+                  icon={<Icon name="lead" size={16} variant="muted" />}
+                  title="Price"
+                  meta={quoteMeta}
+                  needsAttention={attention.quote}
+                  defaultExpanded={quoteDefaultExpanded}
                 >
-                  <StageTimeline job={job} />
+                  {quoteBodyEl}
                 </CollapsedSectionRow>
 
-                {/* 2. Customer card — name · phone · address · email · description */}
-                <CustomerCard
-                  job={job}
-                  onEditName={onUpdateJob ? () => setEditingField('name') : undefined}
-                  onEditPhone={onUpdateJob ? () => setEditingField('phone') : undefined}
-                  onEditAddress={onUpdateJob ? () => setEditingField('address') : undefined}
-                  onEditEmail={onUpdateJob ? () => setEditingField('email') : undefined}
-                  onEditDescription={onUpdateJob ? () => setEditingField('description') : undefined}
-                />
+                {/* 3. Documents entry row — quote/invoice status = the Get Paid loop made
+                     visible (sent? signed? paid?). Earns the spot right after Price. */}
+                {(() => {
+                  const quoteRecord   = buildQuoteRecordMeta(job);
+                  const invoiceRecord = buildInvoiceRecordMeta(job);
+                  const qState = quoteRecord.state;
+                  const iState = invoiceRecord.state;
 
-                {/* CIS-4/5: tax meta (CIS toggle + exclude) */}
-                {isCisUser && taxMetaEl}
+                  let summary;
+                  if (qState !== 'none' && iState !== 'none') {
+                    summary = `${quoteRecord.chipLabel} · ${invoiceRecord.chipLabel}`;
+                  } else if (qState !== 'none') {
+                    summary = `Quote ${quoteRecord.chipLabel.toLowerCase()}`;
+                  } else if (iState !== 'none') {
+                    summary = `Invoice ${invoiceRecord.chipLabel.toLowerCase()}`;
+                  } else {
+                    summary = 'None yet';
+                  }
 
-                {/* 4. Schedule card — collapsible, inline edit form when open */}
-                {/* 4. Schedule card — multi-visit list (Iteration A) */}
+                  return (
+                    <button
+                      key="documents-entry"
+                      type="button"
+                      className="jd-card-row jd-card-row--tappable jd-docs-entry"
+                      onClick={() => setDocsHubOpen(true)}
+                      aria-label={`Documents — ${summary}. Tap to open.`}
+                    >
+                      <span className="jd-docs-entry-icon">
+                        <Icon name="invoice" size={16} variant="muted" />
+                      </span>
+                      <span className="jd-docs-entry-name">Documents</span>
+                      <span className="jd-docs-entry-summary">{summary}</span>
+                      <span className="jd-card-row-chevron">
+                        <Icon name="chevron-right" size={16} variant="muted" />
+                      </span>
+                    </button>
+                  );
+                })()}
+
+                {/* 4. Schedule card — "when/where am I" — high glance-value on site,
+                     but secondary to money. */}
                 <CollapsedSectionRow
                   key="schedule"
                   id="schedule"
@@ -3939,7 +3964,7 @@ export default function JobDetailDrawer({
                       </div>
                     </div>
                   )}
-{/* Visit editor sheet */}
+                  {/* Visit editor sheet */}
                   <VisitEditorSheet
                     open={!!editingVisit}
                     visit={editingVisit}
@@ -3948,61 +3973,21 @@ export default function JobDetailDrawer({
                   />
                 </CollapsedSectionRow>
 
-                {/* 6a. Documents entry row — compact single-row hub entry (Design 2).
-                     Replaces the two Design 1 Quotes/Invoices record accordions.
-                     Tapping opens DocumentsHub for the full tabbed timeline view. */}
-                {(() => {
-                  const quoteRecord   = buildQuoteRecordMeta(job);
-                  const invoiceRecord = buildInvoiceRecordMeta(job);
-                  const qState = quoteRecord.state;
-                  const iState = invoiceRecord.state;
+                {/* 5. Customer card — tap-to-call/navigate utility; you usually already know
+                     who it is once you're in the job, so it sits below money + scheduling. */}
+                <CustomerCard
+                  job={job}
+                  onEditName={onUpdateJob ? () => setEditingField('name') : undefined}
+                  onEditPhone={onUpdateJob ? () => setEditingField('phone') : undefined}
+                  onEditAddress={onUpdateJob ? () => setEditingField('address') : undefined}
+                  onEditEmail={onUpdateJob ? () => setEditingField('email') : undefined}
+                  onEditDescription={onUpdateJob ? () => setEditingField('description') : undefined}
+                />
 
-                  let summary;
-                  if (qState !== 'none' && iState !== 'none') {
-                    summary = `${quoteRecord.chipLabel} · ${invoiceRecord.chipLabel}`;
-                  } else if (qState !== 'none') {
-                    summary = `Quote ${quoteRecord.chipLabel.toLowerCase()}`;
-                  } else if (iState !== 'none') {
-                    summary = `Invoice ${invoiceRecord.chipLabel.toLowerCase()}`;
-                  } else {
-                    summary = 'None yet';
-                  }
+                {/* CIS-4/5: tax meta (CIS toggle + exclude) */}
+                {isCisUser && taxMetaEl}
 
-                  return (
-                    <button
-                      key="documents-entry"
-                      type="button"
-                      className="jd-card-row jd-card-row--tappable jd-docs-entry"
-                      onClick={() => setDocsHubOpen(true)}
-                      aria-label={`Documents — ${summary}. Tap to open.`}
-                    >
-                      <span className="jd-docs-entry-icon">
-                        <Icon name="invoice" size={16} variant="muted" />
-                      </span>
-                      <span className="jd-docs-entry-name">Documents</span>
-                      <span className="jd-docs-entry-summary">{summary}</span>
-                      <span className="jd-card-row-chevron">
-                        <Icon name="chevron-right" size={16} variant="muted" />
-                      </span>
-                    </button>
-                  );
-                })()}
-
-                {/* 6c. Price accordion — quote builder / line-items (renamed from "Quote" to
-                     disambiguate from the new "Quotes" record accordion above) */}
-                <CollapsedSectionRow
-                  key="quote"
-                  id="quote"
-                  icon={<Icon name="lead" size={16} variant="muted" />}
-                  title="Price"
-                  meta={quoteMeta}
-                  needsAttention={attention.quote}
-                  defaultExpanded={quoteDefaultExpanded}
-                >
-                  {quoteBodyEl}
-                </CollapsedSectionRow>
-
-                {/* 7. Costs accordion */}
+                {/* 6. Costs accordion — feeds the profit/insight layer; logged occasionally. */}
                 <CollapsedSectionRow
                   key="costs"
                   id="costs"
@@ -4015,45 +4000,62 @@ export default function JobDetailDrawer({
                   {costsBodyEl}
                 </CollapsedSectionRow>
 
-                {/* 7b. Add note accordion — re-housed from the old flat Photos & notes block */}
-                <CollapsedSectionRow
-                  key="add-note"
-                  id="add-note"
-                  icon={<Icon name="note" size={16} variant="muted" />}
-                  title="Add note"
-                  meta={hasNoteContent ? noteCountMeta : 'None yet'}
-                  defaultExpanded={noteFormOpen}
-                >
-                  {notesEl}
-                </CollapsedSectionRow>
+                {/* 7. Notes & photos — merged accordion: capture actions, low frequency.
+                     Collapsed meta: "{n} note{s} · {n} photo{s}" or "None yet" when both empty.
+                     Notes section rendered first (with add-note form), photos section second. */}
+                {(() => {
+                  const notesPhotosMeta = (() => {
+                    const hasNotes = noteCount > 0;
+                    const hasPhotos = photoCount > 0;
+                    if (!hasNotes && !hasPhotos) return 'None yet';
+                    if (hasNotes && hasPhotos) {
+                      return `${noteCount} note${noteCount !== 1 ? 's' : ''} · ${photoCount} photo${photoCount !== 1 ? 's' : ''}`;
+                    }
+                    if (hasNotes) return `${noteCount} note${noteCount !== 1 ? 's' : ''}`;
+                    return `${photoCount} photo${photoCount !== 1 ? 's' : ''}`;
+                  })();
 
-                {/* 7c. Add photo accordion */}
+                  return (
+                    <CollapsedSectionRow
+                      key="notes-photos"
+                      id="notes-photos"
+                      icon={<Icon name="note" size={16} variant="muted" />}
+                      title="Notes & photos"
+                      meta={notesPhotosMeta}
+                      defaultExpanded={false}
+                    >
+                      {notesEl}
+                      {onUpdateJob && (
+                        <button
+                          ref={addPhotoBtnRef}
+                          type="button"
+                          className="jd-photos-notes-btn"
+                          onClick={() => setPhotoSheetOpen(true)}
+                          disabled={photoAdding}
+                          aria-label="Add photo"
+                        >
+                          {photoAdding ? 'Adding…' : <><Icon name="camera" size={16} />{' '}Add photo</>}
+                        </button>
+                      )}
+                      {photosEl}
+                    </CollapsedSectionRow>
+                  );
+                })()}
+
+                {/* 8. Timeline — low-glance audit log, not an in-the-moment need;
+                     demoted out of prime real estate at the top. */}
                 <CollapsedSectionRow
-                  key="add-photo"
-                  id="add-photo"
-                  icon={<Icon name="camera" size={16} variant="muted" />}
-                  title="Add photo"
-                  meta={photoCount > 0 ? `${photoCount} photo${photoCount !== 1 ? 's' : ''}` : 'None yet'}
+                  key="timeline"
+                  id="timeline"
+                  icon={<Icon name="date" size={16} variant="muted" />}
+                  title="Timeline"
+                  meta={status}
                   defaultExpanded={false}
                 >
-                  {onUpdateJob && (
-                    <button
-                      ref={addPhotoBtnRef}
-                      type="button"
-                      className="jd-photos-notes-btn"
-                      onClick={() => setPhotoSheetOpen(true)}
-                      disabled={photoAdding}
-                      aria-label="Add photo"
-                    >
-                      {photoAdding ? 'Adding…' : <><Icon name="camera" size={16} />{' '}Add photo</>}
-                    </button>
-                  )}
-                  {photosEl}
+                  <StageTimeline job={job} />
                 </CollapsedSectionRow>
 
-                {/* 7d. Payment block — moved below Costs, above View profit breakdown.
-                    Variant A (pre-invoice, no payments yet) gets a "Deposit (optional)"
-                    label so the lone Record Payment button doesn't look adrift. */}
+                {/* 9. Payment block — contextual; stays in its existing low position. */}
                 {paymentSections.length > 0 && (
                   <div className="jd-payment-block">
                     {isPreInvoiceJob && (job.payments || []).length === 0 && (
@@ -4063,7 +4065,7 @@ export default function JobDetailDrawer({
                   </div>
                 )}
 
-                {/* 8. View profit breakdown — opens ProfitBreakdownSheet */}
+                {/* 10. View profit breakdown — opens ProfitBreakdownSheet */}
                 <button
                   type="button"
                   className="jd-breakdown-btn"
@@ -4073,7 +4075,7 @@ export default function JobDetailDrawer({
                   View profit breakdown
                 </button>
 
-                {/* 11. B2B settings row — no card chrome, below More */}
+                {/* 11. B2B settings row — no card chrome, below profit breakdown */}
                 <B2BSettingsRow
                   job={job}
                   onToggle={onUpdateJob ? () => {
