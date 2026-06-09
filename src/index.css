@@ -183,7 +183,7 @@ button:focus-visible {
   /* Brand palette — light-legible variants */
   --jp-green:    #00a86b;
   --jp-amber:    #d97706;
-  --jp-rose:     #dc2626;
+  --jp-rose:     #e03535;
   --jp-blue:     #2563eb;
   --jp-navy:     #e8f0fe;  /* used as a surface tint on the finance card */
 
@@ -191,7 +191,7 @@ button:focus-visible {
   --grn-quoted:   #B3F0D5;
   --grn-on:       #5FD9A6;
   --grn-invoiced: #28B581;
-  --grn-paid:     #0E6B43;
+  --grn-paid:     #18865A;
 
   /* Cashflow chart tokens */
   --cf-green:     #00a86b;
@@ -2128,7 +2128,7 @@ input[type=number] { -moz-appearance: textfield; }
 :root {
   --jp-green:     #2bc48a;
   --jp-amber:     #f4a024;
-  --jp-rose:      #e5484d;
+  --jp-rose:      #f04550;
   --jp-rose-deep: #962024;
   --jp-blue:      #3B82F6;
   --jp-navy:      #0f1b2d;
@@ -2137,7 +2137,7 @@ input[type=number] { -moz-appearance: textfield; }
   --grn-quoted:   #B3F0D5;  /* Pale mint     — lightness ~78% */
   --grn-on:       #5FD9A6;  /* Mid green     — lightness ~62% */
   --grn-invoiced: #28B581;  /* Brand-adjacent — lightness ~45% */
-  --grn-paid:     #0E6B43;  /* Deep emerald  — lightness ~24% */
+  --grn-paid:     #18865A;  /* Deep emerald  — lightness ~30% (brightened) */
 }
 
 /* Nav badge */
@@ -4585,7 +4585,7 @@ input[type=number] { -moz-appearance: textfield; }
 .stage-tile--quoted:not(.stage-tile--selected)   { background: rgba(40,181,129,0.06); }
 .stage-tile--on:not(.stage-tile--selected)       { background: rgba(40,181,129,0.12); }
 .stage-tile--invoiced:not(.stage-tile--selected) { background: rgba(40,181,129,0.20); }
-.stage-tile--paid:not(.stage-tile--selected)     { background: rgba(14,107,67,0.16); }
+.stage-tile--paid:not(.stage-tile--selected)     { background: rgba(24,134,90,0.16); }
 .stage-tile--lead:not(.stage-tile--selected)     { background: rgba(37,99,235,0.07); }
 
 /* Resting ink override — LIGHT THEME ONLY.
@@ -4634,23 +4634,11 @@ input[type=number] { -moz-appearance: textfield; }
   background: rgba(40,181,129,0.20);
   box-shadow: inset 0 3px 0 var(--jp-rose), inset -1px 0 0 var(--border);
 }
-.stage-tile--overdue:not(.stage-tile--selected) .stage-tile-amount { color: #B42318; }
+.stage-tile--overdue:not(.stage-tile--selected) .stage-tile-amount { color: var(--jp-rose); }
 /* name/count dark ink — LIGHT THEME ONLY */
 [data-theme="light"] .stage-tile--overdue:not(.stage-tile--selected) .stage-tile-name,
 [data-theme="light"] .stage-tile--overdue:not(.stage-tile--selected) .stage-tile-count { color: #0B1220; }
 
-/* Alert dot — absolute pin in top-right corner of the tile */
-.stage-tile-alert-dot {
-  position: absolute;
-  top: 4px;
-  right: 4px;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--jp-rose);
-}
-/* Selected Overdue tile: dot turns white so it reads on the rose fill */
-.stage-tile--overdue.stage-tile--selected .stage-tile-alert-dot { background: #fff; }
 
 /* Lead tile: blue accent when unselected */
 .stage-tile--lead .stage-tile-name,
@@ -4778,29 +4766,12 @@ input[type=number] { -moz-appearance: textfield; }
 }
 
 /* ── Paid finish-line accent ────────────────────────────────────────────────
-   The Paid tile carries a subtle green tint and a tick icon so the strip
-   visually reads as a journey ending in a win.
-   Uses --grn-paid (already in the palette) — no new colour introduced.
-   Works in both the selected state (defined above: dark green fill, white text)
-   and the unselected state defined here (green name + tick). */
+   Unselected Paid tile: name in --grn-paid so the strip reads as a journey
+   ending in a win. Uses --grn-paid (already in the palette). */
 
-/* Tick icon: matches the name colour in each state */
-.stage-tile-paid-tick {
-  color: var(--grn-paid);
-  flex-shrink: 0;
-  margin-bottom: 0;
-  display: block;
-}
-
-/* Unselected Paid tile: name and tick in --grn-paid for a subtle finish cue */
+/* Unselected Paid tile: name in --grn-paid for a subtle finish cue */
 .stage-tile--paid-finish .stage-tile-name {
   color: var(--grn-paid);
-}
-
-/* Selected Paid tile: tick and name are already #FFFFFF via the selected rule above;
-   enforce consistent colour on the tick SVG path stroke. */
-.stage-tile--paid.stage-tile--selected .stage-tile-paid-tick {
-  color: #FFFFFF;
 }
 
 /* ── Pipeline coachmark ─────────────────────────────────────────────────────
