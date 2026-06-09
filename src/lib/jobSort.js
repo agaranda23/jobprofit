@@ -22,12 +22,15 @@
  */
 export function jobMatchesQuery(job, q) {
   if (!q) return true;
-  const lower = q.toLowerCase();
+  // Strip leading £ and commas so "£3,400" and "3400" both work.
+  const normalised = q.replace(/^£/, '').replace(/,/g, '');
+  const lower = normalised.toLowerCase();
   return (
     (job.customer || job.name || '').toLowerCase().includes(lower) ||
     (job.summary || '').toLowerCase().includes(lower) ||
     (job.address || '').toLowerCase().includes(lower) ||
-    (job.phone || job.customerPhone || job.mobile || '').toLowerCase().includes(lower)
+    (job.phone || job.customerPhone || job.mobile || '').toLowerCase().includes(lower) ||
+    String(job.total ?? job.amount ?? '').includes(lower)
   );
 }
 

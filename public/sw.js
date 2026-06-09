@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v94';  // bumped from v93: fix/documents-hub-render-and-style — sheet nested inside backdrop (tint-but-no-content fix); hub restyled per PRD spec; entry-row alignment
+const CACHE_NAME = 'jobprofit-v95';  // bumped from v94: feat/today-document-search-popup — view-buttons row on Today, DocumentSearchOverlay (jobs/quotes/invoices), verb upgrade (Log a job / Quote it / Send invoice), amount search in jobMatchesQuery
 const PRECACHE = [
   '/',
   '/index.html',

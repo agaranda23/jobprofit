@@ -9643,6 +9643,357 @@ input[type=number] { -moz-appearance: textfield; }
   margin-left: 12px;
 }
 
+/* ── View buttons row ("Look at your work") ─────────────────────────────────── */
+
+.foreman-view-group {
+  margin: 0 16px 12px;
+}
+
+.foreman-view-label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 8px;
+}
+
+.foreman-view-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+}
+
+.foreman-view-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: 1.5px solid var(--border, #1F2B44);
+  border-radius: 10px;
+  color: var(--text-dim, #9CA3AF);
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  padding: 12px 8px;
+  min-height: 44px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: border-color 0.15s, color 0.15s;
+}
+.foreman-view-btn:active {
+  border-color: var(--accent, #34d672);
+  color: var(--accent, #34d672);
+  opacity: 0.9;
+}
+
+/* ── DocumentSearchOverlay ───────────────────────────────────────────────────── */
+
+.dso-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.72);
+  z-index: var(--z-backdrop);
+  display: flex;
+  align-items: flex-end;
+  padding: 0;
+  /* Slide-up animation */
+  animation: dso-fade-in 0.18s ease-out;
+}
+
+@keyframes dso-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.dso-sheet {
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  border-radius: 16px 16px 0 0;
+  width: 100%;
+  /* Near full-screen — leave a small gap at the top so the trader can see
+     they're on an overlay and can tap the backdrop to close */
+  max-height: calc(95dvh - env(safe-area-inset-top, 0px));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  animation: dso-slide-up 0.2s ease-out;
+}
+
+@keyframes dso-slide-up {
+  from { transform: translateY(40px); opacity: 0.6; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+/* Header */
+.dso-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 16px 12px;
+  border-bottom: 1px solid var(--border, #1F2B44);
+  flex-shrink: 0;
+}
+
+.dso-header__titles {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dso-header__title {
+  font-size: 17px;
+  font-weight: 700;
+  color: #fff;
+  margin: 0;
+  line-height: 1.2;
+}
+
+.dso-header__subtitle {
+  font-size: 12px;
+  color: var(--text-dim, #9CA3AF);
+  font-weight: 500;
+}
+
+.dso-close-btn {
+  background: none;
+  border: none;
+  color: var(--text-dim, #9CA3AF);
+  padding: 6px;
+  cursor: pointer;
+  font-family: inherit;
+  flex-shrink: 0;
+  min-width: 44px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+/* Search bar */
+.dso-search-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border, #1F2B44);
+  flex-shrink: 0;
+}
+
+.dso-search-icon {
+  color: var(--text-dim, #9CA3AF);
+  flex-shrink: 0;
+}
+
+.dso-search-input {
+  flex: 1;
+  background: none;
+  border: none;
+  outline: none;
+  color: #E5E7EB;
+  font-size: 15px;
+  font-family: inherit;
+  min-width: 0;
+  /* Remove iOS Safari search-input default styling */
+  -webkit-appearance: none;
+  appearance: none;
+}
+.dso-search-input::placeholder {
+  color: var(--text-dim, #9CA3AF);
+}
+/* Hide browser's native clear button — we render our own */
+.dso-search-input::-webkit-search-cancel-button { display: none; }
+
+.dso-search-clear {
+  background: none;
+  border: none;
+  color: var(--text-dim, #9CA3AF);
+  padding: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  flex-shrink: 0;
+  min-width: 32px;
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* List area */
+.dso-list {
+  overflow-y: auto;
+  flex: 1;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Row */
+.dso-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--border, #1F2B44);
+  color: #E5E7EB;
+  font-family: inherit;
+  padding: 14px 16px;
+  cursor: pointer;
+  text-align: left;
+  gap: 10px;
+  min-height: 60px;
+  -webkit-tap-highlight-color: transparent;
+}
+.dso-row:last-child { border-bottom: none; }
+.dso-row:active { background: rgba(255, 255, 255, 0.04); }
+
+.dso-row__body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
+}
+
+.dso-row__name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #E5E7EB;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dso-row__sub {
+  font-size: 12px;
+  color: var(--text-dim, #9CA3AF);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dso-row__right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.dso-row__amount {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent, #34d672);
+  font-variant-numeric: tabular-nums;
+}
+
+.dso-row__chevron {
+  color: var(--text-dim, #9CA3AF);
+  flex-shrink: 0;
+}
+
+/* Status chips */
+.dso-chip {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 7px;
+  border-radius: 20px;
+  white-space: nowrap;
+}
+.dso-chip--green   { background: rgba(52, 214, 114, 0.15); color: #34d672; }
+.dso-chip--rose    { background: rgba(248, 113, 113, 0.15); color: #f87171; }
+.dso-chip--amber   { background: rgba(251, 191, 36, 0.15);  color: #fbbf24; }
+.dso-chip--neutral { background: rgba(156, 163, 175, 0.15); color: #9CA3AF; }
+.dso-chip--muted   { background: rgba(156, 163, 175, 0.08); color: #6B7280; }
+
+/* Zero-item (first use) state */
+.dso-empty {
+  padding: 40px 24px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.dso-empty__icon {
+  font-size: 36px;
+  line-height: 1;
+}
+
+.dso-empty__title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #E5E7EB;
+  margin: 0;
+}
+
+.dso-empty__body {
+  font-size: 14px;
+  color: var(--text-dim, #9CA3AF);
+  margin: 0;
+  max-width: 280px;
+  line-height: 1.5;
+}
+
+.dso-empty__cta {
+  background: var(--accent, #34d672);
+  color: #0B0F17;
+  border: none;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: inherit;
+  padding: 13px 24px;
+  cursor: pointer;
+  min-height: 48px;
+  -webkit-tap-highlight-color: transparent;
+  margin-top: 4px;
+}
+.dso-empty__cta:active { opacity: 0.85; }
+
+/* No-results state */
+.dso-no-results {
+  padding: 40px 24px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.dso-no-results__title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #E5E7EB;
+  margin: 0;
+}
+
+.dso-no-results__hint {
+  font-size: 13px;
+  color: var(--text-dim, #9CA3AF);
+  margin: 0;
+  max-width: 280px;
+  line-height: 1.5;
+}
+
+.dso-no-results__clear {
+  background: none;
+  border: 1.5px solid var(--border, #1F2B44);
+  border-radius: 8px;
+  color: var(--text-dim, #9CA3AF);
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  padding: 8px 16px;
+  cursor: pointer;
+  min-height: 40px;
+  -webkit-tap-highlight-color: transparent;
+  margin-top: 4px;
+}
+.dso-no-results__clear:active { opacity: 0.7; }
+
 /* ── Earned/Spent/Profit card — now lives on Money tab (FinanceScreen) ──────── */
 /* Styles in the .foreman-esp-* namespace so they don't collide with legacy .totals */
 
