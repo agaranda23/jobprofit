@@ -266,30 +266,27 @@ function CustomerCard({ job, onEditName, onEditPhone, onEditAddress, onEditEmail
         )
       )}
 
-      {/* Phone — tap number to call; action chips (Call · Text · WhatsApp) below;
+      {/* Phone — tap number to edit; action chips (Call · Text · WhatsApp) below;
           ghost-button when empty. Chips only render when phone is present. */}
       {phone ? (
         <>
-          <div className="jd-card-row jd-card-row--phone">
-            <span className="jd-card-row-icon"><Icon name="phone" size={16} variant="muted" /></span>
-            <a
-              href={`tel:${phone}`}
-              className="jd-card-row-val jd-card-row-val--link"
-              aria-label={`Call ${phone}`}
+          {canEdit ? (
+            <button
+              type="button"
+              className="jd-card-row jd-card-row--tappable"
+              onClick={onEditPhone}
+              aria-label="Edit customer phone"
             >
-              {phone}
-            </a>
-            {canEdit && (
-              <button
-                type="button"
-                className="jd-card-row-edit"
-                onClick={onEditPhone}
-                aria-label="Edit customer phone"
-              >
-                ›
-              </button>
-            )}
-          </div>
+              <span className="jd-card-row-icon"><Icon name="phone" size={16} variant="muted" /></span>
+              <span className="jd-card-row-val">{phone}</span>
+              <span className="jd-card-row-edit" aria-hidden="true">›</span>
+            </button>
+          ) : (
+            <div className="jd-card-row">
+              <span className="jd-card-row-icon"><Icon name="phone" size={16} variant="muted" /></span>
+              <span className="jd-card-row-val">{phone}</span>
+            </div>
+          )}
           {/* One-tap action chips — additive, never replace the tap-to-call link above */}
           <div className="jd-action-chip-row" role="group" aria-label="Contact actions">
             <a
@@ -310,7 +307,7 @@ function CustomerCard({ job, onEditName, onEditPhone, onEditAddress, onEditEmail
             </a>
             <button
               type="button"
-              className="jd-action-chip jd-action-chip--primary"
+              className="jd-action-chip"
               aria-label="WhatsApp customer"
               onClick={() => {
                 logTelemetry('drawer_action_whatsapp');
@@ -335,25 +332,23 @@ function CustomerCard({ job, onEditName, onEditPhone, onEditAddress, onEditEmail
         )
       )}
 
-      {/* Address — platform-aware Maps link on icon+text, edit on chevron.
-          Navigate chip rendered below when address is present.
+      {/* Address — tap text to edit; Navigate chip below still opens Maps.
           Read-only branch (canEdit false): whole row links to Maps.
           No-address branch: unchanged ghost-button for adding address. */}
       {address ? (
         canEdit ? (
           <>
             <div className="jd-card-row jd-card-row--split-action">
-              <a
-                href={buildMapsUrl(address)}
-                target="_blank"
-                rel="noopener noreferrer"
+              {/* .jd-card-row-maps-tap kept for minimal diff — now triggers edit, not Maps */}
+              <button
+                type="button"
                 className="jd-card-row-maps-tap"
-                aria-label={`Open ${address} in Maps`}
-                onClick={() => logTelemetry('drawer_action_map', { source: 'drawer' })}
+                onClick={onEditAddress}
+                aria-label="Edit customer address"
               >
                 <span className="jd-card-row-icon"><Icon name="address" size={16} variant="muted" /></span>
                 <span className="jd-card-row-val">{address}</span>
-              </a>
+              </button>
               <button
                 type="button"
                 className="jd-card-row-edit-btn"

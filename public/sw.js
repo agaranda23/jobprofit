@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v85';  // bumped from v84: chore/accordion-headline-colour-consistency — panel body uses --surface (lighter) so all accordion headers are visually distinct from content
+const CACHE_NAME = 'jobprofit-v86';  // bumped from v85: feat/whatsapp-outline-tap-to-edit — WhatsApp chip outlined; phone/address text tap opens edit
 const PRECACHE = [
   '/',
   '/index.html',
