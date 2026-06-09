@@ -26,6 +26,7 @@ import Icon from '../components/Icon';
 import ReviewSheet from '../components/ReviewSheet';
 import GetProPill from '../components/GetProPill';
 import ProUpgradeSheet from '../components/ProUpgradeSheet';
+import DocumentSearchOverlay from '../components/DocumentSearchOverlay';
 import { gbp, formatToday } from '../lib/today';
 import { isAwaitingPayment, deriveStatus } from '../lib/jobStatus';
 import { daysPastDue, recordChase, buildChaseMessage, computeTier, buildPaymentDetails } from '../lib/chaseLadder';
@@ -103,6 +104,8 @@ export default function TodayScreen({
   const [showPayNowNudge, setShowPayNowNudge] = useState(false);
   // upgradeSheetOpen: controls ProUpgradeSheet visibility on Today.
   const [upgradeSheetOpen, setUpgradeSheetOpen] = useState(false);
+  // docOverlay: which document search overlay is open ('jobs'|'quotes'|'invoices'|null)
+  const [docOverlay, setDocOverlay] = useState(null);
 
   // gotPaidDeferTimers: refs to pending show-delay timers for "Got paid?" chip
   // toasts. Stored so we can cancel them on unmount or if the user saves another
@@ -577,7 +580,7 @@ export default function TodayScreen({
           onClick={() => setJobOpen(true)}
         >
           <Icon name="active-job" size={24} className="foreman-pivot-icon" />
-          Job
+          Log a job
         </button>
         <button
           type="button"
@@ -585,7 +588,7 @@ export default function TodayScreen({
           onClick={() => { setJobOpenMode('quote'); setJobOpen(true); }}
         >
           <Icon name="file" size={24} className="foreman-pivot-icon" />
-          Quote
+          Quote it
         </button>
         <button
           type="button"
@@ -593,8 +596,36 @@ export default function TodayScreen({
           onClick={handleSendInvoicePivot}
         >
           <Icon name="send" size={24} className="foreman-pivot-icon" />
-          Invoice
+          Send invoice
         </button>
+      </div>
+
+      {/* ── View buttons (look at your work) ─────────────────────────────── */}
+      <div className="foreman-view-group">
+        <span className="foreman-view-label">Look at your work</span>
+        <div className="foreman-view-row">
+          <button
+            type="button"
+            className="foreman-view-btn"
+            onClick={() => setDocOverlay('jobs')}
+          >
+            All jobs
+          </button>
+          <button
+            type="button"
+            className="foreman-view-btn"
+            onClick={() => setDocOverlay('quotes')}
+          >
+            Quotes
+          </button>
+          <button
+            type="button"
+            className="foreman-view-btn"
+            onClick={() => setDocOverlay('invoices')}
+          >
+            Invoices
+          </button>
+        </div>
       </div>
 
       {/* ── Weekly check-in line (shown when there's activity) ───────────── */}
@@ -752,6 +783,19 @@ export default function TodayScreen({
             &times;
           </button>
         </div>
+      )}
+
+      {/* ── Document search overlay — opened by view-buttons row ────────── */}
+      {docOverlay && (
+        <DocumentSearchOverlay
+          mode={docOverlay}
+          jobs={jobs}
+          onClose={() => setDocOverlay(null)}
+          onJobSelect={onJobTap}
+          onCreateJob={() => setJobOpen(true)}
+          onCreateQuote={() => { setJobOpenMode('quote'); setJobOpen(true); }}
+          onSendInvoice={handleSendInvoicePivot}
+        />
       )}
 
       {/* ── ProUpgradeSheet — opened by GetProPill on Today ──────────────── */}

@@ -79,6 +79,37 @@ describe('jobMatchesQuery', () => {
     const j = job({ id: 'SEARCH_ME' });
     expect(jobMatchesQuery(j, 'SEARCH_ME')).toBe(false);
   });
+
+  // ── Amount matching (DocumentSearchOverlay extension) ─────────────────────
+  it('matches on job.total as a plain number string', () => {
+    const j = job({ total: 3400 });
+    expect(jobMatchesQuery(j, '3400')).toBe(true);
+    expect(jobMatchesQuery(j, '340')).toBe(true); // substring
+    expect(jobMatchesQuery(j, '9999')).toBe(false);
+  });
+
+  it('matches on job.amount when total is absent', () => {
+    const j = job({ total: undefined, amount: 850 });
+    expect(jobMatchesQuery(j, '850')).toBe(true);
+    expect(jobMatchesQuery(j, '100')).toBe(false);
+  });
+
+  it('strips leading £ from query before matching amount', () => {
+    const j = job({ total: 3400 });
+    expect(jobMatchesQuery(j, '£3400')).toBe(true);
+  });
+
+  it('strips commas from query so £3,400 matches 3400', () => {
+    const j = job({ total: 3400 });
+    expect(jobMatchesQuery(j, '£3,400')).toBe(true);
+    expect(jobMatchesQuery(j, '3,400')).toBe(true);
+  });
+
+  it('does not match when amount is absent and query cannot match other fields', () => {
+    // Use a query that won't accidentally match name/summary/address/phone
+    const j = job({ customer: 'Zeta', summary: 'Fence', address: 'Long Lane', phone: '', customerPhone: '', mobile: '', total: undefined, amount: undefined });
+    expect(jobMatchesQuery(j, '9999')).toBe(false);
+  });
 });
 
 // ─── sortJobsByStage ──────────────────────────────────────────────────────────
