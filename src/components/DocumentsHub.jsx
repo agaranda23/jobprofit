@@ -8,8 +8,8 @@
  *  - ALL hooks are declared before any early return (R1 — see PR #125 trap).
  *  - GatedSignature is a sub-component defined in this file; its hooks also
  *    live above its own early returns.
- *  - fmtDate is a local copy of the same helper in JobDetailDrawer.jsx
- *    (keeps this module self-contained and unit-testable without DOM imports).
+ *  - fmtDate / fmtDateTime are local helpers (keeps this module self-contained
+ *    and unit-testable without DOM imports).
  */
 
 import React, { useState } from 'react';
@@ -28,6 +28,25 @@ function fmtDate(raw) {
     return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
   } catch {
     return raw;
+  }
+}
+
+// ─── Date + time formatter ────────────────────────────────────────────────────
+// Returns e.g. "6 Jun, 4:12pm". Returns '' for missing/invalid input (never throws).
+function fmtDateTime(raw) {
+  if (!raw) return '';
+  try {
+    const d = new Date(raw);
+    if (isNaN(d.getTime())) return '';
+    return d.toLocaleString('en-GB', {
+      day:     'numeric',
+      month:   'short',
+      hour:    'numeric',
+      minute:  '2-digit',
+      hour12:  true,
+    });
+  } catch {
+    return '';
   }
 }
 
@@ -91,7 +110,7 @@ function GatedSignature({ job }) {
       {hasSig && (
         <div className="docs-hub-sig-reveal">
           <p className="docs-hub-sig-hint">
-            This is your customer&apos;s signature. Tap to show it.
+            SIGNATURE — HIDDEN BY DEFAULT
           </p>
           <button
             type="button"
@@ -100,7 +119,7 @@ function GatedSignature({ job }) {
             aria-expanded={sigShown}
             aria-controls="docs-hub-sig-img"
           >
-            {sigShown ? 'Hide signature' : 'View signature'}
+            {sigShown ? 'Hide signature' : '🔒 View signature'}
           </button>
           {sigShown && (
             <div id="docs-hub-sig-img" className="docs-hub-sig-img-wrap">
@@ -119,7 +138,7 @@ function GatedSignature({ job }) {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // DocumentTimeline — vertical step timeline for one doc type.
-// steps = [{ label, date, reached, isOverdue, isDue, partPaidLabel }]
+// steps = [{ label, subLine, consentSuffix, date, reached, isOverdue, isDue, partPaidLabel }]
 // ─────────────────────────────────────────────────────────────────────────────
 function DocumentTimeline({ steps }) {
   return (
@@ -139,8 +158,10 @@ function DocumentTimeline({ steps }) {
               >
                 {step.isOverdue && step.overdueLabel ? step.overdueLabel : step.label}
               </span>
-              {step.reached && step.date && (
-                <span className="docs-step-date">{step.date}</span>
+              {step.reached && step.subLine && (
+                <span className="docs-step-date">
+                  {step.subLine}{step.consentSuffix ? ' · consent given' : ''}
+                </span>
               )}
               {step.partPaidLabel && (
                 <span className="docs-step-part-paid">{step.partPaidLabel}</span>
@@ -183,26 +204,44 @@ export default function DocumentsHub({ open, job, biz, profile, onClose, onBuild
   // ── Quote timeline steps ──────────────────────────────────────────────────
   const quoteIsNone = quoteRecord.state === 'none';
 
+  const customerName = job?.customer || job?.name || 'customer';
+  const acceptedName = job?.acceptedName || 'customer';
+
+  // Signed step: actor-aware label based on acceptedSource
+  let signedLabel = 'Signed';
+  if (job?.acceptedAt || quoteRecord.state === 'signed' || quoteRecord.state === 'accepted') {
+    if (job?.acceptedSource === 'remote') {
+      signedLabel = `Signed remotely by ${acceptedName}`;
+    } else if (job?.acceptedSource === 'deposit_payment') {
+      signedLabel = 'Accepted via deposit payment';
+    } else if (job?.acceptedSource) {
+      signedLabel = `Signed on screen by ${acceptedName}`;
+    }
+  }
+
   const quoteSteps = [
     {
       label:   'Created',
-      date:    job?.createdAt ? fmtDate(job.createdAt) : '',
+      subLine: fmtDateTime(job?.createdAt),
       reached: quoteRecord.state !== 'none',
     },
     {
-      label:   'Sent',
-      date:    job?.quoteSentAt ? fmtDate(job.quoteSentAt) : '',
+      label:   `Sent to ${customerName}`,
+      subLine: fmtDateTime(job?.quoteSentAt),
       reached: !!job?.quoteSentAt,
     },
     {
-      label:   'Opened',
-      date:    job?.quoteLinkOpenedAt ? fmtDate(job.quoteLinkOpenedAt) : '',
+      label:   'Opened by customer',
+      subLine: fmtDateTime(job?.quoteLinkOpenedAt),
       reached: !!job?.quoteLinkOpenedAt,
     },
     {
-      label:   'Signed',
-      date:    job?.acceptedAt ? fmtDate(job.acceptedAt) : '',
-      reached: !!(job?.acceptedAt || quoteRecord.state === 'signed' || quoteRecord.state === 'accepted'),
+      label:         signedLabel,
+      subLine:       fmtDateTime(job?.acceptedAt),
+      // Consent suffix only for remote signatures — remote signing hard-requires consent.
+      // Channel (WhatsApp etc.) is NOT stored; omitting to avoid fabrication.
+      consentSuffix: job?.acceptedSource === 'remote' && !!(job?.acceptedAt || quoteRecord.state === 'signed' || quoteRecord.state === 'accepted'),
+      reached:       !!(job?.acceptedAt || quoteRecord.state === 'signed' || quoteRecord.state === 'accepted'),
     },
   ];
 
@@ -217,17 +256,17 @@ export default function DocumentsHub({ open, job, biz, profile, onClose, onBuild
   const invoiceSteps = [
     {
       label:   'Created',
-      date:    '',
+      subLine: '',
       reached: hasInvoiceContent,
     },
     {
-      label:   'Sent',
-      date:    job?.invoiceSentAt ? fmtDate(job.invoiceSentAt) : '',
+      label:   `Sent to ${customerName}`,
+      subLine: fmtDateTime(job?.invoiceSentAt),
       reached: !!job?.invoiceSentAt,
     },
     {
       label:       isOverdue ? 'Overdue' : 'Due',
-      date:        job?.invoiceDueDate ? fmtDate(job.invoiceDueDate) : '',
+      subLine:     job?.invoiceDueDate ? fmtDate(job.invoiceDueDate) : '',
       reached:     !!(job?.invoiceDueDate && !!job?.invoiceSentAt),
       isOverdue,
       isDue,
@@ -236,7 +275,7 @@ export default function DocumentsHub({ open, job, biz, profile, onClose, onBuild
     },
     {
       label:   'Paid',
-      date:    job?.paidAt ? fmtDate(job.paidAt) : '',
+      subLine: fmtDateTime(job?.paidAt),
       reached: !!(job?.paidAt || invoiceRecord.state === 'paid'),
     },
   ];
@@ -276,35 +315,46 @@ export default function DocumentsHub({ open, job, biz, profile, onClose, onBuild
   const invoiceDocLabel = job?.invoiceNumber ? `Invoice ${job.invoiceNumber}` : 'Invoice';
   const activeRecord    = tab === 'quotes' ? quoteRecord : invoiceRecord;
   const docIsNone       = tab === 'quotes' ? quoteIsNone : invoiceIsNone;
+  const isSigned        = !!(job?.acceptedAt || quoteRecord.state === 'signed' || quoteRecord.state === 'accepted');
 
+  // PDF button label: signed quote → "View signed PDF"; unsigned → "View quote PDF"; invoice → "View invoice PDF"
+  let pdfBtnLabel;
+  if (generating) {
+    pdfBtnLabel = 'Generating…';
+  } else if (tab === 'quotes') {
+    pdfBtnLabel = isSigned ? 'View signed PDF' : 'View quote PDF';
+  } else {
+    pdfBtnLabel = 'View invoice PDF';
+  }
+
+  // FIX 1: sheet is nested INSIDE the backdrop (not a sibling fragment).
+  // The backdrop is position:fixed with display:flex — the sheet is its flex child.
+  // Tap-outside (backdrop onClick) closes; stopPropagation on the sheet prevents
+  // the backdrop click from firing when the user taps inside the sheet.
   return (
-    <>
-      {/* Backdrop — tap to close */}
-      <div
-        className="modal-backdrop modal-backdrop--top"
-        onClick={onClose}
-        aria-hidden="true"
-      />
-
-      {/* Sheet */}
+    <div
+      className="modal-backdrop modal-backdrop--top"
+      onClick={onClose}
+      aria-hidden="true"
+    >
       <div
         className="modal-sheet rs-sheet"
         role="dialog"
         aria-modal="true"
-        aria-label="Documents"
+        aria-label="Documents & signatures"
         onClick={e => e.stopPropagation()}
       >
-        {/* Header */}
-        <div className="modal-sheet-header">
-          <h2 className="modal-sheet-title rs-title">Documents</h2>
+        {/* Header: back-chevron + title, left-aligned */}
+        <div className="modal-sheet-header docs-hub-header">
           <button
             type="button"
-            className="modal-sheet-close"
+            className="docs-hub-back-btn"
             onClick={onClose}
-            aria-label="Close Documents hub"
+            aria-label="Back"
           >
-            <Icon name="close" size={20} />
+            <Icon name="chevron-left" size={20} />
           </button>
+          <h2 className="modal-sheet-title rs-title">Documents &amp; signatures</h2>
         </div>
 
         {/* Tab switcher */}
@@ -350,18 +400,18 @@ export default function DocumentsHub({ open, job, biz, profile, onClose, onBuild
               </button>
             </div>
           ) : (
-            /* Doc content */
-            <div className="docs-hub-content">
-              {/* Header chip row */}
-              <div className="docs-hub-doc-header">
+            /* Doc content — wrapped in a rounded dark card */
+            <div className="docs-hub-card">
+              {/* Card header: doc label left, status pill right */}
+              <div className="docs-hub-card-header">
+                <span className="docs-hub-doc-label">
+                  {tab === 'quotes' ? 'Quote' : invoiceDocLabel}
+                </span>
                 {activeRecord.chipLabel && (
                   <span className={`jd-doc-chip jd-doc-chip--${activeRecord.chipClass}`}>
                     {activeRecord.chipLabel}
                   </span>
                 )}
-                <span className="docs-hub-doc-label">
-                  {tab === 'quotes' ? 'Quote' : invoiceDocLabel}
-                </span>
               </div>
 
               {/* Timeline */}
@@ -372,20 +422,20 @@ export default function DocumentsHub({ open, job, biz, profile, onClose, onBuild
                 <GatedSignature job={job} />
               )}
 
-              {/* View PDF */}
+              {/* View PDF — green primary CTA */}
               <button
                 type="button"
-                className="docs-hub-view-pdf-btn"
+                className="docs-hub-view-pdf-btn docs-hub-view-pdf-btn--green"
                 onClick={handleViewPDF}
                 disabled={generating}
-                aria-label={generating ? 'Generating PDF…' : `View ${tab === 'quotes' ? 'quote' : 'invoice'} PDF`}
+                aria-label={generating ? 'Generating PDF…' : pdfBtnLabel}
               >
-                {generating ? 'Generating…' : 'View PDF'}
+                {pdfBtnLabel}
               </button>
             </div>
           )}
         </div>
       </div>
-    </>
+    </div>
   );
 }

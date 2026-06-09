@@ -14860,9 +14860,19 @@ input[type=number] { -moz-appearance: textfield; }
 /* ── DocumentsHub — Design 2 (feat/document-records-design2, 2026-06) ─────── */
 
 /* Compact entry row inside the drawer — replaces the two Design 1 accordions */
+/* FIX 3: entry row now matches sibling jd-csr-row alignment.
+   padding/gap mirror .jd-csr-row (0 14px / 8px).
+   Icon span width matches .jd-csr-icon (18px).
+   Summary mirrors .jd-csr-meta: left-aligned, flex:1, margin-left:4px. */
 .jd-docs-entry {
   min-height: 48px;
-  padding: 4px 0;
+  padding: 0 14px;
+  gap: 8px;
+}
+.jd-docs-entry-icon {
+  width: 18px;
+  text-align: center;
+  flex-shrink: 0;
 }
 .jd-docs-entry-name {
   font-size: 14px;
@@ -14872,10 +14882,9 @@ input[type=number] { -moz-appearance: textfield; }
 }
 .jd-docs-entry-summary {
   flex: 1;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--text-dim);
-  text-align: right;
-  padding-right: 6px;
+  margin-left: 4px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -14885,6 +14894,14 @@ input[type=number] { -moz-appearance: textfield; }
 .docs-hub-tabs {
   margin-bottom: 0;
   flex-shrink: 0;
+}
+
+/* Active tab: filled green in dark mode (scoped override so global
+   .work-segment--active isn't affected elsewhere). */
+.docs-hub-tabs .work-segment--active {
+  background: var(--accent);
+  color: #0a0a0a;
+  border-color: var(--accent);
 }
 
 /* Hub body — scrollable; header + tabs are flex siblings above it */
@@ -14925,15 +14942,41 @@ input[type=number] { -moz-appearance: textfield; }
 }
 .docs-hub-ghost-btn:active { opacity: 0.7; }
 
-/* Doc content area */
-.docs-hub-content {
+/* Hub header row: back chevron + title, left-aligned */
+.docs-hub-header {
+  justify-content: flex-start;
+  gap: 6px;
+}
+.docs-hub-back-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
+  background: var(--surface-2);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+.docs-hub-back-btn:active { opacity: 0.7; }
+
+/* Doc content area — ONE rounded dark card wraps timeline + sig + PDF */
+.docs-hub-card {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 16px;
   display: flex;
   flex-direction: column;
   gap: 16px;
 }
-.docs-hub-doc-header {
+/* Card header: doc label left, status pill right */
+.docs-hub-card-header {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 8px;
 }
 .docs-hub-doc-label {
@@ -14942,7 +14985,7 @@ input[type=number] { -moz-appearance: textfield; }
   color: var(--text);
 }
 
-/* View PDF button — outline/neutral, not green */
+/* View PDF button — base style (neutral outline) */
 .docs-hub-view-pdf-btn {
   width: 100%;
   box-sizing: border-box;
@@ -14960,6 +15003,18 @@ input[type=number] { -moz-appearance: textfield; }
 .docs-hub-view-pdf-btn:disabled { opacity: 0.5; cursor: default; }
 .docs-hub-view-pdf-btn:active   { opacity: 0.7; }
 [data-theme="light"] .docs-hub-view-pdf-btn { background: var(--surface-2); }
+
+/* Green primary CTA variant — matches "Chase on WhatsApp" family */
+.docs-hub-view-pdf-btn--green {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #0a0a0a;
+}
+[data-theme="light"] .docs-hub-view-pdf-btn--green {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #0a0a0a;
+}
 
 /* Timeline */
 .docs-timeline {
@@ -15052,15 +15107,25 @@ input[type=number] { -moz-appearance: textfield; }
   background: transparent;
   padding: 0;
 }
+/* Sig reveal: dashed, centered */
 .docs-hub-sig-reveal {
+  border: 1.5px dashed var(--border);
+  border-radius: 10px;
+  padding: 16px;
+  text-align: center;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  align-items: center;
+  gap: 8px;
 }
+/* Small-caps label replacing the old hint paragraph */
 .docs-hub-sig-hint {
-  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 11px;
   color: var(--text-dim);
   margin: 0;
+  font-style: normal;
 }
 .docs-hub-sig-btn {
   background: none;

@@ -3976,7 +3976,7 @@ export default function JobDetailDrawer({
                       onClick={() => setDocsHubOpen(true)}
                       aria-label={`Documents — ${summary}. Tap to open.`}
                     >
-                      <span className="jd-card-row-icon">
+                      <span className="jd-docs-entry-icon">
                         <Icon name="invoice" size={16} variant="muted" />
                       </span>
                       <span className="jd-docs-entry-name">Documents</span>
