@@ -396,7 +396,7 @@ export default function TodayScreen({
   }, [tier, promptJob, meta, now]);
 
   return (
-    <div className="today-screen foreman-screen">
+    <div className="screen today-screen foreman-screen">
       {/* ── Header ──────────────────────────────────────────────────────────── */}
       <header className="foreman-header screen-header">
         <h1 className="screen-title">{formatToday()}</h1>
