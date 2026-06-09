@@ -13030,9 +13030,8 @@ input[type=number] { -moz-appearance: textfield; }
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
   text-decoration: none;
-  /* Outlined-accent style — default for Call + Text + Navigate.
-     Solid green border + green label, matching the WhatsApp (--primary)
-     accent. WhatsApp stays filled via .jd-action-chip--primary below. */
+  /* Outlined-accent style — all chips (Call, Text, WhatsApp, Navigate) share
+     the same ghost treatment: transparent bg, accent border, accent text. */
   background: transparent;
   border: 1.5px solid var(--accent);
   color: var(--accent);
@@ -13042,21 +13041,6 @@ input[type=number] { -moz-appearance: textfield; }
 
 .jd-action-chip:active {
   opacity: 0.65;
-}
-
-/* Primary chip — WhatsApp gets the accent treatment */
-.jd-action-chip--primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #0b1f10;
-}
-
-[data-theme="light"] .jd-action-chip--primary {
-  color: #fff;
-}
-
-.jd-action-chip--primary:active {
-  opacity: 0.8;
 }
 
 /* Navigate chip row — single chip, centre-aligned, sized to match one of
