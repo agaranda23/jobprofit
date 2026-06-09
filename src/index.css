@@ -15219,6 +15219,10 @@ input[type=number] { -moz-appearance: textfield; }
   min-height: 48px;
   padding: 0 14px;
   gap: 8px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  flex-shrink: 0;
 }
 .jd-docs-entry-icon {
   width: 18px;

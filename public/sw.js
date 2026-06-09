@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v95';  // bumped from v94: feat/today-document-search-popup — view-buttons row on Today, DocumentSearchOverlay (jobs/quotes/invoices), verb upgrade (Log a job / Quote it / Send invoice), amount search in jobMatchesQuery
+const CACHE_NAME = 'jobprofit-v96';  // bumped from v95: fix/documents-row-card-colour — give Documents entry row matching card chrome (surface-2 bg, border, border-radius, flex-shrink:0) to match .jd-csr siblings
 const PRECACHE = [
   '/',
   '/index.html',
