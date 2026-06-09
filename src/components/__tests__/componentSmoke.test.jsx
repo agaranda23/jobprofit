@@ -369,7 +369,10 @@ describe('StageStrip render smoke', () => {
     ).not.toThrow();
   });
 
-  it('Overdue tile renders alert dot; Paid tile does not', () => {
+  // PR #326 (b0507c4) intentionally removed the alert-dot from Overdue and the
+  // SVG tick from Paid — both were pure decoration. This test now asserts that
+  // neither tile renders those adornments (ensuring the removal stays clean).
+  it('Overdue and Paid tiles render no decoration adornments (alert-dot/paid-tick removed in PR #326)', () => {
     const { container } = render(
       <StageStrip
         jobs={[]}
@@ -382,8 +385,9 @@ describe('StageStrip render smoke', () => {
     );
     const overdueTile = container.querySelector('.stage-tile--overdue');
     const paidTile    = container.querySelector('.stage-tile--paid');
-    expect(overdueTile.querySelector('.stage-tile-alert-dot')).not.toBeNull();
+    expect(overdueTile.querySelector('.stage-tile-alert-dot')).toBeNull();
     expect(paidTile.querySelector('.stage-tile-alert-dot')).toBeNull();
+    expect(paidTile.querySelector('.stage-tile-paid-tick')).toBeNull();
   });
 });
 
