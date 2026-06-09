@@ -10132,21 +10132,26 @@ input[type=number] { -moz-appearance: textfield; }
        .jd-csr--expanded is kept as a CSS hook for any future styling needs but
        carries no layout-affecting rules. position:relative is removed — it was only
        retained as a stacking-context candidate, which is no longer needed. */
+/* When expanded: container (including the header row, which has background:none)
+   inherits --surface-expanded (darker shade). The panel body uses --surface
+   (lighter shade) so the header is visually distinct from the content below it.
+   This "darker header, lighter body" treatment applies uniformly to ALL accordion
+   sections (Schedule, Quote, Costs, Add note, Add photo, Timeline) regardless of
+   whether their content wraps in a .jd-section card or renders rows directly. */
 .jd-csr--expanded {
   background: var(--surface-expanded);
 }
 .jd-csr--expanded .jd-csr-panel {
-  background: var(--surface-expanded);
+  background: var(--surface);
 }
 
 /* 6th drawer regression (June 2026) — opaque panel background.
    Originally added so the panel area was opaque when the max-height panel
    overflowed the container's layout box. With conditional render the container
    now grows in-flow so there is no overflow to mask — this rule is harmless
-   but kept as defensive chrome (ensures the panel area matches the card surface
-   in any future layout mode). var(--surface-2) matches the container background. */
+   but kept as defensive chrome (ensures the panel area is always opaque). */
 .jd-csr-panel {
-  background: var(--surface-2);
+  background: var(--surface);
 }
 
 .jd-csr--attention {

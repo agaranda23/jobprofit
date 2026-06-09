@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v84';  // bumped from v83: chore/stage-tile-overdue-paid-tweaks — remove tick/dot, brighten overdue red + paid green
+const CACHE_NAME = 'jobprofit-v85';  // bumped from v84: chore/accordion-headline-colour-consistency — panel body uses --surface (lighter) so all accordion headers are visually distinct from content
 const PRECACHE = [
   '/',
   '/index.html',
