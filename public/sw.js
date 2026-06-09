@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v86';  // bumped from v85: feat/whatsapp-outline-tap-to-edit — WhatsApp chip outlined; phone/address text tap opens edit
+const CACHE_NAME = 'jobprofit-v87';  // bumped from v86: fix/overdue-tile-text-contrast — OVERDUE tile text #FFB8B8 for dark-theme legibility
 const PRECACHE = [
   '/',
   '/index.html',

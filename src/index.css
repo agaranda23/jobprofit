@@ -4618,11 +4618,11 @@ input[type=number] { -moz-appearance: textfield; }
 
 /* ── Inactive text colours ── */
 
-/* Overdue tile: rose accent when unselected */
+/* Overdue tile: light pink text on dark theme for legibility against the green-tinted bg */
 .stage-tile--overdue .stage-tile-name,
 .stage-tile--overdue .stage-tile-count,
 .stage-tile--overdue .stage-tile-amount {
-  color: var(--jp-rose);
+  color: #FFB8B8;
 }
 
 /* ── Overdue overlay reskin (Tweak 2) ────────────────────────────────────────
@@ -4634,10 +4634,11 @@ input[type=number] { -moz-appearance: textfield; }
   background: rgba(40,181,129,0.20);
   box-shadow: inset 0 3px 0 var(--jp-rose), inset -1px 0 0 var(--border);
 }
-.stage-tile--overdue:not(.stage-tile--selected) .stage-tile-amount { color: var(--jp-rose); }
-/* name/count dark ink — LIGHT THEME ONLY */
+.stage-tile--overdue:not(.stage-tile--selected) .stage-tile-amount { color: #FFB8B8; }
+/* name/count/amount dark ink — LIGHT THEME ONLY (#FFB8B8 is unreadable on white) */
 [data-theme="light"] .stage-tile--overdue:not(.stage-tile--selected) .stage-tile-name,
 [data-theme="light"] .stage-tile--overdue:not(.stage-tile--selected) .stage-tile-count { color: #0B1220; }
+[data-theme="light"] .stage-tile--overdue:not(.stage-tile--selected) .stage-tile-amount { color: var(--jp-rose); }
 
 
 /* Lead tile: blue accent when unselected */
