@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v90';  // bumped from v89: fix/today-tab-width-shell — Today tab now uses .screen shell, matches Jobs/Money/Settings width
+const CACHE_NAME = 'jobprofit-v91';  // bumped from v90: fix/remove-signature-from-customer-card — remove sig render from CustomerCard (GDPR/good-practice; data + PDF intact)
 const PRECACHE = [
   '/',
   '/index.html',

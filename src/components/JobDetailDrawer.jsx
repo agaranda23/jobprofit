@@ -464,43 +464,6 @@ function CustomerCard({ job, onEditName, onEditPhone, onEditAddress, onEditEmail
         )
       )}
 
-      {/* Accepted signature — read-only thumbnail shown after quote acceptance.
-          When acceptedSource is 'deposit_payment' (no handwritten signature),
-          show a card-acceptance badge instead of an empty signature box. */}
-      {job.acceptedSource === 'deposit_payment' && !job.acceptedSignature ? (
-        <div className="sig-accepted-card">
-          <div className="sig-accepted-label">Accepted by card deposit</div>
-          <div className="sig-accepted-source">
-            Customer paid the deposit — quote accepted
-          </div>
-          {job.acceptedAt && (
-            <div className="sig-accepted-date">
-              {fmtDate(job.acceptedAt)}
-            </div>
-          )}
-        </div>
-      ) : job.acceptedSignature ? (
-        <div className="sig-accepted-card">
-          <div className="sig-accepted-label">Accepted by customer</div>
-          <img
-            src={job.acceptedSignature}
-            alt="Customer signature"
-            className="sig-accepted-img"
-          />
-          <div className="sig-accepted-source">
-            {job.acceptedSource === 'remote'
-              ? `Signed remotely${job.acceptedName ? ` by ${job.acceptedName}` : ' by customer'}`
-              : job.acceptedSource === 'deposit_payment'
-              ? 'Accepted by card deposit'
-              : 'Signed on screen'}
-          </div>
-          {job.acceptedAt && (
-            <div className="sig-accepted-date">
-              {fmtDate(job.acceptedAt)}
-            </div>
-          )}
-        </div>
-      ) : null}
     </div>
   );
 }
