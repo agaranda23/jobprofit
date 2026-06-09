@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v87';  // bumped from v86: fix/overdue-tile-text-contrast — OVERDUE tile text #FFB8B8 for dark-theme legibility
+const CACHE_NAME = 'jobprofit-v88';  // bumped from v87: fix/address-bar-background — button background reset on .jd-card-row-maps-tap
 const PRECACHE = [
   '/',
   '/index.html',
