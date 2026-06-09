@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v92';  // bumped from v91: fix/money-settings-logo-nudge — shift JP logo 5px right on Money + Settings screens only
+
 const PRECACHE = [
   '/',
   '/index.html',

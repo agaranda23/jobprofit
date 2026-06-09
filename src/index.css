@@ -10247,6 +10247,35 @@ input[type=number] { -moz-appearance: textfield; }
   border-radius: 0 0 12px 12px;
 }
 
+/* ── Document record chips (Quotes + Invoices accordions, Design 1 2026-06) ── */
+/* flex-shrink:0 is required — without it the chip renders behind its sibling text
+   inside the flex row (the documented .jd-csr flex-shrink bug; it is NOT a z-index
+   issue — verify layout in a real browser). */
+.jd-doc-chip { display:inline-flex; align-items:center; padding:2px 8px; border-radius:999px; font-size:11px; font-weight:700; line-height:1.4; flex-shrink:0; }
+.jd-doc-chip--neutral { background:#1e2d4a; color:#93c5fd; }
+.jd-doc-chip--green   { background:#1a3a2a; color:var(--jp-green); }
+.jd-doc-chip--amber   { background:#3a2a12; color:var(--jp-amber); }
+.jd-doc-chip--rose    { background:#3a1a1a; color:var(--jp-rose); }
+.jd-doc-chip--muted   { background:rgba(127,127,127,.15); color:var(--muted,#888); }
+
+/* Light-mode tints — match the status badge pattern at ~:207-213 */
+[data-theme="light"] .jd-doc-chip--neutral { background:#dbeafe; color:#1e40af; }
+[data-theme="light"] .jd-doc-chip--green   { background:#d1fae5; color:#065f46; }
+[data-theme="light"] .jd-doc-chip--amber   { background:#fef3c7; color:#92400e; }
+[data-theme="light"] .jd-doc-chip--rose    { background:#fee2e2; color:#991b1b; }
+[data-theme="light"] .jd-doc-chip--muted   { background:rgba(0,0,0,.07); color:#6b7280; }
+
+.jd-doc-row { display:flex; flex-direction:column; gap:4px; padding:10px 16px; }
+.jd-doc-row-line1 { display:flex; align-items:center; gap:8px; }
+.jd-doc-row-label { flex:1; font-size:13px; font-weight:600; color:var(--text); }
+.jd-doc-row-view-pdf { font-size:12px; font-weight:600; padding:4px 10px; border-radius:8px; border:1px solid var(--border); background:none; color:var(--text-dim); cursor:pointer; -webkit-tap-highlight-color:transparent; flex-shrink:0; }
+.jd-doc-row-view-pdf:active { opacity:0.7; }
+.jd-doc-row-view-pdf:disabled { opacity:0.5; cursor:default; }
+.jd-doc-row-timeline { font-size:11px; color:var(--text-dim); }
+.jd-doc-row-audit { font-size:11px; color:var(--text-dim); font-style:italic; }
+.jd-doc-empty { padding:12px 16px; font-size:13px; color:var(--text-dim); }
+.jd-doc-empty-link { background:none; border:none; color:var(--accent); font-size:13px; font-weight:600; cursor:pointer; padding:0; -webkit-tap-highlight-color:transparent; }
+
 /* ── ProfitRibbon ─────────────────────────────────────────────────────────── */
 
 .jd-profit-ribbon {

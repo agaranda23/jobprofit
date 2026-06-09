@@ -60,6 +60,9 @@ import {
   tomorrowDateString,
 } from '../lib/visits';
 import StageTimeline from './StageTimeline';
+import { buildQuoteRecordMeta, buildInvoiceRecordMeta } from '../lib/documentRecord';
+import { downloadQuotePDF, downloadInvoicePDF } from '../lib/invoicePDF';
+import { isPro } from '../lib/plan';
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -1578,6 +1581,119 @@ function QuoteBreakdownSection({ job, onSaveLine, onDeleteLine }) {
 // QuickContactSection removed (Design A) — the phone row in DetailsSection
 // (Customer card) is the canonical tap-to-call affordance.
 // The duplicate Call/Text button grid is gone. Space reclaimed.
+
+/**
+ * DocumentRecordRow — renders one document row inside a Quotes or Invoices
+ * accordion body.
+ *
+ * Hooks rule (R1): all useState/useCallback live here, NOT in the giant drawer
+ * body which has early returns before hooks. (See PR #125 trap.)
+ *
+ * CRITICAL: acceptedSignature is NEVER rendered as <img> in the UI.
+ * The signature is embedded inside the PDF only (generateQuotePDF handles it).
+ *
+ * @param {{ variant: 'quote'|'invoice', job: object, biz: object, profile: object }} props
+ */
+function DocumentRecordRow({ variant, job, biz, profile }) {
+  const [generating, setGenerating] = useState(false);
+
+  const isQuote = variant === 'quote';
+  const chipMeta = isQuote
+    ? buildQuoteRecordMeta(job)
+    : buildInvoiceRecordMeta(job);
+
+  const docLabel = isQuote
+    ? 'Quote'
+    : job.invoiceNumber ? `Invoice ${job.invoiceNumber}` : 'Invoice';
+
+  async function handleViewPDF() {
+    if (generating) return;
+    setGenerating(true);
+    try {
+      if (isQuote) {
+        await downloadQuotePDF({
+          job,
+          biz,
+          profile,
+          quoteUrl: '',
+          qrDataUrl: '',
+          hidePoweredBy: isPro(profile),
+        });
+      } else {
+        await downloadInvoicePDF({
+          job,
+          biz,
+          profile,
+          invoiceNumber: job.invoiceNumber,
+          dueDate: job.invoiceDueDate,
+          hidePoweredBy: isPro(profile),
+        });
+      }
+    } catch (err) {
+      // Silently swallow — the PDF generator will have logged internally.
+      // A toast would be ideal here but we don't have access to setToast from
+      // this sub-component; a follow-up can thread it through if needed.
+      console.error('[DocumentRecordRow] PDF generation failed', err);
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  // ── Timeline line (only reached timestamps) ─────────────────────────────
+  const timelineParts = [];
+  if (isQuote) {
+    if (job.quoteSentAt)        timelineParts.push(`Sent ${fmtDate(job.quoteSentAt)}`);
+    if (job.quoteLinkOpenedAt)  timelineParts.push(`Opened ${fmtDate(job.quoteLinkOpenedAt)}`);
+    if (job.acceptedAt)         timelineParts.push(`Signed ${fmtDate(job.acceptedAt)}`);
+  } else {
+    if (job.invoiceSentAt)      timelineParts.push(`Sent ${fmtDate(job.invoiceSentAt)}`);
+    if (job.invoiceDueDate)     timelineParts.push(`Due ${fmtDate(job.invoiceDueDate)}`);
+    if (job.paidAt)             timelineParts.push(`Paid ${fmtDate(job.paidAt)}`);
+  }
+
+  // ── Audit line (Quotes only, text only, only when signed) ────────────────
+  // acceptedSignature is intentionally NOT rendered here — it lives in the PDF only.
+  let auditLine = null;
+  if (isQuote && chipMeta.state === 'signed' && job.acceptedAt) {
+    const name = job.acceptedName || 'customer';
+    const dateStr = fmtDate(job.acceptedAt);
+    if (job.acceptedSource === 'remote') {
+      auditLine = `Signed remotely by ${name} · ${dateStr}`;
+    } else if (job.acceptedSource === 'deposit_payment') {
+      auditLine = `Accepted via deposit payment · ${dateStr}`;
+    } else {
+      auditLine = `Signed on screen by ${name} · ${dateStr}`;
+    }
+  }
+
+  return (
+    <div className="jd-doc-row">
+      <div className="jd-doc-row-line1">
+        {chipMeta.chipLabel && (
+          <span className={`jd-doc-chip jd-doc-chip--${chipMeta.chipClass}`}>
+            {chipMeta.chipLabel}
+          </span>
+        )}
+        <span className="jd-doc-row-label">{docLabel}</span>
+        <button
+          type="button"
+          className="jd-doc-row-view-pdf"
+          onClick={handleViewPDF}
+          disabled={generating}
+          aria-label={generating ? 'Generating PDF…' : `View ${docLabel} PDF`}
+        >
+          {generating ? 'Generating…' : 'View PDF'}
+        </button>
+      </div>
+      {timelineParts.length > 0 && (
+        <div className="jd-doc-row-timeline">{timelineParts.join(' · ')}</div>
+      )}
+      {auditLine && (
+        <div className="jd-doc-row-audit">{auditLine}</div>
+      )}
+    </div>
+  );
+}
 
 /**
  * Receipts section — receipts linked to this job via jobId.
@@ -3955,12 +4071,103 @@ export default function JobDetailDrawer({
                   />
                 </CollapsedSectionRow>
 
-                {/* 6. Quote accordion */}
+                {/* 6a. Quotes record accordion — signed-document record, Design 1 */}
+                {(() => {
+                  const quoteRecord = buildQuoteRecordMeta(job);
+                  return (
+                    <CollapsedSectionRow
+                      key="quotes-record"
+                      id="quotes-record"
+                      icon={<Icon name="lead" size={16} variant="muted" />}
+                      title="Quotes"
+                      meta={quoteRecord.metaString}
+                      defaultExpanded={false}
+                    >
+                      {quoteRecord.state === 'none' ? (
+                        <div className="jd-doc-empty">
+                          No quote sent yet.
+                          {onUpdateJob && (
+                            <>
+                              {' '}
+                              <button
+                                type="button"
+                                className="jd-doc-empty-link"
+                                onClick={() => {
+                                  // Expand the Price (builder) accordion — open quote mode
+                                  if (needsPrice(job)) {
+                                    setEditingField('amount');
+                                  } else {
+                                    setReviewSheetMode('quote');
+                                  }
+                                }}
+                              >
+                                Build a quote
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      ) : (
+                        <DocumentRecordRow
+                          variant="quote"
+                          job={job}
+                          biz={biz}
+                          profile={profile}
+                        />
+                      )}
+                    </CollapsedSectionRow>
+                  );
+                })()}
+
+                {/* 6b. Invoices record accordion — signed-document record, Design 1 */}
+                {(() => {
+                  const invoiceRecord = buildInvoiceRecordMeta(job);
+                  return (
+                    <CollapsedSectionRow
+                      key="invoices-record"
+                      id="invoices-record"
+                      icon={<Icon name="invoice" size={16} variant="muted" />}
+                      title="Invoices"
+                      meta={invoiceRecord.metaString}
+                      defaultExpanded={false}
+                    >
+                      {invoiceRecord.state === 'none' ? (
+                        <div className="jd-doc-empty">
+                          No invoice sent yet.
+                          {onUpdateJob && (
+                            <>
+                              {' '}
+                              <button
+                                type="button"
+                                className="jd-doc-empty-link"
+                                onClick={() => {
+                                  if (needsPrice(job)) { setEditingField('amount'); return; }
+                                  setReviewSheetMode('invoice');
+                                }}
+                              >
+                                Send invoice
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      ) : (
+                        <DocumentRecordRow
+                          variant="invoice"
+                          job={job}
+                          biz={biz}
+                          profile={profile}
+                        />
+                      )}
+                    </CollapsedSectionRow>
+                  );
+                })()}
+
+                {/* 6c. Price accordion — quote builder / line-items (renamed from "Quote" to
+                     disambiguate from the new "Quotes" record accordion above) */}
                 <CollapsedSectionRow
                   key="quote"
                   id="quote"
                   icon={<Icon name="lead" size={16} variant="muted" />}
-                  title="Quote"
+                  title="Price"
                   meta={quoteMeta}
                   needsAttention={attention.quote}
                   defaultExpanded={quoteDefaultExpanded}
