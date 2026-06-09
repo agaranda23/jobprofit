@@ -14856,3 +14856,231 @@ input[type=number] { -moz-appearance: textfield; }
   opacity: 0.6;
   white-space: nowrap;
 }
+
+/* ── DocumentsHub — Design 2 (feat/document-records-design2, 2026-06) ─────── */
+
+/* Compact entry row inside the drawer — replaces the two Design 1 accordions */
+.jd-docs-entry {
+  min-height: 48px;
+  padding: 4px 0;
+}
+.jd-docs-entry-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+  flex-shrink: 0;
+}
+.jd-docs-entry-summary {
+  flex: 1;
+  font-size: 12px;
+  color: var(--text-dim);
+  text-align: right;
+  padding-right: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Hub tab switcher — no bottom margin (body handles the gap) */
+.docs-hub-tabs {
+  margin-bottom: 0;
+  flex-shrink: 0;
+}
+
+/* Hub body — scrollable; header + tabs are flex siblings above it */
+.docs-hub-body {
+  overflow-y: auto;
+  flex: 1;
+  padding-top: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Empty state */
+.docs-hub-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 32px 16px;
+}
+.docs-hub-empty-text {
+  font-size: 14px;
+  color: var(--text-dim);
+  margin: 0;
+  text-align: center;
+}
+.docs-hub-ghost-btn {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  padding: 10px 20px;
+  border-radius: 10px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.docs-hub-ghost-btn:active { opacity: 0.7; }
+
+/* Doc content area */
+.docs-hub-content {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.docs-hub-doc-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.docs-hub-doc-label {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+/* View PDF button — outline/neutral, not green */
+.docs-hub-view-pdf-btn {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: none;
+  color: var(--text);
+  font-size: 14px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.docs-hub-view-pdf-btn:disabled { opacity: 0.5; cursor: default; }
+.docs-hub-view-pdf-btn:active   { opacity: 0.7; }
+[data-theme="light"] .docs-hub-view-pdf-btn { background: var(--surface-2); }
+
+/* Timeline */
+.docs-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.docs-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-height: 36px;
+}
+.docs-step-track {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex-shrink: 0;
+  width: 16px;
+  padding-top: 2px;
+}
+.docs-step-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  background: transparent;
+  flex-shrink: 0;
+}
+.docs-step-dot--filled {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.docs-step-connector {
+  width: 2px;
+  flex: 1;
+  min-height: 20px;
+  background: var(--border);
+  border-radius: 1px;
+  margin-top: 2px;
+}
+.docs-step-connector--filled {
+  background: var(--accent);
+}
+.docs-step-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding-bottom: 12px;
+  flex: 1;
+}
+.docs-step-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-dim);
+}
+.docs-step--reached .docs-step-label {
+  color: var(--text);
+}
+.docs-step-date {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+.docs-step-part-paid {
+  font-size: 12px;
+  color: var(--jp-amber);
+  font-weight: 600;
+}
+
+/* Audit + signature reveal block */
+.docs-hub-audit-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: var(--surface-2);
+  border-radius: 10px;
+  border: 1px solid var(--border);
+}
+.docs-sig-audit {
+  font-size: 12px;
+  color: var(--text-dim);
+  font-style: italic;
+}
+.docs-hub-deposit-badge {
+  border: none;
+  background: transparent;
+  padding: 0;
+}
+.docs-hub-sig-reveal {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.docs-hub-sig-hint {
+  font-size: 12px;
+  color: var(--text-dim);
+  margin: 0;
+}
+.docs-hub-sig-btn {
+  background: none;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  padding: 8px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  align-self: flex-start;
+  -webkit-tap-highlight-color: transparent;
+}
+.docs-hub-sig-btn:active { opacity: 0.7; }
+.docs-hub-sig-img-wrap {
+  padding-top: 4px;
+}
+
+/* Light-mode overrides — mirror the badge-tint pattern */
+[data-theme="light"] .docs-step-dot { border-color: #d1d5db; }
+[data-theme="light"] .docs-step-connector { background: #d1d5db; }
+[data-theme="light"] .docs-hub-audit-block { background: #f3f4f6; border-color: #e5e7eb; }
