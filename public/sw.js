@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v90';  // bumped from v89: fix/today-tab-width-shell — Today tab now uses .screen shell, matches Jobs/Money/Settings width
+const CACHE_NAME = 'jobprofit-v91';  // bumped from v90: fix/today-tab-width-shell — remove foreman-screen padding:0 override so Today header matches Jobs header position
 const PRECACHE = [
   '/',
   '/index.html',

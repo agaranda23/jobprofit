@@ -9226,7 +9226,8 @@ input[type=number] { -moz-appearance: textfield; }
   color: var(--text, #f5f7fa);
   display: flex;
   flex-direction: column;
-  padding: 0; /* .screen parent now owns all padding including bottom nav clearance */
+  /* padding intentionally absent — .screen (higher in cascade) provides 20px 20px var(--nav-clearance);
+     a previous padding:0 here overrode it via source-order, causing Today's header to sit higher than Jobs' */
   -webkit-tap-highlight-color: transparent;
 }
 
