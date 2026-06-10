@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v96';  // bumped from v95: fix DSO sheet width — max-width:var(--app-max-width) + margin-inline:auto so overlay matches app column on wide viewports
+const CACHE_NAME = 'jobprofit-v97';  // bumped from v96: restyle view-btns as surface-2 tiles (neutral browse vs green action)
 const PRECACHE = [
   '/',
   '/index.html',
