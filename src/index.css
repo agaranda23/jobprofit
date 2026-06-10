@@ -15215,15 +15215,15 @@ input[type=number] { -moz-appearance: textfield; }
 
 /* ── DocumentsHub — Design 2 (feat/document-records-design2, 2026-06) ─────── */
 
-/* Compact entry row inside the drawer — replaces the two Design 1 accordions */
-/* FIX 3: entry row now matches sibling jd-csr-row alignment.
-   padding/gap mirror .jd-csr-row (0 14px / 8px).
-   Icon span width matches .jd-csr-icon (18px).
-   Summary mirrors .jd-csr-meta: left-aligned, flex:1, margin-left:4px. */
+/* Compact entry row inside the drawer — replaces the two Design 1 accordions.
+   FIX 4 (robust): the button now sits inside a .jd-csr wrapper div so it
+   inherits background/border/border-radius/flex-shrink from the SAME class
+   as the real Schedule/Price cards. .jd-docs-entry is scoped to the inner
+   .jd-csr-row button and only carries icon/summary layout — no chrome values
+   that could drift from the shared card tokens. */
 .jd-docs-entry {
-  min-height: 48px;
-  padding: 0 14px;
-  gap: 8px;
+  /* .jd-csr-row already sets min-height:48px, padding:0 14px, gap:8px —
+     no overrides needed; .jd-docs-entry just namespaces the child spans. */
 }
 .jd-docs-entry-icon {
   width: 18px;
