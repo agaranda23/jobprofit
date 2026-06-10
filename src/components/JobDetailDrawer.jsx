@@ -3865,22 +3865,26 @@ export default function JobDetailDrawer({
                   }
 
                   return (
-                    <button
-                      key="documents-entry"
-                      type="button"
-                      className="jd-card-row jd-card-row--tappable jd-docs-entry"
-                      onClick={() => setDocsHubOpen(true)}
-                      aria-label={`Documents — ${summary}. Tap to open.`}
-                    >
-                      <span className="jd-docs-entry-icon">
-                        <Icon name="invoice" size={16} variant="muted" />
-                      </span>
-                      <span className="jd-docs-entry-name">Documents</span>
-                      <span className="jd-docs-entry-summary">{summary}</span>
-                      <span className="jd-card-row-chevron">
-                        <Icon name="chevron-right" size={16} variant="muted" />
-                      </span>
-                    </button>
+                    /* Wrap in .jd-csr so the chrome (background, border, radius,
+                       flex-shrink) is inherited from the SAME class the real
+                       Schedule/Price cards use — not a hand-copied value that drifts. */
+                    <div key="documents-entry" className="jd-csr">
+                      <button
+                        type="button"
+                        className="jd-csr-row jd-docs-entry"
+                        onClick={() => setDocsHubOpen(true)}
+                        aria-label={`Documents — ${summary}. Tap to open.`}
+                      >
+                        <span className="jd-docs-entry-icon">
+                          <Icon name="invoice" size={16} variant="muted" />
+                        </span>
+                        <span className="jd-docs-entry-name">Documents</span>
+                        <span className="jd-docs-entry-summary">{summary}</span>
+                        <span className="jd-csr-chev" aria-hidden="true">
+                          <Icon name="chevron-right" size={16} variant="muted" />
+                        </span>
+                      </button>
+                    </div>
                   );
                 })()}
 

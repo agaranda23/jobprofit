@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v97';  // bumped from v96: drawer section reorder + notes & photos merged accordion
+const CACHE_NAME = 'jobprofit-v98';  // bumped from v97: Documents entry row now uses .jd-csr wrapper for pixel-exact card chrome match
 const PRECACHE = [
   '/',
   '/index.html',
