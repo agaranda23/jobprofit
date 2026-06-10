@@ -12,7 +12,7 @@
  *  6. Render-without-crash for open/closed × quotes/invoices combos (hooks-above-return guard).
  */
 
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach, beforeAll } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 
 // ── Mocks — must come before component imports ──────────────────────────────
@@ -148,7 +148,7 @@ describe('DocumentsHub — quote timeline', () => {
 
   it('sent state: Sent step is reached (has date)', () => {
     renderHub({ quoteStatus: 'sent', quoteSentAt: PAST });
-    expect(screen.getByText(/sent/i)).toBeTruthy();
+    expect(screen.getAllByText(/sent/i).length).toBeGreaterThan(0);
   });
 
   it('opened state: Sent + Opened steps both reached', () => {
@@ -203,8 +203,7 @@ describe('DocumentsHub — invoice timeline', () => {
     });
     const invoicesTab = screen.getByRole('tab', { name: /invoices/i });
     fireEvent.click(invoicesTab);
-    const overdueLabel = screen.getByText(/overdue/i);
-    expect(overdueLabel).toBeTruthy();
+    expect(screen.getAllByText(/overdue/i).length).toBeGreaterThan(0);
   });
 
   it('paid state: Paid step is reached', () => {
@@ -318,7 +317,12 @@ describe('compact Documents entry summary', () => {
   // To avoid a full JobDetailDrawer render (heavy mocking required), we test
   // the derivation logic in isolation by importing the helpers directly.
 
-  const { buildQuoteRecordMeta, buildInvoiceRecordMeta } = await import('../../lib/documentRecord.js');
+  // `await import` must live inside an async function — moved here from describe scope.
+  let buildQuoteRecordMeta;
+  let buildInvoiceRecordMeta;
+  beforeAll(async () => {
+    ({ buildQuoteRecordMeta, buildInvoiceRecordMeta } = await import('../../lib/documentRecord.js'));
+  });
 
   function deriveSummary(job) {
     const qr = buildQuoteRecordMeta(job);

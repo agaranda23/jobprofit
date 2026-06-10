@@ -1740,6 +1740,7 @@ export default function SettingsScreen({
   onProfileUpdate,
   onOpenJob,
   onNavigateToCardPayments,
+  onBrowseMaterials,
   // scrollTarget: 'overheads' | null — signals where to scroll on mount/change.
   // Passed from AppShell when the user taps "Add your costs" on the Money tab.
   // NOTE: section naming/structure is pending PRD's overheads redesign — do not
@@ -2279,6 +2280,11 @@ export default function SettingsScreen({
           label="Standard markup %"
           value={profile?.default_markup != null ? `${profile.default_markup}%` : '20%'}
           onTap={openEditDefaultMarkup}
+        />
+        <Row
+          label="Materials"
+          value="Your price list & saved items"
+          onTap={onBrowseMaterials}
         />
         <Row
           label="VAT"

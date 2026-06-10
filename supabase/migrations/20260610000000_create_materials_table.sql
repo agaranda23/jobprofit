@@ -32,7 +32,7 @@ BEGIN;
 CREATE TABLE IF NOT EXISTS public.materials (
   id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id       uuid NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  desc          text NOT NULL,
+  "desc"        text NOT NULL,
   cost          numeric(10,2) NOT NULL,          -- buy price ex-VAT
   unit          text,                            -- e.g. "each", "m²", "length"
   supplier_code text,                            -- e.g. "SFX-123456"

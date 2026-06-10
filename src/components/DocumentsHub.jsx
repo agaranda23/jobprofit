@@ -335,7 +335,6 @@ export default function DocumentsHub({ open, job, biz, profile, onClose, onBuild
     <div
       className="modal-backdrop modal-backdrop--top"
       onClick={onClose}
-      aria-hidden="true"
     >
       <div
         className="modal-sheet rs-sheet"

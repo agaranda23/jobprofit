@@ -1069,6 +1069,7 @@ export default function AppShell() {
               onOpenWizard={openWizardFromSettings}
               onProfileUpdate={handleProfileUpdate}
               onNavigateToCardPayments={() => setSettingsSubView('card-payments')}
+              onBrowseMaterials={() => setMaterialsOpen(true)}
               onOpenJob={(jobId) => {
                 if (jobId) setPendingJobId(jobId);
                 navigate('work');
