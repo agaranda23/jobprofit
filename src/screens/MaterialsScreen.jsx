@@ -1,7 +1,7 @@
 /**
  * MaterialsScreen — the Materials Library full-screen view.
  *
- * Accessible from the type-ahead "Browse all" row and from Settings (future).
+ * Accessible from the type-ahead "Browse all" row and from Settings → Materials.
  * Renders the full library with search, sorted Frequent → A–Z.
  * Swipe-left (long-press on mobile) to archive. Manual "Add an item" CTA.
  *
