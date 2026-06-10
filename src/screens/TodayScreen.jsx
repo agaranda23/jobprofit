@@ -68,6 +68,10 @@ export default function TodayScreen({
   onSeeTheWeek,
   onNavigateToCardPayments,
   profile,
+  materials,
+  defaultMarkup,
+  onBrowseMaterials,
+  onMaterialSaved,
 }) {
   const [jobOpen, setJobOpen] = useState(false);
   // jobOpenMode: 'normal' | 'quote' — controls defaultMode prop on AddJobModal.
@@ -693,6 +697,10 @@ export default function TodayScreen({
           defaultMode={jobOpenMode === 'quote' ? 'quote' : undefined}
           onSaveAndSend={handleSaveAndSend}
           tradePrimary={profile?.trade_primary ?? null}
+          materials={materials}
+          defaultMarkup={defaultMarkup ?? profile?.default_markup ?? 20}
+          onBrowseMaterials={onBrowseMaterials}
+          onMaterialSaved={onMaterialSaved}
         />
       )}
 

@@ -1,5 +1,7 @@
 import { useRef, useState } from 'react';
 import { extractReceipt } from '../lib/receiptOCR';
+import { saveLineItemToLibrary } from '../lib/materials';
+import Icon from './Icon';
 
 /**
  * AddReceiptModal — add a new receipt or edit an existing one.
@@ -12,7 +14,7 @@ import { extractReceipt } from '../lib/receiptOCR';
  *                     on save instead of onSave.
  *   onUpdateReceipt   (updatedReceipt) => void  — required when existingReceipt is provided
  */
-export default function AddReceiptModal({ onClose, onSave, existingReceipt, onUpdateReceipt }) {
+export default function AddReceiptModal({ onClose, onSave, existingReceipt, onUpdateReceipt, materials, onMaterialSaved }) {
   const isEditMode = !!existingReceipt;
   const fileRef = useRef(null);
 
@@ -34,6 +36,8 @@ export default function AddReceiptModal({ onClose, onSave, existingReceipt, onUp
   const [extractError, setExtractError] = useState('');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  // savedItemIdx: which OCR item row just flashed the bookmark confirm
+  const [savedItemIdx, setSavedItemIdx] = useState(-1);
 
   const openPicker = () => fileRef.current?.click();
 
@@ -73,6 +77,20 @@ export default function AddReceiptModal({ onClose, onSave, existingReceipt, onUp
     setItems(prev => prev.map((it, i) => i === idx ? { ...it, [field]: field === 'cost' ? parseFloat(value) || 0 : value } : it));
   };
   const removeItem = (idx) => setItems(prev => prev.filter((_, i) => i !== idx));
+
+  const saveItemToMaterials = async (idx) => {
+    const item = items[idx];
+    if (!item?.desc?.trim()) return;
+    const result = await saveLineItemToLibrary(
+      { desc: item.desc, buyPrice: item.cost || 0 },
+      Array.isArray(materials) ? materials : []
+    );
+    if (result) {
+      onMaterialSaved?.(result.saved);
+      setSavedItemIdx(idx);
+      setTimeout(() => setSavedItemIdx(-1), 1800);
+    }
+  };
 
   const save = async () => {
     const amt = parseFloat(amount);
@@ -212,6 +230,19 @@ export default function AddReceiptModal({ onClose, onSave, existingReceipt, onUp
                     onChange={e => updateItem(i, 'cost', e.target.value)}
                     className="receipt-item-cost"
                   />
+                  {/* Bookmark — saves this OCR line to the materials library at buy price */}
+                  <button
+                    className={`receipt-item-bookmark${savedItemIdx === i ? ' receipt-item-bookmark--saved' : ''}`}
+                    type="button"
+                    onClick={() => saveItemToMaterials(i)}
+                    title="Save to my materials"
+                    aria-label="Save to my materials"
+                  >
+                    {savedItemIdx === i
+                      ? <Icon name="check" size={14} variant="success" />
+                      : <Icon name="star"  size={14} variant="muted"   />
+                    }
+                  </button>
                   <button className="receipt-item-x" onClick={() => removeItem(i)} title="Remove">×</button>
                 </li>
               ))}

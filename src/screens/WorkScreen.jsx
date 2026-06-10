@@ -997,7 +997,7 @@ function JobsList({ jobs, selectedStage, showAll, searchQuery, onJobSelect, onSe
 
 // ── WorkScreen (root) ─────────────────────────────────────────────────────────
 
-export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJob, onAddPayment, onUpdateJob, onDeleteJob, onAddReceipt, onDeleteReceipt, biz, profile, initialJobId, pendingWorkView, onPendingWorkViewConsumed, onNavigateToCardPayments, onProfileUpdate }) {
+export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJob, onAddPayment, onUpdateJob, onDeleteJob, onAddReceipt, onDeleteReceipt, biz, profile, initialJobId, pendingWorkView, onPendingWorkViewConsumed, onNavigateToCardPayments, onProfileUpdate, materials, defaultMarkup, onBrowseMaterials, onMaterialSaved }) {
   const [subview, setSubview] = useState(getPersistedView);
   const [selectedStage, setSelectedStage] = useState(() => getPersistedFilter().selectedStage);
   const [showAll, setShowAll] = useState(() => getPersistedFilter().showAll);
@@ -1723,6 +1723,10 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
           onClose={() => { setAddJobOpen(false); setAddJobDate(null); }}
           onSave={handleJobSave}
           {...(addJobDate ? { initialDate: addJobDate, defaultMode: 'details-manual' } : {})}
+          materials={materials}
+          defaultMarkup={defaultMarkup ?? profile?.default_markup ?? 20}
+          onBrowseMaterials={onBrowseMaterials}
+          onMaterialSaved={onMaterialSaved}
         />
       )}
 

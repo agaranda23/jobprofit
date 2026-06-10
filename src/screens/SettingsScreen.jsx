@@ -2006,6 +2006,21 @@ export default function SettingsScreen({
     validate: validateHourlyRate,
   });
 
+  const openEditDefaultMarkup = () => setActiveEdit({
+    modal: 'default_markup',
+    fieldKey: 'default_markup',
+    fieldLabel: 'Your standard markup %',
+    currentValue: profile?.default_markup ?? 20,
+    inputType: 'number',
+    placeholder: '20',
+    helpText: "We'll add this to material buy prices when you put them on a quote. You can change it per line.",
+    validate: (v) => {
+      const n = parseFloat(v);
+      if (isNaN(n) || n < 0) return 'Enter a number like 20 for 20%';
+      return null;
+    },
+  });
+
   const openEditAddress = () => setActiveEdit({
     modal: 'address',
     fieldKey: 'address',
@@ -2259,6 +2274,11 @@ export default function SettingsScreen({
           label="Hourly rate"
           value={profile?.hourly_rate ? `£${profile.hourly_rate}/hr` : '—'}
           onTap={openEditHourlyRate}
+        />
+        <Row
+          label="Standard markup %"
+          value={profile?.default_markup != null ? `${profile.default_markup}%` : '20%'}
+          onTap={openEditDefaultMarkup}
         />
         <Row
           label="VAT"
