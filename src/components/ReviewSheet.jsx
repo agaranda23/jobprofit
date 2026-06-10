@@ -271,7 +271,6 @@ export default function ReviewSheet({
   // First-send teach: shown once when a deposit is set and the quote is sent.
   // Stored in localStorage so it appears only on the first send.
   const DEPOSIT_TEACH_KEY = 'jp.deposit_bank_teach_shown';
-  const [depositTeachPending, setDepositTeachPending] = useState(false);
 
   const jobName = job?.summary || job?.customer || job?.name || 'Job';
   const sheetTitle = isInvoice

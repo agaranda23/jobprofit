@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v98';  // bumped from v97: Documents entry row now uses .jd-csr wrapper for pixel-exact card chrome match
+const CACHE_NAME = 'jobprofit-v99';  // bumped from v98: lint hygiene pass 2 — vitest globals config, dead vars removed
 const PRECACHE = [
   '/',
   '/index.html',

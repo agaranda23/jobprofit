@@ -408,7 +408,6 @@ function DepositBlock({ job, token, depositPercent, depositAmountPence, onAccept
   const [consentNudge, setConsentNudge] = useState(false);
 
   const depositGbp = depositAmountPence > 0 ? gbp(depositAmountPence / 100) : '';
-  const totalGbp = gbp(job.total ?? job.amount ?? 0);
 
   // If already returned from a successful Stripe Checkout, show confirmation.
   if (depositSuccess) {

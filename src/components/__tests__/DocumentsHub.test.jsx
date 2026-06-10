@@ -14,6 +14,7 @@
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
+import { buildQuoteRecordMeta, buildInvoiceRecordMeta } from '../../lib/documentRecord.js';
 
 // ── Mocks — must come before component imports ──────────────────────────────
 vi.mock('../../lib/supabase', () => ({
@@ -318,7 +319,7 @@ describe('compact Documents entry summary', () => {
   // To avoid a full JobDetailDrawer render (heavy mocking required), we test
   // the derivation logic in isolation by importing the helpers directly.
 
-  const { buildQuoteRecordMeta, buildInvoiceRecordMeta } = await import('../../lib/documentRecord.js');
+  // buildQuoteRecordMeta and buildInvoiceRecordMeta are statically imported at the top of this file.
 
   function deriveSummary(job) {
     const qr = buildQuoteRecordMeta(job);

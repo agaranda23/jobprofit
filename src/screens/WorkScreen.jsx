@@ -36,7 +36,7 @@ import DrawerErrorBoundary from '../components/DrawerErrorBoundary';
 import ReviewSheet from '../components/ReviewSheet';
 import StageStrip from '../components/StageStrip';
 import { logTelemetry } from '../lib/telemetry';
-import { deriveDisplayStatus, daysSinceInvoice, requiresPriceForStage, stagePatch } from '../lib/jobStatus';
+import { deriveDisplayStatus, requiresPriceForStage, stagePatch } from '../lib/jobStatus';
 import { deleteJobFromCloud } from '../lib/store';
 import { shouldShowPartPaidChip, formatPartPaidLabel } from '../lib/partPaidChip';
 import { jobMatchesQuery, sortJobsByStage, firstLineOfAddress } from '../lib/jobSort';
