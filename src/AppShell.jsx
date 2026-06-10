@@ -66,6 +66,14 @@ import ProUpgradeSheet from './components/ProUpgradeSheet.jsx';
 import DropToFreeScreen from './components/DropToFreeScreen.jsx';
 import PreChargeReminderBanner from './components/PreChargeReminderBanner.jsx';
 import { startCheckoutImmediate, openBillingPortal } from './lib/billing';
+import {
+  getMaterials,
+  addMaterial,
+  updateMaterial,
+  archiveMaterial,
+} from './lib/materials';
+import MaterialsScreen from './screens/MaterialsScreen';
+import AddMaterialModal from './components/AddMaterialModal';
 
 // ─── Feature flags ───────────────────────────────────────────────────────────
 // Slice-3 nav (Today / Jobs / Money / Settings) is the default for all users.
@@ -245,6 +253,14 @@ export default function AppShell() {
   // do not rename 'overheads' here until that spec lands.
   const [settingsScrollTarget, setSettingsScrollTarget] = useState(null);
 
+  // ── Materials library state ───────────────────────────────────────────────────
+  // Loaded once on auth, refreshed after add/edit/archive mutations.
+  // Graceful-degrades to [] if the table doesn't exist yet (migration pending).
+  const [materials, setMaterials]             = useState([]);
+  const [materialsOpen, setMaterialsOpen]     = useState(false);   // full MaterialsScreen
+  const [addMaterialOpen, setAddMaterialOpen] = useState(false);   // AddMaterialModal
+  const [editingMaterial, setEditingMaterial] = useState(null);    // material row being edited
+
   // Hash-routed navigation: pushes history before switching view so browser
   // Back returns to the previous in-app screen instead of exiting the SPA.
   const navigate = useCallback((nextView) => {
@@ -303,12 +319,14 @@ export default function AppShell() {
 
   const refreshFromCloud = useCallback(async () => {
     try {
-      const [cloudJobs, cloudReceipts] = await Promise.all([
+      const [cloudJobs, cloudReceipts, cloudMaterials] = await Promise.all([
         getJobsFromCloud(),
         getReceiptsFromCloud(),
+        getMaterials(),
       ]);
       setJobs(applyJobMetaToJobs(cloudJobs));
       setReceipts(cloudReceipts);
+      setMaterials(cloudMaterials);
       setCloudLoaded(true);
     } catch (e) {
       console.warn('Cloud refresh failed, keeping localStorage view', e);
@@ -648,6 +666,43 @@ export default function AppShell() {
     }
   };
 
+  // ── Materials library CRUD handlers ──────────────────────────────────────────
+
+  const handleSaveMaterial = async (payload) => {
+    if (payload.id) {
+      // Edit mode — patch existing row
+      const updated = await updateMaterial(payload.id, payload);
+      if (updated) {
+        setMaterials(prev => prev.map(m => m.id === updated.id ? updated : m));
+      }
+    } else {
+      // Add mode — insert new row
+      const saved = await addMaterial(payload);
+      if (saved) {
+        setMaterials(prev => [saved, ...prev]);
+      }
+    }
+    setAddMaterialOpen(false);
+    setEditingMaterial(null);
+  };
+
+  const handleArchiveMaterial = async (id) => {
+    const ok = await archiveMaterial(id);
+    if (ok) setMaterials(prev => prev.filter(m => m.id !== id));
+  };
+
+  // Called when a bookmark tap in AddJobModal or AddReceiptModal saves a new row.
+  // The row is already written to Supabase by saveLineItemToLibrary — we only need
+  // to merge it into local state.
+  const handleMaterialSaved = (savedRow) => {
+    if (!savedRow) return;
+    setMaterials(prev => {
+      const exists = prev.some(m => m.id === savedRow.id);
+      if (exists) return prev.map(m => m.id === savedRow.id ? savedRow : m);
+      return [savedRow, ...prev];
+    });
+  };
+
   // Fires the cloud write after every writeJobMeta call. Fire-and-forget —
   // the UI does not await this. localStorage write already succeeded by the
   // time this runs. Errors are logged; they do not surface to the user because
@@ -939,6 +994,10 @@ export default function AppShell() {
               onNavigateToMoney={() => navigate('finance')}
               onSeeTheWeek={handleSeeTheWeek}
               onNavigateToCardPayments={() => setSettingsSubView('card-payments')}
+              materials={materials}
+              defaultMarkup={profile?.default_markup ?? 20}
+              onBrowseMaterials={() => setMaterialsOpen(true)}
+              onMaterialSaved={handleMaterialSaved}
             />
           )}
 
@@ -961,6 +1020,10 @@ export default function AppShell() {
               onPendingWorkViewConsumed={() => setPendingWorkView(null)}
               onNavigateToCardPayments={() => setSettingsSubView('card-payments')}
               onProfileUpdate={handleProfileUpdate}
+              materials={materials}
+              defaultMarkup={profile?.default_markup ?? 20}
+              onBrowseMaterials={() => setMaterialsOpen(true)}
+              onMaterialSaved={handleMaterialSaved}
             />
           )}
 
@@ -1045,6 +1108,10 @@ export default function AppShell() {
               onNavigateToMoney={() => navigate('money')}
               onSeeTheWeek={handleSeeTheWeek}
               onNavigateToCardPayments={() => setSettingsSubView('card-payments')}
+              materials={materials}
+              defaultMarkup={profile?.default_markup ?? 20}
+              onBrowseMaterials={() => setMaterialsOpen(true)}
+              onMaterialSaved={handleMaterialSaved}
             />
           )}
 
@@ -1067,6 +1134,10 @@ export default function AppShell() {
               onPendingWorkViewConsumed={() => setPendingWorkView(null)}
               onNavigateToCardPayments={() => setSettingsSubView('card-payments')}
               onProfileUpdate={handleProfileUpdate}
+              materials={materials}
+              defaultMarkup={profile?.default_markup ?? 20}
+              onBrowseMaterials={() => setMaterialsOpen(true)}
+              onMaterialSaved={handleMaterialSaved}
             />
           )}
 
@@ -1325,6 +1396,29 @@ export default function AppShell() {
               }
             }
           }}
+        />
+      )}
+
+      {/* ── Materials library full-screen overlay ────────────────────────── */}
+      {/* Sits above all other content; opened from type-ahead "Browse all".  */}
+      {materialsOpen && (
+        <MaterialsScreen
+          materials={materials}
+          defaultMarkup={profile?.default_markup ?? 20}
+          onClose={() => setMaterialsOpen(false)}
+          onAdd={() => { setEditingMaterial(null); setAddMaterialOpen(true); }}
+          onArchive={handleArchiveMaterial}
+          onEdit={(m) => { setEditingMaterial(m); setAddMaterialOpen(true); }}
+        />
+      )}
+
+      {/* ── Add / edit material modal ─────────────────────────────────────── */}
+      {addMaterialOpen && (
+        <AddMaterialModal
+          onClose={() => { setAddMaterialOpen(false); setEditingMaterial(null); }}
+          onSave={handleSaveMaterial}
+          existingMaterial={editingMaterial}
+          defaultMarkup={profile?.default_markup ?? 20}
         />
       )}
     </>

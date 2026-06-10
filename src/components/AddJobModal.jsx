@@ -3,7 +3,10 @@ import { parseJobFromSpeech } from '../lib/voiceParse';
 import { generateQuote } from '../lib/generateQuote';
 import { logTelemetry } from '../lib/telemetry';
 import { calcMarginForecast, marginForecastState, markupTeachCopy } from '../lib/marginForecast';
+import { saveLineItemToLibrary, resolveMarkup } from '../lib/materials';
 import Icon from './Icon';
+import MaterialTypeAhead from './MaterialTypeAhead';
+import MarkupChip from './MarkupChip';
 
 const SR = typeof window !== 'undefined'
   ? (window.SpeechRecognition || window.webkitSpeechRecognition)
@@ -67,7 +70,7 @@ export function getTradeVoiceHint(tradePrimary) {
   return map[key] || 'Kitchen job Sarah three eighty cash';
 }
 
-export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMode, onSaveAndSend, tradePrimary, initialDate }) {
+export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMode, onSaveAndSend, tradePrimary, initialDate, materials, defaultMarkup, onBrowseMaterials, onMaterialSaved }) {
   // 'micro'          — Stage 1: fast capture (amount + paid-by + Save it)
   // 'details'        — Stage 2: full form (name, customer, date, more options)
   // 'quote'          — Create-quote surface: voice OR type, summary + total + optional line items
@@ -97,7 +100,7 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMo
   const [customer, setCustomer]       = useState('');
   const [phone, setPhone]             = useState('');
   const [jobDate, setJobDate]         = useState(initialDate || todayISODate());
-  const [materials, setMaterials]     = useState('');
+  const [materialsCostInput, setMaterialsCostInput] = useState('');
   const [labourHours, setLabourHours] = useState('');
   const [notes, setNotes]             = useState('');
   const [deposit, setDeposit]         = useState('');
@@ -135,6 +138,12 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMo
   const seenMarginReassurance = typeof localStorage !== 'undefined'
     ? localStorage.getItem('jp.margin_reassurance_shown') === 'yes'
     : true;
+
+  // ── Materials type-ahead state ───────────────────────────────────────────────
+  // typeAheadIdx: which line-item row has the type-ahead visible (-1 = none)
+  // savedSnack: transient snackbar message after "Save for next time" bookmark tap
+  const [typeAheadIdx, setTypeAheadIdx]   = useState(-1);
+  const [savedSnack, setSavedSnack]       = useState('');
 
   // ── AI Quote Builder state ──────────────────────────────────────────────────
   // aiStatus: 'idle' | 'building' | 'draft' | 'error'
@@ -357,7 +366,7 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMo
       paid:        isPaid,
       date:        jobDate ? new Date(jobDate + 'T12:00:00').toISOString() : new Date().toISOString(),
       createdAt:   new Date().toISOString(),
-      ...(materials.trim()   ? { materialsCost: parseFloat(materials) || 0 } : {}),
+      ...(materialsCostInput.trim()   ? { materialsCost: parseFloat(materialsCostInput) || 0 } : {}),
       ...(labourHours.trim() ? { labourHours: parseFloat(labourHours) || 0 } : {}),
       ...(notes.trim()       ? { notes: notes.trim() } : {}),
       ...(deposit.trim()     ? { deposit: parseFloat(deposit) || 0 } : {}),
@@ -614,6 +623,48 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMo
       if (next.length > 0 && total > 0) setQTotal(String(total));
       return next;
     });
+  }
+
+  // ── Materials: select from type-ahead ────────────────────────────────────────
+  // Called when the user taps a suggestion row. Fills the line item and hides
+  // the type-ahead. `selected` already has cost (sell or buy depending on context)
+  // and optionally buyPrice + materialId from MaterialTypeAhead.
+  function handleMaterialSelect(idx, selected) {
+    setLineItems(prev => {
+      const next = prev.map((li, i) => i === idx ? {
+        ...li,
+        desc:       selected.desc,
+        cost:       String(selected.cost),
+        ...(selected.unit        ? { unit: selected.unit }               : {}),
+        ...(selected.buyPrice    != null ? { buyPrice: selected.buyPrice } : {}),
+        ...(selected.materialId  ? { materialId: selected.materialId }   : {}),
+        ...(selected.provenance  ? { provenance: selected.provenance }   : {}),
+      } : li);
+      const total = lineItemsTotal(next);
+      if (total > 0) setQTotal(String(total));
+      return next;
+    });
+    setTypeAheadIdx(-1);
+  }
+
+  // ── Materials: save line bookmark ─────────────────────────────────────────────
+  // Called when the bookmark icon on a line item or inside type-ahead is tapped.
+  // Saves the current desc + cost as a buy price to the library.
+  async function handleSaveLineToLibrary(lineItem) {
+    const desc    = (lineItem.desc || '').trim();
+    const buyPrice = lineItem.buyPrice != null ? lineItem.buyPrice : parseFloat(lineItem.cost) || 0;
+    if (!desc) return;
+
+    const mat = await saveLineItemToLibrary(
+      { desc, buyPrice, unit: lineItem.unit },
+      Array.isArray(materials) ? materials : []
+    );
+    if (mat) {
+      onMaterialSaved?.(mat.saved ?? mat);
+      setSavedSnack(`Saved to your materials. £${buyPrice.toFixed(2)} buy.`);
+      setTimeout(() => setSavedSnack(''), 3000);
+      logTelemetry('material_saved_from_line', { source: 'quote_bookmark' });
+    }
   }
 
   // ── Quote save handlers ────────────────────────────────────────────────────
@@ -1052,7 +1103,7 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMo
                 </div>
 
                 {moreOpen && <MoreOptionsFields
-                  materials={materials}     setMaterials={setMaterials}
+                  materials={materialsCostInput}     setMaterials={setMaterialsCostInput}
                   labourHours={labourHours} setLabourHours={setLabourHours}
                   notes={notes}             setNotes={setNotes}
                   phone={phone}             setPhone={setPhone}
@@ -1366,48 +1417,103 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMo
                       <span className="aj-quote-line-items-title">Line items</span>
                     </div>
                     {lineItems.map((li, idx) => (
-                      <div key={idx} className="aj-quote-line-row">
-                        <div className="aj-quote-line-desc-wrap">
-                          <input
-                            type="text"
-                            className="aj-quote-line-desc"
-                            value={li.desc}
-                            onChange={e => updateLineItem(idx, 'desc', e.target.value)}
-                            placeholder="Description"
-                            aria-label={`Line item ${idx + 1} description`}
-                          />
-                          {/* Per-line provenance microcopy — only shown on AI-generated draft */}
-                          {aiStatus === 'draft' && li.provenance === 'labour' && (
-                            <span className="aj-line-provenance">your rate</span>
-                          )}
-                          {aiStatus === 'draft' && li.provenance === 'history' && (
-                            <span className="aj-line-provenance">from your past jobs</span>
-                          )}
-                          {/* Low-confidence flag — amber, "check this" */}
-                          {aiStatus === 'draft' && li.lowConfidence && (
-                            <span className="aj-line-low-confidence" aria-label="Check this price">check this</span>
-                          )}
+                      <div key={idx} className="aj-quote-line-outer">
+                        <div className="aj-quote-line-row">
+                          <div className="aj-quote-line-desc-wrap">
+                            <input
+                              type="text"
+                              className="aj-quote-line-desc"
+                              value={li.desc}
+                              onChange={e => {
+                                updateLineItem(idx, 'desc', e.target.value);
+                                setTypeAheadIdx(idx);
+                              }}
+                              onFocus={() => setTypeAheadIdx(idx)}
+                              onBlur={() => {
+                                // Delay hide so tapping a suggestion registers first
+                                setTimeout(() => setTypeAheadIdx(i => i === idx ? -1 : i), 180);
+                              }}
+                              placeholder="Description"
+                              aria-label={`Line item ${idx + 1} description`}
+                              aria-autocomplete="list"
+                              aria-expanded={typeAheadIdx === idx}
+                            />
+                            {/* Per-line provenance microcopy — only shown on AI-generated draft */}
+                            {aiStatus === 'draft' && li.provenance === 'labour' && (
+                              <span className="aj-line-provenance">your rate</span>
+                            )}
+                            {aiStatus === 'draft' && li.provenance === 'history' && (
+                              <span className="aj-line-provenance">from your past jobs</span>
+                            )}
+                            {/* Material provenance — show markup chip on quote lines */}
+                            {li.provenance === 'material' && li.buyPrice != null && (
+                              <MarkupChip
+                                buyPrice={li.buyPrice}
+                                markup={resolveMarkup(li.lineMarkup, defaultMarkup)}
+                                defaultMarkup={defaultMarkup ?? 20}
+                                onChange={(newMarkup, newSell) => {
+                                  setLineItems(prev => {
+                                    const next = prev.map((l, i) => i === idx
+                                      ? { ...l, lineMarkup: newMarkup, cost: String(newSell) }
+                                      : l
+                                    );
+                                    const total = lineItemsTotal(next);
+                                    if (total > 0) setQTotal(String(total));
+                                    return next;
+                                  });
+                                }}
+                              />
+                            )}
+                            {/* Low-confidence flag — amber, "check this" */}
+                            {aiStatus === 'draft' && li.lowConfidence && (
+                              <span className="aj-line-low-confidence" aria-label="Check this price">check this</span>
+                            )}
+                          </div>
+                          <div className="aj-quote-line-cost-wrap">
+                            <span className="aj-quote-line-currency">£</span>
+                            <input
+                              type="number"
+                              inputMode="decimal"
+                              className={`aj-quote-line-cost${li.lowConfidence ? ' aj-quote-line-cost--warn' : ''}`}
+                              value={li.cost}
+                              onChange={e => updateLineItem(idx, 'cost', e.target.value)}
+                              placeholder="0"
+                              aria-label={`Line item ${idx + 1} cost`}
+                            />
+                          </div>
+                          {/* Bookmark: save line to materials library */}
+                          <button
+                            type="button"
+                            className="aj-quote-line-bookmark"
+                            onClick={() => handleSaveLineToLibrary(li)}
+                            aria-label="Save for next time"
+                            title="Save for next time"
+                          >
+                            <Icon name="star" size={14} variant="muted" />
+                          </button>
+                          <button
+                            type="button"
+                            className="aj-quote-line-remove"
+                            onClick={() => removeLineItem(idx)}
+                            aria-label={`Remove line item ${idx + 1}`}
+                          >
+                            <Icon name="close" size={16} />
+                          </button>
                         </div>
-                        <div className="aj-quote-line-cost-wrap">
-                          <span className="aj-quote-line-currency">£</span>
-                          <input
-                            type="number"
-                            inputMode="decimal"
-                            className={`aj-quote-line-cost${li.lowConfidence ? ' aj-quote-line-cost--warn' : ''}`}
-                            value={li.cost}
-                            onChange={e => updateLineItem(idx, 'cost', e.target.value)}
-                            placeholder="0"
-                            aria-label={`Line item ${idx + 1} cost`}
+                        {/* Type-ahead dropdown — shown when this line's desc input is focused */}
+                        {typeAheadIdx === idx && (
+                          <MaterialTypeAhead
+                            materials={Array.isArray(materials) ? materials : []}
+                            query={li.desc}
+                            context="quote"
+                            defaultMarkup={defaultMarkup ?? 20}
+                            onSelect={(selected) => handleMaterialSelect(idx, selected)}
+                            onBrowseAll={() => { setTypeAheadIdx(-1); onBrowseMaterials?.(); }}
+                            onSaveItem={({ desc, buyPrice, unit }) =>
+                              handleSaveLineToLibrary({ desc, buyPrice, unit })
+                            }
                           />
-                        </div>
-                        <button
-                          type="button"
-                          className="aj-quote-line-remove"
-                          onClick={() => removeLineItem(idx)}
-                          aria-label={`Remove line item ${idx + 1}`}
-                        >
-                          <Icon name="close" size={16} />
-                        </button>
+                        )}
                       </div>
                     ))}
                     <button
@@ -1515,6 +1621,13 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMo
         )}
 
       </div>
+
+      {/* Saved-to-library snackbar — appears after bookmark tap */}
+      {savedSnack && (
+        <div className="toast" role="status" aria-live="polite">
+          {savedSnack}
+        </div>
+      )}
     </div>
   );
 }
