@@ -20,6 +20,34 @@
   to   = "/cookies.html"
   status = 200
 
+# QR channel redirects — short slugs for printed/digital marketing assets.
+# 302 (not 301) so destinations are repointable without reprinting QR codes.
+# Listed BEFORE the SPA catch-all so these paths never fall through to index.html.
+# UTM params are baked in here; PostHog auto-captures utm_* on page load.
+[[redirects]]
+  from   = "/card"
+  to     = "/?utm_source=card&utm_medium=qr&utm_campaign=offline"
+  status = 302
+  force  = true
+
+[[redirects]]
+  from   = "/van"
+  to     = "/?utm_source=van&utm_medium=qr&utm_campaign=offline"
+  status = 302
+  force  = true
+
+[[redirects]]
+  from   = "/flyer"
+  to     = "/?utm_source=flyer&utm_medium=qr&utm_campaign=offline"
+  status = 302
+  force  = true
+
+[[redirects]]
+  from   = "/insta"
+  to     = "/?utm_source=insta&utm_medium=qr&utm_campaign=social"
+  status = 302
+  force  = true
+
 # Pay-now redirect — /p/<token> → pay-redirect Netlify function (server-side 302 to Stripe).
 # Listed BEFORE the public/_redirects SPA catch-all (/*  /index.html  200) so Netlify
 # routes /p/* to the function rather than serving index.html to the browser.
