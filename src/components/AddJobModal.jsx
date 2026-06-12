@@ -7,6 +7,8 @@ import { saveLineItemToLibrary, resolveMarkup } from '../lib/materials';
 import Icon from './Icon';
 import MaterialTypeAhead from './MaterialTypeAhead';
 import MarkupChip from './MarkupChip';
+import EstimatorSheet from './EstimatorSheet';
+import { checkEstimatorQuota } from '../lib/estimatorQuota';
 
 const SR = typeof window !== 'undefined'
   ? (window.SpeechRecognition || window.webkitSpeechRecognition)
@@ -144,6 +146,12 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMo
   // savedSnack: transient snackbar message after "Save for next time" bookmark tap
   const [typeAheadIdx, setTypeAheadIdx]   = useState(-1);
   const [savedSnack, setSavedSnack]       = useState('');
+
+  // ── Work it out estimator state ──────────────────────────────────────────────
+  // showEstimator: whether EstimatorSheet is mounted
+  // estimatorQuota: { allowed, used, quota, isPro } — checked once when sheet opens
+  const [showEstimator, setShowEstimator]         = useState(false);
+  const [estimatorQuota, setEstimatorQuota]       = useState({ allowed: true, isPro: false });
 
   // ── AI Quote Builder state ──────────────────────────────────────────────────
   // aiStatus: 'idle' | 'building' | 'draft' | 'error'
@@ -1523,6 +1531,19 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMo
                     >
                       + Add line item
                     </button>
+                    <button
+                      type="button"
+                      className="aj-quote-add-line-btn aj-quote-add-line-btn--calc"
+                      onClick={async () => {
+                        const quota = await checkEstimatorQuota();
+                        setEstimatorQuota(quota);
+                        setShowEstimator(true);
+                        logTelemetry('estimator_open', { source: 'quote_line_items' });
+                      }}
+                    >
+                      <Icon name="wrench" size={14} />
+                      {' '}+ Work it out
+                    </button>
                     {lineItems.length > 0 && lineItemsTotal(lineItems) > 0 && (
                       <div className="aj-quote-line-total">
                         <span>Total</span>
@@ -1534,16 +1555,32 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMo
 
                 {/* Toggle for line items */}
                 {!showLineItems && (
-                  <button
-                    type="button"
-                    className="aj-quote-add-items-link"
-                    onClick={() => {
-                      setShowLineItems(true);
-                      if (lineItems.length === 0) addLineItem();
-                    }}
-                  >
-                    + Add line item
-                  </button>
+                  <div className="aj-quote-add-items-row">
+                    <button
+                      type="button"
+                      className="aj-quote-add-items-link"
+                      onClick={() => {
+                        setShowLineItems(true);
+                        if (lineItems.length === 0) addLineItem();
+                      }}
+                    >
+                      + Add line item
+                    </button>
+                    <button
+                      type="button"
+                      className="aj-quote-add-items-link aj-quote-add-items-link--calc"
+                      onClick={async () => {
+                        setShowLineItems(true);
+                        const quota = await checkEstimatorQuota();
+                        setEstimatorQuota(quota);
+                        setShowEstimator(true);
+                        logTelemetry('estimator_open', { source: 'quote_toggle' });
+                      }}
+                    >
+                      <Icon name="wrench" size={14} />
+                      {' '}+ Work it out
+                    </button>
+                  </div>
                 )}
                 {showLineItems && (
                   <button
@@ -1627,6 +1664,27 @@ export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMo
         <div className="toast" role="status" aria-live="polite">
           {savedSnack}
         </div>
+      )}
+
+      {/* Work it out estimator sheet — mounted on top when open */}
+      {showEstimator && (
+        <EstimatorSheet
+          materials={Array.isArray(materials) ? materials : []}
+          defaultMarkup={defaultMarkup ?? 20}
+          quotaAllowed={estimatorQuota.allowed}
+          isPro={estimatorQuota.isPro}
+          onAddLines={(newLines) => {
+            // Increment the quota counter after a successful delivery
+            import('../lib/estimatorQuota.js').then(m => m.incrementEstimatorQuota()).catch(() => {});
+            setLineItems(prev => [...prev, ...newLines]);
+            setShowLineItems(true);
+            const total = lineItemsTotal([...lineItems, ...newLines]);
+            if (total > 0) setQTotal(String(total));
+            logTelemetry('estimator_lines_added', { count: newLines.length });
+          }}
+          onClose={() => setShowEstimator(false)}
+          onOpenAddMaterial={onBrowseMaterials}
+        />
       )}
     </div>
   );
