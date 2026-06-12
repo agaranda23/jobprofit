@@ -1,1 +1,10 @@
+# QR channel redirects — first-match wins, so these must sit above the SPA catch-all.
+# 302! forces the redirect even though /* would otherwise return a 200 for the SPA.
+# netlify.toml [[redirects]] are evaluated AFTER _redirects, so these rules live here.
+/card    /?utm_source=card&utm_medium=qr&utm_campaign=offline     302!
+/van     /?utm_source=van&utm_medium=qr&utm_campaign=offline      302!
+/flyer   /?utm_source=flyer&utm_medium=qr&utm_campaign=offline    302!
+/insta   /?utm_source=insta&utm_medium=qr&utm_campaign=social     302!
+
+# SPA catch-all — must be last.
 /*    /index.html   200
