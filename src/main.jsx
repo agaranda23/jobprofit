@@ -1,37 +1,52 @@
 import { StrictMode, lazy, Suspense } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
-import posthog from 'posthog-js';
 import AppShell from './AppShell.jsx';
 import { activateThemeController } from './lib/theme.js';
 import { getConsent } from './lib/consent.js';
 
-// Initialise PostHog only when the project API key is present.
-// Dev/PR previews without VITE_POSTHOG_KEY set will skip this block entirely.
+// Bootstrap Google Analytics 4 only when VITE_GA4_ID is present.
+// Dev/PR previews without VITE_GA4_ID set will skip this block entirely.
 //
-// GDPR/PECR compliance: opt_out_capturing_by_default prevents any event capture
-// or cookie writes until the user explicitly grants consent via the ConsentBanner.
-// If consent was previously granted (stored in localStorage), we opt back in
-// immediately so returning users are not re-prompted on every page load.
-//
-// persistence is 'localStorage' (not 'localStorage+cookie') — PostHog's own
-// cookie is not needed for opted-out users and we avoid setting it before consent.
-if (import.meta.env.VITE_POSTHOG_KEY) {
-  posthog.init(import.meta.env.VITE_POSTHOG_KEY, {
-    api_host: import.meta.env.VITE_POSTHOG_HOST || 'https://eu.i.posthog.com',
-    capture_pageview: true,
-    capture_pageleave: true,
-    autocapture: false,
-    persistence: 'localStorage',
-    opt_out_capturing_by_default: true,
-    loaded: (ph) => {
-      if (import.meta.env.DEV) ph.debug();
-      // Restore previous consent — runs synchronously before first render.
-      if (getConsent() === 'granted') {
-        ph.opt_in_capturing();
-      }
-    },
+// GDPR/PECR compliance (Consent Mode v2):
+//   1. window.dataLayer + gtag() stub are created BEFORE the script loads so
+//      that any consent calls issued synchronously below are queued and
+//      replayed by gtag.js once it loads.
+//   2. analytics_storage defaults to 'denied' — no measurement cookies or
+//      hits are sent until the user accepts via the ConsentBanner.
+//   3. If consent was previously granted (localStorage) we update to 'granted'
+//      immediately so returning users resume measurement without re-prompting.
+//   4. GA4 sends a page_view automatically on config — no explicit
+//      capture_pageview call is needed.
+if (import.meta.env.VITE_GA4_ID) {
+  window.dataLayer = window.dataLayer || [];
+  window.gtag = function gtag() { window.dataLayer.push(arguments); };
+  window.gtag('js', new Date());
+
+  // Consent Mode v2 — must be declared BEFORE config to take effect.
+  window.gtag('consent', 'default', {
+    analytics_storage: 'denied',
+    ad_storage: 'denied',
+    ad_user_data: 'denied',
+    ad_personalization: 'denied',
+    wait_for_update: 500,
   });
+
+  // Restore previous consent for returning users.
+  if (getConsent() === 'granted') {
+    window.gtag('consent', 'update', { analytics_storage: 'granted' });
+  }
+
+  window.gtag('config', import.meta.env.VITE_GA4_ID, {
+    send_page_view: true,
+  });
+
+  // Inject the gtag.js script tag dynamically (env-gated, keeps it out of
+  // the bundle entirely when the key is absent).
+  const script = document.createElement('script');
+  script.async = true;
+  script.src = `https://www.googletagmanager.com/gtag/js?id=${import.meta.env.VITE_GA4_ID}`;
+  document.head.appendChild(script);
 }
 
 // Activate theme controller — reads stored pref, applies resolved data-theme

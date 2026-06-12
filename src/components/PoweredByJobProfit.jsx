@@ -18,7 +18,7 @@
  *
  * ATTRIBUTION: Each doc type passes its own `source` so links carry
  *   ?ref=<source>&utm_source=public_doc&utm_medium=footer&utm_campaign=powered_by
- * PostHog will see these params when the referred user hits the signup/auth screen.
+ * GA4 will see these params when the referred user hits the signup/auth screen.
  *
  * @param {{
  *   source: 'invoice' | 'quote' | 'receipt',

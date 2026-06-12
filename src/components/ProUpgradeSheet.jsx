@@ -141,7 +141,7 @@ export default function ProUpgradeSheet({
 
   const handleUpgrade = async () => {
     // checkout_started carries the same trigger as upgrade_sheet_viewed so
-    // PostHog can funnel: sheet_viewed → checkout_started → subscription_active.
+    // GA4 can funnel: sheet_viewed → checkout_started → subscription_active.
     // setLastUpgradeTrigger was already called on open; call again here in case
     // the user somehow reaches this handler without the open effect having fired.
     setLastUpgradeTrigger(trigger);

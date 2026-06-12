@@ -1,18 +1,22 @@
 /**
- * telemetry.js — thin wrapper around PostHog for production event capture.
+ * telemetry.js — thin wrapper around Google Analytics 4 for production event capture.
  *
  * In DEV builds the events are console-logged (easy to confirm without
- * polluting a real PostHog project). In production the events go to PostHog
- * via the singleton initialised in main.jsx.
+ * polluting a real GA4 property). In production the events go to GA4
+ * via the window.gtag singleton bootstrapped in main.jsx.
  *
  * Consent guard: logTelemetry and identifyUser both check isConsentGranted()
- * before calling PostHog. PostHog itself is also initialised opted-out by default
- * (main.jsx), so this guard is a belt-and-braces layer for readability and
- * future-proofing — if main.jsx changes, telemetry.js still won't fire without
- * consent.
+ * before calling gtag. GA4 is also initialised with analytics_storage: 'denied'
+ * by default (main.jsx Consent Mode v2), so this guard is a belt-and-braces
+ * layer — if main.jsx changes, telemetry.js still won't fire without consent.
  *
- * Null-safe: if PostHog was not initialised (env var missing, adblocker,
- * or a public route that skips AppShell) both functions are silent no-ops.
+ * Null-safe: if gtag was not bootstrapped (env var missing, adblocker, or a
+ * public route that loaded before main.jsx ran) both functions are silent no-ops.
+ *
+ * GA4 custom dimensions note:
+ *   The upgrade_trigger parameter (and any other custom event params) must be
+ *   registered as Custom Dimensions in the GA4 admin UI before they appear in
+ *   reports or funnel explorations. See PR description for the full list.
  *
  * Exports:
  *   UPGRADE_TRIGGERS                        — canonical enum for the attribution chain
@@ -30,7 +34,6 @@
  *   within the same tab but does not persist across sessions (each conversion
  *   event is attributed to the most-recent trigger in that session).
  */
-import posthog from 'posthog-js';
 import { isConsentGranted } from './consent.js';
 
 /**
@@ -97,9 +100,9 @@ export function logTelemetry(event, data) {
   }
   if (!isConsentGranted()) return;
   try {
-    posthog.capture(event, data);
+    window.gtag('event', event, data);
   } catch {
-    // PostHog not initialised or blocked — silently no-op.
+    // gtag not initialised or blocked — silently no-op.
   }
 }
 
@@ -119,8 +122,12 @@ export function identifyUser(userId, traits = {}) {
   }
   if (!isConsentGranted()) return;
   try {
-    posthog.identify(userId, traits);
+    // Set user_id on the GA4 config so all subsequent hits are scoped to this user.
+    window.gtag('config', import.meta.env.VITE_GA4_ID, { user_id: userId });
+    // Set user-scoped properties (plan, trial_ends_at).
+    // PII-light: Supabase UUID + plan metadata only — no email or name.
+    window.gtag('set', 'user_properties', traits);
   } catch {
-    // PostHog not initialised or blocked — silently no-op.
+    // gtag not initialised or blocked — silently no-op.
   }
 }

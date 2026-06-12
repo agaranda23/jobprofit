@@ -58,7 +58,6 @@ import { formatChargeDate, shouldShowPreChargeReminder } from './lib/trialConver
 import { getJobProfit } from './lib/cashflow';
 import { enqueueJob, wireOnlineSync } from './lib/offlineQueue';
 import { logTelemetry, identifyUser, getLastUpgradeTrigger } from './lib/telemetry';
-import posthog from 'posthog-js';
 import SyncBadge from './components/SyncBadge';
 import ConsentBanner from './components/ConsentBanner.jsx';
 import Icon from './components/Icon.jsx';
@@ -393,7 +392,7 @@ export default function AppShell() {
           setPreChargeReminderVisible(true);
         }
 
-        // Identify the user in PostHog (PII-light: UUID + plan only, no email).
+        // Identify the user in GA4 (PII-light: UUID + plan only, no email).
         identifyUser(userId, {
           plan: data.plan ?? 'free',
           trial_ends_at: data.trial_ends_at ?? null,
@@ -422,8 +421,8 @@ export default function AppShell() {
       setSession(newSession);
       if (!newSession) {
         setCloudLoaded(false);
-        // Reset PostHog identity so the next sign-in gets a clean anonymous profile.
-        try { posthog.reset(); } catch { /* PostHog not initialised or blocked — silently no-op */ }
+        // Clear GA4 user_id so the next sign-in gets a clean anonymous session.
+        try { window.gtag('config', import.meta.env.VITE_GA4_ID, { user_id: undefined }); } catch { /* gtag not bootstrapped — silently no-op */ }
       }
       // Funnel step 3: signed_in — fires on every SIGNED_IN event.
       // is_new_user = true when created_at is within the last 60 s, meaning this
