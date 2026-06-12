@@ -5,7 +5,7 @@
  * patterns. Hides itself immediately on choice. Links to /privacy and /cookies.
  *
  * Mount in AppShell and each public screen (PublicQuoteView, PublicInvoiceView,
- * PublicReceiptView) because PostHog fires on all of them.
+ * PublicReceiptView) because GA4 fires on all of them.
  */
 
 import { useState, useEffect } from 'react';
@@ -13,7 +13,7 @@ import { getConsent, setConsent } from '../lib/consent.js';
 
 export default function ConsentBanner() {
   // Delay rendering so the banner doesn't stack on top of first-load UI.
-  // Consent is opt-out by default (PostHog is suppressed until granted) so
+  // Consent is opt-out by default (GA4 analytics_storage defaults to 'denied') so
   // a 2-second delay is PECR-safe — we are not capturing before consent.
   const [ready, setReady] = useState(false);
   const [visible, setVisible] = useState(() => getConsent() === null);

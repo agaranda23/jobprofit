@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v98';  // bumped from v97: Documents entry row now uses .jd-csr wrapper for pixel-exact card chrome match
+const CACHE_NAME = 'jobprofit-v99';  // bumped from v98: PostHog → GA4 full replacement
 const PRECACHE = [
   '/',
   '/index.html',

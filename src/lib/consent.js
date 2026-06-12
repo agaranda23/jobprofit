@@ -2,16 +2,14 @@
  * consent.js — analytics consent helpers.
  *
  * Single source of truth for the 'jp.analytics_consent' localStorage key.
- * Coordinates with PostHog opt-in/out so the analytics lib is never capturing
+ * Coordinates with GA4 Consent Mode v2 so analytics_storage is never 'granted'
  * before the user has chosen.
  *
  * Exports:
  *   getConsent()       → 'granted' | 'denied' | null
- *   setConsent(value)  → writes localStorage, calls posthog opt-in/out, dispatches event
+ *   setConsent(value)  → writes localStorage, updates GA4 consent state, dispatches event
  *   isConsentGranted() → boolean shorthand
  */
-
-import posthog from 'posthog-js';
 
 const KEY = 'jp.analytics_consent';
 
@@ -30,7 +28,7 @@ export function getConsent() {
 }
 
 /**
- * Persists consent, tells PostHog to opt in or out, and fires a window event
+ * Persists consent, updates GA4 Consent Mode v2, and fires a window event
  * so any listening component (e.g. the banner) can hide itself.
  *
  * @param {'granted'|'denied'} value
@@ -43,13 +41,12 @@ export function setConsent(value) {
   }
 
   try {
-    if (value === 'granted') {
-      posthog.opt_in_capturing();
-    } else {
-      posthog.opt_out_capturing();
-    }
+    // Update GA4 Consent Mode v2 — gtag queues this safely if not yet loaded.
+    window.gtag('consent', 'update', {
+      analytics_storage: value === 'granted' ? 'granted' : 'denied',
+    });
   } catch {
-    // PostHog not initialised (no API key, adblocker, public page) — safe no-op.
+    // gtag not bootstrapped (no VITE_GA4_ID, adblocker, public page) — safe no-op.
   }
 
   // Notify the banner (and any other listener) that consent has been decided.

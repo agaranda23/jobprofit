@@ -3,11 +3,12 @@
  * telemetry.test.js
  *
  * Verifies that:
- *   - logTelemetry calls posthog.capture in production (import.meta.env.DEV = false)
- *   - logTelemetry calls console.log in DEV (import.meta.env.DEV = true)
- *   - identifyUser calls posthog.identify with the right args in production
- *   - Both functions are silent no-ops when posthog.capture / identify throws
+ *   - logTelemetry calls window.gtag('event', ...) in production (DEV = false)
+ *   - logTelemetry calls console.log in DEV (DEV = true)
+ *   - identifyUser calls window.gtag('config', ...) and window.gtag('set', ...) in production
+ *   - Both functions are silent no-ops when window.gtag throws
  *   - identifyUser is a no-op when userId is falsy
+ *   - Consent guard blocks gtag calls when consent is not granted
  *
  * Strategy: import.meta.env.DEV is a compile-time constant in Vite/Vitest.
  * vi.stubEnv + vi.resetModules re-evaluates the module per describe block so
@@ -20,47 +21,37 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-// The posthog-js mock is hoisted before any import, so the module under test
-// always receives the mocked singleton.
-vi.mock('posthog-js', () => ({
-  default: {
-    capture: vi.fn(),
-    identify: vi.fn(),
-  },
-}));
-
 describe('telemetry — production build (DEV=false)', () => {
   let logTelemetry;
   let identifyUser;
-  let phCapture;
-  let phIdentify;
+  let gtagMock;
 
   beforeEach(async () => {
     vi.stubEnv('DEV', false);
+    vi.stubEnv('VITE_GA4_ID', 'G-TEST1234567');
     // Grant analytics consent so isConsentGranted() returns true and the
     // production guard inside logTelemetry / identifyUser doesn't short-circuit.
     localStorage.setItem('jp.analytics_consent', 'granted');
+    // Set up window.gtag mock before module loads.
+    gtagMock = vi.fn();
+    window.gtag = gtagMock;
     vi.resetModules();
     const mod = await import('../telemetry.js');
     logTelemetry = mod.logTelemetry;
     identifyUser = mod.identifyUser;
-    const ph = (await import('posthog-js')).default;
-    phCapture  = ph.capture;
-    phIdentify = ph.identify;
-    phCapture.mockClear();
-    phIdentify.mockClear();
     vi.spyOn(console, 'log').mockImplementation(() => {});
   });
 
   afterEach(() => {
     localStorage.removeItem('jp.analytics_consent');
+    delete window.gtag;
     vi.restoreAllMocks();
     vi.unstubAllEnvs();
   });
 
-  it('logTelemetry calls posthog.capture with event + data', () => {
+  it('logTelemetry calls window.gtag event with event name + data', () => {
     logTelemetry('invoice_sent', { channel: 'whatsapp' });
-    expect(phCapture).toHaveBeenCalledWith('invoice_sent', { channel: 'whatsapp' });
+    expect(gtagMock).toHaveBeenCalledWith('event', 'invoice_sent', { channel: 'whatsapp' });
   });
 
   it('logTelemetry does not write to console.log in production', () => {
@@ -68,14 +59,23 @@ describe('telemetry — production build (DEV=false)', () => {
     expect(console.log).not.toHaveBeenCalled();
   });
 
-  it('logTelemetry is a silent no-op when posthog.capture throws', () => {
-    phCapture.mockImplementationOnce(() => { throw new Error('blocked'); });
+  it('logTelemetry is a silent no-op when window.gtag throws', () => {
+    gtagMock.mockImplementationOnce(() => { throw new Error('blocked'); });
     expect(() => logTelemetry('upgrade_clicked', {})).not.toThrow();
   });
 
-  it('identifyUser calls posthog.identify with userId + traits', () => {
+  it('logTelemetry is a no-op when consent is not granted', async () => {
+    localStorage.setItem('jp.analytics_consent', 'denied');
+    vi.resetModules();
+    const mod = await import('../telemetry.js');
+    mod.logTelemetry('invoice_sent', { channel: 'whatsapp' });
+    expect(gtagMock).not.toHaveBeenCalled();
+  });
+
+  it('identifyUser calls gtag config with user_id and gtag set with user_properties', () => {
     identifyUser('user-123', { plan: 'trial', trial_ends_at: '2026-06-14T00:00:00Z' });
-    expect(phIdentify).toHaveBeenCalledWith('user-123', {
+    expect(gtagMock).toHaveBeenCalledWith('config', 'G-TEST1234567', { user_id: 'user-123' });
+    expect(gtagMock).toHaveBeenCalledWith('set', 'user_properties', {
       plan: 'trial',
       trial_ends_at: '2026-06-14T00:00:00Z',
     });
@@ -84,31 +84,28 @@ describe('telemetry — production build (DEV=false)', () => {
   it('identifyUser is a no-op when userId is falsy', () => {
     identifyUser(null, { plan: 'free' });
     identifyUser('', { plan: 'free' });
-    expect(phIdentify).not.toHaveBeenCalled();
+    expect(gtagMock).not.toHaveBeenCalled();
   });
 });
 
 describe('telemetry — DEV build (DEV=true)', () => {
   let logTelemetry;
   let identifyUser;
-  let phCapture;
-  let phIdentify;
+  let gtagMock;
 
   beforeEach(async () => {
     vi.stubEnv('DEV', true);
+    gtagMock = vi.fn();
+    window.gtag = gtagMock;
     vi.resetModules();
     const mod = await import('../telemetry.js');
     logTelemetry = mod.logTelemetry;
     identifyUser = mod.identifyUser;
-    const ph = (await import('posthog-js')).default;
-    phCapture  = ph.capture;
-    phIdentify = ph.identify;
-    phCapture.mockClear();
-    phIdentify.mockClear();
     vi.spyOn(console, 'log').mockImplementation(() => {});
   });
 
   afterEach(() => {
+    delete window.gtag;
     vi.restoreAllMocks();
     vi.unstubAllEnvs();
   });
@@ -121,9 +118,9 @@ describe('telemetry — DEV build (DEV=true)', () => {
     );
   });
 
-  it('logTelemetry does NOT call posthog.capture in DEV', () => {
+  it('logTelemetry does NOT call window.gtag in DEV', () => {
     logTelemetry('tab_tap', { tab: 'today' });
-    expect(phCapture).not.toHaveBeenCalled();
+    expect(gtagMock).not.toHaveBeenCalled();
   });
 
   it('identifyUser writes to console.log in DEV', () => {
@@ -131,9 +128,9 @@ describe('telemetry — DEV build (DEV=true)', () => {
     expect(console.log).toHaveBeenCalledWith('[telemetry] identify', 'user-abc', { plan: 'free' });
   });
 
-  it('identifyUser does NOT call posthog.identify in DEV', () => {
+  it('identifyUser does NOT call window.gtag in DEV', () => {
     identifyUser('user-abc', { plan: 'free' });
-    expect(phIdentify).not.toHaveBeenCalled();
+    expect(gtagMock).not.toHaveBeenCalled();
   });
 });
 
