@@ -4540,6 +4540,14 @@ input[type=number] { -moz-appearance: textfield; }
   color: #0B1220;
 }
 
+/* Records pill — same shape as show-all-pill; icon + label inline.
+   Sits to the right of the All pill in the controls row. */
+.work-records-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
 /* ── Stage Strip — unified segmented control ──────────────────────────────── */
 
 /* Outer wrap carries the bottom gap to the controls row beneath */

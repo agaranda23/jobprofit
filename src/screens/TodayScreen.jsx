@@ -606,7 +606,7 @@ export default function TodayScreen({
 
       {/* ── View buttons (look at your work) ─────────────────────────────── */}
       <div className="foreman-view-group">
-        <span className="foreman-view-label">Look at your work</span>
+        <span className="foreman-view-label">Find a quote, invoice or job</span>
         <div className="foreman-view-row">
           <button
             type="button"

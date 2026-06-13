@@ -35,6 +35,7 @@ import JobDetailDrawer from '../components/JobDetailDrawer';
 import DrawerErrorBoundary from '../components/DrawerErrorBoundary';
 import ReviewSheet from '../components/ReviewSheet';
 import StageStrip from '../components/StageStrip';
+import DocumentSearchOverlay from '../components/DocumentSearchOverlay';
 import { logTelemetry } from '../lib/telemetry';
 import { deriveDisplayStatus, daysSinceInvoice, requiresPriceForStage, stagePatch } from '../lib/jobStatus';
 import { deleteJobFromCloud } from '../lib/store';
@@ -1034,6 +1035,9 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
   const [confirmDeleteJob, setConfirmDeleteJob] = useState(null);
   // receiptJob — job whose receipt modal is open; null = closed.
   const [receiptJob, setReceiptJob] = useState(null);
+  // docOverlay — which global document search overlay is open ('jobs'|'quotes'|'invoices'|null).
+  // Reuses DocumentSearchOverlay exactly as TodayScreen does — not a new overlay, same component.
+  const [docOverlay, setDocOverlay] = useState(null);
 
   // If AppShell navigated here with a specific job to open (e.g. from TodayScreen
   // card-body tap), find it in the jobs array and pre-open the drawer.
@@ -1631,6 +1635,21 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
             All
           </button>
         )}
+        {/* Records pill — opens the global DocumentSearchOverlay (all quotes/invoices/jobs).
+            Distinct from the StageStrip above: Pipeline = current stage per job;
+            Records = every quote and invoice ever sent, searchable. Free, always visible. */}
+        <button
+          type="button"
+          className="show-all-pill work-records-pill"
+          onClick={() => {
+            logTelemetry('work_records_open', { source: 'controls_row' });
+            setDocOverlay('jobs');
+          }}
+          aria-label="Find a quote, invoice or job"
+        >
+          <Icon name="search" size={13} aria-hidden="true" />
+          Records
+        </button>
       </div>
 
       {/* Subview */}
@@ -1772,6 +1791,24 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
           onUpdate={onUpdateJob}
           onClose={() => setReceiptJob(null)}
           flash={showToast}
+        />
+      )}
+
+      {/* Global document search overlay — opened by Records pill in controls row.
+          Same component and wiring as TodayScreen (docOverlay state). Per-job document
+          history lives in DocumentsHub inside JobDetailDrawer — these coexist cleanly. */}
+      {docOverlay && (
+        <DocumentSearchOverlay
+          mode={docOverlay}
+          jobs={visibleJobs}
+          onClose={() => setDocOverlay(null)}
+          onJobSelect={(job) => {
+            setDocOverlay(null);
+            setSelectedJob(job);
+          }}
+          onCreateJob={() => { setDocOverlay(null); setAddJobOpen(true); }}
+          onCreateQuote={() => { setDocOverlay(null); setAddJobOpen(true); }}
+          onSendInvoice={(job) => { setDocOverlay(null); setReviewJob(job); }}
         />
       )}
 
