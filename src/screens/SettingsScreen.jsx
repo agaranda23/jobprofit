@@ -49,10 +49,13 @@ import { isPro, isTrialActive, trialDaysLeft, UNLOCK_PRO_FOR_ALL } from '../lib/
 import { openBillingPortal } from '../lib/billing.js';
 import { isValidStripePaymentLink } from '../lib/bizValidation.js';
 import { buildJobsCsv, downloadOrShareCsv } from '../lib/exportCsv.js';
+import { buildJobsPdf } from '../lib/exportPdf.js';
+import { downloadOrShare } from '../lib/exportCsv.js';
 import { buildChaseList } from '../lib/chaseList.js';
 import { WHATS_NEW, formatWhatsNewDate } from '../lib/whatsNew.js';
 import { getStoredPref, setPref as setThemePref } from '../lib/theme.js';
 import ProUpgradeSheet from '../components/ProUpgradeSheet.jsx';
+import ExportFormatSheet from '../components/ExportFormatSheet.jsx';
 import { getConsent, setConsent } from '../lib/consent.js';
 
 const APP_VERSION = pkg.version;
@@ -1839,8 +1842,18 @@ export default function SettingsScreen({
 
   // ── Export state ──────────────────────────────────────────────────────────
   const [exporting, setExporting] = useState(false);
+  // exportSheetContext: null | { section: 'records' | 'everything' }
+  const [exportSheetContext, setExportSheetContext] = useState(null);
 
-  const handleExport = async () => {
+  const dateStamp = () => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  };
+
+  const handleExportFormatPick = async (format) => {
+    // Capture section before clearing the sheet context
+    const section = exportSheetContext?.section;
+    setExportSheetContext(null);
     if (exporting) return;
     const safeJobs = Array.isArray(jobs) ? jobs : [];
     const safeReceipts = Array.isArray(receipts) ? receipts : [];
@@ -1850,15 +1863,35 @@ export default function SettingsScreen({
     }
     setExporting(true);
     try {
-      const csv = buildJobsCsv(safeJobs, safeReceipts);
-      const now = new Date();
-      const stamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-      await downloadOrShareCsv(csv, `jobprofit-${stamp}.csv`);
+      const stamp = dateStamp();
+      if (format === 'csv') {
+        const csv = buildJobsCsv(safeJobs, safeReceipts);
+        await downloadOrShareCsv(csv, `jobprofit-export-${stamp}.csv`);
+      } else if (format === 'pdf') {
+        const exportTitle = section === 'records' ? 'Records export' : 'Everything export';
+        const businessName = profile?.business_name || profile?.businessName || '';
+        const blob = await buildJobsPdf(safeJobs, safeReceipts, {
+          title: exportTitle,
+          businessName,
+          isPro: isPro(profile),
+        });
+        await downloadOrShare(blob, `jobprofit-export-${stamp}.pdf`, 'application/pdf');
+      }
     } catch {
       showSavedToast('Export failed — try again');
     } finally {
       setExporting(false);
     }
+  };
+
+  const openExportSheet = (section) => {
+    if (exporting) return;
+    const safeJobs = Array.isArray(jobs) ? jobs : [];
+    if (safeJobs.length === 0) {
+      showSavedToast('No jobs to export yet');
+      return;
+    }
+    setExportSheetContext({ section });
   };
 
   // ── CIS setup sheet state ─────────────────────────────────────────────────
@@ -2450,9 +2483,9 @@ export default function SettingsScreen({
       <SectionCard title="Accountant">
         <Row
           label="Export records"
-          value={exporting ? 'Preparing…' : 'CSV'}
-          onTap={exporting ? undefined : handleExport}
-          chevron={false}
+          value={exporting ? 'Preparing…' : 'Choose format'}
+          onTap={() => openExportSheet('records')}
+          chevron
         />
       </SectionCard>
 
@@ -2479,9 +2512,9 @@ export default function SettingsScreen({
         <CookieSettingsRow />
         <Row
           label="Export everything"
-          value={exporting ? 'Preparing…' : 'CSV'}
-          onTap={exporting ? undefined : handleExport}
-          chevron={false}
+          value={exporting ? 'Preparing…' : 'Choose format'}
+          onTap={() => openExportSheet('everything')}
+          chevron
         />
         <Row
           label="Delete account"
@@ -2545,7 +2578,7 @@ export default function SettingsScreen({
           <p>Send them the quote link. They open it in their browser, review the breakdown, sign with their finger, tick the T&amp;Cs checkbox, and tap Confirm. If you&rsquo;ve set a deposit, they can pay it via Stripe right there. You get a push notification the moment they accept.</p>
         </FaqItem>
         <FaqItem question="How do I export or delete my data?">
-          <p>Settings &rarr; Data &amp; privacy &rarr; Export everything downloads a CSV of all your jobs. Settings &rarr; Data &amp; privacy &rarr; Delete account wipes everything immediately — no email to support, no waiting.</p>
+          <p>Settings &rarr; Data &amp; privacy &rarr; Export everything lets you download all your jobs as a spreadsheet (CSV) or a PDF summary. Delete account wipes everything immediately — no email to support, no waiting.</p>
         </FaqItem>
       </SectionCard>
 
@@ -2723,6 +2756,42 @@ export default function SettingsScreen({
         trigger={upgradeSheetTrigger}
         onClose={() => setUpgradeSheetOpen(false)}
       />
+
+      {/* ── Export format sheet ───────────────────────────────────────────── */}
+      {exportSheetContext && (() => {
+        const isRecords = exportSheetContext.section === 'records';
+        const sheetTitle = isRecords ? 'Export records' : 'Export everything';
+        const csvFirst = isRecords;
+        const pdfSublabel = isRecords
+          ? 'A clean sheet you can send'
+          : 'A clean sheet you can read or send';
+
+        const csvOption = {
+          id: 'csv',
+          icon: '📊',
+          label: 'Spreadsheet (CSV)',
+          sublabel: 'For your accountant or Excel',
+        };
+        const pdfOption = {
+          id: 'pdf',
+          icon: '📄',
+          label: 'PDF summary',
+          sublabel: pdfSublabel,
+        };
+
+        const options = csvFirst ? [csvOption, pdfOption] : [pdfOption, csvOption];
+
+        return (
+          <ExportFormatSheet
+            open
+            title={sheetTitle}
+            subtitle="Pick a format. Both download straight to your phone."
+            options={options}
+            onPick={handleExportFormatPick}
+            onClose={() => setExportSheetContext(null)}
+          />
+        );
+      })()}
     </div>
   );
 }

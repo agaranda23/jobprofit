@@ -23,6 +23,10 @@
  * in WorkScreen — it does NOT need to match WorkScreen pixel-for-pixel; the
  * accountant just needs a readable bucket. If the canonical version changes,
  * update here too but it is not load-bearing for accounting correctness.
+ *
+ * Shared derivation: deriveJobRows() is the single source of truth for
+ * per-job aggregation consumed by both the CSV and PDF exporters — they cannot
+ * drift from each other because they both call this function.
  */
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -36,9 +40,9 @@ function isPaidJob(job) {
 }
 
 /**
- * Lightweight status label for the CSV. Doesn't need to be pixel-perfect
+ * Lightweight status label for the CSV/PDF. Doesn't need to be pixel-perfect
  * with the UI's deriveDisplayStatus — just needs to be unambiguous for an
- * accountant reading the spreadsheet.
+ * accountant reading the spreadsheet or PDF.
  */
 function deriveStatusLabel(job) {
   if (!job) return '';
@@ -75,28 +79,27 @@ function row(cols) {
   return cols.map(cell).join(',');
 }
 
-// ── Public API ────────────────────────────────────────────────────────────────
+// ── Shared aggregation (consumed by CSV and PDF) ──────────────────────────────
 
 /**
- * Builds a UTF-8 CSV string from the user's jobs and linked receipts.
+ * Derives per-job row data used by both the CSV and PDF exporters.
+ * Keeping this as the single aggregation function prevents the two exporters
+ * from drifting on costs/profit math.
  *
- * @param {object[]} jobs     — normalised job objects (cloud or legacy shape)
- * @param {object[]} receipts — all receipts; matched to jobs via jobId / cloudId
- * @returns {string}          — CSV string (UTF-8, LF line endings)
+ * @param {object[]} jobs
+ * @param {object[]} receipts
+ * @returns {{ date, customer, summary, invoiced, costs, profit, status, paidDate }[]}
  */
-export function buildJobsCsv(jobs, receipts) {
+export function deriveJobRows(jobs, receipts) {
   const safeJobs = Array.isArray(jobs) ? jobs : [];
   const safeReceipts = Array.isArray(receipts) ? receipts : [];
-
-  const headers = ['Date', 'Customer', 'Summary', 'Invoiced £', 'Costs £', 'Profit £', 'Status', 'Paid date'];
-  const lines = [row(headers)];
+  const result = [];
 
   for (const job of safeJobs) {
     if (!job) continue;
 
     const invoiced = Number(job.total ?? job.amount ?? 0) || 0;
 
-    // Match receipts linked to this job by jobId → job.id or job.cloudId
     const costs = safeReceipts
       .filter(r => {
         if (!r || r.jobId == null) return false;
@@ -107,19 +110,44 @@ export function buildJobsCsv(jobs, receipts) {
       })
       .reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
 
-    const profit = invoiced - costs;
-    const status = deriveStatusLabel(job);
-    const paidDate = isPaidJob(job) ? (job.paymentDate || job.date || '') : '';
+    result.push({
+      date: job.date || '',
+      customer: job.customer || job.name || '',
+      summary: job.summary || '',
+      invoiced,
+      costs,
+      profit: invoiced - costs,
+      status: deriveStatusLabel(job),
+      paidDate: isPaidJob(job) ? (job.paymentDate || job.date || '') : '',
+    });
+  }
 
+  return result;
+}
+
+// ── Public API ────────────────────────────────────────────────────────────────
+
+/**
+ * Builds a UTF-8 CSV string from the user's jobs and linked receipts.
+ *
+ * @param {object[]} jobs     — normalised job objects (cloud or legacy shape)
+ * @param {object[]} receipts — all receipts; matched to jobs via jobId / cloudId
+ * @returns {string}          — CSV string (UTF-8, LF line endings)
+ */
+export function buildJobsCsv(jobs, receipts) {
+  const headers = ['Date', 'Customer', 'Summary', 'Invoiced £', 'Costs £', 'Profit £', 'Status', 'Paid date'];
+  const lines = [row(headers)];
+
+  for (const r of deriveJobRows(jobs, receipts)) {
     lines.push(row([
-      job.date || '',
-      job.customer || job.name || '',
-      job.summary || '',
-      invoiced.toFixed(2),
-      costs.toFixed(2),
-      profit.toFixed(2),
-      status,
-      paidDate,
+      r.date,
+      r.customer,
+      r.summary,
+      r.invoiced.toFixed(2),
+      r.costs.toFixed(2),
+      r.profit.toFixed(2),
+      r.status,
+      r.paidDate,
     ]));
   }
 
@@ -127,42 +155,37 @@ export function buildJobsCsv(jobs, receipts) {
 }
 
 /**
- * Triggers a download of the CSV. Uses the Web Share API on mobile when
- * available (share sheet → AirDrop, WhatsApp, email, Files etc.).
+ * Generic download/share helper for any blob. Uses the Web Share API on mobile
+ * when available (share sheet → AirDrop, WhatsApp, email, Files etc.).
  * Falls back to an anchor-download on desktop.
  *
- * @param {string} csvString — output of buildJobsCsv()
- * @param {string} [filename]
+ * @param {Blob}   blob
+ * @param {string} filename
+ * @param {string} mime  — passed to the File constructor for share-sheet type hint
  */
-export async function downloadOrShareCsv(csvString, filename = 'jobprofit-export.csv') {
-  const blob = new Blob(['﻿' + csvString], { type: 'text/csv;charset=utf-8;' });
-
-  // Web Share API — works on iOS Safari 15+ and Android Chrome. The
-  // `navigator.canShare` guard prevents a crash on browsers that have
-  // navigator.share but don't accept files (e.g. older Chrome on desktop).
+export async function downloadOrShare(blob, filename, mime) {
   if (
     typeof navigator !== 'undefined' &&
     typeof navigator.share === 'function' &&
     typeof navigator.canShare === 'function'
   ) {
-    const file = new File([blob], filename, { type: 'text/csv' });
+    const file = new File([blob], filename, { type: mime });
     if (navigator.canShare({ files: [file] })) {
       try {
         await navigator.share({
           files: [file],
           title: 'JobProfit export',
-          text: 'Your jobs export from JobProfit',
+          text: 'Your export from JobProfit',
         });
         return;
       } catch (err) {
-        // User cancelled the share sheet — fall through to anchor download.
         if (err.name === 'AbortError') return;
         // Any other error: fall through silently to anchor download.
       }
     }
   }
 
-  // Anchor download fallback (desktop or unsupported browsers)
+  // Anchor download fallback
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
@@ -170,9 +193,20 @@ export async function downloadOrShareCsv(csvString, filename = 'jobprofit-export
   a.style.display = 'none';
   document.body.appendChild(a);
   a.click();
-  // Small delay so the browser completes the download before revoke.
   setTimeout(() => {
     URL.revokeObjectURL(url);
     document.body.removeChild(a);
   }, 150);
+}
+
+/**
+ * Triggers a download of the CSV. Kept for backwards-compatibility with any
+ * callers that import this name directly.
+ *
+ * @param {string} csvString — output of buildJobsCsv()
+ * @param {string} [filename]
+ */
+export async function downloadOrShareCsv(csvString, filename = 'jobprofit-export.csv') {
+  const blob = new Blob(['﻿' + csvString], { type: 'text/csv;charset=utf-8;' });
+  await downloadOrShare(blob, filename, 'text/csv');
 }

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v104';  // bumped from v103: reorder Cookie Policy above Cookie settings in Data & Privacy
+const CACHE_NAME = 'jobprofit-v105';  // bumped from v104: export format choice (CSV/PDF bottom sheet)
 const PRECACHE = [
   '/',
   '/index.html',
