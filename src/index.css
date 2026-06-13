@@ -14210,6 +14210,24 @@ button.jd-money-chip:active { opacity: 0.75; }
   box-shadow: 0 3px 12px rgba(212, 160, 23, 0.45);
 }
 
+/* settled trial state: neutral brand-green tint */
+.get-pro-pill--settled {
+  background: var(--accent, #00A86B);
+  box-shadow: 0 2px 8px rgba(0, 168, 107, 0.35);
+}
+.get-pro-pill--settled:hover {
+  box-shadow: 0 3px 12px rgba(0, 168, 107, 0.45);
+}
+
+/* urgency + last-day trial states: amber tint */
+.get-pro-pill--urgency {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 60%, #b45309 100%);
+  box-shadow: 0 2px 8px rgba(217, 119, 6, 0.40);
+}
+.get-pro-pill--urgency:hover {
+  box-shadow: 0 3px 12px rgba(217, 119, 6, 0.50);
+}
+
 .get-pro-pill__body {
   flex: 1;
   display: flex;
@@ -14229,9 +14247,11 @@ button.jd-money-chip:active { opacity: 0.75; }
 }
 
 .get-pro-pill__icon {
-  font-size: 16px;
   flex-shrink: 0;
   line-height: 1;
+  display: flex;
+  align-items: center;
+  color: #fff;
 }
 
 .get-pro-pill__copy {

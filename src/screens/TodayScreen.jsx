@@ -415,6 +415,7 @@ export default function TodayScreen({
         <GetProPill
           profile={profile}
           onOpen={() => setUpgradeSheetOpen(true)}
+          onError={(msg) => showToast(msg)}
         />
       )}
 

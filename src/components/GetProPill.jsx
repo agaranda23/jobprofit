@@ -1,22 +1,49 @@
 /**
  * GetProPill — slim upsell row for the top of Today screen.
  *
- * Show when:
- *   - Free user (!isPro): "Get Pro — unlock true profit, tax pot, chase ladder & more"
- *   - Active trial (isTrialActive): "N days left on your free Pro trial — add a card to keep Pro"
+ * Four states driven by plan helpers from lib/plan.js:
+ *
+ *   trial-settled  isTrialActive && daysLeft >= 4
+ *     Copy: "Pro trial — {N} days of true-profit left"
+ *     CTA:  opens ProUpgradeSheet (informational, low urgency)
+ *     Tint: neutral/green (brand)
+ *     Dismissible: yes (session)
+ *
+ *   trial-urgency  isTrialActive && daysLeft <= 3 (and not last day)
+ *     Copy: "{N} days left — keep your true-profit view for £12/mo"
+ *     CTA:  startCheckout() direct (minimal friction)
+ *     Tint: amber
+ *     Dismissible: NO (urgency must survive a prior dismiss)
+ *
+ *   last-day       isTrialLastDay
+ *     Copy: "Last day of Pro — keep it for £12/mo"
+ *     CTA:  startCheckout() direct
+ *     Tint: amber
+ *     Dismissible: NO
+ *
+ *   free/expired   !isPro && !isTrialActive
+ *     Copy: "Get Pro — see your true profit, tax pot & auto-chasing"
+ *     CTA:  opens ProUpgradeSheet
+ *     Tint: gold (--gold-gradient, matches the existing base style)
+ *     Dismissible: yes (session)
+ *
+ * Dismissal: only settled-trial and free states write to sessionStorage.
+ * Urgency and last-day states ignore the dismiss flag so a user who dismissed
+ * early still sees the day-12/13/14 nudge.
  *
  * Never shown when isPro (paid plan, not trial).
  *
- * Dismissible for the session via sessionStorage flag 'jp.getproPillDismissed'.
- * On tap → opens ProUpgradeSheet.
- *
  * Props:
  *   profile    — Supabase profiles row (may be null while loading)
- *   onOpen     — called when the pill is tapped (opens ProUpgradeSheet with trigger='today_pill')
+ *   onOpen     — called when the pill opens ProUpgradeSheet (settled / free states)
+ *   onError    — called with an error string if startCheckout() fails (urgency / last-day states)
  */
 
 import { useState } from 'react';
-import { isTrialActive, trialDaysLeft, planAllowsPro } from '../lib/plan';
+import { isPro, isTrialActive, isTrialLastDay, trialDaysLeft } from '../lib/plan';
+import { startCheckout } from '../lib/billing';
+import { logTelemetry, setLastUpgradeTrigger, UPGRADE_TRIGGERS } from '../lib/telemetry';
+import Icon from './Icon';
 
 const SESSION_KEY = 'jp.getproPillDismissed';
 
@@ -28,18 +55,68 @@ function setDismissed() {
   try { sessionStorage.setItem(SESSION_KEY, '1'); } catch { /* sessionStorage unavailable */ }
 }
 
-export default function GetProPill({ profile, onOpen }) {
+// Resolve which of the 4 display states applies.
+// Returns: 'settled' | 'urgency' | 'last-day' | 'free'
+function resolveState(profile) {
+  const onTrial = isTrialActive(profile);
+  if (onTrial) {
+    if (isTrialLastDay(profile)) return 'last-day';
+    const days = trialDaysLeft(profile);
+    return days <= 3 ? 'urgency' : 'settled';
+  }
+  return 'free';
+}
+
+export default function GetProPill({ profile, onOpen, onError }) {
   const [dismissed, setDismissedState] = useState(isDismissed);
 
-  // Don't show for paid Pro users (plan=pro). Show for trial and free.
-  const paid = planAllowsPro(profile);
-  const onTrial = isTrialActive(profile);
-  const daysLeft = trialDaysLeft(profile);
-
   // Paid Pro: never show
-  if (paid) return null;
-  // Dismissed this session: don't show
-  if (dismissed) return null;
+  if (isPro(profile) && !isTrialActive(profile)) return null;
+  // Fully paid (plan=pro) never shows
+  if (profile?.plan === 'pro') return null;
+
+  const state = resolveState(profile);
+
+  // Urgency and last-day states must NOT respect dismissal — they re-appear
+  // even if the user dismissed during the settled window.
+  const isDismissible = state === 'settled' || state === 'free';
+  if (isDismissible && dismissed) return null;
+
+  const daysLeft = trialDaysLeft(profile);
+  const dayWord = daysLeft === 1 ? 'day' : 'days';
+
+  let copy;
+  let iconName;
+  let pillModifier;
+  let isDirectCheckout;
+
+  switch (state) {
+    case 'settled':
+      copy = `Pro trial — ${daysLeft} ${dayWord} of true-profit left`;
+      iconName = 'clock';
+      pillModifier = 'get-pro-pill--settled';
+      isDirectCheckout = false;
+      break;
+    case 'urgency':
+      copy = `${daysLeft} ${dayWord} left — keep your true-profit view for £12/mo`;
+      iconName = 'clock';
+      pillModifier = 'get-pro-pill--urgency';
+      isDirectCheckout = true;
+      break;
+    case 'last-day':
+      copy = 'Last day of Pro — keep it for £12/mo';
+      iconName = 'clock';
+      pillModifier = 'get-pro-pill--urgency';
+      isDirectCheckout = true;
+      break;
+    case 'free':
+    default:
+      copy = 'Get Pro — see your true profit, tax pot & auto-chasing';
+      iconName = 'sparkles';
+      pillModifier = '';
+      isDirectCheckout = false;
+      break;
+  }
 
   const handleDismiss = (e) => {
     e.stopPropagation();
@@ -47,32 +124,41 @@ export default function GetProPill({ profile, onOpen }) {
     setDismissedState(true);
   };
 
-  const copy = onTrial
-    ? `Trial ends in ${daysLeft} day${daysLeft === 1 ? '' : 's'} — add a card to keep Pro`
-    : 'Get Pro — unlock true profit, tax pot, chase ladder & more';
-
-  const icon = onTrial ? '⏳' : '💎'; // ⏳ or 💎
+  const handleTap = async () => {
+    if (isDirectCheckout) {
+      setLastUpgradeTrigger(UPGRADE_TRIGGERS.TRIAL_BANNER);
+      logTelemetry('checkout_started', { trigger: UPGRADE_TRIGGERS.TRIAL_BANNER, state });
+      const { error } = await startCheckout();
+      if (error) onError?.(error);
+    } else {
+      onOpen?.();
+    }
+  };
 
   return (
-    <div className="get-pro-pill">
+    <div className={`get-pro-pill${pillModifier ? ` ${pillModifier}` : ''}`}>
       <button
         type="button"
         className="get-pro-pill__body"
-        onClick={onOpen}
-        aria-label={copy + ' — tap to learn more'}
+        onClick={handleTap}
+        aria-label={copy + (isDirectCheckout ? ' — tap to subscribe' : ' — tap to learn more')}
       >
-        <span className="get-pro-pill__icon" aria-hidden="true">{icon}</span>
+        <span className="get-pro-pill__icon" aria-hidden="true">
+          <Icon name={iconName} size={16} />
+        </span>
         <span className="get-pro-pill__copy">{copy}</span>
         <span className="get-pro-pill__chevron" aria-hidden="true">&#8250;</span>
       </button>
-      <button
-        type="button"
-        className="get-pro-pill__dismiss"
-        aria-label="Dismiss"
-        onClick={handleDismiss}
-      >
-        &times;
-      </button>
+      {isDismissible && (
+        <button
+          type="button"
+          className="get-pro-pill__dismiss"
+          aria-label="Dismiss"
+          onClick={handleDismiss}
+        >
+          &times;
+        </button>
+      )}
     </div>
   );
 }
