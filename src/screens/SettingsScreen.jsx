@@ -48,7 +48,7 @@ import { getOverheadTotal } from '../lib/cashflow.js';
 import { isPro, isTrialActive, trialDaysLeft, UNLOCK_PRO_FOR_ALL } from '../lib/plan.js';
 import { openBillingPortal } from '../lib/billing.js';
 import { isValidStripePaymentLink } from '../lib/bizValidation.js';
-import { buildJobsCsv, downloadOrShareCsv } from '../lib/exportCsv.js';
+import { buildJobsCsv, buildEverythingCsv, downloadOrShareCsv } from '../lib/exportCsv.js';
 import { buildJobsPdf } from '../lib/exportPdf.js';
 import { downloadOrShare } from '../lib/exportCsv.js';
 import { buildChaseList } from '../lib/chaseList.js';
@@ -1864,16 +1864,25 @@ export default function SettingsScreen({
     setExporting(true);
     try {
       const stamp = dateStamp();
+      const isEverything = section === 'everything';
       if (format === 'csv') {
-        const csv = buildJobsCsv(safeJobs, safeReceipts);
+        // "Export everything" includes the account/profile section at the top.
+        // "Export records" is the jobs ledger only — accountant-friendly, unchanged.
+        const csv = isEverything
+          ? buildEverythingCsv(safeJobs, safeReceipts, profile, session)
+          : buildJobsCsv(safeJobs, safeReceipts);
         await downloadOrShareCsv(csv, `jobprofit-export-${stamp}.csv`);
       } else if (format === 'pdf') {
-        const exportTitle = section === 'records' ? 'Records export' : 'Everything export';
+        const exportTitle = isEverything ? 'Everything export' : 'Records export';
         const businessName = profile?.business_name || profile?.businessName || '';
         const blob = await buildJobsPdf(safeJobs, safeReceipts, {
           title: exportTitle,
           businessName,
           isPro: isPro(profile),
+          // "Export everything" adds the Account block above the totals strip.
+          includeAccount: isEverything,
+          profile,
+          session,
         });
         await downloadOrShare(blob, `jobprofit-export-${stamp}.pdf`, 'application/pdf');
       }

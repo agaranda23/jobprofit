@@ -30,7 +30,7 @@
  * @returns {Promise<Blob>}  — application/pdf Blob
  */
 
-import { deriveJobRows } from './exportCsv.js';
+import { deriveJobRows, deriveAccountFields } from './exportCsv.js';
 
 // Max chars for summary column before truncation
 const SUMMARY_MAX = 50;
@@ -74,8 +74,18 @@ function deriveDateRange(rows) {
  *
  * Separate from buildJobsPdf so the PDF builder can be tested without
  * re-running the aggregation logic (which is already tested in exportCsv tests).
+ *
+ * @param {object[]} rows          — output of deriveJobRows(jobs, receipts)
+ * @param {object}   opts
+ * @param {string}   opts.title        — "Records export" | "Everything export"
+ * @param {string}   [opts.businessName] — shown in header right side
+ * @param {boolean}  [opts.isPro]      — controls "Sent with JobProfit" footer line
+ * @param {[string, string][]} [opts.accountFields] — when present, an Account section
+ *                                        is rendered between the header and totals strip.
+ *                                        Pass output of deriveAccountFields() for the
+ *                                        "Export everything" PDF only.
  */
-export async function buildPdfFromRows(rows, { title = 'Export', businessName = '', isPro = true } = {}) {
+export async function buildPdfFromRows(rows, { title = 'Export', businessName = '', isPro = true, accountFields = null } = {}) {
   // Lazy-load jsPDF so the ~250 KB chunk is only fetched when needed
   const [{ jsPDF }, { default: autoTable }] = await Promise.all([
     import('jspdf'),
@@ -129,6 +139,51 @@ export async function buildPdfFromRows(rows, { title = 'Export', businessName = 
 
   doc.text(`Generated: ${generatedDate}`, MARGIN, y);
   doc.text(`Date range: ${dateRange}`, MARGIN + 60, y);
+
+  // ── Account block (everything export only) ─────────────────────────────────
+  // Rendered as a compact two-column grid (label | value) between the meta line
+  // and the totals strip. Only included when accountFields is provided.
+  if (Array.isArray(accountFields) && accountFields.length > 0) {
+    y += 7;
+
+    // Section heading
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(...BLACK);
+    doc.text('Account details', MARGIN, y);
+
+    y += 4;
+
+    // Thin rule under heading
+    doc.setDrawColor(229, 231, 235);
+    doc.setLineWidth(0.3);
+    doc.line(MARGIN, y, MARGIN + CONTENT_W, y);
+
+    y += 4;
+
+    // Two-column layout: label left, value right of label.
+    // Non-empty fields only — skip blank values.
+    const filledFields = accountFields.filter(([, v]) => v && v.trim() !== '');
+    const COL_W = CONTENT_W / 2;
+    const ROW_H = 4.5;
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+
+    for (let i = 0; i < filledFields.length; i++) {
+      const col = i % 2;
+      const rowIdx = Math.floor(i / 2);
+      const x = MARGIN + col * COL_W;
+      const ry = y + rowIdx * ROW_H;
+
+      doc.setTextColor(...GREY);
+      doc.text(filledFields[i][0] + ':', x, ry);
+      doc.setTextColor(...BLACK);
+      doc.text(filledFields[i][1], x + 30, ry);
+    }
+
+    y += Math.ceil(filledFields.length / 2) * ROW_H + 3;
+  }
 
   // ── Totals strip ───────────────────────────────────────────────────────────
   y += 8;
@@ -234,12 +289,24 @@ export async function buildPdfFromRows(rows, { title = 'Export', businessName = 
 /**
  * Full entry point: aggregates jobs + receipts then builds the PDF.
  *
+ * For "Export everything", pass opts.includeAccount = true together with
+ * opts.profile and opts.session so the Account block is rendered above the
+ * totals strip. "Export records" does not pass these — no Account block shown.
+ *
  * @param {object[]} jobs
  * @param {object[]} receipts
- * @param {object}   opts   — { title, businessName, isPro }
+ * @param {object}   opts
+ * @param {string}   [opts.title]
+ * @param {string}   [opts.businessName]
+ * @param {boolean}  [opts.isPro]
+ * @param {boolean}  [opts.includeAccount]  — when true, includes Account section
+ * @param {object}   [opts.profile]         — profiles row (used with includeAccount)
+ * @param {object}   [opts.session]         — Supabase session (used with includeAccount)
  * @returns {Promise<Blob>}
  */
 export async function buildJobsPdf(jobs, receipts, opts = {}) {
   const rows = deriveJobRows(jobs, receipts);
-  return buildPdfFromRows(rows, opts);
+  const { includeAccount, profile, session, ...pdfOpts } = opts;
+  const accountFields = includeAccount ? deriveAccountFields(profile, session) : null;
+  return buildPdfFromRows(rows, { ...pdfOpts, accountFields });
 }
