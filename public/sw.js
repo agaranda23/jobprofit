@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v99';  // bumped from v98: PostHog → GA4 full replacement
+const CACHE_NAME = 'jobprofit-v100';  // bumped from v99: price-total invariant fix (Option A)
 const PRECACHE = [
   '/',
   '/index.html',

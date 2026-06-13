@@ -230,7 +230,7 @@ function mapCloudJobToToday(r) {
   // Merge semantics: cloud meta → explicit columns → localStorage overlay.
   const cloudMeta = (r.meta && typeof r.meta === 'object') ? r.meta : {};
 
-  return {
+  const job = {
     ...cloudMeta,
     id: r.id, // Supabase UUID (source of truth)
     name: r.customer_name || r.summary?.slice(0, 40) || 'Job',
@@ -258,6 +258,25 @@ function mapCloudJobToToday(r) {
     payments: cloudMeta.payments ?? [],
     cloud: true,
   };
+
+  // Self-heal migration (price-reconciliation 2026-06-13):
+  // Re-derive total from lineItems when they disagree and lines exist.
+  // This corrects jobs where handleAmountSave wrote total=<free number> while
+  // leaving existing line items at their old values (e.g. total=80, lines=£420).
+  // Safe guard: only re-derive when lines are present — a job with total>0 but
+  // no lines was legitimately saved via the seed path and must not be touched.
+  // This is in-memory only: the DB is corrected the next time the user saves
+  // any line item via handleSaveLiLine/handleSaveLiEdit.
+  const healedLines = job.lineItems.filter(i => i.desc || i.cost > 0);
+  if (healedLines.length > 0) {
+    const lineSum = healedLines.reduce((s, i) => s + Number(i.cost || 0), 0);
+    if (job.total !== lineSum) {
+      job.total = lineSum;
+      job.amount = lineSum;
+    }
+  }
+
+  return job;
 }
 
 function mapCloudReceiptToToday(r) {

@@ -72,6 +72,10 @@ export default function CollapsedSectionRow({
   meta,
   needsAttention = false,
   defaultExpanded = false,
+  // forceExpandTick: increment this value to programmatically expand the section
+  // from outside (e.g. tapping the header price routes to the Price accordion).
+  // A change from any value triggers expansion; the parent controls when to fire.
+  forceExpandTick = 0,
   children,
 }) {
   const [expanded, setExpanded] = useState(defaultExpanded || needsAttention);
@@ -88,6 +92,15 @@ export default function CollapsedSectionRow({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [needsAttention]);
+
+  // When the parent increments forceExpandTick, expand this section.
+  // Initialised to skip the mount (tick=0 means no programmatic expand yet).
+  useEffect(() => {
+    if (forceExpandTick > 0) {
+      setExpanded(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [forceExpandTick]);
 
   const panelId = `jd-csr-panel-${id}`;
   const triggerId = `jd-csr-trigger-${id}`;
