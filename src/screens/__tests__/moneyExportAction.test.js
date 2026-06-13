@@ -54,10 +54,11 @@ describe('FinanceScreen — onExport prop wiring', () => {
   });
 
   it('has no isPro gate on the export button', () => {
-    // Confirm the section comment and implementation do not wrap in ProGate
-    // Strategy: the accountant-tools block must not contain ProGate
+    // Confirm the accountant-tools card block does not wrap in ProGate.
+    // The card now sits between the UpgradeBanner and the Tax Pot card (position 2b).
+    // Use the nearest unique boundary landmark after the card.
     const toolsBlockStart = financeSrc.indexOf('money-accountant-tools');
-    const toolsBlockEnd   = financeSrc.indexOf('Full empty state', toolsBlockStart);
+    const toolsBlockEnd   = financeSrc.indexOf('Tax Pot card', toolsBlockStart);
     const toolsBlock = toolsBlockStart !== -1 && toolsBlockEnd !== -1
       ? financeSrc.slice(toolsBlockStart, toolsBlockEnd)
       : '';

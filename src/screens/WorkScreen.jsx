@@ -1635,15 +1635,17 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
             All
           </button>
         )}
-        {/* Records pill — opens the global DocumentSearchOverlay (all quotes/invoices/jobs).
-            Distinct from the StageStrip above: Pipeline = current stage per job;
+        {/* Records pill — opens the global DocumentSearchOverlay in 'quotes' mode.
+            Defaulting to 'quotes' because that's what most users navigate here for
+            (looking up what they quoted), and the in-overlay mode switcher lets them
+            reach All jobs or Invoices without closing. Pipeline = current stage per job;
             Records = every quote and invoice ever sent, searchable. Free, always visible. */}
         <button
           type="button"
           className="show-all-pill work-records-pill"
           onClick={() => {
             logTelemetry('work_records_open', { source: 'controls_row' });
-            setDocOverlay('jobs');
+            setDocOverlay('quotes');
           }}
           aria-label="Find a quote, invoice or job"
         >
