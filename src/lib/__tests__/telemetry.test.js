@@ -3,12 +3,12 @@
  * telemetry.test.js
  *
  * Verifies that:
- *   - logTelemetry calls window.gtag('event', ...) in production (DEV = false)
- *   - logTelemetry calls console.log in DEV (DEV = true)
- *   - identifyUser calls window.gtag('config', ...) and window.gtag('set', ...) in production
- *   - Both functions are silent no-ops when window.gtag throws
+ *   - logTelemetry calls BOTH posthog.capture AND window.gtag('event', ...) in production
+ *   - logTelemetry calls console.log in DEV (DEV = true) — neither provider called
+ *   - identifyUser calls BOTH posthog.identify AND window.gtag('config'/'set', ...) in production
+ *   - Both functions are silent no-ops when a provider throws (one failing never blocks the other)
  *   - identifyUser is a no-op when userId is falsy
- *   - Consent guard blocks gtag calls when consent is not granted
+ *   - Consent guard blocks ALL provider calls when consent is not granted
  *
  * Strategy: import.meta.env.DEV is a compile-time constant in Vite/Vitest.
  * vi.stubEnv + vi.resetModules re-evaluates the module per describe block so
@@ -17,14 +17,31 @@
  * jsdom environment is required because the production consent guard reads
  * localStorage via consent.js — we exercise the real consent.js by seeding
  * the key before each production-build test rather than mocking it away.
+ *
+ * PostHog is mocked at the module level using vi.mock so we control
+ * posthog.capture / posthog.identify without needing a real API key.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+
+// Mock posthog-js so its methods are spies we can assert on.
+vi.mock('posthog-js', () => ({
+  default: {
+    capture: vi.fn(),
+    identify: vi.fn(),
+    opt_in_capturing: vi.fn(),
+    opt_out_capturing: vi.fn(),
+    reset: vi.fn(),
+    init: vi.fn(),
+    debug: vi.fn(),
+  },
+}));
 
 describe('telemetry — production build (DEV=false)', () => {
   let logTelemetry;
   let identifyUser;
   let gtagMock;
+  let posthogMock;
 
   beforeEach(async () => {
     vi.stubEnv('DEV', false);
@@ -39,6 +56,11 @@ describe('telemetry — production build (DEV=false)', () => {
     const mod = await import('../telemetry.js');
     logTelemetry = mod.logTelemetry;
     identifyUser = mod.identifyUser;
+    // Get the posthog mock (it's already set up by vi.mock above).
+    const posthogModule = await import('posthog-js');
+    posthogMock = posthogModule.default;
+    // Clear call counts from any previous test.
+    vi.clearAllMocks();
     vi.spyOn(console, 'log').mockImplementation(() => {});
   });
 
@@ -49,9 +71,20 @@ describe('telemetry — production build (DEV=false)', () => {
     vi.unstubAllEnvs();
   });
 
+  it('logTelemetry calls posthog.capture with event name + data', () => {
+    logTelemetry('invoice_sent', { channel: 'whatsapp' });
+    expect(posthogMock.capture).toHaveBeenCalledWith('invoice_sent', { channel: 'whatsapp' });
+  });
+
   it('logTelemetry calls window.gtag event with event name + data', () => {
     logTelemetry('invoice_sent', { channel: 'whatsapp' });
     expect(gtagMock).toHaveBeenCalledWith('event', 'invoice_sent', { channel: 'whatsapp' });
+  });
+
+  it('logTelemetry fires BOTH posthog.capture and window.gtag in the same call', () => {
+    logTelemetry('mark_paid', { source: 'today' });
+    expect(posthogMock.capture).toHaveBeenCalledTimes(1);
+    expect(gtagMock).toHaveBeenCalledWith('event', 'mark_paid', { source: 'today' });
   });
 
   it('logTelemetry does not write to console.log in production', () => {
@@ -59,17 +92,35 @@ describe('telemetry — production build (DEV=false)', () => {
     expect(console.log).not.toHaveBeenCalled();
   });
 
-  it('logTelemetry is a silent no-op when window.gtag throws', () => {
-    gtagMock.mockImplementationOnce(() => { throw new Error('blocked'); });
+  it('logTelemetry is a silent no-op when posthog.capture throws, gtag still fires', () => {
+    posthogMock.capture.mockImplementationOnce(() => { throw new Error('posthog blocked'); });
     expect(() => logTelemetry('upgrade_clicked', {})).not.toThrow();
+    expect(gtagMock).toHaveBeenCalledWith('event', 'upgrade_clicked', {});
   });
 
-  it('logTelemetry is a no-op when consent is not granted', async () => {
+  it('logTelemetry is a silent no-op when window.gtag throws, posthog still fires', () => {
+    gtagMock.mockImplementationOnce(() => { throw new Error('gtag blocked'); });
+    expect(() => logTelemetry('upgrade_clicked', {})).not.toThrow();
+    expect(posthogMock.capture).toHaveBeenCalledWith('upgrade_clicked', {});
+  });
+
+  it('logTelemetry is a no-op for BOTH providers when consent is not granted', async () => {
     localStorage.setItem('jp.analytics_consent', 'denied');
     vi.resetModules();
     const mod = await import('../telemetry.js');
+    const phMod = await import('posthog-js');
+    vi.clearAllMocks();
     mod.logTelemetry('invoice_sent', { channel: 'whatsapp' });
+    expect(phMod.default.capture).not.toHaveBeenCalled();
     expect(gtagMock).not.toHaveBeenCalled();
+  });
+
+  it('identifyUser calls posthog.identify with userId and traits', () => {
+    identifyUser('user-123', { plan: 'trial', trial_ends_at: '2026-06-14T00:00:00Z' });
+    expect(posthogMock.identify).toHaveBeenCalledWith('user-123', {
+      plan: 'trial',
+      trial_ends_at: '2026-06-14T00:00:00Z',
+    });
   });
 
   it('identifyUser calls gtag config with user_id and gtag set with user_properties', () => {
@@ -81,9 +132,16 @@ describe('telemetry — production build (DEV=false)', () => {
     });
   });
 
+  it('identifyUser fires BOTH posthog.identify and gtag in the same call', () => {
+    identifyUser('user-456', { plan: 'pro' });
+    expect(posthogMock.identify).toHaveBeenCalledTimes(1);
+    expect(gtagMock).toHaveBeenCalledWith('config', 'G-TEST1234567', { user_id: 'user-456' });
+  });
+
   it('identifyUser is a no-op when userId is falsy', () => {
     identifyUser(null, { plan: 'free' });
     identifyUser('', { plan: 'free' });
+    expect(posthogMock.identify).not.toHaveBeenCalled();
     expect(gtagMock).not.toHaveBeenCalled();
   });
 });
@@ -92,6 +150,7 @@ describe('telemetry — DEV build (DEV=true)', () => {
   let logTelemetry;
   let identifyUser;
   let gtagMock;
+  let posthogMock;
 
   beforeEach(async () => {
     vi.stubEnv('DEV', true);
@@ -101,6 +160,9 @@ describe('telemetry — DEV build (DEV=true)', () => {
     const mod = await import('../telemetry.js');
     logTelemetry = mod.logTelemetry;
     identifyUser = mod.identifyUser;
+    const phMod = await import('posthog-js');
+    posthogMock = phMod.default;
+    vi.clearAllMocks();
     vi.spyOn(console, 'log').mockImplementation(() => {});
   });
 
@@ -118,6 +180,11 @@ describe('telemetry — DEV build (DEV=true)', () => {
     );
   });
 
+  it('logTelemetry does NOT call posthog.capture in DEV', () => {
+    logTelemetry('tab_tap', { tab: 'today' });
+    expect(posthogMock.capture).not.toHaveBeenCalled();
+  });
+
   it('logTelemetry does NOT call window.gtag in DEV', () => {
     logTelemetry('tab_tap', { tab: 'today' });
     expect(gtagMock).not.toHaveBeenCalled();
@@ -126,6 +193,11 @@ describe('telemetry — DEV build (DEV=true)', () => {
   it('identifyUser writes to console.log in DEV', () => {
     identifyUser('user-abc', { plan: 'free' });
     expect(console.log).toHaveBeenCalledWith('[telemetry] identify', 'user-abc', { plan: 'free' });
+  });
+
+  it('identifyUser does NOT call posthog.identify in DEV', () => {
+    identifyUser('user-abc', { plan: 'free' });
+    expect(posthogMock.identify).not.toHaveBeenCalled();
   });
 
   it('identifyUser does NOT call window.gtag in DEV', () => {

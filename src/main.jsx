@@ -1,6 +1,7 @@
 import { StrictMode, lazy, Suspense } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
+import posthog from 'posthog-js';
 import AppShell from './AppShell.jsx';
 import { activateThemeController } from './lib/theme.js';
 import { getConsent } from './lib/consent.js';
@@ -47,6 +48,34 @@ if (import.meta.env.VITE_GA4_ID) {
   script.async = true;
   script.src = `https://www.googletagmanager.com/gtag/js?id=${import.meta.env.VITE_GA4_ID}`;
   document.head.appendChild(script);
+}
+
+// Bootstrap PostHog only when VITE_POSTHOG_KEY is present.
+// EU-hosted (eu.i.posthog.com) — override via VITE_POSTHOG_HOST if needed.
+//
+// GDPR/PECR compliance:
+//   opt_out_capturing_by_default prevents any event or cookie writes until the
+//   user accepts via the ConsentBanner. If consent was previously granted
+//   (localStorage) we opt back in immediately so returning users resume tracking
+//   without re-prompting.
+//
+// persistence: 'localStorage' avoids writing the PostHog cookie before consent.
+if (import.meta.env.VITE_POSTHOG_KEY) {
+  posthog.init(import.meta.env.VITE_POSTHOG_KEY, {
+    api_host: import.meta.env.VITE_POSTHOG_HOST || 'https://eu.i.posthog.com',
+    capture_pageview: true,
+    capture_pageleave: true,
+    autocapture: false,
+    persistence: 'localStorage',
+    opt_out_capturing_by_default: true,
+    loaded: (ph) => {
+      if (import.meta.env.DEV) ph.debug();
+      // Restore previous consent — runs synchronously before first render.
+      if (getConsent() === 'granted') {
+        ph.opt_in_capturing();
+      }
+    },
+  });
 }
 
 // Activate theme controller — reads stored pref, applies resolved data-theme

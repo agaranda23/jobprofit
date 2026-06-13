@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v101';  // bumped from v100: job-header-snapshot redesign (Decision B)
+const CACHE_NAME = 'jobprofit-v102';  // bumped from v101: restore PostHog dual-run alongside GA4
 const PRECACHE = [
   '/',
   '/index.html',
