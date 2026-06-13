@@ -79,7 +79,7 @@
       <li>VAT number, UTR number — compliance and invoicing (contract/legal obligation).</li>
       <li>Hourly rate — calculating job costs and profit (contract).</li>
       <li>Logo — branding quotes/invoices (contract).</li>
-      <li>App usage data (pages, features, errors) — improving the product (legitimate interests; we use Google Analytics 4, see Section 5).</li>
+      <li>App usage data (pages, features, errors) — improving the product (legitimate interests; we use Google Analytics 4 and PostHog, see Section 5).</li>
     </ul>
 
     <p><strong>3b. Data about your customers (job data): When you quote/invoice/log jobs, YOU are the data controller and JobProfit is your data processor.</strong></p>
@@ -95,6 +95,7 @@
       <li>Job and invoice records (financial data): retained for the life of the trader&rsquo;s account. HMRC recommends traders keep financial records for at least 6 years; these records exist at the trader&rsquo;s direction and we hold them as processor for as long as the trader&rsquo;s account is active.</li>
       <li>Unconverted leads (quotes that were never accepted or invoiced): removed approximately 6 months after the last activity on that job, or sooner if the trader deletes them.</li>
       <li>Analytics (Google Analytics 4): data is retained for 14 months (GA4 default) and kept no longer than necessary for product analytics.</li>
+      <li>Analytics (PostHog): data is retained for 12 months (PostHog EU cloud default) and kept no longer than necessary for product analytics.</li>
       <li>Stripe transaction records: Stripe retains per its policies; we retain metadata up to 7 years for accounting/tax.</li>
     </ul>
 
@@ -105,6 +106,7 @@
       <li><strong>Netlify</strong> — hosting/serverless — request metadata, logs — USA; transfers covered by Standard Contractual Clauses / the UK Addendum (per Netlify's Data Processing Agreement).</li>
       <li><strong>Stripe / Stripe Connect</strong> — payment processing — trader name, email, billing metadata; card/bank-card details held directly by Stripe, JobProfit never sees or stores them — USA (EU-US DPF).</li>
       <li><strong>Google Analytics 4 (Google LLC)</strong> — pseudonymised usage events and device metadata; cookies set: <code>_ga</code>, <code>_ga_&lt;id&gt;</code>. Data is processed on Google's servers (USA); transfers are covered by the EU–US Data Privacy Framework and Standard Contractual Clauses / the UK Addendum. IP anonymisation is enabled by default in GA4. Google's privacy policy: <a href="https://policies.google.com/privacy" target="_blank" rel="noopener">policies.google.com/privacy</a>.</li>
+      <li><strong>PostHog (PostHog Inc.)</strong> — pseudonymised usage events and session analytics; data is stored on PostHog's EU cloud (eu.i.posthog.com, hosted in the EU). No cross-site tracking; no advertising cookies. PostHog's privacy policy: <a href="https://posthog.com/privacy" target="_blank" rel="noopener">posthog.com/privacy</a>.</li>
       <li><strong>Anthropic</strong> — AI quote generation — job descriptions and pricing history (no customer contact details) — USA; transfers covered by Standard Contractual Clauses / the UK Addendum.</li>
     </ul>
     <p>We do not sell data or use it for advertising targeting.</p>

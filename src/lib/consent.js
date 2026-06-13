@@ -2,14 +2,17 @@
  * consent.js — analytics consent helpers.
  *
  * Single source of truth for the 'jp.analytics_consent' localStorage key.
- * Coordinates with GA4 Consent Mode v2 so analytics_storage is never 'granted'
- * before the user has chosen.
+ * DUAL-RUN: setConsent drives BOTH PostHog opt-in/out AND GA4 Consent Mode v2
+ * so neither provider captures before the user has chosen. Each provider call
+ * is independently guarded — one missing/throwing never blocks the other.
  *
  * Exports:
  *   getConsent()       → 'granted' | 'denied' | null
- *   setConsent(value)  → writes localStorage, updates GA4 consent state, dispatches event
+ *   setConsent(value)  → writes localStorage, opts PostHog in/out, updates GA4 consent state, dispatches event
  *   isConsentGranted() → boolean shorthand
  */
+
+import posthog from 'posthog-js';
 
 const KEY = 'jp.analytics_consent';
 
@@ -28,8 +31,8 @@ export function getConsent() {
 }
 
 /**
- * Persists consent, updates GA4 Consent Mode v2, and fires a window event
- * so any listening component (e.g. the banner) can hide itself.
+ * Persists consent, tells PostHog to opt in or out, updates GA4 Consent Mode v2,
+ * and fires a window event so any listening component (e.g. the banner) can hide itself.
  *
  * @param {'granted'|'denied'} value
  */
@@ -38,6 +41,16 @@ export function setConsent(value) {
     localStorage.setItem(KEY, value);
   } catch {
     // Private browsing may block localStorage writes — not fatal.
+  }
+
+  try {
+    if (value === 'granted') {
+      posthog.opt_in_capturing();
+    } else {
+      posthog.opt_out_capturing();
+    }
+  } catch {
+    // PostHog not initialised (no API key, adblocker, public page) — safe no-op.
   }
 
   try {

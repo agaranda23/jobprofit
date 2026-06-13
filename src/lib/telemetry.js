@@ -1,17 +1,23 @@
 /**
- * telemetry.js — thin wrapper around Google Analytics 4 for production event capture.
+ * telemetry.js — thin wrapper around PostHog + Google Analytics 4 for production event capture.
+ *
+ * DUAL-RUN: both PostHog and GA4 are fired from every call site behind the same
+ * consent gate. Each provider is independently env-gated — a missing key silently
+ * no-ops that provider; the other continues normally.
  *
  * In DEV builds the events are console-logged (easy to confirm without
- * polluting a real GA4 property). In production the events go to GA4
- * via the window.gtag singleton bootstrapped in main.jsx.
+ * polluting either analytics project). In production the events go to both
+ * PostHog (via the singleton initialised in main.jsx) and GA4 (via window.gtag
+ * bootstrapped in main.jsx).
  *
  * Consent guard: logTelemetry and identifyUser both check isConsentGranted()
- * before calling gtag. GA4 is also initialised with analytics_storage: 'denied'
- * by default (main.jsx Consent Mode v2), so this guard is a belt-and-braces
- * layer — if main.jsx changes, telemetry.js still won't fire without consent.
+ * before calling either provider. PostHog is also initialised opted-out by default
+ * (main.jsx) and GA4 uses Consent Mode v2 (analytics_storage: 'denied' default),
+ * so this guard is a belt-and-braces layer for readability and future-proofing.
  *
- * Null-safe: if gtag was not bootstrapped (env var missing, adblocker, or a
- * public route that loaded before main.jsx ran) both functions are silent no-ops.
+ * Null-safe: if either provider was not initialised (env var missing, adblocker,
+ * or a public route that skips AppShell) calls to that provider are silent no-ops.
+ * One provider throwing never blocks the other.
  *
  * GA4 custom dimensions note:
  *   The upgrade_trigger parameter (and any other custom event params) must be
@@ -34,6 +40,7 @@
  *   within the same tab but does not persist across sessions (each conversion
  *   event is attributed to the most-recent trigger in that session).
  */
+import posthog from 'posthog-js';
 import { isConsentGranted } from './consent.js';
 
 /**
@@ -89,6 +96,7 @@ export function getLastUpgradeTrigger() {
 /**
  * Capture a named event with an optional flat payload.
  * snake_case event names; no PII in data beyond userId (set via identifyUser).
+ * Fires BOTH PostHog and GA4 — one failing never blocks the other.
  *
  * @param {string} event
  * @param {Record<string, unknown>} [data]
@@ -100,6 +108,11 @@ export function logTelemetry(event, data) {
   }
   if (!isConsentGranted()) return;
   try {
+    posthog.capture(event, data);
+  } catch {
+    // PostHog not initialised or blocked — silently no-op.
+  }
+  try {
     window.gtag('event', event, data);
   } catch {
     // gtag not initialised or blocked — silently no-op.
@@ -110,6 +123,7 @@ export function logTelemetry(event, data) {
  * Identify the signed-in user so all subsequent events are linked.
  * Call once per session-load when session + profile become available.
  * PII-light by design: no email, just the Supabase UUID + plan metadata.
+ * Identifies in BOTH PostHog and GA4 — one failing never blocks the other.
  *
  * @param {string} userId               — Supabase auth user id (UUID)
  * @param {{ plan?: string, trial_ends_at?: string|null }} [traits]
@@ -121,6 +135,11 @@ export function identifyUser(userId, traits = {}) {
     return;
   }
   if (!isConsentGranted()) return;
+  try {
+    posthog.identify(userId, traits);
+  } catch {
+    // PostHog not initialised or blocked — silently no-op.
+  }
   try {
     // Set user_id on the GA4 config so all subsequent hits are scoped to this user.
     window.gtag('config', import.meta.env.VITE_GA4_ID, { user_id: userId });
