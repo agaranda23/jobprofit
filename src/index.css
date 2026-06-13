@@ -6276,13 +6276,18 @@ input[type=number] { -moz-appearance: textfield; }
   flex: 1;
 }
 .job-detail-title-block {
+  display: flex;
+  flex-direction: column;
   min-width: 0;
 }
 .job-detail-customer {
   font-size: 16px;
   font-weight: 700;
   color: var(--text);
-  white-space: nowrap;
+  /* Allow up to 2 lines before truncating — avoids bleeding under the chip */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -6332,8 +6337,9 @@ input[type=number] { -moz-appearance: textfield; }
 }
 .job-detail-header-right {
   display: flex;
-  align-items: center;
-  gap: 12px;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
   flex-shrink: 0;
 }
 .job-detail-amount {
@@ -6357,6 +6363,118 @@ input[type=number] { -moz-appearance: textfield; }
   color: var(--jp-green);
   font-size: 13px;
   font-weight: 600;
+}
+
+/* ── Header redesign (Decision B, PRD 2026-06-13) ───────────────────────── */
+
+/* Eyebrow — "JOB" label above the job name */
+.jd-eyebrow {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  margin-bottom: 2px;
+}
+
+/* Call CTA — full-width inside title-block, green bg matching chase family */
+.jd-call-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  max-width: 220px;
+  min-height: 44px;
+  margin-top: 8px;
+  padding: 0 12px;
+  border-radius: 10px;
+  background: var(--accent);
+  color: #0B0F17;
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: opacity 0.15s;
+}
+.jd-call-btn:active { opacity: 0.8; }
+
+/* Money chip — two-row status chip pinned top-right */
+.jd-money-chip {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-shrink: 0;
+  min-width: 96px;
+  max-width: 120px;
+  padding: 5px 8px;
+  border-radius: 8px;
+  border: none;
+  cursor: default;
+  text-align: right;
+}
+/* When rendered as a button (tappable chip states 4 & 5) */
+button.jd-money-chip {
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+button.jd-money-chip:active { opacity: 0.75; }
+
+.jd-chip-primary {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+.jd-chip-sub {
+  display: block;
+  font-size: 11px;
+  font-weight: 400;
+  white-space: nowrap;
+  opacity: 0.75;
+  margin-top: 1px;
+  line-height: 1.2;
+}
+
+/* State: Paid — green */
+.jd-chip--paid {
+  background: rgba(0, 168, 107, 0.15);
+  color: var(--jp-green);
+}
+/* State: Overdue — red/amber */
+.jd-chip--overdue {
+  background: rgba(229, 72, 77, 0.12);
+  color: var(--jp-rose, #E5484D);
+}
+/* State: Invoiced not late — muted blue tint */
+.jd-chip--due {
+  background: rgba(99, 179, 237, 0.12);
+  color: var(--text);
+}
+.jd-chip--due .jd-chip-primary {
+  color: var(--text);
+}
+/* State: Un-priced — add affordance green */
+.jd-chip--add {
+  background: rgba(0, 168, 107, 0.08);
+  color: var(--jp-green);
+}
+/* State: Pre-invoice priced — neutral quote */
+.jd-chip--quote {
+  background: var(--surface-raised, rgba(255,255,255,0.06));
+  color: var(--text);
+}
+.jd-chip--quote .jd-chip-primary {
+  color: var(--jp-green);
+}
+
+/* Kebab + close row — sits below the chip in the right column */
+.jd-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 /* SendInvoiceModal — no price banner */

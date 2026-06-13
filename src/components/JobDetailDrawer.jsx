@@ -2761,6 +2761,8 @@ export default function JobDetailDrawer({
   const distinctCustomer = (job.customer && job.customer.trim() && job.customer.trim() !== (job.summary || '').trim())
     ? job.customer.trim()
     : '';
+  // First name for the Call CTA label — plain JS, safe anywhere (not a hook).
+  const firstName = distinctCustomer ? distinctCustomer.trim().split(/\s+/)[0] : '';
   const amount = job.total ?? job.amount;
   const showChase = shouldShowChase(job);
 
@@ -3485,11 +3487,16 @@ export default function JobDetailDrawer({
         {/* Handle bar */}
         <div className="job-detail-sheet-handle" aria-hidden="true" />
 
-        {/* Header row */}
+        {/* Header row — Decision B redesign (PRD 2026-06-13):
+            Left column: eyebrow JOB → job name → customer line → Call button.
+            Right column: money chip (top) + kebab ⋯ + close ✕ (bottom). */}
         <div className="job-detail-header">
           <div className="job-detail-header-left">
             <div className="job-detail-title-block">
-              {/* Heading: job name (summary) — primary, big. Tappable to edit when allowed. */}
+              {/* Eyebrow — contextual label above job name */}
+              <span className="jd-eyebrow">JOB</span>
+
+              {/* Job name — primary, big. Tappable to edit when allowed. */}
               {onUpdateJob ? (
                 <button
                   type="button"
@@ -3505,7 +3512,8 @@ export default function JobDetailDrawer({
               ) : (
                 <div className="job-detail-customer">{job.summary || displayName}</div>
               )}
-              {/* Sub-line: customer — secondary, muted. Tappable to edit when allowed. */}
+
+              {/* Customer sub-line — secondary, muted. Tappable to edit when allowed. */}
               {onUpdateJob ? (
                 <button
                   type="button"
@@ -3514,53 +3522,111 @@ export default function JobDetailDrawer({
                   aria-label={distinctCustomer ? 'Edit customer' : 'Add customer'}
                 >
                   {distinctCustomer
-                    ? <span className="job-detail-summary">{distinctCustomer}</span>
-                    : <span className="jd-detail-edit-row-add jd-detail-edit-row-add--sm">+ Add customer</span>
+                    ? <span className="job-detail-summary">👤 {distinctCustomer}</span>
+                    : <span className="jd-detail-edit-row-add jd-detail-edit-row-add--sm">👤 + Add customer</span>
                   }
                 </button>
               ) : (
-                distinctCustomer && <div className="job-detail-summary">{distinctCustomer}</div>
+                distinctCustomer && <div className="job-detail-summary">👤 {distinctCustomer}</div>
+              )}
+
+              {/* Call button — only when phone is known. Always shown (even read-only)
+                  because calling is not an edit action. */}
+              {resolvePhone(job) && (
+                <a
+                  href={`tel:${resolvePhone(job)}`}
+                  className="jd-call-btn"
+                  aria-label={`Call ${firstName || 'customer'}`}
+                >
+                  📞 Call {firstName || 'customer'}
+                </a>
               )}
             </div>
           </div>
-          <div className="job-detail-header-right">
-            {/* Price row — tappable; shows "+ Add price" when un-priced.
-                Option A (price-reconciliation PRD 2026-06-13): total is always
-                sum(lineItems). Tapping when already priced expands the Price
-                accordion and scrolls to it — never opens a free-number editor
-                that could diverge from the line items. Tapping when no price
-                yet opens the seed-line editor so there is always at least one
-                line item backing the total. */}
-            {onUpdateJob && (
-              <button
-                type="button"
-                className={`jd-price-btn${needsPrice(job) ? ' jd-price-btn--add' : ''}`}
-                onClick={() => {
-                  if (needsPrice(job)) {
-                    // No price yet — open the seed-line editor (EditFieldModal for
-                    // amount, which will seed one line item on save).
-                    setEditingField('amount');
-                  } else {
-                    // Already priced — expand the Price accordion and scroll to it.
-                    setPriceAccordionExpandTick(t => t + 1);
-                    requestAnimationFrame(() => {
-                      priceAccordionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    });
-                  }
-                }}
-                aria-label={needsPrice(job) ? 'Add job price' : 'Edit price breakdown'}
-              >
-                {needsPrice(job)
-                  ? <span className="jd-detail-edit-row-add">+ Add price</span>
-                  : <span className="job-detail-amount">{gbp(Number(job.total ?? job.amount))}</span>
-                }
-                <span className="jd-customer-edit-icon" aria-hidden="true">›</span>
-              </button>
-            )}
-            {!onUpdateJob && typeof amount === 'number' && (
-              <div className="job-detail-amount">{gbp(amount)}</div>
-            )}
 
+          <div className="job-detail-header-right">
+            {/* Money chip — replaces the old jd-price-btn + job-detail-amount block.
+                State matrix (first match wins):
+                  1. Paid      → green chip, read-only
+                  2. Overdue   → amber chip, read-only
+                  3. Invoiced  → due chip, read-only
+                  4. Un-priced → tappable "+ Add price" chip (editable mode only)
+                  5. Priced    → tappable quote chip (editable mode only) */}
+            {(() => {
+              const chipPriceHandler = () => {
+                if (needsPrice(job)) {
+                  setEditingField('amount');
+                } else {
+                  setPriceAccordionExpandTick(t => t + 1);
+                  requestAnimationFrame(() => {
+                    priceAccordionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  });
+                }
+              };
+              const overdurePlural = daysOverdue === 1 ? 'day' : 'days';
+
+              if (isPaid) {
+                return (
+                  <div className="jd-money-chip jd-chip--paid">
+                    <span className="jd-chip-primary">Paid</span>
+                    <span className="jd-chip-sub">{gbp(computeAmountPaid(job))}</span>
+                  </div>
+                );
+              }
+              if (isInvoiced && daysOverdue > 0) {
+                return (
+                  <div className="jd-money-chip jd-chip--overdue">
+                    <span className="jd-chip-primary">{gbp(computeBalance(job))} due</span>
+                    <span className="jd-chip-sub">{daysOverdue} {overdurePlural} overdue</span>
+                  </div>
+                );
+              }
+              if (isInvoiced) {
+                return (
+                  <div className="jd-money-chip jd-chip--due">
+                    <span className="jd-chip-primary">{gbp(computeBalance(job))} due</span>
+                    <span className="jd-chip-sub">Invoiced</span>
+                  </div>
+                );
+              }
+              if (!isInvoiced && needsPrice(job)) {
+                if (!onUpdateJob) return null;
+                return (
+                  <button
+                    type="button"
+                    className="jd-money-chip jd-chip--add"
+                    onClick={chipPriceHandler}
+                    aria-label="Add job price"
+                  >
+                    <span className="jd-chip-primary">+ Add price</span>
+                    <span className="jd-chip-sub">Not priced yet</span>
+                  </button>
+                );
+              }
+              // Pre-invoice, priced
+              if (!onUpdateJob) {
+                return (
+                  <div className="jd-money-chip jd-chip--quote">
+                    <span className="jd-chip-primary">{gbp(Number(job.total ?? job.amount))}</span>
+                    <span className="jd-chip-sub">Quote</span>
+                  </div>
+                );
+              }
+              return (
+                <button
+                  type="button"
+                  className="jd-money-chip jd-chip--quote"
+                  onClick={chipPriceHandler}
+                  aria-label="Edit price breakdown"
+                >
+                  <span className="jd-chip-primary">{gbp(Number(job.total ?? job.amount))}</span>
+                  <span className="jd-chip-sub">Quote</span>
+                </button>
+              );
+            })()}
+
+            {/* Kebab + close — row pinned bottom-right of the right column */}
+            <div className="jd-header-actions">
             {/* Kebab overflow menu — secondary actions */}
             <div className="jd-kebab-wrap" ref={kebabRef}>
               <button
@@ -3585,6 +3651,21 @@ export default function JobDetailDrawer({
                       onClick={() => { setKebabOpen(false); setPaymentModalOpen(true); }}
                     >
                       Record payment
+                    </button>
+                  )}
+                  {/* Edit price — reachable from kebab when chip is read-only (invoiced/paid states).
+                      When chip is tappable (pre-invoice), this item is omitted to avoid duplication. */}
+                  {onUpdateJob && (isPaid || isInvoiced) && (
+                    <button
+                      type="button"
+                      className="jd-kebab-item"
+                      role="menuitem"
+                      onClick={() => {
+                        setKebabOpen(false);
+                        setEditingField('amount');
+                      }}
+                    >
+                      Edit price
                     </button>
                   )}
                   {/* Send invoice / Resend invoice */}
@@ -3683,6 +3764,7 @@ export default function JobDetailDrawer({
             >
               ✕
             </button>
+            </div>{/* end jd-header-actions */}
           </div>
         </div>
 
