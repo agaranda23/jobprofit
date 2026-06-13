@@ -2566,6 +2566,14 @@ export default function JobDetailDrawer({
   const [liEditMode, setLiEditMode] = useState(false);
   const [liDraft, setLiDraft] = useState([]);
 
+  // Price accordion expansion — incremented to programmatically expand the
+  // Price CollapsedSectionRow when the header price button is tapped on a
+  // priced job (Option A: header is a derived read-only sum, editing goes to
+  // the line-item list, not a free-number field).
+  const [priceAccordionExpandTick, setPriceAccordionExpandTick] = useState(0);
+  // Ref on the Price accordion wrapper so we can scroll it into view on tap.
+  const priceAccordionRef = useRef(null);
+
   // Schedule edit — inline draft state (legacy single-visit path, kept for compatibility)
   const [schedEditMode, setSchedEditMode] = useState(false);
   const [schedDate, setSchedDate] = useState('');
@@ -2836,23 +2844,50 @@ export default function JobDetailDrawer({
   // ── Price add / edit ─────────────────────────────────────────────────────
   // Called when the user taps "Edit quote/invoice" inside ReviewSheet.
   // Closes ReviewSheet without saving a draft (the user explicitly chose to edit),
-  // records the mode so handleAmountSave can re-open ReviewSheet after saving,
-  // and surfaces the price/line-items edit field immediately.
+  // records the mode so line-item save handlers can re-open ReviewSheet after
+  // saving, and surfaces the price/line-items edit field immediately.
+  // Option A (price-reconciliation PRD 2026-06-13): if the job has existing
+  // line items, route to the Price accordion (not the free-number editor).
   const handleReviewEdit = (mode) => {
     postEditReopenReview.current = mode;
     setReviewSheetMode(null);
-    setEditingField('amount');
+    const existingItems = Array.isArray(job.lineItems) ? job.lineItems.filter(i => i.desc || i.cost > 0) : [];
+    if (existingItems.length > 0) {
+      // Expand the Price accordion and scroll to it.
+      setPriceAccordionExpandTick(t => t + 1);
+      requestAnimationFrame(() => {
+        priceAccordionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    } else {
+      // No items yet — open the seed-line editor.
+      setEditingField('amount');
+    }
   };
 
   // Called by EditFieldModal when editingField === 'amount'.
   const handleAmountSave = (patch) => {
     if (!onUpdateJob) return;
     const n = Number(patch.amount);
-    // Build a seed line item if none exist — matches the addJobToCloud convention
+    // Build a seed line item if none exist — matches the addJobToCloud convention.
+    // Option A invariant (price-reconciliation PRD 2026-06-13): total must ALWAYS
+    // equal sum(lineItems). If existing items exist, derive total from them rather
+    // than from the free-typed number — this path should only be reached when the
+    // job has NO existing line items (the header button routes priced jobs to the
+    // accordion instead). The guard here ensures the invariant holds even if this
+    // function is reached via intent/review paths while items already exist.
     const existingItems = Array.isArray(job.lineItems) ? job.lineItems.filter(i => i.desc || i.cost > 0) : [];
-    const li = existingItems.length > 0
-      ? existingItems
-      : [{ desc: job.summary || job.customer || job.name || 'Job', cost: n }];
+    let li;
+    let derivedTotal;
+    if (existingItems.length > 0) {
+      // Items already exist — never overwrite total with a free-typed number.
+      // Re-derive total from the existing lines so the invariant is always upheld.
+      li = existingItems;
+      derivedTotal = existingItems.reduce((s, i) => s + Number(i.cost || 0), 0);
+    } else {
+      // No existing items — seed one line from the entered amount.
+      li = [{ desc: job.summary || job.customer || job.name || 'Job', cost: n }];
+      derivedTotal = n;
+    }
 
     // Capture before clearing — if the user arrived via the Lead-tile "Send quote →"
     // CTA we need to continue the funnel after the price is saved.
@@ -2861,10 +2896,10 @@ export default function JobDetailDrawer({
     if (intent === 'price' && targetStage) {
       // Merge price AND the stage advance into one write
       const stageLabel = targetStage === 'Paid' ? 'marked paid' : `moved to ${targetStage}`;
-      onUpdateJob({ ...job, amount: n, total: n, lineItems: li, ...stagePatch(targetStage) });
+      onUpdateJob({ ...job, amount: derivedTotal, total: derivedTotal, lineItems: li, ...stagePatch(targetStage) });
       showFlash(`Price added · ${stageLabel}`);
     } else {
-      onUpdateJob({ ...job, amount: n, total: n, lineItems: li });
+      onUpdateJob({ ...job, amount: derivedTotal, total: derivedTotal, lineItems: li });
       showFlash('Price added');
     }
     setEditingField(null);
@@ -3174,6 +3209,17 @@ export default function JobDetailDrawer({
     setLiDraft(prev => prev.filter((_, i) => i !== idx));
   };
 
+  // Helper — after any line-item write (per-row sheet OR bulk edit), re-open
+  // ReviewSheet if the user arrived here via handleReviewEdit.
+  // postEditReopenReview.current is set to 'quote'|'invoice' by handleReviewEdit.
+  const maybeReopenReview = () => {
+    const reopenMode = postEditReopenReview.current;
+    if (reopenMode) {
+      postEditReopenReview.current = null;
+      setReviewSheetMode(reopenMode);
+    }
+  };
+
   const handleSaveLiEdit = () => {
     const finalItems = liDraft
       .map(i => ({ desc: i.desc || '', cost: Number(i.cost || 0) }))
@@ -3183,6 +3229,7 @@ export default function JobDetailDrawer({
     setLiEditMode(false);
     setLiDraft([]);
     showFlash('Quote updated');
+    maybeReopenReview();
   };
 
   // ── LineItem per-row sheet handlers (Schedule-mirror, 2026-06-02) ─────────
@@ -3198,6 +3245,7 @@ export default function JobDetailDrawer({
     const newTotal = next.reduce((s, i) => s + Number(i.cost || 0), 0);
     onUpdateJob({ ...job, lineItems: next, total: newTotal, amount: newTotal });
     showFlash(idx === -1 ? 'Line added' : 'Line updated');
+    maybeReopenReview();
   };
 
   const handleDeleteLiLine = (idx) => {
@@ -3206,6 +3254,7 @@ export default function JobDetailDrawer({
     const newTotal = next.reduce((s, i) => s + Number(i.cost || 0), 0);
     onUpdateJob({ ...job, lineItems: next, total: newTotal, amount: newTotal });
     showFlash('Line removed');
+    maybeReopenReview();
   };
 
   // ── Schedule edit ─────────────────────────────────────────────────────────
@@ -3475,13 +3524,31 @@ export default function JobDetailDrawer({
             </div>
           </div>
           <div className="job-detail-header-right">
-            {/* Price row — tappable; shows "+ Add price" when un-priced */}
+            {/* Price row — tappable; shows "+ Add price" when un-priced.
+                Option A (price-reconciliation PRD 2026-06-13): total is always
+                sum(lineItems). Tapping when already priced expands the Price
+                accordion and scrolls to it — never opens a free-number editor
+                that could diverge from the line items. Tapping when no price
+                yet opens the seed-line editor so there is always at least one
+                line item backing the total. */}
             {onUpdateJob && (
               <button
                 type="button"
                 className={`jd-price-btn${needsPrice(job) ? ' jd-price-btn--add' : ''}`}
-                onClick={() => setEditingField('amount')}
-                aria-label={needsPrice(job) ? 'Add job price' : 'Edit job price'}
+                onClick={() => {
+                  if (needsPrice(job)) {
+                    // No price yet — open the seed-line editor (EditFieldModal for
+                    // amount, which will seed one line item on save).
+                    setEditingField('amount');
+                  } else {
+                    // Already priced — expand the Price accordion and scroll to it.
+                    setPriceAccordionExpandTick(t => t + 1);
+                    requestAnimationFrame(() => {
+                      priceAccordionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    });
+                  }
+                }}
+                aria-label={needsPrice(job) ? 'Add job price' : 'Edit price breakdown'}
               >
                 {needsPrice(job)
                   ? <span className="jd-detail-edit-row-add">+ Add price</span>
@@ -3832,18 +3899,23 @@ export default function JobDetailDrawer({
                 <HintCard content={nextStepContent} />
 
                 {/* 2. Price accordion — the number the job lives or dies on; first thing
-                     both the tradesperson and customer ask. */}
-                <CollapsedSectionRow
-                  key="quote"
-                  id="quote"
-                  icon={<Icon name="lead" size={16} variant="muted" />}
-                  title="Price"
-                  meta={quoteMeta}
-                  needsAttention={attention.quote}
-                  defaultExpanded={quoteDefaultExpanded}
-                >
-                  {quoteBodyEl}
-                </CollapsedSectionRow>
+                     both the tradesperson and customer ask.
+                     priceAccordionRef lets the header price button scroll here on tap.
+                     forceExpandTick lets the header button programmatically expand it. */}
+                <div ref={priceAccordionRef}>
+                  <CollapsedSectionRow
+                    key="quote"
+                    id="quote"
+                    icon={<Icon name="lead" size={16} variant="muted" />}
+                    title="Price"
+                    meta={quoteMeta}
+                    needsAttention={attention.quote}
+                    defaultExpanded={quoteDefaultExpanded}
+                    forceExpandTick={priceAccordionExpandTick}
+                  >
+                    {quoteBodyEl}
+                  </CollapsedSectionRow>
+                </div>
 
                 {/* 3. Documents entry row — quote/invoice status = the Get Paid loop made
                      visible (sent? signed? paid?). Earns the spot right after Price. */}

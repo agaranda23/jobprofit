@@ -1703,16 +1703,28 @@ describe('handleMarkSent — lead-to-quoted status transition (bug fix)', () => 
 //
 // Fix: handleAmountSave captures wasQuoteIntent before clearing intent, then
 // sets reviewSheetMode='quote' after the save when wasQuoteIntent is true.
+//
+// Option A invariant (price-reconciliation PRD 2026-06-13):
+// total must ALWAYS equal sum(lineItems). When existing items are present,
+// total is derived from their sum rather than from the typed number.
 
 function simulateAmountSave(intent, job, patch) {
   const n = Number(patch.amount);
   const existingItems = Array.isArray(job.lineItems) ? job.lineItems.filter(i => i.desc || i.cost > 0) : [];
-  const li = existingItems.length > 0
-    ? existingItems
-    : [{ desc: job.summary || job.customer || job.name || 'Job', cost: n }];
+  let li;
+  let derivedTotal;
+  if (existingItems.length > 0) {
+    // Items exist — re-derive total from them; never overwrite with a free-typed number.
+    li = existingItems;
+    derivedTotal = existingItems.reduce((s, i) => s + Number(i.cost || 0), 0);
+  } else {
+    // No items — seed one line from the entered amount.
+    li = [{ desc: job.summary || job.customer || job.name || 'Job', cost: n }];
+    derivedTotal = n;
+  }
 
   const wasQuoteIntent = intent === 'quote';
-  const updatedJob = { ...job, amount: n, total: n, lineItems: li };
+  const updatedJob = { ...job, amount: derivedTotal, total: derivedTotal, lineItems: li };
 
   return {
     updatedJob,
@@ -1739,18 +1751,13 @@ describe('handleAmountSave — intent=quote opens ReviewSheet after price save (
     expect(result.shouldOpenReviewSheet).toBe(false);
   });
 
-  it('saves the new price onto the job regardless of intent', () => {
-    const job = { id: 'j1', status: 'lead' };
-    const result = simulateAmountSave('quote', job, { amount: '275' });
-    expect(result.updatedJob.amount).toBe(275);
-    expect(result.updatedJob.total).toBe(275);
-  });
-
-  it('seeds a line item from job.customer when none exist', () => {
+  it('seeds a line item from job.customer when none exist and sets total from amount', () => {
     const job = { id: 'j1', status: 'lead', customer: 'Sarah' };
     const result = simulateAmountSave('quote', job, { amount: '500' });
     expect(result.updatedJob.lineItems[0].desc).toBe('Sarah');
     expect(result.updatedJob.lineItems[0].cost).toBe(500);
+    expect(result.updatedJob.total).toBe(500);
+    expect(result.updatedJob.amount).toBe(500);
   });
 
   it('preserves existing line items rather than replacing them', () => {
@@ -1761,6 +1768,59 @@ describe('handleAmountSave — intent=quote opens ReviewSheet after price save (
     };
     const result = simulateAmountSave('quote', job, { amount: '200' });
     expect(result.updatedJob.lineItems[0].desc).toBe('Boiler service');
+  });
+});
+
+// ── Invariant: total must always equal sum(lineItems) ───────────────────────
+//
+// Option A fix (price-reconciliation PRD 2026-06-13): handleAmountSave must
+// never write a total that disagrees with the line items. This is the one path
+// that was broken: entering £80 in the header while a £420 line existed would
+// set total=80 with lineItems summing to 420.
+
+describe('handleAmountSave — total always equals sum(lineItems) invariant', () => {
+  it('when no items exist, total equals the typed amount', () => {
+    const job = { id: 'j1', customer: 'Alan', lineItems: [] };
+    const result = simulateAmountSave(null, job, { amount: '300' });
+    const lineSum = result.updatedJob.lineItems.reduce((s, i) => s + Number(i.cost || 0), 0);
+    expect(result.updatedJob.total).toBe(lineSum);
+    expect(result.updatedJob.amount).toBe(lineSum);
+  });
+
+  it('when items exist, total is derived from them — typed number is ignored', () => {
+    const job = {
+      id: 'j1',
+      customer: 'Luffy',
+      lineItems: [{ desc: 'Job · Tue 9 Jun', cost: 420 }],
+      total: 420,
+      amount: 420,
+    };
+    // User typed 80 in the header — must NOT set total=80
+    const result = simulateAmountSave(null, job, { amount: '80' });
+    expect(result.updatedJob.total).toBe(420);
+    expect(result.updatedJob.amount).toBe(420);
+    const lineSum = result.updatedJob.lineItems.reduce((s, i) => s + Number(i.cost || 0), 0);
+    expect(result.updatedJob.total).toBe(lineSum);
+  });
+
+  it('total and amount are always equal after save', () => {
+    const job = { id: 'j1', lineItems: [{ desc: 'Labour', cost: 150 }, { desc: 'Materials', cost: 75 }] };
+    const result = simulateAmountSave(null, job, { amount: '999' });
+    expect(result.updatedJob.total).toBe(result.updatedJob.amount);
+    expect(result.updatedJob.total).toBe(225);
+  });
+
+  it('Gear 5 scenario: header typed 80, line item is 420 — total stays 420', () => {
+    const job = {
+      id: 'gear5',
+      customer: 'Luffy',
+      lineItems: [{ desc: 'Job · Tue 9 Jun', cost: 420 }],
+      total: 80,   // already drifted (the legacy bug state)
+      amount: 80,
+    };
+    const result = simulateAmountSave(null, job, { amount: '80' });
+    expect(result.updatedJob.total).toBe(420);
+    expect(result.updatedJob.amount).toBe(420);
   });
 });
 
