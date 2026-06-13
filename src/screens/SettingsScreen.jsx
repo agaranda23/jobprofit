@@ -2472,11 +2472,11 @@ export default function SettingsScreen({
           label="Terms of Service"
           onTap={() => window.open('/terms', '_blank', 'noopener')}
         />
-        <CookieSettingsRow />
         <Row
           label="Cookie Policy"
           onTap={() => window.open('/cookies', '_blank', 'noopener')}
         />
+        <CookieSettingsRow />
         <Row
           label="Export everything"
           value={exporting ? 'Preparing…' : 'CSV'}

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v103';  // bumped from v102: add Cookie Policy link to Settings → Data & Privacy
+const CACHE_NAME = 'jobprofit-v104';  // bumped from v103: reorder Cookie Policy above Cookie settings in Data & Privacy
 const PRECACHE = [
   '/',
   '/index.html',
