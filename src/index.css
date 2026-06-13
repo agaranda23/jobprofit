@@ -3637,6 +3637,60 @@ input[type=number] { -moz-appearance: textfield; }
 .money-timeline__item-amount.pos { color: var(--accent); }
 .money-timeline__item-amount.neg { color: #ef4444; }
 
+/* ── Accountant tools card (Money tab, free) ──── */
+/* Placed below the timeline — end-of-month "do the books" home.
+   FREE and ungated: removing branding (Pro) is a separate perk;
+   the export itself is promised in the privacy policy as always available. */
+.money-accountant-tools {
+  /* extends .money-card */
+}
+.money-accountant-tools__header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+.money-accountant-tools__title {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted, #6b7280);
+}
+.money-accountant-tools__btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 12px 16px;
+  background: var(--surface-secondary, #f3f4f6);
+  border: 1px solid var(--border, #e5e7eb);
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text-primary, #111827);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.15s ease;
+}
+.money-accountant-tools__btn:active {
+  background: var(--border, #e5e7eb);
+}
+.money-accountant-tools__btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.money-accountant-tools__btn-icon {
+  flex-shrink: 0;
+  color: var(--accent, #00a86b);
+}
+.money-accountant-tools__hint {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--text-muted, #6b7280);
+  line-height: 1.4;
+}
+
 /* ── Tax Set-Aside card ───────────────────────── */
 .money-tax-setaside {
   /* extends .money-card */
