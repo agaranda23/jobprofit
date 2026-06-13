@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v100';  // bumped from v99: price-total invariant fix (Option A)
+const CACHE_NAME = 'jobprofit-v101';  // bumped from v100: job-header-snapshot redesign (Decision B)
 const PRECACHE = [
   '/',
   '/index.html',
