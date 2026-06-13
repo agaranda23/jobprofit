@@ -2474,6 +2474,10 @@ export default function SettingsScreen({
         />
         <CookieSettingsRow />
         <Row
+          label="Cookie Policy"
+          onTap={() => window.open('/cookies', '_blank', 'noopener')}
+        />
+        <Row
           label="Export everything"
           value={exporting ? 'Preparing…' : 'CSV'}
           onTap={exporting ? undefined : handleExport}

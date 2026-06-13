@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v102';  // bumped from v101: restore PostHog dual-run alongside GA4
+const CACHE_NAME = 'jobprofit-v103';  // bumped from v102: add Cookie Policy link to Settings → Data & Privacy
 const PRECACHE = [
   '/',
   '/index.html',
