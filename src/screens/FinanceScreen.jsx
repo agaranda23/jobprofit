@@ -281,7 +281,7 @@ function TaxPotSheet({ open, onClose, currentPct, monthProfit, onSave }) {
   );
 }
 
-export default function FinanceScreen({ jobs = [], receipts = [], session, profile, biz, onAvatarClick, onUpgrade, onGoToJobs, onGoToSettings, onNavigateToCardPayments, onProfileUpdate, entryPoint = 'nav' }) {
+export default function FinanceScreen({ jobs = [], receipts = [], session, profile, biz, onAvatarClick, onUpgrade, onGoToJobs, onGoToSettings, onNavigateToCardPayments, onProfileUpdate, onExport, entryPoint = 'nav' }) {
   const [timelineOpen, setTimelineOpen] = useState(false);
   const [trustHintDismissed, setTrustHintDismissed] = useState(false);
   // chartRange drives which window of data getCashflowByMonth uses.
@@ -308,6 +308,19 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // intentionally empty — fires once on mount only
+
+  // ── Accountant export state ───────────────────────────────────────────────────
+  const [exporting, setExporting] = useState(false);
+
+  const handleMoneyExport = useCallback(async () => {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      await onExport?.('records');
+    } finally {
+      setExporting(false);
+    }
+  }, [exporting, onExport]);
 
   // ── Tax Pot Sheet state ──────────────────────────────────────────────────────
   const [taxPotSheetOpen, setTaxPotSheetOpen] = useState(false);
@@ -1065,6 +1078,42 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* ── 11. Accountant tools ─────────────────────────────────────────── */}
+      {/* FREE — ungated. Privacy policy promises "your data is yours, export
+          anytime"; gating the only export path would contradict that live GDPR
+          promise. The export is also available in Settings → Accountant and
+          Settings → Data & privacy — this surface makes it discoverable at the
+          moment a tradesperson is reviewing their money numbers.
+          Also available in Settings → Accountant → Export records (unchanged).
+
+          PRO SEAM: a future "Profit & tax summary" export (CSV with overhead
+          allocation column and tax_set_aside_pct column) belongs immediately
+          below this button, wrapped in <ProGate>. That export will require
+          profiles.overheads (JSONB, migration 20260528_add_overheads_to_profiles)
+          and profiles.tax_set_aside_pct (int, migration 20260528_add_tax_set_aside_pct)
+          to be live — both migrations are already applied. */}
+      {onExport && (
+        <div className="money-card money-accountant-tools">
+          <div className="money-accountant-tools__header">
+            <Icon name="file" size={16} variant="muted" className="money-accountant-tools__icon" />
+            <span className="money-accountant-tools__title">Accountant tools</span>
+          </div>
+          <button
+            type="button"
+            className="money-accountant-tools__btn"
+            onClick={handleMoneyExport}
+            disabled={exporting}
+            aria-busy={exporting}
+          >
+            <Icon name="download" size={16} className="money-accountant-tools__btn-icon" />
+            {exporting ? 'Preparing…' : 'Export for your accountant (CSV)'}
+          </button>
+          <p className="money-accountant-tools__hint">
+            Jobs ledger with costs and profit — opens in Excel or Google Sheets.
+          </p>
         </div>
       )}
 

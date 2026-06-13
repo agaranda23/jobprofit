@@ -74,6 +74,7 @@ import {
 } from './lib/materials';
 import MaterialsScreen from './screens/MaterialsScreen';
 import AddMaterialModal from './components/AddMaterialModal';
+import { buildJobsCsv, downloadOrShareCsv } from './lib/exportCsv';
 
 // ─── Feature flags ───────────────────────────────────────────────────────────
 // Slice-3 nav (Today / Jobs / Money / Settings) is the default for all users.
@@ -899,6 +900,20 @@ export default function AppShell() {
     }
   };
 
+  const handleExportFromMoney = useCallback(async () => {
+    // FREE — no isPro check. Privacy policy promises "your data is yours, export
+    // anytime". Gating the only export path would contradict that live GDPR promise.
+    const safeJobs     = Array.isArray(jobs)     ? jobs     : [];
+    const safeReceipts = Array.isArray(receipts) ? receipts : [];
+    if (safeJobs.length === 0) return; // FinanceScreen handles the empty case via disabled state
+    const stamp = (() => {
+      const now = new Date();
+      return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    })();
+    const csv = buildJobsCsv(safeJobs, safeReceipts);
+    await downloadOrShareCsv(csv, `jobprofit-export-${stamp}.csv`);
+  }, [jobs, receipts]);
+
   const openDetailed = () => {
     // Profile-completeness gate removed (feat/zero-friction-entry, 2026-06-02).
     // Users can create jobs immediately after sign-in. Missing business/bank
@@ -1042,6 +1057,7 @@ export default function AppShell() {
               }}
               onNavigateToCardPayments={() => { navigate('settings'); setSettingsSubView('card-payments'); }}
               onProfileUpdate={handleProfileUpdate}
+              onExport={handleExportFromMoney}
             />
           )}
 
@@ -1167,6 +1183,7 @@ export default function AppShell() {
               onGoToJobs={() => navigate('jobs')}
               // onGoToSettings omitted: new-nav has no dedicated settings tab
               onProfileUpdate={handleProfileUpdate}
+              onExport={handleExportFromMoney}
             />
           )}
 
