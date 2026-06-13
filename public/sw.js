@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v105';  // bumped from v104: export format choice (CSV/PDF bottom sheet)
+const CACHE_NAME = 'jobprofit-v106';  // bumped from v105: export everything includes account/profile section
 const PRECACHE = [
   '/',
   '/index.html',

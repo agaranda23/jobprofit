@@ -129,6 +129,7 @@ export function deriveJobRows(jobs, receipts) {
 
 /**
  * Builds a UTF-8 CSV string from the user's jobs and linked receipts.
+ * Used by "Export records" (Accountant section) — jobs ledger only.
  *
  * @param {object[]} jobs     — normalised job objects (cloud or legacy shape)
  * @param {object[]} receipts — all receipts; matched to jobs via jobId / cloudId
@@ -137,6 +138,95 @@ export function deriveJobRows(jobs, receipts) {
 export function buildJobsCsv(jobs, receipts) {
   const headers = ['Date', 'Customer', 'Summary', 'Invoiced £', 'Costs £', 'Profit £', 'Status', 'Paid date'];
   const lines = [row(headers)];
+
+  for (const r of deriveJobRows(jobs, receipts)) {
+    lines.push(row([
+      r.date,
+      r.customer,
+      r.summary,
+      r.invoiced.toFixed(2),
+      r.costs.toFixed(2),
+      r.profit.toFixed(2),
+      r.status,
+      r.paidDate,
+    ]));
+  }
+
+  return lines.join('\n');
+}
+
+/**
+ * Derives the account/profile fields included in "Export everything" (Art. 15 DSAR).
+ * Returns an array of [key, value] pairs for fields we hold on the account owner.
+ *
+ * Included: identity (name, business name), contact (email, phone, address, website),
+ * tax/company references (VAT, UTR), and account metadata (plan, signup date).
+ *
+ * Excluded deliberately:
+ *   - sort_code / account_number   — banking secrets; not appropriate in a portable export
+ *   - stripe_customer_id etc.      — third-party processor internals; covered by their DPA
+ *   - preference columns           — not personal data (overheads, hourly_rate, toggles)
+ *
+ * @param {object} profile     — the user's profiles row (may be null/undefined)
+ * @param {object} [session]   — Supabase session (used to surface auth email if profile
+ *                               email field is blank and as the canonical account email)
+ * @returns {[string, string][]}
+ */
+export function deriveAccountFields(profile, session) {
+  const p = profile || {};
+  // Auth email is the canonical login identifier; profile.email may be separate business email
+  const authEmail = session?.user?.email || '';
+  const createdAt = p.created_at
+    ? new Date(p.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+    : '';
+
+  return [
+    ['First name',      p.first_name     || ''],
+    ['Last name',       p.last_name      || ''],
+    ['Business name',   p.business_name  || p.account_name || ''],
+    ['Login email',     authEmail],
+    ['Business email',  p.email          || ''],
+    ['Phone',           p.phone          || ''],
+    ['Address',         p.address        || ''],
+    ['Website',         p.website        || ''],
+    ['VAT number',      p.vat_number     || ''],
+    ['UTR number',      p.utr_number     || ''],
+    ['Plan',            p.plan           || 'free'],
+    ['Account created', createdAt],
+  ];
+}
+
+/**
+ * Builds the "Export everything" CSV: an Account section (key/value rows)
+ * followed by the full jobs ledger.
+ *
+ * Format choice: a clearly delimited two-section layout is the cleanest approach
+ * for a single-file export. The Account section uses key,value rows (no extra
+ * columns). A blank line and a "--- Jobs ---" header line separate the two
+ * sections so the file is unambiguous to any reader or parser.
+ *
+ * @param {object[]} jobs
+ * @param {object[]} receipts
+ * @param {object}   profile   — profiles row
+ * @param {object}   [session] — Supabase session
+ * @returns {string}           — CSV string (UTF-8, LF line endings)
+ */
+export function buildEverythingCsv(jobs, receipts, profile, session) {
+  const lines = [];
+
+  // ── Account section ──────────────────────────────────────────────────────
+  lines.push(row(['Account information', '']));
+  for (const [key, value] of deriveAccountFields(profile, session)) {
+    lines.push(row([key, value]));
+  }
+
+  // ── Separator ────────────────────────────────────────────────────────────
+  lines.push('');
+  lines.push(row(['--- Jobs ledger ---', '']));
+
+  // ── Jobs section (same columns as buildJobsCsv) ───────────────────────
+  const jobHeaders = ['Date', 'Customer', 'Summary', 'Invoiced £', 'Costs £', 'Profit £', 'Status', 'Paid date'];
+  lines.push(row(jobHeaders));
 
   for (const r of deriveJobRows(jobs, receipts)) {
     lines.push(row([

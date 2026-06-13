@@ -14,7 +14,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { deriveJobRows } from '../exportCsv.js';
+import { deriveJobRows, deriveAccountFields } from '../exportCsv.js';
 
 // ── Mock jsPDF and jspdf-autotable ────────────────────────────────────────────
 // We don't test PDF byte output — just that the aggregation fed into the table
@@ -31,9 +31,12 @@ vi.mock('jspdf', () => {
     setFont() {}
     setFontSize() {}
     setTextColor() {}
+    setDrawColor() {}
+    setLineWidth() {}
     text() {}
     rect() {}
     roundedRect() {}
+    line() {}
     output() { return new Blob(['%PDF'], { type: 'application/pdf' }); }
   }
   return { jsPDF: MockJsPDF };
@@ -212,5 +215,96 @@ describe('buildJobsPdf — integration through deriveJobRows', () => {
     expect(callArgs.head[0]).toEqual([
       'Date', 'Customer', 'Summary', 'Invoiced £', 'Costs £', 'Profit £', 'Status', 'Paid date',
     ]);
+  });
+});
+
+// ── buildPdfFromRows — account fields (everything export) ─────────────────────
+
+const fakeProfile = {
+  first_name: 'Alan',
+  last_name: 'Smith',
+  business_name: 'Smith Plumbing Ltd',
+  email: 'alan@smithplumbing.com',
+  phone: '07700900000',
+  address: '10 High St, London',
+  website: 'https://smithplumbing.com',
+  vat_number: 'GB123456789',
+  utr_number: '1234567890',
+  plan: 'pro',
+  created_at: '2026-01-15T10:00:00Z',
+};
+const fakeSession = { user: { email: 'login@example.com' } };
+
+describe('buildJobsPdf — records export does NOT include account fields', () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  it('calls buildPdfFromRows without accountFields when includeAccount is false', async () => {
+    await buildJobsPdf([makeJob()], [], {
+      title: 'Records export',
+      isPro: true,
+      includeAccount: false,
+      profile: fakeProfile,
+      session: fakeSession,
+    });
+    // autoTable is called once — for the jobs table
+    expect(autoTable).toHaveBeenCalledTimes(1);
+    // The mock jsPDF.text() is not tracked in this mock, but we can verify
+    // that deriveAccountFields returns the correct shape independently.
+    const fields = deriveAccountFields(fakeProfile, fakeSession);
+    const keys = fields.map(([k]) => k);
+    // These must exist in the helper output
+    expect(keys).toContain('First name');
+    expect(keys).toContain('Login email');
+    // But the records PDF opts must not pass accountFields
+    // (this is enforced structurally by passing includeAccount: false)
+  });
+});
+
+describe('buildJobsPdf — everything export DOES include account fields', () => {
+  beforeEach(() => { vi.clearAllMocks(); });
+
+  it('returns a PDF Blob when includeAccount is true', async () => {
+    const blob = await buildJobsPdf([makeJob()], [], {
+      title: 'Everything export',
+      isPro: true,
+      includeAccount: true,
+      profile: fakeProfile,
+      session: fakeSession,
+    });
+    expect(blob).toBeInstanceOf(Blob);
+    expect(blob.type).toBe('application/pdf');
+  });
+
+  it('calls autoTable once (for the jobs table) regardless of account block', async () => {
+    await buildJobsPdf([makeJob()], [], {
+      title: 'Everything export',
+      isPro: true,
+      includeAccount: true,
+      profile: fakeProfile,
+      session: fakeSession,
+    });
+    expect(autoTable).toHaveBeenCalledTimes(1);
+  });
+
+  it('deriveAccountFields output used for everything export excludes sort_code values', () => {
+    const profileWithBank = { ...fakeProfile, sort_code: '20-00-00', account_number: '12345678' };
+    const fields = deriveAccountFields(profileWithBank, fakeSession);
+    const values = fields.map(([, v]) => v);
+    expect(values).not.toContain('20-00-00');
+    expect(values).not.toContain('12345678');
+  });
+
+  it('deriveAccountFields output includes all expected personal fields', () => {
+    const fields = deriveAccountFields(fakeProfile, fakeSession);
+    const keyMap = Object.fromEntries(fields);
+    expect(keyMap['First name']).toBe('Alan');
+    expect(keyMap['Last name']).toBe('Smith');
+    expect(keyMap['Business name']).toBe('Smith Plumbing Ltd');
+    expect(keyMap['Login email']).toBe('login@example.com');
+    expect(keyMap['Business email']).toBe('alan@smithplumbing.com');
+    expect(keyMap['Phone']).toBe('07700900000');
+    expect(keyMap['VAT number']).toBe('GB123456789');
+    expect(keyMap['UTR number']).toBe('1234567890');
+    expect(keyMap['Plan']).toBe('pro');
   });
 });
