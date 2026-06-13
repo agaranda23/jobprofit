@@ -1,12 +1,13 @@
 /**
  * DocumentSearchOverlay — full-screen search overlay for jobs, quotes, and invoices.
  *
- * Opened from the "Look at your work" view-buttons row on TodayScreen.
- * Reuses the same backdrop/slide-up shell pattern as the invoice picker on TodayScreen
- * and mirrors the role="dialog" / aria-modal="true" convention from JobDetailDrawer.
+ * Opened from the "Look at your work" view-buttons row on TodayScreen and the
+ * "Records" pill in WorkScreen. The overlay starts in the `initialMode` prop and
+ * exposes a compact 3-segment switcher (All jobs / Quotes / Invoices) so users
+ * can switch without closing and re-opening.
  *
  * Props:
- *   mode        'jobs' | 'quotes' | 'invoices'
+ *   mode        'jobs' | 'quotes' | 'invoices'  — initial mode (internal state takes over)
  *   jobs        full jobs array passed from parent
  *   onClose     () => void
  *   onJobSelect (job) => void  — called when a row is tapped; wires to onJobTap
@@ -29,6 +30,7 @@ import { buildQuoteRecordMeta, buildInvoiceRecordMeta } from '../lib/documentRec
 import { gbp } from '../lib/today';
 
 // ── Per-mode config ────────────────────────────────────────────────────────────
+// emptyIconName uses the Icon component name (Lucide) — no emoji.
 
 function getModeConfig(mode) {
   switch (mode) {
@@ -36,7 +38,7 @@ function getModeConfig(mode) {
       return {
         title: 'Quotes',
         searchPlaceholder: 'Search a name, job or amount',
-        emptyIcon: '📝',
+        emptyIconName: 'file',
         emptyTitle: 'No quotes sent yet',
         emptyBody: 'Price a job up and send it — every quote you fire off shows up here to search later.',
         emptyCta: 'Quote a job',
@@ -46,7 +48,7 @@ function getModeConfig(mode) {
       return {
         title: 'Invoices',
         searchPlaceholder: 'Search a name, job or amount',
-        emptyIcon: '💸',
+        emptyIconName: 'invoice',
         emptyTitle: 'No invoices yet',
         emptyBody: 'Once you send your first invoice, every one lives here — search any customer to find it.',
         emptyCta: 'Send your first invoice',
@@ -56,7 +58,7 @@ function getModeConfig(mode) {
       return {
         title: 'All jobs',
         searchPlaceholder: 'Search a name, job or street',
-        emptyIcon: null,
+        emptyIconName: 'job',
         emptyTitle: 'No jobs yet',
         emptyBody: 'Log your first job and JobProfit does the maths.',
         emptyCta: 'Log a job',
@@ -203,8 +205,15 @@ function DocRow({ job, mode, onSelect }) {
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
+// ── Mode switcher segments ────────────────────────────────────────────────────
+const MODE_TABS = [
+  { key: 'jobs',     label: 'All jobs' },
+  { key: 'quotes',   label: 'Quotes'   },
+  { key: 'invoices', label: 'Invoices' },
+];
+
 export default function DocumentSearchOverlay({
-  mode = 'jobs',
+  mode: initialMode = 'jobs',
   jobs = [],
   onClose,
   onJobSelect,
@@ -214,7 +223,15 @@ export default function DocumentSearchOverlay({
   onSendInvoice,
 }) {
   // ALL hooks above any early return (binding project rule).
+  // `activeMode` is internal so the switcher can change it without the parent re-rendering.
+  const [activeMode, setActiveMode] = useState(initialMode);
   const [query, setQuery] = useState('');
+
+  // Reset search when mode changes so stale results never show in the new view.
+  const handleModeSwitch = useCallback((newMode) => {
+    setActiveMode(newMode);
+    setQuery('');
+  }, []);
 
   // Close on Escape key
   useEffect(() => {
@@ -225,21 +242,21 @@ export default function DocumentSearchOverlay({
     return () => document.removeEventListener('keydown', onKey);
   }, [onClose]);
 
-  const config = getModeConfig(mode);
+  const config = getModeConfig(activeMode);
 
   // Mode-filtered base set
   const baseJobs = useMemo(() => {
-    if (mode === 'quotes')   return jobs.filter(j => !!j.quoteSentAt);
-    if (mode === 'invoices') return jobs.filter(j => !!j.invoiceSentAt);
+    if (activeMode === 'quotes')   return jobs.filter(j => !!j.quoteSentAt);
+    if (activeMode === 'invoices') return jobs.filter(j => !!j.invoiceSentAt);
     return jobs;
-  }, [jobs, mode]);
+  }, [jobs, activeMode]);
 
   // Sorted (when no search active)
   const sortedJobs = useMemo(() => {
-    if (mode === 'invoices') return orderInvoices(baseJobs);
-    if (mode === 'quotes')   return sortJobsByStage(baseJobs, 'Quoted');
+    if (activeMode === 'invoices') return orderInvoices(baseJobs);
+    if (activeMode === 'quotes')   return sortJobsByStage(baseJobs, 'Quoted');
     return sortJobsByStage(baseJobs, null);
-  }, [baseJobs, mode]);
+  }, [baseJobs, activeMode]);
 
   // Live-filtered (when search active — run over base set, ignore sort order per spec)
   const displayJobs = useMemo(() => {
@@ -247,7 +264,7 @@ export default function DocumentSearchOverlay({
     return baseJobs.filter(j => jobMatchesQuery(j, query));
   }, [query, sortedJobs, baseJobs]);
 
-  const subtitle  = buildSubtitle(mode, displayJobs, query);
+  const subtitle  = buildSubtitle(activeMode, displayJobs, query);
   const isEmpty   = baseJobs.length === 0; // zero-item first-use state
   const noResults = query && displayJobs.length === 0;
 
@@ -258,10 +275,10 @@ export default function DocumentSearchOverlay({
 
   const handleEmptyCta = useCallback(() => {
     onClose?.();
-    if (mode === 'invoices') onSendInvoice?.();
-    else if (mode === 'quotes') onCreateQuote?.();
+    if (activeMode === 'invoices') onSendInvoice?.();
+    else if (activeMode === 'quotes') onCreateQuote?.();
     else onCreateJob?.();
-  }, [mode, onClose, onSendInvoice, onCreateQuote, onCreateJob]);
+  }, [activeMode, onClose, onSendInvoice, onCreateQuote, onCreateJob]);
 
   return (
     <div
@@ -272,7 +289,7 @@ export default function DocumentSearchOverlay({
       onClick={(e) => { if (e.target === e.currentTarget) onClose?.(); }}
     >
       <div className="dso-sheet">
-        {/* Header */}
+        {/* Header — title/subtitle on the left, close on the right */}
         <div className="dso-header">
           <div className="dso-header__titles">
             <h2 className="dso-header__title">{config.title}</h2>
@@ -286,6 +303,24 @@ export default function DocumentSearchOverlay({
           >
             <Icon name="close" size={20} />
           </button>
+        </div>
+
+        {/* Mode switcher — All jobs / Quotes / Invoices.
+            Reuses the .work-segments / .work-segment idiom so it reads as a
+            sibling of the Pipeline/Records controls in WorkScreen. */}
+        <div className="dso-mode-switcher" role="tablist" aria-label="Record type">
+          {MODE_TABS.map(tab => (
+            <button
+              key={tab.key}
+              type="button"
+              role="tab"
+              aria-selected={activeMode === tab.key}
+              className={`dso-mode-tab${activeMode === tab.key ? ' dso-mode-tab--active' : ''}`}
+              onClick={() => handleModeSwitch(tab.key)}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
 
         {/* Search bar — hidden when zero items */}
@@ -318,10 +353,16 @@ export default function DocumentSearchOverlay({
         {/* Content area */}
         <div className="dso-list">
           {isEmpty ? (
-            /* Zero-item first-use state */
+            /* Zero-item first-use state — Icon component, no emoji */
             <div className="dso-empty">
-              {config.emptyIcon && (
-                <span className="dso-empty__icon" aria-hidden="true">{config.emptyIcon}</span>
+              {config.emptyIconName && (
+                <Icon
+                  name={config.emptyIconName}
+                  size={32}
+                  variant="muted"
+                  className="dso-empty__icon"
+                  aria-hidden="true"
+                />
               )}
               <p className="dso-empty__title">{config.emptyTitle}</p>
               <p className="dso-empty__body">{config.emptyBody}</p>
@@ -352,7 +393,7 @@ export default function DocumentSearchOverlay({
               <DocRow
                 key={job.id}
                 job={job}
-                mode={mode}
+                mode={activeMode}
                 onSelect={handleSelect}
               />
             ))

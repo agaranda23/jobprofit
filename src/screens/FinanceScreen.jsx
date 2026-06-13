@@ -8,6 +8,7 @@
  * Top-to-bottom card order:
  *   1. Hero — Profit (this month), big figure, negative state, empty state  [FREE]
  *   2. UpgradeBanner — shown ONCE for free users, just below the hero       [FREE]
+ *   2b. Accountant tools — export CSV (moved up for discoverability)        [FREE]
  *   3. Tax Set-Aside card                                                    [PRO]
  *   4. True Profit (after monthly bills) card                               [PRO]
  *   5. Cashflow chart                                                        [FREE]
@@ -729,6 +730,40 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
       {/* ── 2. Upgrade banner — shown once for free users, just below hero ── */}
       {!userIsPro && <UpgradeBanner onUpgrade={() => handleUpgrade(UPGRADE_TRIGGERS.UPGRADE_BANNER)} />}
 
+      {/* ── 2b. Accountant tools — FREE, ungated, surfaced high so it's visible
+              on first scroll without passing all the Pro-gated insight cards.
+              Privacy policy promises "your data is yours, export anytime";
+              gating the only export path would contradict that live GDPR promise.
+              Also available in Settings → Accountant → Export records (unchanged).
+
+              PRO SEAM: a future "Profit & tax summary" export (CSV with overhead
+              allocation column and tax_set_aside_pct column) belongs immediately
+              below this button, wrapped in <ProGate>. That export will require
+              profiles.overheads (JSONB, migration 20260528_add_overheads_to_profiles)
+              and profiles.tax_set_aside_pct (int, migration 20260528_add_tax_set_aside_pct)
+              to be live — both migrations are already applied. */}
+      {onExport && (
+        <div className="money-card money-accountant-tools">
+          <div className="money-accountant-tools__header">
+            <Icon name="file" size={16} variant="muted" className="money-accountant-tools__icon" />
+            <span className="money-accountant-tools__title">Accountant tools</span>
+          </div>
+          <button
+            type="button"
+            className="money-accountant-tools__btn"
+            onClick={handleMoneyExport}
+            disabled={exporting}
+            aria-busy={exporting}
+          >
+            <Icon name="download" size={16} className="money-accountant-tools__btn-icon" />
+            {exporting ? 'Preparing…' : 'Export for your accountant (CSV)'}
+          </button>
+          <p className="money-accountant-tools__hint">
+            Jobs ledger with costs and profit — opens in Excel or Google Sheets.
+          </p>
+        </div>
+      )}
+
       {/* ── 3. Tax Pot card (Pro-gated) ────────────────────────────────── */}
       {/* hasValue logic:
           - Pro users: always false (they see real content, not the blur chrome).
@@ -1078,42 +1113,6 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
               ))}
             </div>
           )}
-        </div>
-      )}
-
-      {/* ── 11. Accountant tools ─────────────────────────────────────────── */}
-      {/* FREE — ungated. Privacy policy promises "your data is yours, export
-          anytime"; gating the only export path would contradict that live GDPR
-          promise. The export is also available in Settings → Accountant and
-          Settings → Data & privacy — this surface makes it discoverable at the
-          moment a tradesperson is reviewing their money numbers.
-          Also available in Settings → Accountant → Export records (unchanged).
-
-          PRO SEAM: a future "Profit & tax summary" export (CSV with overhead
-          allocation column and tax_set_aside_pct column) belongs immediately
-          below this button, wrapped in <ProGate>. That export will require
-          profiles.overheads (JSONB, migration 20260528_add_overheads_to_profiles)
-          and profiles.tax_set_aside_pct (int, migration 20260528_add_tax_set_aside_pct)
-          to be live — both migrations are already applied. */}
-      {onExport && (
-        <div className="money-card money-accountant-tools">
-          <div className="money-accountant-tools__header">
-            <Icon name="file" size={16} variant="muted" className="money-accountant-tools__icon" />
-            <span className="money-accountant-tools__title">Accountant tools</span>
-          </div>
-          <button
-            type="button"
-            className="money-accountant-tools__btn"
-            onClick={handleMoneyExport}
-            disabled={exporting}
-            aria-busy={exporting}
-          >
-            <Icon name="download" size={16} className="money-accountant-tools__btn-icon" />
-            {exporting ? 'Preparing…' : 'Export for your accountant (CSV)'}
-          </button>
-          <p className="money-accountant-tools__hint">
-            Jobs ledger with costs and profit — opens in Excel or Google Sheets.
-          </p>
         </div>
       )}
 

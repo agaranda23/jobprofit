@@ -9957,6 +9957,43 @@ button.jd-money-chip:active { opacity: 0.75; }
   justify-content: flex-end;
 }
 
+/* Mode switcher — All jobs / Quotes / Invoices segmented control.
+   Mirrors the .work-segments / .work-segment recipe so it reads as a
+   sibling of the Pipeline/Records controls in WorkScreen.
+   Sits between the header and the search bar. */
+.dso-mode-switcher {
+  display: flex;
+  gap: 0;
+  margin: 10px 16px 0;
+  background: var(--surface-2);
+  border: 1px solid var(--border, #1F2B44);
+  border-radius: 10px;
+  padding: 3px;
+  flex-shrink: 0;
+}
+
+.dso-mode-tab {
+  flex: 1;
+  background: none;
+  border: none;
+  color: var(--text-dim, #9CA3AF);
+  padding: 7px 0;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.dso-mode-tab--active {
+  background: var(--surface, #0B1220);
+  color: var(--text, #E5E7EB);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.3);
+}
+
 /* Search bar */
 .dso-search-wrap {
   display: flex;
@@ -10103,8 +10140,9 @@ button.jd-money-chip:active { opacity: 0.75; }
 }
 
 .dso-empty__icon {
-  font-size: 36px;
-  line-height: 1;
+  /* Now an <Icon> SVG component — display block so it centres correctly. */
+  display: block;
+  color: var(--text-dim, #9CA3AF);
 }
 
 .dso-empty__title {

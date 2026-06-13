@@ -141,7 +141,7 @@ const DEFAULT_PROPS = {
 import WorkScreen from '../WorkScreen';
 import TodayScreen from '../TodayScreen';
 
-describe('WorkScreen — Records entry point (feat/work-records-view)', () => {
+describe('WorkScreen — Records entry point (fix/discoverability-polish)', () => {
   afterEach(() => vi.clearAllMocks());
 
   it('renders the Records pill in the controls row', () => {
@@ -150,23 +150,50 @@ describe('WorkScreen — Records entry point (feat/work-records-view)', () => {
     expect(screen.getByRole('button', { name: /find a quote, invoice or job/i })).toBeTruthy();
   });
 
-  it('opens DocumentSearchOverlay (mode=jobs) when Records pill is tapped', () => {
+  it('opens DocumentSearchOverlay in quotes mode (default) when Records pill is tapped', () => {
     render(<WorkScreen {...DEFAULT_PROPS} jobs={[makeJob()]} />);
     const pill = screen.getByRole('button', { name: /find a quote, invoice or job/i });
     fireEvent.click(pill);
-    // The overlay title for mode='jobs' is "All jobs"
-    expect(screen.getByText('All jobs')).toBeTruthy();
+    // Default mode is now 'quotes' — the overlay dialog heading (h2) should be "Quotes"
+    expect(screen.getByRole('heading', { name: 'Quotes' })).toBeTruthy();
   });
 
-  it('closes the overlay when onClose is called (close button)', () => {
+  it('closes the overlay when the close button is tapped', () => {
     render(<WorkScreen {...DEFAULT_PROPS} jobs={[makeJob()]} />);
-    // Open the overlay
     fireEvent.click(screen.getByRole('button', { name: /find a quote, invoice or job/i }));
-    expect(screen.getByText('All jobs')).toBeTruthy();
-    // Close via the ✕ button inside the overlay
+    expect(screen.getByRole('heading', { name: 'Quotes' })).toBeTruthy();
     const closeBtn = screen.getByRole('button', { name: /close/i });
     fireEvent.click(closeBtn);
-    expect(screen.queryByText('All jobs')).toBeNull();
+    expect(screen.queryByRole('heading', { name: 'Quotes' })).toBeNull();
+  });
+
+  it('overlay renders all three mode-switcher tabs', () => {
+    render(<WorkScreen {...DEFAULT_PROPS} jobs={[makeJob()]} />);
+    fireEvent.click(screen.getByRole('button', { name: /find a quote, invoice or job/i }));
+    // All three tabs must be present regardless of which mode is active
+    expect(screen.getByRole('tab', { name: /all jobs/i })).toBeTruthy();
+    expect(screen.getByRole('tab', { name: /quotes/i })).toBeTruthy();
+    expect(screen.getByRole('tab', { name: /invoices/i })).toBeTruthy();
+  });
+
+  it('mode switcher changes the active mode when a tab is clicked', () => {
+    render(<WorkScreen {...DEFAULT_PROPS} jobs={[makeJob()]} />);
+    fireEvent.click(screen.getByRole('button', { name: /find a quote, invoice or job/i }));
+    // Start in quotes — heading is "Quotes"
+    expect(screen.getByRole('heading', { name: 'Quotes' })).toBeTruthy();
+    // Switch to "All jobs"
+    fireEvent.click(screen.getByRole('tab', { name: /all jobs/i }));
+    // After switching, the h2 heading changes to "All jobs"
+    expect(screen.getByRole('heading', { name: 'All jobs' })).toBeTruthy();
+  });
+
+  it('active mode tab has aria-selected=true', () => {
+    render(<WorkScreen {...DEFAULT_PROPS} jobs={[makeJob()]} />);
+    fireEvent.click(screen.getByRole('button', { name: /find a quote, invoice or job/i }));
+    const quotesTab = screen.getByRole('tab', { name: /quotes/i });
+    expect(quotesTab.getAttribute('aria-selected')).toBe('true');
+    const allJobsTab = screen.getByRole('tab', { name: /all jobs/i });
+    expect(allJobsTab.getAttribute('aria-selected')).toBe('false');
   });
 });
 
