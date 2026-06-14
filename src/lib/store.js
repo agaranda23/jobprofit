@@ -194,8 +194,17 @@ export function markJobPaid(jobId) {
 // ============================================================
 
 async function getUserId() {
+  // F2: getUser() makes a network round-trip to validate the token. During a
+  // transient refresh or connectivity blip it can return null even though the
+  // session is still locally valid. Fall back to getSession() (localStorage-
+  // backed, no network) so a brief network hiccup doesn't falsely signal
+  // "Not signed in" and drop the job into the offline queue unnecessarily.
+  // Only treat the user as genuinely signed out when BOTH calls yield no user.
   const { data: { user } } = await supabase.auth.getUser();
-  return user?.id || null;
+  if (user?.id) return user.id;
+
+  const { data: { session } } = await supabase.auth.getSession();
+  return session?.user?.id || null;
 }
 
 // --- READS ---

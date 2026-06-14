@@ -3,6 +3,7 @@ import {
   subscribe,
   subscribeToSyncState,
   subscribeToErrorState,
+  subscribeToLastEnqueued,
   runSync,
   getMetaQueueLength,
   getPending,
@@ -16,10 +17,14 @@ import {
 //   stuck    — queue non-empty AND last attempt failed AND > 60s ago
 //
 // Stuck threshold: 60 seconds since the last failed attempt.
+// Grace window: 5 seconds after a job is first enqueued while a sync is
+//   in-flight. Prevents a self-healing transient failure from ever flashing
+//   the banner — the immediate runSync in handleAddJob usually resolves in < 2s.
 // Placement: fixed at top of screen, below any safe-area inset.
 // Disappears the moment the queue empties.
 
-const STUCK_THRESHOLD_MS = 60_000;
+const STUCK_THRESHOLD_MS  = 60_000;
+const GRACE_WINDOW_MS     = 5_000;
 
 export default function SyncBadge({ onSignIn }) {
   // queueLength is the TOTAL count (new jobs + meta updates) — from subscribe()
@@ -29,6 +34,8 @@ export default function SyncBadge({ onSignIn }) {
   const [syncing, setSyncing]           = useState(false);
   const [errorState, setErrorState]     = useState({ lastError: null, lastAttemptAt: null });
   const [now, setNow]                   = useState(() => Date.now());
+  // F3: track when the last job was enqueued for the grace-window suppression.
+  const [lastEnqueuedAt, setLastEnqueuedAt] = useState(null);
   // Action sheet state
   const [sheetOpen, setSheetOpen]       = useState(false);
   const [detailOpen, setDetailOpen]     = useState(false);
@@ -37,9 +44,10 @@ export default function SyncBadge({ onSignIn }) {
   const [firstEntry, setFirstEntry]     = useState(null);
 
   useEffect(() => {
-    const unsubQueue   = subscribe(setQueueLength);
-    const unsubSyncing = subscribeToSyncState(setSyncing);
-    const unsubError   = subscribeToErrorState(setErrorState);
+    const unsubQueue      = subscribe(setQueueLength);
+    const unsubSyncing    = subscribeToSyncState(setSyncing);
+    const unsubError      = subscribeToErrorState(setErrorState);
+    const unsubEnqueued   = subscribeToLastEnqueued(setLastEnqueuedAt);
 
     // Track meta-update count separately so the label can be specific
     // e.g. "2 new jobs + 3 edits waiting" vs the generic total.
@@ -58,6 +66,7 @@ export default function SyncBadge({ onSignIn }) {
       unsubQueue();
       unsubSyncing();
       unsubError();
+      unsubEnqueued();
       unsubForMeta();
     };
   }, []);
@@ -75,8 +84,20 @@ export default function SyncBadge({ onSignIn }) {
     }
   }, [sheetOpen]);
 
-  // Hidden when queue is empty and not actively syncing
-  if (queueLength === 0 && !syncing) return null;
+  // F3: suppress the banner for GRACE_WINDOW_MS after a job is first enqueued
+  // while a sync attempt is pending/in-flight. A self-healing transient error
+  // (auth token refresh blip, short network spike) resolves in < 2s; the
+  // immediate runSync in handleAddJob fires before this window expires, so the
+  // banner never flashes for a successful auto-retry. After the window, if the
+  // row is still queued, the banner shows as normal.
+  const inGraceWindow =
+    syncing &&
+    lastEnqueuedAt !== null &&
+    (now - lastEnqueuedAt) < GRACE_WINDOW_MS;
+
+  // Hidden when queue is empty and not actively syncing, OR within the grace
+  // window where the immediate runSync is expected to self-heal.
+  if ((queueLength === 0 && !syncing) || inGraceWindow) return null;
 
   const isAuthFailure = errorState.lastError?.message === 'Not signed in';
   const isStuck =
