@@ -13503,40 +13503,42 @@ button.jd-money-chip:active { opacity: 0.75; }
   opacity: 0.7;
 }
 
-/* Dashed-border centered "add" button — used by Quote (+ Add a line) and
-   Schedule (+ Add visit) for a stronger affordance than the default inline
-   ghost row. Centered text, no leading icon, dashed green border in --accent. */
+/* Solid green pill "add" button — used by Quote (+ Add line) and
+   Schedule (+ Add visit). Green bg / black ink matches the brand primary CTA
+   ("Chase on WhatsApp"). Compact pill sits left-aligned under the list via
+   .jd-add-pill-row wrapper; replaces the old full-width dashed style. */
 .jd-add-dashed {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
-  width: 100%;
+  gap: 4px;
+  width: auto;
   box-sizing: border-box;
-  padding: 12px 14px;
-  min-height: 44px;
-  background: transparent;
-  border: 1.5px dashed var(--accent);
-  border-radius: 10px;
-  color: var(--accent);
-  font-size: 14px;
-  font-weight: 600;
+  padding: 6px 13px;
+  min-height: 32px;
+  background: var(--accent);
+  border: none;
+  border-radius: 999px;
+  color: #06120b;
+  font-size: 12.5px;
+  font-weight: 700;
   font-family: inherit;
   cursor: pointer;
-  margin-top: 6px;
   -webkit-tap-highlight-color: transparent;
 }
 .jd-add-dashed:active {
-  opacity: 0.7;
+  opacity: 0.75;
 }
 
-/* Quote-only modifier: matches the 14px horizontal inset that Schedule's
-   "+ Add visit" gets naturally from its parent .jd-schedule-card-body padding.
-   Quote's QuoteBreakdownSection uses .jd-section-body--flush (padding:0) so the
-   button would otherwise hug the card edges. */
-.jd-add-dashed--inset {
-  width: calc(100% - 28px);
-  margin-left: 14px;
-  margin-right: 14px;
+/* Alignment wrapper: left-aligned flex row that holds the pill.
+   --inset variant adds the 14px horizontal inset for the Price accordion
+   (which uses .jd-section-body--flush so has no natural padding). */
+.jd-add-pill-row {
+  display: flex;
+  justify-content: flex-start;
+  padding: 8px 0 2px;
+}
+.jd-add-pill-row--inset {
+  padding-left: 14px;
 }
 
 .jd-card-row-icon {

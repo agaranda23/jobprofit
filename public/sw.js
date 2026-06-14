@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v114';  // bumped from v113: sync/backup bug fix — structured error logging, session fallback in getUserId, immediate runSync after enqueue, SyncBadge grace window
+const CACHE_NAME = 'jobprofit-v115';  // bumped from v114: pill-style Add line / Add visit buttons in drawer (CSS change)
 const PRECACHE = [
   '/',
   '/index.html',

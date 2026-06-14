@@ -1344,14 +1344,16 @@ function QuoteBreakdownSection({ job, onSaveLine, onDeleteLine }) {
         <div className="jd-section-body jd-section-body--flush">
           {items.length === 0 ? (
             canEdit && (
-              <button
-                type="button"
-                className="jd-add-dashed jd-add-dashed--inset"
-                onClick={() => setSheetIdx(-1)}
-                aria-label="Add a line item"
-              >
-                + Add a line
-              </button>
+              <div className="jd-add-pill-row jd-add-pill-row--inset">
+                <button
+                  type="button"
+                  className="jd-add-dashed"
+                  onClick={() => setSheetIdx(-1)}
+                  aria-label="Add a line item"
+                >
+                  + Add line
+                </button>
+              </div>
             )
           ) : (
             <>
@@ -1395,14 +1397,16 @@ function QuoteBreakdownSection({ job, onSaveLine, onDeleteLine }) {
                 );
               })}
               {canEdit && (
-                <button
-                  type="button"
-                  className="jd-add-dashed jd-add-dashed--inset"
-                  onClick={() => setSheetIdx(-1)}
-                  aria-label="Add another line item"
-                >
-                  + Add a line
-                </button>
+                <div className="jd-add-pill-row jd-add-pill-row--inset">
+                  <button
+                    type="button"
+                    className="jd-add-dashed"
+                    onClick={() => setSheetIdx(-1)}
+                    aria-label="Add another line item"
+                  >
+                    + Add line
+                  </button>
+                </div>
               )}
               {items.length > 1 && (
                 <div className="jd-quote-footer-total">
@@ -3934,16 +3938,18 @@ export default function JobDetailDrawer({
                       />
                     ))}
 
-                    {/* Add visit ghost row */}
+                    {/* Add visit pill */}
                     {onUpdateJob && (
-                      <button
-                        type="button"
-                        className="jd-add-dashed"
-                        onClick={() => setEditingVisit({ _isNew: true, date: tomorrowDateString(), status: 'planned' })}
-                        aria-label="Add a visit"
-                      >
-                        + Add visit
-                      </button>
+                      <div className="jd-add-pill-row">
+                        <button
+                          type="button"
+                          className="jd-add-dashed"
+                          onClick={() => setEditingVisit({ _isNew: true, date: tomorrowDateString(), status: 'planned' })}
+                          aria-label="Add a visit"
+                        >
+                          + Add visit
+                        </button>
+                      </div>
                     )}
                   </div>
 
