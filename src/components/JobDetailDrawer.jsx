@@ -3718,13 +3718,14 @@ export default function JobDetailDrawer({
             </div>
           </div>
 
-          {/* Action row — Call · Text · WhatsApp · Navigate.
-              Phone gates Call/Text/WhatsApp; address gates Navigate independently.
-              Row is omitted entirely when neither is present. */}
+          {/* Action row — Call · Text · WhatsApp · Map.
+              Phone gates Call/Text/WhatsApp (comms group); Map always renders,
+              ghosting to a '+ add address' nudge when no address is set.
+              Row is omitted entirely when no phone is present. */}
           {(() => {
             const phone = resolvePhone(job);
             const address = job.address || '';
-            if (!phone && !address) return null;
+            if (!phone) return null;   // Map always renders inside; comms gate on phone
             const smsBody = firstName ? `Hi ${firstName}, ` : '';
             const waBody = firstName ? `Hi ${firstName}, ` : '';
             const smsLink = `sms:${phone}?body=${encodeURIComponent(smsBody)}`;
@@ -3774,22 +3775,30 @@ export default function JobDetailDrawer({
                     <span>WhatsApp</span>
                   </button>
                 )}
-                {address && (
-                  <a
-                    href={buildMapsUrl(address)}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="jt-action-btn"
-                    aria-label={`Navigate to ${address}`}
-                    onClick={() => logTelemetry('drawer_action_map', { source: 'drawer' })}
-                  >
-                    <svg width="15" height="15" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
-                      <path d="M9 1C6.24 1 4 3.24 4 6c0 4.25 5 11 5 11s5-6.75 5-11c0-2.76-2.24-5-5-5z"/>
-                      <circle cx="9" cy="6" r="1.8" fill="currentColor" stroke="none"/>
-                    </svg>
-                    <span>Navigate</span>
-                  </a>
-                )}
+                {(() => {
+                  const hasAddress = !!address;
+                  return (
+                    <button
+                      type="button"
+                      className={`jt-action-btn${hasAddress ? '' : ' jt-action-btn--missing'}`}
+                      aria-label={hasAddress ? `Navigate to ${address}` : 'Add job address'}
+                      onClick={() => {
+                        logTelemetry('drawer_action_map', { hasData: hasAddress, source: 'drawer' });
+                        if (hasAddress) {
+                          window.open(buildMapsUrl(address), '_blank', 'noopener');
+                        } else {
+                          setEditingField('address');
+                        }
+                      }}
+                    >
+                      <svg width="15" height="15" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
+                        <path d="M9 1C6.24 1 4 3.24 4 6c0 4.25 5 11 5 11s5-6.75 5-11c0-2.76-2.24-5-5-5z"/>
+                        <circle cx="9" cy="6" r="1.8" fill="currentColor" stroke="none"/>
+                      </svg>
+                      <span>Map</span>
+                    </button>
+                  );
+                })()}
               </div>
             );
           })()}

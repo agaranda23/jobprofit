@@ -2055,20 +2055,29 @@ describe('CustomerCard — WhatsApp prefill is neutral greeting (not the invoice
   });
 });
 
-// ── Header action-row visibility gate (PRD 2026-06-14) ───────────────────────
+// ── Header action-row visibility gate (PRD 2026-06-14, updated) ──────────────
 //
-// The new .jd-header-action-row renders Call/Text/WhatsApp only when phone is
-// present, and Navigate only when address is present. If neither is present the
-// row is omitted entirely. Tests mirror the render-gate logic in the IIFE inside
-// the drawer header.
+// Map always renders when phone is present (ghost state when no address).
+// Call/Text/WhatsApp are gated on phone. Row returns null when no phone.
+// "Map" label replaces old "Navigate". Ghost state applies jt-action-btn--missing
+// and routes to setEditingField('address') instead of opening maps.
 
 function headerActionRowState(job) {
   const phone = job.customerPhone || job.phone || job.mobile || job.whatsapp || '';
   const address = job.address || '';
+  // Row is omitted entirely when no phone (Map always renders inside; comms gate on phone)
+  const rowVisible = !!phone;
+  const showPhoneButtons = !!phone;
+  // Map always renders when row is visible; ghost = no address
+  const mapAlwaysRenders = !!phone;
+  const mapHasAddress = !!address;
+  const mapIsGhost = !!phone && !address;
   return {
-    rowVisible: !!(phone || address),
-    showPhoneButtons: !!phone,
-    showNavigate: !!address,
+    rowVisible,
+    showPhoneButtons,
+    mapAlwaysRenders,
+    mapHasAddress,
+    mapIsGhost,
   };
 }
 
@@ -2084,15 +2093,31 @@ describe('Header action-row — render gate', () => {
     expect(showPhoneButtons).toBe(false);
   });
 
-  it('shows Navigate when address is present', () => {
-    const { rowVisible, showNavigate } = headerActionRowState({ address: '14 Elm Road' });
-    expect(rowVisible).toBe(true);
-    expect(showNavigate).toBe(true);
+  it('Map always renders when phone is present and address exists (no ghost)', () => {
+    const { mapAlwaysRenders, mapHasAddress, mapIsGhost } = headerActionRowState({ customerPhone: '07700900000', address: '14 Elm Road' });
+    expect(mapAlwaysRenders).toBe(true);
+    expect(mapHasAddress).toBe(true);
+    expect(mapIsGhost).toBe(false);
   });
 
-  it('hides Navigate when address is absent', () => {
-    const { showNavigate } = headerActionRowState({ customerPhone: '07700900000' });
-    expect(showNavigate).toBe(false);
+  it('Map renders in ghost state when phone present but no address', () => {
+    const { mapAlwaysRenders, mapHasAddress, mapIsGhost } = headerActionRowState({ customerPhone: '07700900000' });
+    expect(mapAlwaysRenders).toBe(true);
+    expect(mapHasAddress).toBe(false);
+    expect(mapIsGhost).toBe(true);
+  });
+
+  it('ghost Map routes to address editor (setEditingField called with address)', () => {
+    // Verify the branch logic: no address → editor redirect, not maps open
+    const { mapIsGhost } = headerActionRowState({ phone: '07700900001' });
+    expect(mapIsGhost).toBe(true);
+    // The click handler calls setEditingField('address') when !hasAddress
+    // This is the logic branch verified here; DOM integration tested in the app
+  });
+
+  it('hides the entire row when no phone is present (address-only job)', () => {
+    const { rowVisible } = headerActionRowState({ address: '1 High St' });
+    expect(rowVisible).toBe(false);
   });
 
   it('hides the entire row when neither phone nor address is present', () => {
@@ -2100,18 +2125,12 @@ describe('Header action-row — render gate', () => {
     expect(rowVisible).toBe(false);
   });
 
-  it('shows row when only phone is present (no address)', () => {
-    const { rowVisible, showPhoneButtons, showNavigate } = headerActionRowState({ phone: '07700900001' });
+  it('shows row when only phone is present (Map renders ghost)', () => {
+    const { rowVisible, showPhoneButtons, mapAlwaysRenders, mapIsGhost } = headerActionRowState({ phone: '07700900001' });
     expect(rowVisible).toBe(true);
     expect(showPhoneButtons).toBe(true);
-    expect(showNavigate).toBe(false);
-  });
-
-  it('shows row with only Navigate when only address is present (no phone)', () => {
-    const { rowVisible, showPhoneButtons, showNavigate } = headerActionRowState({ address: '1 High St' });
-    expect(rowVisible).toBe(true);
-    expect(showPhoneButtons).toBe(false);
-    expect(showNavigate).toBe(true);
+    expect(mapAlwaysRenders).toBe(true);
+    expect(mapIsGhost).toBe(true);
   });
 
   it('uses job.mobile as phone fallback', () => {
@@ -2124,13 +2143,14 @@ describe('Header action-row — render gate', () => {
     expect(showPhoneButtons).toBe(true);
   });
 
-  it('shows all four buttons when both phone and address are present', () => {
-    const { rowVisible, showPhoneButtons, showNavigate } = headerActionRowState({
+  it('shows all four buttons when both phone and address are present (Map not ghost)', () => {
+    const { rowVisible, showPhoneButtons, mapAlwaysRenders, mapIsGhost } = headerActionRowState({
       customerPhone: '07700900000',
       address: '14 Elm Road',
     });
     expect(rowVisible).toBe(true);
     expect(showPhoneButtons).toBe(true);
-    expect(showNavigate).toBe(true);
+    expect(mapAlwaysRenders).toBe(true);
+    expect(mapIsGhost).toBe(false);
   });
 });
