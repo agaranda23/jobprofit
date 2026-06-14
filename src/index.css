@@ -6319,8 +6319,8 @@ input[type=number] { -moz-appearance: textfield; }
 }
 .job-detail-header {
   display: flex;
-  flex-direction: column;  /* vertical stack: top-row + action-row */
-  gap: 12px;
+  flex-direction: column;  /* vertical stack: actions strip + mid row + action-row */
+  gap: 8px;
   /* overflow:hidden intentionally absent — kebab dropdown is position:absolute
      and must not be clipped. */
   padding: 12px 16px 14px;
@@ -6329,7 +6329,7 @@ input[type=number] { -moz-appearance: textfield; }
 }
 .jd-header-top {
   display: flex;
-  align-items: flex-start;
+  align-items: baseline;
   justify-content: space-between;
   gap: 12px;
 }
@@ -6359,8 +6359,10 @@ input[type=number] { -moz-appearance: textfield; }
   min-width: 0;
 }
 .job-detail-customer {
-  font-size: 16px;
-  font-weight: 700;
+  font-size: 22px;
+  font-weight: 800;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
   color: var(--text);
   /* Allow up to 2 lines before truncating — avoids bleeding under the chip */
   display: -webkit-box;
@@ -6370,7 +6372,9 @@ input[type=number] { -moz-appearance: textfield; }
   text-overflow: ellipsis;
 }
 .job-detail-summary {
-  font-size: 13px;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.2;
   color: var(--text-dim);
   margin-top: 2px;
 }
@@ -6445,16 +6449,6 @@ input[type=number] { -moz-appearance: textfield; }
 
 /* ── Header redesign (PRD 2026-06-14) ──────────────────────────────────── */
 
-/* Eyebrow — "JOB" label above the job name */
-.jd-eyebrow {
-  display: block;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--text-dim);
-  margin-bottom: 2px;
-}
 
 /* Action row — Call · Text · WhatsApp · Navigate below the top row */
 .jd-header-action-row {
@@ -6475,7 +6469,7 @@ input[type=number] { -moz-appearance: textfield; }
 
 /* Hero price — large green figure for pre-invoice priced state */
 .jd-hero-price {
-  font-size: 26px;
+  font-size: 24px;
   font-weight: 800;
   color: var(--jp-green);
   font-variant-numeric: tabular-nums;
@@ -6562,11 +6556,12 @@ button.jd-money-chip:active { opacity: 0.75; }
   color: var(--jp-green);
 }
 
-/* Kebab + close — pinned top of the right column; both get 44×44 tap targets */
+/* Kebab + close — own top strip, right-aligned; both get 44×44 tap targets */
 .jd-header-actions {
   display: flex;
   align-items: center;
   gap: 4px;
+  align-self: flex-end;
 }
 .jd-kebab-btn {
   min-width: 44px;

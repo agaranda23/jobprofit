@@ -3448,58 +3448,13 @@ export default function JobDetailDrawer({
         {/* Handle bar */}
         <div className="job-detail-sheet-handle" aria-hidden="true" />
 
-        {/* Header row — Decision B redesign (PRD 2026-06-13):
-            Left column: eyebrow JOB → job name → customer line → Call button.
-            Right column: money chip (top) + kebab ⋯ + close ✕ (bottom). */}
-        {/* Header — PRD 2026-06-14 redesign: vertical stack.
-            Top row: left=eyebrow+name+customer; right=⋯✕ (top) + price (below).
-            Bottom row: full-width action buttons (Call · Text · WhatsApp · Navigate). */}
+        {/* Header — PRD 2026-06-14 redesign (updated 2026-06-15): vertical stack.
+            Top strip: ⋯✕ pinned right on own row.
+            Mid row: left=name+customer; right=price (baseline-aligned).
+            Bottom row: full-width action buttons (Call · Text · WhatsApp · Map). */}
         <div className="job-detail-header">
-          <div className="jd-header-top">
-            <div className="jd-header-top-left">
-              <div className="job-detail-title-block">
-                {/* Eyebrow — contextual label above job name */}
-                <span className="jd-eyebrow">JOB</span>
-
-                {/* Job name — primary, big. Tappable to edit when allowed. */}
-                {onUpdateJob ? (
-                  <button
-                    type="button"
-                    className="jd-customer-edit-btn"
-                    onClick={() => setEditingField('summary')}
-                    aria-label={job.summary ? 'Edit job name' : 'Add job name'}
-                  >
-                    {job.summary
-                      ? <span className="job-detail-customer">{job.summary}</span>
-                      : <span className="jd-detail-edit-row-add">+ Add job name</span>
-                    }
-                  </button>
-                ) : (
-                  <div className="job-detail-customer">{job.summary || displayName}</div>
-                )}
-
-                {/* Customer sub-line — secondary, muted. Tappable to edit when allowed. */}
-                {onUpdateJob ? (
-                  <button
-                    type="button"
-                    className="jd-customer-subline-btn"
-                    onClick={() => setEditingField('name')}
-                    aria-label={distinctCustomer ? 'Edit customer' : 'Add customer'}
-                  >
-                    {distinctCustomer
-                      ? <span className="job-detail-summary">👤 {distinctCustomer}</span>
-                      : <span className="jd-detail-edit-row-add jd-detail-edit-row-add--sm">👤 + Add customer</span>
-                    }
-                  </button>
-                ) : (
-                  distinctCustomer && <div className="job-detail-summary">👤 {distinctCustomer}</div>
-                )}
-              </div>
-            </div>
-
-            <div className="jd-header-top-right">
-              {/* ⋯ kebab + ✕ close — pinned top of right column */}
-              <div className="jd-header-actions">
+          {/* ⋯ kebab + ✕ close — own top strip, flex-end so they sit right */}
+          <div className="jd-header-actions">
                 <div className="jd-kebab-wrap" ref={kebabRef}>
                   <button
                     type="button"
@@ -3636,15 +3591,56 @@ export default function JobDetailDrawer({
                 >
                   ✕
                 </button>
-              </div>{/* end jd-header-actions */}
+          </div>{/* end jd-header-actions */}
 
-              {/* Price display — below the actions, right-aligned.
+          {/* Mid row — left: job name + customer; right: price (baseline-aligned) */}
+          <div className="jd-header-top">
+            <div className="jd-header-top-left">
+              <div className="job-detail-title-block">
+                {/* Job name — primary, 22/800. Tappable to edit when allowed. */}
+                {onUpdateJob ? (
+                  <button
+                    type="button"
+                    className="jd-customer-edit-btn"
+                    onClick={() => setEditingField('summary')}
+                    aria-label={job.summary ? 'Edit job name' : 'Add job name'}
+                  >
+                    {job.summary
+                      ? <span className="job-detail-customer">{job.summary}</span>
+                      : <span className="jd-detail-edit-row-add">+ Add job name</span>
+                    }
+                  </button>
+                ) : (
+                  <div className="job-detail-customer">{job.summary || displayName}</div>
+                )}
+
+                {/* Customer sub-line — 16/700, muted, no icon. Tappable to edit when allowed. */}
+                {onUpdateJob ? (
+                  <button
+                    type="button"
+                    className="jd-customer-subline-btn"
+                    onClick={() => setEditingField('name')}
+                    aria-label={distinctCustomer ? 'Edit customer' : 'Add customer'}
+                  >
+                    {distinctCustomer
+                      ? <span className="job-detail-summary">{distinctCustomer}</span>
+                      : <span className="jd-detail-edit-row-add jd-detail-edit-row-add--sm">+ Add customer</span>
+                    }
+                  </button>
+                ) : (
+                  distinctCustomer && <div className="job-detail-summary">{distinctCustomer}</div>
+                )}
+              </div>
+            </div>
+
+            <div className="jd-header-top-right">
+              {/* Price display — right column, baseline-aligned to job name.
                   State matrix (first match wins):
                     1. Paid      → green chip, read-only
                     2. Overdue   → amber chip, read-only
                     3. Invoiced  → due chip, read-only
                     4. Un-priced → tappable "+ Add price" chip (editable mode only)
-                    5. Priced    → hero price figure (no "Quote" sub-label) */}
+                    5. Priced    → hero price figure */}
               {(() => {
                 const chipPriceHandler = () => {
                   if (needsPrice(job)) {
@@ -3696,7 +3692,7 @@ export default function JobDetailDrawer({
                     </button>
                   );
                 }
-                // Pre-invoice, priced — render hero price, no "Quote" sub-label.
+                // Pre-invoice, priced — render hero price.
                 if (!onUpdateJob) {
                   return (
                     <div className="jd-hero-price">
@@ -3780,7 +3776,7 @@ export default function JobDetailDrawer({
                   return (
                     <button
                       type="button"
-                      className={`jt-action-btn${hasAddress ? '' : ' jt-action-btn--missing'}`}
+                      className="jt-action-btn"
                       aria-label={hasAddress ? `Navigate to ${address}` : 'Add job address'}
                       onClick={() => {
                         logTelemetry('drawer_action_map', { hasData: hasAddress, source: 'drawer' });
