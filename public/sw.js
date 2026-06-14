@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v111';  // bumped from v110: drawer header glyph alignment — ✕ and ⋯ flush-right to gutter
+const CACHE_NAME = 'jobprofit-v112';  // bumped from v111: drawer header refinements — equal corner spacing, centred glyphs, handle removed
 const PRECACHE = [
   '/',
   '/index.html',
