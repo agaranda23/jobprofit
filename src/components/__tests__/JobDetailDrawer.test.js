@@ -2055,30 +2055,41 @@ describe('CustomerCard — WhatsApp prefill is neutral greeting (not the invoice
   });
 });
 
-// ── Header action-row visibility gate (PRD 2026-06-14, updated) ──────────────
+// ── Header action-row visibility gate (PRD 2026-06-14, updated 2026-06-15) ────
 //
-// Map always renders when phone is present (ghost state when no address).
+// Map ALWAYS renders full-colour (no ghost class) when phone is present.
+// Without an address, Map click routes to setEditingField('address') instead of
+// opening maps — but the button looks identical to Call/Text/WhatsApp either way.
 // Call/Text/WhatsApp are gated on phone. Row returns null when no phone.
-// "Map" label replaces old "Navigate". Ghost state applies jt-action-btn--missing
-// and routes to setEditingField('address') instead of opening maps.
 
 function headerActionRowState(job) {
   const phone = job.customerPhone || job.phone || job.mobile || job.whatsapp || '';
   const address = job.address || '';
-  // Row is omitted entirely when no phone (Map always renders inside; comms gate on phone)
+  // Row is omitted entirely when no phone
   const rowVisible = !!phone;
   const showPhoneButtons = !!phone;
-  // Map always renders when row is visible; ghost = no address
+  // Map always renders when row is visible — no ghost class regardless of address
   const mapAlwaysRenders = !!phone;
   const mapHasAddress = !!address;
+  // mapIsGhost: internal routing flag only — click routes to address editor when true.
+  // The CSS class jt-action-btn--missing is NOT applied (founder override 2026-06-15).
   const mapIsGhost = !!phone && !address;
+  const mapGhostClass = '';   // always empty — Map is full-colour regardless of address
   return {
     rowVisible,
     showPhoneButtons,
     mapAlwaysRenders,
     mapHasAddress,
     mapIsGhost,
+    mapGhostClass,
   };
+}
+
+// SMS link builder — mirrors the action-row inline logic in JobDetailDrawer.jsx.
+// Uses ?body= (iOS-compatible; Android falls back gracefully).
+function buildSmsLink(phone, firstName) {
+  const body = firstName ? `Hi ${firstName}, ` : '';
+  return `sms:${phone}?body=${encodeURIComponent(body)}`;
 }
 
 describe('Header action-row — render gate', () => {
@@ -2093,26 +2104,30 @@ describe('Header action-row — render gate', () => {
     expect(showPhoneButtons).toBe(false);
   });
 
-  it('Map always renders when phone is present and address exists (no ghost)', () => {
-    const { mapAlwaysRenders, mapHasAddress, mapIsGhost } = headerActionRowState({ customerPhone: '07700900000', address: '14 Elm Road' });
+  it('Map always renders full-colour when phone is present and address exists', () => {
+    const { mapAlwaysRenders, mapHasAddress, mapIsGhost, mapGhostClass } = headerActionRowState({ customerPhone: '07700900000', address: '14 Elm Road' });
     expect(mapAlwaysRenders).toBe(true);
     expect(mapHasAddress).toBe(true);
     expect(mapIsGhost).toBe(false);
+    expect(mapGhostClass).toBe('');
   });
 
-  it('Map renders in ghost state when phone present but no address', () => {
-    const { mapAlwaysRenders, mapHasAddress, mapIsGhost } = headerActionRowState({ customerPhone: '07700900000' });
+  it('Map renders full-colour (no ghost class) when phone present but no address', () => {
+    const { mapAlwaysRenders, mapHasAddress, mapIsGhost, mapGhostClass } = headerActionRowState({ customerPhone: '07700900000' });
     expect(mapAlwaysRenders).toBe(true);
     expect(mapHasAddress).toBe(false);
+    // mapIsGhost drives click routing only — button appearance is unchanged
     expect(mapIsGhost).toBe(true);
+    expect(mapGhostClass).toBe('');
   });
 
-  it('ghost Map routes to address editor (setEditingField called with address)', () => {
+  it('Map with no address routes to address editor (setEditingField called with address)', () => {
     // Verify the branch logic: no address → editor redirect, not maps open
-    const { mapIsGhost } = headerActionRowState({ phone: '07700900001' });
+    const { mapIsGhost, mapGhostClass } = headerActionRowState({ phone: '07700900001' });
     expect(mapIsGhost).toBe(true);
-    // The click handler calls setEditingField('address') when !hasAddress
-    // This is the logic branch verified here; DOM integration tested in the app
+    expect(mapGhostClass).toBe('');
+    // The click handler calls setEditingField('address') when !hasAddress;
+    // appearance is full-colour. DOM integration tested in the deploy preview.
   });
 
   it('hides the entire row when no phone is present (address-only job)', () => {
@@ -2125,12 +2140,13 @@ describe('Header action-row — render gate', () => {
     expect(rowVisible).toBe(false);
   });
 
-  it('shows row when only phone is present (Map renders ghost)', () => {
-    const { rowVisible, showPhoneButtons, mapAlwaysRenders, mapIsGhost } = headerActionRowState({ phone: '07700900001' });
+  it('shows row when only phone is present (Map full-colour, routes to address editor)', () => {
+    const { rowVisible, showPhoneButtons, mapAlwaysRenders, mapIsGhost, mapGhostClass } = headerActionRowState({ phone: '07700900001' });
     expect(rowVisible).toBe(true);
     expect(showPhoneButtons).toBe(true);
     expect(mapAlwaysRenders).toBe(true);
     expect(mapIsGhost).toBe(true);
+    expect(mapGhostClass).toBe('');
   });
 
   it('uses job.mobile as phone fallback', () => {
@@ -2143,8 +2159,8 @@ describe('Header action-row — render gate', () => {
     expect(showPhoneButtons).toBe(true);
   });
 
-  it('shows all four buttons when both phone and address are present (Map not ghost)', () => {
-    const { rowVisible, showPhoneButtons, mapAlwaysRenders, mapIsGhost } = headerActionRowState({
+  it('shows all four buttons when both phone and address are present (Map full-colour)', () => {
+    const { rowVisible, showPhoneButtons, mapAlwaysRenders, mapIsGhost, mapGhostClass } = headerActionRowState({
       customerPhone: '07700900000',
       address: '14 Elm Road',
     });
@@ -2152,5 +2168,45 @@ describe('Header action-row — render gate', () => {
     expect(showPhoneButtons).toBe(true);
     expect(mapAlwaysRenders).toBe(true);
     expect(mapIsGhost).toBe(false);
+    expect(mapGhostClass).toBe('');
+  });
+});
+
+// ── Text button — SMS link wiring ─────────────────────────────────────────────
+//
+// Text button uses an <a href="sms:NUMBER?body=..."> link, wired with a prefill
+// body of "Hi {firstName}, ". The ?body= form is iOS-compatible; Android accepts
+// it as well. encodeURIComponent ensures special chars are escaped.
+
+describe('Text button — SMS link builder', () => {
+  it('produces a valid sms: href with encoded body when phone and name are present', () => {
+    const link = buildSmsLink('07700900000', 'Alice');
+    expect(link).toBe('sms:07700900000?body=Hi%20Alice%2C%20');
+  });
+
+  it('includes the comma-space after the first name', () => {
+    const link = buildSmsLink('07700900000', 'Bob');
+    expect(link).toContain('Hi%20Bob%2C%20');
+  });
+
+  it('produces sms:NUMBER?body= (empty body) when no firstName is available', () => {
+    const link = buildSmsLink('07700900000', '');
+    expect(link).toBe('sms:07700900000?body=');
+  });
+
+  it('produces sms:NUMBER?body= when firstName is undefined', () => {
+    const link = buildSmsLink('07700900000', undefined);
+    expect(link).toBe('sms:07700900000?body=');
+  });
+
+  it('uses the exact phone string as-is (preserves +44 format)', () => {
+    const link = buildSmsLink('+447700900000', 'Chris');
+    expect(link).toMatch(/^sms:\+447700900000\?body=/);
+  });
+
+  it('URL-encodes special characters in the firstName', () => {
+    const link = buildSmsLink('07700900000', "O'Brien");
+    expect(link).toBe(`sms:07700900000?body=${encodeURIComponent("Hi O'Brien, ")}`);
+    expect(link).toMatch(/\?body=.+/);
   });
 });

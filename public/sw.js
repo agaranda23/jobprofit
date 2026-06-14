@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v108';  // bumped from v107: Map button always renders (ghost+redirect when no address)
+const CACHE_NAME = 'jobprofit-v109';  // bumped from v108: header layout redesign (⋯✕ strip, type scale, Map full-colour, Text SMS wired)
 const PRECACHE = [
   '/',
   '/index.html',
