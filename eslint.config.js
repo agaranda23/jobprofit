@@ -34,4 +34,24 @@ export default defineConfig([
       globals: { ...globals.node },
     },
   },
+  // Test files run in a JSDOM/Node environment — allow global, process, vitest globals, etc.
+  {
+    files: ['**/__tests__/**/*.{js,jsx}', '**/*.test.{js,jsx}', 'src/test-setup.js'],
+    languageOptions: {
+      globals: {
+        ...globals.browser,
+        ...globals.node,
+        // Vitest globals (globals: true in vitest.config.js)
+        describe: 'readonly',
+        it: 'readonly',
+        test: 'readonly',
+        expect: 'readonly',
+        vi: 'readonly',
+        beforeAll: 'readonly',
+        beforeEach: 'readonly',
+        afterAll: 'readonly',
+        afterEach: 'readonly',
+      },
+    },
+  },
 ])

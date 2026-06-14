@@ -37,7 +37,7 @@ import ReviewSheet from '../components/ReviewSheet';
 import StageStrip from '../components/StageStrip';
 import DocumentSearchOverlay from '../components/DocumentSearchOverlay';
 import { logTelemetry } from '../lib/telemetry';
-import { deriveDisplayStatus, daysSinceInvoice, requiresPriceForStage, stagePatch } from '../lib/jobStatus';
+import { deriveDisplayStatus, requiresPriceForStage, stagePatch } from '../lib/jobStatus';
 import { deleteJobFromCloud } from '../lib/store';
 import { shouldShowPartPaidChip, formatPartPaidLabel } from '../lib/partPaidChip';
 import { jobMatchesQuery, sortJobsByStage, firstLineOfAddress } from '../lib/jobSort';
@@ -253,7 +253,7 @@ const STAGE_META = {
  * "More actions" is 4 compact chips below a divider.
  * All moveToStage() mapping logic is unchanged.
  */
-function StageChipDropdown({ job, currentStage, onUpdateJob, onSendInvoice, onSelect, onOpenJob, onCopyJob, onArchiveJob, onDeleteJob, onShowToast }) {
+function StageChipDropdown({ job, currentStage, onUpdateJob, _onSendInvoice, onSelect, onOpenJob, onCopyJob, onArchiveJob, onDeleteJob, onShowToast }) {
   const [open, setOpen] = useState(false);
   const chipRef = useRef(null);
   const menuRef = useRef(null);
@@ -505,7 +505,7 @@ function StageChipDropdown({ job, currentStage, onUpdateJob, onSendInvoice, onSe
  * Invoiced + Overdue use chaseLadder for tiered WhatsApp messages.
  * Paid stage opens ReceiptModal via onViewReceipt.
  */
-function getStageCTA(stage, job, { onSendInvoice, onUpdateJob, onNewJob, onOpenJob, biz, onViewReceipt }) {
+function getStageCTA(stage, job, { onSendInvoice, onUpdateJob, _onNewJob, onOpenJob, biz, onViewReceipt }) {
   switch (stage) {
     case 'Lead':
       return {

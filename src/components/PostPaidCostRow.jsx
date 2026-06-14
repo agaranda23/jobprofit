@@ -34,7 +34,7 @@ function gbpDisplay(n) {
   return `£${Number(n).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-export default function PostPaidCostRow({ job, jobCostTotal = 0, variant = 'zero', onSave, onSkip, onAutoMute }) {
+export default function PostPaidCostRow({ job, _jobCostTotal = 0, variant = 'zero', onSave, onSkip, onAutoMute }) {
   const [amount, setAmount]   = useState('');
   const [category, setCategory] = useState(DEFAULT_CAT);
   const [saving, setSaving]   = useState(false);

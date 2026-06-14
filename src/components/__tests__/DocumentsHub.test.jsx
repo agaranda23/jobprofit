@@ -12,7 +12,7 @@
  *  6. Render-without-crash for open/closed × quotes/invoices combos (hooks-above-return guard).
  */
 
-import { describe, it, expect, vi, afterEach, beforeAll } from 'vitest';
+import { describe, it, expect, vi, beforeAll } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 
 // ── Mocks — must come before component imports ──────────────────────────────

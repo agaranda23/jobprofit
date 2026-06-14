@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v109';  // bumped from v108: header layout redesign (⋯✕ strip, type scale, Map full-colour, Text SMS wired)
+const CACHE_NAME = 'jobprofit-v110';  // bumped from v109: code hygiene pass — dead state/imports removed, ESLint fixes
 const PRECACHE = [
   '/',
   '/index.html',

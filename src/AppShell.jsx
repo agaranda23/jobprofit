@@ -35,12 +35,10 @@ import {
   getTodayReceipts,
   addTodayJob,
   addTodayReceipt,
-  markJobPaid,
   getJobsFromCloud,
   getReceiptsFromCloud,
   addJobToCloud,
   addReceiptToCloud,
-  markJobPaidCloud,
   linkReceiptToJob,
   deleteReceiptFromCloud,
   updateJobMetaInCloud,
@@ -155,7 +153,6 @@ export default function AppShell() {
   useKeyboardInset();
 
   const [view, setView] = useState(() => parseViewFromHash());
-  const [pendingDeepLink, setPendingDeepLink] = useState(null);
   const [jobs, setJobs] = useState(() => getTodayJobs());
   const [receipts, setReceipts] = useState(() => getTodayReceipts());
   const [session, setSession] = useState(null);
@@ -920,7 +917,6 @@ export default function AppShell() {
     // Profile-completeness gate removed (feat/zero-friction-entry, 2026-06-02).
     // Users can create jobs immediately after sign-in. Missing business/bank
     // details are collected just-in-time at the invoice-send step.
-    setPendingDeepLink('create-detailed-job');
     navigate(NAV_SLICE_3 ? 'work' : 'jobs');
   };
 
@@ -1409,10 +1405,9 @@ export default function AppShell() {
             if (postWizardNav) {
               navigate(postWizardNav);
               setPostWizardNav(null);
-              // If user was trying to create a job, open the detailed form now
+              // If user was trying to create a job, force WorkScreen remount so AddJob opens.
               if (postWizardNav === 'jobs' || postWizardNav === 'work') {
-                setPendingDeepLink('create-detailed-job');
-                setMoreKey(k => k + 1);
+                setWorkResetKey(k => k + 1);
               }
             }
           }}

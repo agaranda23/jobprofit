@@ -22,7 +22,6 @@ import { getDrawerSectionConfig } from '../lib/drawerSectionConfig';
 import { deriveNextStepContent } from '../lib/nextStepContent';
 import { sectionsNeedingAttention } from '../lib/sectionAttention';
 import {
-  getChaseState,
   recordChase,
   clearChase,
   buildChaseLink,
@@ -30,7 +29,6 @@ import {
   daysPastDue,
   buildPaymentDetails,
   isDoubleSendBlocked,
-  lastChasedLabel,
 } from '../lib/chaseLadder';
 import { deriveDisplayStatus, needsPrice, stagePatch } from '../lib/jobStatus';
 import { computeBalance, computeAmountPaid, editPayment, deletePayment } from '../lib/payments';
@@ -103,18 +101,6 @@ function shouldShowChase(job) {
   if (outstanding <= 0) return false;
 
   return !!resolvePhone(job);
-}
-
-/**
- * Derives how many days the invoice has been outstanding, defaulting to 0
- * when the job has no date (safe for buildChaseMessage).
- */
-function daysSinceDue(job) {
-  const raw = job.invoiceSentAt || job.invoiceDate || job.date;
-  if (!raw) return 0;
-  const due = new Date(raw);
-  const diffMs = Date.now() - due.getTime();
-  return Math.max(0, Math.floor(diffMs / (24 * 60 * 60 * 1000)));
 }
 
 // deriveDisplayStatus is imported from lib/jobStatus — single source of truth
@@ -219,13 +205,6 @@ function CustomerCard({ job, onEditName, onEditPhone, onEditAddress, onEditEmail
   const email = job.email || job.customerEmail || '';
   const description = job.description || '';
   const canEdit = typeof onEditPhone === 'function';
-
-  // Derived values for action chips and empty-state hint.
-  const firstName = (customer).split(' ')[0] || '';
-  const smsBody = firstName ? `Hi ${firstName}, ` : '';
-  const waBody = firstName ? `Hi ${firstName}, ` : '';
-  const smsLink = `sms:${phone}?body=${encodeURIComponent(smsBody)}`;
-  const waLink = phone ? buildWhatsAppLink({ phone, message: waBody }) : '';
 
   const allEmpty = !customer && !phone && !address;
 
@@ -490,7 +469,7 @@ function MoneyCard({ quote, costs, profit, margin, onTap }) {
  */
 function HintCard({ content }) {
   if (!content) return null;
-  const { headline, microCtas = [] } = content;
+  const { headline } = content;
   return (
     <div className="jd-hint-card">
       <span className="jd-hint-label">Next</span>
@@ -697,78 +676,6 @@ function DetailsSection({
           </div>
         )}
 
-      </div>
-    </div>
-  );
-}
-
-/**
- * ScheduleEditForm — inline schedule date/time editor.
- *
- * Moved out of DetailsSection (bug #4 fix) so it is a sibling of SpineBlock
- * in the drawer body rather than being nested inside the Customer card.
- * This means it is visually adjacent to the spine row that triggers it, and
- * cannot appear as a bare "Date" label in an unrelated card context.
- *
- * Only rendered when schedEditMode is true.
- */
-function ScheduleEditForm({
-  schedEditMode,
-  schedDate,
-  schedStart,
-  schedEnd,
-  onScheduleCancel,
-  onScheduleSave,
-  onScheduleDateChange,
-  onScheduleStartChange,
-  onScheduleEndChange,
-}) {
-  if (!schedEditMode) return null;
-  return (
-    <div className="jd-schedule-edit-form">
-      <div>
-        <div className="jd-schedule-edit-label">Date</div>
-        <input
-          type="date"
-          className="jd-schedule-edit-input"
-          value={schedDate || ''}
-          onChange={e => onScheduleDateChange(e.target.value)}
-          aria-label="Scheduled date"
-        />
-      </div>
-      <div>
-        <div className="jd-schedule-edit-label">Time (optional)</div>
-        <div className="jd-schedule-edit-time-row">
-          <input
-            type="time"
-            className="jd-schedule-edit-input"
-            value={schedStart || ''}
-            onChange={e => onScheduleStartChange(e.target.value)}
-            aria-label="Start time"
-            placeholder="Start"
-          />
-          <input
-            type="time"
-            className="jd-schedule-edit-input"
-            value={schedEnd || ''}
-            onChange={e => onScheduleEndChange(e.target.value)}
-            aria-label="End time"
-            placeholder="End"
-          />
-        </div>
-      </div>
-      <div className="jd-schedule-edit-footer">
-        <button type="button" className="btn-ghost" onClick={onScheduleCancel}>
-          Cancel
-        </button>
-        <button
-          type="button"
-          className="btn-primary"
-          onClick={onScheduleSave}
-          disabled={!schedDate}
-        >
-          Save
-        </button>
       </div>
     </div>
   );
@@ -2485,14 +2392,6 @@ export default function JobDetailDrawer({
   const kebabRef = useRef(null);
   // Profit breakdown sheet — opened by ribbon tap or viewProfitBreakdown action
   const [profitSheetOpen, setProfitSheetOpen] = useState(false);
-  // Stage-aware section expansion — Direction 2.
-  // Initialised lazily from getDrawerSectionConfig so the default open/closed
-  // state is always correct for the job's current stage without a useEffect.
-  // The user can tap any collapsed row to expand it; tapping again collapses it.
-  const [expandedSections, setExpandedSections] = useState(() => {
-    const config = getDrawerSectionConfig(deriveDisplayStatus(job));
-    return new Set(config.filter(s => s.display === 'expanded').map(s => s.id));
-  });
 
   // Photo add — refs for the two hidden file inputs (camera + gallery)
   // photoInputRef kept for any legacy callers that still reference it directly.
@@ -2522,11 +2421,6 @@ export default function JobDetailDrawer({
   // null = not shown; true = prompt is active for this job.
   const [postPaidCostActive, setPostPaidCostActive] = useState(false);
 
-  // LineItems edit — per-row sheet pattern (replaces old inline draft)
-  // liEditMode / liDraft kept for legacy callers (kebab menu editLineItems ref)
-  const [liEditMode, setLiEditMode] = useState(false);
-  const [liDraft, setLiDraft] = useState([]);
-
   // Price accordion expansion — incremented to programmatically expand the
   // Price CollapsedSectionRow when the header price button is tapped on a
   // priced job (Option A: header is a derived read-only sum, editing goes to
@@ -2534,12 +2428,6 @@ export default function JobDetailDrawer({
   const [priceAccordionExpandTick, setPriceAccordionExpandTick] = useState(0);
   // Ref on the Price accordion wrapper so we can scroll it into view on tap.
   const priceAccordionRef = useRef(null);
-
-  // Schedule edit — inline draft state (legacy single-visit path, kept for compatibility)
-  const [schedEditMode, setSchedEditMode] = useState(false);
-  const [schedDate, setSchedDate] = useState('');
-  const [schedStart, setSchedStart] = useState('');
-  const [schedEnd, setSchedEnd] = useState('');
 
   // Visit editor sheet — multi-visit path
   // editingVisit: null (closed) | { ...Visit } (existing) | { _isNew: true } (add)
@@ -2715,7 +2603,6 @@ export default function JobDetailDrawer({
   }, [job?.id, job?.deposit_paid_at, job?.deposit_payment_token_id]);
 
   const status = deriveDisplayStatus(job);
-  const statusClass = STATUS_CLASS[status] || '';
   const displayName = job.customer || job.name || 'Unnamed job';
   // Only show the customer sub-line when it's present and differs from the job name —
   // avoids duplicating text when customer_name was defaulted to the job name on creation.
@@ -2724,7 +2611,6 @@ export default function JobDetailDrawer({
     : '';
   // First name for the Call CTA label — plain JS, safe anywhere (not a hook).
   const firstName = distinctCustomer ? distinctCustomer.trim().split(/\s+/)[0] : '';
-  const amount = job.total ?? job.amount;
   const showChase = shouldShowChase(job);
 
   // Invoice send CTA gating (still used for kebab menu items)
@@ -2741,9 +2627,7 @@ export default function JobDetailDrawer({
   );
   const paymentModalMode = isPreInvoiceJob ? 'deposit' : 'payment';
 
-  const chaseState = getChaseState(job.id);
   const tier = computeTier(job);
-  const chasedLabel = lastChasedLabel(chaseState);
   const chaseBlocked = isDoubleSendBlocked(job.id);
   const daysOverdue = Math.max(0, daysPastDue(job));
 
@@ -3142,38 +3026,7 @@ export default function JobDetailDrawer({
     });
   };
 
-  // ── LineItems edit ────────────────────────────────────────────────────────
-  // Data shape: { desc: string, cost: number } — matches legacy seed and AI-generated jobs.
-  const handleToggleLiEdit = () => {
-    // Seed draft from the canonical lineItems, normalising all cost values to numbers.
-    const base = Array.isArray(job.lineItems) ? job.lineItems : [];
-    setLiDraft(base.map(i => ({ desc: i.desc || '', cost: Number(i.cost || 0) })));
-    setLiEditMode(true);
-  };
-
-  const handleCancelLiEdit = () => {
-    setLiEditMode(false);
-    setLiDraft([]);
-  };
-
-  const handleUpdateLiItem = (idx, field, value) => {
-    setLiDraft(prev => {
-      const next = [...prev];
-      next[idx] = { ...next[idx], [field]: field === 'cost' ? value : value };
-      return next;
-    });
-  };
-
-  const handleAddLiItem = () => {
-    setLiDraft(prev => [...prev, { desc: '', cost: 0 }]);
-  };
-
-  const handleDeleteLiItem = (idx) => {
-    setLiDraft(prev => prev.filter((_, i) => i !== idx));
-  };
-
-  // Helper — after any line-item write (per-row sheet OR bulk edit), re-open
-  // ReviewSheet if the user arrived here via handleReviewEdit.
+  // Helper — after any line-item write, re-open ReviewSheet if the user arrived here via handleReviewEdit.
   // postEditReopenReview.current is set to 'quote'|'invoice' by handleReviewEdit.
   const maybeReopenReview = () => {
     const reopenMode = postEditReopenReview.current;
@@ -3181,18 +3034,6 @@ export default function JobDetailDrawer({
       postEditReopenReview.current = null;
       setReviewSheetMode(reopenMode);
     }
-  };
-
-  const handleSaveLiEdit = () => {
-    const finalItems = liDraft
-      .map(i => ({ desc: i.desc || '', cost: Number(i.cost || 0) }))
-      .filter(i => i.desc || i.cost > 0); // drop blank rows
-    const newTotal = finalItems.reduce((s, i) => s + i.cost, 0);
-    onUpdateJob({ ...job, lineItems: finalItems, total: newTotal, amount: newTotal });
-    setLiEditMode(false);
-    setLiDraft([]);
-    showFlash('Quote updated');
-    maybeReopenReview();
   };
 
   // ── LineItem per-row sheet handlers (Schedule-mirror, 2026-06-02) ─────────
@@ -3218,30 +3059,6 @@ export default function JobDetailDrawer({
     onUpdateJob({ ...job, lineItems: next, total: newTotal, amount: newTotal });
     showFlash('Line removed');
     maybeReopenReview();
-  };
-
-  // ── Schedule edit ─────────────────────────────────────────────────────────
-  const handleScheduleEdit = () => {
-    setSchedDate(job.scheduledDate || '');
-    setSchedStart(job.scheduledStart || '');
-    setSchedEnd(job.scheduledEnd || '');
-    setSchedEditMode(true);
-  };
-
-  const handleScheduleCancel = () => {
-    setSchedEditMode(false);
-  };
-
-  const handleScheduleSave = () => {
-    if (!schedDate) return;
-    onUpdateJob({
-      ...job,
-      scheduledDate: schedDate || null,
-      scheduledStart: schedStart || null,
-      scheduledEnd: schedEnd || null,
-    });
-    setSchedEditMode(false);
-    showFlash('Schedule updated');
   };
 
   // ── Multi-visit handlers ──────────────────────────────────────────────────
@@ -3418,7 +3235,7 @@ export default function JobDetailDrawer({
     openPhotoInput:      () => photoInputRef.current?.click(),
     openSigPad:          () => setSigPadOpen(true),
     editPrice:           () => setEditingField('amount'),
-    editLineItems:       handleToggleLiEdit,
+    editLineItems:       () => {},
     viewProfitBreakdown: () => setProfitSheetOpen(true),
     noop:                () => {},
   };
@@ -3808,7 +3625,6 @@ export default function JobDetailDrawer({
             const materials = receipts
               .filter(r => r.jobId && (String(r.jobId) === String(job.id) || String(r.jobId) === String(job.cloudId)))
               .reduce((sum, r) => sum + Number(r.amount || 0), 0);
-            const profit = quote - materials;
 
             // ── Attention state ──────────────────────────────────────────────
             const attention = sectionsNeedingAttention(job, nextStepContent, receipts);
@@ -3997,13 +3813,10 @@ export default function JobDetailDrawer({
               />
             );
             const photoCount = Array.isArray(job.photos) ? job.photos.length : 0;
-            const hasNoteContent = (Array.isArray(job.jobNotes) && job.jobNotes.length > 0) ||
-              (typeof job.notes === 'string' && job.notes.trim());
             const structuredNoteCount = Array.isArray(job.jobNotes) ? job.jobNotes.length : 0;
             const noteCount = structuredNoteCount > 0
               ? structuredNoteCount
               : (typeof job.notes === 'string' && job.notes.trim() ? 1 : 0);
-            const noteCountMeta = `${noteCount} note${noteCount !== 1 ? 's' : ''}`;
             // hasExcludeToggle is used only by ExcludeTaxRow now (lifted out of More).
             const hasExcludeToggle = !isCisUser && !!onUpdateJob;
 

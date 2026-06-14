@@ -99,7 +99,6 @@ export default function CollapsedSectionRow({
     if (forceExpandTick > 0) {
       setExpanded(true);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [forceExpandTick]);
 
   const panelId = `jd-csr-panel-${id}`;
