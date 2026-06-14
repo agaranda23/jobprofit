@@ -75,6 +75,19 @@ function resolvePhone(job) {
 }
 
 /**
+ * Platform-aware Maps URL: Apple Maps on iOS, Google Maps everywhere else.
+ * Lifted to module level so the header action row can use it without mounting
+ * inside CustomerCard's scope.
+ */
+function buildMapsUrl(addr) {
+  const enc = encodeURIComponent(addr);
+  if (/iPad|iPhone|iPod/.test(navigator.userAgent)) {
+    return `http://maps.apple.com/?q=${enc}`;
+  }
+  return `https://www.google.com/maps/search/?api=1&query=${enc}`;
+}
+
+/**
  * Returns true when the "Chase customer" CTA should be visible.
  * Three gates must all pass: job is unpaid, outstanding > 0, phone exists.
  */
@@ -214,15 +227,6 @@ function CustomerCard({ job, onEditName, onEditPhone, onEditAddress, onEditEmail
   const smsLink = `sms:${phone}?body=${encodeURIComponent(smsBody)}`;
   const waLink = phone ? buildWhatsAppLink({ phone, message: waBody }) : '';
 
-  // Platform-aware Maps URL: Apple Maps on iOS, Google Maps everywhere else.
-  function buildMapsUrl(addr) {
-    const enc = encodeURIComponent(addr);
-    if (/iPad|iPhone|iPod/.test(navigator.userAgent)) {
-      return `http://maps.apple.com/?q=${enc}`;
-    }
-    return `https://www.google.com/maps/search/?api=1&query=${enc}`;
-  }
-
   const allEmpty = !customer && !phone && !address;
 
   return (
@@ -290,36 +294,6 @@ function CustomerCard({ job, onEditName, onEditPhone, onEditAddress, onEditEmail
               <span className="jd-card-row-val">{phone}</span>
             </div>
           )}
-          {/* One-tap action chips — additive, never replace the tap-to-call link above */}
-          <div className="jd-action-chip-row" role="group" aria-label="Contact actions">
-            <a
-              href={`tel:${phone}`}
-              className="jd-action-chip"
-              aria-label="Call customer"
-              onClick={() => logTelemetry('drawer_action_call')}
-            >
-              Call
-            </a>
-            <a
-              href={smsLink}
-              className="jd-action-chip"
-              aria-label="Text customer"
-              onClick={() => logTelemetry('drawer_action_text')}
-            >
-              Text
-            </a>
-            <button
-              type="button"
-              className="jd-action-chip"
-              aria-label="WhatsApp customer"
-              onClick={() => {
-                logTelemetry('drawer_action_whatsapp');
-                window.open(waLink, '_blank', 'noopener');
-              }}
-            >
-              WhatsApp
-            </button>
-          </div>
         </>
       ) : (
         canEdit && (
@@ -360,19 +334,6 @@ function CustomerCard({ job, onEditName, onEditPhone, onEditAddress, onEditEmail
               >
                 <span aria-hidden="true">›</span>
               </button>
-            </div>
-            {/* Navigate chip — additive shortcut below the address row */}
-            <div className="jd-action-chip-row jd-action-chip-row--navigate">
-              <a
-                href={buildMapsUrl(address)}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="jd-action-chip jd-action-chip--navigate"
-                aria-label={`Navigate to ${address}`}
-                onClick={() => logTelemetry('drawer_action_map', { source: 'drawer' })}
-              >
-                Navigate
-              </a>
             </div>
           </>
         ) : (
@@ -3490,282 +3451,348 @@ export default function JobDetailDrawer({
         {/* Header row — Decision B redesign (PRD 2026-06-13):
             Left column: eyebrow JOB → job name → customer line → Call button.
             Right column: money chip (top) + kebab ⋯ + close ✕ (bottom). */}
+        {/* Header — PRD 2026-06-14 redesign: vertical stack.
+            Top row: left=eyebrow+name+customer; right=⋯✕ (top) + price (below).
+            Bottom row: full-width action buttons (Call · Text · WhatsApp · Navigate). */}
         <div className="job-detail-header">
-          <div className="job-detail-header-left">
-            <div className="job-detail-title-block">
-              {/* Eyebrow — contextual label above job name */}
-              <span className="jd-eyebrow">JOB</span>
+          <div className="jd-header-top">
+            <div className="jd-header-top-left">
+              <div className="job-detail-title-block">
+                {/* Eyebrow — contextual label above job name */}
+                <span className="jd-eyebrow">JOB</span>
 
-              {/* Job name — primary, big. Tappable to edit when allowed. */}
-              {onUpdateJob ? (
-                <button
-                  type="button"
-                  className="jd-customer-edit-btn"
-                  onClick={() => setEditingField('summary')}
-                  aria-label={job.summary ? 'Edit job name' : 'Add job name'}
-                >
-                  {job.summary
-                    ? <span className="job-detail-customer">{job.summary}</span>
-                    : <span className="jd-detail-edit-row-add">+ Add job name</span>
-                  }
-                </button>
-              ) : (
-                <div className="job-detail-customer">{job.summary || displayName}</div>
-              )}
-
-              {/* Customer sub-line — secondary, muted. Tappable to edit when allowed. */}
-              {onUpdateJob ? (
-                <button
-                  type="button"
-                  className="jd-customer-subline-btn"
-                  onClick={() => setEditingField('name')}
-                  aria-label={distinctCustomer ? 'Edit customer' : 'Add customer'}
-                >
-                  {distinctCustomer
-                    ? <span className="job-detail-summary">👤 {distinctCustomer}</span>
-                    : <span className="jd-detail-edit-row-add jd-detail-edit-row-add--sm">👤 + Add customer</span>
-                  }
-                </button>
-              ) : (
-                distinctCustomer && <div className="job-detail-summary">👤 {distinctCustomer}</div>
-              )}
-
-              {/* Call button — only when phone is known. Always shown (even read-only)
-                  because calling is not an edit action. */}
-              {resolvePhone(job) && (
-                <a
-                  href={`tel:${resolvePhone(job)}`}
-                  className="jd-call-btn"
-                  aria-label={`Call ${firstName || 'customer'}`}
-                >
-                  📞 Call {firstName || 'customer'}
-                </a>
-              )}
-            </div>
-          </div>
-
-          <div className="job-detail-header-right">
-            {/* Money chip — replaces the old jd-price-btn + job-detail-amount block.
-                State matrix (first match wins):
-                  1. Paid      → green chip, read-only
-                  2. Overdue   → amber chip, read-only
-                  3. Invoiced  → due chip, read-only
-                  4. Un-priced → tappable "+ Add price" chip (editable mode only)
-                  5. Priced    → tappable quote chip (editable mode only) */}
-            {(() => {
-              const chipPriceHandler = () => {
-                if (needsPrice(job)) {
-                  setEditingField('amount');
-                } else {
-                  setPriceAccordionExpandTick(t => t + 1);
-                  requestAnimationFrame(() => {
-                    priceAccordionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                  });
-                }
-              };
-              const overdurePlural = daysOverdue === 1 ? 'day' : 'days';
-
-              if (isPaid) {
-                return (
-                  <div className="jd-money-chip jd-chip--paid">
-                    <span className="jd-chip-primary">Paid</span>
-                    <span className="jd-chip-sub">{gbp(computeAmountPaid(job))}</span>
-                  </div>
-                );
-              }
-              if (isInvoiced && daysOverdue > 0) {
-                return (
-                  <div className="jd-money-chip jd-chip--overdue">
-                    <span className="jd-chip-primary">{gbp(computeBalance(job))} due</span>
-                    <span className="jd-chip-sub">{daysOverdue} {overdurePlural} overdue</span>
-                  </div>
-                );
-              }
-              if (isInvoiced) {
-                return (
-                  <div className="jd-money-chip jd-chip--due">
-                    <span className="jd-chip-primary">{gbp(computeBalance(job))} due</span>
-                    <span className="jd-chip-sub">Invoiced</span>
-                  </div>
-                );
-              }
-              if (!isInvoiced && needsPrice(job)) {
-                if (!onUpdateJob) return null;
-                return (
+                {/* Job name — primary, big. Tappable to edit when allowed. */}
+                {onUpdateJob ? (
                   <button
                     type="button"
-                    className="jd-money-chip jd-chip--add"
-                    onClick={chipPriceHandler}
-                    aria-label="Add job price"
+                    className="jd-customer-edit-btn"
+                    onClick={() => setEditingField('summary')}
+                    aria-label={job.summary ? 'Edit job name' : 'Add job name'}
                   >
-                    <span className="jd-chip-primary">+ Add price</span>
-                    <span className="jd-chip-sub">Not priced yet</span>
+                    {job.summary
+                      ? <span className="job-detail-customer">{job.summary}</span>
+                      : <span className="jd-detail-edit-row-add">+ Add job name</span>
+                    }
                   </button>
-                );
-              }
-              // Pre-invoice, priced
-              if (!onUpdateJob) {
-                return (
-                  <div className="jd-money-chip jd-chip--quote">
-                    <span className="jd-chip-primary">{gbp(Number(job.total ?? job.amount))}</span>
-                    <span className="jd-chip-sub">Quote</span>
-                  </div>
-                );
-              }
-              return (
-                <button
-                  type="button"
-                  className="jd-money-chip jd-chip--quote"
-                  onClick={chipPriceHandler}
-                  aria-label="Edit price breakdown"
-                >
-                  <span className="jd-chip-primary">{gbp(Number(job.total ?? job.amount))}</span>
-                  <span className="jd-chip-sub">Quote</span>
-                </button>
-              );
-            })()}
+                ) : (
+                  <div className="job-detail-customer">{job.summary || displayName}</div>
+                )}
 
-            {/* Kebab + close — row pinned bottom-right of the right column */}
-            <div className="jd-header-actions">
-            {/* Kebab overflow menu — secondary actions */}
-            <div className="jd-kebab-wrap" ref={kebabRef}>
-              <button
-                type="button"
-                className="jd-kebab-btn"
-                onClick={() => setKebabOpen(v => !v)}
-                aria-label="More actions"
-                aria-expanded={kebabOpen}
-                aria-haspopup="menu"
-              >
-                ⋯
-              </button>
-              {kebabOpen && (
-                <div className="jd-kebab-menu" role="menu">
-                  {/* Record payment — only after invoice has been sent (Invoiced / Overdue).
-                      Showing it on Lead/Quoted stages is misleading: nothing to pay yet. */}
-                  {!isPaid && isInvoiced && (
-                    <button
-                      type="button"
-                      className="jd-kebab-item"
-                      role="menuitem"
-                      onClick={() => { setKebabOpen(false); setPaymentModalOpen(true); }}
-                    >
-                      Record payment
-                    </button>
-                  )}
-                  {/* Edit price — reachable from kebab when chip is read-only (invoiced/paid states).
-                      When chip is tappable (pre-invoice), this item is omitted to avoid duplication. */}
-                  {onUpdateJob && (isPaid || isInvoiced) && (
-                    <button
-                      type="button"
-                      className="jd-kebab-item"
-                      role="menuitem"
-                      onClick={() => {
-                        setKebabOpen(false);
-                        setEditingField('amount');
-                      }}
-                    >
-                      Edit price
-                    </button>
-                  )}
-                  {/* Send invoice / Resend invoice */}
-                  {showSendInvoice && (
-                    <button
-                      type="button"
-                      className="jd-kebab-item"
-                      role="menuitem"
-                      onClick={() => {
-                        setKebabOpen(false);
-                        if (needsPrice(job)) { setEditingField('amount'); return; }
-                        setReviewSheetMode('invoice');
-                      }}
-                    >
-                      Send invoice
-                    </button>
-                  )}
-                  {showResendInvoice && (
-                    <button
-                      type="button"
-                      className="jd-kebab-item"
-                      role="menuitem"
-                      onClick={() => { setKebabOpen(false); setReviewSheetMode('invoice'); }}
-                    >
-                      Resend invoice
-                    </button>
-                  )}
-                  {/* Send / Resend quote link */}
-                  {showSendLink && (
-                    <button
-                      type="button"
-                      className="jd-kebab-item"
-                      role="menuitem"
-                      onClick={() => { setKebabOpen(false); handleSendLink(); }}
-                    >
-                      {job.publicAccessToken ? 'Resend quote link' : 'Send quote link'}
-                    </button>
-                  )}
-                  {/* Chase via WhatsApp */}
-                  {showChase && (
-                    <button
-                      type="button"
-                      className="jd-kebab-item"
-                      role="menuitem"
-                      onClick={() => { setKebabOpen(false); handleChase(); }}
-                    >
-                      Chase via WhatsApp
-                    </button>
-                  )}
-                  {/* Mark Sent (draft quote) */}
-                  {showMarkSent && (
-                    <button
-                      type="button"
-                      className="jd-kebab-item"
-                      role="menuitem"
-                      onClick={() => { setKebabOpen(false); handleMarkSent(); }}
-                    >
-                      Mark as sent
-                    </button>
-                  )}
-                  {/* Accept quote / Convert (pipeline actions) */}
-                  {showAcceptQuote && (
-                    <button
-                      type="button"
-                      className="jd-kebab-item"
-                      role="menuitem"
-                      onClick={() => { setKebabOpen(false); setSigPadOpen(true); }}
-                    >
-                      Accept quote
-                    </button>
-                  )}
-                  {showConvert && (
-                    <button
-                      type="button"
-                      className="jd-kebab-item"
-                      role="menuitem"
-                      onClick={() => { setKebabOpen(false); handleConvert(); }}
-                    >
-                      Convert to job
-                    </button>
-                  )}
-                  {/* Created date — admin metadata. Moved here from Details card (Design A). */}
-                  {(job.date || job.createdAt) && (
-                    <div className="jd-kebab-item jd-kebab-item--meta" role="menuitem" aria-disabled="true">
-                      Created {fmtDate(job.date || job.createdAt)}
+                {/* Customer sub-line — secondary, muted. Tappable to edit when allowed. */}
+                {onUpdateJob ? (
+                  <button
+                    type="button"
+                    className="jd-customer-subline-btn"
+                    onClick={() => setEditingField('name')}
+                    aria-label={distinctCustomer ? 'Edit customer' : 'Add customer'}
+                  >
+                    {distinctCustomer
+                      ? <span className="job-detail-summary">👤 {distinctCustomer}</span>
+                      : <span className="jd-detail-edit-row-add jd-detail-edit-row-add--sm">👤 + Add customer</span>
+                    }
+                  </button>
+                ) : (
+                  distinctCustomer && <div className="job-detail-summary">👤 {distinctCustomer}</div>
+                )}
+              </div>
+            </div>
+
+            <div className="jd-header-top-right">
+              {/* ⋯ kebab + ✕ close — pinned top of right column */}
+              <div className="jd-header-actions">
+                <div className="jd-kebab-wrap" ref={kebabRef}>
+                  <button
+                    type="button"
+                    className="jd-kebab-btn"
+                    onClick={() => setKebabOpen(v => !v)}
+                    aria-label="More actions"
+                    aria-expanded={kebabOpen}
+                    aria-haspopup="menu"
+                  >
+                    ⋯
+                  </button>
+                  {kebabOpen && (
+                    <div className="jd-kebab-menu" role="menu">
+                      {/* Record payment — only after invoice has been sent (Invoiced / Overdue).
+                          Showing it on Lead/Quoted stages is misleading: nothing to pay yet. */}
+                      {!isPaid && isInvoiced && (
+                        <button
+                          type="button"
+                          className="jd-kebab-item"
+                          role="menuitem"
+                          onClick={() => { setKebabOpen(false); setPaymentModalOpen(true); }}
+                        >
+                          Record payment
+                        </button>
+                      )}
+                      {/* Edit price — reachable from kebab when chip is read-only (invoiced/paid states).
+                          When chip is tappable (pre-invoice), this item is omitted to avoid duplication. */}
+                      {onUpdateJob && (isPaid || isInvoiced) && (
+                        <button
+                          type="button"
+                          className="jd-kebab-item"
+                          role="menuitem"
+                          onClick={() => {
+                            setKebabOpen(false);
+                            setEditingField('amount');
+                          }}
+                        >
+                          Edit price
+                        </button>
+                      )}
+                      {/* Send invoice / Resend invoice */}
+                      {showSendInvoice && (
+                        <button
+                          type="button"
+                          className="jd-kebab-item"
+                          role="menuitem"
+                          onClick={() => {
+                            setKebabOpen(false);
+                            if (needsPrice(job)) { setEditingField('amount'); return; }
+                            setReviewSheetMode('invoice');
+                          }}
+                        >
+                          Send invoice
+                        </button>
+                      )}
+                      {showResendInvoice && (
+                        <button
+                          type="button"
+                          className="jd-kebab-item"
+                          role="menuitem"
+                          onClick={() => { setKebabOpen(false); setReviewSheetMode('invoice'); }}
+                        >
+                          Resend invoice
+                        </button>
+                      )}
+                      {/* Send / Resend quote link */}
+                      {showSendLink && (
+                        <button
+                          type="button"
+                          className="jd-kebab-item"
+                          role="menuitem"
+                          onClick={() => { setKebabOpen(false); handleSendLink(); }}
+                        >
+                          {job.publicAccessToken ? 'Resend quote link' : 'Send quote link'}
+                        </button>
+                      )}
+                      {/* Chase via WhatsApp */}
+                      {showChase && (
+                        <button
+                          type="button"
+                          className="jd-kebab-item"
+                          role="menuitem"
+                          onClick={() => { setKebabOpen(false); handleChase(); }}
+                        >
+                          Chase via WhatsApp
+                        </button>
+                      )}
+                      {/* Mark Sent (draft quote) */}
+                      {showMarkSent && (
+                        <button
+                          type="button"
+                          className="jd-kebab-item"
+                          role="menuitem"
+                          onClick={() => { setKebabOpen(false); handleMarkSent(); }}
+                        >
+                          Mark as sent
+                        </button>
+                      )}
+                      {/* Accept quote / Convert (pipeline actions) */}
+                      {showAcceptQuote && (
+                        <button
+                          type="button"
+                          className="jd-kebab-item"
+                          role="menuitem"
+                          onClick={() => { setKebabOpen(false); setSigPadOpen(true); }}
+                        >
+                          Accept quote
+                        </button>
+                      )}
+                      {showConvert && (
+                        <button
+                          type="button"
+                          className="jd-kebab-item"
+                          role="menuitem"
+                          onClick={() => { setKebabOpen(false); handleConvert(); }}
+                        >
+                          Convert to job
+                        </button>
+                      )}
+                      {/* Created date — admin metadata. Moved here from Details card (Design A). */}
+                      {(job.date || job.createdAt) && (
+                        <div className="jd-kebab-item jd-kebab-item--meta" role="menuitem" aria-disabled="true">
+                          Created {fmtDate(job.date || job.createdAt)}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
-              )}
-            </div>
 
-            <button
-              className="job-detail-close"
-              onClick={onClose}
-              aria-label="Close job detail"
-            >
-              ✕
-            </button>
-            </div>{/* end jd-header-actions */}
+                <button
+                  className="job-detail-close"
+                  onClick={onClose}
+                  aria-label="Close job detail"
+                >
+                  ✕
+                </button>
+              </div>{/* end jd-header-actions */}
+
+              {/* Price display — below the actions, right-aligned.
+                  State matrix (first match wins):
+                    1. Paid      → green chip, read-only
+                    2. Overdue   → amber chip, read-only
+                    3. Invoiced  → due chip, read-only
+                    4. Un-priced → tappable "+ Add price" chip (editable mode only)
+                    5. Priced    → hero price figure (no "Quote" sub-label) */}
+              {(() => {
+                const chipPriceHandler = () => {
+                  if (needsPrice(job)) {
+                    setEditingField('amount');
+                  } else {
+                    setPriceAccordionExpandTick(t => t + 1);
+                    requestAnimationFrame(() => {
+                      priceAccordionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    });
+                  }
+                };
+                const overdurePlural = daysOverdue === 1 ? 'day' : 'days';
+
+                if (isPaid) {
+                  return (
+                    <div className="jd-money-chip jd-chip--paid">
+                      <span className="jd-chip-primary">Paid</span>
+                      <span className="jd-chip-sub">{gbp(computeAmountPaid(job))}</span>
+                    </div>
+                  );
+                }
+                if (isInvoiced && daysOverdue > 0) {
+                  return (
+                    <div className="jd-money-chip jd-chip--overdue">
+                      <span className="jd-chip-primary">{gbp(computeBalance(job))} due</span>
+                      <span className="jd-chip-sub">{daysOverdue} {overdurePlural} overdue</span>
+                    </div>
+                  );
+                }
+                if (isInvoiced) {
+                  return (
+                    <div className="jd-money-chip jd-chip--due">
+                      <span className="jd-chip-primary">{gbp(computeBalance(job))} due</span>
+                      <span className="jd-chip-sub">Invoiced</span>
+                    </div>
+                  );
+                }
+                if (!isInvoiced && needsPrice(job)) {
+                  if (!onUpdateJob) return null;
+                  return (
+                    <button
+                      type="button"
+                      className="jd-money-chip jd-chip--add"
+                      onClick={chipPriceHandler}
+                      aria-label="Add job price"
+                    >
+                      <span className="jd-chip-primary">+ Add price</span>
+                      <span className="jd-chip-sub">Not priced yet</span>
+                    </button>
+                  );
+                }
+                // Pre-invoice, priced — render hero price, no "Quote" sub-label.
+                if (!onUpdateJob) {
+                  return (
+                    <div className="jd-hero-price">
+                      {gbp(Number(job.total ?? job.amount))}
+                    </div>
+                  );
+                }
+                return (
+                  <button
+                    type="button"
+                    className="jd-hero-price"
+                    onClick={chipPriceHandler}
+                    aria-label="Edit price breakdown"
+                  >
+                    {gbp(Number(job.total ?? job.amount))}
+                  </button>
+                );
+              })()}
+            </div>
           </div>
+
+          {/* Action row — Call · Text · WhatsApp · Navigate.
+              Phone gates Call/Text/WhatsApp; address gates Navigate independently.
+              Row is omitted entirely when neither is present. */}
+          {(() => {
+            const phone = resolvePhone(job);
+            const address = job.address || '';
+            if (!phone && !address) return null;
+            const smsBody = firstName ? `Hi ${firstName}, ` : '';
+            const waBody = firstName ? `Hi ${firstName}, ` : '';
+            const smsLink = `sms:${phone}?body=${encodeURIComponent(smsBody)}`;
+            const waLink = phone ? buildWhatsAppLink({ phone, message: waBody }) : '';
+            return (
+              <div className="jd-header-action-row">
+                {phone && (
+                  <a
+                    href={`tel:${phone}`}
+                    className="jt-action-btn"
+                    aria-label={`Call ${firstName || 'customer'}`}
+                    onClick={() => logTelemetry('drawer_action_call', { source: 'drawer' })}
+                  >
+                    <svg width="15" height="15" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
+                      <path d="M4 3l2-1 2 3-1.5 1.5a8 8 0 0 0 4 4L12 9l3 2-1 2a2 2 0 0 1-2 1A11 11 0 0 1 3 5a2 2 0 0 1 1-2z"/>
+                    </svg>
+                    <span>Call</span>
+                  </a>
+                )}
+                {phone && (
+                  <a
+                    href={smsLink}
+                    className="jt-action-btn"
+                    aria-label={`Text ${firstName || 'customer'}`}
+                    onClick={() => logTelemetry('drawer_action_text', { source: 'drawer' })}
+                  >
+                    <svg width="15" height="15" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
+                      <path d="M3 3h12a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H5l-3 3V4a1 1 0 0 1 1-1z"/>
+                    </svg>
+                    <span>Text</span>
+                  </a>
+                )}
+                {phone && (
+                  <button
+                    type="button"
+                    className="jt-action-btn"
+                    aria-label={`WhatsApp ${firstName || 'customer'}`}
+                    onClick={() => {
+                      logTelemetry('drawer_action_whatsapp', { source: 'drawer' });
+                      window.open(waLink, '_blank', 'noopener');
+                    }}
+                  >
+                    <svg width="15" height="15" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
+                      <path d="M9 1.5A7.5 7.5 0 0 0 2 9a7.47 7.47 0 0 0 1.1 3.9L1.5 16.5l3.7-1.55A7.5 7.5 0 1 0 9 1.5z"/>
+                      <path d="M6.5 6.3c.1-.2.4-.6.8-.6.35 0 .7.05.8.6l.3 1.2c.05.2-.05.45-.2.6l-.4.4a4.2 4.2 0 0 0 1.9 1.9l.4-.4c.15-.15.4-.25.6-.2l1.2.3c.55.1.6.45.6.8 0 .8-.85 1.4-1.3 1.4-1.8 0-5.4-3.4-5.4-5.3 0-.45.4-1.3 1.2-1.7z"/>
+                    </svg>
+                    <span>WhatsApp</span>
+                  </button>
+                )}
+                {address && (
+                  <a
+                    href={buildMapsUrl(address)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="jt-action-btn"
+                    aria-label={`Navigate to ${address}`}
+                    onClick={() => logTelemetry('drawer_action_map', { source: 'drawer' })}
+                  >
+                    <svg width="15" height="15" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
+                      <path d="M9 1C6.24 1 4 3.24 4 6c0 4.25 5 11 5 11s5-6.75 5-11c0-2.76-2.24-5-5-5z"/>
+                      <circle cx="9" cy="6" r="1.8" fill="currentColor" stroke="none"/>
+                    </svg>
+                    <span>Navigate</span>
+                  </a>
+                )}
+              </div>
+            );
+          })()}
         </div>
 
         {/* Scrollable body — Stacked Cards layout (PRD 2026-05-31, Option 2) */}
