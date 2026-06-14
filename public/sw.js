@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v113';  // bumped from v112: fix calendar date-save bug — jobs now land on tapped day not today
+
 const PRECACHE = [
   '/',
   '/index.html',
