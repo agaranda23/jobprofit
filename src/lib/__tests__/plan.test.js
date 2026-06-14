@@ -209,7 +209,6 @@ describe('eligibleForWhiteLabelNudge — free users only', () => {
 // ──────────────────────────────────────────────────────────────────────────
 describe('incrementSendCount', () => {
   function makeSupabase({ rpcError = false, selectData = { invoices_sent_count: 0 }, updateError = false } = {}) {
-    const updateFn = vi.fn().mockResolvedValue({ error: updateError ? new Error('update failed') : null });
     const supabase = {
       rpc: rpcError
         ? vi.fn().mockRejectedValue(new Error('rpc not found'))

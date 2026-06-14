@@ -72,7 +72,7 @@ export function getTradeVoiceHint(tradePrimary) {
   return map[key] || 'Kitchen job Sarah three eighty cash';
 }
 
-export default function AddJobModal({ onClose, onSave, onOpenDetailed, defaultMode, onSaveAndSend, tradePrimary, initialDate, materials, defaultMarkup, onBrowseMaterials, onMaterialSaved }) {
+export default function AddJobModal({ onClose, onSave, _onOpenDetailed, defaultMode, onSaveAndSend, tradePrimary, initialDate, materials, defaultMarkup, onBrowseMaterials, onMaterialSaved }) {
   // 'micro'          — Stage 1: fast capture (amount + paid-by + Save it)
   // 'details'        — Stage 2: full form (name, customer, date, more options)
   // 'quote'          — Create-quote surface: voice OR type, summary + total + optional line items
@@ -1696,7 +1696,7 @@ function MoreOptionsFields({
   notes, setNotes,
   phone, setPhone,
   address, setAddress,
-  deposit, setDeposit,
+  _deposit, _setDeposit,
 }) {
   return (
     <div className="aj-more-fields">

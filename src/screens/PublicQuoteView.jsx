@@ -401,14 +401,13 @@ function BankDepositBlock({ depositPercent, depositAmountPence, accountName, sor
  *   depositCancelled: boolean,         — ?deposit_cancelled=true on the URL
  * }} props
  */
-function DepositBlock({ job, token, depositPercent, depositAmountPence, onAcceptWithoutDeposit, depositSuccess, depositCancelled }) {
+function DepositBlock({ _job, token, depositPercent, depositAmountPence, onAcceptWithoutDeposit, depositSuccess, depositCancelled }) {
   const [depositState, setDepositState] = useState('idle'); // 'idle' | 'loading' | 'error'
   const [depositError, setDepositError] = useState('');
   const [consentChecked, setConsentChecked] = useState(false);
   const [consentNudge, setConsentNudge] = useState(false);
 
   const depositGbp = depositAmountPence > 0 ? gbp(depositAmountPence / 100) : '';
-  const totalGbp = gbp(job.total ?? job.amount ?? 0);
 
   // If already returned from a successful Stripe Checkout, show confirmation.
   if (depositSuccess) {
