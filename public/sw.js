@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v107';  // bumped from v106: drawer header action row redesign (JS+CSS)
+const CACHE_NAME = 'jobprofit-v108';  // bumped from v107: Map button always renders (ghost+redirect when no address)
 const PRECACHE = [
   '/',
   '/index.html',
