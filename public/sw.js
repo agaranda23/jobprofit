@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v106';  // bumped from v105: export everything includes account/profile section
+const CACHE_NAME = 'jobprofit-v107';  // bumped from v106: drawer header action row redesign (JS+CSS)
 const PRECACHE = [
   '/',
   '/index.html',

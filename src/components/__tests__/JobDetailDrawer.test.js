@@ -2054,3 +2054,83 @@ describe('CustomerCard — WhatsApp prefill is neutral greeting (not the invoice
     expect(buildNeutralWaGreeting('Dave')).toBe('Hi Dave, ');
   });
 });
+
+// ── Header action-row visibility gate (PRD 2026-06-14) ───────────────────────
+//
+// The new .jd-header-action-row renders Call/Text/WhatsApp only when phone is
+// present, and Navigate only when address is present. If neither is present the
+// row is omitted entirely. Tests mirror the render-gate logic in the IIFE inside
+// the drawer header.
+
+function headerActionRowState(job) {
+  const phone = job.customerPhone || job.phone || job.mobile || job.whatsapp || '';
+  const address = job.address || '';
+  return {
+    rowVisible: !!(phone || address),
+    showPhoneButtons: !!phone,
+    showNavigate: !!address,
+  };
+}
+
+describe('Header action-row — render gate', () => {
+  it('shows all three phone buttons when phone is present', () => {
+    const { rowVisible, showPhoneButtons } = headerActionRowState({ customerPhone: '07700900000' });
+    expect(rowVisible).toBe(true);
+    expect(showPhoneButtons).toBe(true);
+  });
+
+  it('hides phone buttons when no phone field is set', () => {
+    const { showPhoneButtons } = headerActionRowState({ address: '14 Elm Road' });
+    expect(showPhoneButtons).toBe(false);
+  });
+
+  it('shows Navigate when address is present', () => {
+    const { rowVisible, showNavigate } = headerActionRowState({ address: '14 Elm Road' });
+    expect(rowVisible).toBe(true);
+    expect(showNavigate).toBe(true);
+  });
+
+  it('hides Navigate when address is absent', () => {
+    const { showNavigate } = headerActionRowState({ customerPhone: '07700900000' });
+    expect(showNavigate).toBe(false);
+  });
+
+  it('hides the entire row when neither phone nor address is present', () => {
+    const { rowVisible } = headerActionRowState({ customer: 'Alice' });
+    expect(rowVisible).toBe(false);
+  });
+
+  it('shows row when only phone is present (no address)', () => {
+    const { rowVisible, showPhoneButtons, showNavigate } = headerActionRowState({ phone: '07700900001' });
+    expect(rowVisible).toBe(true);
+    expect(showPhoneButtons).toBe(true);
+    expect(showNavigate).toBe(false);
+  });
+
+  it('shows row with only Navigate when only address is present (no phone)', () => {
+    const { rowVisible, showPhoneButtons, showNavigate } = headerActionRowState({ address: '1 High St' });
+    expect(rowVisible).toBe(true);
+    expect(showPhoneButtons).toBe(false);
+    expect(showNavigate).toBe(true);
+  });
+
+  it('uses job.mobile as phone fallback', () => {
+    const { showPhoneButtons } = headerActionRowState({ mobile: '07700900002' });
+    expect(showPhoneButtons).toBe(true);
+  });
+
+  it('uses job.whatsapp as last-resort phone fallback', () => {
+    const { showPhoneButtons } = headerActionRowState({ whatsapp: '+447700900003' });
+    expect(showPhoneButtons).toBe(true);
+  });
+
+  it('shows all four buttons when both phone and address are present', () => {
+    const { rowVisible, showPhoneButtons, showNavigate } = headerActionRowState({
+      customerPhone: '07700900000',
+      address: '14 Elm Road',
+    });
+    expect(rowVisible).toBe(true);
+    expect(showPhoneButtons).toBe(true);
+    expect(showNavigate).toBe(true);
+  });
+});
