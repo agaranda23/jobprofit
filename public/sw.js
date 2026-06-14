@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v110';  // bumped from v109: code hygiene pass — dead state/imports removed, ESLint fixes
+const CACHE_NAME = 'jobprofit-v111';  // bumped from v110: drawer header glyph alignment — ✕ and ⋯ flush-right to gutter
 const PRECACHE = [
   '/',
   '/index.html',

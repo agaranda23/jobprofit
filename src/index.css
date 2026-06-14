@@ -6314,16 +6314,16 @@ input[type=number] { -moz-appearance: textfield; }
   height: 4px;
   background: var(--border);
   border-radius: 2px;
-  margin: 10px auto 4px;
+  margin: 8px auto 2px;
   flex-shrink: 0;
 }
 .job-detail-header {
   display: flex;
   flex-direction: column;  /* vertical stack: actions strip + mid row + action-row */
-  gap: 8px;
+  gap: 4px;
   /* overflow:hidden intentionally absent — kebab dropdown is position:absolute
      and must not be clipped. */
-  padding: 12px 16px 14px;
+  padding: 4px 16px 14px;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
@@ -6568,14 +6568,15 @@ button.jd-money-chip:active { opacity: 0.75; }
   min-height: 44px;
   display: inline-flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-end;
 }
 .job-detail-close {
   min-width: 44px;
   min-height: 44px;
   display: inline-flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-end;
+  padding-right: 0;
 }
 
 /* SendInvoiceModal — no price banner */
@@ -6691,7 +6692,7 @@ button.jd-money-chip:active { opacity: 0.75; }
   color: var(--text-dim);
   font-size: 20px;
   cursor: pointer;
-  padding: 4px 8px;
+  padding: 4px 0;
   line-height: 1;
   border-radius: 8px;
   letter-spacing: 0.1em;
