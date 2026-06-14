@@ -113,13 +113,17 @@ export function addTodayJob(payload) {
   const amount = (payload.amount == null || payload.amount === '') ? null : Number(payload.amount);
   const isPaid = payload.paid !== false;
 
+  // Use the payload's booked date when provided (calendar-tap flow); fall back to
+  // today for quick-add taps that don't carry an explicit date.
+  const jobDate = payload.date ? payload.date.slice(0, 10) : today;
+
   const newJob = {
     id,
     customer: payload.name || 'Job',
     address: '',
     phone: '',
     email: '',
-    date: today,
+    date: jobDate,
     summary: payload.name || 'Job',
     lineItems: amount != null ? [{ desc: payload.name || 'Job', cost: amount }] : [],
     total: amount,
@@ -305,6 +309,11 @@ export async function addJobToCloud(payload) {
   const amount = (payload.amount == null || payload.amount === '') ? null : Number(payload.amount);
   const isPaid = payload.paid !== false;
   const today = localDateString();
+  // Derive the booked date from the payload (calendar taps carry a specific date).
+  // Fall back to today only when the caller omits the date entirely.
+  // payment_date is left as today — it records when the payment was received, not
+  // when the job was scheduled.
+  const jobDate = payload.date ? localDateString(new Date(payload.date)) : today;
 
   // Generate a client-side UUID so the offline queue can hold a stable ID
   // before the row reaches Supabase. Mirrors the pattern used in addReceiptToCloud.
@@ -320,7 +329,7 @@ export async function addJobToCloud(payload) {
     // sync, mapCloudJobToToday set job.customer = 'Job', which then propagated
     // back into customer_name via every extractJobMeta / updateJobMetaInCloud call.
     customer_name: payload.customer || null,
-    date: today,
+    date: jobDate,
     summary: payload.name || 'Job',
     amount,
     paid: isPaid,
