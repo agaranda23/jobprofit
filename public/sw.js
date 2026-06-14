@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v113';  // bumped from v112: price accordion shows line-item count when collapsed
+
 const PRECACHE = [
   '/',
   '/index.html',
