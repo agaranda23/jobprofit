@@ -54,7 +54,7 @@ import {
 } from './lib/plan';
 import { formatChargeDate, shouldShowPreChargeReminder } from './lib/trialConversion';
 import { getJobProfit } from './lib/cashflow';
-import { enqueueJob, wireOnlineSync } from './lib/offlineQueue';
+import { enqueueJob, wireOnlineSync, runSync } from './lib/offlineQueue';
 import { logTelemetry, identifyUser, getLastUpgradeTrigger } from './lib/telemetry';
 import posthog from 'posthog-js';
 import SyncBadge from './components/SyncBadge';
@@ -617,7 +617,22 @@ export default function AppShell() {
         logTelemetry('user_activated', { secs_since_signup: secsSinceSignup });
       }
     } catch (e) {
-      console.error('Add job failed — queuing for offline sync', e);
+      // F1: Log structured Supabase error fields so the root cause is visible
+      // in the console and in our telemetry rather than being swallowed.
+      // No PII — we emit code/message/details/hint only (no customer data).
+      console.error('Add job failed — queuing for offline sync', {
+        code:    e?.code,
+        message: e?.message,
+        details: e?.details,
+        hint:    e?.hint,
+        raw:     e,
+      });
+      // TODO(telemetry): upgrade logTelemetry calls below to PostHog when the
+      // job_save_cloud_failed event is registered in the GA4 custom dimensions.
+      logTelemetry('job_save_cloud_failed', {
+        error_code:    e?.code    ?? null,
+        error_message: e?.message ?? null,
+      });
       // Write locally so the UI reflects the save immediately, then enqueue
       // for sync when the device is back online. The job.id is a UUID generated
       // client-side in addJobToCloud (or supplied by the caller), so the queue
@@ -633,6 +648,11 @@ export default function AppShell() {
       enqueueJob(queuePayload).catch(qErr =>
         console.error('enqueueJob failed', qErr)
       );
+      // F3: Trigger one immediate retry rather than waiting for the next
+      // lifecycle event (online / app-load). Self-heals transient auth blips.
+      if (navigator.onLine) {
+        runSync().catch(() => {});
+      }
     }
   };
 

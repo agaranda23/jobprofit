@@ -73,6 +73,31 @@ export function subscribe(callback) {
   return () => _subscribers.delete(callback);
 }
 
+// ─── Last-enqueued timestamp ──────────────────────────────────────────────────
+// Used by SyncBadge to suppress the "not backed up" banner for a short grace
+// window immediately after a job is enqueued while a sync attempt is in-flight.
+// This prevents a self-healing transient failure from ever flashing the banner.
+
+let _lastEnqueuedAt = null;
+const _lastEnqueuedSubscribers = new Set();
+
+function _notifyLastEnqueued() {
+  _lastEnqueuedSubscribers.forEach(cb => {
+    try { cb(_lastEnqueuedAt); } catch {}
+  });
+}
+
+/**
+ * Subscribe to the last-enqueued timestamp.
+ * Fires immediately with the current value so callers can initialise.
+ * Returns an unsubscribe function.
+ */
+export function subscribeToLastEnqueued(callback) {
+  _lastEnqueuedSubscribers.add(callback);
+  try { callback(_lastEnqueuedAt); } catch {}
+  return () => _lastEnqueuedSubscribers.delete(callback);
+}
+
 // ─── Error state ─────────────────────────────────────────────────────────────
 // Tracks the last sync failure so SyncBadge can surface a "stuck" state when
 // the queue has entries AND the last attempt failed more than 60s ago.
@@ -207,6 +232,10 @@ export async function enqueueJob(jobRow) {
     req.onsuccess = () => resolve();
     req.onerror   = (e) => reject(e.target.error);
   });
+  // F3: record when the last job entered the queue so SyncBadge can suppress
+  // the banner during the short grace window while the immediate runSync runs.
+  _lastEnqueuedAt = Date.now();
+  _notifyLastEnqueued();
   _notify();
 }
 
@@ -223,6 +252,13 @@ export async function markSynced(id) {
     req.onerror   = (e) => reject(e.target.error);
   });
   _notify();
+  // If the queue just fully drained, clear the last-enqueued timestamp so the
+  // badge does not re-enter the grace window on the next unrelated enqueue.
+  const remaining = await getQueueLength().catch(() => 1);
+  if (remaining === 0) {
+    _lastEnqueuedAt = null;
+    _notifyLastEnqueued();
+  }
 }
 
 // ─── Write — meta-update queue ────────────────────────────────────────────────
