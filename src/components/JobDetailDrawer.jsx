@@ -3628,8 +3628,10 @@ export default function JobDetailDrawer({
 
             // ── Meta strings for collapsed rows ─────────────────────────────
             const quoteTotal = job.total ?? job.amount ?? 0;
-            // Schedule-mirror: header shows just the total (or empty-state) — no line count noise.
-            const quoteMeta = quoteTotal > 0 ? gbp(quoteTotal) : 'None yet';
+            const _quoteLineCount = (job.lineItems || []).filter(i => i.desc || i.cost).length;
+            const quoteMeta = quoteTotal > 0
+              ? `${gbp(quoteTotal)}${_quoteLineCount > 0 ? ` (${_quoteLineCount} item${_quoteLineCount === 1 ? '' : 's'})` : ''}`
+              : 'None yet';
 
             const jobReceipts = receipts.filter(r =>
               r.jobId && (String(r.jobId) === String(job.id) || String(r.jobId) === String(job.cloudId))
