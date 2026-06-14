@@ -3262,9 +3262,6 @@ export default function JobDetailDrawer({
         aria-label={`Job detail: ${displayName}`}
         aria-modal="true"
       >
-        {/* Handle bar */}
-        <div className="job-detail-sheet-handle" aria-hidden="true" />
-
         {/* Header — PRD 2026-06-14 redesign (updated 2026-06-15): vertical stack.
             Top strip: ⋯✕ pinned right on own row.
             Mid row: left=name+customer; right=price (baseline-aligned).

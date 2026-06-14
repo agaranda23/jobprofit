@@ -6309,21 +6309,13 @@ input[type=number] { -moz-appearance: textfield; }
   from { transform: translateY(100%); }
   to   { transform: translateY(0); }
 }
-.job-detail-sheet-handle {
-  width: 40px;
-  height: 4px;
-  background: var(--border);
-  border-radius: 2px;
-  margin: 8px auto 2px;
-  flex-shrink: 0;
-}
 .job-detail-header {
   display: flex;
   flex-direction: column;  /* vertical stack: actions strip + mid row + action-row */
   gap: 4px;
   /* overflow:hidden intentionally absent — kebab dropdown is position:absolute
      and must not be clipped. */
-  padding: 4px 16px 14px;
+  padding: 16px 16px 14px;   /* top=16px matches right gutter → equal corner spacing for ✕ */
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
@@ -6568,15 +6560,14 @@ button.jd-money-chip:active { opacity: 0.75; }
   min-height: 44px;
   display: inline-flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: center;   /* glyph centred in tap/highlight box */
 }
 .job-detail-close {
   min-width: 44px;
   min-height: 44px;
   display: inline-flex;
   align-items: center;
-  justify-content: flex-end;
-  padding-right: 0;
+  justify-content: center;   /* glyph centred in tap/highlight box */
 }
 
 /* SendInvoiceModal — no price banner */
@@ -6692,7 +6683,7 @@ button.jd-money-chip:active { opacity: 0.75; }
   color: var(--text-dim);
   font-size: 20px;
   cursor: pointer;
-  padding: 4px 0;
+  padding: 4px;              /* symmetric — active highlight centred on glyph */
   line-height: 1;
   border-radius: 8px;
   letter-spacing: 0.1em;
