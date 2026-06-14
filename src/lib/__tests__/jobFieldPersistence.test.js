@@ -275,3 +275,73 @@ describe('mapCloudJobToToday — surfaces meta fields from cloud JSONB on reload
     expect(meta.email).toBe('dave@example.com');
   });
 });
+
+// ── Calendar date-save bug regression (fix/calendar-date-save-bug) ────────────
+//
+// Root cause: addJobToCloud was writing `date: today` unconditionally, discarding
+// payload.date. Calendar taps pass a specific YYYY-MM-DD date; the fix derives
+// jobDate = payload.date ? localDateString(new Date(payload.date)) : today and
+// uses jobDate for the DB insert. addTodayJob (local mirror) was also fixed to
+// use payload.date.slice(0,10) when present.
+
+describe('addJobToCloud — calendar date bug regression', () => {
+  it('writes payload.date to the DB row when tapping a future date', async () => {
+    const futureDate = '2026-08-15';
+    const payload = fullDetailsPayload({ date: futureDate });
+    await addJobToCloud(payload);
+    expect(_lastInsertedRow.date).toBe(futureDate);
+  });
+
+  it('writes payload.date to the DB row when tapping a past date', async () => {
+    const pastDate = '2026-01-03';
+    const payload = fullDetailsPayload({ date: pastDate });
+    await addJobToCloud(payload);
+    expect(_lastInsertedRow.date).toBe(pastDate);
+  });
+
+  it('falls back to today when payload has no date', async () => {
+    const today = new Date();
+    const expectedDate = [
+      today.getFullYear(),
+      String(today.getMonth() + 1).padStart(2, '0'),
+      String(today.getDate()).padStart(2, '0'),
+    ].join('-');
+    const payload = fullDetailsPayload({ date: undefined });
+    await addJobToCloud(payload);
+    expect(_lastInsertedRow.date).toBe(expectedDate);
+  });
+
+  it('payment_date is always today (not the scheduled date) for a paid job', async () => {
+    const today = new Date();
+    const expectedToday = [
+      today.getFullYear(),
+      String(today.getMonth() + 1).padStart(2, '0'),
+      String(today.getDate()).padStart(2, '0'),
+    ].join('-');
+    const payload = fullDetailsPayload({ date: '2026-08-15', paid: true });
+    await addJobToCloud(payload);
+    expect(_lastInsertedRow.payment_date).toBe(expectedToday);
+    // The scheduled/booked date should differ from the payment date
+    expect(_lastInsertedRow.date).toBe('2026-08-15');
+  });
+});
+
+describe('addJobToCloud — no-amount (Lead) job regression', () => {
+  it('sets status to "lead" when no amount is provided', async () => {
+    const payload = fullDetailsPayload({ amount: null, paid: false });
+    await addJobToCloud(payload);
+    expect(_lastInsertedRow.status).toBe('lead');
+  });
+
+  it('sets line_items to empty array when no amount is provided', async () => {
+    const payload = fullDetailsPayload({ amount: '', paid: false });
+    await addJobToCloud(payload);
+    expect(_lastInsertedRow.line_items).toEqual([]);
+  });
+
+  it('sets amount to null when no amount is provided', async () => {
+    const payload = fullDetailsPayload({ amount: null, paid: false });
+    await addJobToCloud(payload);
+    expect(_lastInsertedRow.amount).toBeNull();
+  });
+});
