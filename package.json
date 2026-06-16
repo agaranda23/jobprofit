@@ -22,7 +22,8 @@
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "stripe": "^22.2.0",
-    "web-push": "^3.6.7"
+    "web-push": "^3.6.7",
+    "write-excel-file": "^4.1.1"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",

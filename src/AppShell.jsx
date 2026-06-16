@@ -75,6 +75,7 @@ import MaterialsScreen from './screens/MaterialsScreen';
 import AddMaterialModal from './components/AddMaterialModal';
 import { buildJobsCsv, downloadOrShareCsv, downloadOrShare } from './lib/exportCsv';
 import { buildJobsPdf } from './lib/exportPdf.js';
+import { buildJobsXlsx } from './lib/exportXlsx.js';
 import ExportFormatSheet from './components/ExportFormatSheet.jsx';
 
 // ─── Feature flags ───────────────────────────────────────────────────────────
@@ -957,6 +958,8 @@ export default function AppShell() {
           isPro: isPro(profile),
         });
         await downloadOrShare(blob, `jobprofit-export-${stamp}.pdf`, 'application/pdf');
+      } else if (format === 'xlsx') {
+        await buildJobsXlsx(safeJobs, safeReceipts, `jobprofit-export-${stamp}.xlsx`);
       }
     } catch {
       // Non-critical: the user can try again — no visible toast wired here
@@ -1495,13 +1498,19 @@ export default function AppShell() {
       <ExportFormatSheet
         open={moneyExportSheetOpen}
         title="Export for your accountant"
-        subtitle="Pick a format. Both download straight to your phone."
+        subtitle="Pick a format. All three download straight to your phone."
         options={[
           {
             id: 'csv',
             icon: '📊',
             label: 'Spreadsheet (CSV)',
             sublabel: 'For your accountant or Excel',
+          },
+          {
+            id: 'xlsx',
+            icon: '📗',
+            label: 'Excel (.xlsx)',
+            sublabel: 'Opens in Excel or Google Sheets',
           },
           {
             id: 'pdf',
