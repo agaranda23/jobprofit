@@ -50,6 +50,7 @@ import { openBillingPortal } from '../lib/billing.js';
 import { isValidStripePaymentLink } from '../lib/bizValidation.js';
 import { buildJobsCsv, buildEverythingCsv, downloadOrShareCsv } from '../lib/exportCsv.js';
 import { buildJobsPdf } from '../lib/exportPdf.js';
+import { buildJobsXlsx } from '../lib/exportXlsx.js';
 import { downloadOrShare } from '../lib/exportCsv.js';
 import { buildChaseList } from '../lib/chaseList.js';
 import { WHATS_NEW, formatWhatsNewDate } from '../lib/whatsNew.js';
@@ -1885,6 +1886,11 @@ export default function SettingsScreen({
           session,
         });
         await downloadOrShare(blob, `jobprofit-export-${stamp}.pdf`, 'application/pdf');
+      } else if (format === 'xlsx') {
+        // xlsx export is jobs ledger only (same as CSV "records").
+        // The "Export everything" section includes account profile fields in CSV/PDF
+        // but not in xlsx — the jobs sheet is the accountant-useful part.
+        await buildJobsXlsx(safeJobs, safeReceipts, `jobprofit-export-${stamp}.xlsx`);
       }
     } catch {
       showSavedToast('Export failed — try again');
@@ -2781,6 +2787,12 @@ export default function SettingsScreen({
           label: 'Spreadsheet (CSV)',
           sublabel: 'For your accountant or Excel',
         };
+        const xlsxOption = {
+          id: 'xlsx',
+          icon: '📗',
+          label: 'Excel (.xlsx)',
+          sublabel: 'Opens in Excel or Google Sheets',
+        };
         const pdfOption = {
           id: 'pdf',
           icon: '📄',
@@ -2788,13 +2800,17 @@ export default function SettingsScreen({
           sublabel: pdfSublabel,
         };
 
-        const options = csvFirst ? [csvOption, pdfOption] : [pdfOption, csvOption];
+        // Records: CSV first (accountant default), then xlsx, then PDF
+        // Everything: PDF first (full picture), then CSV, then xlsx
+        const options = csvFirst
+          ? [csvOption, xlsxOption, pdfOption]
+          : [pdfOption, csvOption, xlsxOption];
 
         return (
           <ExportFormatSheet
             open
             title={sheetTitle}
-            subtitle="Pick a format. Both download straight to your phone."
+            subtitle="Pick a format. All three download straight to your phone."
             options={options}
             onPick={handleExportFormatPick}
             onClose={() => setExportSheetContext(null)}
