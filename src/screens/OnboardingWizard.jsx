@@ -29,6 +29,8 @@
 import { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { logTelemetry } from '../lib/telemetry';
+import { addJobToCloud } from '../lib/store';
+import SpreadsheetImporter from '../components/SpreadsheetImporter';
 
 const STEPS = [
   {
@@ -66,7 +68,17 @@ const STEPS = [
     placeholder: null, // bank step has two sub-inputs
     inputMode: null,
     type: 'bank',
-    optional: true, // skip-for-now affordance — only bank step has this
+    optional: true, // skip-for-now affordance — bank step and import step both have this
+  },
+  {
+    id: 'import',
+    step: 5,
+    label: 'Bring your jobs across?',
+    helper: "Got your jobs in a spreadsheet? Drop it in and we'll turn each row into a job that chases its own money.",
+    placeholder: null,
+    inputMode: null,
+    type: 'import',
+    optional: true, // skip-for-now — free acquisition step, never required
   },
 ];
 
@@ -109,7 +121,7 @@ function legacyBizDefaults() {
   }
 }
 
-export default function OnboardingWizard({ session, profile, onComplete }) {
+export default function OnboardingWizard({ session, profile, onComplete, onImportDone }) {
   const [stepIndex, setStepIndex] = useState(() => {
     const first = firstMissingStep(profile);
     // wizard_started: fires once per device, the first time the wizard mounts.
@@ -136,26 +148,29 @@ export default function OnboardingWizard({ session, profile, onComplete }) {
 
   const step = STEPS[stepIndex];
   const totalSteps = STEPS.length;
+  const isImportStep = step.type === 'import';
 
   function getValue() {
-    if (step.type === 'bank') return null; // bank step has two fields
+    if (step.type === 'bank')   return null; // bank step has two fields
+    if (step.type === 'import') return null; // import step handled by SpreadsheetImporter
     return values[step.id] ?? '';
   }
 
   function canAdvance() {
-    if (step.type === 'bank') {
-      return isSortCodeValid(values.sort_code) && isAccountNumberValid(values.account_number);
-    }
+    if (step.type === 'bank')   return isSortCodeValid(values.sort_code) && isAccountNumberValid(values.account_number);
+    if (step.type === 'import') return false; // import step uses its own CTA flow
     return (values[step.id] || '').trim().length > 0;
   }
 
   async function handleNext() {
     if (!canAdvance()) return;
 
-    const isLastStep = stepIndex === STEPS.length - 1;
+    // The import step is always the last step — skip it here (its own CTA handles completion).
+    const lastNonImportStep = STEPS.findLastIndex(s => s.type !== 'import');
+    const isLastDataStep = stepIndex === lastNonImportStep;
 
-    if (isLastStep) {
-      await saveAll({ skipBank: false });
+    if (isLastDataStep) {
+      await saveAll({ skipBank: step.type === 'bank' ? false : false });
     } else {
       setStepIndex(i => i + 1);
     }
@@ -166,10 +181,22 @@ export default function OnboardingWizard({ session, profile, onComplete }) {
   }
 
   async function handleSkipBank() {
-    await saveAll({ skipBank: true });
+    // Bank step: save profile without bank details, then advance to the import step.
+    await saveAll({ skipBank: true, continueToImport: true });
   }
 
-  async function saveAll({ skipBank = false } = {}) {
+  async function handleSkipImport() {
+    logTelemetry('import_skipped');
+    onComplete(profile);
+  }
+
+  // Called by SpreadsheetImporter when the user taps "See my jobs" after import.
+  function handleImportDone() {
+    onImportDone?.();
+    onComplete(profile);
+  }
+
+  async function saveAll({ skipBank = false, continueToImport = false } = {}) {
     setSaving(true);
     setError(null);
     try {
@@ -197,20 +224,56 @@ export default function OnboardingWizard({ session, profile, onComplete }) {
 
       if (dbErr) throw dbErr;
 
-      // Clear the session flag now that wizard is done
-      sessionStorage.removeItem('jp.wizardActive');
+      const savedProfile = data || patch;
 
       logTelemetry('wizard_completed', { bank_skipped: skipBank });
 
-      // data can be null if Supabase returns nothing despite a successful upsert —
-      // fall back to the patch we sent so the caller always gets a profile object.
-      onComplete(data || patch);
+      if (continueToImport) {
+        // Advance to the import step without calling onComplete yet — the import
+        // step fires onComplete when the user taps "See my jobs" or skips.
+        setSaving(false);
+        const importStepIndex = STEPS.findIndex(s => s.type === 'import');
+        if (importStepIndex !== -1) {
+          logTelemetry('import_step_shown');
+          setStepIndex(importStepIndex);
+        } else {
+          sessionStorage.removeItem('jp.wizardActive');
+          onComplete(savedProfile);
+        }
+        return;
+      }
+
+      // Normal path (bank step completed or non-bank step): advance to import step
+      // so the user gets the import offer after completing setup.
+      const importStepIndex = STEPS.findIndex(s => s.type === 'import');
+      if (importStepIndex !== -1) {
+        setSaving(false);
+        logTelemetry('import_step_shown');
+        setStepIndex(importStepIndex);
+        return;
+      }
+
+      // No import step — complete wizard as before.
+      sessionStorage.removeItem('jp.wizardActive');
+      onComplete(savedProfile);
     } catch (e) {
       console.error('Wizard save failed', e);
       logTelemetry('wizard_save_failed', { error: e?.message, step: stepIndex });
       setError(`Could not save: ${e?.message || 'check your connection and try again'}`);
       setSaving(false);
     }
+  }
+
+  /**
+   * Handle a batch of jobs from SpreadsheetImporter.
+   * Writes them one-by-one via addJobToCloud (the existing create path).
+   * Returns { imported, failed } — failed jobs are retried from the summary screen.
+   */
+  async function handleImportJobs(jobs) {
+    const results = await Promise.allSettled(jobs.map(job => addJobToCloud(job)));
+    const imported = results.filter(r => r.status === 'fulfilled').length;
+    const failed   = jobs.filter((_, i) => results[i].status === 'rejected');
+    return { imported, failed };
   }
 
   return (
@@ -240,6 +303,13 @@ export default function OnboardingWizard({ session, profile, onComplete }) {
             onBlur={(field) => setBankTouched(t => ({ ...t, [field]: true }))}
             onSubmit={handleNext}
           />
+        ) : step.type === 'import' ? (
+          <SpreadsheetImporter
+            onImport={handleImportJobs}
+            onDone={handleImportDone}
+            onSkip={handleSkipImport}
+            logTelemetry={logTelemetry}
+          />
         ) : (
           <input
             className="wizard-input"
@@ -264,49 +334,52 @@ export default function OnboardingWizard({ session, profile, onComplete }) {
         </div>
       )}
 
-      <div className="wizard-footer">
-        {stepIndex > 0 && (
-          <button className="wizard-back-btn" onClick={handleBack} disabled={saving}>
-            Back
-          </button>
-        )}
-        <button
-          className="wizard-next-btn"
-          onClick={handleNext}
-          type="submit"
-          disabled={!canAdvance() || saving}
-          aria-disabled={!canAdvance() || saving}
-        >
-          {saving ? 'Saving…' : stepIndex === STEPS.length - 1 ? 'Finish' : (
-            <>
-              Continue
-              <svg
-                aria-hidden="true"
-                width="18"
-                height="18"
-                viewBox="0 0 18 18"
-                fill="none"
-                xmlns="http://www.w3.org/2000/svg"
-                style={{ marginLeft: 8, verticalAlign: 'middle' }}
-              >
-                <path d="M6.75 4.5L11.25 9L6.75 13.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            </>
+      {/* Footer: hidden on the import step — SpreadsheetImporter owns its own CTAs */}
+      {!isImportStep && (
+        <div className="wizard-footer">
+          {stepIndex > 0 && (
+            <button className="wizard-back-btn" onClick={handleBack} disabled={saving}>
+              Back
+            </button>
           )}
-        </button>
-
-        {/* Skip affordance — bank step only. Lets the trader complete setup
-            now and add bank details when they send their first invoice. */}
-        {step.optional && !saving && (
           <button
-            className="wizard-skip-btn"
-            onClick={handleSkipBank}
-            type="button"
+            className="wizard-next-btn"
+            onClick={handleNext}
+            type="submit"
+            disabled={!canAdvance() || saving}
+            aria-disabled={!canAdvance() || saving}
           >
-            Skip for now — add when I send my first invoice
+            {saving ? 'Saving…' : stepIndex === STEPS.findLastIndex(s => s.type !== 'import') ? 'Finish' : (
+              <>
+                Continue
+                <svg
+                  aria-hidden="true"
+                  width="18"
+                  height="18"
+                  viewBox="0 0 18 18"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                  style={{ marginLeft: 8, verticalAlign: 'middle' }}
+                >
+                  <path d="M6.75 4.5L11.25 9L6.75 13.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </>
+            )}
           </button>
-        )}
-      </div>
+
+          {/* Skip affordance — bank step only. Lets the trader complete setup
+              now and add bank details when they send their first invoice. */}
+          {step.type === 'bank' && !saving && (
+            <button
+              className="wizard-skip-btn"
+              onClick={handleSkipBank}
+              type="button"
+            >
+              Skip for now — add when I send my first invoice
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

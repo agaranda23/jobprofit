@@ -16419,3 +16419,306 @@ button.jd-money-chip:active { opacity: 0.75; }
 .jt-profit-figure--loss {
   color: var(--danger);
 }
+
+/* ── SpreadsheetImporter (feat/onboarding-import) ─────────────────────────── */
+
+.import-phase {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: 100%;
+}
+
+.import-phase--summary {
+  align-items: center;
+  text-align: center;
+}
+
+/* Drop zone */
+.import-dropzone {
+  border: 2px dashed var(--border, rgba(255,255,255,0.15));
+  border-radius: 12px;
+  padding: 28px 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  background: transparent;
+}
+
+.import-dropzone--active {
+  border-color: var(--accent, #00A86B);
+  background: rgba(0, 168, 107, 0.06);
+}
+
+.import-dropzone-icon {
+  color: var(--text-dim, rgba(255,255,255,0.45));
+}
+
+.import-dropzone-hint {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text, #fff);
+}
+
+.import-dropzone-sub {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--text-dim, rgba(255,255,255,0.55));
+  text-align: center;
+  max-width: 280px;
+}
+
+/* The label acts as the button; the real <input> is visually hidden */
+.import-choose-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 24px;
+  border-radius: 8px;
+  background: var(--accent, #00A86B);
+  color: #fff;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  margin-top: 4px;
+  min-height: 44px;
+}
+
+.import-file-input-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  overflow: hidden;
+  clip: rect(0,0,0,0);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* Status / error messages */
+.import-status-msg {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--text-dim, rgba(255,255,255,0.65));
+  text-align: center;
+}
+
+.import-error {
+  margin: 0;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: rgba(229, 72, 77, 0.12);
+  border: 1px solid rgba(229, 72, 77, 0.3);
+  color: #E5484D;
+  font-size: 0.875rem;
+}
+
+/* Skip button */
+.import-skip-btn {
+  background: none;
+  border: none;
+  color: var(--text-dim, rgba(255,255,255,0.5));
+  font-size: 0.8rem;
+  cursor: pointer;
+  padding: 8px 0;
+  text-align: center;
+  min-height: 44px;
+  width: 100%;
+}
+
+/* Intro text */
+.import-phase-intro {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--text-dim, rgba(255,255,255,0.7));
+}
+
+.import-truncation-warning,
+.import-no-header-note {
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: rgba(255, 200, 0, 0.08);
+  border: 1px solid rgba(255, 200, 0, 0.2);
+  color: #e6b800;
+  font-size: 0.8rem;
+}
+
+/* Column mapping */
+.import-mapping-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.import-mapping-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.import-mapping-label {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text, #fff);
+}
+
+.import-required {
+  color: var(--accent, #00A86B);
+  margin-left: 2px;
+}
+
+.import-mapping-select {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border, rgba(255,255,255,0.15));
+  background: var(--surface-2, rgba(255,255,255,0.06));
+  color: var(--text, #fff);
+  font-size: 0.9rem;
+  min-height: 44px;
+  appearance: auto; /* native select — accessibility */
+}
+
+/* Footer with Continue + Back */
+.import-footer {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.import-back-btn {
+  background: none;
+  border: 1px solid var(--border, rgba(255,255,255,0.15));
+  border-radius: 8px;
+  color: var(--text, #fff);
+  font-size: 0.9rem;
+  padding: 10px;
+  cursor: pointer;
+  min-height: 44px;
+}
+
+/* Preview cards */
+.import-preview-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.import-preview-card {
+  pointer-events: none; /* preview only — not interactive */
+  cursor: default;
+}
+
+.import-found-msg {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--text, #fff);
+}
+
+/* Skipped notice */
+.import-skipped-notice {
+  margin: 0;
+  font-size: 0.875rem;
+  color: var(--text-dim, rgba(255,255,255,0.65));
+}
+
+.import-status-note {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--text-dim, rgba(255,255,255,0.5));
+}
+
+/* Expandable skipped list */
+.import-skipped {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.import-skipped-toggle {
+  background: none;
+  border: none;
+  color: var(--accent, #00A86B);
+  font-size: 0.825rem;
+  cursor: pointer;
+  padding: 4px 0;
+  text-align: left;
+  min-height: 44px;
+}
+
+.import-skipped-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px;
+  background: rgba(255,255,255,0.04);
+  border-radius: 8px;
+  border: 1px solid var(--border, rgba(255,255,255,0.08));
+}
+
+.import-skipped-item {
+  display: flex;
+  gap: 10px;
+  font-size: 0.8rem;
+}
+
+.import-skipped-row {
+  flex-shrink: 0;
+  color: var(--text-dim, rgba(255,255,255,0.45));
+  min-width: 50px;
+}
+
+.import-skipped-reason {
+  color: var(--text-dim, rgba(255,255,255,0.65));
+}
+
+.import-skipped-more {
+  font-size: 0.8rem;
+  color: var(--text-dim, rgba(255,255,255,0.45));
+  padding-top: 4px;
+}
+
+/* Retry block */
+.import-retry-block {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+/* Summary screen */
+.import-summary-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: rgba(0, 168, 107, 0.12);
+  border: 1px solid rgba(0, 168, 107, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent, #00A86B);
+  margin-bottom: 8px;
+}
+
+.import-summary-title {
+  margin: 0;
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--text, #fff);
+}
+
+.import-summary-sub {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--text-dim, rgba(255,255,255,0.65));
+}
+
+.import-done-btn {
+  margin-top: 8px;
+  width: 100%;
+}
