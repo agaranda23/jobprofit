@@ -20,6 +20,7 @@
 import {
   Home,
   LayoutGrid,
+  LayoutList,
   Calendar,
   CalendarDays,
   Settings,
@@ -132,8 +133,10 @@ function GbpGlyph({ size, strokeWidth, ...svgProps }) {
 
 const REGISTRY = {
   // Navigation
-  today:    Home,
-  jobs:     LayoutGrid,
+  today:         Home,
+  jobs:          LayoutGrid,
+  'layout-card': LayoutGrid,   // table-view toggle: card view
+  'layout-table': LayoutList,  // table-view toggle: table/list view
   schedule: Calendar,
   money:    GbpGlyph,       // custom: no Lucide £ glyph
   settings: Settings,
