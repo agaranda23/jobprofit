@@ -16133,3 +16133,289 @@ button.jd-money-chip:active { opacity: 0.75; }
 .export-format-sheet__cancel:active {
   background: var(--surface-2);
 }
+
+/* ── Work screen: card ↔ table layout toggle (feat/work-table-view) ──────── */
+
+/* Segmented control — card icon | table icon, top-right of the controls row */
+.work-layout-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 2px;
+  flex-shrink: 0;
+}
+
+.work-layout-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.12s, color 0.12s;
+}
+
+.work-layout-btn--active {
+  background: var(--surface-3, var(--border));
+  color: var(--text);
+}
+
+.work-layout-btn:active {
+  background: var(--surface-3, var(--border));
+}
+
+/* First-switch coachmark — anchored under the controls row */
+.work-table-coachmark {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 16px 10px;
+  padding: 10px 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  font-size: 13px;
+  color: var(--text-dim);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.work-table-coachmark strong {
+  color: var(--text);
+}
+
+.work-table-coachmark-dismiss {
+  margin-left: auto;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  border-radius: 4px;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* ── Compact 2-line row (<768px) ────────────────────────────────────────────── */
+
+/* Show compact on narrow; hide on desktop */
+.jt-table-compact-wrap  { display: block; }
+.jt-table-desktop-wrap  { display: none; }
+
+@media (min-width: 768px) {
+  .jt-table-compact-wrap { display: none; }
+  .jt-table-desktop-wrap { display: block; }
+}
+
+.jt-table-compact {
+  list-style: none;
+  margin: 0;
+  padding: 0 0 env(safe-area-inset-bottom, 0);
+}
+
+.jt-compact-row {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 16px;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  text-align: left;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.1s;
+}
+
+.jt-compact-row:active {
+  background: var(--surface-2);
+}
+
+.jt-compact-line1 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.jt-compact-customer {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.jt-compact-amount {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.jt-compact-line2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Re-uses existing .jt-stage-label styles for the stage chip */
+
+.jt-compact-date,
+.jt-compact-days {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.jt-compact-days {
+  margin-left: auto;
+}
+
+/* ── Desktop/tablet 6-column sortable grid (≥768px) ──────────────────────── */
+
+.jt-table-grid-wrap {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.jt-table-grid {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+/* Sticky header */
+.jt-table-grid thead {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--surface);
+}
+
+.jt-th {
+  padding: 8px 12px;
+  text-align: left;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim);
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.jt-th--amount,
+.jt-th--profit {
+  text-align: right;
+}
+
+.jt-th--sortable {
+  cursor: pointer;
+}
+
+.jt-th-btn {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-dim);
+  cursor: pointer;
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.jt-th-btn:hover {
+  color: var(--text);
+}
+
+.jt-table-caret {
+  font-size: 10px;
+  opacity: 0.7;
+}
+
+.jt-table-row {
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.jt-table-row:hover {
+  background: var(--surface-2);
+}
+
+.jt-table-row:active {
+  background: var(--surface-2);
+}
+
+.jt-table-row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.jt-td {
+  padding: 10px 12px;
+  vertical-align: middle;
+}
+
+.jt-td--customer {
+  font-weight: 500;
+  color: var(--text);
+  max-width: 200px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.jt-td--amount {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 600;
+  color: var(--text);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.jt-td--date {
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+
+.jt-td--profit {
+  text-align: right;
+  white-space: nowrap;
+  /* stop row click when tapping the ProGate lock badge */
+}
+
+.jt-td--days {
+  color: var(--text-dim);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.jt-profit-figure {
+  font-family: 'JetBrains Mono', monospace;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.jt-profit-figure--loss {
+  color: var(--danger);
+}

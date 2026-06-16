@@ -40,8 +40,11 @@ import { logTelemetry } from '../lib/telemetry';
 import { deriveDisplayStatus, requiresPriceForStage, stagePatch } from '../lib/jobStatus';
 import { deleteJobFromCloud } from '../lib/store';
 import { shouldShowPartPaidChip, formatPartPaidLabel } from '../lib/partPaidChip';
-import { jobMatchesQuery, sortJobsByStage, firstLineOfAddress } from '../lib/jobSort';
+import { jobMatchesQuery, sortJobsByStage, sortJobsByColumn, daysInStage, firstLineOfAddress } from '../lib/jobSort';
 import JobProgressDots from '../components/JobProgressDots';
+import ProGate from '../components/ProGate';
+import ProUpgradeSheet from '../components/ProUpgradeSheet';
+import { isPro } from '../lib/plan';
 import ReceiptModal from '../components/ReceiptModal';
 import {
   computeTier,
@@ -55,9 +58,12 @@ import {
   DEFAULT_PAYMENT_TERMS_DAYS,
 } from '../lib/chaseLadder';
 import { supabase } from '../lib/supabase';
+import { deriveJobRows } from '../lib/exportCsv';
 
 const STORAGE_KEY = 'jp.workView';
 const FILTER_STORAGE_KEY = 'jp.workscreen.filter.v1';
+const LAYOUT_STORAGE_KEY = 'jp.workListLayout';
+const LAYOUT_COACHMARK_KEY = 'jp.workListLayout.coachmarkSeen';
 
 // Valid stage keys — used to validate persisted selectedStage values.
 const VALID_STAGES = ['Lead', 'Quoted', 'On', 'Invoiced', 'Overdue', 'Paid'];
@@ -75,6 +81,41 @@ function getPersistedView() {
 function persistView(v) {
   try {
     localStorage.setItem(STORAGE_KEY, v);
+  } catch {
+    // ignore
+  }
+}
+
+/** Returns 'card' or 'table'; defaults to 'card' when storage unavailable. */
+function getPersistedLayout() {
+  try {
+    const stored = localStorage.getItem(LAYOUT_STORAGE_KEY);
+    if (stored === 'table') return 'table';
+  } catch {
+    // localStorage unavailable — default to card
+  }
+  return 'card';
+}
+
+function persistLayout(v) {
+  try {
+    localStorage.setItem(LAYOUT_STORAGE_KEY, v);
+  } catch {
+    // ignore — private mode
+  }
+}
+
+function getCoachmarkSeen() {
+  try {
+    return !!localStorage.getItem(LAYOUT_COACHMARK_KEY);
+  } catch {
+    return false;
+  }
+}
+
+function markCoachmarkSeen() {
+  try {
+    localStorage.setItem(LAYOUT_COACHMARK_KEY, '1');
   } catch {
     // ignore
   }
@@ -945,21 +986,321 @@ function EmptyState({ stage, onAddJob }) {
   );
 }
 
+// ── Layout toggle (card / table) ──────────────────────────────────────────────
+
+/**
+ * LayoutToggle — two-button segmented control for card / table layout.
+ * Sits top-right of the tab content header alongside the Show all pill.
+ * Spec §1: role="group", each button aria-pressed, aria-label per option.
+ */
+function LayoutToggle({ layout, onChange }) {
+  return (
+    <div className="work-layout-toggle" role="group" aria-label="Switch between card and table view">
+      <button
+        type="button"
+        className={`work-layout-btn${layout === 'card' ? ' work-layout-btn--active' : ''}`}
+        aria-pressed={layout === 'card'}
+        aria-label="Card view"
+        onClick={() => onChange('card')}
+      >
+        <Icon name="layout-card" size={16} aria-hidden="true" />
+      </button>
+      <button
+        type="button"
+        className={`work-layout-btn${layout === 'table' ? ' work-layout-btn--active' : ''}`}
+        aria-pressed={layout === 'table'}
+        aria-label="Table view"
+        onClick={() => onChange('table')}
+      >
+        <Icon name="layout-table" size={16} aria-hidden="true" />
+      </button>
+    </div>
+  );
+}
+
+// ── Table view empty states (spec §7) ─────────────────────────────────────────
+
+const TABLE_EMPTY_COPY = {
+  Lead:     'No leads yet. New enquiries land here first.',
+  Quoted:   'Nothing quoted. When you send a quote it shows up here.',
+  On:       'No jobs on the go. Accepted quotes move here automatically.',
+  Invoiced: 'Nothing waiting on payment. Send an invoice and it lands here.',
+  Overdue:  'Nothing overdue. Nice.',
+  Paid:     'No paid jobs yet. This fills up as the money comes in.',
+  All:      'No jobs yet.',
+};
+
+/**
+ * JobsTable — table / compact-row rendering of the same job data shown in card view.
+ *
+ * Responsive at runtime:
+ *   ≥768px  → 6-col sortable grid (all columns, sticky header)
+ *   <768px  → compact 2-line row (no Profit column)
+ *
+ * Profit column is Pro-gated: free users see it blurred via <ProGate>.
+ *
+ * Props:
+ *   jobs          — already-filtered & stage-sorted array
+ *   receipts      — for deriveJobRows profit calc
+ *   selectedStage — used for daysInStage and empty-state copy
+ *   showAll       — determines empty-state label
+ *   profile       — for isPro() check
+ *   onJobSelect   — opens JobDetailDrawer
+ *   onUpgrade     — opens ProUpgradeSheet (insight_locked trigger)
+ *   colSort       — { column: 'amount'|'date'|null, dir: 'asc'|'desc' }
+ *   onColSort     — (column) => void — toggles sort state
+ */
+function JobsTable({ jobs, receipts, selectedStage, showAll, profile, onJobSelect, onUpgrade, colSort, onColSort }) {
+  const userIsPro = isPro(profile);
+
+  if (jobs.length === 0) {
+    const emptyKey = showAll ? 'All' : (selectedStage || 'On');
+    return (
+      <div className="screen-empty">
+        <p className="screen-empty-title">{TABLE_EMPTY_COPY[emptyKey] ?? TABLE_EMPTY_COPY.All}</p>
+      </div>
+    );
+  }
+
+  // Derive per-job row data from the single source of truth (exportCsv).
+  // Build a map keyed by job id for O(1) lookup.
+  const rowMap = new Map();
+  const allRows = deriveJobRows(jobs, receipts || []);
+  jobs.forEach((job, i) => {
+    rowMap.set(job.id, allRows[i]);
+  });
+
+  function getRow(job) {
+    return rowMap.get(job.id) || { invoiced: 0, profit: 0, date: '', status: '' };
+  }
+
+  function formatDate(dateStr) {
+    if (!dateStr) return '—';
+    try {
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return '—';
+      return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
+    } catch {
+      return '—';
+    }
+  }
+
+  function formatProfit(val) {
+    if (val == null || !isFinite(val)) return '—';
+    const abs = Math.abs(val);
+    return (val < 0 ? '-' : '') + '£' + formatAmount(abs);
+  }
+
+  function renderDays(job) {
+    const stage = deriveDisplayStatus(job);
+    const d = daysInStage(job, stage);
+    return d === null ? '—' : `${d}d`;
+  }
+
+  function renderSortCaret(col) {
+    if (colSort.column !== col) return null;
+    return (
+      <span className="jt-table-caret" aria-hidden="true">
+        {colSort.dir === 'asc' ? ' ▲' : ' ▼'}
+      </span>
+    );
+  }
+
+  function ariaSortAttr(col) {
+    if (colSort.column !== col) return 'none';
+    return colSort.dir === 'asc' ? 'ascending' : 'descending';
+  }
+
+  // ── Compact row (phone / tablet-narrow, <768px) ───────────────────────────
+  // The media-class approach: render both variants; CSS hides the appropriate one.
+  // This avoids matchMedia React state (no flash on first render, SSR-safe).
+
+  const compactRows = (
+    <ul className="jt-table-compact" aria-label="Jobs list">
+      {jobs.map(job => {
+        const row = getRow(job);
+        const stage = deriveDisplayStatus(job);
+        const amountStr = '£' + formatAmount(row.invoiced);
+        const customer = row.customer || 'Untitled';
+        return (
+          <li key={job.id || job.cloudId}>
+            <button
+              type="button"
+              className="jt-compact-row"
+              aria-label={`Open job for ${customer}, ${amountStr}`}
+              onClick={() => onJobSelect(job)}
+            >
+              <div className="jt-compact-line1">
+                <span className="jt-compact-customer">{customer}</span>
+                <span className="jt-compact-amount">{amountStr}</span>
+              </div>
+              <div className="jt-compact-line2">
+                <span
+                  className={`jt-stage-label jt-stage-label--${stage.toLowerCase()}`}
+                  style={{
+                    '--chip-hue': (STAGE_META[stage] || STAGE_META.Lead).hue,
+                    '--chip-fill': (STAGE_META[stage] || STAGE_META.Lead).fill,
+                    '--chip-ink': (STAGE_META[stage] || STAGE_META.Lead).ink || (STAGE_META[stage] || STAGE_META.Lead).hue,
+                  }}
+                >
+                  {stage}
+                </span>
+                <span className="jt-compact-date">{formatDate(row.date)}</span>
+                <span className="jt-compact-days">{renderDays(job)}</span>
+              </div>
+            </button>
+          </li>
+        );
+      })}
+    </ul>
+  );
+
+  // ── Desktop/tablet grid (≥768px) ──────────────────────────────────────────
+  const desktopGrid = (
+    <div className="jt-table-grid-wrap">
+      <table className="jt-table-grid" role="grid">
+        <thead>
+          <tr>
+            <th scope="col" className="jt-th jt-th--customer">Customer</th>
+            <th
+              scope="col"
+              className="jt-th jt-th--amount jt-th--sortable"
+              aria-sort={ariaSortAttr('amount')}
+            >
+              <button
+                type="button"
+                className="jt-th-btn"
+                onClick={() => onColSort('amount')}
+                aria-label="Sort by amount"
+              >
+                Amount{renderSortCaret('amount')}
+              </button>
+            </th>
+            <th scope="col" className="jt-th jt-th--status">Status</th>
+            <th
+              scope="col"
+              className="jt-th jt-th--date jt-th--sortable"
+              aria-sort={ariaSortAttr('date')}
+            >
+              <button
+                type="button"
+                className="jt-th-btn"
+                onClick={() => onColSort('date')}
+                aria-label="Sort by date"
+              >
+                Date{renderSortCaret('date')}
+              </button>
+            </th>
+            <th scope="col" className="jt-th jt-th--profit">Profit</th>
+            <th scope="col" className="jt-th jt-th--days">Days</th>
+          </tr>
+        </thead>
+        <tbody>
+          {jobs.map(job => {
+            const row = getRow(job);
+            const stage = deriveDisplayStatus(job);
+            const customer = row.customer || 'Untitled';
+            const amountStr = '£' + formatAmount(row.invoiced);
+            const profitVal = row.profit;
+            const profitStr = formatProfit(profitVal);
+            const profitNeg = profitVal < 0;
+
+            return (
+              <tr
+                key={job.id || job.cloudId}
+                className="jt-table-row"
+                onClick={() => onJobSelect(job)}
+                role="button"
+                tabIndex={0}
+                aria-label={`Open job for ${customer}, ${amountStr}`}
+                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') onJobSelect(job); }}
+              >
+                <td className="jt-td jt-td--customer">{customer}</td>
+                <td className="jt-td jt-td--amount">{amountStr}</td>
+                <td className="jt-td jt-td--status">
+                  <span
+                    className={`jt-stage-label jt-stage-label--${stage.toLowerCase()}`}
+                    style={{
+                      '--chip-hue': (STAGE_META[stage] || STAGE_META.Lead).hue,
+                      '--chip-fill': (STAGE_META[stage] || STAGE_META.Lead).fill,
+                      '--chip-ink': (STAGE_META[stage] || STAGE_META.Lead).ink || (STAGE_META[stage] || STAGE_META.Lead).hue,
+                    }}
+                  >
+                    {stage}
+                  </span>
+                </td>
+                <td className="jt-td jt-td--date">{formatDate(row.date)}</td>
+                <td className="jt-td jt-td--profit" onClick={e => e.stopPropagation()}>
+                  <ProGate locked={!userIsPro} hasValue onUpgrade={onUpgrade}>
+                    <span className={`pro-gate__figure jt-profit-figure${profitNeg ? ' jt-profit-figure--loss' : ''}`}>
+                      {profitStr}
+                    </span>
+                  </ProGate>
+                </td>
+                <td className="jt-td jt-td--days">{renderDays(job)}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+
+  return (
+    <>
+      <div className="jt-table-compact-wrap">{compactRows}</div>
+      <div className="jt-table-desktop-wrap">{desktopGrid}</div>
+    </>
+  );
+}
+
 // ── JobsList subview ──────────────────────────────────────────────────────────
 
-function JobsList({ jobs, selectedStage, showAll, searchQuery, onJobSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJob, onCopyJob, onArchiveJob, onDeleteJob, biz, onShowToast, onViewReceipt, onAddJob, onActionRedirect }) {
+function JobsList({ jobs, receipts, selectedStage, showAll, searchQuery, layout, profile, onJobSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJob, onCopyJob, onArchiveJob, onDeleteJob, biz, onShowToast, onViewReceipt, onAddJob, onActionRedirect, onUpgrade, colSort, onColSort }) {
   const q = (searchQuery || '').trim();
 
   // When searching: ignore the stage filter — show everything that matches (1B spec).
   // When not searching: filter to the selected stage then sort by urgency (1C).
-  let visible;
+  let stageFiltered;
   if (q) {
-    visible = jobs.filter(j => jobMatchesQuery(j, q));
+    stageFiltered = jobs.filter(j => jobMatchesQuery(j, q));
   } else {
     const stageJobs = showAll ? jobs : jobs.filter(j => deriveDisplayStatus(j) === selectedStage);
-    visible = sortJobsByStage(stageJobs, showAll ? null : selectedStage);
+    stageFiltered = sortJobsByStage(stageJobs, showAll ? null : selectedStage);
   }
 
+  // Apply column sort on top of stage-default order (desktop/tablet table only).
+  // Column sort is an opt-in override; reset to stage-default on tab change (handled in root).
+  let visible = stageFiltered;
+  if (layout === 'table' && colSort.column) {
+    visible = sortJobsByColumn(stageFiltered, colSort.column, colSort.dir);
+  }
+
+  if (layout === 'table') {
+    if (visible.length === 0 && q) {
+      return (
+        <div className="screen-empty">
+          <p className="screen-empty-title">No jobs match &ldquo;{q}&rdquo;</p>
+          <p className="screen-empty-hint">Check the spelling or tap + New job.</p>
+        </div>
+      );
+    }
+    return (
+      <JobsTable
+        jobs={visible}
+        receipts={receipts}
+        selectedStage={selectedStage}
+        showAll={showAll}
+        profile={profile}
+        onJobSelect={onJobSelect}
+        onUpgrade={onUpgrade}
+        colSort={colSort}
+        onColSort={onColSort}
+      />
+    );
+  }
+
+  // Card view (default)
   if (visible.length === 0) {
     if (q) {
       return (
@@ -1038,6 +1379,16 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
   // docOverlay — which global document search overlay is open ('jobs'|'quotes'|'invoices'|null).
   // Reuses DocumentSearchOverlay exactly as TodayScreen does — not a new overlay, same component.
   const [docOverlay, setDocOverlay] = useState(null);
+
+  // ── Table view state ────────────────────────────────────────────────────────
+  // layout: 'card' | 'table' — one global preference, persisted in localStorage.
+  // colSort: { column: 'amount'|'date'|null, dir: 'asc'|'desc' } — opt-in column sort;
+  //   reset to stage-default on tab change (handleSelectStage / handleSelectAll).
+  // upgradeSheetOpen: ProUpgradeSheet visibility (reuses FinanceScreen pattern).
+  const [layout, setLayout] = useState(getPersistedLayout);
+  const [colSort, setColSort] = useState({ column: null, dir: 'asc' });
+  const [upgradeSheetOpen, setUpgradeSheetOpen] = useState(false);
+  const [showCoachmark, setShowCoachmark] = useState(false);
 
   // If AppShell navigated here with a specific job to open (e.g. from TodayScreen
   // card-body tap), find it in the jobs array and pre-open the drawer.
@@ -1166,11 +1517,14 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
     setSelectedStage(stage);
     setShowAll(false);
     setSearchQuery(''); // tapping a stage tab means "done searching, show this tab"
+    // Reset column sort on tab change — spec §4 / §10
+    setColSort({ column: null, dir: 'asc' });
     logTelemetry('stage_strip_select', { stage });
   };
 
   const handleSelectAll = () => {
     setSearchQuery(''); // switching to All view — clear any active search
+    setColSort({ column: null, dir: 'asc' }); // reset column sort on tab change
     if (showAll) {
       // Already in All mode — snap back to selectedStage.
       setShowAll(false);
@@ -1179,6 +1533,31 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
       setShowAll(true);
       logTelemetry('stage_strip_select', { stage: 'All', action: 'enter' });
     }
+  };
+
+  // Switch layout (card ↔ table) — persists globally, fires coachmark on first table switch.
+  const handleLayoutChange = (newLayout) => {
+    setLayout(newLayout);
+    persistLayout(newLayout);
+    if (newLayout === 'table' && !getCoachmarkSeen()) {
+      setShowCoachmark(true);
+    }
+  };
+
+  // Column sort handler — toggles asc/desc for the active column; switches to asc for a new column.
+  const handleColSort = (col) => {
+    setColSort(prev => {
+      if (prev.column === col) {
+        return { column: col, dir: prev.dir === 'asc' ? 'desc' : 'asc' };
+      }
+      return { column: col, dir: 'asc' };
+    });
+  };
+
+  // Dismiss coachmark and mark it seen permanently.
+  const dismissCoachmark = () => {
+    setShowCoachmark(false);
+    markCoachmarkSeen();
   };
 
   // Exclude archived and deleted jobs from every rendered surface in this screen.
@@ -1652,16 +2031,42 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
           <Icon name="search" size={13} aria-hidden="true" />
           Records
         </button>
+        {/* Layout toggle — card / table. Hidden in calendar mode. */}
+        {subview === 'list' && (
+          <LayoutToggle layout={layout} onChange={handleLayoutChange} />
+        )}
       </div>
+
+      {/* First-switch coachmark — shown once on first switch to table view (spec §8). */}
+      {showCoachmark && (
+        <div
+          className="work-table-coachmark"
+          role="status"
+          onClick={dismissCoachmark}
+        >
+          <strong>Same jobs, spreadsheet style.</strong> Tap any row to open it.
+          <button
+            type="button"
+            className="work-table-coachmark-dismiss"
+            aria-label="Dismiss tip"
+            onClick={e => { e.stopPropagation(); dismissCoachmark(); }}
+          >
+            <Icon name="close" size={14} aria-hidden="true" />
+          </button>
+        </div>
+      )}
 
       {/* Subview */}
       {subview === 'list' ? (
         <JobsList
           jobs={visibleJobs}
+          receipts={receipts}
           selectedStage={selectedStage}
           showAll={showAll}
           searchQuery={searchQuery}
-          onJobSelect={setSelectedJob}
+          layout={layout}
+          profile={profile}
+          onJobSelect={job => { setSelectedJob(job); if (showCoachmark) dismissCoachmark(); }}
           onSendInvoice={setReviewJob}
           onUpdateJob={handleUpdateJob}
           onNewJob={onNewJob}
@@ -1674,6 +2079,9 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
           onViewReceipt={setReceiptJob}
           onAddJob={openAddJob}
           onActionRedirect={handleActionRedirect}
+          onUpgrade={() => setUpgradeSheetOpen(true)}
+          colSort={colSort}
+          onColSort={handleColSort}
         />
       ) : (
         <WorkCalendar jobs={visibleJobs} onNewJobOnDate={handleNewJobOnDate} onJobTap={setSelectedJob} forceWeekOnMount={pendingWorkView === 'calendar-week'} />
@@ -1813,6 +2221,18 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
           onSendInvoice={(job) => { setDocOverlay(null); setReviewJob(job); }}
         />
       )}
+
+      {/* ProUpgradeSheet — opened by Profit column lock badge in table view.
+          trigger='insight_locked' matches UPGRADE_TRIGGERS.INSIGHT_LOCKED from telemetry.js.
+          Using the string literal here to avoid importing UPGRADE_TRIGGERS into WorkScreen
+          (existing test mocks for telemetry only stub logTelemetry). */}
+      <ProUpgradeSheet
+        open={upgradeSheetOpen}
+        trigger="insight_locked"
+        profile={profile}
+        jobs={jobs}
+        onClose={() => setUpgradeSheetOpen(false)}
+      />
 
       {toast && <div className="toast">{toast}</div>}
     </div>

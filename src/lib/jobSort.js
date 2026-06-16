@@ -115,3 +115,84 @@ export function firstLineOfAddress(address) {
   if (!address) return '';
   return address.split(/[,\n]/)[0].trim();
 }
+
+/**
+ * Column sort for the table view — pure, unit-testable, extends sortJobsByStage.
+ *
+ * Supports sorting by 'amount' (numeric on total/amount) or 'date' (ISO date string).
+ * Always returns a new array; does not mutate the input.
+ *
+ * column ∈ 'amount' | 'date'
+ * dir    ∈ 'asc'    | 'desc'
+ *
+ * @param {object[]} jobs
+ * @param {'amount'|'date'} column
+ * @param {'asc'|'desc'} dir
+ * @returns {object[]}
+ */
+export function sortJobsByColumn(jobs, column, dir) {
+  const sorted = [...jobs];
+  const multiplier = dir === 'asc' ? 1 : -1;
+
+  if (column === 'amount') {
+    sorted.sort((a, b) => {
+      const aVal = Number(a.total ?? a.amount ?? 0) || 0;
+      const bVal = Number(b.total ?? b.amount ?? 0) || 0;
+      return (aVal - bVal) * multiplier;
+    });
+  } else if (column === 'date') {
+    sorted.sort((a, b) => {
+      const aDate = new Date(a.date || 0).getTime();
+      const bDate = new Date(b.date || 0).getTime();
+      return (aDate - bDate) * multiplier;
+    });
+  }
+
+  return sorted;
+}
+
+/**
+ * Computes how many whole days a job has been in its current stage.
+ *
+ * Uses the best available timestamp per stage, mirroring the date fields
+ * sortJobsByStage already reads:
+ *   Overdue / Invoiced → invoiceSentAt (or invoiceDueDate as fallback)
+ *   On                 → date || updatedAt || createdAt
+ *   Lead / Quoted      → createdAt
+ *   Paid               → paidAt || updatedAt || createdAt
+ *
+ * Returns null when no usable timestamp exists (caller renders '—').
+ * Never returns NaN or negative; floors to 0 for jobs stamped in the future.
+ *
+ * @param {object} job
+ * @param {string} [stage]  — derived stage label (e.g. 'On', 'Paid').
+ *                            Pass it in when you already have it to avoid re-deriving;
+ *                            the function accepts null/undefined safely and falls back
+ *                            to a generic heuristic.
+ * @returns {number|null}
+ */
+export function daysInStage(job, stage) {
+  if (!job) return null;
+
+  let ts = null;
+  const s = stage || '';
+
+  if (s === 'Overdue' || s === 'Invoiced') {
+    ts = job.invoiceSentAt || job.invoiceDueDate || null;
+  } else if (s === 'On') {
+    ts = job.date || job.updatedAt || job.createdAt || null;
+  } else if (s === 'Lead' || s === 'Quoted') {
+    ts = job.createdAt || null;
+  } else if (s === 'Paid') {
+    ts = job.paidAt || job.updatedAt || job.createdAt || null;
+  } else {
+    // Unknown or null stage — best-effort fallback
+    ts = job.updatedAt || job.createdAt || null;
+  }
+
+  if (!ts) return null;
+
+  const ms = Date.now() - new Date(ts).getTime();
+  if (!isFinite(ms) || ms < 0) return null;
+  return Math.floor(ms / 86400000);
+}
