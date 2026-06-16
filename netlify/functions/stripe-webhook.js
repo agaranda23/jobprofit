@@ -37,6 +37,11 @@
 import Stripe from 'stripe';
 import { createClient } from '@supabase/supabase-js';
 
+// Founding Member cutoff — must match src/lib/plan.js FOUNDER_CUTOFF exactly.
+// ACTION REQUIRED: set this to the real closing date before going live.
+// Stored here (server-side) so the client constant cannot be spoofed.
+const FOUNDER_CUTOFF = process.env.FOUNDER_CUTOFF ?? '2099-01-01T00:00:00Z';
+
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'Content-Type, stripe-signature',
@@ -111,6 +116,36 @@ export const handler = async function (event) {
           return json(200, { received: true }); // 200 so Stripe doesn't retry — already logged
         }
 
+        // ── Founding Member eligibility check (server-side) ──────────────────
+        // Re-read the profile so the client cannot spoof eligibility.
+        // Eligible = created_at before FOUNDER_CUTOFF AND not already a founder
+        // AND window is still open (now < cutoff).
+        let stampFoundingMember = false;
+        try {
+          const { data: existingProfile } = await adminClient
+            .from('profiles')
+            .select('created_at, founding_member, plan')
+            .eq('id', userId)
+            .single();
+
+          const cutoffDate = new Date(FOUNDER_CUTOFF);
+          const nowDate = new Date();
+          if (
+            existingProfile &&
+            !existingProfile.founding_member &&
+            existingProfile.plan !== 'pro' &&
+            existingProfile.created_at &&
+            new Date(existingProfile.created_at) < cutoffDate &&
+            nowDate < cutoffDate
+          ) {
+            stampFoundingMember = true;
+          }
+        } catch (profileErr) {
+          // Non-fatal: if we can't read the profile, skip the founding stamp.
+          // The user still gets Pro — they just miss the cohort flag.
+          console.warn('stripe-webhook: could not read profile for founding check', profileErr?.message);
+        }
+
         await adminClient
           .from('profiles')
           .update({
@@ -118,8 +153,13 @@ export const handler = async function (event) {
             stripe_customer_id: session.customer,
             stripe_subscription_id: session.subscription,
             subscription_status: 'active',
+            ...(stampFoundingMember ? { founding_member: true } : {}),
           })
           .eq('id', userId);
+
+        if (stampFoundingMember) {
+          console.log('stripe-webhook: Founding Member stamped for user', userId);
+        }
 
         break;
       }
@@ -138,6 +178,12 @@ export const handler = async function (event) {
       }
 
       // ── Subscription deleted → revoke Pro ───────────────────────────────────
+      // IMPORTANT: this event fires on a confirmed deliberate cancellation only.
+      // Transient failures (card bounced, dunning) produce invoice.payment_failed
+      // and set subscription_status='past_due' — they do NOT fire this event.
+      // Therefore it is correct to clear founding_member here: a canceled subscription
+      // is a forfeited lock. A card that fails and recovers within Stripe's retry
+      // window never reaches this event, so the lock survives payment hiccups.
       case 'customer.subscription.deleted': {
         const sub = stripeEvent.data.object;
         await adminClient
@@ -146,6 +192,7 @@ export const handler = async function (event) {
             plan: 'free',
             stripe_subscription_id: null,
             subscription_status: 'canceled',
+            founding_member: false, // lock forfeited on deliberate cancellation
           })
           .eq('stripe_customer_id', sub.customer);
 

@@ -32,7 +32,7 @@
 
 import { useMemo, useState, useCallback, useRef, useEffect } from 'react';
 import { gbp, todayKey } from '../lib/today';
-import { isPro } from '../lib/plan';
+import { isPro, isFoundingEligible, isFoundingMember } from '../lib/plan';
 import Icon from '../components/Icon';
 import HeaderAvatar from '../components/HeaderAvatar';
 import CashflowChart from '../components/CashflowChart';
@@ -282,6 +282,40 @@ function TaxPotSheet({ open, onClose, currentPct, monthProfit, onSave }) {
   );
 }
 
+/**
+ * FoundingMemberCard — shown only to founding-eligible users (created before
+ * FOUNDER_CUTOFF, not yet Pro, not already a Founding Member). Renders above
+ * the standard UpgradeBanner so it is the first upgrade surface they see.
+ *
+ * Copy is confirmed by PRD + FIN — use verbatim. No emoji (mid-migration to
+ * Lucide icons). No crossed-out price comparison (no £6 tier exists).
+ */
+function FoundingMemberCard({ onUpgrade }) {
+  return (
+    <div className="founding-member-card" role="region" aria-label="Founding Member offer">
+      <div className="founding-member-card__badge">Founding Member</div>
+      <div className="founding-member-card__headline">
+        <span className="founding-member-card__price">£12</span>
+        <span className="founding-member-card__period">/mo</span>
+        <span className="founding-member-card__lock"> — locked for life</span>
+      </div>
+      <p className="founding-member-card__body">
+        You&rsquo;re one of our first. This price never goes up for you. Plus a direct line to us and a say in what we build.
+      </p>
+      <button
+        type="button"
+        className="founding-member-card__cta"
+        onClick={() => onUpgrade?.()}
+      >
+        Start 14-day free trial — no card
+      </button>
+      <p className="founding-member-card__small-print">
+        For our earliest users, while you&rsquo;re subscribed.
+      </p>
+    </div>
+  );
+}
+
 export default function FinanceScreen({ jobs = [], receipts = [], session, profile, biz, onAvatarClick, onUpgrade, onGoToJobs, onGoToSettings, onNavigateToCardPayments, onProfileUpdate, onExport, entryPoint = 'nav' }) {
   const [timelineOpen, setTimelineOpen] = useState(false);
   const [trustHintDismissed, setTrustHintDismissed] = useState(false);
@@ -374,6 +408,8 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
   const hourlyRate = Number(profile?.hourly_rate) || 0;
   const taxSetAsidePct = Number(profile?.tax_set_aside_pct ?? 20);
   const userIsPro = isPro(profile);
+  const userIsFoundingEligible = isFoundingEligible(profile);
+  const userIsFoundingMember = isFoundingMember(profile);
   const overheads = Array.isArray(profile?.overheads) ? profile.overheads : [];
   const overheadTotal = getOverheadTotal(overheads);
   const isCisSubcontractor = !!profile?.is_cis_subcontractor;
@@ -727,8 +763,27 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
         </div>
       )}
 
-      {/* ── 2. Upgrade banner — shown once for free users, just below hero ── */}
-      {!userIsPro && <UpgradeBanner onUpgrade={() => handleUpgrade(UPGRADE_TRIGGERS.UPGRADE_BANNER)} />}
+      {/* ── 2. Upgrade surfaces — shown for non-Pro users only ────────────── */}
+      {/* Priority order: Founding Member card (if eligible) > standard banner. */}
+      {/* The standard banner is suppressed when the Founding Member card is shown */}
+      {/* so we never stack two upgrade surfaces. */}
+      {!userIsPro && userIsFoundingEligible && (
+        <FoundingMemberCard onUpgrade={() => handleUpgrade(UPGRADE_TRIGGERS.UPGRADE_BANNER)} />
+      )}
+      {!userIsPro && !userIsFoundingEligible && (
+        <UpgradeBanner onUpgrade={() => handleUpgrade(UPGRADE_TRIGGERS.UPGRADE_BANNER)} />
+      )}
+
+      {/* ── 2a. Founding Member lock confirmation (Pro users with flag set) ── */}
+      {/* Shown when a user has the flag AND is on Pro — confirms their lock is active. */}
+      {userIsPro && userIsFoundingMember && (
+        <div className="founding-member-card founding-member-card--confirmed" role="note" aria-label="Founding Member price lock active">
+          <div className="founding-member-card__badge">Founding Member</div>
+          <p className="founding-member-card__confirmed-copy">
+            Your £12 price is locked while you&rsquo;re subscribed.
+          </p>
+        </div>
+      )}
 
       {/* ── 2b. Accountant tools — FREE, ungated, surfaced high so it's visible
               on first scroll without passing all the Pro-gated insight cards.
