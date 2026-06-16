@@ -112,19 +112,39 @@ describe('AppShell — handleExportFromMoney wiring', () => {
     expect(appshellSrc).toContain('onExport={handleExportFromMoney}');
   });
 
-  it('handler has no isPro() function call (free export, GDPR-safe)', () => {
-    // Extract just the handler body to avoid false positives from other code
+  it('handleExportFromMoney has no isPro() gate (free export, GDPR-safe)', () => {
+    // Tight slice: only handleExportFromMoney (opens the format sheet).
+    // handleMoneyExportFormatPick starts immediately after and is tested separately.
     const handlerStart = appshellSrc.indexOf('handleExportFromMoney');
-    const handlerEnd   = appshellSrc.indexOf('const openDetailed', handlerStart);
+    const handlerEnd   = appshellSrc.indexOf('handleMoneyExportFormatPick', handlerStart);
     const handlerBody  = handlerStart !== -1 && handlerEnd !== -1
       ? appshellSrc.slice(handlerStart, handlerEnd)
       : '';
-    // isPro() function call would look like isPro(  — distinguish from the text "isPro check" in comments
+    // isPro() must not appear in the opener — it just shows the format sheet.
     expect(handlerBody).not.toMatch(/isPro\s*\(/);
     expect(handlerBody).not.toContain('ProGate');
   });
 
+  it('handleMoneyExportFormatPick uses isPro for PDF branding, not as an access gate', () => {
+    // Since the PDF export branch (feat/money-tab-pdf-export) was merged, the
+    // format-picker handler passes isPro(profile) to buildJobsPdf for watermarking /
+    // branding — this is intentional, not a paywall. Verify it is present and that
+    // the handler does NOT gate format access behind an isPro() conditional.
+    const handlerStart = appshellSrc.indexOf('handleMoneyExportFormatPick');
+    const handlerEnd   = appshellSrc.indexOf('const openDetailed', handlerStart);
+    const handlerBody  = handlerStart !== -1 && handlerEnd !== -1
+      ? appshellSrc.slice(handlerStart, handlerEnd)
+      : '';
+    // isPro(profile) present — used as metadata passed to buildJobsPdf, not a gate.
+    expect(handlerBody).toMatch(/isPro\s*\(/);
+    // Must NOT gate any format behind isPro — all formats are free.
+    expect(handlerBody).not.toMatch(/isPro\s*\(.*\)\s*&&\s*(?:format|build|download)/);
+    expect(handlerBody).not.toMatch(/if\s*\(\s*!?\s*isPro/);
+    expect(handlerBody).not.toContain('ProGate');
+  });
+
   it('handler uses buildJobsCsv (jobs-ledger-only, not buildEverythingCsv)', () => {
+    // Wide slice covers both handlers — buildJobsCsv lives in handleMoneyExportFormatPick.
     const handlerStart = appshellSrc.indexOf('handleExportFromMoney');
     const handlerEnd   = appshellSrc.indexOf('const openDetailed', handlerStart);
     const handlerBody  = handlerStart !== -1 && handlerEnd !== -1
