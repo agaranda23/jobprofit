@@ -25,7 +25,7 @@ import React from 'react';
 // We store ALL queue subscribers in an array and broadcast to every one of them,
 // mirroring the fan-out behaviour of the real subscribe() implementation.
 const queueSubscribers = [];
-const mockSubscriptions = { syncing: null, error: null };
+const mockSubscriptions = { syncing: null, error: null, lastEnqueued: null };
 
 vi.mock('../../lib/offlineQueue', () => ({
   subscribe: vi.fn((cb) => {
@@ -37,6 +37,10 @@ vi.mock('../../lib/offlineQueue', () => ({
   }),
   subscribeToSyncState: vi.fn((cb) => { mockSubscriptions.syncing = cb; return () => {}; }),
   subscribeToErrorState: vi.fn((cb) => { mockSubscriptions.error = cb; return () => {}; }),
+  // Added when feat/money-tab-pdf-export merged — SyncBadge now tracks the
+  // timestamp of the last enqueue so it can suppress the stuck-state indicator
+  // during a brief grace window after a new job is queued.
+  subscribeToLastEnqueued: vi.fn((cb) => { mockSubscriptions.lastEnqueued = cb; return () => {}; }),
   runSync: vi.fn(() => Promise.resolve()),
   getQueueLength: vi.fn(() => Promise.resolve(0)),
   getMetaQueueLength: vi.fn(() => Promise.resolve(0)),
@@ -53,6 +57,7 @@ import SyncBadge from '../SyncBadge';
 function pushQueue(n) { act(() => { queueSubscribers.forEach(cb => cb(n)); }); }
 function pushSyncing(b) { act(() => { mockSubscriptions.syncing?.(b); }); }
 function pushError(state) { act(() => { mockSubscriptions.error?.(state); }); }
+function pushLastEnqueued(ts) { act(() => { mockSubscriptions.lastEnqueued?.(ts); }); }
 
 // Override Date.now so time-based stuck calculations are deterministic
 const BASE_NOW = 1_700_000_000_000;
@@ -68,6 +73,7 @@ beforeEach(() => {
   queueSubscribers.length = 0;
   mockSubscriptions.syncing = null;
   mockSubscriptions.error = null;
+  mockSubscriptions.lastEnqueued = null;
 });
 
 describe('SyncBadge — hidden state', () => {
