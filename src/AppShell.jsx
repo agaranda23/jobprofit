@@ -51,6 +51,7 @@ import {
   isTrialLastDay,
   trialEndSheetDismissedToday,
   recordTrialEndSheetDismissed,
+  isPro,
 } from './lib/plan';
 import { formatChargeDate, shouldShowPreChargeReminder } from './lib/trialConversion';
 import { getJobProfit } from './lib/cashflow';
@@ -72,7 +73,9 @@ import {
 } from './lib/materials';
 import MaterialsScreen from './screens/MaterialsScreen';
 import AddMaterialModal from './components/AddMaterialModal';
-import { buildJobsCsv, downloadOrShareCsv } from './lib/exportCsv';
+import { buildJobsCsv, downloadOrShareCsv, downloadOrShare } from './lib/exportCsv';
+import { buildJobsPdf } from './lib/exportPdf.js';
+import ExportFormatSheet from './components/ExportFormatSheet.jsx';
 
 // ─── Feature flags ───────────────────────────────────────────────────────────
 // Slice-3 nav (Today / Jobs / Money / Settings) is the default for all users.
@@ -919,19 +922,50 @@ export default function AppShell() {
     }
   };
 
-  const handleExportFromMoney = useCallback(async () => {
-    // FREE — no isPro check. Privacy policy promises "your data is yours, export
-    // anytime". Gating the only export path would contradict that live GDPR promise.
+  // ── Money tab export ──────────────────────────────────────────────────────
+  // FREE — no isPro check. Privacy policy promises "your data is yours, export
+  // anytime". Gating this would contradict that live GDPR data-portability promise.
+  const [moneyExportSheetOpen, setMoneyExportSheetOpen] = useState(false);
+  const [moneyExporting, setMoneyExporting] = useState(false);
+
+  const handleExportFromMoney = useCallback(() => {
+    const safeJobs = Array.isArray(jobs) ? jobs : [];
+    if (safeJobs.length === 0) return; // FinanceScreen disables the button in this case
+    setMoneyExportSheetOpen(true);
+  }, [jobs]);
+
+  const handleMoneyExportFormatPick = useCallback(async (format) => {
+    setMoneyExportSheetOpen(false);
+    if (moneyExporting) return;
     const safeJobs     = Array.isArray(jobs)     ? jobs     : [];
     const safeReceipts = Array.isArray(receipts) ? receipts : [];
-    if (safeJobs.length === 0) return; // FinanceScreen handles the empty case via disabled state
+    if (safeJobs.length === 0) return;
     const stamp = (() => {
       const now = new Date();
       return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     })();
-    const csv = buildJobsCsv(safeJobs, safeReceipts);
-    await downloadOrShareCsv(csv, `jobprofit-export-${stamp}.csv`);
-  }, [jobs, receipts]);
+    setMoneyExporting(true);
+    try {
+      if (format === 'csv') {
+        const csv = buildJobsCsv(safeJobs, safeReceipts);
+        await downloadOrShareCsv(csv, `jobprofit-export-${stamp}.csv`);
+      } else if (format === 'pdf') {
+        const businessName = profile?.business_name || profile?.businessName || '';
+        const blob = await buildJobsPdf(safeJobs, safeReceipts, {
+          title: 'Records export',
+          businessName,
+          isPro: isPro(profile),
+        });
+        await downloadOrShare(blob, `jobprofit-export-${stamp}.pdf`, 'application/pdf');
+      }
+    } catch {
+      // Non-critical: the user can try again — no visible toast wired here
+      // to avoid adding a toast system dependency to AppShell.
+      console.warn('Money tab export failed');
+    } finally {
+      setMoneyExporting(false);
+    }
+  }, [jobs, receipts, profile, moneyExporting]);
 
   const openDetailed = () => {
     // Profile-completeness gate removed (feat/zero-friction-entry, 2026-06-02).
@@ -1456,6 +1490,29 @@ export default function AppShell() {
           defaultMarkup={profile?.default_markup ?? 20}
         />
       )}
+
+      {/* ── Money tab — export format sheet ──────────────────────────────────── */}
+      <ExportFormatSheet
+        open={moneyExportSheetOpen}
+        title="Export for your accountant"
+        subtitle="Pick a format. Both download straight to your phone."
+        options={[
+          {
+            id: 'csv',
+            icon: '📊',
+            label: 'Spreadsheet (CSV)',
+            sublabel: 'For your accountant or Excel',
+          },
+          {
+            id: 'pdf',
+            icon: '📄',
+            label: 'PDF summary',
+            sublabel: 'A clean sheet you can send',
+          },
+        ]}
+        onPick={handleMoneyExportFormatPick}
+        onClose={() => setMoneyExportSheetOpen(false)}
+      />
     </>
   );
 }
