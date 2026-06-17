@@ -1224,6 +1224,14 @@ function JobsTable({ jobs, receipts, selectedStage, showAll, profile, onJobSelec
           const stage = deriveDisplayStatus(job);
           const amountStr = '£' + formatAmount(row.invoiced);
           const customer = row.customer || 'Untitled';
+          // Mirror the JobTile primary/secondary label logic so the compact row
+          // shows the same identity as the tile: summary is the primary descriptor,
+          // customer is the name. When both exist and differ, display customer as
+          // the emphasis line and summary as the sub-label so each row is distinct.
+          const jobSummary = (row.summary || '').trim();
+          const customerName = customer.trim();
+          const compactPrimary = customerName;
+          const compactSub = (jobSummary && jobSummary !== customerName) ? jobSummary : '';
           const profitVal = row.profit;
           const hasRevenue = row.invoiced > 0;
           // Determine which jobs have cost data logged (any receipt for this job)
@@ -1256,19 +1264,27 @@ function JobsTable({ jobs, receipts, selectedStage, showAll, profile, onJobSelec
               </span>
             );
           } else {
-            // Free: blur the number, keep the word "made" visible
+            // Free: show blurred figure with an inline compact lock badge.
+            // We avoid the full <ProGate> card wrapper here — its absolute-positioned
+            // badge overflows a single-line metadata row. Instead we render an
+            // inline-flex unit: "made £•••  🔒Pro" all on one line, vertically
+            // self-contained within the row's line-height.
             const profitStr = formatProfit(profitVal);
             const isLoss = profitVal < 0;
             const absStr = formatProfit(Math.abs(profitVal));
             profitContent = (
-              <span className="jt-compact-profit" onClick={e => e.stopPropagation()}>
-                {isLoss ? 'lost ' : 'made '}
-                <ProGate locked hasValue onUpgrade={onUpgrade}>
-                  <span className={`pro-gate__figure jt-profit-figure${isLoss ? ' jt-profit-figure--loss' : ''}`}>
-                    {isLoss ? absStr.replace('-', '') : profitStr}
-                  </span>
-                </ProGate>
-              </span>
+              <button
+                type="button"
+                className={`jt-compact-profit jt-compact-profit--locked${isLoss ? ' jt-compact-profit--loss' : ''}`}
+                aria-label="Upgrade to Pro to see profit"
+                onClick={e => { e.stopPropagation(); onUpgrade?.(); }}
+              >
+                <span className="jt-compact-profit__word">{isLoss ? 'lost' : 'made'}</span>
+                <span className="jt-compact-profit__blurred" aria-hidden="true">
+                  {isLoss ? absStr.replace('-', '') : profitStr}
+                </span>
+                <span className="jt-compact-profit__badge" aria-hidden="true">Pro</span>
+              </button>
             );
           }
 
@@ -1289,7 +1305,12 @@ function JobsTable({ jobs, receipts, selectedStage, showAll, profile, onJobSelec
                 onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onJobSelect(job); } }}
               >
                 <div className="jt-compact-line1">
-                  <span className="jt-compact-customer">{customer}</span>
+                  <span className="jt-compact-name-block">
+                    <span className="jt-compact-customer">{compactPrimary}</span>
+                    {compactSub && (
+                      <span className="jt-compact-summary">{compactSub}</span>
+                    )}
+                  </span>
                   <span className="jt-compact-amount">{amountStr}</span>
                 </div>
                 <div className="jt-compact-line2">
