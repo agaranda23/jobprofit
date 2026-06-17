@@ -200,6 +200,14 @@ button:focus-visible {
   --cf-navy:      #2563eb;
   --cf-track-bg:  rgba(0, 0, 0, 0.06);
   --cf-empty-color: #9ca3af;
+
+  /* Surface variants used by jd-card, visit-editor-sheet, photo-source-sheet, etc.
+     Dark default = #142035 / #111827. Light = neutral white-surface. */
+  --surface-raised: #ffffff;
+  --card-bg:        #ffffff;
+
+  /* DrawerAvatar border — dark uses rgba(255,255,255,0.12) which is invisible on white */
+  --avatar-border: rgba(0, 0, 0, 0.12);
 }
 
 /* Status badge backgrounds in light mode — tints on white rather than
@@ -237,6 +245,358 @@ button:focus-visible {
 
 /* action-secondary hover is hardcoded to a near-dark hex — swap to token */
 [data-theme="light"] .action-secondary:hover {
+  background: var(--surface-2);
+}
+
+/* ── LIGHT-THEME-PARITY FIXES ───────────────────────────────────────────────
+   The rules below fix hardcoded dark-mode colours that bleed into light mode.
+   Each fix is scoped to [data-theme="light"] so dark is pixel-identical.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+/* 1. Bottom nav — hardcoded #0d1014 background (already overridden above) is
+   correct. Also fix the hardcoded rgba(255,255,255,0.09) top border. */
+[data-theme="light"] .bottom-nav {
+  border-top-color: #e5e7eb;
+}
+
+/* 2. .action-secondary hover — already done above. Also fix base .action-secondary
+   which inherits the global dark default correctly via token; no extra rule needed. */
+
+/* 3. .payment-method-btn:hover — hardcoded #242d36 (dark surface) */
+[data-theme="light"] .payment-method-btn:hover {
+  background: var(--surface-2);
+}
+
+/* 4. .unpaid-chip — dark amber background #3a2a1a (already overridden above).
+   Ensure the chip background on the calendar unscheduled list also flips. */
+[data-theme="light"] .wc-unscheduled-chip {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+/* 5. Stage chip dropdown / bottom sheet — hardcoded #1E2422 dark surface */
+[data-theme="light"] .jt-menu--dropdown,
+[data-theme="light"] .jt-menu--sheet {
+  background: #ffffff;
+}
+
+/* 6. Stage chip grab handle — hardcoded #4B5563 (dark grey) */
+[data-theme="light"] .jt-sheet-grab {
+  background: #d1d5db;
+}
+
+/* 7. .jt-action-chip — hardcoded #23282b dark surface */
+[data-theme="light"] .jt-action-chip {
+  background: var(--surface-2);
+}
+[data-theme="light"] .jt-action-chip:hover {
+  background: var(--surface-expanded);
+}
+
+/* 8. DSO overlay — hardcoded #fff title and #E5E7EB text colours.
+   In light mode #fff text on white dso-sheet is invisible. */
+[data-theme="light"] .dso-header__title {
+  color: var(--text);
+}
+[data-theme="light"] .dso-row {
+  color: var(--text);
+}
+[data-theme="light"] .dso-row__name {
+  color: var(--text);
+}
+[data-theme="light"] .dso-empty__title,
+[data-theme="light"] .dso-no-results__title {
+  color: var(--text);
+}
+[data-theme="light"] .dso-row:active {
+  background: var(--surface-2);
+}
+
+/* 9. foreman-invoice-picker items — hardcoded #E5E7EB text, #1F2B44 border */
+[data-theme="light"] .foreman-invoice-picker-item {
+  color: var(--text);
+  border-bottom-color: var(--border);
+}
+[data-theme="light"] .foreman-invoice-picker-item:active {
+  background: var(--surface-2);
+}
+[data-theme="light"] .foreman-invoice-picker-header {
+  border-bottom-color: var(--border);
+}
+
+/* 10. Chase bar components — dark-tuned gradients, hardcoded dark backgrounds */
+[data-theme="light"] .chase-bar {
+  background: #fee2e2;
+  border-color: #fca5a5;
+}
+[data-theme="light"] .chase-bar--predue {
+  background: #fef3c7;
+  border-color: #fde68a;
+}
+[data-theme="light"] .chase-bar--a.chase-bar--a-t3 {
+  background: #fee2e2;
+  border-color: #ef4444;
+}
+[data-theme="light"] .chase-bar-a-name,
+[data-theme="light"] .chase-bar-a-amount {
+  color: var(--text);
+}
+[data-theme="light"] .chase-bar-a-days,
+[data-theme="light"] .chase-bar-a-meta,
+[data-theme="light"] .chase-bar-a-queue {
+  color: #991b1b;
+}
+[data-theme="light"] .chase-bar-a-tier {
+  background: rgba(220, 38, 38, 0.12);
+  color: #991b1b;
+}
+[data-theme="light"] .chase-bar-a-tier--3 {
+  background: #dc2626;
+  color: #fff;
+}
+[data-theme="light"] .chase-bar--just-chased {
+  background: #d1fae5;
+  border-color: #6ee7b7;
+}
+[data-theme="light"] .chase-bar--just-chased .chase-bar-a-name {
+  color: #065f46;
+}
+[data-theme="light"] .chase-bar--just-chased .chase-bar-a-meta {
+  color: #047857;
+}
+[data-theme="light"] .chase-bar--all-chased {
+  background: #d1fae5;
+  border-color: #a7f3d0;
+}
+[data-theme="light"] .chase-bar--all-chased .chase-bar-a-name {
+  color: #065f46;
+}
+[data-theme="light"] .chase-bar--blocked {
+  background: #f3f4f6;
+  border-color: #d1d5db;
+}
+[data-theme="light"] .chase-bar--blocked .chase-bar-a-name {
+  color: var(--text-dim);
+}
+[data-theme="light"] .chase-bar--blocked .chase-bar-a-meta {
+  color: var(--text-dim);
+}
+[data-theme="light"] .chase-bar-label--predue {
+  color: var(--text-dim);
+}
+[data-theme="light"] .chase-bar-btn--predue {
+  background: var(--jp-amber);
+}
+
+/* 11. jd-card / jd-breakdown-btn — hardcoded #142035 dark-navy surface-raised */
+[data-theme="light"] .jd-card {
+  background: var(--surface-raised);
+}
+[data-theme="light"] .jd-breakdown-btn {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+/* 12. Quote builder dark surfaces — #131C2D / #1F2B44 hardcoded dark navy */
+[data-theme="light"] .aj-quote-line-items {
+  background: var(--surface-2);
+  border-color: var(--border);
+}
+[data-theme="light"] .aj-quote-total-input {
+  border-bottom-color: var(--border);
+  color: var(--text);
+}
+[data-theme="light"] .aj-quote-currency {
+  color: var(--text);
+}
+[data-theme="light"] .aj-quote-line-desc,
+[data-theme="light"] .aj-quote-line-cost {
+  color: var(--text);
+  border-bottom-color: var(--border);
+}
+[data-theme="light"] .aj-quote-line-currency {
+  color: var(--text-dim);
+}
+[data-theme="light"] .aj-quote-line-remove {
+  color: var(--text-dim);
+}
+[data-theme="light"] .aj-quote-add-line-btn {
+  color: var(--text-dim);
+  border-color: var(--border);
+}
+[data-theme="light"] .aj-quote-line-total {
+  border-top-color: var(--border);
+}
+[data-theme="light"] .aj-quote-items-title {
+  color: var(--text-dim);
+}
+
+/* 13. Margin section — dark purple tint + hardcoded dark text */
+[data-theme="light"] .aj-margin-section {
+  background: rgba(99, 102, 241, 0.05);
+  border-color: rgba(99, 102, 241, 0.2);
+}
+[data-theme="light"] .aj-margin-cost-label-text {
+  color: var(--text-dim);
+}
+[data-theme="light"] .aj-margin-cost-input {
+  color: var(--text);
+}
+[data-theme="light"] .aj-margin-cost-input::placeholder {
+  color: var(--text-dim);
+}
+[data-theme="light"] .aj-margin-cost-input-wrap {
+  border-bottom-color: var(--border);
+}
+[data-theme="light"] .aj-margin-cost-helper,
+[data-theme="light"] .aj-margin-nudge,
+[data-theme="light"] .aj-margin-reassurance {
+  color: var(--text-dim);
+}
+[data-theme="light"] .aj-margin-trigger {
+  color: var(--text-dim);
+}
+[data-theme="light"] .aj-margin-trigger-arrow {
+  color: var(--text-dim);
+}
+[data-theme="light"] .aj-margin-profit {
+  color: var(--accent);
+}
+[data-theme="light"] .aj-margin-pct {
+  color: var(--text-dim);
+}
+[data-theme="light"] .aj-margin-pct--loss {
+  color: var(--jp-amber);
+}
+[data-theme="light"] .aj-margin-markup-reveal-btn {
+  color: #6366f1;
+}
+[data-theme="light"] .aj-margin-markup-teach {
+  color: var(--text-dim);
+  border-left-color: #6366f1;
+}
+
+/* 14. Accepted quote banner — dark green tinted surface */
+[data-theme="light"] .accepted-banner {
+  background: rgba(0, 168, 107, 0.08);
+  border-color: rgba(0, 168, 107, 0.3);
+}
+[data-theme="light"] .accepted-banner__row {
+  border-bottom-color: rgba(0, 168, 107, 0.15);
+}
+[data-theme="light"] .accepted-banner__label {
+  color: #065f46;
+}
+[data-theme="light"] .accepted-banner__date,
+[data-theme="light"] .accepted-banner__open,
+[data-theme="light"] .accepted-banner__dismiss {
+  color: rgba(6, 95, 70, 0.55);
+}
+[data-theme="light"] .accepted-banner__dismiss {
+  border-left-color: rgba(0, 168, 107, 0.15);
+}
+/* Accepted toast — dark green glass panel */
+[data-theme="light"] .nav-toast--accepted {
+  background: rgba(0, 168, 107, 0.1);
+  border-color: rgba(0, 168, 107, 0.35);
+  color: #065f46;
+}
+
+/* 15. Receipt card — hardcoded near-black surfaces */
+[data-theme="light"] .receipt-card {
+  background: #f8fafc;
+  border-color: #e2e8f0;
+  color: var(--text);
+}
+[data-theme="light"] .receipt-biz-name,
+[data-theme="light"] .receipt-customer,
+[data-theme="light"] .receipt-line-amount,
+[data-theme="light"] .receipt-total-label {
+  color: var(--text);
+}
+[data-theme="light"] .receipt-biz-address,
+[data-theme="light"] .receipt-heading-date,
+[data-theme="light"] .receipt-summary-text,
+[data-theme="light"] .receipt-line-desc,
+[data-theme="light"] .receipt-thankyou {
+  color: var(--text-dim);
+}
+[data-theme="light"] .receipt-divider {
+  border-top-color: var(--border);
+}
+[data-theme="light"] .receipt-heading-label {
+  color: #065f46;
+}
+[data-theme="light"] .receipt-total-value {
+  color: #065f46;
+}
+[data-theme="light"] .receipt-paid-stamp {
+  background: #d1fae5;
+  color: #065f46;
+}
+
+/* 16. Drawer avatar border — rgba(255,255,255,0.12) invisible on white */
+[data-theme="light"] .drawer-avatar {
+  border-color: var(--avatar-border);
+}
+
+/* 17. ProGate lock badge — rgba(255,255,255,0.08/0.12) panels on white */
+[data-theme="light"] .pro-gate__lock-badge {
+  background: rgba(0, 0, 0, 0.04);
+  border-color: rgba(0, 0, 0, 0.10);
+}
+[data-theme="light"] .money-hero__true-profit-locked-badge {
+  background: rgba(0, 0, 0, 0.05);
+  border-color: rgba(0, 0, 0, 0.10);
+}
+
+/* 18. visit-editor-sheet / photo-source-sheet — hardcoded #111827 */
+[data-theme="light"] .visit-editor-sheet,
+[data-theme="light"] .photo-source-sheet {
+  background: var(--surface);
+}
+
+/* 19. Settings complete-banner — dark amber surface #3a2a0a */
+[data-theme="light"] .settings-complete-banner {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+/* 20. sync-badge on light — dark green glass pill */
+[data-theme="light"] .sync-badge {
+  background: rgba(0, 168, 107, 0.92);
+  color: #fff;
+  border-color: rgba(0, 168, 107, 0.5);
+}
+[data-theme="light"] .sync-badge--syncing {
+  background: rgba(37, 99, 235, 0.9);
+  color: #fff;
+  border-color: rgba(37, 99, 235, 0.4);
+}
+[data-theme="light"] .sync-badge--stuck {
+  background: rgba(180, 83, 9, 0.9);
+  border-color: rgba(245, 158, 11, 0.4);
+  color: #fff;
+}
+[data-theme="light"] .sync-badge--stuck-auth {
+  background: rgba(185, 28, 28, 0.9);
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #fff;
+}
+
+/* 21. import-skipped-list — rgba(255,255,255,0.04) = white-on-white in light */
+[data-theme="light"] .import-skipped-list {
+  background: var(--surface-2);
+  border-color: var(--border);
+}
+
+/* 22. jd-chip--quote — rgba(255,255,255,0.06) transparent on white */
+[data-theme="light"] .jd-chip--quote {
+  background: var(--surface-2);
+}
+
+/* 23. .jt-dots hover — rgba(255,255,255,0.06) is invisible on light */
+[data-theme="light"] .jt-dots:hover {
   background: var(--surface-2);
 }
 
