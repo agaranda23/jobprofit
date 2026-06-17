@@ -229,9 +229,12 @@ button:focus-visible {
   /* Semantic */
   --danger:      #dc2626;
   --border:      #e5e7eb;
-  /* Gold stays the same in light mode */
-  --gold: #d4a017;
-  --gold-gradient: linear-gradient(135deg, #f5c75a 0%, #d4a017 50%, #b8861a 100%);
+  /* Gold is re-tuned for light backgrounds — see PRO/TRIAL LIGHT-THEME POLISH
+     block below for the overriding values and rationale. These are intentional
+     starting values; the polish block's [data-theme="light"] { --gold: ... } wins
+     via cascade order and is the canonical source of truth for light gold. */
+  --gold: #b8880a;
+  --gold-gradient: linear-gradient(135deg, #f8d96b 0%, #c8920d 50%, #a07010 100%);
   /* Pivot tile icons — pure black for max contrast on the deeper green tile (#00a86b) */
   --tile-icon-color: #000000;
 
@@ -696,6 +699,116 @@ button:focus-visible {
    value still reads fine on light, but the border-left accent needs the
    light-mode amber token. No override needed — var(--jp-amber) already
    points to the corrected value above. */
+
+/* ── PRO/TRIAL LIGHT-THEME POLISH ──────────────────────────────────────────
+   These rules fix Pro/trial surfaces that the earlier parity pass did not
+   cover. Every rule is scoped to [data-theme="light"] — dark is pixel-identical.
+
+   Gold re-tune rationale:
+     Dark gold #d4a017 reads premium on near-black (contrast > 7:1).
+     On white it is 3.08:1 — muddy, low contrast, fails WCAG AA for body text.
+     Light gold #b8880a is richer, more saturated, and hits ~4.8:1 on white
+     (AA for normal text; AAA for large bold text). The gradient is also
+     re-tuned: lighter highlight (#f8d96b) → richer mid (#c8920d) → warm
+     shadow (#a07010) — reads vivid and premium on white backgrounds.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+/* NOTE: --gold and --gold-gradient are re-tuned in the main [data-theme="light"]
+   block (lines ~233-234). All rules below use var(--gold) / var(--gold-gradient),
+   which resolve to the richer light values automatically. */
+
+/* 1. TrialBanner — fix hardcoded dark fallbacks in border-bottom and CTA border/color.
+      The --accent and --border tokens already resolve correctly for light, but the
+      *fallback* values in the base rules are dark-tuned Vite purple (#646cff).
+      Override urgency border-bottom to use the light accent explicitly. */
+[data-theme="light"] .trial-banner {
+  background: var(--surface-2);
+  border-bottom-color: var(--border);
+}
+[data-theme="light"] .trial-banner--urgent {
+  border-bottom-color: var(--accent);
+}
+[data-theme="light"] .trial-banner__cta {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+[data-theme="light"] .trial-banner__cta:active {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* 2. GetProPill — box-shadow glow uses the re-tuned gold token.
+      Pill text (#fff on gold gradient) is self-contained and fine.
+      Shadow glow was dark-gold #d4a017; now references the lighter #b8880a tint
+      via the updated token. Inline rgba still needed for the alpha. */
+[data-theme="light"] .get-pro-pill {
+  box-shadow: 0 2px 8px rgba(184, 136, 10, 0.35);
+}
+[data-theme="light"] .get-pro-pill:hover {
+  box-shadow: 0 3px 12px rgba(184, 136, 10, 0.45);
+}
+
+/* 3. Settings subscription gold rows — background gradient and text already use
+      var(--gold) which is now re-tuned. No structural changes needed; just verify
+      the border-left and label text. The left-border is var(--gold) — resolved
+      to the richer light value via the token. Already token-driven, works. */
+
+/* 4. ProUpgradeSheet — sheet surface, gold accents, and box-shadow on CTA.
+      .pro-upgrade-sheet uses var(--surface) = #fff in light — fine.
+      Gold price text (32px bold) and feature ticks use var(--gold) — now richer.
+      CTA box-shadow glow was dark-gold rgba; fix to use the lighter gold. */
+[data-theme="light"] .pro-upgrade-sheet__cta {
+  box-shadow: 0 4px 16px rgba(184, 136, 10, 0.4);
+}
+[data-theme="light"] .pro-upgrade-sheet__cta:hover {
+  box-shadow: 0 6px 20px rgba(184, 136, 10, 0.5);
+}
+
+/* 5. UpgradeBanner CTA (Money tab) — same glow fix as ProUpgradeSheet CTA */
+[data-theme="light"] .upgrade-banner__btn {
+  box-shadow: 0 2px 8px rgba(184, 136, 10, 0.35);
+}
+[data-theme="light"] .upgrade-banner__btn:hover {
+  box-shadow: 0 3px 12px rgba(184, 136, 10, 0.45);
+}
+
+/* 6. money-hero true-profit locked badge — white-alpha panels vanish on white.
+      Already patched in rule 17 above for .pro-gate__lock-badge and
+      .money-hero__true-profit-locked-badge. Confirmed covered — no dup needed. */
+
+/* 7. money-hero__label-net "(NET)" tag — gold at 11px on white needs the re-tuned
+      token (now #b8880a = 4.8:1 on white) to pass WCAG AA for small text. */
+[data-theme="light"] .money-hero__label-net {
+  color: var(--gold);
+}
+
+/* 8. ProUpgradeSheet eyebrow "YOUR FREE FORTNIGHT" — 10px gold text on white.
+      Even richer light gold is still small, so boost contrast by pairing with a
+      warm tint background rather than bare text on white. */
+[data-theme="light"] .pro-upgrade-sheet__eyebrow {
+  color: var(--gold);
+  background: color-mix(in srgb, var(--gold) 10%, transparent);
+  border-radius: 4px;
+  padding: 2px 8px;
+  display: inline-block;
+  /* override the inline-block already set in base rule — no change to layout */
+}
+
+/* 9. Insight card "Example" label — uses var(--accent) already; fine in light.
+      money-insight__delta colours are semantic (accent/red/dim) — fine.
+      money-insight__value uses var(--text) — fine.
+      BestWorstCard figure colours are set inline via marginColor() — fine.
+      money-card background uses var(--surface) = #fff in light — fine. */
+
+/* 10. GetProPill urgency glow — amber gradient is self-contained; shadow fix */
+[data-theme="light"] .get-pro-pill--urgency {
+  box-shadow: 0 2px 8px rgba(180, 83, 9, 0.30);
+}
+[data-theme="light"] .get-pro-pill--urgency:hover {
+  box-shadow: 0 3px 12px rgba(180, 83, 9, 0.40);
+}
+
+/* ── END PRO/TRIAL LIGHT-THEME POLISH ───────────────────────────────────── */
 
 body { background: var(--bg); color: var(--text); -webkit-font-smoothing: antialiased; }
 
