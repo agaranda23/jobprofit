@@ -262,7 +262,7 @@ export default function SyncBadge({ onSignIn }) {
         <div className="modal-overlay" role="dialog" aria-modal="true" aria-label="Sync error details">
           <div className="modal-card">
             <p className="modal-card-title">Sync error</p>
-            <p className="modal-card-body" style={{ fontFamily: 'monospace', fontSize: 13, wordBreak: 'break-all' }}>
+            <p className="modal-card-body" style={{ fontFamily: 'monospace', fontSize: 'var(--fs-label)', wordBreak: 'break-all' }}>
               {errorState.lastError?.message || String(errorState.lastError) || 'Unknown error'}
             </p>
             <div className="modal-card-actions">

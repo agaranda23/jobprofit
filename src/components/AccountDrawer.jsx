@@ -74,7 +74,7 @@ export default function AccountDrawer({ open, session, profile, onClose, onSignO
           {required.map(r => (
             <div key={r.label} className="drawer-row">
               <span className="drawer-row-label">{r.label}</span>
-              <span style={{ color: r.done ? 'var(--jp-green)' : 'var(--jp-amber)', fontSize: 13 }}>
+              <span style={{ color: r.done ? 'var(--jp-green)' : 'var(--jp-amber)', fontSize: 'var(--fs-label)' }}>
                 {r.done ? '✓' : '–'}
               </span>
             </div>
@@ -108,7 +108,7 @@ export default function AccountDrawer({ open, session, profile, onClose, onSignO
               >
                 {r.label}
               </span>
-              <span style={{ color: 'var(--text-dim)', fontSize: 16 }}>›</span>
+              <span style={{ color: 'var(--text-dim)', fontSize: 'var(--fs-body)' }}>›</span>
             </div>
           ))}
         </div>

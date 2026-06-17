@@ -295,11 +295,11 @@ function SignSection({ token, onAccepted }) {
           style={{ marginTop: 3, flexShrink: 0, width: 20, height: 20, cursor: 'pointer' }}
           aria-label="Accept terms and privacy policy"
         />
-        <span style={{ fontSize: 14, lineHeight: 1.5, color: 'var(--text, #1a1a1a)' }}>
+        <span style={{ fontSize: 'var(--fs-label)', lineHeight: 1.5, color: 'var(--text, #1a1a1a)' }}>
           I accept this quote and the{' '}
           <a href="/terms" target="_blank" rel="noopener" style={{ color: 'inherit', textDecoration: 'underline' }}>terms</a>.
           {' '}&middot;{' '}
-          <a href="/privacy" target="_blank" rel="noopener" style={{ color: 'inherit', textDecoration: 'underline', fontSize: 12, opacity: 0.75 }}>See how your details are used</a>
+          <a href="/privacy" target="_blank" rel="noopener" style={{ color: 'inherit', textDecoration: 'underline', fontSize: 'var(--fs-label)', opacity: 0.75 }}>See how your details are used</a>
         </span>
       </label>
       {consentNudge && !consentChecked && (
@@ -365,11 +365,11 @@ function BankDepositBlock({ depositPercent, depositAmountPence, accountName, sor
         <div className="pqv-deposit-block-sub">
           Pay by bank transfer to secure your booking
         </div>
-        <div className="pqv-bank-details" style={{ marginTop: 10, fontSize: 13, lineHeight: 1.7 }}>
+        <div className="pqv-bank-details" style={{ marginTop: 10, fontSize: 'var(--fs-label)', lineHeight: 1.7 }}>
           {accountName && <div><strong>Name:</strong> {accountName}</div>}
           <div><strong>Sort code:</strong> {sortCode}</div>
           <div><strong>Account:</strong> {accountNumber}</div>
-          <div style={{ marginTop: 6, color: 'var(--text-mid, #505050)', fontSize: 12 }}>
+          <div style={{ marginTop: 6, color: 'var(--text-mid, #505050)', fontSize: 'var(--fs-label)' }}>
             Use your name as the reference, then message your trader to confirm.
           </div>
         </div>
@@ -493,11 +493,11 @@ function DepositBlock({ _job, token, depositPercent, depositAmountPence, onAccep
           style={{ marginTop: 3, flexShrink: 0, width: 20, height: 20, cursor: 'pointer' }}
           aria-label="Accept terms and privacy policy"
         />
-        <span style={{ fontSize: 14, lineHeight: 1.5, color: 'var(--text, #1a1a1a)' }}>
+        <span style={{ fontSize: 'var(--fs-label)', lineHeight: 1.5, color: 'var(--text, #1a1a1a)' }}>
           I accept this quote and the{' '}
           <a href="/terms" target="_blank" rel="noopener" style={{ color: 'inherit', textDecoration: 'underline' }}>terms</a>.
           {' '}&middot;{' '}
-          <a href="/privacy" target="_blank" rel="noopener" style={{ color: 'inherit', textDecoration: 'underline', fontSize: 12, opacity: 0.75 }}>See how your details are used</a>
+          <a href="/privacy" target="_blank" rel="noopener" style={{ color: 'inherit', textDecoration: 'underline', fontSize: 'var(--fs-label)', opacity: 0.75 }}>See how your details are used</a>
         </span>
       </label>
       {consentNudge && !consentChecked && (

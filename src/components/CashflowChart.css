@@ -183,7 +183,7 @@
 }
 
 .cashflow-chart__empty-msg {
-  font-size: 0.9rem;
+  font-size: var(--fs-body);
   color: var(--cf-empty-color);
   margin: 0;
   line-height: 1.5;
@@ -231,7 +231,7 @@
   flex-wrap: wrap;
   gap: 6px 12px;
   padding: 8px 4px 6px 80px; /* left-indent aligns under bar track */
-  font-size: 0.8rem;
+  font-size: var(--fs-label);
   color: var(--text-dim);
   border-top: 1px solid var(--border);
   margin-top: 4px;
