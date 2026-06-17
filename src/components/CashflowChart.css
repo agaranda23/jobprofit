@@ -132,7 +132,8 @@
 /* Month label */
 
 .cashflow-chart__month-label {
-  font-size: 0.8rem;
+  font-size: var(--fs-metadata, 0.8125rem);
+  line-height: var(--lh-metadata, 1.4);
   color: var(--cf-empty-color);
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -162,11 +163,14 @@
   transition: width 0.25s ease-out;
 }
 
-/* Total label (right side) */
+/* Total label (right side) — Money-small: JetBrains Mono, 17px, weight 700 */
 
 .cashflow-chart__total-label {
-  font-size: 0.8rem;
-  font-weight: 600;
+  font-size: var(--fs-money-sm, 1.0625rem);
+  font-weight: var(--fw-money, 700);
+  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-variant-numeric: tabular-nums;
+  line-height: var(--lh-money-sm, 1.2);
   text-align: right;
   white-space: nowrap;
 }
@@ -256,20 +260,23 @@
 @media (max-width: 360px) {
   .cashflow-chart__row,
   .cashflow-chart__row--tappable {
-    grid-template-columns: 60px 1fr 50px;
+    /* 64px right column: JetBrains Mono 17px "£1,234" (6 chars) measures ~64px */
+    grid-template-columns: 56px 1fr 64px;
     gap: 5px;
   }
 
   .cashflow-chart__month-label {
-    font-size: 0.72rem;
+    /* Floor rule: nothing readable below 0.8125rem (13px). Keep Metadata token. */
+    font-size: var(--fs-metadata, 0.8125rem);
   }
 
   .cashflow-chart__total-label {
-    font-size: 0.72rem;
+    /* Narrow viewports: drop to Money-small (17px) but tighten the grid column above */
+    font-size: var(--fs-money-sm, 1.0625rem);
   }
 
   .cashflow-chart__detail {
     padding-left: 65px;
-    font-size: 0.75rem;
+    font-size: var(--fs-metadata, 0.8125rem);
   }
 }
