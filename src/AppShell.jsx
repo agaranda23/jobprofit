@@ -52,6 +52,7 @@ import {
   trialEndSheetDismissedToday,
   recordTrialEndSheetDismissed,
   isPro,
+  initTrialOnFirstUse,
 } from './lib/plan';
 import { formatChargeDate, shouldShowPreChargeReminder } from './lib/trialConversion';
 import { getJobProfit } from './lib/cashflow';
@@ -362,6 +363,17 @@ export default function AppShell() {
         // it synchronously when setting up the SpeechRecognition object.
         if (data.preferred_voice_lang) {
           localStorage.setItem('jp.voiceLang', data.preferred_voice_lang);
+        }
+        // ── First-use trial clock: start the 14-day window now if not yet set ─
+        // initTrialOnFirstUse is idempotent — it only writes when trial_ends_at
+        // is NULL, and guards against double-write with a localStorage flag per
+        // user + a server-side WHERE trial_ends_at IS NULL clause.
+        // The callback updates local state immediately so the banner reflects the
+        // correct day count on this load without waiting for refreshProfile again.
+        if (data.plan === 'trial' && !data.trial_ends_at) {
+          initTrialOnFirstUse(supabase, userId, data, (endsAt) => {
+            setProfile((prev) => ({ ...prev, trial_ends_at: endsAt }));
+          });
         }
         // ── Honesty fix: trial expiry handling ─────────────────────────────
         // Rule: NEVER flip silently. If the trial has expired and the user

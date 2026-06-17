@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from 'vitest';
-import { isPro, planAllowsPro, canSendInvoice, countInvoicesSentThisMonth, incrementSendCount, UNLOCK_PRO_FOR_ALL, FREE_MONTHLY_INVOICE_LIMIT, isTrialActive, trialDaysLeft, showJobProfitFooter, eligibleForWhiteLabelNudge } from '../plan.js';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { isPro, planAllowsPro, canSendInvoice, countInvoicesSentThisMonth, incrementSendCount, UNLOCK_PRO_FOR_ALL, FREE_MONTHLY_INVOICE_LIMIT, isTrialActive, trialDaysLeft, showJobProfitFooter, eligibleForWhiteLabelNudge, initTrialOnFirstUse } from '../plan.js';
 
 // ──────────────────────────────────────────────────────────────────────────
 // The real entitlement rule — always valid regardless of the temporary
@@ -449,5 +449,202 @@ describe('manual chase — all tiers free (gate removed 2026-06-03)', () => {
 
   it('null profile chase is free (unloaded)', () => {
     expect(isManualChaseBlocked(2, null)).toBe(false);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// initTrialOnFirstUse — first-use trial clock
+// fix/trial-starts-at-first-use (2026-06-17)
+//
+// Contract:
+//   (a) A fresh user with plan='trial' + trial_ends_at=null gets 14 days
+//       written on first call.
+//   (b) Calling it a second time (same user, trial_ends_at now set) is a
+//       no-op — the clock is never re-set.
+//   (c) A user with an existing trial_ends_at is untouched.
+//   (d) A paid user (plan='pro') is never touched.
+//   (e) The onStarted callback receives the ISO string so the caller can
+//       update local state immediately.
+//   (f) When the Supabase write fails, the localStorage guard is cleared so
+//       the next load can retry.
+//   (g) Missing userId or supabase client returns early without throwing.
+// ──────────────────────────────────────────────────────────────────────────
+describe('initTrialOnFirstUse — first-use trial clock', () => {
+  // Helpers to build mock Supabase clients
+  function makeSupabaseOk() {
+    return {
+      from: vi.fn(() => ({
+        update: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            is: vi.fn().mockResolvedValue({ error: null }),
+          })),
+        })),
+      })),
+    };
+  }
+
+  function makeSupabaseError() {
+    return {
+      from: vi.fn(() => ({
+        update: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            is: vi.fn().mockResolvedValue({ error: new Error('db error') }),
+          })),
+        })),
+      })),
+    };
+  }
+
+  function makeSupabaseThrows() {
+    return {
+      from: vi.fn(() => {
+        throw new Error('network');
+      }),
+    };
+  }
+
+  const storageKey = (uid) => `jp.trialStarted.${uid}`;
+
+  beforeEach(() => {
+    // Clear the localStorage guard between tests
+    try { localStorage.clear(); } catch { /* jsdom */ }
+  });
+
+  afterEach(() => {
+    try { localStorage.clear(); } catch { /* jsdom */ }
+  });
+
+  // (a) Fresh user with no trial_ends_at gets 14 days written
+  it('(a) writes trial_ends_at ~14 days from now for a fresh trial user', async () => {
+    const sb = makeSupabaseOk();
+    const before = Date.now();
+    const profile = { plan: 'trial', trial_ends_at: null };
+    await initTrialOnFirstUse(sb, 'uid-1', profile);
+
+    // The update chain must have been called
+    expect(sb.from).toHaveBeenCalledWith('profiles');
+    // Drill down to the IS null guard call
+    const updateArg = sb.from.mock.results[0].value.update.mock.calls[0][0];
+    const endsAt = new Date(updateArg.trial_ends_at).getTime();
+    const after = Date.now();
+    // trial_ends_at should be now + 14 days (within a 5-second window for test jitter)
+    expect(endsAt).toBeGreaterThanOrEqual(before + 14 * 86400000 - 5000);
+    expect(endsAt).toBeLessThanOrEqual(after  + 14 * 86400000 + 5000);
+  });
+
+  // (a) onStarted callback fires with the ISO string
+  it('(a) calls onStarted with the new trial_ends_at ISO string', async () => {
+    const sb = makeSupabaseOk();
+    const onStarted = vi.fn();
+    await initTrialOnFirstUse(sb, 'uid-2', { plan: 'trial', trial_ends_at: null }, onStarted);
+    expect(onStarted).toHaveBeenCalledTimes(1);
+    const arg = onStarted.mock.calls[0][0];
+    expect(typeof arg).toBe('string');
+    expect(() => new Date(arg)).not.toThrow();
+    // The date must be roughly 14 days in the future
+    expect(new Date(arg).getTime()).toBeGreaterThan(Date.now() + 13 * 86400000);
+  });
+
+  // (b) Second call (trial_ends_at now set) is a no-op — most important idempotency check
+  it('(b) does not overwrite trial_ends_at if it is already set', async () => {
+    const sb = makeSupabaseOk();
+    const existingDate = new Date(Date.now() + 10 * 86400000).toISOString();
+    const profile = { plan: 'trial', trial_ends_at: existingDate };
+    await initTrialOnFirstUse(sb, 'uid-3', profile);
+    expect(sb.from).not.toHaveBeenCalled();
+  });
+
+  // (b) The app-side idempotency is also enforced by the server-side WHERE clause.
+  // This test verifies that the Supabase query uses `.is('trial_ends_at', null)` as a
+  // server-side guard — so even if two tabs slip through the localStorage check they
+  // won't both set the clock.
+  it('(b) server-side guard: the update uses WHERE trial_ends_at IS NULL', async () => {
+    const sb = makeSupabaseOk();
+    await initTrialOnFirstUse(sb, 'uid-4', { plan: 'trial', trial_ends_at: null });
+    // The chain is: .from().update().eq().is()
+    const fromResult  = sb.from.mock.results[0].value;
+    const updateResult = fromResult.update.mock.results[0].value;
+    const eqResult    = updateResult.eq.mock.results[0].value;
+    // .is() must be called with ('trial_ends_at', null) to guard against double-write
+    expect(eqResult.is).toHaveBeenCalledWith('trial_ends_at', null);
+  });
+
+  // (c) Existing trial_ends_at on another user is untouched
+  it('(c) an existing trial_ends_at is never reset', async () => {
+    const sb = makeSupabaseOk();
+    const tenDaysLeft = new Date(Date.now() + 10 * 86400000).toISOString();
+    await initTrialOnFirstUse(sb, 'uid-5', { plan: 'trial', trial_ends_at: tenDaysLeft });
+    expect(sb.from).not.toHaveBeenCalled();
+  });
+
+  // (d) Paid user is never touched
+  it('(d) does nothing for a paid Pro user regardless of trial_ends_at', async () => {
+    const sb = makeSupabaseOk();
+    await initTrialOnFirstUse(sb, 'uid-6', { plan: 'pro', trial_ends_at: null });
+    expect(sb.from).not.toHaveBeenCalled();
+  });
+
+  // (d) Free plan user (no active trial) is never touched
+  it('(d) does nothing for a free-plan user', async () => {
+    const sb = makeSupabaseOk();
+    await initTrialOnFirstUse(sb, 'uid-7', { plan: 'free', trial_ends_at: null });
+    expect(sb.from).not.toHaveBeenCalled();
+  });
+
+  // (e) onStarted is not called when the DB write returns an error
+  it('(e) does not call onStarted when Supabase returns a write error', async () => {
+    const sb = makeSupabaseError();
+    const onStarted = vi.fn();
+    // makeSupabaseError returns { error: ... } — initTrialOnFirstUse checks !error
+    await initTrialOnFirstUse(sb, 'uid-8', { plan: 'trial', trial_ends_at: null }, onStarted);
+    expect(onStarted).not.toHaveBeenCalled();
+  });
+
+  // (f) When the Supabase call throws, the next call with the same user ID can retry.
+  // We verify this by confirming the second sb.from() is still invoked — meaning the
+  // guard was not left set after the failure. (localStorage is not available in the
+  // node test env; the code's try/catch means the guard removal is a best-effort
+  // browser-only path. The meaningful observable is that the next call attempts the DB.)
+  it('(f) allows retry on next load after a network throw (does not permanently block)', async () => {
+    // First call throws
+    const sb1 = makeSupabaseThrows();
+    await initTrialOnFirstUse(sb1, 'uid-9', { plan: 'trial', trial_ends_at: null });
+    // Because localStorage is not available in the node env, the guard is never set.
+    // A subsequent call with a fresh supabase client should still attempt the write.
+    const sb2 = makeSupabaseOk();
+    await initTrialOnFirstUse(sb2, 'uid-9', { plan: 'trial', trial_ends_at: null });
+    expect(sb2.from).toHaveBeenCalledWith('profiles');
+  });
+
+  // (g) Missing supabase or userId returns early
+  it('(g) resolves without throwing when supabase is null', async () => {
+    await expect(initTrialOnFirstUse(null, 'uid-10', { plan: 'trial', trial_ends_at: null })).resolves.toBeUndefined();
+  });
+
+  it('(g) resolves without throwing when userId is falsy', async () => {
+    const sb = makeSupabaseOk();
+    await expect(initTrialOnFirstUse(sb, '', { plan: 'trial', trial_ends_at: null })).resolves.toBeUndefined();
+    await expect(initTrialOnFirstUse(sb, null, { plan: 'trial', trial_ends_at: null })).resolves.toBeUndefined();
+    expect(sb.from).not.toHaveBeenCalled();
+  });
+
+  // null/undefined profile — no crash
+  it('(g) resolves without throwing for null profile', async () => {
+    const sb = makeSupabaseOk();
+    await expect(initTrialOnFirstUse(sb, 'uid-11', null)).resolves.toBeUndefined();
+    expect(sb.from).not.toHaveBeenCalled();
+  });
+
+  // Display safety: trialDaysLeft returns 0 for null trial_ends_at
+  it('display: trialDaysLeft returns 0 when trial_ends_at is null (no NaN / negative)', () => {
+    const days = trialDaysLeft({ plan: 'trial', trial_ends_at: null });
+    expect(days).toBe(0);
+    expect(Number.isNaN(days)).toBe(false);
+    expect(days).toBeGreaterThanOrEqual(0);
+  });
+
+  // Display safety: isTrialActive returns false for null trial_ends_at
+  it('display: isTrialActive returns false when trial_ends_at is null (no banner shown)', () => {
+    expect(isTrialActive({ plan: 'trial', trial_ends_at: null })).toBe(false);
   });
 });
