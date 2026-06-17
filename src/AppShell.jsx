@@ -531,6 +531,24 @@ export default function AppShell() {
         if (hasRemoteSig) {
           const prev = jobsRef.current.find(j => j.id === incoming.id);
           const prevHadSig = !!(prev?.acceptedSignature);
+
+          // Sync acceptance fields into localStorage BEFORE refreshFromCloud().
+          // applyJobMetaToJobs overlays localStorage on top of cloud data, so
+          // without this the stale localStorage quoteStatus:'sent' would win over
+          // the cloud's quoteStatus:'accepted', leaving the trader's view stuck
+          // showing "Awaiting {name}'s go-ahead" even after the customer signed.
+          if (!prevHadSig && incoming.id) {
+            writeJobMeta(incoming.id, {
+              quoteStatus:       'accepted',
+              status:            incomingMeta.status ?? 'active',
+              jobStatus:         'active',
+              acceptedAt:        incomingMeta.acceptedAt,
+              acceptedName:      incomingMeta.acceptedName ?? null,
+              acceptedSource:    'remote',
+              acceptedSignature: incomingMeta.acceptedSignature,
+            });
+          }
+
           if (!prevHadSig) {
             const customerName = incomingMeta.acceptedName || incoming.customer_name || prev?.customer || prev?.name || 'Customer';
             const amount = Number(prev?.total ?? prev?.amount ?? incomingMeta.total ?? 0) || 0;
