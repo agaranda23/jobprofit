@@ -39,6 +39,64 @@ export function planAllowsPro(profile) {
 }
 
 /**
+ * Sets trial_ends_at = now() + 14 days the FIRST time a user loads the app
+ * while their trial clock has not yet been started (trial_ends_at is NULL).
+ *
+ * IDEMPOTENT: does nothing if trial_ends_at is already set, or if the user
+ * is not on plan='trial', or if they are already paid (plan='pro').
+ *
+ * RACE-CONDITION GUARD: a simple localStorage flag (jp.trialStarted.<uid>)
+ * prevents two tabs / rapid reloads from issuing concurrent Supabase UPDATEs.
+ * The Supabase UPDATE itself uses a WHERE trial_ends_at IS NULL clause as a
+ * server-side guard so a duplicate write is a harmless no-op.
+ *
+ * Fire-and-forget: the caller does NOT await this. Errors are swallowed — the
+ * worst case is the trial banner shows "not started" state for one more load.
+ * The profile refresh in refreshProfile() will pick up the persisted value on
+ * the next fetch.
+ *
+ * @param {object} supabaseClient - Supabase client
+ * @param {string} userId         - auth user id
+ * @param {object|null} profile   - current profiles row (may have trial_ends_at = null)
+ * @param {function} [onStarted]  - optional callback fired after the DB write so the
+ *                                  caller can optimistically update local profile state
+ *                                  with the new trial_ends_at. Receives the ISO string.
+ * @returns {Promise<void>}
+ */
+export async function initTrialOnFirstUse(supabaseClient, userId, profile, onStarted) {
+  if (!supabaseClient || !userId) return;
+  // Only applies to users on the 'trial' plan with no clock yet.
+  if (profile?.plan !== 'trial') return;
+  if (profile?.trial_ends_at) return; // clock already running — do nothing
+  if (profile?.plan === 'pro') return;
+
+  // Per-device guard: prevent two concurrent tabs from both writing.
+  const storageKey = `jp.trialStarted.${userId}`;
+  try {
+    if (localStorage.getItem(storageKey)) return; // another tab already wrote it this session
+    localStorage.setItem(storageKey, '1');
+  } catch {
+    // Private browsing / quota exceeded — skip the local guard but still attempt the write.
+  }
+
+  try {
+    const endsAt = new Date(Date.now() + 14 * 86400000).toISOString();
+    const { error } = await supabaseClient
+      .from('profiles')
+      .update({ trial_ends_at: endsAt })
+      .eq('id', userId)
+      .is('trial_ends_at', null); // server-side idempotency guard: only write when still NULL
+    if (!error) {
+      onStarted?.(endsAt);
+    }
+  } catch {
+    // Offline or network error — the clock will be set on the next authenticated load.
+    // Clear the local guard so the next load retries.
+    try { localStorage.removeItem(`jp.trialStarted.${userId}`); } catch { /* private browsing */ }
+  }
+}
+
+/**
  * Returns true when the user is on an active 14-day trial.
  * Null-safe: returns false if any required field is missing.
  *

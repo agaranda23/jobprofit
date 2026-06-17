@@ -1748,6 +1748,22 @@ function LogoModal({ currentUrl, session, onSave, onClose }) {
 //   The FoundingMemberCard sits in the same pinned slot, above category rows.
 
 function SubscriptionCard({ profile, openUpgradeSheet }) {
+  // Trial not yet started: plan='trial' but trial_ends_at is null.
+  // This window is brief (one app load while initTrialOnFirstUse writes to DB).
+  // Show a neutral "starting" label instead of "0 days left" or "Free".
+  if (!UNLOCK_PRO_FOR_ALL && profile?.plan === 'trial' && !profile?.trial_ends_at) {
+    return (
+      <SectionCard title="Subscription">
+        <Row label="Current plan" value="Free trial · starting" chevron={false} />
+        <Row
+          label="Add card to stay Pro"
+          action="£12/mo"
+          onTap={() => openUpgradeSheet(UPGRADE_TRIGGERS.SETTINGS)}
+          highlight
+        />
+      </SectionCard>
+    );
+  }
   if (!UNLOCK_PRO_FOR_ALL && isTrialActive(profile)) {
     return (
       <SectionCard title="Subscription">
