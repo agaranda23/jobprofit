@@ -16771,10 +16771,10 @@ button.jd-money-chip:active { opacity: 0.75; }
 .jt-compact-row {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 3px;
   width: 100%;
   min-height: 44px;
-  padding: 10px 16px;
+  padding: 7px 16px;
   border-bottom: 1px solid var(--border);
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
@@ -16799,9 +16799,17 @@ button.jd-money-chip:active { opacity: 0.75; }
 
 .jt-compact-line1 {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   justify-content: space-between;
   gap: 8px;
+}
+
+/* Name block: stacks customer + summary vertically, shrinks to give amount space */
+.jt-compact-name-block {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 /* Name ellipsises; money is sacred and never wraps/shrinks */
@@ -16809,11 +16817,19 @@ button.jd-money-chip:active { opacity: 0.75; }
   font-size: 15px;
   font-weight: 500;
   color: var(--text);
-  flex: 1 1 auto;
-  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Job title/summary — secondary line under customer name */
+.jt-compact-summary {
+  font-size: var(--fs-metadata);
+  color: var(--text-dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  margin-top: 1px;
 }
 
 .jt-compact-amount {
@@ -16874,6 +16890,69 @@ button.jd-money-chip:active { opacity: 0.75; }
   text-decoration-style: dotted;
   min-height: 0;
   /* not Pro-gated — tapping opens the drawer for everyone */
+}
+
+/* Free-user locked profit — inline-flex unit, self-contained in one line.
+   Replaces the full <ProGate> card wrapper (which uses absolute positioning
+   designed for large Money cards, causing overflow in metadata-height rows). */
+.jt-compact-profit--locked {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-size: var(--fs-metadata);
+  cursor: pointer;
+  min-height: 0;
+  /* Inherit colour from the parent profit span (green/red per profit sign) */
+  color: inherit;
+}
+
+.jt-compact-profit__word {
+  /* "made" / "lost" label — readable, unblurred */
+  flex: 0 0 auto;
+}
+
+.jt-compact-profit__blurred {
+  /* The number — intentionally blurred. filter is applied only to the number
+     span (not the word or badge) so they stay legible. blur(4px) is enough at
+     --fs-metadata size (vs blur(6px) used on large Money cards); more than 4px
+     would smear into an invisible smudge at this scale. */
+  filter: blur(4px);
+  user-select: none;
+  pointer-events: none;
+  font-family: 'JetBrains Mono', monospace;
+  font-variant-numeric: tabular-nums;
+  flex: 0 0 auto;
+}
+
+.jt-compact-profit__badge {
+  /* Compact "Pro" badge — pill shape, gold-tinted, sits inline after the figure.
+     No absolute positioning; flows in the normal inline-flex row. */
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 5px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: var(--gold, #d4a017);
+  background: rgba(212, 160, 23, 0.12);
+  border: 1px solid rgba(212, 160, 23, 0.35);
+  border-radius: 20px;
+  flex: 0 0 auto;
+  line-height: 1.4;
+}
+
+[data-theme="light"] .jt-compact-profit__badge {
+  background: rgba(212, 160, 23, 0.10);
+  border-color: rgba(212, 160, 23, 0.45);
+}
+
+/* Tap state for the locked button */
+.jt-compact-profit--locked:active {
+  opacity: 0.7;
 }
 
 /* ── Desktop/tablet 6-column sortable grid (≥768px) ──────────────────────── */
