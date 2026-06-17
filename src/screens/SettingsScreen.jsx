@@ -2614,7 +2614,7 @@ export default function SettingsScreen({
           />
           <ItemiseDocumentsRow
             profile={profile}
-            onProfileUpdate={onProfileUpdate}
+            onProfileUpdate={handleSave}
           />
         </SectionCard>
 
@@ -2645,7 +2645,7 @@ export default function SettingsScreen({
             }
             onTap={onNavigateToCardPayments}
           />
-          <DefaultDepositRow profile={profile} onProfileUpdate={onProfileUpdate} />
+          <DefaultDepositRow profile={profile} onProfileUpdate={handleSave} />
         </SectionCard>
 
         <div style={{ height: 32 }} />
@@ -2677,7 +2677,7 @@ export default function SettingsScreen({
         >
           <RemindJobCostsRow
             profile={profile}
-            onProfileUpdate={onProfileUpdate}
+            onProfileUpdate={handleSave}
           />
         </SectionCard>
 
