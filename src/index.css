@@ -16763,7 +16763,11 @@ button.jd-money-chip:active { opacity: 0.75; }
 .jt-table-compact {
   list-style: none;
   margin: 0;
-  padding: 0 0 env(safe-area-inset-bottom, 0);
+  /* padding-bottom clears the fixed bottom nav bar. --nav-clearance is
+     calc(64px + env(safe-area-inset-bottom)), so safe-area is already covered.
+     Previously this was only env(safe-area-inset-bottom, 0) — insufficient on
+     non-notched devices and the root cause of the last-row-cut-off bug. */
+  padding: 0 0 var(--nav-clearance);
 }
 
 /* Row is now a div[role="button"] so ProGate's <button> can legally nest.
@@ -16960,6 +16964,9 @@ button.jd-money-chip:active { opacity: 0.75; }
 .jt-table-grid-wrap {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
+  /* padding-bottom clears the fixed bottom nav bar on desktop table view.
+     Matches the clearance applied to .jt-table-compact and .job-list. */
+  padding-bottom: var(--nav-clearance);
 }
 
 .jt-table-grid {
