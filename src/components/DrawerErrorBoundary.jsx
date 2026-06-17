@@ -47,7 +47,7 @@ export default class DrawerErrorBoundary extends React.Component {
             <div className="job-detail-sheet-handle" aria-hidden="true" />
             <div style={{ marginTop: 16, textAlign: 'center' }}>
               <p style={{ fontWeight: 600, marginBottom: 8 }}>Couldn&rsquo;t load job details</p>
-              <p style={{ color: 'var(--text-dim)', fontSize: 14, marginBottom: 20 }}>
+              <p style={{ color: 'var(--text-dim)', fontSize: 'var(--fs-label)', marginBottom: 20 }}>
                 Something went wrong. Close and try again.
               </p>
               <button

@@ -55,7 +55,7 @@ export default function ConsentBanner() {
         boxShadow: '0 -2px 16px rgba(0,0,0,0.08)',
       }}
     >
-      <p style={{ margin: '0 0 14px', fontSize: 14, lineHeight: 1.55, color: 'var(--color-text, #1a1a1a)' }}>
+      <p style={{ margin: '0 0 14px', fontSize: 'var(--fs-label)', lineHeight: 1.55, color: 'var(--color-text, #1a1a1a)' }}>
         We use essential cookies to keep you logged in and take payments. We'd also like analytics to
         see what's working and fix what isn't. Your call.{' '}
         <a href="/privacy" target="_blank" rel="noopener" style={{ color: 'inherit', textDecoration: 'underline' }}>Privacy</a>
@@ -74,7 +74,7 @@ export default function ConsentBanner() {
             border: 'none',
             borderRadius: 8,
             fontWeight: 600,
-            fontSize: 15,
+            fontSize: 'var(--fs-body)',
             cursor: 'pointer',
           }}
         >
@@ -91,7 +91,7 @@ export default function ConsentBanner() {
             border: '1.5px solid var(--color-border, #d1d1d1)',
             borderRadius: 8,
             fontWeight: 600,
-            fontSize: 15,
+            fontSize: 'var(--fs-body)',
             cursor: 'pointer',
           }}
         >
