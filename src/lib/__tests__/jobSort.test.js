@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { sortJobsByColumn, daysInStage } from '../jobSort.js';
+import { sortJobsByColumn, daysInStage, jobMatchesQuery } from '../jobSort.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -90,6 +90,121 @@ describe('sortJobsByColumn', () => {
   it('single element — returns array with that element', () => {
     const single = [makeJob({ id: 'only' })];
     expect(sortJobsByColumn(single, 'amount', 'asc').map(j => j.id)).toEqual(['only']);
+  });
+
+  // ── name sort ──────────────────────────────────────────────────────────────
+
+  it('sorts by name ascending (A→Z)', () => {
+    const byName = [
+      makeJob({ id: 'a', summary: 'Zebra job', customer: 'Zebra Co' }),
+      makeJob({ id: 'b', summary: 'Apple job', customer: 'Apple Co' }),
+      makeJob({ id: 'c', summary: 'Mango job', customer: 'Mango Co' }),
+    ];
+    const result = sortJobsByColumn(byName, 'name', 'asc');
+    expect(result.map(j => j.id)).toEqual(['b', 'c', 'a']);
+  });
+
+  it('sorts by name descending (Z→A)', () => {
+    const byName = [
+      makeJob({ id: 'a', summary: 'Zebra job' }),
+      makeJob({ id: 'b', summary: 'Apple job' }),
+      makeJob({ id: 'c', summary: 'Mango job' }),
+    ];
+    const result = sortJobsByColumn(byName, 'name', 'desc');
+    expect(result.map(j => j.id)).toEqual(['a', 'c', 'b']);
+  });
+
+  it('name sort prefers summary over customer over name field', () => {
+    const jobs = [
+      makeJob({ id: 'a', summary: '', customer: 'Zelda', name: 'ignored' }),
+      makeJob({ id: 'b', summary: 'Alpha job', customer: 'Zebra' }),
+    ];
+    const result = sortJobsByColumn(jobs, 'name', 'asc');
+    // 'alpha job' < 'zelda'
+    expect(result.map(j => j.id)).toEqual(['b', 'a']);
+  });
+
+  it('name sort is case-insensitive', () => {
+    const jobs = [
+      makeJob({ id: 'a', summary: 'ZZZZZ' }),
+      makeJob({ id: 'b', summary: 'aaaaa' }),
+    ];
+    const result = sortJobsByColumn(jobs, 'name', 'asc');
+    expect(result[0].id).toBe('b');
+  });
+
+  it('name sort falls back to empty string for missing summary/customer/name', () => {
+    const jobs = [
+      makeJob({ id: 'a', summary: '', customer: '', name: '' }),
+      makeJob({ id: 'b', summary: 'Boiler service', customer: '' }),
+    ];
+    // '' localeCompare 'boiler service' < 0 → 'a' comes first in asc
+    const result = sortJobsByColumn(jobs, 'name', 'asc');
+    expect(result[0].id).toBe('a');
+  });
+
+  it('name sort does not mutate the input array', () => {
+    const input = [
+      makeJob({ id: 'a', summary: 'Zebra job' }),
+      makeJob({ id: 'b', summary: 'Apple job' }),
+    ];
+    const original = [input[0].id, input[1].id];
+    sortJobsByColumn(input, 'name', 'asc');
+    expect([input[0].id, input[1].id]).toEqual(original);
+  });
+});
+
+// ── jp.workListSort persistence read/validate logic ───────────────────────────
+// These tests exercise the validation logic described in the spec as an
+// inline pure function (no localStorage mock needed — we test the logic directly).
+
+describe('getPersistedSort validation logic', () => {
+  const VALID_COLUMNS = ['name', 'date', 'amount', 'profit'];
+
+  function parseSortState(raw) {
+    // Mirrors the getPersistedSort logic in WorkScreen
+    try {
+      if (!raw) return { column: null, dir: 'asc' };
+      const parsed = JSON.parse(raw);
+      const col = parsed.column;
+      const dir = parsed.dir === 'desc' ? 'desc' : 'asc';
+      if (col !== null && !VALID_COLUMNS.includes(col)) {
+        return { column: null, dir: 'asc' };
+      }
+      return { column: col ?? null, dir };
+    } catch {
+      return { column: null, dir: 'asc' };
+    }
+  }
+
+  it('returns default when raw is null', () => {
+    expect(parseSortState(null)).toEqual({ column: null, dir: 'asc' });
+  });
+
+  it('returns default for malformed JSON', () => {
+    expect(parseSortState('not-json')).toEqual({ column: null, dir: 'asc' });
+  });
+
+  it('returns default when column is an unknown value', () => {
+    expect(parseSortState(JSON.stringify({ column: 'unknown', dir: 'asc' }))).toEqual({ column: null, dir: 'asc' });
+  });
+
+  it('accepts valid columns', () => {
+    for (const col of VALID_COLUMNS) {
+      const result = parseSortState(JSON.stringify({ column: col, dir: 'desc' }));
+      expect(result.column).toBe(col);
+      expect(result.dir).toBe('desc');
+    }
+  });
+
+  it('accepts column: null explicitly (unsorted / smart default)', () => {
+    const result = parseSortState(JSON.stringify({ column: null, dir: 'asc' }));
+    expect(result).toEqual({ column: null, dir: 'asc' });
+  });
+
+  it('defaults dir to asc for unknown dir values', () => {
+    const result = parseSortState(JSON.stringify({ column: 'amount', dir: 'sideways' }));
+    expect(result.dir).toBe('asc');
   });
 });
 

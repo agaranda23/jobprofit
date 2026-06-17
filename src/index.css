@@ -16716,12 +16716,58 @@ button.jd-money-chip:active { opacity: 0.75; }
   .jt-table-desktop-wrap { display: block; }
 }
 
+/* ── Compact list sticky header ──────────────────────────────────────────── */
+/* Control strip that renders above the <ul>. Rows must not bleed through. */
+
+.jt-compact-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 16px;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+}
+
+.jt-compact-header-right {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.jt-compact-header-btn {
+  background: none;
+  border: none;
+  padding: 2px 4px;
+  font-size: var(--fs-label);
+  font-weight: 500;
+  color: var(--text-dim);
+  cursor: pointer;
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+  min-height: 32px;
+}
+
+.jt-compact-header-btn--active {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.jt-compact-header-btn:active {
+  opacity: 0.7;
+}
+
 .jt-table-compact {
   list-style: none;
   margin: 0;
   padding: 0 0 env(safe-area-inset-bottom, 0);
 }
 
+/* Row is now a div[role="button"] so ProGate's <button> can legally nest.
+   Keyboard and tap behaviour mirrors the old <button>. */
 .jt-compact-row {
   display: flex;
   flex-direction: column;
@@ -16729,17 +16775,26 @@ button.jd-money-chip:active { opacity: 0.75; }
   width: 100%;
   min-height: 44px;
   padding: 10px 16px;
-  background: none;
-  border: none;
   border-bottom: 1px solid var(--border);
   cursor: pointer;
-  text-align: left;
   -webkit-tap-highlight-color: transparent;
   transition: background 0.1s;
+  /* reset <button> chrome if the element ever reverts to button for any reason */
+  background: none;
+  border-top: none;
+  border-left: none;
+  border-right: none;
+  text-align: left;
+  box-sizing: border-box;
 }
 
 .jt-compact-row:active {
   background: var(--surface-2);
+}
+
+.jt-compact-row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
 }
 
 .jt-compact-line1 {
@@ -16749,23 +16804,26 @@ button.jd-money-chip:active { opacity: 0.75; }
   gap: 8px;
 }
 
+/* Name ellipsises; money is sacred and never wraps/shrinks */
 .jt-compact-customer {
   font-size: 15px;
   font-weight: 500;
   color: var(--text);
-  white-space: nowrap;
+  flex: 1 1 auto;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
-  min-width: 0;
+  white-space: nowrap;
 }
 
 .jt-compact-amount {
   font-family: 'JetBrains Mono', monospace;
-  font-size: 15px;
+  font-size: var(--fs-money-sm);
   font-weight: 600;
   color: var(--text);
   white-space: nowrap;
-  flex-shrink: 0;
+  flex: 0 0 auto;
+  font-variant-numeric: tabular-nums;
 }
 
 .jt-compact-line2 {
@@ -16776,14 +16834,46 @@ button.jd-money-chip:active { opacity: 0.75; }
 
 /* Re-uses existing .jt-stage-label styles for the stage chip */
 
-.jt-compact-date,
-.jt-compact-days {
-  font-size: 12px;
+.jt-compact-date {
+  font-size: var(--fs-metadata);
   color: var(--text-dim);
 }
 
-.jt-compact-days {
+/* Profit sub-line — pinned to right edge of line 2, same column as amount above */
+.jt-compact-profit {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: var(--fs-metadata);
+  font-weight: 500;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
   margin-left: auto;
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.jt-compact-profit--loss {
+  color: var(--danger);
+}
+
+.jt-compact-profit--dash {
+  color: var(--text-dim);
+  font-family: inherit;
+  font-variant-numeric: normal;
+}
+
+/* "add costs" — button reset within the row; inherits row cursor */
+.jt-compact-profit--add-costs {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  font-size: var(--fs-metadata);
+  color: var(--text-dim);
+  cursor: pointer;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  min-height: 0;
+  /* not Pro-gated — tapping opens the drawer for everyone */
 }
 
 /* ── Desktop/tablet 6-column sortable grid (≥768px) ──────────────────────── */

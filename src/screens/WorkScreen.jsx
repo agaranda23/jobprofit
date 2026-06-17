@@ -64,6 +64,14 @@ const STORAGE_KEY = 'jp.workView';
 const FILTER_STORAGE_KEY = 'jp.workscreen.filter.v1';
 const LAYOUT_STORAGE_KEY = 'jp.workListLayout';
 const LAYOUT_COACHMARK_KEY = 'jp.workListLayout.coachmarkSeen';
+const SORT_STORAGE_KEY = 'jp.workListSort';
+
+// Valid sort column keys — used to validate persisted values on read.
+const VALID_SORT_COLUMNS = ['name', 'date', 'amount', 'profit'];
+
+// Default sort direction per column: asc for name (A-Z natural); desc for all
+// money/time columns (biggest or most recent first — most useful at the top).
+const DEFAULT_DIR = { name: 'asc', date: 'desc', amount: 'desc', profit: 'desc' };
 
 // Valid stage keys — used to validate persisted selectedStage values.
 const VALID_STAGES = ['Lead', 'Quoted', 'On', 'Invoiced', 'Overdue', 'Paid'];
@@ -118,6 +126,36 @@ function markCoachmarkSeen() {
     localStorage.setItem(LAYOUT_COACHMARK_KEY, '1');
   } catch {
     // ignore
+  }
+}
+
+/**
+ * Lazy-init helper for the column sort state.
+ * Reads {column, dir} from localStorage under SORT_STORAGE_KEY.
+ * Falls back to {column:null, dir:'asc'} if absent, malformed, or if
+ * column is not one of VALID_SORT_COLUMNS.
+ */
+function getPersistedSort() {
+  try {
+    const raw = localStorage.getItem(SORT_STORAGE_KEY);
+    if (!raw) return { column: null, dir: 'asc' };
+    const parsed = JSON.parse(raw);
+    const col = parsed.column ?? null;
+    const dir = parsed.dir === 'desc' ? 'desc' : 'asc';
+    if (col !== null && !VALID_SORT_COLUMNS.includes(col)) {
+      return { column: null, dir: 'asc' };
+    }
+    return { column: col, dir };
+  } catch {
+    return { column: null, dir: 'asc' };
+  }
+}
+
+function persistSort(v) {
+  try {
+    localStorage.setItem(SORT_STORAGE_KEY, JSON.stringify(v));
+  } catch {
+    // ignore — private mode or storage full
   }
 }
 
@@ -1035,19 +1073,20 @@ const TABLE_EMPTY_COPY = {
  *
  * Responsive at runtime:
  *   ≥768px  → 6-col sortable grid (all columns, sticky header)
- *   <768px  → compact 2-line row (no Profit column)
+ *   <768px  → compact 2-line rows with sticky header + profit sub-line
  *
- * Profit column is Pro-gated: free users see it blurred via <ProGate>.
+ * Profit column/figure is Pro-gated: free users see it blurred via <ProGate>.
+ * Profit sort (compact header) is Pro-only — free users see no profit sort control.
  *
  * Props:
- *   jobs          — already-filtered & stage-sorted array
+ *   jobs          — already-filtered & stage-sorted array (profit-sort applied here)
  *   receipts      — for deriveJobRows profit calc
  *   selectedStage — used for daysInStage and empty-state copy
  *   showAll       — determines empty-state label
  *   profile       — for isPro() check
  *   onJobSelect   — opens JobDetailDrawer
  *   onUpgrade     — opens ProUpgradeSheet (insight_locked trigger)
- *   colSort       — { column: 'amount'|'date'|null, dir: 'asc'|'desc' }
+ *   colSort       — { column: 'name'|'amount'|'date'|'profit'|null, dir: 'asc'|'desc' }
  *   onColSort     — (column) => void — toggles sort state
  */
 function JobsTable({ jobs, receipts, selectedStage, showAll, profile, onJobSelect, onUpgrade, colSort, onColSort }) {
@@ -1071,7 +1110,19 @@ function JobsTable({ jobs, receipts, selectedStage, showAll, profile, onJobSelec
   });
 
   function getRow(job) {
-    return rowMap.get(job.id) || { invoiced: 0, profit: 0, date: '', status: '' };
+    return rowMap.get(job.id) || { invoiced: 0, profit: 0, date: '', status: '', customer: '' };
+  }
+
+  // Profit sort is applied inline here (after rowMap is built) because it requires
+  // receipt data that the pure sortJobsByColumn function intentionally doesn't touch.
+  let sortedJobs = jobs;
+  if (colSort.column === 'profit') {
+    const multiplier = colSort.dir === 'asc' ? 1 : -1;
+    sortedJobs = [...jobs].sort((a, b) => {
+      const aProfit = (rowMap.get(a.id) || {}).profit ?? 0;
+      const bProfit = (rowMap.get(b.id) || {}).profit ?? 0;
+      return (aProfit - bProfit) * multiplier;
+    });
   }
 
   function formatDate(dateStr) {
@@ -1114,45 +1165,153 @@ function JobsTable({ jobs, receipts, selectedStage, showAll, profile, onJobSelec
   // ── Compact row (phone / tablet-narrow, <768px) ───────────────────────────
   // The media-class approach: render both variants; CSS hides the appropriate one.
   // This avoids matchMedia React state (no flash on first render, SSR-safe).
+  //
+  // CORRECTNESS: The compact row is a <div role="button"> (NOT a <button>) so
+  // that the ProGate <button> can legally nest inside it (nested <button> in
+  // <button> is invalid HTML and breaks keyboard/AT interaction).
 
   const compactRows = (
-    <ul className="jt-table-compact" aria-label="Jobs list">
-      {jobs.map(job => {
-        const row = getRow(job);
-        const stage = deriveDisplayStatus(job);
-        const amountStr = '£' + formatAmount(row.invoiced);
-        const customer = row.customer || 'Untitled';
-        return (
-          <li key={job.id || job.cloudId}>
+    <>
+      {/* Sticky header — control strip above the list; NOT a list row */}
+      <div className="jt-compact-header" role="row" aria-label="Sort jobs">
+        <button
+          type="button"
+          className={`jt-compact-header-btn jt-compact-header-btn--name${colSort.column === 'name' ? ' jt-compact-header-btn--active' : ''}`}
+          aria-label="Sort by name"
+          aria-sort={ariaSortAttr('name')}
+          onClick={() => onColSort('name')}
+        >
+          Name{renderSortCaret('name')}
+        </button>
+        <button
+          type="button"
+          className={`jt-compact-header-btn jt-compact-header-btn--date${colSort.column === 'date' ? ' jt-compact-header-btn--active' : ''}`}
+          aria-label="Sort by date"
+          aria-sort={ariaSortAttr('date')}
+          onClick={() => onColSort('date')}
+        >
+          Date{renderSortCaret('date')}
+        </button>
+        <div className="jt-compact-header-right">
+          <button
+            type="button"
+            className={`jt-compact-header-btn jt-compact-header-btn--amount${colSort.column === 'amount' ? ' jt-compact-header-btn--active' : ''}`}
+            aria-label="Sort by amount"
+            aria-sort={ariaSortAttr('amount')}
+            onClick={() => onColSort('amount')}
+          >
+            Amount{renderSortCaret('amount')}
+          </button>
+          {/* Profit sort control — Pro users only. Free users: no control here
+              (the blurred row figure is the sole upgrade nudge on this screen). */}
+          {userIsPro && (
             <button
               type="button"
-              className="jt-compact-row"
-              aria-label={`Open job for ${customer}, ${amountStr}`}
-              onClick={() => onJobSelect(job)}
+              className={`jt-compact-header-btn jt-compact-header-btn--profit${colSort.column === 'profit' ? ' jt-compact-header-btn--active' : ''}`}
+              aria-label="Sort by profit"
+              aria-sort={ariaSortAttr('profit')}
+              onClick={() => onColSort('profit')}
             >
-              <div className="jt-compact-line1">
-                <span className="jt-compact-customer">{customer}</span>
-                <span className="jt-compact-amount">{amountStr}</span>
-              </div>
-              <div className="jt-compact-line2">
-                <span
-                  className={`jt-stage-label jt-stage-label--${stage.toLowerCase()}`}
-                  style={{
-                    '--chip-hue': (STAGE_META[stage] || STAGE_META.Lead).hue,
-                    '--chip-fill': (STAGE_META[stage] || STAGE_META.Lead).fill,
-                    '--chip-ink': (STAGE_META[stage] || STAGE_META.Lead).ink || (STAGE_META[stage] || STAGE_META.Lead).hue,
-                  }}
-                >
-                  {stage}
-                </span>
-                <span className="jt-compact-date">{formatDate(row.date)}</span>
-                <span className="jt-compact-days">{renderDays(job)}</span>
-              </div>
+              Profit{renderSortCaret('profit')}
             </button>
-          </li>
-        );
-      })}
-    </ul>
+          )}
+        </div>
+      </div>
+
+      <ul className="jt-table-compact" aria-label="Jobs list">
+        {sortedJobs.map(job => {
+          const row = getRow(job);
+          const stage = deriveDisplayStatus(job);
+          const amountStr = '£' + formatAmount(row.invoiced);
+          const customer = row.customer || 'Untitled';
+          const profitVal = row.profit;
+          const hasRevenue = row.invoiced > 0;
+          // Determine which jobs have cost data logged (any receipt for this job)
+          const hasCostData = (receipts || []).some(r => r.jobId === job.id || r.job_id === job.id);
+
+          // Profit sub-line copy (verbatim from spec)
+          let profitContent = null;
+          if (!hasRevenue) {
+            profitContent = <span className="jt-compact-profit jt-compact-profit--dash">—</span>;
+          } else if (!hasCostData) {
+            // No cost data logged — quiet "add costs" affordance; opens drawer (NOT Pro-gated)
+            profitContent = (
+              <button
+                type="button"
+                className="jt-compact-profit jt-compact-profit--add-costs"
+                aria-label="Add costs to this job"
+                onClick={e => { e.stopPropagation(); onJobSelect(job); }}
+              >
+                add costs
+              </button>
+            );
+          } else if (userIsPro) {
+            // Pro: show real profit figure
+            const profitStr = formatProfit(profitVal);
+            const isLoss = profitVal < 0;
+            const absStr = formatProfit(Math.abs(profitVal));
+            profitContent = (
+              <span className={`jt-compact-profit${isLoss ? ' jt-compact-profit--loss' : ''}`}>
+                {isLoss ? `lost ${absStr.replace('-', '')}` : `made ${profitStr}`}
+              </span>
+            );
+          } else {
+            // Free: blur the number, keep the word "made" visible
+            const profitStr = formatProfit(profitVal);
+            const isLoss = profitVal < 0;
+            const absStr = formatProfit(Math.abs(profitVal));
+            profitContent = (
+              <span className="jt-compact-profit" onClick={e => e.stopPropagation()}>
+                {isLoss ? 'lost ' : 'made '}
+                <ProGate locked hasValue onUpgrade={onUpgrade}>
+                  <span className={`pro-gate__figure jt-profit-figure${isLoss ? ' jt-profit-figure--loss' : ''}`}>
+                    {isLoss ? absStr.replace('-', '') : profitStr}
+                  </span>
+                </ProGate>
+              </span>
+            );
+          }
+
+          // Aria label: include profit for Pro users
+          const ariaLabel = userIsPro && hasRevenue && hasCostData
+            ? `Open job for ${customer}, ${amountStr}, ${profitVal < 0 ? 'lost' : 'made'} ${formatProfit(Math.abs(profitVal))}`
+            : `Open job for ${customer}, ${amountStr}`;
+
+          return (
+            <li key={job.id || job.cloudId}>
+              {/* div role="button" instead of <button> so ProGate's <button> can legally nest */}
+              <div
+                className="jt-compact-row"
+                role="button"
+                tabIndex={0}
+                aria-label={ariaLabel}
+                onClick={() => onJobSelect(job)}
+                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onJobSelect(job); } }}
+              >
+                <div className="jt-compact-line1">
+                  <span className="jt-compact-customer">{customer}</span>
+                  <span className="jt-compact-amount">{amountStr}</span>
+                </div>
+                <div className="jt-compact-line2">
+                  <span
+                    className={`jt-stage-label jt-stage-label--${stage.toLowerCase()}`}
+                    style={{
+                      '--chip-hue': (STAGE_META[stage] || STAGE_META.Lead).hue,
+                      '--chip-fill': (STAGE_META[stage] || STAGE_META.Lead).fill,
+                      '--chip-ink': (STAGE_META[stage] || STAGE_META.Lead).ink || (STAGE_META[stage] || STAGE_META.Lead).hue,
+                    }}
+                  >
+                    {stage}
+                  </span>
+                  <span className="jt-compact-date">{formatDate(row.date)}</span>
+                  {profitContent}
+                </div>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    </>
   );
 
   // ── Desktop/tablet grid (≥768px) ──────────────────────────────────────────
@@ -1161,7 +1320,20 @@ function JobsTable({ jobs, receipts, selectedStage, showAll, profile, onJobSelec
       <table className="jt-table-grid" role="grid">
         <thead>
           <tr>
-            <th scope="col" className="jt-th jt-th--customer">Customer</th>
+            <th
+              scope="col"
+              className="jt-th jt-th--customer jt-th--sortable"
+              aria-sort={ariaSortAttr('name')}
+            >
+              <button
+                type="button"
+                className="jt-th-btn"
+                onClick={() => onColSort('name')}
+                aria-label="Sort by name"
+              >
+                Customer{renderSortCaret('name')}
+              </button>
+            </th>
             <th
               scope="col"
               className="jt-th jt-th--amount jt-th--sortable"
@@ -1191,12 +1363,29 @@ function JobsTable({ jobs, receipts, selectedStage, showAll, profile, onJobSelec
                 Date{renderSortCaret('date')}
               </button>
             </th>
-            <th scope="col" className="jt-th jt-th--profit">Profit</th>
+            <th
+              scope="col"
+              className="jt-th jt-th--profit jt-th--sortable"
+              aria-sort={ariaSortAttr('profit')}
+            >
+              {userIsPro ? (
+                <button
+                  type="button"
+                  className="jt-th-btn"
+                  onClick={() => onColSort('profit')}
+                  aria-label="Sort by profit"
+                >
+                  Profit{renderSortCaret('profit')}
+                </button>
+              ) : (
+                'Profit'
+              )}
+            </th>
             <th scope="col" className="jt-th jt-th--days">Days</th>
           </tr>
         </thead>
         <tbody>
-          {jobs.map(job => {
+          {sortedJobs.map(job => {
             const row = getRow(job);
             const stage = deriveDisplayStatus(job);
             const customer = row.customer || 'Untitled';
@@ -1269,10 +1458,11 @@ function JobsList({ jobs, receipts, selectedStage, showAll, searchQuery, layout,
     stageFiltered = sortJobsByStage(stageJobs, showAll ? null : selectedStage);
   }
 
-  // Apply column sort on top of stage-default order (desktop/tablet table only).
-  // Column sort is an opt-in override; reset to stage-default on tab change (handled in root).
+  // Apply column sort whenever a column is active — applies to both compact list
+  // and desktop grid (removed the layout==='table' gate).
+  // Profit sort is handled inline after rowMap is built (below), so skip it here.
   let visible = stageFiltered;
-  if (layout === 'table' && colSort.column) {
+  if (colSort.column && colSort.column !== 'profit') {
     visible = sortJobsByColumn(stageFiltered, colSort.column, colSort.dir);
   }
 
@@ -1382,11 +1572,12 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
 
   // ── Table view state ────────────────────────────────────────────────────────
   // layout: 'card' | 'table' — one global preference, persisted in localStorage.
-  // colSort: { column: 'amount'|'date'|null, dir: 'asc'|'desc' } — opt-in column sort;
-  //   reset to stage-default on tab change (handleSelectStage / handleSelectAll).
+  // colSort: { column: 'name'|'amount'|'date'|'profit'|null, dir: 'asc'|'desc' }
+  //   Persisted in jp.workListSort; null column = smart stage-urgency default.
+  //   A chosen sort STICKS across stage/tab switches (no reset on tab change).
   // upgradeSheetOpen: ProUpgradeSheet visibility (reuses FinanceScreen pattern).
   const [layout, setLayout] = useState(getPersistedLayout);
-  const [colSort, setColSort] = useState({ column: null, dir: 'asc' });
+  const [colSort, setColSort] = useState(getPersistedSort);
   const [upgradeSheetOpen, setUpgradeSheetOpen] = useState(false);
   const [showCoachmark, setShowCoachmark] = useState(false);
 
@@ -1517,14 +1708,13 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
     setSelectedStage(stage);
     setShowAll(false);
     setSearchQuery(''); // tapping a stage tab means "done searching, show this tab"
-    // Reset column sort on tab change — spec §4 / §10
-    setColSort({ column: null, dir: 'asc' });
+    // Sort persists across tab switches — do NOT reset colSort here.
     logTelemetry('stage_strip_select', { stage });
   };
 
   const handleSelectAll = () => {
     setSearchQuery(''); // switching to All view — clear any active search
-    setColSort({ column: null, dir: 'asc' }); // reset column sort on tab change
+    // Sort persists across tab switches — do NOT reset colSort here.
     if (showAll) {
       // Already in All mode — snap back to selectedStage.
       setShowAll(false);
@@ -1544,13 +1734,15 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
     }
   };
 
-  // Column sort handler — toggles asc/desc for the active column; switches to asc for a new column.
+  // Column sort handler — toggles asc/desc for the active column; opens a new
+  // column at its natural default direction (DEFAULT_DIR). Persists to localStorage.
   const handleColSort = (col) => {
     setColSort(prev => {
-      if (prev.column === col) {
-        return { column: col, dir: prev.dir === 'asc' ? 'desc' : 'asc' };
-      }
-      return { column: col, dir: 'asc' };
+      const next = prev.column === col
+        ? { column: col, dir: prev.dir === 'asc' ? 'desc' : 'asc' }
+        : { column: col, dir: DEFAULT_DIR[col] ?? 'asc' };
+      persistSort(next);
+      return next;
     });
   };
 
