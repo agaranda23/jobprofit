@@ -6079,6 +6079,25 @@ input[type=number] { -moz-appearance: textfield; }
 /* ── SettingsScreen ───────────────────────────── */
 .settings-screen { /* inherits .screen */ }
 
+/* Back button in sub-screen headers (Invoices & quotes, Get paid, Costs).
+   Uses theme tokens so it adapts to light and dark mode automatically.
+   Mirrors the .ml-back-btn pattern used in the materials-list header. */
+.settings-subscreen-back {
+  width: 40px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--text);
+  border-radius: 8px;
+  cursor: pointer;
+  flex-shrink: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+.settings-subscreen-back:active { background: var(--surface-2); }
+
 .settings-identity {
   display: flex;
   align-items: center;
