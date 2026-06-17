@@ -332,3 +332,150 @@ describe('F. acceptedSource field in written meta', () => {
     }
   });
 });
+
+// ─── G. Status promotion on acceptance ────────────────────────────────────────
+// Covers the "still awaiting approval" bug: accept-quote must promote status
+// to 'active' for any pre-acceptance status, and must NOT regress a job that
+// is already past the Quoted stage (e.g. trader moved it to On/Invoiced manually).
+
+function makeMockClient(writtenMetaRef) {
+  return {
+    from: vi.fn(() => ({
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      single: vi.fn(async () => mockSelectResult),
+      update: vi.fn((payload) => {
+        if (writtenMetaRef) writtenMetaRef.value = payload?.meta;
+        return { eq: vi.fn(async () => ({ error: null })) };
+      }),
+    })),
+  };
+}
+
+describe('G. Status promotion on acceptance', () => {
+  it('promotes status:quoted → active when meta.status is "quoted"', async () => {
+    mockSelectResult = {
+      data: { id: 'job-quoted', meta: { status: 'quoted', quoteStatus: 'sent' } },
+      error: null,
+    };
+    const { createClient } = await import('@supabase/supabase-js');
+    const ref = { value: null };
+    createClient.mockImplementationOnce(() => makeMockClient(ref));
+
+    const handler = await getHandler();
+    const res = await handler(makeEvent({ token: VALID_TOKEN, signature: VALID_SIG, consentGiven: true }));
+
+    expect(res.statusCode).toBe(200);
+    if (ref.value) {
+      expect(ref.value.status).toBe('active');
+      expect(ref.value.jobStatus).toBe('active');
+      expect(ref.value.quoteStatus).toBe('accepted');
+    }
+  });
+
+  it('promotes status to active when meta.status is absent (legacy job)', async () => {
+    mockSelectResult = {
+      data: { id: 'job-legacy', meta: { quoteStatus: 'sent' } },
+      error: null,
+    };
+    const { createClient } = await import('@supabase/supabase-js');
+    const ref = { value: null };
+    createClient.mockImplementationOnce(() => makeMockClient(ref));
+
+    const handler = await getHandler();
+    const res = await handler(makeEvent({ token: VALID_TOKEN, signature: VALID_SIG, consentGiven: true }));
+
+    expect(res.statusCode).toBe(200);
+    if (ref.value) {
+      expect(ref.value.status).toBe('active');
+      expect(ref.value.quoteStatus).toBe('accepted');
+    }
+  });
+
+  it('does NOT regress status when job is already active (trader started the job early)', async () => {
+    mockSelectResult = {
+      data: { id: 'job-already-on', meta: { status: 'active', quoteStatus: 'sent' } },
+      error: null,
+    };
+    const { createClient } = await import('@supabase/supabase-js');
+    const ref = { value: null };
+    createClient.mockImplementationOnce(() => makeMockClient(ref));
+
+    const handler = await getHandler();
+    const res = await handler(makeEvent({ token: VALID_TOKEN, signature: VALID_SIG, consentGiven: true }));
+
+    expect(res.statusCode).toBe(200);
+    if (ref.value) {
+      // status must remain active, quoteStatus flips to accepted
+      expect(ref.value.status).toBe('active');
+      expect(ref.value.quoteStatus).toBe('accepted');
+    }
+  });
+
+  it('does NOT regress status when job is already invoiced', async () => {
+    mockSelectResult = {
+      data: { id: 'job-invoiced', meta: { status: 'invoice_sent', quoteStatus: 'sent' } },
+      error: null,
+    };
+    const { createClient } = await import('@supabase/supabase-js');
+    const ref = { value: null };
+    createClient.mockImplementationOnce(() => makeMockClient(ref));
+
+    const handler = await getHandler();
+    const res = await handler(makeEvent({ token: VALID_TOKEN, signature: VALID_SIG, consentGiven: true }));
+
+    expect(res.statusCode).toBe(200);
+    if (ref.value) {
+      // status must stay invoice_sent — accept-quote never time-travels backwards
+      expect(ref.value.status).toBe('invoice_sent');
+      expect(ref.value.quoteStatus).toBe('accepted');
+    }
+  });
+
+  it('does NOT regress status when job is already paid', async () => {
+    mockSelectResult = {
+      data: { id: 'job-paid', meta: { status: 'paid', quoteStatus: 'sent' } },
+      error: null,
+    };
+    const { createClient } = await import('@supabase/supabase-js');
+    const ref = { value: null };
+    createClient.mockImplementationOnce(() => makeMockClient(ref));
+
+    const handler = await getHandler();
+    const res = await handler(makeEvent({ token: VALID_TOKEN, signature: VALID_SIG, consentGiven: true }));
+
+    expect(res.statusCode).toBe(200);
+    if (ref.value) {
+      expect(ref.value.status).toBe('paid');
+      expect(ref.value.quoteStatus).toBe('accepted');
+    }
+  });
+
+  it('sets acceptedAt, acceptedName, and consentAt on a fresh acceptance', async () => {
+    mockSelectResult = {
+      data: { id: 'job-timestamps', meta: { status: 'quoted' } },
+      error: null,
+    };
+    const { createClient } = await import('@supabase/supabase-js');
+    const ref = { value: null };
+    createClient.mockImplementationOnce(() => makeMockClient(ref));
+
+    const handler = await getHandler();
+    const res = await handler(makeEvent({
+      token: VALID_TOKEN,
+      signature: VALID_SIG,
+      acceptedName: 'Sarah Jones',
+      consentGiven: true,
+    }));
+
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(body.acceptedAt).toBeDefined();
+    if (ref.value) {
+      expect(ref.value.acceptedAt).toBe(body.acceptedAt);
+      expect(ref.value.acceptedName).toBe('Sarah Jones');
+      expect(ref.value.consentGiven).toBe(true);
+      expect(ref.value.consentAt).toBeDefined();
+    }
+  });
+});

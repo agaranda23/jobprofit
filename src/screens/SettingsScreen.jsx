@@ -5,15 +5,17 @@
  * The AccountDrawer and HeaderAvatar are NOT mounted when slice 3 is active
  * (suppressed in AppShell) — this screen is the single account entry point.
  *
- * Navigation model (Phase 1):
+ * Navigation model (Phase 2):
  *   Hub view: pinned identity card + subscription + 8 category rows.
- *   Selecting a Phase-1 row navigates to a focused sub-screen.
- *   Rows 4-8 (Account & business, Notifications, Data & privacy, Help & FAQ, App)
- *   remain inline-below-hub until Phase 2 sub-screens are built.
+ *   All 8 rows now navigate to dedicated sub-screens.
  *
- *   settingsView state: 'hub' | 'invoices' | 'getpaid' | 'costs'
+ *   settingsView state:
+ *     'hub' | 'invoices' | 'getpaid' | 'costs'
+ *     | 'account' | 'notifications' | 'privacy' | 'help' | 'app' | 'voice'
+ *
  *   history.pushState is called on sub-screen open; a popstate handler returns
- *   the user to the hub so the PWA hardware back button works correctly.
+ *   the user to hub (or, for nested 'voice', to 'account') so the PWA
+ *   hardware back button works correctly.
  *
  * overheadsRef deep-link REPLACED (Phase 1):
  *   AppShell previously passed scrollTarget='overheads' to scroll the flat list.
@@ -1862,6 +1864,8 @@ export default function SettingsScreen({
 }) {
   // ── Hub / sub-screen routing ───────────────────────────────────────────────
   // 'hub' | 'invoices' | 'getpaid' | 'costs'
+  // | 'account' | 'notifications' | 'privacy' | 'help' | 'app' | 'voice'
+  // 'voice' is a nested sub-view under 'account'; back returns to 'account'.
   const [settingsView, setSettingsView] = useState('hub');
   // Preserve hub scroll position when returning from a sub-screen.
   const hubScrollRef = useRef(0);
@@ -1887,10 +1891,16 @@ export default function SettingsScreen({
     });
   }, []);
 
-  // Handle hardware/browser back button while on a sub-screen
+  // Handle hardware/browser back button while on a sub-screen.
+  // 'voice' is nested under 'account' — back goes to 'account', not hub.
   useEffect(() => {
-    const onPopState = (e) => {
-      if (settingsView !== 'hub') {
+    const onPopState = () => {
+      if (settingsView === 'voice') {
+        setSettingsView('account');
+        requestAnimationFrame(() => {
+          if (screenRef.current) screenRef.current.scrollTop = 0;
+        });
+      } else if (settingsView !== 'hub') {
         navigateToHub();
       }
     };
@@ -2336,6 +2346,12 @@ export default function SettingsScreen({
     validate: null,
   });
 
+  // ── Shared computed values (used by sub-screens AND hub) ──────────────────
+  // Hoisted above all sub-screen renders so they're available everywhere.
+  const chaseCount = buildChaseList(Array.isArray(jobs) ? jobs : []).length;
+  const notificationsHint = chaseCount > 0 ? `${chaseCount} to chase` : 'All clear';
+  const themeWord = themePref.charAt(0).toUpperCase() + themePref.slice(1);
+
   // ── Render ─────────────────────────────────────────────────────────────────
   // Shared modal layer (rendered on all views so modals work from sub-screens too)
 
@@ -2687,8 +2703,242 @@ export default function SettingsScreen({
     );
   }
 
+  // ── Sub-screen: Voice input language (nested under Account) ─────────────
+  if (settingsView === 'voice') {
+    return (
+      <div className="screen settings-screen" ref={screenRef}>
+        <SubScreenHeader
+          title="Voice input language"
+          onBack={() => {
+            setSettingsView('account');
+            requestAnimationFrame(() => {
+              if (screenRef.current) screenRef.current.scrollTop = 0;
+            });
+          }}
+        />
+        <SectionCard title="Voice input language">
+          <VoiceLanguageSection session={session} />
+        </SectionCard>
+        <div style={{ height: 32 }} />
+        {modalLayer}
+      </div>
+    );
+  }
+
+  // ── Sub-screen: Account & business ───────────────────────────────────────
+  if (settingsView === 'account') {
+    const voiceLangLabel = (() => {
+      const code = typeof localStorage !== 'undefined'
+        ? (localStorage.getItem('jp.voiceLang') || 'en-GB')
+        : 'en-GB';
+      const found = VOICE_LANGS.find(l => l.code === code);
+      return found ? found.label : 'English (UK)';
+    })();
+
+    return (
+      <div className="screen settings-screen" ref={screenRef}>
+        <SubScreenHeader title="Account & business" onBack={navigateToHub} />
+
+        <SectionCard title="Account &amp; business">
+          <Row label="Name" value={displayName || '—'} onTap={openEditName} />
+          {/* Email is passive — no chevron, no tap handler */}
+          <Row label="Email" value={email || '—'} chevron={false} />
+          {/* Business name uses the same field as Trading name in Invoices & quotes —
+              intentional cross-link; both call openEditBusinessName. */}
+          <Row label="Business name" value={tradingName || '—'} onTap={openEditBusinessName} />
+          <Row
+            label="Your trade"
+            value={deriveTradeRowValue(profile) ?? 'Not set'}
+            onTap={() => setShowTradeSheet(true)}
+          />
+          <Row
+            label="Re-run setup wizard"
+            onTap={() => {
+              sessionStorage.removeItem('jp.wizardActive');
+              onOpenWizard?.();
+            }}
+            chevron
+          />
+          {/* Voice input language is re-homed here from the old standalone section.
+              Opens a nested 'voice' sub-view rather than rendering the list inline. */}
+          <Row
+            label="Voice input language"
+            value={voiceLangLabel}
+            onTap={() => navigateToSubScreen('voice')}
+          />
+          <Row label="Sign out" danger onTap={onSignOut} chevron={false} />
+        </SectionCard>
+
+        <div style={{ height: 32 }} />
+        {modalLayer}
+      </div>
+    );
+  }
+
+  // ── Sub-screen: Notifications ─────────────────────────────────────────────
+  if (settingsView === 'notifications') {
+    return (
+      <div className="screen settings-screen" ref={screenRef}>
+        <SubScreenHeader title="Notifications" onBack={navigateToHub} />
+
+        <SectionCard title="Notifications">
+          <NotificationsSection session={session} />
+          <Row
+            label="Chase reminders"
+            action={notificationsHint}
+            chevron
+            onTap={() => setShowChaseList(true)}
+          />
+          <WeeklyDigestRow session={session} profile={profile} onProfileUpdate={onProfileUpdate} />
+          <AutoChaseRow
+            profile={profile}
+            onProfileUpdate={onProfileUpdate}
+            onUpgrade={() => openUpgradeSheet(UPGRADE_TRIGGERS.AUTO_CHASE_LOCKED)}
+          />
+        </SectionCard>
+
+        <div style={{ height: 32 }} />
+        {modalLayer}
+      </div>
+    );
+  }
+
+  // ── Sub-screen: Data & privacy ────────────────────────────────────────────
+  if (settingsView === 'privacy') {
+    return (
+      <div className="screen settings-screen" ref={screenRef}>
+        <SubScreenHeader title="Data &amp; privacy" onBack={navigateToHub} />
+
+        <SectionCard title="Data &amp; privacy">
+          {/* Retention copy — DO NOT EDIT. Pending solicitor sign-off on retention
+              period decision (DATA-PROTECTION-DECISIONS-FOR-SOLICITOR.md).
+              This block is moved verbatim from the inline section. */}
+          <p className="settings-section-subtitle">
+            Your data is yours. Export it or delete it anytime — no email to support, no waiting.
+          </p>
+          <p className="settings-section-subtitle" style={{ marginTop: 4 }}>
+            We keep your job and invoice records for as long as you do — your accountant and HMRC may need them for up to 6 years. Old leads that never turned into work get tidied away after 6 months.
+          </p>
+          {/* Export records folded in from the old standalone "Accountant" section.
+              Placed above "Export everything" so the accountant-facing export is found first. */}
+          <Row
+            label="Export records"
+            value={exporting ? 'Preparing…' : 'Choose format'}
+            onTap={() => openExportSheet('records')}
+            chevron
+          />
+          <Row label="Privacy Policy" onTap={() => window.open('/privacy', '_blank', 'noopener')} />
+          <Row label="Terms of Service" onTap={() => window.open('/terms', '_blank', 'noopener')} />
+          <Row label="Cookie Policy" onTap={() => window.open('/cookies', '_blank', 'noopener')} />
+          {/* CookieSettingsRow — compliance-sensitive. Pure move; consent toggle still
+              wires to getConsent/setConsent inside the component itself. */}
+          <CookieSettingsRow />
+          <Row
+            label="Export everything"
+            value={exporting ? 'Preparing…' : 'Choose format'}
+            onTap={() => openExportSheet('everything')}
+            chevron
+          />
+          <Row label="Delete account" danger onTap={() => setShowDeleteAccount(true)} chevron />
+        </SectionCard>
+
+        <div style={{ height: 32 }} />
+        {modalLayer}
+      </div>
+    );
+  }
+
+  // ── Sub-screen: Help & FAQ ────────────────────────────────────────────────
+  if (settingsView === 'help') {
+    return (
+      <div className="screen settings-screen" ref={screenRef}>
+        <SubScreenHeader title="Help &amp; FAQ" onBack={navigateToHub} />
+
+        <SectionCard title="Help">
+          <Row label="Chat with us" value="WhatsApp" onTap={handleWhatsApp} />
+          <Row label="Send feedback" value="Email" onTap={handleSendFeedback} />
+          <Row label="Report a bug" value="Email" onTap={handleSendBugReport} />
+          <Row label="Refer a mate" onTap={handleShare} />
+          <button
+            className={`settings-row${whatsNewDot ? ' settings-row--has-dot' : ''}`}
+            type="button"
+            onClick={handleOpenWhatsNew}
+          >
+            <span className="settings-row-label">
+              What&rsquo;s new
+              {whatsNewDot && <span className="settings-new-dot" aria-label="New updates available" />}
+            </span>
+            <span className="settings-row-right">
+              <span className="settings-row-chevron">›</span>
+            </span>
+          </button>
+        </SectionCard>
+
+        <SectionCard title="FAQ">
+          <FaqItem question="How do I send an invoice?">
+            <p>Log a job, set the amount, then tap the job to open it and hit "Send invoice". Your customer gets a link they can open in any browser — no app needed. They can also pay by card if you&rsquo;ve connected Stripe in Settings &rarr; Card payments.</p>
+          </FaqItem>
+          <FaqItem question="How does the free trial work? What happens after 14 days?">
+            <p>You get 14 days of Pro free — no card required to start. After that, you drop to the free tier: the full Get Paid loop (quotes, invoices, receipts) stays unlimited forever, and your documents carry a &ldquo;Sent with JobProfit&rdquo; footer. Upgrade to Pro for £12/mo at any time from Settings &rarr; Subscription to remove the footer, unlock the Insight Layer, and get the automatic chase ladder.</p>
+          </FaqItem>
+          <FaqItem question="How do I cancel or change my plan?">
+            <p>Go to Settings &rarr; Subscription &rarr; Manage billing. That opens the Stripe billing portal where you can cancel or update your card. Cancellation takes effect at the end of your current billing period — no pro-rata charge.</p>
+          </FaqItem>
+          <FaqItem question="Is my data safe? Who can see my jobs?">
+            <p>Only you. Your jobs are locked to your account using Supabase Row Level Security — other users cannot read your data even if they tried. Public quote and invoice links are single-use tokens that only reveal what you choose to share with the customer.</p>
+          </FaqItem>
+          <FaqItem question="How does a customer accept a quote and pay?">
+            <p>Send them the quote link. They open it in their browser, review the breakdown, sign with their finger, tick the T&amp;Cs checkbox, and tap Confirm. If you&rsquo;ve set a deposit, they can pay it via Stripe right there. You get a push notification the moment they accept.</p>
+          </FaqItem>
+          <FaqItem question="How do I export or delete my data?">
+            <p>Settings &rarr; Data &amp; privacy &rarr; Export everything lets you download all your jobs as a spreadsheet (CSV) or a PDF summary. Delete account wipes everything immediately — no email to support, no waiting.</p>
+          </FaqItem>
+        </SectionCard>
+
+        <div style={{ height: 32 }} />
+        {modalLayer}
+      </div>
+    );
+  }
+
+  // ── Sub-screen: App ───────────────────────────────────────────────────────
+  if (settingsView === 'app') {
+    return (
+      <div className="screen settings-screen" ref={screenRef}>
+        <SubScreenHeader title="App" onBack={navigateToHub} />
+
+        <SectionCard title="App">
+          <div className="settings-row settings-row--passive settings-row--theme">
+            <span className="settings-row-label">Theme</span>
+            <div className="theme-picker" role="group" aria-label="Choose theme">
+              {[
+                { value: 'light',  label: 'Light'  },
+                { value: 'dark',   label: 'Dark'   },
+                { value: 'system', label: 'System' },
+              ].map(({ value, label }) => (
+                <button
+                  key={value}
+                  type="button"
+                  className={`theme-option${themePref === value ? ' theme-option--active' : ''}`}
+                  onClick={() => handleThemePref(value)}
+                  aria-pressed={themePref === value}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <Row label="Version" value={APP_VERSION} chevron={false} />
+        </SectionCard>
+
+        <div style={{ height: 32 }} />
+        {modalLayer}
+      </div>
+    );
+  }
+
   // ── Hub view ──────────────────────────────────────────────────────────────
-  // Derive hint values for category rows
+  // Derive hint values for hub category rows
   const depositHint = (() => {
     const pct = profile?.default_deposit_percent ?? 25;
     const cardOn = profile?.stripe_connect_status === 'connected' && profile?.stripe_user_id;
@@ -2701,11 +2951,6 @@ export default function SettingsScreen({
   const costsHint = (Array.isArray(profile?.overheads) && profile.overheads.length > 0)
     ? `£${overheadTotal.toFixed(0)}/mo bills`
     : 'Add your bills';
-
-  const chaseCount = buildChaseList(Array.isArray(jobs) ? jobs : []).length;
-  const notificationsHint = chaseCount > 0 ? `${chaseCount} to chase` : 'All clear';
-
-  const themeWord = themePref.charAt(0).toUpperCase() + themePref.slice(1);
 
   return (
     <div className="screen settings-screen" ref={screenRef}>
@@ -2762,212 +3007,37 @@ export default function SettingsScreen({
           hint={costsHint}
           onTap={() => navigateToSubScreen('costs')}
         />
-        {/* Rows 4–8: Phase 2 sub-screens. Rendered inline below hub for now
-            so nothing currently-reachable becomes unreachable.
-            Each still shows on the hub as a stub row leading to the inline section below. */}
+        {/* Rows 4–8: Phase 2 sub-screens — all routed via navigateToSubScreen. */}
         <HubCategoryRow
           label="Account & business"
           iconName="user"
           hint={displayName}
-          onTap={() => {
-            const el = document.getElementById('settings-section-account');
-            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          }}
+          onTap={() => navigateToSubScreen('account')}
         />
         <HubCategoryRow
           label="Notifications"
           iconName="bell"
           hint={notificationsHint}
-          onTap={() => {
-            const el = document.getElementById('settings-section-notifications');
-            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          }}
+          onTap={() => navigateToSubScreen('notifications')}
         />
         <HubCategoryRow
           label="Data & privacy"
           iconName="lock"
-          onTap={() => {
-            const el = document.getElementById('settings-section-data-privacy');
-            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          }}
+          onTap={() => navigateToSubScreen('privacy')}
         />
         <HubCategoryRow
           label="Help & FAQ"
           iconName="help"
           dot={whatsNewDot}
-          onTap={() => {
-            const el = document.getElementById('settings-section-help');
-            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          }}
+          onTap={() => navigateToSubScreen('help')}
         />
         <HubCategoryRow
           label="App"
           iconName="settings"
           hint={themeWord}
-          onTap={() => {
-            const el = document.getElementById('settings-section-app');
-            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-          }}
+          onTap={() => navigateToSubScreen('app')}
         />
       </SectionCard>
-
-      {/* ── Inline Phase-2 sections (rows 4–8) ───────────────────────────────
-          These remain as flat sections below the hub until Phase 2 converts
-          them to proper sub-screens. They are still reachable by scrolling
-          and via the hub row anchor-scroll above. ── */}
-
-      {/* Account & business */}
-      <div id="settings-section-account">
-        <SectionCard title="Account &amp; business">
-          <Row label="Name" value={displayName || '—'} onTap={openEditName} />
-          <Row label="Email" value={email || '—'} chevron={false} />
-          <Row label="Business name" value={tradingName || '—'} onTap={openEditBusinessName} />
-          <Row
-            label="Your trade"
-            value={deriveTradeRowValue(profile) ?? 'Not set'}
-            onTap={() => setShowTradeSheet(true)}
-          />
-          <Row
-            label="Re-run setup wizard"
-            onTap={() => {
-              sessionStorage.removeItem('jp.wizardActive');
-              onOpenWizard?.();
-            }}
-            chevron
-          />
-          <Row label="Sign out" danger onTap={onSignOut} chevron={false} />
-        </SectionCard>
-      </div>
-
-      {/* Notifications */}
-      <div id="settings-section-notifications">
-        <SectionCard title="Notifications">
-          <NotificationsSection session={session} />
-          <Row
-            label="Chase reminders"
-            action={notificationsHint}
-            chevron
-            onTap={() => setShowChaseList(true)}
-          />
-          <WeeklyDigestRow session={session} profile={profile} onProfileUpdate={onProfileUpdate} />
-          <AutoChaseRow
-            profile={profile}
-            onProfileUpdate={onProfileUpdate}
-            onUpgrade={() => openUpgradeSheet(UPGRADE_TRIGGERS.AUTO_CHASE_LOCKED)}
-          />
-        </SectionCard>
-      </div>
-
-      {/* Voice input language — lives here until Phase 2 re-homes it to Account & business */}
-      <SectionCard title="Voice input language">
-        <VoiceLanguageSection session={session} />
-      </SectionCard>
-
-      {/* Accountant */}
-      <SectionCard title="Accountant">
-        <Row
-          label="Export records"
-          value={exporting ? 'Preparing…' : 'Choose format'}
-          onTap={() => openExportSheet('records')}
-          chevron
-        />
-      </SectionCard>
-
-      {/* Data & privacy */}
-      <div id="settings-section-data-privacy">
-        <SectionCard title="Data &amp; privacy">
-          {/* Retention copy — DO NOT EDIT. Pending solicitor sign-off on retention
-              period decision (DATA-PROTECTION-DECISIONS-FOR-SOLICITOR.md). */}
-          <p className="settings-section-subtitle">
-            Your data is yours. Export it or delete it anytime — no email to support, no waiting.
-          </p>
-          <p className="settings-section-subtitle" style={{ marginTop: 4 }}>
-            We keep your job and invoice records for as long as you do — your accountant and HMRC may need them for up to 6 years. Old leads that never turned into work get tidied away after 6 months.
-          </p>
-          <Row label="Privacy Policy" onTap={() => window.open('/privacy', '_blank', 'noopener')} />
-          <Row label="Terms of Service" onTap={() => window.open('/terms', '_blank', 'noopener')} />
-          <Row label="Cookie Policy" onTap={() => window.open('/cookies', '_blank', 'noopener')} />
-          <CookieSettingsRow />
-          <Row
-            label="Export everything"
-            value={exporting ? 'Preparing…' : 'Choose format'}
-            onTap={() => openExportSheet('everything')}
-            chevron
-          />
-          <Row label="Delete account" danger onTap={() => setShowDeleteAccount(true)} chevron />
-        </SectionCard>
-      </div>
-
-      {/* Help & FAQ */}
-      <div id="settings-section-help">
-        <SectionCard title="Help">
-          <Row label="Chat with us" value="WhatsApp" onTap={handleWhatsApp} />
-          <Row label="Send feedback" value="Email" onTap={handleSendFeedback} />
-          <Row label="Report a bug" value="Email" onTap={handleSendBugReport} />
-          <Row label="Refer a mate" onTap={handleShare} />
-          <button
-            className={`settings-row${whatsNewDot ? ' settings-row--has-dot' : ''}`}
-            type="button"
-            onClick={handleOpenWhatsNew}
-          >
-            <span className="settings-row-label">
-              What&rsquo;s new
-              {whatsNewDot && <span className="settings-new-dot" aria-label="New updates available" />}
-            </span>
-            <span className="settings-row-right">
-              <span className="settings-row-chevron">›</span>
-            </span>
-          </button>
-        </SectionCard>
-
-        <SectionCard title="FAQ">
-          <FaqItem question="How do I send an invoice?">
-            <p>Log a job, set the amount, then tap the job to open it and hit "Send invoice". Your customer gets a link they can open in any browser — no app needed. They can also pay by card if you&rsquo;ve connected Stripe in Settings &rarr; Card payments.</p>
-          </FaqItem>
-          <FaqItem question="How does the free trial work? What happens after 14 days?">
-            <p>You get 14 days of Pro free — no card required to start. After that, you drop to the free tier: the full Get Paid loop (quotes, invoices, receipts) stays unlimited forever, and your documents carry a &ldquo;Sent with JobProfit&rdquo; footer. Upgrade to Pro for £12/mo at any time from Settings &rarr; Subscription to remove the footer, unlock the Insight Layer, and get the automatic chase ladder.</p>
-          </FaqItem>
-          <FaqItem question="How do I cancel or change my plan?">
-            <p>Go to Settings &rarr; Subscription &rarr; Manage billing. That opens the Stripe billing portal where you can cancel or update your card. Cancellation takes effect at the end of your current billing period — no pro-rata charge.</p>
-          </FaqItem>
-          <FaqItem question="Is my data safe? Who can see my jobs?">
-            <p>Only you. Your jobs are locked to your account using Supabase Row Level Security — other users cannot read your data even if they tried. Public quote and invoice links are single-use tokens that only reveal what you choose to share with the customer.</p>
-          </FaqItem>
-          <FaqItem question="How does a customer accept a quote and pay?">
-            <p>Send them the quote link. They open it in their browser, review the breakdown, sign with their finger, tick the T&amp;Cs checkbox, and tap Confirm. If you&rsquo;ve set a deposit, they can pay it via Stripe right there. You get a push notification the moment they accept.</p>
-          </FaqItem>
-          <FaqItem question="How do I export or delete my data?">
-            <p>Settings &rarr; Data &amp; privacy &rarr; Export everything lets you download all your jobs as a spreadsheet (CSV) or a PDF summary. Delete account wipes everything immediately — no email to support, no waiting.</p>
-          </FaqItem>
-        </SectionCard>
-      </div>
-
-      {/* App */}
-      <div id="settings-section-app">
-        <SectionCard title="App">
-          <div className="settings-row settings-row--passive settings-row--theme">
-            <span className="settings-row-label">Theme</span>
-            <div className="theme-picker" role="group" aria-label="Choose theme">
-              {[
-                { value: 'light',  label: 'Light'  },
-                { value: 'dark',   label: 'Dark'   },
-                { value: 'system', label: 'System' },
-              ].map(({ value, label }) => (
-                <button
-                  key={value}
-                  type="button"
-                  className={`theme-option${themePref === value ? ' theme-option--active' : ''}`}
-                  onClick={() => handleThemePref(value)}
-                  aria-pressed={themePref === value}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-          <Row label="Version" value={APP_VERSION} chevron={false} />
-        </SectionCard>
-      </div>
 
       <div style={{ height: 32 }} />
       {modalLayer}

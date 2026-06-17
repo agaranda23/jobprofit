@@ -482,6 +482,11 @@ button:focus-visible {
   color: var(--text-dim);
   border-color: var(--border);
 }
+/* 12b. "Itemise it for me" AI button — keep accent-green readable on light surface */
+[data-theme="light"] .aj-ai-itemise-btn {
+  background: var(--accent, #00A86B);
+  color: #fff;
+}
 [data-theme="light"] .aj-quote-line-total {
   border-top-color: var(--border);
 }
@@ -12416,6 +12421,28 @@ button.jd-money-chip:active { opacity: 0.75; }
   -webkit-tap-highlight-color: transparent;
 }
 .aj-quote-line-remove:active { color: #EF4444; }
+
+/* "Itemise it for me" AI CTA — appears above the line items section.
+   Dark-theme default: accent-green filled button.
+   Light-theme override lives in the [data-theme="light"] block above. */
+.aj-ai-itemise-btn {
+  display: block;
+  width: 100%;
+  background: var(--accent, #2BC48A);
+  color: #0b1f10;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 700;
+  font-family: inherit;
+  padding: 10px 12px;
+  cursor: pointer;
+  min-height: 44px;
+  margin-top: 8px;
+  text-align: center;
+  -webkit-tap-highlight-color: transparent;
+}
+.aj-ai-itemise-btn:active { opacity: 0.85; }
 
 /* Add line item button inside the items panel */
 .aj-quote-add-line-btn {

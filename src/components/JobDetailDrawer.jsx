@@ -407,10 +407,10 @@ function CustomerCard({ job, onEditName, onEditPhone, onEditAddress, onEditEmail
         )
       )}
 
-      {/* Accepted signature — moved to DocumentsHub (Documents > Quotes tab).
-          CustomerCard only surfaces the deposit badge here; the handwritten
-          signature image is gated inside the hub (tap "View signature") and
-          lives in the PDF. This removes the always-on signature exposure. */}
+      {/* Acceptance badge — shown in CustomerCard for any accepted quote.
+          Deposit path: "Accepted by card deposit" (no signature image here).
+          Signature path: "Accepted by {name}" + timestamp.
+          The full handwritten signature image lives in DocumentsHub > Quotes tab. */}
       {job.acceptedSource === 'deposit_payment' && !job.acceptedSignature && (
         <div className="sig-accepted-card">
           <div className="sig-accepted-label">Accepted by card deposit</div>
@@ -422,6 +422,19 @@ function CustomerCard({ job, onEditName, onEditPhone, onEditAddress, onEditEmail
               {fmtDate(job.acceptedAt)}
             </div>
           )}
+        </div>
+      )}
+      {job.acceptedAt && job.acceptedSource !== 'deposit_payment' && (
+        <div className="sig-accepted-card">
+          <div className="sig-accepted-label">
+            Accepted by {job.acceptedName || 'customer'}
+          </div>
+          <div className="sig-accepted-source">
+            {job.acceptedSource === 'remote' ? 'Signed remotely' : 'Signed on screen'}
+          </div>
+          <div className="sig-accepted-date">
+            {fmtDate(job.acceptedAt)}
+          </div>
         </div>
       )}
     </div>
