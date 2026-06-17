@@ -5,28 +5,33 @@
  * The AccountDrawer and HeaderAvatar are NOT mounted when slice 3 is active
  * (suppressed in AppShell) — this screen is the single account entry point.
  *
- * Section structure:
- *   Account          — real (folds in AccountDrawer logic)
- *   Invoice settings — real labels, all editable via EditFieldModal
- *   Notifications    — push toggle + placeholders
- *   Subscription     — placeholder
- *   Accountant       — placeholder
- *   Data & privacy   — placeholder
- *   Help             — placeholder
- *   App              — theme picker (Light/Dark/System) + version read from package.json
+ * Navigation model (Phase 1):
+ *   Hub view: pinned identity card + subscription + 8 category rows.
+ *   Selecting a Phase-1 row navigates to a focused sub-screen.
+ *   Rows 4-8 (Account & business, Notifications, Data & privacy, Help & FAQ, App)
+ *   remain inline-below-hub until Phase 2 sub-screens are built.
+ *
+ *   settingsView state: 'hub' | 'invoices' | 'getpaid' | 'costs'
+ *   history.pushState is called on sub-screen open; a popstate handler returns
+ *   the user to the hub so the PWA hardware back button works correctly.
+ *
+ * overheadsRef deep-link REPLACED (Phase 1):
+ *   AppShell previously passed scrollTarget='overheads' to scroll the flat list.
+ *   With Monthly bills now on the Costs sub-screen, receiving scrollTarget='overheads'
+ *   instead NAVIGATES to settingsView='costs'. The ref and scroll effect are removed.
+ *
+ * Subscription slot seam:
+ *   <SubscriptionCard> is the single pinned component on the hub.
+ *   When the founding-member branch lands, the precedence will be:
+ *     foundingEligible ? <FoundingMemberCard/> : <SubscriptionCard/>
+ *   A comment marks the exact insertion point.
  *
  * Judgement calls documented here:
- *   1. "Re-run setup wizard" row is a manual escape hatch — always available at
- *      the bottom of Account, regardless of completion status.
- *   2. Logo row opens a text-input modal for v1 (URL only). A proper upload
- *      flow is deferred to a follow-up — noted in this file.
- *   3. Theme picker: Light / Dark / System segmented control. Preference is
- *      persisted to localStorage (jp.theme) via src/lib/theme.js. System mode
- *      follows the OS prefers-color-scheme and subscribes to live changes.
- *   4. Version is imported from package.json using Vite's JSON import — zero
- *      runtime overhead, no fetch needed.
- *   5. Editable rows use EditFieldModal (single or composite). Saves bubble
- *      up via onProfileUpdate — AppShell writes to Supabase + updates profile.
+ *   1. "Re-run setup wizard" row is a manual escape hatch — always available.
+ *   2. Logo row opens the LogoModal (upload or URL).
+ *   3. Theme picker: Light / Dark / System segmented control.
+ *   4. Version is imported from package.json via Vite's JSON import.
+ *   5. Editable rows use EditFieldModal. Saves bubble up via onProfileUpdate.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
 import pkg from '../../package.json';
@@ -1732,6 +1737,108 @@ function LogoModal({ currentUrl, session, onSave, onClose }) {
   );
 }
 
+// ── SubscriptionCard ─────────────────────────────────────────────────────────
+// Pinned block on the hub. Branches by plan state.
+//
+// SEAM FOR FOUNDING MEMBER CARD:
+//   When feat/founding-member-price-lock merges, wrap this with:
+//     foundingEligible ? <FoundingMemberCard /> : <SubscriptionCard ... />
+//   The FoundingMemberCard sits in the same pinned slot, above category rows.
+
+function SubscriptionCard({ profile, openUpgradeSheet }) {
+  if (!UNLOCK_PRO_FOR_ALL && isTrialActive(profile)) {
+    return (
+      <SectionCard title="Subscription">
+        <Row
+          label="Current plan"
+          value={`Free trial · ${trialDaysLeft(profile)} day${trialDaysLeft(profile) === 1 ? '' : 's'} left`}
+          chevron={false}
+        />
+        <Row
+          label="Add card to stay Pro"
+          action="£12/mo"
+          onTap={() => openUpgradeSheet(UPGRADE_TRIGGERS.SETTINGS)}
+          highlight
+        />
+      </SectionCard>
+    );
+  }
+  if (isPro(profile)) {
+    return (
+      <SectionCard title="Subscription">
+        <Row label="Current plan" value="Pro" chevron={false} />
+        <Row
+          label="Manage billing"
+          onTap={async () => {
+            const { error } = await openBillingPortal();
+            if (error) {
+              // surfaced via the outer component's toast — ignore here
+            }
+          }}
+        />
+      </SectionCard>
+    );
+  }
+  // Free (default)
+  return (
+    <SectionCard title="Subscription">
+      <Row label="Current plan" value="Free" chevron={false} />
+      <Row
+        label="Upgrade to Pro"
+        action="£12/mo"
+        onTap={() => openUpgradeSheet(UPGRADE_TRIGGERS.SETTINGS)}
+        highlight
+      />
+    </SectionCard>
+  );
+}
+
+// ── HubCategoryRow ────────────────────────────────────────────────────────────
+// A single navigable row on the hub. Uses the existing Row primitive with an
+// injected Icon on the left — extends Row visually without touching Row itself.
+
+function HubCategoryRow({ label, iconName, hint, onTap, dot = false }) {
+  return (
+    <button
+      type="button"
+      className="settings-row settings-hub-row"
+      onClick={onTap}
+    >
+      <span className="settings-hub-row-icon" aria-hidden="true">
+        <Icon name={iconName} size={20} />
+      </span>
+      <span className="settings-row-label">
+        {label}
+        {dot && <span className="settings-new-dot" aria-label="New updates available" />}
+      </span>
+      <span className="settings-row-right">
+        {hint && <span className="settings-row-value">{hint}</span>}
+        <span className="settings-row-chevron">›</span>
+      </span>
+    </button>
+  );
+}
+
+// ── SubScreenHeader ───────────────────────────────────────────────────────────
+// Consistent header for every Phase-1 sub-screen. Back chevron (≥44px tap
+// target) on the left returns to hub; title centred.
+
+function SubScreenHeader({ title, onBack }) {
+  return (
+    <div className="screen-header settings-subscreen-header">
+      <button
+        type="button"
+        className="settings-subscreen-back"
+        onClick={onBack}
+        aria-label="Back to Settings"
+      >
+        <Icon name="chevron-left" size={24} />
+      </button>
+      <h1 className="screen-title">{title}</h1>
+    </div>
+  );
+}
+
 // ── SettingsScreen ────────────────────────────────────────────────────────────
 
 export default function SettingsScreen({
@@ -1745,15 +1852,59 @@ export default function SettingsScreen({
   onOpenJob,
   onNavigateToCardPayments,
   onBrowseMaterials,
-  // scrollTarget: 'overheads' | null — signals where to scroll on mount/change.
-  // Passed from AppShell when the user taps "Add your costs" on the Money tab.
-  // NOTE: section naming/structure is pending PRD's overheads redesign — do not
-  // rename 'overheads' here until that spec lands.
+  // scrollTarget: 'overheads' | null — from AppShell when the user taps
+  // "Add your costs" on the Money tab.
+  // Phase 1: receiving 'overheads' now navigates to the Costs sub-screen
+  // instead of scrolling (overheadsRef removed). AppShell is unchanged —
+  // it still passes 'overheads'; we handle it here by routing to 'costs'.
   scrollTarget = null,
-  // onScrollTargetConsumed: called once the scroll has fired so AppShell can
-  // clear the signal and avoid re-scrolling on re-renders.
   onScrollTargetConsumed,
 }) {
+  // ── Hub / sub-screen routing ───────────────────────────────────────────────
+  // 'hub' | 'invoices' | 'getpaid' | 'costs'
+  const [settingsView, setSettingsView] = useState('hub');
+  // Preserve hub scroll position when returning from a sub-screen.
+  const hubScrollRef = useRef(0);
+  const screenRef = useRef(null);
+
+  const navigateToSubScreen = useCallback((view) => {
+    // Save hub scroll position
+    hubScrollRef.current = screenRef.current?.scrollTop ?? 0;
+    setSettingsView(view);
+    // Push a history entry so the PWA back button returns to hub
+    history.pushState({ settingsView: view }, '');
+    // Sub-screen starts at top
+    requestAnimationFrame(() => {
+      if (screenRef.current) screenRef.current.scrollTop = 0;
+    });
+  }, []);
+
+  const navigateToHub = useCallback(() => {
+    setSettingsView('hub');
+    // Restore hub scroll
+    requestAnimationFrame(() => {
+      if (screenRef.current) screenRef.current.scrollTop = hubScrollRef.current;
+    });
+  }, []);
+
+  // Handle hardware/browser back button while on a sub-screen
+  useEffect(() => {
+    const onPopState = (e) => {
+      if (settingsView !== 'hub') {
+        navigateToHub();
+      }
+    };
+    window.addEventListener('popstate', onPopState);
+    return () => window.removeEventListener('popstate', onPopState);
+  }, [settingsView, navigateToHub]);
+
+  // overheads deep-link: navigate to Costs sub-screen instead of scrolling
+  useEffect(() => {
+    if (scrollTarget !== 'overheads') return;
+    navigateToSubScreen('costs');
+    onScrollTargetConsumed?.();
+  }, [scrollTarget, navigateToSubScreen, onScrollTargetConsumed]);
+
   // ── Theme state ───────────────────────────────────────────────────────────
   const [themePref, setThemePrefState] = useState(() => getStoredPref());
 
@@ -1762,22 +1913,10 @@ export default function SettingsScreen({
     setThemePref(pref);
   }
 
-  // ── Scroll-to-overheads (wired from FinanceScreen "Add your costs" nudge) ──
-  // overheadsRef is attached to the wrapper div around the overheads SectionCard.
-  // When scrollTarget === 'overheads', scroll into view and clear the signal.
-  const overheadsRef = useRef(null);
-  useEffect(() => {
-    if (scrollTarget !== 'overheads') return;
-    // requestAnimationFrame: the section may still be rendering on first mount.
-    const frame = requestAnimationFrame(() => {
-      overheadsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      onScrollTargetConsumed?.();
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [scrollTarget, onScrollTargetConsumed]);
-
   // ── Logo modal state ──────────────────────────────────────────────────────
   const [showLogoModal, setShowLogoModal] = useState(false);
+  // Remove the ref — it was only used for scroll-to-overheads (now replaced by
+  // navigateToSubScreen('costs') via the scrollTarget effect above).
 
   // ── What's new state ──────────────────────────────────────────────────────
   const [showWhatsNew, setShowWhatsNew] = useState(false);
@@ -2198,449 +2337,16 @@ export default function SettingsScreen({
   });
 
   // ── Render ─────────────────────────────────────────────────────────────────
+  // Shared modal layer (rendered on all views so modals work from sub-screens too)
 
-  return (
-    <div className="screen settings-screen">
-      <div className="screen-header">
-        <h1 className="screen-title">Settings</h1>
-        <img src="/jobprofit-logo.png" alt="" className="screen-header-logo" aria-hidden="true" />
-      </div>
-
-      {/* Account identity card */}
-      <div className="settings-identity">
-        <SettingsAvatar profile={profile} session={session} />
-        <div className="settings-identity-text">
-          <div className="settings-identity-name">{displayName}</div>
-          {tradingName && <div className="settings-identity-trading">{tradingName}</div>}
-          <div className="settings-identity-email">{email}</div>
-        </div>
-      </div>
-
-      {/* Profile completion notice */}
-      {!allRequiredDone && (
-        <button
-          className="settings-complete-banner"
-          onClick={onOpenWizard}
-          type="button"
-        >
-          <span>Profile incomplete — tap to finish setup</span>
-          <span>›</span>
-        </button>
-      )}
-
-      {/* Account section */}
-      <SectionCard title="Account">
-        <Row
-          label="Name"
-          value={displayName || '—'}
-          onTap={openEditName}
-        />
-        <Row
-          label="Email"
-          value={email || '—'}
-          chevron={false}
-        />
-        <Row
-          label="Business name"
-          value={tradingName || '—'}
-          onTap={openEditBusinessName}
-        />
-        <Row
-          label="Your trade"
-          value={deriveTradeRowValue(profile) ?? 'Not set'}
-          onTap={() => setShowTradeSheet(true)}
-        />
-        <Row
-          label="Re-run setup wizard"
-          onTap={() => {
-            // Remove the once-per-session guard so the wizard can open again
-            sessionStorage.removeItem('jp.wizardActive');
-            onOpenWizard?.();
-          }}
-          chevron
-        />
-        <Row
-          label="Sign out"
-          danger
-          onTap={onSignOut}
-          chevron={false}
-        />
-      </SectionCard>
-
-      {/* Get paid — Card payments (Stripe Connect) + default deposit % */}
-      <SectionCard title="Get paid">
-        <Row
-          label="Card payments"
-          value={
-            profile?.stripe_connect_status === 'connected' && profile?.stripe_user_id
-              ? (() => {
-                  const name =
-                    profile?.business_name ||
-                    [profile?.first_name, profile?.last_name].filter(Boolean).join(' ');
-                  return name ? `Connected · ${name}` : 'Connected';
-                })()
-              : 'Not connected'
-          }
-          onTap={onNavigateToCardPayments}
-        />
-        <DefaultDepositRow profile={profile} onProfileUpdate={onProfileUpdate} />
-      </SectionCard>
-
-      {/* Invoice settings */}
-      <SectionCard title="Invoice settings">
-        <Row
-          label="Logo"
-          value={profile?.logo_url ? 'Set' : 'None'}
-          onTap={openEditLogo}
-        />
-        {/* Trading name here is the same business_name field — same edit modal */}
-        <Row
-          label="Trading name"
-          value={tradingName || '—'}
-          onTap={openEditBusinessName}
-        />
-        <Row
-          label="Business address"
-          value={profile?.address ? profile.address.split(/\n|,/)[0].trim() : '—'}
-          onTap={openEditAddress}
-        />
-        <Row
-          label="Business phone"
-          value={profile?.phone || '—'}
-          onTap={openEditPhone}
-        />
-        <Row
-          label="Business email"
-          value={profile?.email || '—'}
-          onTap={openEditEmail}
-        />
-        <Row
-          label="Bank details"
-          value={(profile?.sort_code && profile?.account_number) ? 'Set' : '—'}
-          onTap={openEditBankDetails}
-        />
-        <Row
-          label="Hourly rate"
-          value={profile?.hourly_rate ? `£${profile.hourly_rate}/hr` : '—'}
-          onTap={openEditHourlyRate}
-        />
-        <Row
-          label="Standard markup %"
-          value={profile?.default_markup != null ? `${profile.default_markup}%` : '20%'}
-          onTap={openEditDefaultMarkup}
-        />
-        <Row
-          label="Materials"
-          value="Your price list & saved items"
-          onTap={onBrowseMaterials}
-        />
-        <Row
-          label="VAT"
-          value={profile?.vat_number ? 'Registered' : 'Not set'}
-          onTap={openEditVat}
-        />
-        <Row
-          label="UTR number"
-          value={profile?.utr_number || '—'}
-          onTap={openEditUtr}
-        />
-        <Row
-          label="Tax set-aside %"
-          value={`${profile?.tax_set_aside_pct ?? 20}%`}
-          onTap={openEditTaxSetAside}
-        />
-        <Row
-          label="CIS subcontractor"
-          value={
-            profile?.is_cis_subcontractor
-              ? `On · ${profile.cis_default_rate ?? 20}%`
-              : 'Off'
-          }
-          onTap={() => setShowCisSheet(true)}
-        />
-        <Row
-          label="Card payment link"
-          value={profile?.stripe_payment_link ? 'Set' : 'Not set'}
-          onTap={openEditStripeLink}
-        />
-        <Row
-          label="Default payment terms"
-          value={`${profile?.payment_terms_days ?? 14} days`}
-          onTap={openEditPaymentTerms}
-        />
-        <Row
-          label="Quote validity"
-          value={`${profile?.quote_validity_days ?? 30} days`}
-          onTap={openEditQuoteValidity}
-        />
-        <ItemiseDocumentsRow
-          profile={profile}
-          onProfileUpdate={onProfileUpdate}
-        />
-        <Row
-          label="Website"
-          value={profile?.website || '—'}
-          onTap={openEditWebsite}
-        />
-        <Row
-          label="Terms & conditions"
-          value={profile?.terms_text ? 'Set' : '—'}
-          onTap={openEditTermsText}
-        />
-      </SectionCard>
-
-      {/* Monthly bills — overheadsRef targets this wrapper so
-          tapping "Add your costs" on the Money tab scrolls here directly.
-          Internal code/DB key remains `overheads`. */}
-      <div ref={overheadsRef}>
-        <SectionCard title="Monthly bills" subline="The bills you pay every month whether you work or not — van, insurance, phone, tools.">
-          <MonthlyOverheadsSection
-            overheads={Array.isArray(profile?.overheads) ? profile.overheads : []}
-            onSave={handleSave}
-          />
-        </SectionCard>
-      </div>
-
-      {/* ── Visual divider — separates frequently-used sections (Get paid,
-              Invoice settings, Monthly bills) from the less-touched
-              configuration sections below ── */}
-      <div className="settings-section-divider" aria-hidden="true" />
-
-      {/* Job costs */}
-      <SectionCard title="Job costs" subline="When you mark a job paid with nothing logged, we'll ask once. Off if you'd rather we didn't.">
-        <RemindJobCostsRow
-          profile={profile}
-          onProfileUpdate={onProfileUpdate}
-        />
-      </SectionCard>
-
-      {/* Voice input language */}
-      <SectionCard title="Voice input language">
-        <VoiceLanguageSection session={session} />
-      </SectionCard>
-
-      {/* Notifications */}
-      <SectionCard title="Notifications">
-        <NotificationsSection session={session} />
-        <Row
-          label="Chase reminders"
-          action={(() => {
-            const safeJobs = Array.isArray(jobs) ? jobs : [];
-            const count = buildChaseList(safeJobs).length;
-            return count > 0 ? `${count} to chase` : 'All clear';
-          })()}
-          chevron
-          onTap={() => setShowChaseList(true)}
-        />
-        <WeeklyDigestRow
-          session={session}
-          profile={profile}
-          onProfileUpdate={onProfileUpdate}
-        />
-        <AutoChaseRow
-          profile={profile}
-          onProfileUpdate={onProfileUpdate}
-          onUpgrade={() => openUpgradeSheet(UPGRADE_TRIGGERS.AUTO_CHASE_LOCKED)}
-        />
-      </SectionCard>
-
-
-      {/* Subscription */}
-      <SectionCard title="Subscription">
-        {/* Trial state — shown only when override is off and user is on an active trial */}
-        {!UNLOCK_PRO_FOR_ALL && isTrialActive(profile) ? (
-          <>
-            <Row
-              label="Current plan"
-              value={`Free trial · ${trialDaysLeft(profile)} day${trialDaysLeft(profile) === 1 ? '' : 's'} left`}
-              chevron={false}
-            />
-            <Row
-              label="Add card to stay Pro"
-              action="£12/mo"
-              onTap={() => openUpgradeSheet(UPGRADE_TRIGGERS.SETTINGS)}
-              highlight
-            />
-          </>
-        ) : isPro(profile) ? (
-          <>
-            <Row
-              label="Current plan"
-              value="Pro"
-              chevron={false}
-            />
-            <Row
-              label="Manage billing"
-              onTap={async () => {
-                const { error } = await openBillingPortal();
-                if (error) setSaveToast(error);
-              }}
-            />
-          </>
-        ) : (
-          <>
-            <Row
-              label="Current plan"
-              value="Free"
-              chevron={false}
-            />
-            <Row
-              label="Upgrade to Pro"
-              action="£12/mo"
-              onTap={() => openUpgradeSheet(UPGRADE_TRIGGERS.SETTINGS)}
-              highlight
-            />
-          </>
-        )}
-      </SectionCard>
-
-      {/* Accountant */}
-      <SectionCard title="Accountant">
-        <Row
-          label="Export records"
-          value={exporting ? 'Preparing…' : 'Choose format'}
-          onTap={() => openExportSheet('records')}
-          chevron
-        />
-      </SectionCard>
-
-      {/* Data & privacy */}
-      <SectionCard title="Data &amp; privacy">
-        <p className="settings-section-subtitle">
-          Your data is yours. Export it or delete it anytime — no email to support, no waiting.
-        </p>
-        <p className="settings-section-subtitle" style={{ marginTop: 4 }}>
-          We keep your job and invoice records for as long as you do — your accountant and HMRC may need them for up to 6 years. Old leads that never turned into work get tidied away after 6 months.
-        </p>
-        <Row
-          label="Privacy Policy"
-          onTap={() => window.open('/privacy', '_blank', 'noopener')}
-        />
-        <Row
-          label="Terms of Service"
-          onTap={() => window.open('/terms', '_blank', 'noopener')}
-        />
-        <Row
-          label="Cookie Policy"
-          onTap={() => window.open('/cookies', '_blank', 'noopener')}
-        />
-        <CookieSettingsRow />
-        <Row
-          label="Export everything"
-          value={exporting ? 'Preparing…' : 'Choose format'}
-          onTap={() => openExportSheet('everything')}
-          chevron
-        />
-        <Row
-          label="Delete account"
-          danger
-          onTap={() => setShowDeleteAccount(true)}
-          chevron
-        />
-      </SectionCard>
-
-      {/* Help */}
-      <SectionCard title="Help">
-        <Row
-          label="Chat with us"
-          value="WhatsApp"
-          onTap={handleWhatsApp}
-        />
-        <Row
-          label="Send feedback"
-          value="Email"
-          onTap={handleSendFeedback}
-        />
-        <Row
-          label="Report a bug"
-          value="Email"
-          onTap={handleSendBugReport}
-        />
-        <Row
-          label="Refer a mate"
-          onTap={handleShare}
-        />
-        <button
-          className={`settings-row${whatsNewDot ? ' settings-row--has-dot' : ''}`}
-          type="button"
-          onClick={handleOpenWhatsNew}
-        >
-          <span className="settings-row-label">
-            What&rsquo;s new
-            {whatsNewDot && <span className="settings-new-dot" aria-label="New updates available" />}
-          </span>
-          <span className="settings-row-right">
-            <span className="settings-row-chevron">›</span>
-          </span>
-        </button>
-      </SectionCard>
-
-      {/* FAQ */}
-      <SectionCard title="FAQ">
-        <FaqItem question="How do I send an invoice?">
-          <p>Log a job, set the amount, then tap the job to open it and hit "Send invoice". Your customer gets a link they can open in any browser — no app needed. They can also pay by card if you&rsquo;ve connected Stripe in Settings &rarr; Card payments.</p>
-        </FaqItem>
-        <FaqItem question="How does the free trial work? What happens after 14 days?">
-          <p>You get 14 days of Pro free — no card required to start. After that, you drop to the free tier: the full Get Paid loop (quotes, invoices, receipts) stays unlimited forever, and your documents carry a &ldquo;Sent with JobProfit&rdquo; footer. Upgrade to Pro for £12/mo at any time from Settings &rarr; Subscription to remove the footer, unlock the Insight Layer, and get the automatic chase ladder.</p>
-        </FaqItem>
-        <FaqItem question="How do I cancel or change my plan?">
-          <p>Go to Settings &rarr; Subscription &rarr; Manage billing. That opens the Stripe billing portal where you can cancel or update your card. Cancellation takes effect at the end of your current billing period — no pro-rata charge.</p>
-        </FaqItem>
-        <FaqItem question="Is my data safe? Who can see my jobs?">
-          <p>Only you. Your jobs are locked to your account using Supabase Row Level Security — other users cannot read your data even if they tried. Public quote and invoice links are single-use tokens that only reveal what you choose to share with the customer.</p>
-        </FaqItem>
-        <FaqItem question="How does a customer accept a quote and pay?">
-          <p>Send them the quote link. They open it in their browser, review the breakdown, sign with their finger, tick the T&amp;Cs checkbox, and tap Confirm. If you&rsquo;ve set a deposit, they can pay it via Stripe right there. You get a push notification the moment they accept.</p>
-        </FaqItem>
-        <FaqItem question="How do I export or delete my data?">
-          <p>Settings &rarr; Data &amp; privacy &rarr; Export everything lets you download all your jobs as a spreadsheet (CSV) or a PDF summary. Delete account wipes everything immediately — no email to support, no waiting.</p>
-        </FaqItem>
-      </SectionCard>
-
-      {/* App */}
-      <SectionCard title="App">
-        {/* Theme picker — Light / Dark / System segmented control */}
-        <div className="settings-row settings-row--passive settings-row--theme">
-          <span className="settings-row-label">Theme</span>
-          <div className="theme-picker" role="group" aria-label="Choose theme">
-            {[
-              { value: 'light',  label: 'Light'  },
-              { value: 'dark',   label: 'Dark'   },
-              { value: 'system', label: 'System' },
-            ].map(({ value, label }) => (
-              <button
-                key={value}
-                type="button"
-                className={`theme-option${themePref === value ? ' theme-option--active' : ''}`}
-                onClick={() => handleThemePref(value)}
-                aria-pressed={themePref === value}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-        </div>
-        <Row label="Version" value={APP_VERSION} chevron={false} />
-      </SectionCard>
-
-      {/* Extra breathing room above bottom nav */}
-      <div style={{ height: 32 }} />
-
-      {/* ── Saved toast ──────────────────────────────────────────────────── */}
-      {saveToast && (
-        <div className="toast" role="status" aria-live="polite">
-          {saveToast}
-        </div>
-      )}
-
+  const modalLayer = (
+    <>
       {/* ── Edit field modal ─────────────────────────────────────────────── */}
       {activeEdit && (
         <EditFieldModal
           open
-          // Composite mode (name / bank)
           title={activeEdit.title}
           fields={activeEdit.fields}
-          // Single-field mode
           fieldKey={activeEdit.fieldKey}
           fieldLabel={activeEdit.fieldLabel}
           currentValue={activeEdit.currentValue}
@@ -2678,7 +2384,6 @@ export default function SettingsScreen({
                 ×
               </button>
             </div>
-
             {chaseRows.length === 0 ? (
               <div className="chase-list-empty">
                 <p className="chase-list-empty-icon">&#x1F389;</p>
@@ -2693,7 +2398,6 @@ export default function SettingsScreen({
                     className="chase-list-row"
                     onClick={() => {
                       setShowChaseList(false);
-                      // Navigate to the job in the Jobs tab
                       if (onOpenJob && row.id) onOpenJob(row.id);
                     }}
                   >
@@ -2765,14 +2469,14 @@ export default function SettingsScreen({
         />
       )}
 
-      {/* ── Pro upgrade sheet — opened by Subscription upgrade rows ─────── */}
+      {/* ── Pro upgrade sheet ────────────────────────────────────────────── */}
       <ProUpgradeSheet
         open={upgradeSheetOpen}
         trigger={upgradeSheetTrigger}
         onClose={() => setUpgradeSheetOpen(false)}
       />
 
-      {/* ── Export format sheet ───────────────────────────────────────────── */}
+      {/* ── Export format sheet ──────────────────────────────────────────── */}
       {exportSheetContext && (() => {
         const isRecords = exportSheetContext.section === 'records';
         const sheetTitle = isRecords ? 'Export records' : 'Export everything';
@@ -2780,32 +2484,10 @@ export default function SettingsScreen({
         const pdfSublabel = isRecords
           ? 'A clean sheet you can send'
           : 'A clean sheet you can read or send';
-
-        const csvOption = {
-          id: 'csv',
-          icon: '📊',
-          label: 'Spreadsheet (CSV)',
-          sublabel: 'For your accountant or Excel',
-        };
-        const xlsxOption = {
-          id: 'xlsx',
-          icon: '📗',
-          label: 'Excel (.xlsx)',
-          sublabel: 'Opens in Excel or Google Sheets',
-        };
-        const pdfOption = {
-          id: 'pdf',
-          icon: '📄',
-          label: 'PDF summary',
-          sublabel: pdfSublabel,
-        };
-
-        // Records: CSV first (accountant default), then xlsx, then PDF
-        // Everything: PDF first (full picture), then CSV, then xlsx
-        const options = csvFirst
-          ? [csvOption, xlsxOption, pdfOption]
-          : [pdfOption, csvOption, xlsxOption];
-
+        const csvOption  = { id: 'csv',  icon: '📊', label: 'Spreadsheet (CSV)', sublabel: 'For your accountant or Excel' };
+        const xlsxOption = { id: 'xlsx', icon: '📗', label: 'Excel (.xlsx)',      sublabel: 'Opens in Excel or Google Sheets' };
+        const pdfOption  = { id: 'pdf',  icon: '📄', label: 'PDF summary',        sublabel: pdfSublabel };
+        const options    = csvFirst ? [csvOption, xlsxOption, pdfOption] : [pdfOption, csvOption, xlsxOption];
         return (
           <ExportFormatSheet
             open
@@ -2817,6 +2499,478 @@ export default function SettingsScreen({
           />
         );
       })()}
+
+      {/* ── Saved toast ──────────────────────────────────────────────────── */}
+      {saveToast && (
+        <div className="toast" role="status" aria-live="polite">
+          {saveToast}
+        </div>
+      )}
+    </>
+  );
+
+  // ── Sub-screen: Invoices & quotes ─────────────────────────────────────────
+  if (settingsView === 'invoices') {
+    return (
+      <div className="screen settings-screen" ref={screenRef}>
+        <SubScreenHeader title="Invoices & quotes" onBack={navigateToHub} />
+
+        <SectionCard title="Invoices &amp; quotes">
+          <Row
+            label="Logo"
+            value={profile?.logo_url ? 'Set' : 'None'}
+            onTap={openEditLogo}
+          />
+          {/* Trading name uses the same business_name field as Account & business —
+              intentional cross-linking; both call openEditBusinessName. */}
+          <Row
+            label="Trading name"
+            value={tradingName || '—'}
+            onTap={openEditBusinessName}
+          />
+          <Row
+            label="Business address"
+            value={profile?.address ? profile.address.split(/\n|,/)[0].trim() : '—'}
+            onTap={openEditAddress}
+          />
+          <Row
+            label="Business phone"
+            value={profile?.phone || '—'}
+            onTap={openEditPhone}
+          />
+          <Row
+            label="Business email"
+            value={profile?.email || '—'}
+            onTap={openEditEmail}
+          />
+          <Row
+            label="Website"
+            value={profile?.website || '—'}
+            onTap={openEditWebsite}
+          />
+          <Row
+            label="Bank details"
+            value={(profile?.sort_code && profile?.account_number) ? 'Set' : '—'}
+            onTap={openEditBankDetails}
+          />
+          <Row
+            label="Hourly rate"
+            value={profile?.hourly_rate ? `£${profile.hourly_rate}/hr` : '—'}
+            onTap={openEditHourlyRate}
+          />
+          <Row
+            label="Standard markup %"
+            value={profile?.default_markup != null ? `${profile.default_markup}%` : '20%'}
+            onTap={openEditDefaultMarkup}
+          />
+          <Row
+            label="Materials"
+            value="Your price list & saved items"
+            onTap={onBrowseMaterials}
+          />
+          <Row
+            label="VAT"
+            value={profile?.vat_number ? 'Registered' : 'Not set'}
+            onTap={openEditVat}
+          />
+          <Row
+            label="UTR number"
+            value={profile?.utr_number || '—'}
+            onTap={openEditUtr}
+          />
+          <Row
+            label="Tax set-aside %"
+            value={`${profile?.tax_set_aside_pct ?? 20}%`}
+            onTap={openEditTaxSetAside}
+          />
+          <Row
+            label="CIS subcontractor"
+            value={
+              profile?.is_cis_subcontractor
+                ? `On · ${profile.cis_default_rate ?? 20}%`
+                : 'Off'
+            }
+            onTap={() => setShowCisSheet(true)}
+          />
+          <Row
+            label="Default payment terms"
+            value={`${profile?.payment_terms_days ?? 14} days`}
+            onTap={openEditPaymentTerms}
+          />
+          <Row
+            label="Quote validity"
+            value={`${profile?.quote_validity_days ?? 30} days`}
+            onTap={openEditQuoteValidity}
+          />
+          <Row
+            label="Card payment link"
+            value={profile?.stripe_payment_link ? 'Set' : 'Not set'}
+            onTap={openEditStripeLink}
+          />
+          <Row
+            label="Terms & conditions"
+            value={profile?.terms_text ? 'Set' : '—'}
+            onTap={openEditTermsText}
+          />
+          <ItemiseDocumentsRow
+            profile={profile}
+            onProfileUpdate={onProfileUpdate}
+          />
+        </SectionCard>
+
+        <div style={{ height: 32 }} />
+        {modalLayer}
+      </div>
+    );
+  }
+
+  // ── Sub-screen: Get paid ──────────────────────────────────────────────────
+  if (settingsView === 'getpaid') {
+    return (
+      <div className="screen settings-screen" ref={screenRef}>
+        <SubScreenHeader title="Get paid" onBack={navigateToHub} />
+
+        <SectionCard title="Get paid">
+          <Row
+            label="Card payments"
+            value={
+              profile?.stripe_connect_status === 'connected' && profile?.stripe_user_id
+                ? (() => {
+                    const name =
+                      profile?.business_name ||
+                      [profile?.first_name, profile?.last_name].filter(Boolean).join(' ');
+                    return name ? `Connected · ${name}` : 'Connected';
+                  })()
+                : 'Not connected'
+            }
+            onTap={onNavigateToCardPayments}
+          />
+          <DefaultDepositRow profile={profile} onProfileUpdate={onProfileUpdate} />
+        </SectionCard>
+
+        <div style={{ height: 32 }} />
+        {modalLayer}
+      </div>
+    );
+  }
+
+  // ── Sub-screen: Costs ─────────────────────────────────────────────────────
+  if (settingsView === 'costs') {
+    return (
+      <div className="screen settings-screen" ref={screenRef}>
+        <SubScreenHeader title="Costs" onBack={navigateToHub} />
+
+        {/* Monthly bills — internal DB key remains `overheads` (migration name) */}
+        <SectionCard
+          title="Monthly bills"
+          subline="The bills you pay every month whether you work or not — van, insurance, phone, tools."
+        >
+          <MonthlyOverheadsSection
+            overheads={Array.isArray(profile?.overheads) ? profile.overheads : []}
+            onSave={handleSave}
+          />
+        </SectionCard>
+
+        <SectionCard
+          title="Job costs"
+          subline="When you mark a job paid with nothing logged, we'll ask once. Off if you'd rather we didn't."
+        >
+          <RemindJobCostsRow
+            profile={profile}
+            onProfileUpdate={onProfileUpdate}
+          />
+        </SectionCard>
+
+        <div style={{ height: 32 }} />
+        {modalLayer}
+      </div>
+    );
+  }
+
+  // ── Hub view ──────────────────────────────────────────────────────────────
+  // Derive hint values for category rows
+  const depositHint = (() => {
+    const pct = profile?.default_deposit_percent ?? 25;
+    const cardOn = profile?.stripe_connect_status === 'connected' && profile?.stripe_user_id;
+    return cardOn ? `Card on · Deposit ${pct}%` : `Deposit ${pct}%`;
+  })();
+
+  const overheadTotal = getOverheadTotal(
+    Array.isArray(profile?.overheads) ? profile.overheads : []
+  );
+  const costsHint = (Array.isArray(profile?.overheads) && profile.overheads.length > 0)
+    ? `£${overheadTotal.toFixed(0)}/mo bills`
+    : 'Add your bills';
+
+  const chaseCount = buildChaseList(Array.isArray(jobs) ? jobs : []).length;
+  const notificationsHint = chaseCount > 0 ? `${chaseCount} to chase` : 'All clear';
+
+  const themeWord = themePref.charAt(0).toUpperCase() + themePref.slice(1);
+
+  return (
+    <div className="screen settings-screen" ref={screenRef}>
+      <div className="screen-header">
+        <h1 className="screen-title">Settings</h1>
+        <img src="/jobprofit-logo.png" alt="" className="screen-header-logo" aria-hidden="true" />
+      </div>
+
+      {/* ── Pinned block 1: Identity card ─────────────────────────────────── */}
+      <div className="settings-identity">
+        <SettingsAvatar profile={profile} session={session} />
+        <div className="settings-identity-text">
+          <div className="settings-identity-name">{displayName}</div>
+          {tradingName && <div className="settings-identity-trading">{tradingName}</div>}
+          <div className="settings-identity-email">{email}</div>
+        </div>
+      </div>
+
+      {/* ── Pinned block 2: Profile completion banner ─────────────────────── */}
+      {!allRequiredDone && (
+        <button
+          className="settings-complete-banner"
+          onClick={onOpenWizard}
+          type="button"
+        >
+          <span>Profile incomplete — tap to finish setup</span>
+          <span>›</span>
+        </button>
+      )}
+
+      {/* ── Pinned block 3: Subscription slot ─────────────────────────────
+          SEAM: foundingEligible ? <FoundingMemberCard/> : <SubscriptionCard/>
+          Add the foundingEligible check here when feat/founding-member-price-lock
+          merges. SubscriptionCard handles free / trial / Pro branching internally. */}
+      <SubscriptionCard profile={profile} openUpgradeSheet={openUpgradeSheet} />
+
+      {/* ── Hub category rows ─────────────────────────────────────────────── */}
+      <SectionCard title="Settings">
+        <HubCategoryRow
+          label="Invoices & quotes"
+          iconName="invoice"
+          hint="Logo, bank, VAT, terms"
+          onTap={() => navigateToSubScreen('invoices')}
+        />
+        <HubCategoryRow
+          label="Get paid"
+          iconName="money"
+          hint={depositHint}
+          onTap={() => navigateToSubScreen('getpaid')}
+        />
+        <HubCategoryRow
+          label="Costs"
+          iconName="materials"
+          hint={costsHint}
+          onTap={() => navigateToSubScreen('costs')}
+        />
+        {/* Rows 4–8: Phase 2 sub-screens. Rendered inline below hub for now
+            so nothing currently-reachable becomes unreachable.
+            Each still shows on the hub as a stub row leading to the inline section below. */}
+        <HubCategoryRow
+          label="Account & business"
+          iconName="user"
+          hint={displayName}
+          onTap={() => {
+            const el = document.getElementById('settings-section-account');
+            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }}
+        />
+        <HubCategoryRow
+          label="Notifications"
+          iconName="bell"
+          hint={notificationsHint}
+          onTap={() => {
+            const el = document.getElementById('settings-section-notifications');
+            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }}
+        />
+        <HubCategoryRow
+          label="Data & privacy"
+          iconName="lock"
+          onTap={() => {
+            const el = document.getElementById('settings-section-data-privacy');
+            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }}
+        />
+        <HubCategoryRow
+          label="Help & FAQ"
+          iconName="help"
+          dot={whatsNewDot}
+          onTap={() => {
+            const el = document.getElementById('settings-section-help');
+            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }}
+        />
+        <HubCategoryRow
+          label="App"
+          iconName="settings"
+          hint={themeWord}
+          onTap={() => {
+            const el = document.getElementById('settings-section-app');
+            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+          }}
+        />
+      </SectionCard>
+
+      {/* ── Inline Phase-2 sections (rows 4–8) ───────────────────────────────
+          These remain as flat sections below the hub until Phase 2 converts
+          them to proper sub-screens. They are still reachable by scrolling
+          and via the hub row anchor-scroll above. ── */}
+
+      {/* Account & business */}
+      <div id="settings-section-account">
+        <SectionCard title="Account &amp; business">
+          <Row label="Name" value={displayName || '—'} onTap={openEditName} />
+          <Row label="Email" value={email || '—'} chevron={false} />
+          <Row label="Business name" value={tradingName || '—'} onTap={openEditBusinessName} />
+          <Row
+            label="Your trade"
+            value={deriveTradeRowValue(profile) ?? 'Not set'}
+            onTap={() => setShowTradeSheet(true)}
+          />
+          <Row
+            label="Re-run setup wizard"
+            onTap={() => {
+              sessionStorage.removeItem('jp.wizardActive');
+              onOpenWizard?.();
+            }}
+            chevron
+          />
+          <Row label="Sign out" danger onTap={onSignOut} chevron={false} />
+        </SectionCard>
+      </div>
+
+      {/* Notifications */}
+      <div id="settings-section-notifications">
+        <SectionCard title="Notifications">
+          <NotificationsSection session={session} />
+          <Row
+            label="Chase reminders"
+            action={notificationsHint}
+            chevron
+            onTap={() => setShowChaseList(true)}
+          />
+          <WeeklyDigestRow session={session} profile={profile} onProfileUpdate={onProfileUpdate} />
+          <AutoChaseRow
+            profile={profile}
+            onProfileUpdate={onProfileUpdate}
+            onUpgrade={() => openUpgradeSheet(UPGRADE_TRIGGERS.AUTO_CHASE_LOCKED)}
+          />
+        </SectionCard>
+      </div>
+
+      {/* Voice input language — lives here until Phase 2 re-homes it to Account & business */}
+      <SectionCard title="Voice input language">
+        <VoiceLanguageSection session={session} />
+      </SectionCard>
+
+      {/* Accountant */}
+      <SectionCard title="Accountant">
+        <Row
+          label="Export records"
+          value={exporting ? 'Preparing…' : 'Choose format'}
+          onTap={() => openExportSheet('records')}
+          chevron
+        />
+      </SectionCard>
+
+      {/* Data & privacy */}
+      <div id="settings-section-data-privacy">
+        <SectionCard title="Data &amp; privacy">
+          {/* Retention copy — DO NOT EDIT. Pending solicitor sign-off on retention
+              period decision (DATA-PROTECTION-DECISIONS-FOR-SOLICITOR.md). */}
+          <p className="settings-section-subtitle">
+            Your data is yours. Export it or delete it anytime — no email to support, no waiting.
+          </p>
+          <p className="settings-section-subtitle" style={{ marginTop: 4 }}>
+            We keep your job and invoice records for as long as you do — your accountant and HMRC may need them for up to 6 years. Old leads that never turned into work get tidied away after 6 months.
+          </p>
+          <Row label="Privacy Policy" onTap={() => window.open('/privacy', '_blank', 'noopener')} />
+          <Row label="Terms of Service" onTap={() => window.open('/terms', '_blank', 'noopener')} />
+          <Row label="Cookie Policy" onTap={() => window.open('/cookies', '_blank', 'noopener')} />
+          <CookieSettingsRow />
+          <Row
+            label="Export everything"
+            value={exporting ? 'Preparing…' : 'Choose format'}
+            onTap={() => openExportSheet('everything')}
+            chevron
+          />
+          <Row label="Delete account" danger onTap={() => setShowDeleteAccount(true)} chevron />
+        </SectionCard>
+      </div>
+
+      {/* Help & FAQ */}
+      <div id="settings-section-help">
+        <SectionCard title="Help">
+          <Row label="Chat with us" value="WhatsApp" onTap={handleWhatsApp} />
+          <Row label="Send feedback" value="Email" onTap={handleSendFeedback} />
+          <Row label="Report a bug" value="Email" onTap={handleSendBugReport} />
+          <Row label="Refer a mate" onTap={handleShare} />
+          <button
+            className={`settings-row${whatsNewDot ? ' settings-row--has-dot' : ''}`}
+            type="button"
+            onClick={handleOpenWhatsNew}
+          >
+            <span className="settings-row-label">
+              What&rsquo;s new
+              {whatsNewDot && <span className="settings-new-dot" aria-label="New updates available" />}
+            </span>
+            <span className="settings-row-right">
+              <span className="settings-row-chevron">›</span>
+            </span>
+          </button>
+        </SectionCard>
+
+        <SectionCard title="FAQ">
+          <FaqItem question="How do I send an invoice?">
+            <p>Log a job, set the amount, then tap the job to open it and hit "Send invoice". Your customer gets a link they can open in any browser — no app needed. They can also pay by card if you&rsquo;ve connected Stripe in Settings &rarr; Card payments.</p>
+          </FaqItem>
+          <FaqItem question="How does the free trial work? What happens after 14 days?">
+            <p>You get 14 days of Pro free — no card required to start. After that, you drop to the free tier: the full Get Paid loop (quotes, invoices, receipts) stays unlimited forever, and your documents carry a &ldquo;Sent with JobProfit&rdquo; footer. Upgrade to Pro for £12/mo at any time from Settings &rarr; Subscription to remove the footer, unlock the Insight Layer, and get the automatic chase ladder.</p>
+          </FaqItem>
+          <FaqItem question="How do I cancel or change my plan?">
+            <p>Go to Settings &rarr; Subscription &rarr; Manage billing. That opens the Stripe billing portal where you can cancel or update your card. Cancellation takes effect at the end of your current billing period — no pro-rata charge.</p>
+          </FaqItem>
+          <FaqItem question="Is my data safe? Who can see my jobs?">
+            <p>Only you. Your jobs are locked to your account using Supabase Row Level Security — other users cannot read your data even if they tried. Public quote and invoice links are single-use tokens that only reveal what you choose to share with the customer.</p>
+          </FaqItem>
+          <FaqItem question="How does a customer accept a quote and pay?">
+            <p>Send them the quote link. They open it in their browser, review the breakdown, sign with their finger, tick the T&amp;Cs checkbox, and tap Confirm. If you&rsquo;ve set a deposit, they can pay it via Stripe right there. You get a push notification the moment they accept.</p>
+          </FaqItem>
+          <FaqItem question="How do I export or delete my data?">
+            <p>Settings &rarr; Data &amp; privacy &rarr; Export everything lets you download all your jobs as a spreadsheet (CSV) or a PDF summary. Delete account wipes everything immediately — no email to support, no waiting.</p>
+          </FaqItem>
+        </SectionCard>
+      </div>
+
+      {/* App */}
+      <div id="settings-section-app">
+        <SectionCard title="App">
+          <div className="settings-row settings-row--passive settings-row--theme">
+            <span className="settings-row-label">Theme</span>
+            <div className="theme-picker" role="group" aria-label="Choose theme">
+              {[
+                { value: 'light',  label: 'Light'  },
+                { value: 'dark',   label: 'Dark'   },
+                { value: 'system', label: 'System' },
+              ].map(({ value, label }) => (
+                <button
+                  key={value}
+                  type="button"
+                  className={`theme-option${themePref === value ? ' theme-option--active' : ''}`}
+                  onClick={() => handleThemePref(value)}
+                  aria-pressed={themePref === value}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <Row label="Version" value={APP_VERSION} chevron={false} />
+        </SectionCard>
+      </div>
+
+      <div style={{ height: 32 }} />
+      {modalLayer}
     </div>
   );
 }
