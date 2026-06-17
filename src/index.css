@@ -15,6 +15,61 @@
   --font-sans: 'DM Sans', system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', Menlo, Consolas, monospace;
 
+  /* ── Type-scale tokens (Move 1) ─────────────────────────────────────────────
+     Expressed in rem so OS text-size preferences (130%, 200%) scale every token
+     automatically. 1rem = browser default = 16px baseline.
+     html has NO explicit font-size — keeping browser/OS default is intentional.
+     Only --fs-money-hero uses clamp() to guard tile overflow at extreme scales.
+
+     Size tokens                    rem       ≈px    use
+     --fs-label     section labels  0.8125rem  13    TAX POT, PAID IN, CUSTOMER …
+     --fs-metadata  dates, age "39d"0.8125rem  13    receipt lines, chart months
+     --fs-body      job sub-lines   0.9375rem  15    "20% of profit · £0 this month"
+     --fs-emphasis  scan targets    0.9375rem  15    job name, customer name in row
+     --fs-subhead   drawer titles   1.0625rem  17    "kitchen jobs", "Sarah"
+     --fs-stage     badge text      0.8125rem  13    stage badge inside StatusBadge
+     --fs-money-sm  per-row amounts 1.0625rem  17    £300 row, chart £ values
+     --fs-money-hero big tile figs  clamp(…)   28-36 TAX POT, PAID IN hero, £780 title
+
+     Weight tokens (only 4 things shout — everything else stays non-bold)
+     --fw-label     600 (+ uppercase + tracked)
+     --fw-money     700
+     --fw-button    600
+     --fw-stage     700
+
+     Line-height tokens
+     --lh-label     1.3
+     --lh-metadata  1.4
+     --lh-body      1.5
+     --lh-emphasis  1.4
+     --lh-subhead   1.35
+     --lh-stage     1.2
+     --lh-money-sm  1.2
+     --lh-money-hero 1.1
+  ── */
+  --fs-label:       0.8125rem;
+  --fs-metadata:    0.8125rem;
+  --fs-body:        0.9375rem;
+  --fs-emphasis:    0.9375rem;
+  --fs-subhead:     1.0625rem;
+  --fs-stage:       0.8125rem;
+  --fs-money-sm:    1.0625rem;
+  --fs-money-hero:  clamp(1.75rem, 6vw, 2.25rem);
+
+  --fw-label:   600;
+  --fw-money:   700;
+  --fw-button:  600;
+  --fw-stage:   700;
+
+  --lh-label:       1.3;
+  --lh-metadata:    1.4;
+  --lh-body:        1.5;
+  --lh-emphasis:    1.4;
+  --lh-subhead:     1.35;
+  --lh-stage:       1.2;
+  --lh-money-sm:    1.2;
+  --lh-money-hero:  1.1;
+
   font-family: var(--font-sans);
   line-height: 1.5;
   font-weight: 400;
@@ -3356,11 +3411,12 @@ input[type=number] { -moz-appearance: textfield; }
   margin: 16px 0;
 }
 .money-insights-label {
-  font-size: 11px;
-  font-weight: 600;
+  font-size: var(--fs-label);
+  font-weight: var(--fw-label);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-dim);
+  line-height: var(--lh-label);
   margin-bottom: 8px;
 }
 .money-insights-hint {
@@ -3385,11 +3441,12 @@ input[type=number] { -moz-appearance: textfield; }
   text-align: center;
 }
 .outstanding-hero-label {
-  font-size: 11px;
-  font-weight: 600;
+  font-size: var(--fs-label);
+  font-weight: var(--fw-label);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-dim);
+  line-height: var(--lh-label);
   margin-bottom: 8px;
 }
 .outstanding-hero-figure {
@@ -3459,8 +3516,9 @@ input[type=number] { -moz-appearance: textfield; }
 
 /* "Last chased Nd ago" pill — sits inline in .unpaid-main */
 .chase-row-pill {
-  font-size: 11px;
-  font-weight: 600;
+  font-size: var(--fs-metadata);
+  font-weight: 400;
+  line-height: var(--lh-metadata);
   color: var(--text-dim);
   background: var(--surface-2);
   border-radius: 20px;
@@ -3558,31 +3616,36 @@ input[type=number] { -moz-appearance: textfield; }
 }
 .money-hero__goto-jobs-btn:active { opacity: 0.75; }
 .money-hero__label {
-  font-size: 11px;
-  font-weight: 600;
+  font-size: var(--fs-label);
+  font-weight: var(--fw-label);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-dim);
+  line-height: var(--lh-label);
   margin-bottom: 8px;
 }
 .money-hero__figure {
-  font-size: 42px;
-  font-weight: 800;
+  font-size: var(--fs-money-hero);
+  font-weight: var(--fw-money);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
   color: var(--text);
   letter-spacing: -0.03em;
-  line-height: 1;
+  line-height: var(--lh-money-hero);
   margin-bottom: 6px;
 }
 .money-hero__meta {
-  font-size: 14px;
+  font-size: var(--fs-body);
   color: var(--text-dim);
-  font-weight: 500;
+  font-weight: 400;
+  line-height: var(--lh-body);
   margin-bottom: 6px;
 }
 .money-hero__ytd-line {
-  font-size: 12px;
+  font-size: var(--fs-metadata);
   color: var(--text-dim);
-  font-weight: 500;
+  font-weight: 400;
+  line-height: var(--lh-metadata);
   margin-bottom: 14px;
   opacity: 0.75;
 }
@@ -3598,28 +3661,32 @@ input[type=number] { -moz-appearance: textfield; }
   margin: 12px 0 10px;
 }
 .money-hero__true-profit-label {
-  font-size: 11px;
-  font-weight: 600;
+  font-size: var(--fs-label);
+  font-weight: var(--fw-label);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-dim);
+  line-height: var(--lh-label);
   margin-bottom: 6px;
 }
 .money-hero__true-profit-figure {
-  font-size: 28px;
-  font-weight: 800;
+  font-size: var(--fs-money-hero);
+  font-weight: var(--fw-money);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
   color: var(--text);
   letter-spacing: -0.02em;
-  line-height: 1;
+  line-height: var(--lh-money-hero);
   margin-bottom: 4px;
 }
 .money-hero__true-profit-figure--negative {
   color: #ef4444;
 }
 .money-hero__true-profit-sub {
-  font-size: 12px;
+  font-size: var(--fs-body);
   color: var(--text-dim);
-  font-weight: 500;
+  font-weight: 400;
+  line-height: var(--lh-body);
   margin-bottom: 8px;
 }
 /* Blurred locked tier — free users see "After your monthly bills: £•••" blurred */
@@ -3629,11 +3696,12 @@ input[type=number] { -moz-appearance: textfield; }
   padding-top: 10px;
 }
 .money-hero__true-profit-locked-label {
-  font-size: 11px;
-  font-weight: 600;
+  font-size: var(--fs-label);
+  font-weight: var(--fw-label);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-dim);
+  line-height: var(--lh-label);
   margin-bottom: 4px;
 }
 .money-hero__true-profit-locked-row {
@@ -3659,7 +3727,7 @@ input[type=number] { -moz-appearance: textfield; }
   background: rgba(255,255,255,0.08);
   border: 1px solid rgba(255,255,255,0.12);
   border-radius: 20px;
-  font-size: 10px;
+  font-size: var(--fs-metadata);
   font-weight: 600;
   color: var(--text-dim);
 }
@@ -3670,10 +3738,10 @@ input[type=number] { -moz-appearance: textfield; }
   padding-top: 10px;
 }
 .money-hero__true-profit-prompt p {
-  font-size: 12px;
+  font-size: var(--fs-metadata);
   color: var(--text-dim);
   margin: 0;
-  line-height: 1.4;
+  line-height: var(--lh-metadata);
 }
 .money-hero__true-profit-prompt-heading {
   font-size: 13px;
@@ -3682,10 +3750,10 @@ input[type=number] { -moz-appearance: textfield; }
   margin: 0 0 4px;
 }
 .money-hero__true-profit-prompt-body {
-  font-size: 12px;
+  font-size: var(--fs-metadata);
   color: var(--text-dim);
   margin: 0 0 10px;
-  line-height: 1.45;
+  line-height: var(--lh-metadata);
 }
 .money-hero__true-profit-prompt-cta {
   background: none;
@@ -3736,11 +3804,12 @@ input[type=number] { -moz-appearance: textfield; }
 
 /* Shared eyebrow label — used across all Money cards for visual consistency */
 .money-eyebrow {
-  font-size: 11px;
-  font-weight: 600;
+  font-size: var(--fs-label);
+  font-weight: var(--fw-label);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-dim);
+  line-height: var(--lh-label);
   margin-bottom: 8px;
   display: block;
 }
@@ -3749,12 +3818,12 @@ input[type=number] { -moz-appearance: textfield; }
 }
 /* Plain-English caption beneath the chart mode switch */
 .money-chart-caption {
-  font-size: 12px;
+  font-size: var(--fs-body);
   color: var(--text-dim);
-  font-weight: 500;
+  font-weight: 400;
   margin-top: 8px;
   margin-bottom: 0;
-  line-height: 1.4;
+  line-height: var(--lh-body);
   text-align: left;
   opacity: 0.8;
 }
@@ -3779,11 +3848,11 @@ input[type=number] { -moz-appearance: textfield; }
 }
 /* Profit/hour rate comparison line */
 .money-insight__rate-compare {
-  font-size: 12px;
+  font-size: var(--fs-body);
   color: var(--text-dim);
-  font-weight: 500;
+  font-weight: 400;
   margin-top: 6px;
-  line-height: 1.4;
+  line-height: var(--lh-body);
 }
 
 /* ── Money tab M3 — two-up stat row ───────────── */
@@ -3801,19 +3870,22 @@ input[type=number] { -moz-appearance: textfield; }
   padding: 16px 14px;
 }
 .money-twoUp__label {
-  font-size: 11px;
-  font-weight: 600;
+  font-size: var(--fs-label);
+  font-weight: var(--fw-label);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-dim);
+  line-height: var(--lh-label);
   margin-bottom: 8px;
 }
 .money-twoUp__value {
-  font-size: 26px;
-  font-weight: 800;
+  font-size: var(--fs-money-hero);
+  font-weight: var(--fw-money);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
   color: var(--text);
   letter-spacing: -0.02em;
-  line-height: 1;
+  line-height: var(--lh-money-hero);
 }
 .money-twoUp__value--negative {
   color: #ef4444;
@@ -3830,11 +3902,12 @@ input[type=number] { -moz-appearance: textfield; }
   margin-bottom: 8px;
 }
 .money-insight__label {
-  font-size: 11px;
-  font-weight: 600;
+  font-size: var(--fs-label);
+  font-weight: var(--fw-label);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-dim);
+  line-height: var(--lh-label);
 }
 .money-insight__tooltip {
   font-size: 13px;
@@ -3872,8 +3945,8 @@ input[type=number] { -moz-appearance: textfield; }
    Sits outside .pro-gate__figure so it stays readable under the ProGate blur.
    Prevents example numbers reading as hidden real data. */
 .money-insight__example-label {
-  font-size: 11px;
-  font-weight: 600;
+  font-size: var(--fs-label);
+  font-weight: var(--fw-label);
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--accent);
@@ -3999,11 +4072,12 @@ input[type=number] { -moz-appearance: textfield; }
 .money-timeline__group { margin-bottom: 12px; }
 .money-timeline__group:last-child { margin-bottom: 0; }
 .money-timeline__day {
-  font-size: 11px;
-  font-weight: 700;
+  font-size: var(--fs-label);
+  font-weight: var(--fw-label);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-dim);
+  line-height: var(--lh-label);
   margin: 0 0 6px;
 }
 .money-timeline__list {
@@ -4048,11 +4122,12 @@ input[type=number] { -moz-appearance: textfield; }
   margin-bottom: 12px;
 }
 .money-accountant-tools__title {
-  font-size: 11px;
-  font-weight: 600;
+  font-size: var(--fs-label);
+  font-weight: var(--fw-label);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-muted, #6b7280);
+  line-height: var(--lh-label);
 }
 .money-accountant-tools__btn {
   display: flex;
@@ -4083,9 +4158,9 @@ input[type=number] { -moz-appearance: textfield; }
 }
 .money-accountant-tools__hint {
   margin: 8px 0 0;
-  font-size: 12px;
+  font-size: var(--fs-metadata);
   color: var(--text-muted, #6b7280);
-  line-height: 1.4;
+  line-height: var(--lh-metadata);
 }
 
 /* ── Tax Set-Aside card ───────────────────────── */
@@ -5187,35 +5262,42 @@ input[type=number] { -moz-appearance: textfield; }
 }
 
 /* Tile typography — 6 equal segments at 360px: each cell is ~59px wide, ~55px text area.
-   Name: 11px at -0.04em letter-spacing — "INVOICED"/"OVERDUE" (8 chars) measure ~50px,
-   comfortably within the 55px text area at 360px. Up from 9px at 7 segments.
-   Count + amount are secondary — intentionally smaller so the name reads first. */
+   Name: --fs-stage (13px) at -0.05em letter-spacing.
+   "INVOICED"/"OVERDUE"/"AWAITING" — longest labels flagged below.
+   Count + amount share the same token; intentionally equal weight to name so pipeline
+   data is readable. The tile clips overflow rather than wrapping to stay single-line.
+
+   LAYOUT RISK NOTE (Move 1): At 13px "AWAITING PAYMENT" (two words) wraps.
+   Stage labels in this strip are SHORT single-word aliases: Lead/Quoted/On/Invoiced/
+   Overdue/Paid — max 8 chars. "INVOICED" at 13px -0.05em ≈ 52px — fits in 55px cell.
+   "OVERDUE" ≈ 48px. "AWAITING" is NOT used here (StatusBadge only). Safe at 360px.
+   If a label is later added that exceeds 8 chars, flag to PRD for copy-shortening. */
 .stage-tile-name {
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: -0.04em;
+  font-size: var(--fs-stage);
+  font-weight: var(--fw-stage);
+  letter-spacing: -0.05em;
   color: var(--text-dim);
-  line-height: 1;
+  line-height: var(--lh-stage);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: clip;
   max-width: 100%;
 }
 .stage-tile-count {
-  font-size: 10px;
-  font-weight: 700;
+  font-size: var(--fs-stage);
+  font-weight: var(--fw-money);
   color: var(--text);
-  line-height: 1.2;
+  line-height: var(--lh-stage);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 100%;
 }
 .stage-tile-amount {
-  font-size: 10px;
+  font-size: var(--fs-stage);
   font-weight: 600;
   color: var(--text-dim);
-  line-height: 1.2;
+  line-height: var(--lh-stage);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
   overflow: hidden;
@@ -6748,9 +6830,9 @@ input[type=number] { -moz-appearance: textfield; }
   min-width: 0;
 }
 .job-detail-customer {
-  font-size: 22px;
-  font-weight: 800;
-  line-height: 1.15;
+  font-size: var(--fs-subhead);
+  font-weight: 600;
+  line-height: var(--lh-subhead);
   font-variant-numeric: tabular-nums;
   color: var(--text);
   /* Allow up to 2 lines before truncating — avoids bleeding under the chip */
@@ -6761,9 +6843,9 @@ input[type=number] { -moz-appearance: textfield; }
   text-overflow: ellipsis;
 }
 .job-detail-summary {
-  font-size: 16px;
-  font-weight: 700;
-  line-height: 1.2;
+  font-size: var(--fs-subhead);
+  font-weight: 600;
+  line-height: var(--lh-subhead);
   color: var(--text-dim);
   margin-top: 2px;
 }
@@ -6804,7 +6886,7 @@ input[type=number] { -moz-appearance: textfield; }
 .jd-customer-subline-btn:active { opacity: 0.6; }
 /* Small variant of the add-row affordance (used in drawer header sub-line) */
 .jd-detail-edit-row-add--sm {
-  font-size: 12px;
+  font-size: var(--fs-body);
 }
 .job-detail-header-right {
   display: flex;
@@ -6858,11 +6940,12 @@ input[type=number] { -moz-appearance: textfield; }
 
 /* Hero price — large green figure for pre-invoice priced state */
 .jd-hero-price {
-  font-size: 24px;
-  font-weight: 800;
-  color: var(--jp-green);
+  font-size: var(--fs-money-hero);
+  font-weight: var(--fw-money);
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
-  line-height: 1.1;
+  color: var(--jp-green);
+  line-height: var(--lh-money-hero);
   white-space: nowrap;
 }
 button.jd-hero-price {
@@ -6897,20 +6980,21 @@ button.jd-money-chip:active { opacity: 0.75; }
 
 .jd-chip-primary {
   display: block;
-  font-size: 13px;
-  font-weight: 700;
-  white-space: nowrap;
+  font-size: var(--fs-money-sm);
+  font-weight: var(--fw-money);
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
-  line-height: 1.2;
+  white-space: nowrap;
+  line-height: var(--lh-money-sm);
 }
 .jd-chip-sub {
   display: block;
-  font-size: 11px;
+  font-size: var(--fs-metadata);
   font-weight: 400;
   white-space: nowrap;
   opacity: 0.75;
   margin-top: 1px;
-  line-height: 1.2;
+  line-height: var(--lh-metadata);
 }
 
 /* State: Paid — green */
@@ -7157,11 +7241,12 @@ button.jd-money-chip:active { opacity: 0.75; }
 }
 
 .jd-section-header {
-  font-size: 11px;
-  font-weight: 700;
+  font-size: var(--fs-label);
+  font-weight: var(--fw-label);
   color: var(--text-dim);
   text-transform: uppercase;
   letter-spacing: 0.06em;
+  line-height: var(--lh-label);
   padding: 10px 14px 8px;
   border-bottom: 1px solid var(--border);
 }
@@ -7191,7 +7276,8 @@ button.jd-money-chip:active { opacity: 0.75; }
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  font-size: 13px;
+  font-size: var(--fs-metadata);
+  line-height: var(--lh-metadata);
   color: var(--text-dim);
 }
 
@@ -7207,15 +7293,17 @@ button.jd-money-chip:active { opacity: 0.75; }
   align-items: flex-start;
   justify-content: space-between;
   gap: 8px;
-  font-size: 13px;
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
   color: var(--text-dim);
   width: 100%;
   background: none;
   border: none;
-  padding: 0;
+  padding: 4px 0;
   cursor: pointer;
   text-align: left;
   -webkit-tap-highlight-color: transparent;
+  min-height: 44px;
 }
 .jd-detail-edit-row:active { opacity: 0.6; }
 .jd-detail-edit-row-left {
@@ -7309,18 +7397,21 @@ button.jd-money-chip:active { opacity: 0.75; }
 }
 
 .jd-line-total-label {
-  font-size: 11px;
-  font-weight: 700;
+  font-size: var(--fs-label);
+  font-weight: var(--fw-label);
+  line-height: var(--lh-label);
   color: var(--text-dim);
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
 
 .jd-line-total-value {
-  font-size: 20px;
-  font-weight: 800;
-  color: var(--text);
+  font-size: var(--fs-money-sm);
+  font-weight: var(--fw-money);
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
+  line-height: var(--lh-money-sm);
+  color: var(--text);
 }
 
 /* ── Receipts ── */
@@ -7376,8 +7467,9 @@ button.jd-money-chip:active { opacity: 0.75; }
 }
 
 .jd-receipt-label {
-  font-size: 13px;
+  font-size: var(--fs-metadata);
   font-weight: 600;
+  line-height: var(--lh-metadata);
   color: var(--text);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -7385,7 +7477,9 @@ button.jd-money-chip:active { opacity: 0.75; }
 }
 
 .jd-receipt-date {
-  font-size: 11px;
+  font-size: var(--fs-metadata);
+  font-weight: 400;
+  line-height: var(--lh-metadata);
   color: var(--text-dim);
   margin-top: 2px;
 }
@@ -9398,10 +9492,10 @@ button.jd-money-chip:active { opacity: 0.75; }
 }
 /* Row 1b: customer secondary line — muted, below the job name */
 .jt-customer {
-  font-size: 13px;
-  font-weight: 500;
+  font-size: var(--fs-body);
+  font-weight: 400;
   color: var(--text-dim);
-  line-height: 1.2;
+  line-height: var(--lh-body);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -9422,18 +9516,20 @@ button.jd-money-chip:active { opacity: 0.75; }
 .jt-stage-label {
   display: inline-flex;
   align-items: center;
-  padding: 3px 8px;
-  min-height: 22px;
+  padding: 3px 10px;   /* wider horizontal pad — accommodates 13px text at 360px */
+  min-height: 24px;
   border-radius: 999px;
   background: var(--chip-fill, var(--jt-fill));
   border: 1px solid var(--chip-ink, var(--jt-ink));
   color: var(--chip-ink, var(--jt-ink));
-  font-size: 10px;
-  font-weight: 700;
+  font-size: var(--fs-stage);
+  font-weight: var(--fw-stage);
   letter-spacing: 0.04em;
   text-transform: uppercase;
+  white-space: nowrap;   /* floor rule: never wrap a stage label */
   user-select: none;
   pointer-events: none; /* purely decorative — tap goes to ⋯ or the tile */
+  line-height: var(--lh-stage);
 }
 
 /* ⋯ overflow button — sole menu trigger */
@@ -9461,10 +9557,10 @@ button.jd-money-chip:active { opacity: 0.75; }
 /* --- Row 1 primary label (job name) — flex child of .jt-head --- */
 /* .jt-title-row wrapper removed; title is now directly in .jt-head */
 .jt-title {
-  font-size: 15px;
-  font-weight: 700;
+  font-size: var(--fs-emphasis);
+  font-weight: 600;
   color: var(--text);
-  line-height: 1.25;
+  line-height: var(--lh-emphasis);
   margin: 0;
   letter-spacing: -0.005em;
   overflow: hidden;
@@ -9473,15 +9569,17 @@ button.jd-money-chip:active { opacity: 0.75; }
   flex: 1 1 auto;
   min-width: 0;
 }
-/* £price on its own line, directly under the job title — size ladder: title 15 → price 14 → metadata 11 */
+/* £price on its own line, directly under the job title */
 .jt-price {
-  font-size: 14px;
-  font-weight: 800;
-  color: var(--jp-green);
+  font-size: var(--fs-money-sm);
+  font-weight: var(--fw-money);
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
+  color: var(--jp-green);
   letter-spacing: -0.01em;
-  line-height: 1.2;
+  line-height: var(--lh-money-sm);
   margin: 1px 0 3px;
+  flex-shrink: 0;
 }
 .jt-price--muted   { color: var(--text-dim); }
 .jt-price--overdue { color: var(--jp-rose); }
@@ -9493,9 +9591,9 @@ button.jd-money-chip:active { opacity: 0.75; }
   flex-wrap: wrap;
   gap: 0 4px;
   margin-bottom: 8px;
-  font-size: 11px;
+  font-size: var(--fs-metadata);
   color: var(--text-dim);
-  line-height: 1.3;
+  line-height: var(--lh-metadata);
   min-height: 14px;
 }
 .jt-signal-group {
@@ -9596,11 +9694,12 @@ button.jd-money-chip:active { opacity: 0.75; }
 }
 
 .jt-menu-label {
-  font-size: 10px;
-  font-weight: 700;
+  font-size: var(--fs-label);
+  font-weight: var(--fw-label);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--text-dim);
+  line-height: var(--lh-label);
   padding: 6px 4px 4px;
 }
 
