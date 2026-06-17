@@ -600,6 +600,43 @@ button:focus-visible {
   background: var(--surface-2);
 }
 
+/* 24. jt-stage-label compact-row stage badges — STAGE_META fill values are
+   dark-mode surfaces (#1a2a4a, #1a3a2e etc.) set as inline CSS custom
+   properties (--chip-fill / --chip-ink). Inline styles win over class rules,
+   so !important is required here. Each stage gets a light-legible tint that
+   mirrors the established .status--* pattern and the app's green stage palette.
+   Dark mode is untouched — these rules only fire under [data-theme="light"]. */
+[data-theme="light"] .jt-stage-label--lead {
+  background: #dbeafe !important;
+  border-color: #93c5fd !important;
+  color: #1e40af !important;
+}
+[data-theme="light"] .jt-stage-label--quoted {
+  background: #d1fae5 !important;
+  border-color: #6ee7b7 !important;
+  color: #065f46 !important;
+}
+[data-theme="light"] .jt-stage-label--on {
+  background: #a7f3d0 !important;
+  border-color: #34d399 !important;
+  color: #065f46 !important;
+}
+[data-theme="light"] .jt-stage-label--invoiced {
+  background: #6ee7b7 !important;
+  border-color: #10b981 !important;
+  color: #064e3b !important;
+}
+[data-theme="light"] .jt-stage-label--overdue {
+  background: #fee2e2 !important;
+  border-color: #fca5a5 !important;
+  color: #991b1b !important;
+}
+[data-theme="light"] .jt-stage-label--paid {
+  background: #d1fae5 !important;
+  border-color: #34d399 !important;
+  color: #065f46 !important;
+}
+
 /* Awaiting-job / chase-row amber border accent: the #f59e0b40 semi-transparent
    value still reads fine on light, but the border-left accent needs the
    light-mode amber token. No override needed — var(--jp-amber) already
