@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 
 // ── Mocks ────────────────────────────────────────────────────────────────────
 
@@ -119,10 +119,21 @@ const NOOP = vi.fn();
 
 afterEach(() => vi.clearAllMocks());
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+/**
+ * Navigate from the hub to the "Invoices & quotes" sub-screen.
+ * The Materials row lives there after the Phase 1 hub refactor.
+ */
+function goToInvoicesSubScreen() {
+  const hubRow = screen.getByRole('button', { name: /invoices & quotes/i });
+  act(() => { fireEvent.click(hubRow); });
+}
+
 // ── Tests ────────────────────────────────────────────────────────────────────
 
 describe('Settings — Materials row', () => {
-  it('renders a "Materials" row in Invoice settings', () => {
+  it('renders a "Materials" row in Invoice settings sub-screen', () => {
     render(
       <SettingsScreen
         session={SESSION}
@@ -136,8 +147,10 @@ describe('Settings — Materials row', () => {
         onBrowseMaterials={NOOP}
       />
     );
-    // The row label is exactly "Materials" — use getAllByRole and filter to the
-    // exact label text to distinguish from "Itemise labour & materials on documents".
+    // Navigate from hub to the Invoices & quotes sub-screen
+    goToInvoicesSubScreen();
+    // The row label is exactly "Materials" — filter to distinguish from
+    // "Itemise labour & materials on documents".
     const btns = screen.getAllByRole('button', { name: /materials/i });
     const materialsRow = btns.find(
       btn => btn.querySelector('.settings-row-label')?.textContent === 'Materials'
@@ -160,6 +173,7 @@ describe('Settings — Materials row', () => {
         onBrowseMaterials={onBrowseMaterials}
       />
     );
+    goToInvoicesSubScreen();
     const btns = screen.getAllByRole('button', { name: /materials/i });
     const materialsRow = btns.find(
       btn => btn.querySelector('.settings-row-label')?.textContent === 'Materials'
