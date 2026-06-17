@@ -119,14 +119,19 @@ export function firstLineOfAddress(address) {
 /**
  * Column sort for the table view — pure, unit-testable, extends sortJobsByStage.
  *
- * Supports sorting by 'amount' (numeric on total/amount) or 'date' (ISO date string).
+ * Supports sorting by 'amount' (numeric on total/amount), 'date' (ISO date string),
+ * or 'name' (customer/summary label, localeCompare).
  * Always returns a new array; does not mutate the input.
  *
- * column ∈ 'amount' | 'date'
+ * Note: 'profit' sort is NOT handled here because it requires receipt data that
+ * is only available in JobsList/JobsTable (via deriveJobRows). Profit sort is
+ * applied inline there using the rowMap.
+ *
+ * column ∈ 'amount' | 'date' | 'name'
  * dir    ∈ 'asc'    | 'desc'
  *
  * @param {object[]} jobs
- * @param {'amount'|'date'} column
+ * @param {'amount'|'date'|'name'} column
  * @param {'asc'|'desc'} dir
  * @returns {object[]}
  */
@@ -145,6 +150,12 @@ export function sortJobsByColumn(jobs, column, dir) {
       const aDate = new Date(a.date || 0).getTime();
       const bDate = new Date(b.date || 0).getTime();
       return (aDate - bDate) * multiplier;
+    });
+  } else if (column === 'name') {
+    sorted.sort((a, b) => {
+      const aLabel = (a.summary || a.customer || a.name || '').toLowerCase();
+      const bLabel = (b.summary || b.customer || b.name || '').toLowerCase();
+      return aLabel.localeCompare(bLabel) * multiplier;
     });
   }
 
