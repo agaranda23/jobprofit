@@ -14225,7 +14225,9 @@ button.jd-money-chip:active { opacity: 0.75; }
 /* Alignment wrapper: left-aligned flex row that holds the pill.
    --inset variant adds the 14px horizontal inset for the Price accordion
    (which uses .jd-section-body--flush so has no natural padding).
-   --center variant centers the pill horizontally (Price "+ Add line" only). */
+   --end variant right-aligns the pill with symmetric vertical padding
+   (Price "+ Add line" only — overrides base 8px/2px to 8px/8px so the
+   pill sits vertically even rather than hugging the card bottom). */
 .jd-add-pill-row {
   display: flex;
   justify-content: flex-start;
@@ -14234,8 +14236,9 @@ button.jd-money-chip:active { opacity: 0.75; }
 .jd-add-pill-row--inset {
   padding-left: 14px;
 }
-.jd-add-pill-row--center {
-  justify-content: center;
+.jd-add-pill-row--end {
+  justify-content: flex-end;
+  padding: 8px 14px 8px 0;
 }
 
 .jd-card-row-icon {
