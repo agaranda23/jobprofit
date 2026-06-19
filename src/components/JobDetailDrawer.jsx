@@ -696,7 +696,7 @@ function DetailsSection({
 
 /**
  * VisitRow — single tappable row inside the Schedule card.
- * Handles swipe-left to reveal "Mark done" action.
+ * "Mark done" is an always-visible pill; no swipe mechanic required.
  *
  * Props:
  *   visit      Visit object
@@ -723,50 +723,10 @@ function VisitStatusPill({ status }) {
 function VisitRow({ visit, onTap, onMarkDone, canEdit }) {
   const computedStatus = computeVisitStatus(visit);
   const isDone = computedStatus === 'done';
-  const prefersReduced =
-    typeof window !== 'undefined' &&
-    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-  // Swipe-left state
-  const [swipeOffset, setSwipeOffset] = React.useState(0);
-  const [revealed, setRevealed] = React.useState(false);
-  const touchStartX = React.useRef(null);
-  const THRESHOLD = 60;
-  const ACTION_WIDTH = 96; // px — width of the "Mark done" button revealed area
-
-  const handleTouchStart = (e) => {
-    if (!canEdit || isDone) return;
-    touchStartX.current = e.touches[0].clientX;
-  };
-
-  const handleTouchMove = (e) => {
-    if (touchStartX.current === null) return;
-    const delta = e.touches[0].clientX - touchStartX.current;
-    if (delta >= 0) { setSwipeOffset(0); return; } // no right-swipe
-    setSwipeOffset(Math.max(delta, -ACTION_WIDTH));
-  };
-
-  const handleTouchEnd = () => {
-    if (touchStartX.current === null) return;
-    touchStartX.current = null;
-    if (swipeOffset < -THRESHOLD) {
-      setSwipeOffset(-ACTION_WIDTH);
-      setRevealed(true);
-    } else {
-      setSwipeOffset(0);
-      setRevealed(false);
-    }
-  };
-
-  const closeReveal = () => {
-    setSwipeOffset(0);
-    setRevealed(false);
-  };
 
   const handleMarkDone = (e) => {
     e.stopPropagation();
     onMarkDone(visit.id);
-    closeReveal();
   };
 
   // Format time display
@@ -785,73 +745,27 @@ function VisitRow({ visit, onTap, onMarkDone, canEdit }) {
     } catch { /* keep raw */ }
   }
 
-  const rowContent = (
-    <>
-      <span className="jd-card-row-icon"><Icon name="date" size={16} variant="muted" /></span>
-      <span className={`jd-card-row-val${isDone ? ' visit-row-val--done' : ''}`}>
-        {dateStr}{timeStr}
-        <VisitStatusPill status={computedStatus} />
-      </span>
-      {canEdit && <span className="jd-card-row-chevron" aria-hidden="true">›</span>}
-    </>
-  );
-
-  // prefers-reduced-motion: show a static "Mark done" button instead of swipe
-  if (prefersReduced && canEdit && !isDone) {
-    return (
-      <div className="visit-row-wrap">
-        <button
-          type="button"
-          className="jd-card-row jd-card-row--tappable"
-          onClick={onTap}
-          aria-label={`Edit visit on ${dateStr}`}
-        >
-          {rowContent}
-        </button>
-        <button
-          type="button"
-          className="visit-mark-done-static"
-          onClick={() => onMarkDone(visit.id)}
-          aria-label="Mark visit done"
-        >
-          Done
-        </button>
-      </div>
-    );
-  }
-
   return (
-    <div
-      className="visit-row-wrap"
-      onClick={revealed ? closeReveal : undefined}
-    >
-      {/* Swipeable row */}
+    <div className="visit-row-wrap">
       <button
         type="button"
         className="jd-card-row jd-card-row--tappable visit-row-inner"
-        style={
-          prefersReduced
-            ? undefined
-            : {
-                transform: `translateX(${swipeOffset}px)`,
-                transition: touchStartX.current !== null ? 'none' : 'transform 0.2s ease',
-              }
-        }
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-        onClick={revealed ? (e) => { e.stopPropagation(); closeReveal(); } : onTap}
+        onClick={onTap}
         aria-label={`Edit visit on ${dateStr}`}
       >
-        {rowContent}
+        <span className="jd-card-row-icon"><Icon name="date" size={16} variant="muted" /></span>
+        <span className={`jd-card-row-val${isDone ? ' visit-row-val--done' : ''}`}>
+          {dateStr}{timeStr}
+          <VisitStatusPill status={computedStatus} />
+        </span>
+        {canEdit && <span className="jd-card-row-chevron" aria-hidden="true">›</span>}
       </button>
 
-      {/* Revealed action — always in the DOM, visible via swipe */}
+      {/* Always-visible "Mark done" pill — hidden once visit is done */}
       {canEdit && !isDone && (
         <button
           type="button"
-          className="visit-action-btn"
-          style={{ width: ACTION_WIDTH }}
+          className="visit-mark-done"
           onClick={handleMarkDone}
           aria-label="Mark visit done"
         >
@@ -3958,7 +3872,7 @@ export default function JobDetailDrawer({
                       <div className="jd-add-pill-row jd-add-pill-row--end">
                         <button
                           type="button"
-                          className="jd-add-dashed jd-add-dashed--ghost"
+                          className="jd-add-dashed"
                           onClick={() => setEditingVisit({ _isNew: true, date: tomorrowDateString(), status: 'planned' })}
                           aria-label="Add a visit"
                         >
