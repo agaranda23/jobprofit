@@ -16269,25 +16269,6 @@ button.jd-money-chip:active { opacity: 0.75; }
 }
 .docs-hub-ghost-btn:active { opacity: 0.7; }
 
-/* Hub header row: back chevron + title, left-aligned */
-.docs-hub-header {
-  justify-content: flex-start;
-  gap: 6px;
-}
-.docs-hub-back-btn {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  border: none;
-  background: var(--surface-2);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  -webkit-tap-highlight-color: transparent;
-}
-.docs-hub-back-btn:active { opacity: 0.7; }
 
 /* Doc content area — ONE rounded dark card wraps timeline + sig + PDF */
 .docs-hub-card {

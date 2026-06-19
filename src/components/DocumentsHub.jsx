@@ -13,7 +13,6 @@
  */
 
 import React, { useState } from 'react';
-import Icon from './Icon';
 import { buildQuoteRecordMeta, buildInvoiceRecordMeta } from '../lib/documentRecord';
 import { downloadQuotePDF, downloadInvoicePDF } from '../lib/invoicePDF';
 import { isPro } from '../lib/plan';
@@ -343,17 +342,17 @@ export default function DocumentsHub({ open, job, biz, profile, onClose, onBuild
         aria-label="Documents & signatures"
         onClick={e => e.stopPropagation()}
       >
-        {/* Header: back-chevron + title, left-aligned */}
-        <div className="modal-sheet-header docs-hub-header">
+        {/* Header: title + close button (top-right), matching the Add-a-line sheet */}
+        <div className="modal-sheet-header">
+          <h2 className="modal-sheet-title rs-title">Documents &amp; signatures</h2>
           <button
             type="button"
-            className="docs-hub-back-btn"
+            className="modal-sheet-close"
             onClick={onClose}
-            aria-label="Back"
+            aria-label="Close"
           >
-            <Icon name="chevron-left" size={20} />
+            ✕
           </button>
-          <h2 className="modal-sheet-title rs-title">Documents &amp; signatures</h2>
         </div>
 
         {/* Tab switcher */}
