@@ -14785,10 +14785,10 @@ button.jd-money-chip:active { opacity: 0.75; }
    "Mark done" pill's right edge (both sit inside .jd-schedule-card-body which
    has 14px horizontal padding). The shared .jd-add-pill-row--end has 14px right
    inset for the Price accordion flush context — remove that inset here so both
-   pills share the same right gutter. Top padding raised from 8px to 16px to
-   give more breathing room above the button after the last visit row. */
+   pills share the same right gutter. Symmetric 10px top/bottom so the gap above
+   the pill matches the gap below it to the finish-line divider (even from the top). */
 .jd-schedule-card-body .jd-add-pill-row--end {
-  padding: 16px 0 8px;
+  padding: 10px 0;
 }
 
 /* ── Multi-visit schedule — Iteration A ─────────────────────────────────────
@@ -15024,12 +15024,13 @@ button.jd-money-chip:active { opacity: 0.75; }
 
 /* ── Schedule: finish-line footer ──────────────────────────── */
 
-.jd-finish-line { margin-top:10px; border-top:1px solid var(--border,#2C3744); padding:11px 0 2px; }
-.jd-finish-target-row, .jd-finish-actual-row { display:flex; align-items:center; gap:8px; padding:6px 4px; min-height:36px; }
-.jd-finish-target-lbl { flex-shrink:0; min-width:108px; font-size:var(--fs-label); color:var(--text-dim,#94A3B8); }
+.jd-finish-line { margin-top:0; border-top:1px solid var(--border,#2C3744); padding:11px 0 2px; }
+.jd-finish-target-row, .jd-finish-actual-row { display:flex; align-items:center; gap:8px; padding:6px 14px; min-height:36px; }
+.jd-finish-target-icon { display:inline-flex; align-items:center; justify-content:center; }
+.jd-finish-target-lbl { flex-shrink:0; min-width:96px; font-size:var(--fs-label); color:var(--text-dim,#94A3B8); }
 .jd-finish-target-val { flex:1; font-size:var(--fs-label); font-weight:600; color:var(--text,#F1F5F9); }
-.jd-finish-target-set, .jd-finish-target-edit { flex-shrink:0; margin-left:auto; font-size:var(--fs-label); font-weight:600; color:var(--accent,#2BC48A); background:transparent; border:1px solid var(--border,#2C3744); border-radius:7px; padding:5px 9px; cursor:pointer; -webkit-tap-highlight-color:transparent; min-height:32px; display:flex; align-items:center; }
-.jd-finish-target-set:active, .jd-finish-target-edit:active { opacity:.7; }
+.jd-finish-target-set, .jd-finish-target-edit { flex-shrink:0; margin-left:auto; font-size:var(--fs-label); font-weight:700; color:var(--accent); background:color-mix(in srgb, var(--accent) 14%, transparent); border:1px solid var(--accent); border-radius:8px; padding:5px 9px; cursor:pointer; -webkit-tap-highlight-color:transparent; min-height:32px; display:flex; align-items:center; }
+.jd-finish-target-set:active, .jd-finish-target-edit:active { opacity:.75; }
 /* Off-screen but operable: the visible button triggers showPicker() on this input. */
 .jd-finish-date-input { position:absolute; width:1px; height:1px; padding:0; margin:-1px; border:0; opacity:0; overflow:hidden; clip:rect(0 0 0 0); clip-path:inset(50%); pointer-events:none; }
 .jd-finish-status { display:flex; align-items:center; gap:6px; margin-top:8px; padding:8px 11px; border-radius:9px; font-size:var(--fs-label); font-weight:600; line-height:1.3; }

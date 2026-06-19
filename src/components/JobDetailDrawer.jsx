@@ -804,6 +804,7 @@ function ScheduleFinishFooter({ job, jobVisits, canEdit, onEndJob, onSetTarget, 
   return (
     <div className="jd-finish-line">
       <div className="jd-finish-target-row">
+        <span className="jd-card-row-icon jd-finish-target-icon" aria-hidden="true"><Icon name="complete" size={16} variant="muted" /></span>
         <span className="jd-finish-target-lbl">{isEnded ? "Aimed for" : "Aiming to finish"}</span>
         {targetFinishDate ? (
           <>
@@ -835,6 +836,7 @@ function ScheduleFinishFooter({ job, jobVisits, canEdit, onEndJob, onSetTarget, 
       </div>
       {isEnded && (
         <div className="jd-finish-actual-row">
+          <span className="jd-card-row-icon jd-finish-target-icon" aria-hidden="true"><Icon name="complete" size={16} variant="success" /></span>
           <span className="jd-finish-target-lbl">Finished</span>
           <span className="jd-finish-target-val">{fmtDate(completedAt)}</span>
         </div>
