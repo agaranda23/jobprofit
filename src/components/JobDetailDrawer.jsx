@@ -758,7 +758,6 @@ function VisitRow({ visit, onTap, onMarkDone, canEdit }) {
           {dateStr}{timeStr}
           <VisitStatusPill status={computedStatus} />
         </span>
-        {canEdit && <span className="jd-card-row-chevron" aria-hidden="true">›</span>}
       </button>
 
       {/* Always-visible "Mark done" pill — hidden once visit is done */}
@@ -1294,7 +1293,7 @@ function QuoteBreakdownSection({ job, onSaveLine, onDeleteLine }) {
               <div className="jd-add-pill-row jd-add-pill-row--end">
                 <button
                   type="button"
-                  className="jd-add-dashed jd-add-dashed--ghost"
+                  className="jd-add-dashed jd-add-dashed--tinted"
                   onClick={() => setSheetIdx(-1)}
                   aria-label="Add a line item"
                 >
@@ -1347,7 +1346,7 @@ function QuoteBreakdownSection({ job, onSaveLine, onDeleteLine }) {
                 <div className="jd-add-pill-row jd-add-pill-row--end">
                   <button
                     type="button"
-                    className="jd-add-dashed jd-add-dashed--ghost"
+                    className="jd-add-dashed jd-add-dashed--tinted"
                     onClick={() => setSheetIdx(-1)}
                     aria-label="Add another line item"
                   >
