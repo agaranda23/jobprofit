@@ -5,7 +5,6 @@
 // changes. Do NOT hand-bump this value; the plugin handles it.
 // See swCacheName.test.js for the CI guard that prevents a repeat of PR #404.
 const CACHE_NAME = 'jobprofit-__BUILD_ID__';
-
 const PRECACHE = [
   '/',
   '/index.html',

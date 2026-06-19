@@ -18,10 +18,12 @@ vi.mock('../../lib/telemetry', () => ({
 }));
 
 const mockSignInWithOtp = vi.fn();
+const mockSignInWithOAuth = vi.fn();
 vi.mock('../../lib/supabase', () => ({
   supabase: {
     auth: {
       signInWithOtp: (...args) => mockSignInWithOtp(...args),
+      signInWithOAuth: (...args) => mockSignInWithOAuth(...args),
     },
   },
 }));
@@ -233,5 +235,60 @@ describe('AuthScreen — telemetry', () => {
       expect(screen.getByText(/rate limited/i)).toBeTruthy()
     );
     expect(logTelemetry).not.toHaveBeenCalledWith('signin_link_requested');
+  });
+});
+
+// ── Google sign-in ────────────────────────────────────────────────────────────
+
+describe('AuthScreen — Google sign-in', () => {
+  it('renders the "Continue with Google" button', () => {
+    renderAuth();
+    expect(
+      screen.getByRole('button', { name: /Continue with Google/i })
+    ).toBeTruthy();
+  });
+
+  it('"Continue with Google" button is enabled on initial render', () => {
+    renderAuth();
+    const btn = screen.getByRole('button', { name: /Continue with Google/i });
+    expect(btn.disabled).toBe(false);
+  });
+
+  it('calls supabase.auth.signInWithOAuth with provider "google" when clicked', async () => {
+    mockSignInWithOAuth.mockResolvedValue({ error: null });
+    renderAuth();
+    fireEvent.click(screen.getByRole('button', { name: /Continue with Google/i }));
+    await waitFor(() => expect(mockSignInWithOAuth).toHaveBeenCalledOnce());
+    expect(mockSignInWithOAuth).toHaveBeenCalledWith(
+      expect.objectContaining({ provider: 'google' })
+    );
+  });
+
+  it('fires signin_google_clicked telemetry when the button is pressed', async () => {
+    mockSignInWithOAuth.mockResolvedValue({ error: null });
+    renderAuth();
+    fireEvent.click(screen.getByRole('button', { name: /Continue with Google/i }));
+    await waitFor(() =>
+      expect(logTelemetry).toHaveBeenCalledWith('signin_google_clicked')
+    );
+  });
+
+  it('shows an error message when signInWithOAuth returns an error', async () => {
+    mockSignInWithOAuth.mockResolvedValue({ error: { message: 'OAuth provider not enabled' } });
+    renderAuth();
+    fireEvent.click(screen.getByRole('button', { name: /Continue with Google/i }));
+    await waitFor(() =>
+      expect(screen.getByText(/OAuth provider not enabled/i)).toBeTruthy()
+    );
+  });
+
+  it('Google button is above the email input in the DOM', () => {
+    const { container } = renderAuth();
+    const googleBtn = container.querySelector('.auth-google-btn');
+    const emailInput = container.querySelector('input[type="email"]');
+    expect(googleBtn).toBeTruthy();
+    expect(emailInput).toBeTruthy();
+    // compareDocumentPosition: 4 means emailInput follows googleBtn
+    expect(googleBtn.compareDocumentPosition(emailInput) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });
