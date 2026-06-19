@@ -859,7 +859,11 @@ function ScheduleFinishFooter({ job, jobVisits, canEdit, onEndJob, onSetTarget, 
 }
 /**
  * VisitEditorSheet — modal sheet for adding/editing a single visit.
- * Reuses the jd-schedule-edit-form chrome pattern.
+ * Uses the shared .modal-backdrop / .modal-sheet / .edit-field-* system so
+ * it matches the "Add a line" modal (QuoteLineEditorSheet) exactly.
+ * The old .visit-editor-* / .jd-schedule-edit-* CSS is kept in index.css for
+ * now — PhotoSourceSheet and the light-theme override reference those selectors.
+ * Clean-up of the unused selectors is a separate follow-up ticket.
  */
 function VisitEditorSheet({ open, visit, onSave, onCancel }) {
   const [date, setDate] = React.useState('');
@@ -887,44 +891,55 @@ function VisitEditorSheet({ open, visit, onSave, onCancel }) {
   };
 
   return (
-    <div className="visit-editor-backdrop" role="dialog" aria-modal="true" aria-label="Edit visit">
-      <div className="visit-editor-sheet">
-        <div className="visit-editor-title">{visit?.id ? 'Edit visit' : 'Add visit'}</div>
-        <div className="jd-schedule-edit-form">
-          <div>
-            <div className="jd-schedule-edit-label">Date</div>
+    <div
+      className="modal-backdrop"
+      role="dialog"
+      aria-modal="true"
+      aria-label={visit?.id ? 'Edit visit' : 'Add visit'}
+      onClick={e => { if (e.target === e.currentTarget) onCancel(); }}
+    >
+      <div className="modal-sheet edit-field-sheet" onClick={e => e.stopPropagation()}>
+        <div className="modal-sheet-header">
+          <h3 className="modal-sheet-title">{visit?.id ? 'Edit visit' : 'Add visit'}</h3>
+          <button type="button" className="modal-sheet-close" onClick={onCancel} aria-label="Close">✕</button>
+        </div>
+        <div className="edit-field-body">
+          <div className="edit-field-group">
+            <label className="edit-field-label">Date</label>
             <input
               type="date"
-              className="jd-schedule-edit-input"
+              className="edit-field-input"
               value={date}
               onChange={e => setDate(e.target.value)}
               aria-label="Visit date"
             />
           </div>
-          <div>
-            <div className="jd-schedule-edit-label">Time (optional)</div>
-            <div className="jd-schedule-edit-time-row">
+          <div className="edit-field-group">
+            <label className="edit-field-label">Time (optional)</label>
+            <div style={{ display: 'flex', gap: '8px' }}>
               <input
                 type="time"
-                className="jd-schedule-edit-input"
+                className="edit-field-input"
                 value={start}
                 onChange={e => setStart(e.target.value)}
                 aria-label="Start time"
+                style={{ flex: 1 }}
               />
               <input
                 type="time"
-                className="jd-schedule-edit-input"
+                className="edit-field-input"
                 value={end}
                 onChange={e => setEnd(e.target.value)}
                 aria-label="End time"
                 disabled={!start}
+                style={{ flex: 1 }}
               />
             </div>
           </div>
-          <div>
-            <div className="jd-schedule-edit-label">Status</div>
+          <div className="edit-field-group">
+            <label className="edit-field-label">Status</label>
             <select
-              className="jd-schedule-edit-input"
+              className="edit-field-input"
               value={status}
               onChange={e => setStatus(e.target.value)}
               aria-label="Visit status"
@@ -934,11 +949,11 @@ function VisitEditorSheet({ open, visit, onSave, onCancel }) {
               <option value="cancelled">Cancelled</option>
             </select>
           </div>
-          <div>
-            <div className="jd-schedule-edit-label">Note (optional)</div>
+          <div className="edit-field-group">
+            <label className="edit-field-label">Note (optional)</label>
             <input
               type="text"
-              className="jd-schedule-edit-input"
+              className="edit-field-input"
               value={note}
               onChange={e => setNote(e.target.value)}
               placeholder="Plastering only / snag fix / etc."
@@ -946,10 +961,10 @@ function VisitEditorSheet({ open, visit, onSave, onCancel }) {
               maxLength={200}
             />
           </div>
-          <div className="jd-schedule-edit-footer">
-            <button type="button" className="btn-ghost" onClick={onCancel}>Cancel</button>
-            <button type="button" className="btn-primary" onClick={handleSave} disabled={!date}>Save</button>
-          </div>
+        </div>
+        <div className="edit-field-actions">
+          <button type="button" className="btn-ghost edit-field-cancel" onClick={onCancel}>Cancel</button>
+          <button type="button" className="btn-primary edit-field-save" onClick={handleSave} disabled={!date}>Save</button>
         </div>
       </div>
     </div>
