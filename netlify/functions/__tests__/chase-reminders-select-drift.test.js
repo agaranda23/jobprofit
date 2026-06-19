@@ -25,7 +25,7 @@ import {
   daysPastDueShared,
   computeTierShared,
   shouldSendChaseReminder,
-} from './_lib/chaseTierHelpers.js';
+} from '../_lib/chaseTierHelpers.js';
 
 // ── A. Select-string regression: verify the source no longer references the
 //       non-existent columns. We read the compiled function source at test time
@@ -38,7 +38,7 @@ import path from 'path';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const handlerSource = readFileSync(
-  path.join(__dirname, 'chase-reminders.js'),
+  path.join(__dirname, '..', 'chase-reminders.js'),
   'utf8',
 );
 
