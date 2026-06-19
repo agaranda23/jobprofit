@@ -11561,6 +11561,20 @@ button.jd-money-chip:active { opacity: 0.75; }
   margin-left: 4px;
 }
 
+/* Expanded-state meta variant (opt-in via keepMetaWhenExpanded prop, Price only).
+   Uses flex:1 (not flex:0 1 auto) to absorb all free space, then right-aligns
+   the text inside that space. This avoids the competing-auto-margin trap: both
+   this element and .jd-csr-chev had margin-left:auto, which CSS Flexbox §9.5
+   splits equally — centring the meta instead of right-aligning it. With flex:1
+   the meta fills the gap; text-align:right visually abuts the chevron.
+   min-width:0 + ellipsis ensure a long value truncates at 375px without wrapping. */
+.jd-csr-meta--expanded {
+  flex: 1;
+  text-align: right;
+  margin-left: 4px;
+  margin-right: 8px;
+}
+
 .jd-csr-attention-pill {
   font-size: var(--fs-label);
   font-weight: 700;
@@ -14342,6 +14356,28 @@ button.jd-money-chip:active { opacity: 0.75; }
   font-size: var(--fs-label);
   color: var(--text-dim);
 }
+
+/* Price line-item row modifier: adds 14px left padding so the icon centre
+   lands at 23px from the accordion edge — identical to the Price header icon
+   centre (14px row padding + 18px icon box / 2 = 23px). Only applied to
+   editable Price line items; other .jd-card-row consumers are unaffected. */
+.jd-card-row--quote {
+  padding-left: 14px;
+}
+
+/* Clipboard icon for Price line items (replaces the old '•' bullet).
+   Width 18px matches .jd-csr-icon so icon centres align vertically with
+   the Price header icon. display:inline-flex centres the SVG glyph inside
+   the box (SVGs need flex centring; text glyphs use text-align alone).
+   flex-shrink:0 is inherited from .jd-card-row-icon — never override it
+   (the documented 'renders behind sibling' bug is a flex-shrink failure). */
+.jd-card-row-icon--clip {
+  width: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 .jd-card-row-val {
   flex: 1;
   font-size: var(--fs-label);
