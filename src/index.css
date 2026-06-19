@@ -14199,9 +14199,34 @@ button.jd-money-chip:active { opacity: 0.75; }
   opacity: 0.75;
 }
 
+/* Ghost outline modifier — Price accordion "+ Add line" only.
+   Intentional deviation from the solid-green/black-ink CTA convention:
+   "+ Add line" is a secondary utility action, not a primary money CTA.
+   Schedule's "+ Add visit" keeps the base solid-green style via .jd-add-dashed alone. */
+.jd-add-dashed--ghost {
+  background: transparent;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  font-weight: 600;
+  position: relative; /* anchors the hit-slop pseudo */
+}
+.jd-add-dashed--ghost:active,
+.jd-add-dashed--ghost:focus-visible {
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  opacity: 1; /* override base .jd-add-dashed:active opacity:0.75 */
+}
+/* Extends effective touch target to >=44px without growing the 32px painted pill */
+.jd-add-dashed--ghost::after {
+  content: '';
+  position: absolute;
+  inset: -7px 0;
+}
+
 /* Alignment wrapper: left-aligned flex row that holds the pill.
    --inset variant adds the 14px horizontal inset for the Price accordion
-   (which uses .jd-section-body--flush so has no natural padding). */
+   (which uses .jd-section-body--flush so has no natural padding).
+   --end variant mirrors inset to the right, moving the pill to the right edge
+   for right-thumb reach on mobile (Price "+ Add line" only). */
 .jd-add-pill-row {
   display: flex;
   justify-content: flex-start;
@@ -14209,6 +14234,10 @@ button.jd-money-chip:active { opacity: 0.75; }
 }
 .jd-add-pill-row--inset {
   padding-left: 14px;
+}
+.jd-add-pill-row--end {
+  justify-content: flex-end;
+  padding-right: 14px;
 }
 
 .jd-card-row-icon {
