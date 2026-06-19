@@ -14326,6 +14326,25 @@ button.jd-money-chip:active { opacity: 0.75; }
   inset: -7px 0;
 }
 
+/* Tinted modifier — Schedule "+ Add visit" pill.
+   Matches .visit-mark-done: 14% accent tint fill + 1px accent ring + accent text.
+   Does NOT affect Price "+ Add line" (those stay on --ghost / transparent). */
+.jd-add-dashed--tinted {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  position: relative; /* anchors hit-slop pseudo-element */
+}
+.jd-add-dashed--tinted:active {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  opacity: 1; /* override base .jd-add-dashed:active opacity:0.75 */
+}
+.jd-add-dashed--tinted::after {
+  content: '';
+  position: absolute;
+  inset: -7px 0;
+}
+
 /* Alignment wrapper: left-aligned flex row that holds the pill.
    --inset variant adds the 14px horizontal inset for the Price accordion
    (which uses .jd-section-body--flush so has no natural padding).
@@ -14749,17 +14768,17 @@ button.jd-money-chip:active { opacity: 0.75; }
   min-width: 0;
 }
 
-/* Always-visible "Mark done" pill — compact, filled green, 44px tap target via hit-slop */
+/* Always-visible "Mark done" pill — tinted fill + accent border + accent text; 44px tap target via hit-slop */
 .visit-mark-done {
   flex-shrink: 0;
   align-self: center;
   margin: 0 4px 0 0;
-  padding: 3px 10px;
+  padding: 2px 9px;
   min-height: 28px;
-  background: var(--accent);
-  border: none;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border: 1px solid var(--accent);
   border-radius: 8px;
-  color: #06120b;
+  color: var(--accent);
   font-size: var(--fs-label);
   font-weight: 700;
   font-family: inherit;
