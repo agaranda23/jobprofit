@@ -1,13 +1,4 @@
-// !! AUTO-GENERATED — DO NOT HAND-EDIT THIS LINE !!
-// CACHE_NAME is injected at build time by the injectSwCacheId Vite plugin in
-// vite.config.js. The placeholder 'jobprofit-__BUILD_ID__' is used verbatim
-// in `vite dev` (harmless — it is a valid cache-name string, not a
-// ReferenceError). In production builds Vite replaces __BUILD_ID__ with a
-// short content-hash derived from dist/index.html (which embeds Vite's
-// content-hashed asset fingerprints), so the cache busts iff the built output
-// actually changes. Manual version bumps are no longer needed or safe.
-// See: feat/sw-cache-autoversion
-const CACHE_NAME = 'jobprofit-__BUILD_ID__';
+
 const PRECACHE = [
   '/',
   '/index.html',

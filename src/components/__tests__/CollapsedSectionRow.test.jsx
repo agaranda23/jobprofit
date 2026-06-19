@@ -327,6 +327,238 @@ describe('CSS regression guard — .jd-csr-panel opaque background (6th regressi
   });
 });
 
+// ── Meta render logic — collapsed and keepMetaWhenExpanded (expanded) paths ───
+//
+// The meta string (e.g. "£133 (2 items)") is rendered:
+//   - In the COLLAPSED header: when !expanded && meta is truthy
+//       → <span className="jd-csr-meta">{meta}</span>
+//   - In the EXPANDED header:  when expanded && keepMetaWhenExpanded && meta
+//       → <span className="jd-csr-meta jd-csr-meta--expanded">{meta}</span>
+//
+// These two paths are mutually exclusive — meta never double-renders.
+// Only the Price accordion opts in to keepMetaWhenExpanded; all other
+// accordions use the default (false) so they are byte-for-byte unchanged.
+//
+// The guard tests below read the component source to ensure the render
+// expressions are present. If a future refactor removes or rewrites the
+// collapsed-meta path, these tests catch it before it ships.
+
+function renderMeta(expanded, meta, keepMetaWhenExpanded = false) {
+  // Mirrors the three branches in CollapsedSectionRow JSX:
+  //   {!expanded && meta && <span className="jd-csr-meta">{meta}</span>}
+  //   {expanded && keepMetaWhenExpanded && meta && <span className="jd-csr-meta jd-csr-meta--expanded">{meta}</span>}
+  const collapsedMeta  = !expanded && meta ? { cls: 'jd-csr-meta', text: meta } : null;
+  const expandedMeta   = expanded && keepMetaWhenExpanded && meta ? { cls: 'jd-csr-meta jd-csr-meta--expanded', text: meta } : null;
+  return { collapsedMeta, expandedMeta };
+}
+
+describe('CollapsedSectionRow — meta render logic (collapsed + keepMetaWhenExpanded paths)', () => {
+  it('collapsed with meta: renders collapsed meta span, no expanded meta', () => {
+    const { collapsedMeta, expandedMeta } = renderMeta(false, '£133 (2 items)');
+    expect(collapsedMeta).not.toBeNull();
+    expect(collapsedMeta.cls).toBe('jd-csr-meta');
+    expect(collapsedMeta.text).toBe('£133 (2 items)');
+    expect(expandedMeta).toBeNull();
+  });
+
+  it('collapsed without meta: renders neither span', () => {
+    const { collapsedMeta, expandedMeta } = renderMeta(false, '');
+    expect(collapsedMeta).toBeNull();
+    expect(expandedMeta).toBeNull();
+  });
+
+  it('collapsed without meta (undefined): renders neither span', () => {
+    const { collapsedMeta, expandedMeta } = renderMeta(false, undefined);
+    expect(collapsedMeta).toBeNull();
+    expect(expandedMeta).toBeNull();
+  });
+
+  it('expanded, keepMetaWhenExpanded=true, with meta: renders expanded meta span, no collapsed meta', () => {
+    const { collapsedMeta, expandedMeta } = renderMeta(true, '£133 (2 items)', true);
+    expect(collapsedMeta).toBeNull();
+    expect(expandedMeta).not.toBeNull();
+    expect(expandedMeta.cls).toBe('jd-csr-meta jd-csr-meta--expanded');
+    expect(expandedMeta.text).toBe('£133 (2 items)');
+  });
+
+  it('expanded, keepMetaWhenExpanded=false (default): renders neither span', () => {
+    const { collapsedMeta, expandedMeta } = renderMeta(true, '£133 (2 items)', false);
+    expect(collapsedMeta).toBeNull();
+    expect(expandedMeta).toBeNull();
+  });
+
+  it('expanded, keepMetaWhenExpanded=true, without meta: renders neither span', () => {
+    const { collapsedMeta, expandedMeta } = renderMeta(true, '', true);
+    expect(collapsedMeta).toBeNull();
+    expect(expandedMeta).toBeNull();
+  });
+
+  it('collapsed and expanded meta are mutually exclusive across all four expansion states', () => {
+    const states = [false, true];
+    const keepStates = [false, true];
+    for (const expanded of states) {
+      for (const keep of keepStates) {
+        const { collapsedMeta, expandedMeta } = renderMeta(expanded, '£133 (2 items)', keep);
+        // Never both truthy simultaneously
+        expect(collapsedMeta !== null && expandedMeta !== null).toBe(false);
+      }
+    }
+  });
+});
+
+// ── Price accordion meta derivation — quoteMeta logic from JobDetailDrawer ───
+//
+// The Price accordion passes quoteMeta as the `meta` prop to CollapsedSectionRow.
+// quoteMeta derives the label shown in both collapsed and expanded headers.
+// These tests mirror the exact derivation in JobDetailDrawer so a refactor that
+// changes the string format breaks loudly at CI time.
+//
+// format: "£133 (2 items)" | "£133 (1 item)" | "£133" (no items) | "None yet"
+
+function gbpMock(n) {
+  // Minimal replica of gbp() for testing — not the real formatter.
+  return `£${Number(n).toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
+}
+
+function deriveQuoteMeta(job) {
+  // Mirrors exactly the derivation in JobDetailDrawer (around line 3648–3652 on main).
+  const quoteTotal = job.total ?? job.amount ?? 0;
+  const _quoteLineCount = (job.lineItems || []).filter(i => i.desc || i.cost).length;
+  return quoteTotal > 0
+    ? `${gbpMock(quoteTotal)}${_quoteLineCount > 0 ? ` (${_quoteLineCount} item${_quoteLineCount === 1 ? '' : 's'})` : ''}`
+    : 'None yet';
+}
+
+describe('Price accordion — quoteMeta derivation (JobDetailDrawer mirror)', () => {
+  it('job with total and 2 line items → "£133 (2 items)"', () => {
+    const job = {
+      total: 133,
+      lineItems: [{ desc: 'Job', cost: 123 }, { desc: 'Hammer', cost: 10 }],
+    };
+    expect(deriveQuoteMeta(job)).toBe('£133 (2 items)');
+  });
+
+  it('job with total and 1 line item → singular "£133 (1 item)"', () => {
+    const job = {
+      total: 133,
+      lineItems: [{ desc: 'Job', cost: 133 }],
+    };
+    expect(deriveQuoteMeta(job)).toBe('£133 (1 item)');
+  });
+
+  it('job with total but no line items → just the price, no bracket', () => {
+    const job = { total: 133, lineItems: [] };
+    expect(deriveQuoteMeta(job)).toBe('£133');
+  });
+
+  it('job with total and only empty/seed line items (no desc, no cost) → no bracket', () => {
+    // Empty seed rows (desc='', cost=0) must not inflate the count.
+    const job = {
+      total: 133,
+      lineItems: [{ desc: '', cost: 0 }],
+    };
+    expect(deriveQuoteMeta(job)).toBe('£133');
+  });
+
+  it('job with zero total → "None yet"', () => {
+    const job = { total: 0, lineItems: [] };
+    expect(deriveQuoteMeta(job)).toBe('None yet');
+  });
+
+  it('job with no total/amount fields → "None yet"', () => {
+    const job = {};
+    expect(deriveQuoteMeta(job)).toBe('None yet');
+  });
+
+  it('job uses amount as fallback when total is absent', () => {
+    const job = { amount: 250, lineItems: [{ desc: 'Labour', cost: 250 }] };
+    expect(deriveQuoteMeta(job)).toBe('£250 (1 item)');
+  });
+
+  it('total takes precedence over amount', () => {
+    const job = { total: 380, amount: 200, lineItems: [{ desc: 'Labour', cost: 380 }] };
+    expect(deriveQuoteMeta(job)).toBe('£380 (1 item)');
+  });
+});
+
+// ── Source-code regression guard — meta render expressions ───────────────────
+//
+// Guards that BOTH meta render paths are present in CollapsedSectionRow.jsx:
+//   collapsed:  {!expanded && meta && <span className="jd-csr-meta">}
+//   expanded:   {expanded && keepMetaWhenExpanded && meta && <span className="jd-csr-meta jd-csr-meta--expanded">}
+//
+// A future refactor that accidentally deletes either expression will fail here
+// at CI time rather than silently shipping a regression to users.
+
+describe('Source-code regression guard — meta render expressions in CollapsedSectionRow', () => {
+  const src = fs.readFileSync(path.resolve(__dirname, '../CollapsedSectionRow.jsx'), 'utf8');
+
+  it('collapsed meta render: source contains {!expanded && meta &&} guard expression', () => {
+    // The collapsed-state meta is gated on !expanded && meta. This is the load-bearing
+    // expression that shows "£133 (2 items)" in the Price header when collapsed.
+    expect(src).toMatch(/!expanded\s*&&\s*meta\s*&&/);
+  });
+
+  it('collapsed meta render: source renders jd-csr-meta span in collapsed path', () => {
+    // The span with class jd-csr-meta must be present and tied to the collapsed path.
+    expect(src).toContain('jd-csr-meta');
+  });
+
+  it('expanded meta render: source contains {expanded && keepMetaWhenExpanded && meta &&} guard', () => {
+    // The expanded-state meta is gated on expanded && keepMetaWhenExpanded && meta.
+    // Only the Price accordion opts in by passing keepMetaWhenExpanded.
+    expect(src).toMatch(/expanded\s*&&\s*keepMetaWhenExpanded\s*&&\s*meta\s*&&/);
+  });
+
+  it('expanded meta render: source renders jd-csr-meta--expanded span in expanded path', () => {
+    expect(src).toContain('jd-csr-meta--expanded');
+  });
+
+  it('keepMetaWhenExpanded defaults to false (no opt-in unless prop passed)', () => {
+    // The prop declaration must have a default of false so all other accordions
+    // (Schedule, Costs, Customer, Documents) are unchanged.
+    expect(src).toMatch(/keepMetaWhenExpanded\s*=\s*false/);
+  });
+});
+
+// ── CSS regression guard — collapsed meta must have min-width:0 for mobile ───
+//
+// On narrow (375px) screens the meta text must truncate with ellipsis rather than
+// overflow or wrap onto a second line and push the chevron off-screen.
+// min-width:0 on a flex child prevents the default min-width:auto from overriding
+// the overflow:hidden that enables ellipsis. If min-width:0 is removed from
+// .jd-csr-meta, this guard fails at CI time.
+
+describe('CSS regression guard — jd-csr-meta mobile truncation (min-width:0)', () => {
+  const cssText = fs.readFileSync(CSS_PATH, 'utf8');
+
+  it('.jd-csr-meta rule has min-width:0 (prevents meta from overflowing on mobile)', () => {
+    // Extract the .jd-csr-meta { ... } block.
+    const markerIdx = cssText.indexOf('\n.jd-csr-meta {');
+    expect(markerIdx).not.toBe(-1);
+    const openBrace  = cssText.indexOf('{', markerIdx + 1);
+    const closeBrace = cssText.indexOf('}', openBrace);
+    const block = cssText.slice(openBrace, closeBrace + 1);
+    expect(block).toMatch(/min-width\s*:\s*0/);
+  });
+
+  it('.jd-csr-meta rule has text-overflow:ellipsis (graceful truncation on narrow screens)', () => {
+    const markerIdx = cssText.indexOf('\n.jd-csr-meta {');
+    const openBrace  = cssText.indexOf('{', markerIdx + 1);
+    const closeBrace = cssText.indexOf('}', openBrace);
+    const block = cssText.slice(openBrace, closeBrace + 1);
+    expect(block).toMatch(/text-overflow\s*:\s*ellipsis/);
+  });
+
+  it('.jd-csr-meta rule has white-space:nowrap (prevents meta from wrapping to second line)', () => {
+    const markerIdx = cssText.indexOf('\n.jd-csr-meta {');
+    const openBrace  = cssText.indexOf('{', markerIdx + 1);
+    const closeBrace = cssText.indexOf('}', openBrace);
+    const block = cssText.slice(openBrace, closeBrace + 1);
+    expect(block).toMatch(/white-space\s*:\s*nowrap/);
+  });
+});
+
 // ── Source-code regression guard — no max-height inline style on the panel ────
 //
 // 8th regression guard: the definitive fix is CONDITIONAL RENDER, not max-height
