@@ -904,6 +904,12 @@ export default function AppShell() {
   const handleDropToFreeDismiss = () => {
     markDropToFreeSeen();
     setDropToFreeOpen(false);
+    // Clear any stale Moment-1 trial-end sheet that may still be in memory
+    // (e.g. app kept open across the day14→day15 expiry boundary). Without
+    // this, dismissing the drop-to-free screen would reveal the "Keep Pro /
+    // add a card" sheet underneath — contradictory UX for a user who just
+    // chose to stay on free.
+    setTrialEndSheetOpen(false);
     // Optimistic local update so the UI reflects free immediately
     setProfile(prev => prev ? { ...prev, plan: 'free', drop_to_free_seen: true } : prev);
     // Fire-and-forget DB write (flipExpiredTrialToFree now also writes drop_to_free_seen)
