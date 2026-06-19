@@ -677,9 +677,40 @@ export async function updateJobMetaInCloud(jobId, metaObject) {
       .eq('id', jobId);
 
     if (error) {
+      // Detect schema-drift: PostgREST returns code PGRST204 or Postgres 42703
+      // when a column named in the UPDATE does not exist. A blind retry of the
+      // same payload would loop forever — strip the mirror columns and retry
+      // meta-only instead. Meta persistence is sufficient: mapCloudJobToToday
+      // reads everything back via select('*') + meta on the next load.
+      const isColumnNotFound =
+        error.code === 'PGRST204' ||
+        error.code === '42703'    ||
+        (typeof error.message === 'string' && error.message.includes('column') && error.message.includes('does not exist'));
+
+      if (isColumnNotFound) {
+        console.warn('updateJobMetaInCloud: column-not-found — retrying meta-only', jobId, error.code, error.message);
+        // Emit telemetry so drift is visible in PostHog without crashing the app.
+        try {
+          const { logTelemetry } = await import('./telemetry.js');
+          logTelemetry('store_meta_column_drift', { jobId, code: error.code, message: error.message });
+        } catch { /* telemetry unavailable — safe to swallow */ }
+
+        // Retry with meta-only payload (no mirror columns). A genuine missing
+        // meta column is pathological and would surface here as a second error.
+        const { error: metaOnlyError } = await supabase
+          .from('jobs')
+          .update({ meta: metaObject })
+          .eq('id', jobId);
+
+        if (metaOnlyError) {
+          console.warn('updateJobMetaInCloud meta-only retry failed', jobId, metaOnlyError.message);
+          return { ok: false, error: metaOnlyError.message };
+        }
+        return { ok: true };
+      }
+
       console.warn('updateJobMetaInCloud failed', jobId, error);
-      // Non-network Supabase error (e.g. schema mismatch) — do not queue;
-      // retrying won't help. Return the error so callers can log it.
+      // Other non-network Supabase error — do not queue; retrying won't help.
       return { ok: false, error: error.message };
     }
     return { ok: true };
