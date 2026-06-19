@@ -1424,12 +1424,10 @@ function QuoteBreakdownSection({ job, onSaveLine, onDeleteLine }) {
                   </button>
                 </div>
               )}
-              {items.length > 1 && (
-                <div className="jd-quote-footer-total">
-                  <span className="jd-quote-footer-label">Total</span>
-                  <span className="jd-quote-footer-amount">{gbp(quoteTotal)}</span>
-                </div>
-              )}
+              <div className="jd-quote-footer-total">
+                <span className="jd-quote-footer-label">Total</span>
+                <span className="jd-quote-footer-amount">{gbp(quoteTotal)}</span>
+              </div>
             </>
           )}
         </div>
