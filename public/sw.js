@@ -1,3 +1,9 @@
+// __BUILD_ID__ is replaced at build time by the injectSwCacheId Vite plugin
+// (vite.config.js). In `vite dev` the placeholder is used verbatim — a valid
+// cache-name string, not a ReferenceError. In production Vite injects a short
+// content-hash derived from dist/index.html so the cache busts iff built output
+// changes. Do NOT hand-bump this value; the plugin handles it.
+// See swCacheName.test.js for the CI guard that prevents a repeat of PR #404.
 const CACHE_NAME = 'jobprofit-__BUILD_ID__';
 const PRECACHE = [
   '/',

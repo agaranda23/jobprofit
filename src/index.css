@@ -11604,15 +11604,14 @@ button.jd-money-chip:active { opacity: 0.75; }
 }
 
 /* Expanded-state meta variant (opt-in via keepMetaWhenExpanded prop, Price only).
-   Uses flex:1 (not flex:0 1 auto) to absorb all free space, then right-aligns
-   the text inside that space. This avoids the competing-auto-margin trap: both
-   this element and .jd-csr-chev had margin-left:auto, which CSS Flexbox §9.5
-   splits equally — centring the meta instead of right-aligning it. With flex:1
-   the meta fills the gap; text-align:right visually abuts the chevron.
-   min-width:0 + ellipsis ensure a long value truncates at 375px without wrapping. */
+   Inherits flex:1, min-width:0, overflow:hidden, text-overflow:ellipsis, white-space:nowrap,
+   and margin-left:4px from .jd-csr-meta (both classes are applied together in JSX).
+   No text-align:right — expanded meta must LEFT-ALIGN immediately after the title,
+   identical to the collapsed .jd-csr-meta appearance. The chevron stays far-right
+   via its own margin-left:auto + flex-shrink:0 on .jd-csr-chev.
+   margin-right:8px keeps a small gap between the meta text and the chevron. */
 .jd-csr-meta--expanded {
   flex: 1;
-  text-align: right;
   margin-left: 4px;
   margin-right: 8px;
 }
@@ -14369,6 +14368,25 @@ button.jd-money-chip:active { opacity: 0.75; }
   inset: -7px 0;
 }
 
+/* Tinted modifier — Schedule "+ Add visit" pill.
+   Matches .visit-mark-done: 14% accent tint fill + 1px accent ring + accent text.
+   Does NOT affect Price "+ Add line" (those stay on --ghost / transparent). */
+.jd-add-dashed--tinted {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  position: relative; /* anchors hit-slop pseudo-element */
+}
+.jd-add-dashed--tinted:active {
+  background: color-mix(in srgb, var(--accent) 22%, transparent);
+  opacity: 1; /* override base .jd-add-dashed:active opacity:0.75 */
+}
+.jd-add-dashed--tinted::after {
+  content: '';
+  position: absolute;
+  inset: -7px 0;
+}
+
 /* Alignment wrapper: left-aligned flex row that holds the pill.
    --inset variant adds the 14px horizontal inset for the Price accordion
    (which uses .jd-section-body--flush so has no natural padding).
@@ -14763,73 +14781,62 @@ button.jd-money-chip:active { opacity: 0.75; }
   padding: 4px 14px 8px;
 }
 
+/* Scoped override: aligns the Schedule "+ Add visit" pill's right edge with the
+   "Mark done" pill's right edge (both sit inside .jd-schedule-card-body which
+   has 14px horizontal padding). The shared .jd-add-pill-row--end has 14px right
+   inset for the Price accordion flush context — remove that inset here so both
+   pills share the same right gutter. Top padding raised from 8px to 16px to
+   give more breathing room above the button after the last visit row. */
+.jd-schedule-card-body .jd-add-pill-row--end {
+  padding: 16px 0 8px;
+}
+
 /* ── Multi-visit schedule — Iteration A ─────────────────────────────────────
-   visit-row-wrap:  relative container for swipe-left action reveal
-   visit-row-inner: the translating row button
-   visit-action-btn: "Mark done" action revealed on swipe-left
+   visit-row-wrap:  flex row; Mark-done pill sits alongside on the right
+   visit-row-inner: fills remaining space (flex: 1 1 auto)
+   visit-mark-done: always-visible compact pill; hit-slop ::after for 44px target
    visit-status-pill: coloured badge (done / today / planned / missed)
    visit-invoice-prompt: banner shown when last visit is marked done
    ────────────────────────────────────────────────────────────────────────── */
 
 .visit-row-wrap {
-  position: relative;
-  overflow: hidden;
   display: flex;
-  align-items: stretch;
+  align-items: center;
 }
 
 .visit-row-inner {
-  /* Override the default jd-card-row width so it clips cleanly on swipe */
-  flex-shrink: 0;
-  width: 100%;
-  will-change: transform;
-  position: relative;
-  z-index: 1;
+  /* Fills remaining space; the Mark-done pill sits alongside on the right */
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
-/* Swipe-left revealed action — sits to the right, behind the row.
-   Ghost colour treatment: faint 14% accent tint fill + inset accent ring + accent ink.
-   Pure transparent was avoided: the tint keeps the slab readable as an action mid-swipe.
-   Shape/position (position:absolute; top:0; bottom:0; padding; width) are UNCHANGED. */
-.visit-action-btn {
-  position: absolute;
-  right: 0;
-  top: 0;
-  bottom: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: color-mix(in srgb, var(--accent, #2BC48A) 14%, transparent);
-  box-shadow: inset 0 0 0 1px var(--accent, #2BC48A);
-  color: var(--accent, #2BC48A);
-  font-size: var(--fs-label);
-  font-weight: 600;
-  border: none;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-  padding: 0 16px;
-  white-space: nowrap;
-  z-index: 0;
-}
-.visit-action-btn:active {
-  background: color-mix(in srgb, var(--accent, #2BC48A) 22%, transparent);
-}
-
-/* Static "Done" button for prefers-reduced-motion users */
-.visit-mark-done-static {
+/* Always-visible "Mark done" pill — tinted fill + accent border + accent text; 44px tap target via hit-slop */
+.visit-mark-done {
   flex-shrink: 0;
   align-self: center;
   margin: 0 4px 0 0;
-  padding: 4px 10px;
-  background: none;
-  border: 1px solid var(--accent, #2BC48A);
-  border-radius: 999px;
-  color: var(--accent, #2BC48A);
+  padding: 2px 9px;
+  min-height: 28px;
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  color: var(--accent);
   font-size: var(--fs-label);
-  font-weight: 600;
+  font-weight: 700;
+  font-family: inherit;
   cursor: pointer;
   white-space: nowrap;
   -webkit-tap-highlight-color: transparent;
+  position: relative; /* anchors hit-slop pseudo-element */
+}
+/* Extends effective touch target to ≥44px without growing the painted pill */
+.visit-mark-done::after {
+  content: '';
+  position: absolute;
+  inset: -8px 0;
+}
+.visit-mark-done:active {
+  opacity: 0.75;
 }
 
 /* Status pills */
