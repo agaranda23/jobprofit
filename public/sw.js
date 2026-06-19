@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v120';  // bumped from v119: customer/money card labels match Schedule white (text-dim→text)
+const CACHE_NAME = 'jobprofit-v121';  // bumped from v120: fix --nav-clearance 64px→88px so last Jobs tile action row clears fixed bottom nav
 const PRECACHE = [
   '/',
   '/index.html',
