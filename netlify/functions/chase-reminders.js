@@ -186,9 +186,14 @@ export const handler = async function () {
       // We fetch all non-paid jobs and filter overdue in-process so we can read
       // meta fields. Supabase JSON path queries are supported but result in complex
       // SQL; simpler to fetch the candidate set and filter in JS.
+      // invoice_sent_at and invoice_due_date are NOT top-level columns — they
+      // live in the meta JSONB as invoiceSentAt / invoiceDueDate (camelCase).
+      // Selecting them by their snake_case column names caused PostgREST 42703
+      // errors that silently failed every user's chase check. The meta column
+      // is already selected; resolveInvoiceDates() reads from meta correctly.
       const { data: jobs, error: jobsError } = await adminClient
         .from('jobs')
-        .select('id, amount, paid, customer_name, summary, invoice_sent_at, invoice_due_date, meta')
+        .select('id, amount, paid, customer_name, summary, meta')
         .eq('user_id', userId)
         .eq('paid', false);
 
