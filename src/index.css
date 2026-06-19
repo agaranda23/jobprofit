@@ -11562,12 +11562,16 @@ button.jd-money-chip:active { opacity: 0.75; }
 }
 
 /* Expanded-state meta variant (opt-in via keepMetaWhenExpanded prop, Price only).
-   Overrides flex:1 so it doesn't fight the chevron's margin-left:auto.
-   margin-left:auto pushes it right; margin-right:8px gives a gap before the chevron.
-   min-width:0 + ellipsis ensure a long value truncates at 375px without wrapping the row. */
+   Uses flex:1 (not flex:0 1 auto) to absorb all free space, then right-aligns
+   the text inside that space. This avoids the competing-auto-margin trap: both
+   this element and .jd-csr-chev had margin-left:auto, which CSS Flexbox §9.5
+   splits equally — centring the meta instead of right-aligning it. With flex:1
+   the meta fills the gap; text-align:right visually abuts the chevron.
+   min-width:0 + ellipsis ensure a long value truncates at 375px without wrapping. */
 .jd-csr-meta--expanded {
-  flex: 0 1 auto;
-  margin-left: auto;
+  flex: 1;
+  text-align: right;
+  margin-left: 4px;
   margin-right: 8px;
 }
 
