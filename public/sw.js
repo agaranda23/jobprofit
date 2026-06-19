@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v116';  // bumped from v115: Settings hub row layout (icon+label left group) + title-case labels (CSS+JSX change)
+const CACHE_NAME = 'jobprofit-v117';  // bumped from v116: Quote line editor modal — swap to canonical modal-sheet chrome (modal-backdrop/edit-field-* classes)
 const PRECACHE = [
   '/',
   '/index.html',
