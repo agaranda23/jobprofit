@@ -13,6 +13,55 @@
 // NOTE: while this is true, trial banners are also suppressed (see TrialBanner).
 export const UNLOCK_PRO_FOR_ALL = false;
 
+// ── Founding Member price-lock ────────────────────────────────────────────────
+//
+// The Founding Member cohort = users who signed up before FOUNDER_CUTOFF.
+// This is a DATE CUTOFF, not a counter. It is naturally un-grantable once the
+// date passes — no race condition, no live counter to manage.
+//
+// The founding window closes 2026-09-30. After that date, new sign-ups cannot
+// earn the price lock — the condition `now < cutoff` fails automatically.
+// Override with env var FOUNDER_CUTOFF in Netlify if the date needs adjusting
+// without a code deploy (webhook reads it from env; client reads this constant).
+//
+// The flag itself (founding_member boolean) lives on profiles. It is stamped at
+// checkout by the Stripe webhook (server-side eligibility re-check) and cleared
+// on subscription cancellation. See netlify/functions/stripe-webhook.js.
+//
+// SQL migration: supabase/migrations/20260616000000_add_founding_member.sql
+//
+// Annual-billing rule (future): £12 × 12 = £144/yr for founders. See FIN spec.
+export const FOUNDER_CUTOFF = '2026-09-30T23:59:59Z';
+
+/**
+ * Returns true when the user is eligible to become a Founding Member.
+ * Eligibility = signed up before FOUNDER_CUTOFF AND not already a Founding Member
+ * AND not already on Pro (i.e. they haven't checked out yet).
+ *
+ * @param {object|null|undefined} profile - Supabase profiles row
+ * @param {Date} [now]                    - injectable for testing
+ * @returns {boolean}
+ */
+export function isFoundingEligible(profile, now = new Date()) {
+  if (!profile) return false;
+  if (profile.founding_member) return false;       // already locked in
+  if (profile.plan === 'pro') return false;        // already subscribed
+  if (!profile.created_at) return false;
+  const cutoff = new Date(FOUNDER_CUTOFF);
+  if (isNaN(cutoff.getTime())) return false;       // safety: malformed constant
+  return new Date(profile.created_at) < cutoff && now < cutoff;
+}
+
+/**
+ * Returns true when this user already has the Founding Member price lock stamped.
+ *
+ * @param {object|null|undefined} profile - Supabase profiles row
+ * @returns {boolean}
+ */
+export function isFoundingMember(profile) {
+  return !!profile?.founding_member;
+}
+
 /**
  * White-label is the anchor Pro perk: Pro/trial = "Sent with JobProfit" footer
  * HIDDEN on documents; free = footer SHOWN.

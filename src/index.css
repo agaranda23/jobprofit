@@ -4490,6 +4490,95 @@ input[type=number] { -moz-appearance: textfield; }
 .upgrade-banner__btn:hover { opacity: 0.92; box-shadow: 0 3px 12px rgba(212, 160, 23, 0.45); }
 .upgrade-banner__btn:active { opacity: 0.78; }
 
+/* ── Founding Member card ──────────────────────── */
+/* Shown to founding-eligible free users in place of the standard upgrade banner. */
+/* Uses brand green (#00A86B) accent + JetBrains Mono for the price figure. */
+.founding-member-card {
+  padding: 18px 16px 14px;
+  background: var(--surface);
+  border: 1.5px solid #00A86B;
+  border-radius: 16px;
+  box-shadow: 0 1px 0 rgba(0,0,0,0.25), 0 0 0 4px rgba(0, 168, 107, 0.08);
+  margin-bottom: 16px;
+}
+.founding-member-card__badge {
+  display: inline-block;
+  padding: 2px 8px;
+  background: #00A86B;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border-radius: 4px;
+  margin-bottom: 10px;
+}
+.founding-member-card__headline {
+  display: flex;
+  align-items: baseline;
+  gap: 2px;
+  margin-bottom: 8px;
+}
+.founding-member-card__price {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 28px;
+  font-weight: 700;
+  color: #00A86B;
+  line-height: 1;
+}
+.founding-member-card__period {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 16px;
+  font-weight: 600;
+  color: #00A86B;
+}
+.founding-member-card__lock {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+.founding-member-card__body {
+  font-size: 13px;
+  color: var(--text-dim);
+  line-height: 1.5;
+  margin: 0 0 14px;
+}
+.founding-member-card__cta {
+  display: block;
+  width: 100%;
+  padding: 12px 16px;
+  background: #00A86B;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  text-align: center;
+  transition: opacity 0.15s;
+  margin-bottom: 8px;
+}
+.founding-member-card__cta:hover { opacity: 0.9; }
+.founding-member-card__cta:active { opacity: 0.75; }
+.founding-member-card__small-print {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin: 0;
+  text-align: center;
+}
+/* Confirmation state — shown to existing Founding Members on Pro plan */
+.founding-member-card--confirmed {
+  border-width: 1px;
+  box-shadow: 0 1px 0 rgba(0,0,0,0.15);
+  padding: 12px 16px;
+}
+.founding-member-card__confirmed-copy {
+  font-size: 13px;
+  color: var(--text-dim);
+  margin: 0;
+}
+
 /* ── Today screen — tax pot leak line ──────────── */
 .today-tax-pot-line {
   display: block;

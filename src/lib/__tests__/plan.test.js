@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { isPro, planAllowsPro, canSendInvoice, countInvoicesSentThisMonth, incrementSendCount, UNLOCK_PRO_FOR_ALL, FREE_MONTHLY_INVOICE_LIMIT, isTrialActive, trialDaysLeft, showJobProfitFooter, eligibleForWhiteLabelNudge, initTrialOnFirstUse } from '../plan.js';
+import { isPro, planAllowsPro, canSendInvoice, countInvoicesSentThisMonth, incrementSendCount, UNLOCK_PRO_FOR_ALL, FREE_MONTHLY_INVOICE_LIMIT, isTrialActive, trialDaysLeft, showJobProfitFooter, eligibleForWhiteLabelNudge, initTrialOnFirstUse, isFoundingEligible, isFoundingMember, FOUNDER_CUTOFF } from '../plan.js';
 
 // ──────────────────────────────────────────────────────────────────────────
 // The real entitlement rule — always valid regardless of the temporary
@@ -398,6 +398,102 @@ describe('isPro — trial-aware entitlement', () => {
 
   it('null profile follows the override flag (defaults to free when off)', () => {
     expect(isPro(null, now)).toBe(UNLOCK_PRO_FOR_ALL ? true : false);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// isFoundingEligible — cohort gate for the Founding Member price lock
+// ──────────────────────────────────────────────────────────────────────────
+describe('isFoundingEligible', () => {
+  // All tests inject `now` so they are time-independent.
+  // BEFORE_CUTOFF is well before the real FOUNDER_CUTOFF (2026-09-30) so the
+  // "eligible" profile always passes the created_at < cutoff check.
+  // NOW_IN_WINDOW (2026-08-01) is before the real cutoff so window-open tests pass.
+  // "window closed" and "created_at after cutoff" tests derive dates dynamically
+  // from the imported FOUNDER_CUTOFF so they stay correct if the constant changes.
+  const BEFORE_CUTOFF = '2026-06-01T12:00:00Z'; // created_at safely before cutoff
+  const NOW_IN_WINDOW = new Date('2026-08-01T00:00:00Z'); // 2026-08-01 < 2026-09-30 cutoff
+
+  function profile(overrides = {}) {
+    return {
+      created_at: BEFORE_CUTOFF,
+      plan: 'free',
+      founding_member: false,
+      ...overrides,
+    };
+  }
+
+  it('returns false for null profile', () => {
+    expect(isFoundingEligible(null, NOW_IN_WINDOW)).toBe(false);
+  });
+
+  it('returns false for undefined profile', () => {
+    expect(isFoundingEligible(undefined, NOW_IN_WINDOW)).toBe(false);
+  });
+
+  it('returns false when profile already has founding_member=true', () => {
+    expect(isFoundingEligible(profile({ founding_member: true }), NOW_IN_WINDOW)).toBe(false);
+  });
+
+  it('returns false when profile is already on plan=pro', () => {
+    expect(isFoundingEligible(profile({ plan: 'pro' }), NOW_IN_WINDOW)).toBe(false);
+  });
+
+  it('returns false when created_at is missing', () => {
+    expect(isFoundingEligible(profile({ created_at: null }), NOW_IN_WINDOW)).toBe(false);
+    expect(isFoundingEligible(profile({ created_at: undefined }), NOW_IN_WINDOW)).toBe(false);
+  });
+
+  it('returns false when the founding window has closed (now >= FOUNDER_CUTOFF)', () => {
+    // Inject a now that is AFTER the real FOUNDER_CUTOFF constant
+    const cutoffDate = new Date(FOUNDER_CUTOFF);
+    const afterCutoff = new Date(cutoffDate.getTime() + 1000); // 1 second after
+    expect(isFoundingEligible(profile(), afterCutoff)).toBe(false);
+  });
+
+  it('returns false when created_at is on or after FOUNDER_CUTOFF', () => {
+    // Profile created on or after the cutoff is not in the cohort.
+    // createdAfter is derived from the real FOUNDER_CUTOFF constant so the
+    // test stays correct if the constant is updated.
+    const cutoffDate = new Date(FOUNDER_CUTOFF);
+    const createdAfter = new Date(cutoffDate.getTime() + 86400000).toISOString();
+    expect(isFoundingEligible(profile({ created_at: createdAfter }), NOW_IN_WINDOW)).toBe(false);
+  });
+
+  it('returns true for a free user created before FOUNDER_CUTOFF while window is open', () => {
+    // NOW_IN_WINDOW (2026-08-01) is before FOUNDER_CUTOFF (2026-09-30)
+    // created_at (2026-06-01) is before FOUNDER_CUTOFF — eligible.
+    expect(isFoundingEligible(profile(), NOW_IN_WINDOW)).toBe(true);
+  });
+
+  it('returns true for a trial user created before FOUNDER_CUTOFF', () => {
+    // Trial users who haven't checked out yet are still eligible.
+    expect(isFoundingEligible(profile({ plan: 'trial' }), NOW_IN_WINDOW)).toBe(true);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// isFoundingMember — reads the founding_member flag from the profile row
+// ──────────────────────────────────────────────────────────────────────────
+describe('isFoundingMember', () => {
+  it('returns true when founding_member is true', () => {
+    expect(isFoundingMember({ founding_member: true })).toBe(true);
+  });
+
+  it('returns false when founding_member is false', () => {
+    expect(isFoundingMember({ founding_member: false })).toBe(false);
+  });
+
+  it('returns false when founding_member is absent', () => {
+    expect(isFoundingMember({ plan: 'pro' })).toBe(false);
+  });
+
+  it('returns false for null profile', () => {
+    expect(isFoundingMember(null)).toBe(false);
+  });
+
+  it('returns false for undefined profile', () => {
+    expect(isFoundingMember(undefined)).toBe(false);
   });
 });
 
