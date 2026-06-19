@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v126';  // Founding Member launch — cutoff 2026-09-30, v126 > main (v125 on branch, main CACHE_NAME absent post-#404)
+const CACHE_NAME = 'jobprofit-v127';  // v127: Price accordion expanded meta (keepMetaWhenExpanded) + clipboard icon on line items; rebased on top of v126 (Founding Member price-lock #409)
 const PRECACHE = [
   '/',
   '/index.html',
