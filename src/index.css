@@ -15026,7 +15026,10 @@ button.jd-money-chip:active { opacity: 0.75; }
 
 .jd-finish-line { margin-top:0; border-top:1px solid var(--border,#2C3744); padding:11px 0 2px; }
 .jd-finish-target-row, .jd-finish-actual-row { display:flex; align-items:center; gap:8px; padding:6px 14px; min-height:36px; }
-.jd-finish-target-icon { display:inline-flex; align-items:center; justify-content:center; }
+/* Self-contained 22px icon column (mirrors .jd-card-row-icon--clip): restate
+   width + flex-shrink rather than relying on inheritance from .jd-card-row-icon,
+   so a future change to that base rule can't silently collapse this column. */
+.jd-finish-target-icon { width:22px; flex-shrink:0; display:inline-flex; align-items:center; justify-content:center; }
 .jd-finish-target-lbl { flex-shrink:0; min-width:96px; font-size:var(--fs-label); color:var(--text-dim,#94A3B8); }
 .jd-finish-target-val { flex:1; font-size:var(--fs-label); font-weight:600; color:var(--text,#F1F5F9); }
 .jd-finish-target-set, .jd-finish-target-edit { flex-shrink:0; margin-left:auto; font-size:var(--fs-label); font-weight:700; color:var(--accent); background:color-mix(in srgb, var(--accent) 14%, transparent); border:1px solid var(--accent); border-radius:8px; padding:5px 9px; cursor:pointer; -webkit-tap-highlight-color:transparent; min-height:32px; display:flex; align-items:center; }
