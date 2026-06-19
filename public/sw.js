@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v118';  // bumped from v117: Price "+ Add line" pill — centered ghost outline style
+const CACHE_NAME = 'jobprofit-v119';  // bumped from v118: customer/money/breakdown cards uniform grey in dark (surface-raised fallback fix)
 const PRECACHE = [
   '/',
   '/index.html',
