@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v121';  // bumped from v119: Documents & signatures modal — back chevron replaced with top-right close button
+
 const PRECACHE = [
   '/',
   '/index.html',

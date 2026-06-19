@@ -151,12 +151,15 @@ button:focus-visible {
   /* Premium gold — used for every Pro upgrade CTA */
   --gold: #d4a017;
   --gold-gradient: linear-gradient(135deg, #f5c75a 0%, #d4a017 50%, #b8861a 100%);
-  /* Nav clearance: bar height = 12px top padding + ~40px tab content + 12px bottom padding + safe-area.
-     On a standard device (no notch) this is 64px. On notched iPhones safe-area-inset-bottom
+  /* Nav clearance: true bar height = 1px border-top + 12px top padding + 55px tab content
+     (8px tab-top-pad + 24px icon + 4px gap + 13px label + 6px tab-bottom-pad) + 12px bottom
+     padding = 80px on a non-notched device. Previous value of 64px assumed ~40px of tab
+     content, which was wrong and caused the last job tile's action row to be hidden behind
+     the fixed nav. +8px breathing buffer → 88px. On notched iPhones safe-area-inset-bottom
      (typically 34px) is folded inside the bar's own padding-bottom, so --nav-clearance grows
-     with it and content always stops at the divider.
+     with it and content always stops above the divider.
      Used by .screen padding-bottom and floating elements (toast, push-prompt). */
-  --nav-clearance: calc(64px + env(safe-area-inset-bottom));
+  --nav-clearance: calc(88px + env(safe-area-inset-bottom));
   /* Shared max-width: content column (.screen) and bottom nav bar reference this
      so they stay in sync on desktop. On mobile the viewport is narrower than
      this value, so both fill the viewport naturally. Overridden to 560px at 640px+. */
@@ -14138,7 +14141,7 @@ button.jd-money-chip:active { opacity: 0.75; }
   font-weight: 700;
   letter-spacing: 0.8px;
   text-transform: uppercase;
-  color: var(--text-dim);
+  color: var(--text);
   margin-bottom: 8px;
 }
 
@@ -14199,10 +14202,9 @@ button.jd-money-chip:active { opacity: 0.75; }
   opacity: 0.75;
 }
 
-/* Ghost outline modifier — Price accordion "+ Add line" only.
+/* Ghost outline modifier — Price "+ Add line" and Schedule "+ Add visit" both use this.
    Intentional deviation from the solid-green/black-ink CTA convention:
-   "+ Add line" is a secondary utility action, not a primary money CTA.
-   Schedule's "+ Add visit" keeps the base solid-green style via .jd-add-dashed alone. */
+   these are secondary utility actions, not primary money CTAs. */
 .jd-add-dashed--ghost {
   background: transparent;
   border: 1px solid var(--accent);
@@ -14618,7 +14620,10 @@ button.jd-money-chip:active { opacity: 0.75; }
   z-index: 1;
 }
 
-/* Swipe-left revealed action — sits to the right, behind the row */
+/* Swipe-left revealed action — sits to the right, behind the row.
+   Ghost colour treatment: faint 14% accent tint fill + inset accent ring + accent ink.
+   Pure transparent was avoided: the tint keeps the slab readable as an action mid-swipe.
+   Shape/position (position:absolute; top:0; bottom:0; padding; width) are UNCHANGED. */
 .visit-action-btn {
   position: absolute;
   right: 0;
@@ -14627,8 +14632,9 @@ button.jd-money-chip:active { opacity: 0.75; }
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--accent, #2BC48A);
-  color: #000;
+  background: color-mix(in srgb, var(--accent, #2BC48A) 14%, transparent);
+  box-shadow: inset 0 0 0 1px var(--accent, #2BC48A);
+  color: var(--accent, #2BC48A);
   font-size: var(--fs-label);
   font-weight: 600;
   border: none;
@@ -14637,6 +14643,9 @@ button.jd-money-chip:active { opacity: 0.75; }
   padding: 0 16px;
   white-space: nowrap;
   z-index: 0;
+}
+.visit-action-btn:active {
+  background: color-mix(in srgb, var(--accent, #2BC48A) 22%, transparent);
 }
 
 /* Static "Done" button for prefers-reduced-motion users */
