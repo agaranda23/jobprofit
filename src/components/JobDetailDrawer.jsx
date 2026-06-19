@@ -1316,7 +1316,7 @@ function JobTaxMeta({ job, profile, quote, materials, onUpdateJob }) {
  * Read mode: each line item is a compact tappable row (desc · ×qty if >1 · £total · ›).
  *   Tap a row → QuoteLineEditorSheet for that specific item.
  *   Tap "+ Add a line" ghost row → QuoteLineEditorSheet pre-filled empty.
- *   Footer total shown when items.length > 1 (single-line: total = line total, redundant).
+ *   Footer total shown whenever there's at least one line item.
  *
  * The old inline edit mode (editMode / editItems / onToggleEdit / etc.) is replaced by
  * the per-row sheet pattern. Props kept for backwards compat but only onSaveLine /
@@ -1424,12 +1424,10 @@ function QuoteBreakdownSection({ job, onSaveLine, onDeleteLine }) {
                   </button>
                 </div>
               )}
-              {items.length > 1 && (
-                <div className="jd-quote-footer-total">
-                  <span className="jd-quote-footer-label">Total</span>
-                  <span className="jd-quote-footer-amount">{gbp(quoteTotal)}</span>
-                </div>
-              )}
+              <div className="jd-quote-footer-total">
+                <span className="jd-quote-footer-label">Total</span>
+                <span className="jd-quote-footer-amount">{gbp(quoteTotal)}</span>
+              </div>
             </>
           )}
         </div>
