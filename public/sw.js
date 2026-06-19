@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v119';  // bumped from v118: customer/money/breakdown cards uniform grey in dark (surface-raised fallback fix)
+const CACHE_NAME = 'jobprofit-v120';  // bumped from v119: customer/money card labels match Schedule white (text-dim→text)
 const PRECACHE = [
   '/',
   '/index.html',

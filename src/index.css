@@ -14138,7 +14138,7 @@ button.jd-money-chip:active { opacity: 0.75; }
   font-weight: 700;
   letter-spacing: 0.8px;
   text-transform: uppercase;
-  color: var(--text-dim);
+  color: var(--text);
   margin-bottom: 8px;
 }
 
