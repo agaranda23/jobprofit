@@ -405,21 +405,14 @@ describe('isPro — trial-aware entitlement', () => {
 // isFoundingEligible — cohort gate for the Founding Member price lock
 // ──────────────────────────────────────────────────────────────────────────
 describe('isFoundingEligible', () => {
-  // Use a fixed cutoff in the future relative to the test dates below so the
-  // window-still-open check (now < cutoff) always passes for "eligible" cases.
-  // We inject `now` so these tests are time-independent.
-  const CUTOFF = '2099-01-01T00:00:00Z';
-  const BEFORE_CUTOFF = '2026-06-01T12:00:00Z'; // created_at before window closes
-  const AFTER_CUTOFF  = '2099-06-01T00:00:00Z'; // created_at after window closes
-  const NOW_IN_WINDOW = new Date('2026-08-01T00:00:00Z'); // now < CUTOFF
-
-  // Build a profile with created_at before the cutoff to use in most tests.
-  // NOTE: these tests use the real FOUNDER_CUTOFF from plan.js for the module
-  // import, but we build synthetic profiles with created_at well before '2099'
-  // so they pass against whatever the constant is set to in the codebase.
-  // The one case that needs to test "after cutoff" uses a profile created_at
-  // after the real FOUNDER_CUTOFF value only when the cutoff is actually in
-  // the future (i.e. still the placeholder '2099-01-01').
+  // All tests inject `now` so they are time-independent.
+  // BEFORE_CUTOFF is well before the real FOUNDER_CUTOFF (2026-09-30) so the
+  // "eligible" profile always passes the created_at < cutoff check.
+  // NOW_IN_WINDOW (2026-08-01) is before the real cutoff so window-open tests pass.
+  // "window closed" and "created_at after cutoff" tests derive dates dynamically
+  // from the imported FOUNDER_CUTOFF so they stay correct if the constant changes.
+  const BEFORE_CUTOFF = '2026-06-01T12:00:00Z'; // created_at safely before cutoff
+  const NOW_IN_WINDOW = new Date('2026-08-01T00:00:00Z'); // 2026-08-01 < 2026-09-30 cutoff
 
   function profile(overrides = {}) {
     return {
@@ -459,15 +452,16 @@ describe('isFoundingEligible', () => {
   });
 
   it('returns false when created_at is on or after FOUNDER_CUTOFF', () => {
-    // Profile created at or after the cutoff is not in the cohort.
-    // We use a date well past the real constant (which is '2099-01-01').
+    // Profile created on or after the cutoff is not in the cohort.
+    // createdAfter is derived from the real FOUNDER_CUTOFF constant so the
+    // test stays correct if the constant is updated.
     const cutoffDate = new Date(FOUNDER_CUTOFF);
     const createdAfter = new Date(cutoffDate.getTime() + 86400000).toISOString();
     expect(isFoundingEligible(profile({ created_at: createdAfter }), NOW_IN_WINDOW)).toBe(false);
   });
 
   it('returns true for a free user created before FOUNDER_CUTOFF while window is open', () => {
-    // NOW_IN_WINDOW (2026-08-01) is before FOUNDER_CUTOFF ('2099-01-01')
+    // NOW_IN_WINDOW (2026-08-01) is before FOUNDER_CUTOFF (2026-09-30)
     // created_at (2026-06-01) is before FOUNDER_CUTOFF — eligible.
     expect(isFoundingEligible(profile(), NOW_IN_WINDOW)).toBe(true);
   });

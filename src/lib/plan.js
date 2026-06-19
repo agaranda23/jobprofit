@@ -19,18 +19,19 @@ export const UNLOCK_PRO_FOR_ALL = false;
 // This is a DATE CUTOFF, not a counter. It is naturally un-grantable once the
 // date passes — no race condition, no live counter to manage.
 //
-// ACTION REQUIRED before deploying this PR:
-//   Set FOUNDER_CUTOFF to the real closing date, e.g. '2026-08-01T00:00:00Z'.
-//   Leave it as the placeholder below and it will never match anyone in prod.
+// The founding window closes 2026-09-30. After that date, new sign-ups cannot
+// earn the price lock — the condition `now < cutoff` fails automatically.
+// Override with env var FOUNDER_CUTOFF in Netlify if the date needs adjusting
+// without a code deploy (webhook reads it from env; client reads this constant).
 //
 // The flag itself (founding_member boolean) lives on profiles. It is stamped at
 // checkout by the Stripe webhook (server-side eligibility re-check) and cleared
 // on subscription cancellation. See netlify/functions/stripe-webhook.js.
 //
-// SQL migration: src/lib/migrations/20260616_add_founding_member.sql
+// SQL migration: supabase/migrations/20260616000000_add_founding_member.sql
 //
 // Annual-billing rule (future): £12 × 12 = £144/yr for founders. See FIN spec.
-export const FOUNDER_CUTOFF = '2099-01-01T00:00:00Z'; // TODO: set real date before going live
+export const FOUNDER_CUTOFF = '2026-09-30T23:59:59Z';
 
 /**
  * Returns true when the user is eligible to become a Founding Member.

@@ -38,9 +38,9 @@ import Stripe from 'stripe';
 import { createClient } from '@supabase/supabase-js';
 
 // Founding Member cutoff — must match src/lib/plan.js FOUNDER_CUTOFF exactly.
-// ACTION REQUIRED: set this to the real closing date before going live.
+// Env var FOUNDER_CUTOFF overrides this fallback without a code deploy.
 // Stored here (server-side) so the client constant cannot be spoofed.
-const FOUNDER_CUTOFF = process.env.FOUNDER_CUTOFF ?? '2099-01-01T00:00:00Z';
+const FOUNDER_CUTOFF = process.env.FOUNDER_CUTOFF ?? '2026-09-30T23:59:59Z';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',

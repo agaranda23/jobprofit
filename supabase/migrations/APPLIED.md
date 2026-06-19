@@ -50,6 +50,7 @@ the audit script, and the long-term `supabase db push` path.
 | 27 | `20260610000000_create_materials_table.sql` | yes (2026-06-10) | Creates materials table (per-user library of material/part line items) with RLS |
 | 28 | `20260610000001_add_default_markup_to_profiles.sql` | yes (2026-06-10) | Adds default_markup_percent to profiles |
 | 29 | `20260617000000_trial_starts_at_first_use.sql` | yes (2026-06-17) | Removes trial_ends_at DEFAULT so trial clock starts on first app use. **Negative migration — verifies ABSENCE of DEFAULT on profiles.trial_ends_at** |
+| 30 | `20260616000000_add_founding_member.sql` | deferred | NOT YET applied to prod. Run in Supabase Studio as part of Founding Member launch (2026-06-19); update this row to `yes (2026-06-19)` once applied |
 
 ---
 
