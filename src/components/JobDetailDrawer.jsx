@@ -1076,20 +1076,23 @@ function QuoteLineEditorSheet({ open, item, onSave, onDelete, onCancel }) {
 
   return (
     <div
-      className="visit-editor-backdrop"
+      className="modal-backdrop"
       role="dialog"
       aria-modal="true"
       aria-label={item ? 'Edit line item' : 'Add line item'}
       onClick={e => { if (e.target === e.currentTarget) onCancel(); }}
     >
-      <div className="visit-editor-sheet">
-        <div className="visit-editor-title">{item ? 'Edit line' : 'Add a line'}</div>
-        <div className="jd-schedule-edit-form">
-          <div>
-            <div className="jd-schedule-edit-label">Description</div>
+      <div className="modal-sheet edit-field-sheet" onClick={e => e.stopPropagation()}>
+        <div className="modal-sheet-header">
+          <h3 className="modal-sheet-title">{item ? 'Edit line' : 'Add a line'}</h3>
+          <button type="button" className="modal-sheet-close" onClick={onCancel} aria-label="Close">✕</button>
+        </div>
+        <div className="edit-field-body">
+          <div className="edit-field-group">
+            <label className="edit-field-label">Description</label>
             <input
               type="text"
-              className="jd-schedule-edit-input"
+              className="edit-field-input"
               value={desc}
               onChange={e => setDesc(e.target.value)}
               placeholder="e.g. Labour, Materials, Skip hire"
@@ -1098,11 +1101,11 @@ function QuoteLineEditorSheet({ open, item, onSave, onDelete, onCancel }) {
               maxLength={200}
             />
           </div>
-          <div>
-            <div className="jd-schedule-edit-label">Amount (£)</div>
+          <div className="edit-field-group">
+            <label className="edit-field-label">Amount (£)</label>
             <input
               type="number"
-              className="jd-schedule-edit-input"
+              className="edit-field-input"
               value={cost}
               onChange={e => setCost(e.target.value)}
               placeholder="0.00"
@@ -1112,14 +1115,14 @@ function QuoteLineEditorSheet({ open, item, onSave, onDelete, onCancel }) {
               inputMode="decimal"
             />
           </div>
-          <div className="jd-schedule-edit-footer">
+          <div className="edit-field-actions">
             {item && onDelete && (
-              <button type="button" className="btn-ghost btn-ghost--danger" onClick={onDelete}>
+              <button type="button" className="btn-ghost btn-ghost--danger" onClick={onDelete} style={{ marginRight: 'auto' }}>
                 Delete
               </button>
             )}
-            <button type="button" className="btn-ghost" onClick={onCancel}>Cancel</button>
-            <button type="button" className="btn-primary" onClick={handleSave} disabled={!canSave}>Save</button>
+            <button type="button" className="btn-ghost edit-field-cancel" onClick={onCancel}>Cancel</button>
+            <button type="button" className="btn-primary edit-field-save" onClick={handleSave} disabled={!canSave}>Save</button>
           </div>
         </div>
       </div>
