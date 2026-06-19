@@ -3909,11 +3909,23 @@ export default function JobDetailDrawer({
                     fmtDate={fmtDate}
                   />
                   {showReopenConfirm && (
-                    <div className="jd-finish-reopen-confirm" role="alertdialog" aria-modal="true">
-                      <p className="jd-finish-reopen-confirm__msg">Reopen this job? It will go back to On.</p>
-                      <div className="jd-finish-reopen-confirm__actions">
-                        <button type="button" className="jd-finish-reopen-confirm__ok" onClick={handleReopen}>Reopen</button>
-                        <button type="button" className="jd-finish-reopen-confirm__cancel" onClick={() => setShowReopenConfirm(false)}>Cancel</button>
+                    <div
+                      className="modal-backdrop"
+                      role="alertdialog"
+                      aria-modal="true"
+                      aria-labelledby="reopen-confirm-title"
+                      onClick={e => { if (e.target === e.currentTarget) setShowReopenConfirm(false); }}
+                    >
+                      <div className="modal-sheet" onClick={e => e.stopPropagation()}>
+                        <div className="modal-sheet-header">
+                          <h3 className="modal-sheet-title" id="reopen-confirm-title">Reopen this job?</h3>
+                          <button type="button" className="modal-sheet-close" onClick={() => setShowReopenConfirm(false)} aria-label="Close">✕</button>
+                        </div>
+                        <div className="modal-sheet-body">
+                          <p className="modal-sheet-text">It'll go back to On.</p>
+                        </div>
+                        <button type="button" className="btn-primary modal-sheet-btn" onClick={handleReopen}>Reopen</button>
+                        <button type="button" className="btn-secondary modal-sheet-btn" onClick={() => setShowReopenConfirm(false)}>Cancel</button>
                       </div>
                     </div>
                   )}
