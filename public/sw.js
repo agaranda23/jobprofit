@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v127';  // v127: Price accordion expanded meta (keepMetaWhenExpanded) + clipboard icon on line items; rebased on top of v126 (Founding Member price-lock #409)
+const CACHE_NAME = 'jobprofit-v128';  // v128: Price collapsed inline summary — test guards for collapsed meta + quoteMeta derivation; no JSX change (feature already on main)
 const PRECACHE = [
   '/',
   '/index.html',
