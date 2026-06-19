@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v128';  // v128: Price collapsed inline summary — test guards for collapsed meta + quoteMeta derivation; no JSX change (feature already on main)
+
 const PRECACHE = [
   '/',
   '/index.html',
