@@ -14090,7 +14090,7 @@ button.jd-money-chip:active { opacity: 0.75; }
 
 /* ── Unified card chrome ──────────────────────────────────────────────────── */
 .jd-card {
-  background: var(--surface-raised, #142035);
+  background: var(--surface-raised, var(--surface-2));
   border: 1px solid var(--border);
   border-radius: 12px;
   padding: 12px 14px;
@@ -14118,7 +14118,7 @@ button.jd-money-chip:active { opacity: 0.75; }
   display: block;
   width: 100%;
   padding: 15px 16px;
-  background: var(--surface-raised, #142035);
+  background: var(--surface-raised, var(--surface-2));
   border: 1px solid var(--border);
   border-radius: 12px;
   color: #fff;
@@ -14526,7 +14526,7 @@ button.jd-money-chip:active { opacity: 0.75; }
 }
 /* Paid stage: secondary/quieter style — loop is closed */
 .jd-bottom-bar-btn--secondary {
-  background: var(--surface-raised, #1B2A44);
+  background: var(--surface-raised, var(--surface-2));
   color: var(--text);
   border: 1px solid var(--border);
 }
