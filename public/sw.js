@@ -1,4 +1,4 @@
-
+const CACHE_NAME = 'jobprofit-v124';  // bumped from v123: founding-member client code (FinanceScreen.jsx + index.css)
 const PRECACHE = [
   '/',
   '/index.html',
