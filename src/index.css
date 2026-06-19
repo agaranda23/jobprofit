@@ -14346,28 +14346,6 @@ button.jd-money-chip:active { opacity: 0.75; }
   opacity: 0.75;
 }
 
-/* Ghost outline modifier — Price "+ Add line" and Schedule "+ Add visit" both use this.
-   Intentional deviation from the solid-green/black-ink CTA convention:
-   these are secondary utility actions, not primary money CTAs. */
-.jd-add-dashed--ghost {
-  background: transparent;
-  border: 1px solid var(--accent);
-  color: var(--accent);
-  font-weight: 600;
-  position: relative; /* anchors the hit-slop pseudo */
-}
-.jd-add-dashed--ghost:active,
-.jd-add-dashed--ghost:focus-visible {
-  background: color-mix(in srgb, var(--accent) 16%, transparent);
-  opacity: 1; /* override base .jd-add-dashed:active opacity:0.75 */
-}
-/* Extends effective touch target to >=44px without growing the 32px painted pill */
-.jd-add-dashed--ghost::after {
-  content: '';
-  position: absolute;
-  inset: -7px 0;
-}
-
 /* Tinted modifier — Schedule "+ Add visit" pill.
    Matches .visit-mark-done: 14% accent tint fill + 1px accent ring + accent text.
    Does NOT affect Price "+ Add line" (those stay on --ghost / transparent). */
@@ -15030,7 +15008,7 @@ button.jd-money-chip:active { opacity: 0.75; }
    width + flex-shrink rather than relying on inheritance from .jd-card-row-icon,
    so a future change to that base rule can't silently collapse this column. */
 .jd-finish-target-icon { width:22px; flex-shrink:0; display:inline-flex; align-items:center; justify-content:center; }
-.jd-finish-target-lbl { flex-shrink:0; min-width:96px; font-size:var(--fs-label); color:var(--text-dim,#94A3B8); }
+.jd-finish-target-lbl { flex-shrink:0; min-width:96px; font-size:var(--fs-label); color:var(--text,#F1F5F9); }
 .jd-finish-target-val { flex:1; font-size:var(--fs-label); font-weight:600; color:var(--text,#F1F5F9); }
 .jd-finish-target-set, .jd-finish-target-edit { flex-shrink:0; margin-left:auto; font-size:var(--fs-label); font-weight:700; color:var(--accent); background:color-mix(in srgb, var(--accent) 14%, transparent); border:1px solid var(--accent); border-radius:8px; padding:5px 9px; cursor:pointer; -webkit-tap-highlight-color:transparent; min-height:32px; display:flex; align-items:center; }
 .jd-finish-target-set:active, .jd-finish-target-edit:active { opacity:.75; }
