@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v121';  // bumped from v120: fix --nav-clearance 64px→88px so last Jobs tile action row clears fixed bottom nav
+const CACHE_NAME = 'jobprofit-v122';  // bumped from v121: ghost restyle for Schedule "Mark done" + "+ Add visit" buttons
 const PRECACHE = [
   '/',
   '/index.html',

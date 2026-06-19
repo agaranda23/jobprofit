@@ -14202,10 +14202,9 @@ button.jd-money-chip:active { opacity: 0.75; }
   opacity: 0.75;
 }
 
-/* Ghost outline modifier — Price accordion "+ Add line" only.
+/* Ghost outline modifier — Price "+ Add line" and Schedule "+ Add visit" both use this.
    Intentional deviation from the solid-green/black-ink CTA convention:
-   "+ Add line" is a secondary utility action, not a primary money CTA.
-   Schedule's "+ Add visit" keeps the base solid-green style via .jd-add-dashed alone. */
+   these are secondary utility actions, not primary money CTAs. */
 .jd-add-dashed--ghost {
   background: transparent;
   border: 1px solid var(--accent);
@@ -14621,7 +14620,10 @@ button.jd-money-chip:active { opacity: 0.75; }
   z-index: 1;
 }
 
-/* Swipe-left revealed action — sits to the right, behind the row */
+/* Swipe-left revealed action — sits to the right, behind the row.
+   Ghost colour treatment: faint 14% accent tint fill + inset accent ring + accent ink.
+   Pure transparent was avoided: the tint keeps the slab readable as an action mid-swipe.
+   Shape/position (position:absolute; top:0; bottom:0; padding; width) are UNCHANGED. */
 .visit-action-btn {
   position: absolute;
   right: 0;
@@ -14630,8 +14632,9 @@ button.jd-money-chip:active { opacity: 0.75; }
   display: flex;
   align-items: center;
   justify-content: center;
-  background: var(--accent, #2BC48A);
-  color: #000;
+  background: color-mix(in srgb, var(--accent, #2BC48A) 14%, transparent);
+  box-shadow: inset 0 0 0 1px var(--accent, #2BC48A);
+  color: var(--accent, #2BC48A);
   font-size: var(--fs-label);
   font-weight: 600;
   border: none;
@@ -14640,6 +14643,9 @@ button.jd-money-chip:active { opacity: 0.75; }
   padding: 0 16px;
   white-space: nowrap;
   z-index: 0;
+}
+.visit-action-btn:active {
+  background: color-mix(in srgb, var(--accent, #2BC48A) 22%, transparent);
 }
 
 /* Static "Done" button for prefers-reduced-motion users */

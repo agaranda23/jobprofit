@@ -3952,12 +3952,12 @@ export default function JobDetailDrawer({
                       />
                     ))}
 
-                    {/* Add visit pill */}
+                    {/* Add visit pill — ghost outline, right-aligned, vertically even; mirrors "+ Add line" */}
                     {onUpdateJob && (
-                      <div className="jd-add-pill-row">
+                      <div className="jd-add-pill-row jd-add-pill-row--end">
                         <button
                           type="button"
-                          className="jd-add-dashed"
+                          className="jd-add-dashed jd-add-dashed--ghost"
                           onClick={() => setEditingVisit({ _isNew: true, date: tomorrowDateString(), status: 'planned' })}
                           aria-label="Add a visit"
                         >
