@@ -151,12 +151,15 @@ button:focus-visible {
   /* Premium gold — used for every Pro upgrade CTA */
   --gold: #d4a017;
   --gold-gradient: linear-gradient(135deg, #f5c75a 0%, #d4a017 50%, #b8861a 100%);
-  /* Nav clearance: bar height = 12px top padding + ~40px tab content + 12px bottom padding + safe-area.
-     On a standard device (no notch) this is 64px. On notched iPhones safe-area-inset-bottom
+  /* Nav clearance: true bar height = 1px border-top + 12px top padding + 55px tab content
+     (8px tab-top-pad + 24px icon + 4px gap + 13px label + 6px tab-bottom-pad) + 12px bottom
+     padding = 80px on a non-notched device. Previous value of 64px assumed ~40px of tab
+     content, which was wrong and caused the last job tile's action row to be hidden behind
+     the fixed nav. +8px breathing buffer → 88px. On notched iPhones safe-area-inset-bottom
      (typically 34px) is folded inside the bar's own padding-bottom, so --nav-clearance grows
-     with it and content always stops at the divider.
+     with it and content always stops above the divider.
      Used by .screen padding-bottom and floating elements (toast, push-prompt). */
-  --nav-clearance: calc(64px + env(safe-area-inset-bottom));
+  --nav-clearance: calc(88px + env(safe-area-inset-bottom));
   /* Shared max-width: content column (.screen) and bottom nav bar reference this
      so they stay in sync on desktop. On mobile the viewport is narrower than
      this value, so both fill the viewport naturally. Overridden to 560px at 640px+. */
