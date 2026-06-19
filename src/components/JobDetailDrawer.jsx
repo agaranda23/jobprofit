@@ -1360,7 +1360,7 @@ function QuoteBreakdownSection({ job, onSaveLine, onDeleteLine }) {
         <div className="jd-section-body jd-section-body--flush">
           {items.length === 0 ? (
             canEdit && (
-              <div className="jd-add-pill-row jd-add-pill-row--center">
+              <div className="jd-add-pill-row jd-add-pill-row--end">
                 <button
                   type="button"
                   className="jd-add-dashed jd-add-dashed--ghost"
@@ -1413,7 +1413,7 @@ function QuoteBreakdownSection({ job, onSaveLine, onDeleteLine }) {
                 );
               })}
               {canEdit && (
-                <div className="jd-add-pill-row jd-add-pill-row--center">
+                <div className="jd-add-pill-row jd-add-pill-row--end">
                   <button
                     type="button"
                     className="jd-add-dashed jd-add-dashed--ghost"
