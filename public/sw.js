@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v123';  // bumped from v122: store.js meta-sync hardening (PGRST204 strip-and-retry) — client change must ship to PWA clients
+
 const PRECACHE = [
   '/',
   '/index.html',
