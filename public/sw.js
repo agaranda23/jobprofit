@@ -1,3 +1,4 @@
+const CACHE_NAME = 'jobprofit-__BUILD_ID__';  // expanded: fix(ui): expanded Price accordion meta now left-aligns (hugs label) identical to collapsed — removes text-align:right from .jd-csr-meta--expanded
 
 const PRECACHE = [
   '/',
