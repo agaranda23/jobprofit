@@ -1,4 +1,4 @@
-
+const CACHE_NAME = 'jobprofit-__BUILD_ID__';
 const PRECACHE = [
   '/',
   '/index.html',
