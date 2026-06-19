@@ -559,6 +559,55 @@ describe('CSS regression guard — jd-csr-meta mobile truncation (min-width:0)',
   });
 });
 
+// ── CSS regression guard — expanded meta must NOT be right-aligned ────────────
+//
+// Root cause of the expanded-Price-header alignment bug (June 2026):
+//
+//   .jd-csr-meta--expanded had text-align:right, which pushed the meta string
+//   ("£133 (2 items)") to the far-right of the flex row (before the chevron),
+//   while the COLLAPSED meta (no text-align override) sat left-aligned immediately
+//   after the title.
+//
+//   The founder's desired design: EXPANDED meta hugs the title on the LEFT,
+//   identical to the collapsed layout: [icon] "Price" "£133 (2 items)" ...[chevron].
+//
+//   Fix: removed text-align:right from .jd-csr-meta--expanded.
+//   Guard: if text-align:right is re-added, this test fails at CI time.
+
+function extractJdCsrMetaExpandedBlock(cssText) {
+  const markerIdx = cssText.indexOf('\n.jd-csr-meta--expanded {');
+  if (markerIdx === -1) return null;
+  const blockStart = markerIdx + 1;
+  const openBrace = cssText.indexOf('{', blockStart);
+  if (openBrace === -1) return null;
+  const closeBrace = cssText.indexOf('}', openBrace);
+  if (closeBrace === -1) return null;
+  return cssText.slice(blockStart, closeBrace + 1);
+}
+
+describe('CSS regression guard — .jd-csr-meta--expanded left-alignment (expanded Price meta fix)', () => {
+  const cssText = fs.readFileSync(CSS_PATH, 'utf8');
+  const expandedMetaBlock = extractJdCsrMetaExpandedBlock(cssText);
+
+  it('CSS file contains a .jd-csr-meta--expanded { } rule (sanity check)', () => {
+    expect(expandedMetaBlock).not.toBeNull();
+    expect(expandedMetaBlock).toContain('.jd-csr-meta--expanded');
+  });
+
+  it('.jd-csr-meta--expanded does NOT have text-align:right (expanded meta must left-align, hugging the title)', () => {
+    // text-align:right was the root cause that pushed the expanded Price meta to the
+    // far right. Removing it makes the expanded meta left-align identically to the
+    // collapsed .jd-csr-meta. If re-added, this guard catches the regression at CI time.
+    const blockWithoutComments = expandedMetaBlock.replace(/\/\*[\s\S]*?\*\//g, '');
+    expect(blockWithoutComments).not.toMatch(/text-align\s*:\s*right/);
+  });
+
+  it('.jd-csr-meta--expanded does NOT have margin-left:auto (auto-margin would right-push the meta rather than hugging the title)', () => {
+    const blockWithoutComments = expandedMetaBlock.replace(/\/\*[\s\S]*?\*\//g, '');
+    expect(blockWithoutComments).not.toMatch(/margin-left\s*:\s*auto/);
+  });
+});
+
 // ── Source-code regression guard — no max-height inline style on the panel ────
 //
 // 8th regression guard: the definitive fix is CONDITIONAL RENDER, not max-height
