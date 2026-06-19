@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v118';  // bumped from v117: Price "+ Add line" pill — right-aligned ghost outline style
+const CACHE_NAME = 'jobprofit-v118';  // bumped from v117: Price "+ Add line" pill — centered ghost outline style
 const PRECACHE = [
   '/',
   '/index.html',
