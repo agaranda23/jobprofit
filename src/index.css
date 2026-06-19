@@ -14346,9 +14346,9 @@ button.jd-money-chip:active { opacity: 0.75; }
   opacity: 0.75;
 }
 
-/* Tinted modifier — Schedule "+ Add visit" pill.
-   Matches .visit-mark-done: 14% accent tint fill + 1px accent ring + accent text.
-   Does NOT affect Price "+ Add line" (those stay on --ghost / transparent). */
+/* Tinted modifier — shared by Schedule "+ Add visit" and both Price "+ Add line"
+   buttons (the ghost modifier was retired). Matches .visit-mark-done:
+   14% accent tint fill + 1px accent ring + accent text. */
 .jd-add-dashed--tinted {
   background: color-mix(in srgb, var(--accent) 14%, transparent);
   border: 1px solid var(--accent);
