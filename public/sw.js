@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v117';  // bumped from v116: Quote line editor modal — swap to canonical modal-sheet chrome (modal-backdrop/edit-field-* classes)
+const CACHE_NAME = 'jobprofit-v118';  // bumped from v117: Price "+ Add line" pill — right-aligned ghost outline style
 const PRECACHE = [
   '/',
   '/index.html',
