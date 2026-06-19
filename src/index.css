@@ -6406,6 +6406,21 @@ input[type=number] { -moz-appearance: textfield; }
   opacity: 0.65;
 }
 
+/* ── Settings hub rows — icon + label left group ──────────────────────────
+   Groups the icon and label so they sit together on the left, with the
+   hint/chevron pinned right. min-width:0 lets the group shrink if needed.
+   white-space:nowrap on the label prevents icon+title wrapping on narrow screens. */
+.settings-hub-row-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.settings-hub-row-left .settings-row-label {
+  white-space: nowrap;
+  text-align: left;
+}
+
 /* ── Settings — FAQ expandable rows ─────────────────────────────────────── */
 
 .settings-faq-item {

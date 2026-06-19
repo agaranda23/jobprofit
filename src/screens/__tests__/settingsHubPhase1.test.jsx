@@ -185,12 +185,12 @@ describe('SettingsScreen hub — category rows', () => {
     // inline Phase-2 section cards below the hub, so use getAllByText and
     // confirm at least one matching element exists for each label.
     const expectedLabels = [
-      'Invoices & quotes',
-      'Get paid',
+      'Invoices & Quotes',
+      'Get Paid',
       'Costs',
-      'Account & business',
+      'Account & Business',
       'Notifications',
-      'Data & privacy',
+      'Data & Privacy',
       'Help & FAQ',
       'App',
     ];
@@ -203,21 +203,21 @@ describe('SettingsScreen hub — category rows', () => {
 });
 
 describe('SettingsScreen hub — sub-screen navigation', () => {
-  it('tapping "Invoices & quotes" renders the Invoices sub-screen header', () => {
+  it('tapping "Invoices & Quotes" renders the Invoices sub-screen header', () => {
     renderHub();
 
-    fireEvent.click(screen.getByText('Invoices & quotes'));
+    fireEvent.click(screen.getByText('Invoices & Quotes'));
 
     // SubScreenHeader renders an <h1> with the sub-screen title
-    expect(screen.getByRole('heading', { name: 'Invoices & quotes' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Invoices & Quotes' })).toBeTruthy();
   });
 
-  it('tapping "Get paid" renders the Get paid sub-screen header', () => {
+  it('tapping "Get Paid" renders the Get Paid sub-screen header', () => {
     renderHub();
 
-    fireEvent.click(screen.getByText('Get paid'));
+    fireEvent.click(screen.getByText('Get Paid'));
 
-    expect(screen.getByRole('heading', { name: 'Get paid' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Get Paid' })).toBeTruthy();
   });
 });
 
@@ -226,25 +226,25 @@ describe('SettingsScreen hub — back navigation', () => {
     renderHub();
 
     // Navigate into a sub-screen first
-    fireEvent.click(screen.getByText('Invoices & quotes'));
+    fireEvent.click(screen.getByText('Invoices & Quotes'));
 
     // Confirm we're in the sub-screen
-    expect(screen.getByRole('heading', { name: 'Invoices & quotes' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Invoices & Quotes' })).toBeTruthy();
 
     // Tap the back button
     fireEvent.click(screen.getByRole('button', { name: 'Back to Settings' }));
 
     // Hub is visible again — all 8 rows should be present
-    expect(screen.getByText('Invoices & quotes')).toBeTruthy();
-    expect(screen.getByText('Get paid')).toBeTruthy();
+    expect(screen.getByText('Invoices & Quotes')).toBeTruthy();
+    expect(screen.getByText('Get Paid')).toBeTruthy();
   });
 
   it('browser popstate event returns to hub from a sub-screen', () => {
     renderHub();
 
     // Navigate into a sub-screen
-    fireEvent.click(screen.getByText('Get paid'));
-    expect(screen.getByRole('heading', { name: 'Get paid' })).toBeTruthy();
+    fireEvent.click(screen.getByText('Get Paid'));
+    expect(screen.getByRole('heading', { name: 'Get Paid' })).toBeTruthy();
 
     // Fire the popstate event (browser/PWA hardware back button)
     act(() => {
@@ -252,7 +252,7 @@ describe('SettingsScreen hub — back navigation', () => {
     });
 
     // Hub should be visible again
-    expect(screen.getByText('Invoices & quotes')).toBeTruthy();
+    expect(screen.getByText('Invoices & Quotes')).toBeTruthy();
   });
 });
 
