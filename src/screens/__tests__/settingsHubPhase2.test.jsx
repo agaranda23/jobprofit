@@ -190,8 +190,8 @@ function renderHub(profileOverride = PROFILE_FREE, extraProps = {}) {
 describe('SettingsScreen Phase 2 — hub navigates to new sub-screens', () => {
   it('tapping "Account & business" renders the Account sub-screen header', () => {
     renderHub();
-    fireEvent.click(screen.getByText('Account & business'));
-    expect(screen.getByRole('heading', { name: 'Account & business' })).toBeTruthy();
+    fireEvent.click(screen.getByText('Account & Business'));
+    expect(screen.getByRole('heading', { name: 'Account & Business' })).toBeTruthy();
   });
 
   it('tapping "Notifications" renders the Notifications sub-screen header', () => {
@@ -202,7 +202,7 @@ describe('SettingsScreen Phase 2 — hub navigates to new sub-screens', () => {
 
   it('tapping "Data & privacy" renders the Data & privacy sub-screen header', () => {
     renderHub();
-    fireEvent.click(screen.getByText('Data & privacy'));
+    fireEvent.click(screen.getByText('Data & Privacy'));
     // SubScreenHeader renders an h1 — use partial match because the HTML entity decodes
     expect(screen.getByRole('heading', { name: /data.*privacy/i })).toBeTruthy();
   });
@@ -225,11 +225,11 @@ describe('SettingsScreen Phase 2 — hub navigates to new sub-screens', () => {
 describe('SettingsScreen Phase 2 — back button returns to hub', () => {
   it('back from Account returns to hub', () => {
     renderHub();
-    fireEvent.click(screen.getByText('Account & business'));
-    expect(screen.getByRole('heading', { name: 'Account & business' })).toBeTruthy();
+    fireEvent.click(screen.getByText('Account & Business'));
+    expect(screen.getByRole('heading', { name: 'Account & Business' })).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Back to Settings' }));
     // Hub is visible again
-    expect(screen.getByText('Account & business')).toBeTruthy();
+    expect(screen.getByText('Account & Business')).toBeTruthy();
     expect(screen.getByText('Notifications')).toBeTruthy();
   });
 
@@ -238,15 +238,15 @@ describe('SettingsScreen Phase 2 — back button returns to hub', () => {
     fireEvent.click(screen.getByText('Notifications'));
     expect(screen.getByRole('heading', { name: 'Notifications' })).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Back to Settings' }));
-    expect(screen.getByText('Account & business')).toBeTruthy();
+    expect(screen.getByText('Account & Business')).toBeTruthy();
   });
 
   it('back from Data & privacy returns to hub', () => {
     renderHub();
-    fireEvent.click(screen.getByText('Data & privacy'));
+    fireEvent.click(screen.getByText('Data & Privacy'));
     expect(screen.getByRole('heading', { name: /data.*privacy/i })).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Back to Settings' }));
-    expect(screen.getByText('Data & privacy')).toBeTruthy();
+    expect(screen.getByText('Data & Privacy')).toBeTruthy();
     expect(screen.getByText('Help & FAQ')).toBeTruthy();
   });
 
@@ -265,7 +265,7 @@ describe('SettingsScreen Phase 2 — back button returns to hub', () => {
     expect(screen.getByRole('heading', { name: 'App' })).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: 'Back to Settings' }));
     expect(screen.getByText('App')).toBeTruthy();
-    expect(screen.getByText('Account & business')).toBeTruthy();
+    expect(screen.getByText('Account & Business')).toBeTruthy();
   });
 });
 
@@ -274,12 +274,12 @@ describe('SettingsScreen Phase 2 — back button returns to hub', () => {
 describe('SettingsScreen Phase 2 — browser popstate from new sub-screens', () => {
   it('popstate from Account sub-screen returns to hub', () => {
     renderHub();
-    fireEvent.click(screen.getByText('Account & business'));
-    expect(screen.getByRole('heading', { name: 'Account & business' })).toBeTruthy();
+    fireEvent.click(screen.getByText('Account & Business'));
+    expect(screen.getByRole('heading', { name: 'Account & Business' })).toBeTruthy();
     act(() => {
       window.dispatchEvent(new PopStateEvent('popstate', { state: {} }));
     });
-    expect(screen.getByText('Invoices & quotes')).toBeTruthy();
+    expect(screen.getByText('Invoices & Quotes')).toBeTruthy();
   });
 
   it('popstate from App sub-screen returns to hub', () => {
@@ -289,7 +289,7 @@ describe('SettingsScreen Phase 2 — browser popstate from new sub-screens', () 
     act(() => {
       window.dispatchEvent(new PopStateEvent('popstate', { state: {} }));
     });
-    expect(screen.getByText('Invoices & quotes')).toBeTruthy();
+    expect(screen.getByText('Invoices & Quotes')).toBeTruthy();
   });
 });
 
@@ -298,7 +298,7 @@ describe('SettingsScreen Phase 2 — browser popstate from new sub-screens', () 
 describe('SettingsScreen Phase 2 — Data & privacy sub-screen contents', () => {
   it('renders "Export records" inside the Data & privacy sub-screen', () => {
     renderHub();
-    fireEvent.click(screen.getByText('Data & privacy'));
+    fireEvent.click(screen.getByText('Data & Privacy'));
     // "Export records" row must be visible in the sub-screen
     expect(screen.getByText('Export records')).toBeTruthy();
   });
@@ -309,7 +309,7 @@ describe('SettingsScreen Phase 2 — Data & privacy sub-screen contents', () => 
     // The "no jobs" path calls showSavedToast('No jobs to export yet').
     // We verify the row is rendered as a button (not passive) by checking it's clickable.
     renderHub();
-    fireEvent.click(screen.getByText('Data & privacy'));
+    fireEvent.click(screen.getByText('Data & Privacy'));
     const exportRecordsRow = screen.getByText('Export records').closest('button');
     expect(exportRecordsRow).toBeTruthy();
     // Confirm it is not disabled (it's active even with no jobs — it shows a toast)
@@ -318,13 +318,13 @@ describe('SettingsScreen Phase 2 — Data & privacy sub-screen contents', () => 
 
   it('renders "Export everything" inside the Data & privacy sub-screen', () => {
     renderHub();
-    fireEvent.click(screen.getByText('Data & privacy'));
+    fireEvent.click(screen.getByText('Data & Privacy'));
     expect(screen.getByText('Export everything')).toBeTruthy();
   });
 
   it('"Export records" appears BEFORE "Export everything" in DOM order', () => {
     renderHub();
-    fireEvent.click(screen.getByText('Data & privacy'));
+    fireEvent.click(screen.getByText('Data & Privacy'));
     const all = screen.getAllByText(/Export/i).map(el => el.textContent);
     const recordsIdx = all.findIndex(t => t?.includes('records'));
     const everythingIdx = all.findIndex(t => t?.includes('everything'));
@@ -351,13 +351,13 @@ describe('SettingsScreen Phase 2 — standalone Accountant section removed', () 
 describe('SettingsScreen Phase 2 — Voice input language in Account sub-screen', () => {
   it('renders "Voice input language" row inside the Account sub-screen', () => {
     renderHub();
-    fireEvent.click(screen.getByText('Account & business'));
+    fireEvent.click(screen.getByText('Account & Business'));
     expect(screen.getByText('Voice input language')).toBeTruthy();
   });
 
   it('tapping "Voice input language" opens the voice sub-view (shows language list)', () => {
     renderHub();
-    fireEvent.click(screen.getByText('Account & business'));
+    fireEvent.click(screen.getByText('Account & Business'));
     // The voice row has a value showing the current language label and a chevron
     const voiceRow = screen.getByText('Voice input language').closest('button');
     expect(voiceRow).toBeTruthy();
@@ -368,7 +368,7 @@ describe('SettingsScreen Phase 2 — Voice input language in Account sub-screen'
 
   it('back from voice sub-view returns to Account sub-screen (not hub)', () => {
     renderHub();
-    fireEvent.click(screen.getByText('Account & business'));
+    fireEvent.click(screen.getByText('Account & Business'));
     const voiceRow = screen.getByText('Voice input language').closest('button');
     fireEvent.click(voiceRow);
     // Confirm we're on the voice sub-view
@@ -376,14 +376,14 @@ describe('SettingsScreen Phase 2 — Voice input language in Account sub-screen'
     // Press back
     fireEvent.click(screen.getByRole('button', { name: 'Back to Settings' }));
     // Should be on Account sub-screen, not hub
-    expect(screen.getByRole('heading', { name: 'Account & business' })).toBeTruthy();
+    expect(screen.getByRole('heading', { name: 'Account & Business' })).toBeTruthy();
     // Hub rows should NOT be visible
     expect(screen.queryByText('Notifications')).toBeFalsy();
   });
 
   it('popstate from voice sub-view returns to Account sub-screen (not hub)', () => {
     renderHub();
-    fireEvent.click(screen.getByText('Account & business'));
+    fireEvent.click(screen.getByText('Account & Business'));
     const voiceRow = screen.getByText('Voice input language').closest('button');
     fireEvent.click(voiceRow);
     expect(screen.getByRole('heading', { name: 'Voice input language' })).toBeTruthy();
@@ -391,8 +391,8 @@ describe('SettingsScreen Phase 2 — Voice input language in Account sub-screen'
       window.dispatchEvent(new PopStateEvent('popstate', { state: {} }));
     });
     // Should land on Account sub-screen, not hub
-    expect(screen.getByRole('heading', { name: 'Account & business' })).toBeTruthy();
-    expect(screen.queryByText('Invoices & quotes')).toBeFalsy();
+    expect(screen.getByRole('heading', { name: 'Account & Business' })).toBeTruthy();
+    expect(screen.queryByText('Invoices & Quotes')).toBeFalsy();
   });
 });
 
@@ -401,13 +401,13 @@ describe('SettingsScreen Phase 2 — Voice input language in Account sub-screen'
 describe('SettingsScreen Phase 2 — Account sub-screen contents', () => {
   it('renders "Sign out" row inside the Account sub-screen', () => {
     renderHub();
-    fireEvent.click(screen.getByText('Account & business'));
+    fireEvent.click(screen.getByText('Account & Business'));
     expect(screen.getByText('Sign out')).toBeTruthy();
   });
 
   it('renders "Re-run setup wizard" row inside the Account sub-screen', () => {
     renderHub();
-    fireEvent.click(screen.getByText('Account & business'));
+    fireEvent.click(screen.getByText('Account & Business'));
     expect(screen.getByText('Re-run setup wizard')).toBeTruthy();
   });
 });

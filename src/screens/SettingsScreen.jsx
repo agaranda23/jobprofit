@@ -1822,12 +1822,14 @@ function HubCategoryRow({ label, iconName, hint, onTap, dot = false }) {
       className="settings-row settings-hub-row"
       onClick={onTap}
     >
-      <span className="settings-hub-row-icon" aria-hidden="true">
-        <Icon name={iconName} size={20} />
-      </span>
-      <span className="settings-row-label">
-        {label}
-        {dot && <span className="settings-new-dot" aria-label="New updates available" />}
+      <span className="settings-hub-row-left">
+        <span className="settings-hub-row-icon" aria-hidden="true">
+          <Icon name={iconName} size={20} />
+        </span>
+        <span className="settings-row-label">
+          {label}
+          {dot && <span className="settings-new-dot" aria-label="New updates available" />}
+        </span>
       </span>
       <span className="settings-row-right">
         {hint && <span className="settings-row-value">{hint}</span>}
@@ -2545,7 +2547,7 @@ export default function SettingsScreen({
   if (settingsView === 'invoices') {
     return (
       <div className="screen settings-screen" ref={screenRef}>
-        <SubScreenHeader title="Invoices & quotes" onBack={navigateToHub} />
+        <SubScreenHeader title="Invoices & Quotes" onBack={navigateToHub} />
 
         <SectionCard title="Invoices &amp; quotes">
           <Row
@@ -2660,9 +2662,9 @@ export default function SettingsScreen({
   if (settingsView === 'getpaid') {
     return (
       <div className="screen settings-screen" ref={screenRef}>
-        <SubScreenHeader title="Get paid" onBack={navigateToHub} />
+        <SubScreenHeader title="Get Paid" onBack={navigateToHub} />
 
-        <SectionCard title="Get paid">
+        <SectionCard title="Get Paid">
           <Row
             label="Card payments"
             value={
@@ -2753,7 +2755,7 @@ export default function SettingsScreen({
 
     return (
       <div className="screen settings-screen" ref={screenRef}>
-        <SubScreenHeader title="Account & business" onBack={navigateToHub} />
+        <SubScreenHeader title="Account & Business" onBack={navigateToHub} />
 
         <SectionCard title="Account &amp; business">
           <Row label="Name" value={displayName || '—'} onTap={openEditName} />
@@ -2823,9 +2825,9 @@ export default function SettingsScreen({
   if (settingsView === 'privacy') {
     return (
       <div className="screen settings-screen" ref={screenRef}>
-        <SubScreenHeader title="Data &amp; privacy" onBack={navigateToHub} />
+        <SubScreenHeader title="Data &amp; Privacy" onBack={navigateToHub} />
 
-        <SectionCard title="Data &amp; privacy">
+        <SectionCard title="Data &amp; Privacy">
           {/* Retention copy — DO NOT EDIT. Pending solicitor sign-off on retention
               period decision (DATA-PROTECTION-DECISIONS-FOR-SOLICITOR.md).
               This block is moved verbatim from the inline section. */}
@@ -3006,13 +3008,13 @@ export default function SettingsScreen({
       {/* ── Hub category rows ─────────────────────────────────────────────── */}
       <SectionCard title="Settings">
         <HubCategoryRow
-          label="Invoices & quotes"
+          label="Invoices & Quotes"
           iconName="invoice"
           hint="Logo, bank, VAT, terms"
           onTap={() => navigateToSubScreen('invoices')}
         />
         <HubCategoryRow
-          label="Get paid"
+          label="Get Paid"
           iconName="money"
           hint={depositHint}
           onTap={() => navigateToSubScreen('getpaid')}
@@ -3025,7 +3027,7 @@ export default function SettingsScreen({
         />
         {/* Rows 4–8: Phase 2 sub-screens — all routed via navigateToSubScreen. */}
         <HubCategoryRow
-          label="Account & business"
+          label="Account & Business"
           iconName="user"
           hint={displayName}
           onTap={() => navigateToSubScreen('account')}
@@ -3037,7 +3039,7 @@ export default function SettingsScreen({
           onTap={() => navigateToSubScreen('notifications')}
         />
         <HubCategoryRow
-          label="Data & privacy"
+          label="Data & Privacy"
           iconName="lock"
           onTap={() => navigateToSubScreen('privacy')}
         />

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'jobprofit-v115';  // bumped from v114: pill-style Add line / Add visit buttons in drawer (CSS change)
+const CACHE_NAME = 'jobprofit-v116';  // bumped from v115: Settings hub row layout (icon+label left group) + title-case labels (CSS+JSX change)
 const PRECACHE = [
   '/',
   '/index.html',
