@@ -1382,11 +1382,11 @@ function QuoteBreakdownSection({ job, onSaveLine, onDeleteLine }) {
                     <button
                       key={idx}
                       type="button"
-                      className="jd-card-row jd-card-row--tappable"
+                      className="jd-card-row jd-card-row--tappable jd-card-row--quote"
                       onClick={() => setSheetIdx(idx)}
                       aria-label={`Edit line item: ${item.desc || 'Line item'}`}
                     >
-                      <span className="jd-card-row-icon jd-card-row-icon--bullet" aria-hidden="true">•</span>
+                      <span className="jd-card-row-icon jd-card-row-icon--clip" aria-hidden="true"><Icon name="lead" size={16} variant="muted" /></span>
                       <span className="jd-card-row-val jd-card-row-val--flex">
                         <span className="jd-line-item-desc">
                           {item.desc || '—'}
@@ -3856,6 +3856,7 @@ export default function JobDetailDrawer({
                     needsAttention={attention.quote}
                     defaultExpanded={quoteDefaultExpanded}
                     forceExpandTick={priceAccordionExpandTick}
+                    keepMetaWhenExpanded
                   >
                     {quoteBodyEl}
                   </CollapsedSectionRow>

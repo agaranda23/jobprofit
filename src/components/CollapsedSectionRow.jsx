@@ -12,13 +12,17 @@ import Icon from './Icon';
  *   - When needsAttention is true: amber left-border, amber "Fix" pill, default-expanded
  *
  * Props:
- *   id              – unique string id (used for aria-controls)
- *   icon            – emoji or character for the left icon
- *   title           – section name ("Quote", "Costs", "Customer")
- *   meta            – one-line summary shown in collapsed state (e.g. "£1,450 · sent 3d")
- *   needsAttention  – boolean; when true the row goes amber and forces expanded
- *   defaultExpanded – boolean; initial open state (can be overridden by needsAttention)
- *   children        – full section body rendered when expanded
+ *   id                   – unique string id (used for aria-controls)
+ *   icon                 – emoji or character for the left icon
+ *   title                – section name ("Quote", "Costs", "Customer")
+ *   meta                 – one-line summary shown in collapsed state (e.g. "£1,450 · sent 3d")
+ *   needsAttention       – boolean; when true the row goes amber and forces expanded
+ *   defaultExpanded      – boolean; initial open state (can be overridden by needsAttention)
+ *   keepMetaWhenExpanded – boolean (default false); when true, meta is ALSO shown in the
+ *                          expanded header (right-aligned before the chevron). Only the
+ *                          Price accordion opts in — all other sections remain unchanged
+ *                          (meta hidden when expanded, exactly as before).
+ *   children             – full section body rendered when expanded
  *
  * Expansion technique: conditional render (children are only in the DOM when expanded)
  *
@@ -76,6 +80,11 @@ export default function CollapsedSectionRow({
   // from outside (e.g. tapping the header price routes to the Price accordion).
   // A change from any value triggers expansion; the parent controls when to fire.
   forceExpandTick = 0,
+  // keepMetaWhenExpanded: opt-in prop — when true, meta is also shown right-aligned
+  // in the expanded header (before the chevron). Defaults false so every other
+  // accordion (Schedule, Documents, Costs, Customer) is byte-for-byte unchanged.
+  // Only the Price row sets this prop.
+  keepMetaWhenExpanded = false,
   children,
 }) {
   const [expanded, setExpanded] = useState(defaultExpanded || needsAttention);
@@ -124,6 +133,9 @@ export default function CollapsedSectionRow({
         <span className="jd-csr-title">{title}</span>
         {!expanded && meta && (
           <span className="jd-csr-meta">{meta}</span>
+        )}
+        {expanded && keepMetaWhenExpanded && meta && (
+          <span className="jd-csr-meta jd-csr-meta--expanded">{meta}</span>
         )}
         {needsAttention && !expanded && (
           <span className="jd-csr-attention-pill" aria-label="Needs attention">Fix</span>
