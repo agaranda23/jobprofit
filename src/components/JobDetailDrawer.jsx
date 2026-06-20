@@ -3780,7 +3780,7 @@ export default function JobDetailDrawer({
                   <CollapsedSectionRow
                     key="quote"
                     id="quote"
-                    icon={<Icon name="lead" size={16} variant="muted" />}
+                    icon={<Icon name="price" size={16} variant="muted" />}
                     title="Price"
                     meta={quoteMeta}
                     needsAttention={attention.quote}
