@@ -1523,37 +1523,39 @@ function ReceiptsSection({ job, receipts, onAddReceipt, onDeleteReceipt, onEditR
     />
   ));
 
-  // Empty state: ghost row (consistent with Schedule / Customer card pattern)
+  // Empty state: right-aligned pill (matches "+ Add visit" in Schedule section)
   if (jobReceipts.length === 0) {
     return (
       <div className="jd-section-body jd-section-body--flush">
-        <button
-          type="button"
-          className="jd-card-row jd-card-row--add"
-          onClick={onAddReceipt}
-          aria-label="Add receipt"
-        >
-          <span className="jd-card-row-icon"><Icon name="receipt" size={16} variant="muted" /></span>
-          <span className="jd-card-row-add">+ Add receipt</span>
-        </button>
+        <div className="jd-add-pill-row jd-add-pill-row--end">
+          <button
+            type="button"
+            className="jd-add-dashed jd-add-dashed--tinted"
+            onClick={onAddReceipt}
+            aria-label="Add receipt"
+          >
+            + Add receipt
+          </button>
+        </div>
       </div>
     );
   }
 
-  // Populated state: receipt rows + add-another ghost row at the bottom
+  // Populated state: receipt rows + right-aligned pill at the bottom
   return (
     <div className="jd-section-body jd-section-body--flush">
       {receiptRows}
       {onAddReceipt && (
-        <button
-          type="button"
-          className="jd-card-row jd-card-row--add"
-          onClick={onAddReceipt}
-          aria-label="Add another receipt"
-        >
-          <span className="jd-card-row-icon"><Icon name="add" size={16} variant="muted" /></span>
-          <span className="jd-card-row-add">+ Add receipt</span>
-        </button>
+        <div className="jd-add-pill-row jd-add-pill-row--end">
+          <button
+            type="button"
+            className="jd-add-dashed jd-add-dashed--tinted"
+            onClick={onAddReceipt}
+            aria-label="Add another receipt"
+          >
+            + Add receipt
+          </button>
+        </div>
       )}
     </div>
   );
