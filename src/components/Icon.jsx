@@ -44,6 +44,7 @@ import {
   Share2,
   Camera,
   Mic,
+  Banknote,
   Bell,
   BellOff,
   User,
@@ -217,6 +218,7 @@ const REGISTRY = {
   invoice:       ReceiptText,    // 🧾 invoiced
   receipt:       ReceiptText,    // 🧾 receipt row (alias for invoice glyph)
   materials:     Wrench,         // 🧰 costs / materials section
+  price:         Banknote,       // 💵 job price / cash note
   date:          CalendarDays,   // 📅 visit date / schedule row
   complete:      CircleCheck,    // ✅ job complete
   paid:          CircleCheck,    // 💷 paid (brand variant applied at call site)
