@@ -1976,10 +1976,8 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
         <img src="/jobprofit-logo.png" alt="" className="screen-header-logo" aria-hidden="true" />
         <div className="screen-header-right">
           <button className="new-btn" onClick={openAddJob}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-              <path d="M12 5v14M5 12h14" />
-            </svg>
-            New job
+            <Icon name="active-job" size={16} aria-hidden="true" />
+            Log a job
           </button>
         </div>
       </div>
