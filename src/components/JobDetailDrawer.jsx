@@ -1532,9 +1532,9 @@ function ReceiptsSection({ job, receipts, onAddReceipt, onDeleteReceipt, onEditR
             type="button"
             className="jd-add-dashed jd-add-dashed--tinted"
             onClick={onAddReceipt}
-            aria-label="Add receipt"
+            aria-label="Add cost"
           >
-            + Add receipt
+            + Add cost
           </button>
         </div>
       </div>
@@ -1551,9 +1551,9 @@ function ReceiptsSection({ job, receipts, onAddReceipt, onDeleteReceipt, onEditR
             type="button"
             className="jd-add-dashed jd-add-dashed--tinted"
             onClick={onAddReceipt}
-            aria-label="Add another receipt"
+            aria-label="Add another cost"
           >
-            + Add receipt
+            + Add cost
           </button>
         </div>
       )}

@@ -11190,7 +11190,7 @@ button.jd-money-chip:active { opacity: 0.75; }
    All inline "add" prompts and section header action links → var(--text-dim).
    ────────────────────────────────────────────────────────────────────────── */
 
-/* Section header action buttons (Edit, + Add receipt) — dim, not green */
+/* Section header action buttons (Edit, + Add cost) — dim, not green */
 .jd-section-action-btn {
   color: var(--text-dim);
 }
