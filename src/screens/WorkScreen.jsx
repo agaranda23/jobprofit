@@ -725,7 +725,7 @@ function JobTile({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJo
   const formattedAmount = !isUnpriced ? '£' + formatAmount(amount) : null;
   // Lead with no price gets "No price yet"; other un-priced stages show "—" as before
   const priceLine = (stage === 'Lead' && isUnpriced) ? 'No price yet' : (formattedAmount ?? '—');
-  const amountMuted = stage === 'Lead' || isUnpriced;
+  const amountMuted = isUnpriced;
   const amountOverdue = stage === 'Overdue';
 
   // Primary / secondary label logic:
@@ -869,9 +869,14 @@ function JobTile({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJo
           {!secondaryLabel && addrLine && <span className="jt-address">{addrLine}</span>}
         </div>
       ) : null}
-      {/* Row 2: price on its own line, directly under title */}
-      <div className={`jt-price${amountMuted ? ' jt-price--muted' : ''}${amountOverdue ? ' jt-price--overdue' : ''}`}>
-        {priceLine}
+      {/* Row 2: price + top signal on one row — shorter tile, signal pins right */}
+      <div className="jt-pricerow">
+        <div className={`jt-price${amountMuted ? ' jt-price--muted' : ''}${amountOverdue ? ' jt-price--overdue' : ''}`}>
+          {priceLine}
+        </div>
+        {topSignal && (
+          <span className={`jt-meta-item${topSignal.cls ? ' ' + topSignal.cls : ''}`}>{topSignal.text}</span>
+        )}
       </div>
 
       {/* Row 2b: + Add details chip — Lead tiles missing customer, address, and notes.
@@ -887,15 +892,6 @@ function JobTile({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJo
         >
           + Add details
         </button>
-      )}
-
-      {/* Row 3: single highest-priority signal (1D) — keeps the tile scannable */}
-      {topSignal && (
-        <div className="jt-signals">
-          <span className="jt-signal-group">
-            <span className={`jt-meta-item${topSignal.cls ? ' ' + topSignal.cls : ''}`}>{topSignal.text}</span>
-          </span>
-        </div>
       )}
 
       {/* Progress dots — 4-segment bar showing pipeline position */}
