@@ -1748,12 +1748,14 @@ function PhotosSection({
   onDeletePhoto,
   onSetCaption,
   onReorder,
+  hideAddButton,
 }) {
   const hasPhotos = Array.isArray(photos) && photos.length > 0;
 
   if (!hasPhotos && !onAddPhoto) return null;
 
   if (!hasPhotos && onAddPhoto) {
+    if (hideAddButton) return null;
     return (
       <button
         type="button"
@@ -1771,7 +1773,7 @@ function PhotosSection({
     <div className="jd-section">
       <div className="jd-section-header jd-section-header--with-action">
         <span>Photos</span>
-        {onAddPhoto && (
+        {onAddPhoto && !hideAddButton && (
           <button
             type="button"
             className="jd-section-action-btn"
@@ -1830,6 +1832,7 @@ function NotesSection({
   onCancelNote,
   onDeleteNote,
   onEditNote,
+  hideAddButton,
 }) {
   const structuredNotes = Array.isArray(job.jobNotes) ? job.jobNotes : [];
   // cloud jobs may have a plain notes string instead of the structured array
@@ -1843,6 +1846,7 @@ function NotesSection({
 
   // Empty + has handler + form not open → pill chip (rendered by parent in the empty-pill row)
   if (!hasContent && canAdd && !noteFormOpen) {
+    if (hideAddButton) return null;
     return (
       <button
         type="button"
@@ -1859,7 +1863,7 @@ function NotesSection({
     <div className="jd-section">
       <div className="jd-section-header jd-section-header--with-action">
         <span>Notes</span>
-        {canAdd && !noteFormOpen && (
+        {canAdd && !noteFormOpen && !hideAddButton && (
           <button
             type="button"
             className="jd-section-action-btn"
@@ -3746,6 +3750,7 @@ export default function JobDetailDrawer({
                 onDeletePhoto={onUpdateJob ? handleDeletePhoto : undefined}
                 onSetCaption={onUpdateJob ? handleSetCaption : undefined}
                 onReorder={onUpdateJob ? handleReorderPhotos : undefined}
+                hideAddButton
               />
             );
             const notesEl = (
@@ -3761,6 +3766,7 @@ export default function JobDetailDrawer({
                 onCancelNote={() => { setNoteFormOpen(false); setNoteSubject(''); setNoteBody(''); }}
                 onDeleteNote={onUpdateJob ? handleDeleteNote : undefined}
                 onEditNote={onUpdateJob ? handleEditNote : undefined}
+                hideAddButton
               />
             );
             const photoCount = Array.isArray(job.photos) ? job.photos.length : 0;
@@ -3989,23 +3995,40 @@ export default function JobDetailDrawer({
                       key="notes-photos"
                       id="notes-photos"
                       icon={<Icon name="note" size={16} variant="muted" />}
-                      title="Notes & photos"
+                      title="Notes & Photos"
                       meta={notesPhotosMeta}
                       defaultExpanded={false}
                     >
-                      {notesEl}
                       {onUpdateJob && (
-                        <button
-                          ref={addPhotoBtnRef}
-                          type="button"
-                          className="jd-photos-notes-btn"
-                          onClick={() => setPhotoSheetOpen(true)}
-                          disabled={photoAdding}
-                          aria-label="Add photo"
-                        >
-                          {photoAdding ? 'Adding…' : <><Icon name="camera" size={16} />{' '}Add photo</>}
-                        </button>
+                        <>
+                          {noteCount === 0 && photoCount === 0 && (
+                            <p className="jd-capture-hint">Snap a photo before you leave site, or jot a note for later.</p>
+                          )}
+                          <div className="jd-add-pill-row jd-add-pill-row--pair">
+                            <button
+                              type="button"
+                              ref={addPhotoBtnRef}
+                              className="jd-add-dashed jd-add-dashed--tinted"
+                              onClick={() => setPhotoSheetOpen(true)}
+                              disabled={photoAdding}
+                              aria-label="Add photo"
+                            >
+                              <Icon name="camera" size={16} />
+                              {photoAdding ? 'Adding…' : 'Add photo'}
+                            </button>
+                            <button
+                              type="button"
+                              className="jd-add-dashed jd-add-dashed--tinted"
+                              onClick={() => setNoteFormOpen(true)}
+                              aria-label="Add note"
+                            >
+                              <Icon name="note" size={16} />
+                              Add note
+                            </button>
+                          </div>
+                        </>
                       )}
+                      {notesEl}
                       {photosEl}
                     </CollapsedSectionRow>
                   );
