@@ -9745,8 +9745,8 @@ button.jd-money-chip:active { opacity: 0.75; }
    Shown on the secondary identity line: customer · first-line-of-address.
    Inherits .jt-customer font to keep the visual hierarchy consistent. */
 .jt-address {
-  color: var(--text-dim);
-  opacity: 0.75;
+  color: var(--text);
+  opacity: 1;
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -9776,11 +9776,11 @@ button.jd-money-chip:active { opacity: 0.75; }
   gap: 7px;
   margin-bottom: 2px;
 }
-/* Row 1b: customer secondary line — muted, below the job name */
+/* Row 1b: customer secondary line — full white; hierarchy carried by font-weight (400 vs title 600) */
 .jt-customer {
   font-size: var(--fs-body);
   font-weight: 400;
-  color: var(--text-dim);
+  color: var(--text);
   line-height: var(--lh-body);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -9855,7 +9855,30 @@ button.jd-money-chip:active { opacity: 0.75; }
   flex: 1 1 auto;
   min-width: 0;
 }
-/* £price on its own line, directly under the job title */
+/* Row 2: price + signal on one flex row — price left, signal pins right */
+.jt-pricerow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin: 1px 0 3px;
+}
+/* Signal span inside .jt-pricerow — pins right, truncates at 320px */
+.jt-pricerow .jt-meta-item {
+  margin-left: auto;
+  min-width: 0;
+  flex-shrink: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: var(--fs-metadata);
+  line-height: var(--lh-metadata);
+}
+/* Inside the price row, the row owns the vertical rhythm — zero the price's own
+   margin. Scoped to .jt-pricerow so the bare .jt-price used by SpreadsheetImporter
+   keeps its original 1px 0 3px spacing. */
+.jt-pricerow .jt-price { margin: 0; }
+/* £price anchor — never compresses (money is the anchor) */
 .jt-price {
   font-size: var(--fs-money-sm);
   font-weight: var(--fw-money);
@@ -9870,7 +9893,7 @@ button.jd-money-chip:active { opacity: 0.75; }
 .jt-price--muted   { color: var(--text-dim); }
 .jt-price--overdue { color: var(--jp-rose); }
 
-/* --- Row 3: merged signal line --- */
+/* --- Signal line (used by SpreadsheetImporter and future tiles) --- */
 .jt-signals {
   display: flex;
   align-items: center;
