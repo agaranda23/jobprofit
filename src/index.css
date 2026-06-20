@@ -10202,9 +10202,9 @@ button.jd-money-chip:active { opacity: 0.75; }
 .jt-action-btn svg { display: block; }
 .jt-action-btn:active { opacity: 0.7; }
 .jt-action-btn--missing {
-  opacity: 0.45;
+  /* opacity removed — base rule's --surface-2 fill + --border + --text-dim is the correct neutral look */
 }
-.jt-action-btn--missing:active { opacity: 0.6; }
+.jt-action-btn--missing:active { opacity: 0.7; }
 
 /* Tile Call/Map — go green only when the customer detail exists.
    Scoped to .jt-foot so the JobDetailDrawer header (.jd-header-action-row .jt-action-btn) is unaffected. */
@@ -10212,13 +10212,13 @@ button.jd-money-chip:active { opacity: 0.75; }
   border-color: var(--accent);
   color: var(--accent);
 }
-/* Reset missing-state back to neutral grey — prevents the green rule above from colouring dimmed buttons. */
+/* Reset missing-state back to neutral grey — prevents the green rule above from colouring no-data buttons. */
 .jt-foot .jt-action-btn--missing {
   border-color: var(--border);
   color: var(--text-dim);
-  opacity: 0.45;
+  /* opacity removed — neutral hue (grey-blue vs green) is enough to distinguish no-data from has-data */
 }
-.jt-foot .jt-action-btn--missing:active { opacity: 0.6; }
+.jt-foot .jt-action-btn--missing:active { opacity: 0.7; }
 
 /* "Mark paid" secondary CTA — 50/50 split with Chase payment on Invoiced/Overdue tiles.
    Both this and .jt-cta use flex: 1 1 0 so they grow equally from a zero base,
