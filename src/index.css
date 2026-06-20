@@ -14383,6 +14383,16 @@ button.jd-money-chip:active { opacity: 0.75; }
   justify-content: flex-end;
   padding: 8px 14px 8px 0;
 }
+.jd-add-pill-row--pair {
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.jd-capture-hint {
+  margin: 2px 0 8px;
+  font-size: var(--fs-label);
+  color: var(--text-dim);
+  line-height: 1.4;
+}
 
 .jd-card-row-icon {
   font-size: var(--fs-body);
@@ -14935,29 +14945,6 @@ button.jd-money-chip:active { opacity: 0.75; }
 .jd-photos-notes-label {
   /* inherits .jd-section-label; no extra styles needed */
 }
-.jd-photos-notes-btns {
-  display: flex;
-  gap: 8px;
-}
-.jd-photos-notes-btn {
-  flex: 1;
-  min-height: 44px;
-  padding: 10px 8px;
-  background: var(--surface-2, #1E2A3A);
-  color: var(--text, #F1F5F9);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  font-size: var(--fs-label);
-  font-weight: 500;
-  font-family: inherit;
-  cursor: pointer;
-  text-align: center;
-  -webkit-tap-highlight-color: transparent;
-  transition: opacity 0.15s;
-}
-.jd-photos-notes-btn:active { opacity: 0.7; }
-.jd-photos-notes-btn:disabled { opacity: 0.4; cursor: default; }
-
 /* Send Invoice prompt — inline banner inside Schedule card */
 .visit-invoice-prompt {
   display: flex;
