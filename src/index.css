@@ -10206,6 +10206,20 @@ button.jd-money-chip:active { opacity: 0.75; }
 }
 .jt-action-btn--missing:active { opacity: 0.6; }
 
+/* Tile Call/Map — go green only when the customer detail exists.
+   Scoped to .jt-foot so the JobDetailDrawer header (.jd-header-action-row .jt-action-btn) is unaffected. */
+.jt-foot .jt-action-btn {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+/* Reset missing-state back to neutral grey — prevents the green rule above from colouring dimmed buttons. */
+.jt-foot .jt-action-btn--missing {
+  border-color: var(--border);
+  color: var(--text-dim);
+  opacity: 0.45;
+}
+.jt-foot .jt-action-btn--missing:active { opacity: 0.6; }
+
 /* "Mark paid" secondary CTA — 50/50 split with Chase payment on Invoiced/Overdue tiles.
    Both this and .jt-cta use flex: 1 1 0 so they grow equally from a zero base,
    filling all remaining row width after the Call/Map icon buttons. Height matches
