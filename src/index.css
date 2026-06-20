@@ -9874,6 +9874,10 @@ button.jd-money-chip:active { opacity: 0.75; }
   font-size: var(--fs-metadata);
   line-height: var(--lh-metadata);
 }
+/* Inside the price row, the row owns the vertical rhythm — zero the price's own
+   margin. Scoped to .jt-pricerow so the bare .jt-price used by SpreadsheetImporter
+   keeps its original 1px 0 3px spacing. */
+.jt-pricerow .jt-price { margin: 0; }
 /* £price anchor — never compresses (money is the anchor) */
 .jt-price {
   font-size: var(--fs-money-sm);
@@ -9883,7 +9887,7 @@ button.jd-money-chip:active { opacity: 0.75; }
   color: var(--jp-green);
   letter-spacing: -0.01em;
   line-height: var(--lh-money-sm);
-  margin: 0;
+  margin: 1px 0 3px;
   flex-shrink: 0;
 }
 .jt-price--muted   { color: var(--text-dim); }
