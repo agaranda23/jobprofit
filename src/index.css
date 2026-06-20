@@ -7076,11 +7076,12 @@ input[type=number] { -moz-appearance: textfield; }
 }
 .job-detail-header {
   display: flex;
-  flex-direction: column;  /* vertical stack: actions strip + mid row + action-row */
+  flex-direction: column;  /* vertical stack: mid row + action-row (⋯✕ strip now absolute) */
   gap: 4px;
+  position: relative;  /* containing block for the absolute .jd-header-actions ⋯✕ strip */
   /* overflow:hidden intentionally absent — kebab dropdown is position:absolute
      and must not be clipped. */
-  padding: 16px 16px 14px;   /* top=16px matches right gutter → equal corner spacing for ✕ */
+  padding: 8px 16px 14px;   /* top=8px mirrors the absolute strip's top:8px → equal corner spacing for ✕; name+customer rise into the reclaimed band */
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
@@ -7089,6 +7090,11 @@ input[type=number] { -moz-appearance: textfield; }
   align-items: baseline;
   justify-content: space-between;
   gap: 12px;
+  /* Collision fence: reserve a gutter the full width of the absolute ⋯✕ strip
+     (44 + 4 gap + 44 = 92px) + buffer, so the price/chip's flex-end edge always
+     terminates LEFT of the corner icons in every price state. If the icon
+     tap-target sizes change, update this gutter in lockstep. */
+  padding-right: 96px;
 }
 .jd-header-top-left {
   display: flex;
@@ -7116,9 +7122,9 @@ input[type=number] { -moz-appearance: textfield; }
   min-width: 0;
 }
 .job-detail-customer {
-  font-size: var(--fs-subhead);
-  font-weight: 600;
-  line-height: var(--lh-subhead);
+  font-size: 1.375rem;  /* 22px — explicit heading step above the 17px subhead token (no larger token in the scale) */
+  font-weight: 700;
+  line-height: 1.3;  /* tightened for the larger 22px name; matches the customer line for a unified block */
   font-variant-numeric: tabular-nums;
   color: var(--text);
   /* Allow up to 2 lines before truncating — avoids bleeding under the chip */
@@ -7129,10 +7135,12 @@ input[type=number] { -moz-appearance: textfield; }
   text-overflow: ellipsis;
 }
 .job-detail-summary {
-  font-size: var(--fs-subhead);
-  font-weight: 600;
-  line-height: var(--lh-subhead);
-  color: var(--text-dim);
+  /* Customer line — matches the job name exactly per founder ask:
+     22px / 700 / var(--text) / line-height 1.3 (no longer muted --text-dim). */
+  font-size: 1.375rem;  /* 22px — identical to .job-detail-customer (job name) */
+  font-weight: 700;
+  line-height: 1.3;  /* single canonical customer line-height; the 1.2 duplicate below is removed */
+  color: var(--text);
   margin-top: 2px;
 }
 /* Tappable customer name button in the drawer header */
@@ -7320,7 +7328,15 @@ button.jd-money-chip:active { opacity: 0.75; }
   display: flex;
   align-items: center;
   gap: 4px;
-  align-self: flex-end;
+  /* Pulled out of the vertical flow and pinned to the header's top-right corner
+     so it no longer occupies a 44px row above the name. The name+customer row
+     becomes the first in-flow child and rises into the reclaimed dead band.
+     Anchored to .job-detail-header (position:relative). The kebab dropdown is
+     anchored to .jd-kebab-wrap (its own position:relative), so it still opens
+     downward correctly. */
+  position: absolute;
+  top: 8px;
+  right: 8px;
 }
 .jd-kebab-btn {
   min-width: 44px;
@@ -11404,12 +11420,12 @@ button.jd-money-chip:active { opacity: 0.75; }
    · The original overflow:hidden rule is intentionally NOT applied here.
    ────────────────────────────────────────────────────────────────────────── */
 
-.job-detail-summary {
-  line-height: 1.2;
-}
+/* (Removed the stray .job-detail-summary { line-height:1.2 } duplicate — the
+   canonical customer line-height now lives once on the 7131 rule at 1.3,
+   matching the job name. No contradictory leftover remains.) */
 
 .jd-customer-subline-btn {
-  line-height: 1.2;
+  line-height: 1.3;  /* wrapper button's line-box matches its inner .job-detail-summary span (1.3) */
 }
 
 /* ── Direction 2: CollapsibleRow ───────────────────────────────────────────
