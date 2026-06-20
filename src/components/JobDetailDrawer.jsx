@@ -906,6 +906,18 @@ function VisitEditorSheet({ open, visit, onSave, onCancel }) {
         </div>
         <div className="edit-field-body">
           <div className="edit-field-group">
+            <label className="edit-field-label">What for? (optional)</label>
+            <input
+              type="text"
+              className="edit-field-input"
+              value={note}
+              onChange={e => setNote(e.target.value)}
+              placeholder="e.g. Viewing, First fix, Tiling"
+              aria-label="Visit note"
+              maxLength={200}
+            />
+          </div>
+          <div className="edit-field-group">
             <label className="edit-field-label">Date</label>
             <input
               type="date"
@@ -937,35 +949,25 @@ function VisitEditorSheet({ open, visit, onSave, onCancel }) {
               />
             </div>
           </div>
-          <div className="edit-field-group">
-            <label className="edit-field-label">Status</label>
-            <select
-              className="edit-field-input"
-              value={status}
-              onChange={e => setStatus(e.target.value)}
-              aria-label="Visit status"
-            >
-              <option value="planned">Upcoming</option>
-              <option value="done">Done</option>
-              <option value="cancelled">Cancelled</option>
-            </select>
-          </div>
-          <div className="edit-field-group">
-            <label className="edit-field-label">Note (optional)</label>
-            <input
-              type="text"
-              className="edit-field-input"
-              value={note}
-              onChange={e => setNote(e.target.value)}
-              placeholder="Plastering only / snag fix / etc."
-              aria-label="Visit note"
-              maxLength={200}
-            />
-          </div>
+          {visit?.id && (
+            <div className="edit-field-group">
+              <label className="edit-field-label">Status</label>
+              <select
+                className="edit-field-input"
+                value={status}
+                onChange={e => setStatus(e.target.value)}
+                aria-label="Visit status"
+              >
+                <option value="planned">Upcoming</option>
+                <option value="done">Done</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+            </div>
+          )}
         </div>
         <div className="edit-field-actions">
           <button type="button" className="btn-ghost edit-field-cancel" onClick={onCancel}>Cancel</button>
-          <button type="button" className="btn-primary edit-field-save" onClick={handleSave} disabled={!date}>Save</button>
+          <button type="button" className="btn-primary edit-field-save" onClick={handleSave} disabled={!date}>Save visit</button>
         </div>
       </div>
     </div>
