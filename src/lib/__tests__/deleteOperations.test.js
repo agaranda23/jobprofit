@@ -220,14 +220,12 @@ describe('pendingDeleteAction guard', () => {
   });
 
   it('does not execute the destructive callback when cancelled', () => {
-    let captured = null;
-    const setPendingAction = (action) => { captured = action; };
+    const setPendingAction = () => {};
     const destructive = vi.fn();
     const guard = makeDeleteGuard(setPendingAction);
 
     guard('Delete this note?', 'It will be removed.', 'Delete note', destructive);
-    // User taps Cancel — state is cleared without calling onConfirm
-    captured = null;
+    // User taps Cancel — the destructive callback is never invoked
     expect(destructive).not.toHaveBeenCalled();
   });
 

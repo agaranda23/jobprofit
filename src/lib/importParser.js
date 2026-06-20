@@ -53,7 +53,7 @@ const STATUS_RULES = [
   [/overdue|late|chase/,                         'Overdue'],
   [/invoice|sent|awaiting|owed|due/,             'Invoiced'],
   [/book|scheduled|on|active|progress|wip/,      'On'],
-  [/quote|quoted|estimate/,                      'Quoted'],
+  [/quote|estimate/,                      'Quoted'],
   [/lead|enquiry|new/,                           'Lead'],
 ];
 
@@ -395,7 +395,7 @@ export async function parseSpreadsheetFile(file) {
   }
 
   if (ext === 'xls' || ext === 'xlsx') {
-    return _parseExcel(file, ext);
+    return _parseExcel(file);
   }
 
   throw Object.assign(new Error(`Unsupported file type: .${ext}`), { code: 'WRONG_TYPE', ext });

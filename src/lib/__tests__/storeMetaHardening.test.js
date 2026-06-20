@@ -29,7 +29,7 @@
  * deps) so we never import the real supabase singleton or env vars.
  */
 
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 
 // ── Mirror of updateJobMetaInCloud (src/lib/store.js) ───────────────────────
 // Mirrors the exact logic after the Fix B patch, with deps injected for
@@ -123,8 +123,6 @@ function uuid() { return crypto.randomUUID(); }
 function makeMeta(overrides = {}) {
   return { status: 'invoiced', paymentStatus: 'unpaid', customer: 'Dave', ...overrides };
 }
-
-const noop = async () => {};
 
 /**
  * Builds a Supabase mock where the first .update().eq() call returns firstError,
