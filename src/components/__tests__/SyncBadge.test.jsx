@@ -57,7 +57,6 @@ import SyncBadge from '../SyncBadge';
 function pushQueue(n) { act(() => { queueSubscribers.forEach(cb => cb(n)); }); }
 function pushSyncing(b) { act(() => { mockSubscriptions.syncing?.(b); }); }
 function pushError(state) { act(() => { mockSubscriptions.error?.(state); }); }
-function pushLastEnqueued(ts) { act(() => { mockSubscriptions.lastEnqueued?.(ts); }); }
 
 // Override Date.now so time-based stuck calculations are deterministic
 const BASE_NOW = 1_700_000_000_000;

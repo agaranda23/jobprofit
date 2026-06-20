@@ -117,7 +117,6 @@ export async function initTrialOnFirstUse(supabaseClient, userId, profile, onSta
   // Only applies to users on the 'trial' plan with no clock yet.
   if (profile?.plan !== 'trial') return;
   if (profile?.trial_ends_at) return; // clock already running — do nothing
-  if (profile?.plan === 'pro') return;
 
   // Per-device guard: prevent two concurrent tabs from both writing.
   const storageKey = `jp.trialStarted.${userId}`;

@@ -208,7 +208,7 @@ describe('eligibleForWhiteLabelNudge — free users only', () => {
 
 // ──────────────────────────────────────────────────────────────────────────
 describe('incrementSendCount', () => {
-  function makeSupabase({ rpcError = false, selectData = { invoices_sent_count: 0 }, updateError = false } = {}) {
+  function makeSupabase({ rpcError = false, selectData = { invoices_sent_count: 0 } } = {}) {
     const supabase = {
       rpc: rpcError
         ? vi.fn().mockRejectedValue(new Error('rpc not found'))
@@ -598,8 +598,6 @@ describe('initTrialOnFirstUse — first-use trial clock', () => {
       }),
     };
   }
-
-  const storageKey = (uid) => `jp.trialStarted.${uid}`;
 
   beforeEach(() => {
     // Clear the localStorage guard between tests

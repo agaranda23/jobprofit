@@ -1561,11 +1561,3 @@ export default function AppShell() {
     </>
   );
 }
-
-/**
- * Returns true when the profile has bank details saved.
- * Used by the just-in-time bank gate on the invoice-send path (SendInvoiceModal).
- */
-export function profileHasBank(profile) {
-  return !!(profile?.sort_code && profile?.account_number);
-}

@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { sortJobsByColumn, daysInStage, jobMatchesQuery } from '../jobSort.js';
+import { sortJobsByColumn, daysInStage } from '../jobSort.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 

@@ -158,17 +158,6 @@ const NOOP = () => {};
 const SESSION = { user: { id: 'user-123', email: 'test@example.com' } };
 const PROFILE_FREE = { plan: 'free', is_cis_subcontractor: false };
 
-// Stub a minimal job so buildChaseList gets real data without crashing
-function makeJob() {
-  return {
-    id: 'job-1',
-    customer: 'Dave',
-    status: 'active',
-    amount: 100,
-    paid: false,
-  };
-}
-
 function renderHub(profileOverride = PROFILE_FREE, extraProps = {}) {
   return render(
     <SettingsScreen
