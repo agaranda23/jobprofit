@@ -3508,7 +3508,7 @@ export default function JobDetailDrawer({
                 ) : (
                   <button
                     type="button"
-                    className="jt-action-btn"
+                    className="jt-action-btn jt-action-btn--missing"
                     aria-label="Add a phone number to call"
                     onClick={promptPhone('call')}
                   >{callInner}</button>
@@ -3524,7 +3524,7 @@ export default function JobDetailDrawer({
                 ) : (
                   <button
                     type="button"
-                    className="jt-action-btn"
+                    className="jt-action-btn jt-action-btn--missing"
                     aria-label="Add a phone number to text"
                     onClick={promptPhone('text')}
                   >{textInner}</button>
@@ -3543,7 +3543,7 @@ export default function JobDetailDrawer({
                 ) : (
                   <button
                     type="button"
-                    className="jt-action-btn"
+                    className="jt-action-btn jt-action-btn--missing"
                     aria-label="Add a phone number to message on WhatsApp"
                     onClick={promptPhone('whatsapp')}
                   >{waInner}</button>
@@ -3551,7 +3551,7 @@ export default function JobDetailDrawer({
                 {/* Map — navigates when an address exists, else opens the address modal */}
                 <button
                   type="button"
-                  className="jt-action-btn"
+                  className={`jt-action-btn${hasAddress ? '' : ' jt-action-btn--missing'}`}
                   aria-label={hasAddress ? `Navigate to ${address}` : 'Add job address'}
                   onClick={() => {
                     logTelemetry('drawer_action_map', { hasData: hasAddress, source: 'drawer' });
