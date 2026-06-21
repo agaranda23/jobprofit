@@ -821,6 +821,31 @@ export async function persistPublicToken(jobId, meta) {
 }
 
 /**
+ * Revokes a job's public link by setting meta.publicTokenRevokedAt to the
+ * current ISO timestamp. All four Netlify public-fetch functions check this
+ * flag and return 404 when present, so the customer's bookmarked link stops
+ * working immediately (no DB migration required — stored in JSONB meta).
+ *
+ * The caller (JobDetailDrawer) is responsible for reflecting the revoked state
+ * in the UI via onUpdateJob. Re-sharing generates a new publicAccessToken UUID
+ * which replaces the old one, and the caller must also clear publicTokenRevokedAt
+ * at that point (handled in ReviewSheet / SendInvoiceModal share handlers — follow-up).
+ *
+ * @param {string} jobId   – Supabase UUID of the job row
+ * @param {object} curMeta – current full meta object (from extractJobMeta on the job)
+ * @returns {Promise<{ ok: boolean, offline?: boolean, error?: string }>}
+ */
+export async function revokePublicLink(jobId, curMeta) {
+  const revokedMeta = { ...curMeta, publicTokenRevokedAt: new Date().toISOString() };
+  const result = await updateJobMetaInCloud(jobId, revokedMeta);
+  if (!result.ok) {
+    if (result.error === 'offline') return { ok: false, offline: true };
+    return { ok: false, error: result.error };
+  }
+  return { ok: true };
+}
+
+/**
  * Hard-deletes a job row from Supabase and removes its localStorage mirror entry.
  *
  * The `line_items` jsonb column goes away automatically with the row.

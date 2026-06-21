@@ -44,7 +44,8 @@ import {
   setCaption,
   reorderPhotos,
 } from '../lib/jobPhotos';
-import { uploadJobPhoto, getSignedPhotoUrl, deleteJobPhoto, getReceiptSignedUrl } from '../lib/store';
+import { uploadJobPhoto, getSignedPhotoUrl, deleteJobPhoto, getReceiptSignedUrl, revokePublicLink } from '../lib/store';
+import { extractJobMeta } from '../lib/jobMeta';
 import { buildWhatsAppLink } from '../lib/invoiceMessage';
 import { logTelemetry } from '../lib/telemetry';
 import {
@@ -3120,6 +3121,37 @@ export default function JobDetailDrawer({
     setReviewSheetMode('quote');
   };
 
+  // ── Revoke public link ────────────────────────────────────────────────────
+  // Sets meta.publicTokenRevokedAt so all four Netlify public-fetch functions
+  // return 404. The confirm() guard is intentional — revoke is destructive-ish
+  // (customer's bookmarked link stops working immediately). Re-share is a
+  // follow-up: the existing ReviewSheet flow generates a fresh UUID on next send,
+  // so the trader can re-share by tapping "Resend quote link" after revoking.
+  const handleRevokeLink = async () => {
+    if (!onUpdateJob) return;
+    const confirmed = window.confirm(
+      'Stop this link from working?\n\nThe customer\'s link will show "Not found" immediately. You can send a new link any time.'
+    );
+    if (!confirmed) return;
+    const curMeta = extractJobMeta(job);
+    const revokedAt = new Date().toISOString();
+    // Optimistic local update first so the UI reflects the change immediately.
+    onUpdateJob({ ...job, publicTokenRevokedAt: revokedAt });
+    const result = await revokePublicLink(job.cloudId || job.id, { ...curMeta, publicTokenRevokedAt: revokedAt });
+    if (!result.ok) {
+      if (result.offline) {
+        showFlash('Link revoked locally — will sync when back online');
+      } else {
+        showFlash('Could not revoke — please try again');
+      }
+    }
+  };
+
+  // Show "Revoke link" when a public token exists and has not already been revoked.
+  const showRevokeLink = onUpdateJob &&
+    !!job.publicAccessToken &&
+    !job.publicTokenRevokedAt;
+
   // Send link: visible when job has lineItems and is not yet accepted (used for kebab too)
   const showSendLink = onUpdateJob &&
     Array.isArray(job.lineItems) && job.lineItems.length > 0 &&
@@ -3298,8 +3330,29 @@ export default function JobDetailDrawer({
                           role="menuitem"
                           onClick={() => { setKebabOpen(false); handleSendLink(); }}
                         >
-                          {job.publicAccessToken ? 'Resend quote link' : 'Send quote link'}
+                          {job.publicAccessToken && !job.publicTokenRevokedAt ? 'Resend quote link' : 'Send quote link'}
                         </button>
+                      )}
+                      {/* Revoke public link — kills customer's bookmarked link immediately */}
+                      {showRevokeLink && (
+                        <button
+                          type="button"
+                          className="jd-kebab-item jd-kebab-item--danger"
+                          role="menuitem"
+                          onClick={() => { setKebabOpen(false); handleRevokeLink(); }}
+                        >
+                          Revoke link
+                        </button>
+                      )}
+                      {/* Revoked link state — shows instead of revoke when already killed */}
+                      {onUpdateJob && !!job.publicAccessToken && !!job.publicTokenRevokedAt && (
+                        <div
+                          className="jd-kebab-item jd-kebab-item--meta"
+                          role="menuitem"
+                          aria-disabled="true"
+                        >
+                          Link revoked
+                        </div>
                       )}
                       {/* Chase via WhatsApp */}
                       {showChase && (

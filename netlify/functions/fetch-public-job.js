@@ -119,6 +119,15 @@ export const handler = async function (event) {
     return json(502, { error: 'Could not load — please try again' });
   }
 
+  // ── 3b. Revoke check — return 404 (not 500) when the trader killed the link ──
+  // The flag lives in meta.publicTokenRevokedAt (ISO timestamp). We return the
+  // same 404 shape as "token not found" so customers see a generic "not found"
+  // rather than a "revoked" message that could feel accusatory or confusing.
+  const metaRaw = (row.meta && typeof row.meta === 'object') ? row.meta : {};
+  if (metaRaw.publicTokenRevokedAt) {
+    return json(404, { error: 'Not found. The link may be invalid or the document has been removed.' });
+  }
+
   // ── 4. Build the safe public response — cherry-pick from meta, never dump it ──
   const m = (row.meta && typeof row.meta === 'object') ? row.meta : {};
 
