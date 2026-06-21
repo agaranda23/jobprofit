@@ -153,12 +153,15 @@ describe('buildInvoiceWhatsAppMessage — ordering', () => {
   });
 });
 
-// ── VAT total unaffected ──────────────────────────────────────────────────────
+// ── VAT — prices are VAT-inclusive (gross) ────────────────────────────────────
+// Decision: ACC, 2026-06-21. The trader enters a VAT-inclusive price.
+// The invoice message shows that gross price — it does NOT add VAT on top.
 
-describe('buildInvoiceWhatsAppMessage — VAT total with Stripe link', () => {
-  it('shows correct gross total including 20% VAT when vatRegistered + link set', () => {
+describe('buildInvoiceWhatsAppMessage — VAT-inclusive price display', () => {
+  it('shows the entered price (gross-inclusive) when vatRegistered + Stripe link set', () => {
+    // total: 120 is VAT-inclusive (£100 net + £20 VAT). Message shows 120.00, not 144.00.
     const msg = buildInvoiceWhatsAppMessage({
-      job: baseJob({ total: 100 }),
+      job: baseJob({ total: 120 }),
       biz: baseBiz({ vatRegistered: true, stripePaymentLink: 'https://buy.stripe.com/test_abc123' }),
       invoiceNumber,
       dueDate,
@@ -166,6 +169,19 @@ describe('buildInvoiceWhatsAppMessage — VAT total with Stripe link', () => {
     expect(msg).toContain('120.00');
     expect(msg).toContain('inc VAT');
     expect(msg).toContain('Pay by card:');
+  });
+
+  it('does NOT inflate the entered price by adding VAT on top (regression guard)', () => {
+    // total: 100. Old bug: showed 120.00 (100 + 20%). Correct: shows 100.00.
+    const msg = buildInvoiceWhatsAppMessage({
+      job: baseJob({ total: 100 }),
+      biz: baseBiz({ vatRegistered: true }),
+      invoiceNumber,
+      dueDate,
+    });
+    expect(msg).toContain('100.00');
+    expect(msg).not.toContain('120.00');
+    expect(msg).toContain('inc VAT');
   });
 });
 
@@ -292,9 +308,10 @@ describe('buildInvoiceWhatsAppMessage — hostedInvoiceUrl', () => {
     expect(msg).toContain('500.00');
   });
 
-  it('shows VAT-inclusive total when vatRegistered and hostedInvoiceUrl is set', () => {
+  it('shows the entered gross price (not inflated) when vatRegistered and hostedInvoiceUrl is set', () => {
+    // total: 120 is the VAT-inclusive price. Message shows 120.00, not 144.00.
     const msg = buildInvoiceWhatsAppMessage({
-      job: baseJob({ total: 100 }),
+      job: baseJob({ total: 120 }),
       biz: baseBiz({ vatRegistered: true }),
       invoiceNumber,
       dueDate,

@@ -945,13 +945,13 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
       {/* ── 3b. VAT this quarter (Pro-gated, VAT-registered users only) ───── */}
       {/* Only rendered when the user has a VAT number set. No teaser for non-VAT users. */}
       {isVatRegistered && (
-        <ProGate locked={!userIsPro} hasValue={vatSummary.netSales > 0 || vatSummary.inputVat > 0} onUpgrade={() => handleUpgrade(UPGRADE_TRIGGERS.INSIGHT_LOCKED)}>
+        <ProGate locked={!userIsPro} hasValue={vatSummary.grossSales > 0 || vatSummary.inputVat > 0} onUpgrade={() => handleUpgrade(UPGRADE_TRIGGERS.INSIGHT_LOCKED)}>
           <div className="money-card money-vat">
             <div className="money-vat__header">
               <span className="money-vat__label">VAT this quarter</span>
               <span className="money-vat__quarter">{vatQuarter.label}</span>
             </div>
-            {vatSummary.netSales === 0 && vatSummary.inputVat === 0 ? (
+            {vatSummary.grossSales === 0 && vatSummary.inputVat === 0 ? (
               <p className="money-vat__empty">No VAT to report yet this quarter</p>
             ) : (
               <>
@@ -961,11 +961,16 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
                     : `Set aside ${gbp(vatSummary.netVat)} for VAT`}
                 </div>
                 <p className="money-vat__breakdown">
-                  Collected {gbp(vatSummary.outputVat)} &middot; Reclaimable {gbp(vatSummary.inputVat)}
+                  Sales (inc. VAT) {gbp(vatSummary.grossSales)} &middot; Net sales (ex. VAT) {gbp(vatSummary.netSales)} &middot; VAT on sales {gbp(vatSummary.outputVat)} &middot; Reclaimable {gbp(vatSummary.inputVat)}
+                </p>
+                <p className="money-vat__inclusive-note">
+                  We treat the prices you enter as VAT-inclusive &mdash; VAT shown is the portion within that.
                 </p>
               </>
             )}
-            <p className="money-vat__disclaimer">Estimate &mdash; confirm with your accountant.</p>
+            <p className="money-vat__disclaimer">
+              Estimate &mdash; assumes standard 20% VAT, cash basis, calendar quarters. Confirm with your accountant before filing.
+            </p>
           </div>
         </ProGate>
       )}
