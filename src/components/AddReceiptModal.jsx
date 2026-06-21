@@ -2,6 +2,7 @@ import { useRef, useState, useMemo, useCallback, useEffect } from 'react';
 import { extractReceipt } from '../lib/receiptOCR';
 import { saveLineItemToLibrary } from '../lib/materials';
 import Icon from './Icon';
+import PhotoSourceSheet from './PhotoSourceSheet';
 import { meaningfulItemCount, computeItemsSubtotal, itemsDirty } from '../lib/receiptItemsHelpers';
 
 /**
@@ -33,12 +34,15 @@ export default function AddReceiptModal({
   onMaterialSaved,
 }) {
   const isEditMode = !!existingReceipt;
-  const fileRef = useRef(null);
   // Ref to track the index of the newest item so we can focus its desc input
   const newItemDescRef = useRef(null);
   const pendingFocusRef = useRef(false);
   // Ref to the expanded Itemise panel — used for scrollIntoView on manual open
   const itemsPanelRef = useRef(null);
+  // Photo-source chooser refs — must sit above early returns (rules-of-hooks)
+  const cameraInputRef = useRef(null);
+  const galleryInputRef = useRef(null);
+  const addPhotoBtnRef = useRef(null); // focus returned to this when sheet closes
 
   const todayStr = () => {
     const d = new Date();
@@ -76,6 +80,8 @@ export default function AddReceiptModal({
   const [confirm, setConfirm]           = useState(null);
   // Phase 2: collapsible Itemise section — collapsed by default (fast-path)
   const [isItemiseOpen, setIsItemiseOpen] = useState(false);
+  // Photo-source bottom-sheet — MUST be above early returns (rules-of-hooks)
+  const [photoSheetOpen, setPhotoSheetOpen] = useState(false);
 
   // Focus the last item's desc input after a new row is added.
   // Dep array [items] ensures this fires only when the items array changes
@@ -109,7 +115,7 @@ export default function AddReceiptModal({
     }
   };
 
-  const openPicker = () => fileRef.current?.click();
+  const openPhotoSheet = () => setPhotoSheetOpen(true);
 
   const onFile = (e) => {
     const f = e.target.files?.[0];
@@ -322,8 +328,18 @@ export default function AddReceiptModal({
 
         {/* ── Scrollable body ────────────────────────────────────────────── */}
         <div className="arm-body">
+          {/* Camera input — opens rear camera directly on iOS Safari / Android Chrome */}
           <input
-            ref={fileRef}
+            ref={cameraInputRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            style={{ display: 'none' }}
+            onChange={onFile}
+          />
+          {/* Gallery input — opens photo library / file picker (no capture attr) */}
+          <input
+            ref={galleryInputRef}
             type="file"
             accept="image/*"
             style={{ display: 'none' }}
@@ -332,8 +348,13 @@ export default function AddReceiptModal({
 
           {!photo ? (
             <>
-              <button type="button" className="btn-primary btn-large" onClick={openPicker}>
-                📸 Add photo
+              <button
+                type="button"
+                ref={addPhotoBtnRef}
+                className="btn-primary btn-large"
+                onClick={openPhotoSheet}
+              >
+                <Icon name="camera" size={16} /> Add photo
               </button>
               <p className="modal-help" style={{ textAlign: 'center', marginTop: 8 }}>
                 Take a photo or choose one from your phone
@@ -342,7 +363,12 @@ export default function AddReceiptModal({
           ) : (
             <>
               <img src={photo} alt="Receipt" className="receipt-preview" />
-              <button type="button" className="link-btn centered" onClick={openPicker}>Change photo</button>
+              <button
+                type="button"
+                ref={addPhotoBtnRef}
+                className="link-btn centered"
+                onClick={openPhotoSheet}
+              >Change photo</button>
             </>
           )}
 
@@ -527,6 +553,16 @@ export default function AddReceiptModal({
         </div>
 
       </div>
+
+      {/* Photo-source chooser — rendered inside the modal wrapper so it layers
+          above the modal itself (z-index via .photo-source-backdrop uses --z-modal) */}
+      <PhotoSourceSheet
+        open={photoSheetOpen}
+        triggerRef={addPhotoBtnRef}
+        onTakePhoto={() => { setPhotoSheetOpen(false); cameraInputRef.current?.click(); }}
+        onUploadPhoto={() => { setPhotoSheetOpen(false); galleryInputRef.current?.click(); }}
+        onClose={() => setPhotoSheetOpen(false)}
+      />
     </div>
   );
 }
