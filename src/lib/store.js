@@ -6,6 +6,7 @@
 
 import { supabase } from './supabase';
 import { writeJobMeta } from './jobMeta';
+import { generatePublicAccessToken } from './publicQuoteToken';
 
 // Returns YYYY-MM-DD in the user's local timezone (not UTC).
 // Critical: new Date().toISOString().slice(0,10) returns UTC date,
@@ -843,6 +844,34 @@ export async function revokePublicLink(jobId, curMeta) {
     return { ok: false, error: result.error };
   }
   return { ok: true };
+}
+
+/**
+ * Returns the correct publicAccessToken to use when a trader re-shares a job link.
+ *
+ * When the job has a publicTokenRevokedAt timestamp (the trader previously revoked
+ * the link), we mint a brand-new UUID. The old token string no longer matches any
+ * DB row (because lookup is by exact `meta->>publicAccessToken` match), so the old
+ * revoked link returns 404 naturally. The caller must also write
+ * `publicTokenRevokedAt: undefined` into the meta patch so the new token is not
+ * treated as revoked by the Netlify functions. Both the new token and the cleared
+ * flag are written in the same `persistPublicToken` cloud write that already
+ * happens in every share handler.
+ *
+ * When the job is NOT revoked, the existing token is returned unchanged — existing
+ * shared links remain stable and keep working for the customer.
+ *
+ * @param {object} job – the full job object (must have id; may have publicAccessToken / publicTokenRevokedAt)
+ * @returns {{ token: string, wasRevoked: boolean }}
+ *   token      – the UUID to embed in the new link
+ *   wasRevoked – true when we minted a fresh token (caller should clear publicTokenRevokedAt in their meta patch)
+ */
+export function reissuePublicToken(job) {
+  const wasRevoked = !!job?.publicTokenRevokedAt;
+  if (wasRevoked || !job?.publicAccessToken) {
+    return { token: generatePublicAccessToken(), wasRevoked };
+  }
+  return { token: job.publicAccessToken, wasRevoked: false };
 }
 
 /**

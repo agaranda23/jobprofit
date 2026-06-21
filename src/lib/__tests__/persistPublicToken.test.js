@@ -319,6 +319,113 @@ describe('publicAccessToken persists through writeJobMeta → readJobMeta', () =
   });
 });
 
+// ── I. reissuePublicToken — revoke → re-share produces a new token ────────────
+//
+// Verifies the fix for the "dead link after revoke + re-share" bug (A8).
+// The helper lives in store.js but is tested here (same file pattern as the
+// other persistPublicToken-adjacent helpers, no DOM required).
+//
+// We mirror reissuePublicToken's pure logic inline rather than importing the
+// real store.js (which requires Supabase env vars at module load).
+
+function reissuePublicTokenMirror(job) {
+  // Mirrors src/lib/store.js reissuePublicToken exactly.
+  const wasRevoked = !!job?.publicTokenRevokedAt;
+  if (wasRevoked || !job?.publicAccessToken) {
+    return { token: crypto.randomUUID(), wasRevoked };
+  }
+  return { token: job.publicAccessToken, wasRevoked: false };
+}
+
+// Crypto.randomUUID is available in Node 19+. Vitest runs in Node so this is fine.
+// If the environment doesn't have it, shim it.
+if (typeof crypto === 'undefined' || !crypto.randomUUID) {
+  const { webcrypto } = await import('node:crypto');
+  globalThis.crypto = webcrypto;
+}
+
+describe('I. reissuePublicToken — revoke → re-share', () => {
+  it('(a) revoke → re-share: produces a NEW token and wasRevoked=true', () => {
+    const revokedJob = {
+      id: 'j-revoked',
+      publicAccessToken: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
+      publicTokenRevokedAt: '2026-06-20T10:00:00.000Z',
+    };
+    const { token, wasRevoked } = reissuePublicTokenMirror(revokedJob);
+
+    // Must be a fresh token — not the old revoked one
+    expect(token).not.toBe(revokedJob.publicAccessToken);
+    // Must be a valid UUID v4
+    expect(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(token)).toBe(true);
+    // wasRevoked flag tells callers to clear publicTokenRevokedAt in their meta patch
+    expect(wasRevoked).toBe(true);
+  });
+
+  it('(a) revoke → re-share: each call produces a DIFFERENT fresh token (no UUID collision)', () => {
+    const revokedJob = {
+      id: 'j-revoked-2',
+      publicAccessToken: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
+      publicTokenRevokedAt: '2026-06-20T10:00:00.000Z',
+    };
+    const { token: t1 } = reissuePublicTokenMirror(revokedJob);
+    const { token: t2 } = reissuePublicTokenMirror(revokedJob);
+    expect(t1).not.toBe(t2);
+  });
+
+  it('(b) non-revoked re-share: same token returned, wasRevoked=false', () => {
+    const nonRevokedJob = {
+      id: 'j-active',
+      publicAccessToken: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
+      // No publicTokenRevokedAt
+    };
+    const { token, wasRevoked } = reissuePublicTokenMirror(nonRevokedJob);
+
+    expect(token).toBe(nonRevokedJob.publicAccessToken);
+    expect(wasRevoked).toBe(false);
+  });
+
+  it('(b) non-revoked job with publicTokenRevokedAt=undefined treated as not revoked', () => {
+    const job = {
+      id: 'j-not-revoked',
+      publicAccessToken: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+      publicTokenRevokedAt: undefined,
+    };
+    const { token, wasRevoked } = reissuePublicTokenMirror(job);
+    expect(token).toBe(job.publicAccessToken);
+    expect(wasRevoked).toBe(false);
+  });
+
+  it('job with no existing token gets a fresh mint (initial share)', () => {
+    const freshJob = { id: 'j-new' };
+    const { token, wasRevoked } = reissuePublicTokenMirror(freshJob);
+    expect(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(token)).toBe(true);
+    // wasRevoked is false for initial mints (no prior revoke)
+    expect(wasRevoked).toBe(false);
+  });
+
+  it('meta patch after re-share: new token written and publicTokenRevokedAt cleared', () => {
+    const revokedJob = {
+      id: 'j-patch-test',
+      publicAccessToken: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+      publicTokenRevokedAt: '2026-06-20T12:00:00.000Z',
+    };
+    const { token, wasRevoked } = reissuePublicTokenMirror(revokedJob);
+
+    // This simulates what ReviewSheet / SendInvoiceModal / ReceiptModal do:
+    const updatedJob = {
+      ...revokedJob,
+      publicAccessToken: token,
+      ...(wasRevoked ? { publicTokenRevokedAt: undefined } : {}),
+    };
+
+    expect(updatedJob.publicAccessToken).toBe(token);
+    expect(updatedJob.publicAccessToken).not.toBe(revokedJob.publicAccessToken);
+    // publicTokenRevokedAt must be absent from the patch so the Netlify functions
+    // don't block the new link — writeJobMeta drops undefined values during JSON serialise
+    expect(updatedJob.publicTokenRevokedAt).toBeUndefined();
+  });
+});
+
 // ── H. persistPublicToken is called BEFORE the URL is used (order test) ───────
 
 describe('token persistence order — cloud write must complete before URL is produced', () => {

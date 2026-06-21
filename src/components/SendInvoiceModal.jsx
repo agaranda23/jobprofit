@@ -40,7 +40,6 @@ import { useState, useEffect } from 'react';
 import { getInvoicePDFBlob, downloadInvoicePDF } from '../lib/invoicePDF';
 import { buildInvoiceWhatsAppMessage, buildWhatsAppLink } from '../lib/invoiceMessage';
 import { buildPublicInvoiceUrl } from '../lib/publicInvoiceToken';
-import { generatePublicAccessToken } from '../lib/publicQuoteToken';
 import { nextInvoiceNumber } from '../lib/invoiceNumber';
 import { getMissingInvoiceFields } from '../lib/bizValidation';
 import { resolveBusinessIdentity } from '../lib/resolveBusinessIdentity';
@@ -48,7 +47,7 @@ import { incrementSendCount, eligibleForWhiteLabelNudge, countInvoicesSentThisMo
 import { supabase } from '../lib/supabase';
 import { logTelemetry, UPGRADE_TRIGGERS } from '../lib/telemetry';
 import { getJobProfit } from '../lib/cashflow';
-import { persistPublicToken } from '../lib/store';
+import { persistPublicToken, reissuePublicToken } from '../lib/store';
 import { extractJobMeta, writeJobMeta } from '../lib/jobMeta';
 import InvoiceDocumentPreview from './InvoiceDocumentPreview';
 import ProUpgradeSheet from './ProUpgradeSheet';
@@ -179,17 +178,14 @@ export default function SendInvoiceModal({
 
   // hostedInvoiceUrl: the /i/<token> link prepended to the WhatsApp message so
   // the customer opens the full branded invoice rather than reading plain text.
-  // We lazily generate/reuse the publicAccessToken — the same UUID the quote
-  // page uses — so the trader shares one token per job.
   //
-  // If the job doesn't have a token yet we mint one now (before the send
-  // happens) so the URL is ready when the WhatsApp message is built. The token
-  // is written to the job in attemptSend() below via onUpdate.
-  const [pendingToken] = useState(() => {
-    // Use the existing token when present; mint a new one otherwise.
-    // useState initialiser runs once so the same token survives re-renders.
-    return job?.publicAccessToken || generatePublicAccessToken();
-  });
+  // reissuePublicToken handles the revoke → re-share case: if the job's previous
+  // link was revoked we mint a fresh UUID here (making the old URL permanently
+  // dead — the old token no longer matches any DB row) and record wasRevoked so
+  // attemptSend() can clear publicTokenRevokedAt in the same cloud write.
+  const [{ token: pendingToken, wasRevoked: pendingTokenWasRevoked }] = useState(
+    () => reissuePublicToken(job)
+  );
   const hostedInvoiceUrl = buildPublicInvoiceUrl(pendingToken);
 
   // All hooks above — no early returns until after this point (PR #125 lesson).
@@ -292,10 +288,11 @@ export default function SendInvoiceModal({
         invoiceNumber,
         invoiceDueDate: new Date(dueDate).toISOString(),
         // Persist the public access token so the /i/<token> URL stays stable
-        // and the trader can re-send the same link. Reuses the quote token
-        // when already present (same token per job — one link per job regardless
-        // of whether it was first shared as a quote or invoice).
+        // and the trader can re-send the same link. When the previous link was
+        // revoked, pendingToken is a fresh UUID (old link stays dead) and we
+        // must clear publicTokenRevokedAt so the Netlify functions serve the new link.
         publicAccessToken: pendingToken,
+        ...(pendingTokenWasRevoked ? { publicTokenRevokedAt: undefined } : {}),
         invoiceLinkSentAt: now,
       };
 
