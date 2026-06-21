@@ -8,12 +8,12 @@
  * In 'system' mode the controller subscribes to the OS prefers-color-scheme
  * media query and updates the document when the OS preference changes.
  *
- * Default is 'dark' — existing users' experience is unchanged on upgrade.
- * Light and System are opt-in from Settings.
+ * Default is 'light' — new users (no stored preference) get the light theme.
+ * Existing users who already chose a theme keep their stored choice unchanged.
  *
  * The resolved theme is applied by setting data-theme on <html>:
- *   data-theme="dark"  → :root tokens stay (dark default, no override needed)
  *   data-theme="light" → [data-theme="light"] block in index.css overrides tokens
+ *   data-theme="dark"  → :root tokens stay (dark base, no override needed)
  *
  * No-flash approach: a tiny inline script in index.html runs before React
  * mounts and sets data-theme synchronously from localStorage.
@@ -22,7 +22,7 @@
 export const STORAGE_KEY = 'jp.theme';
 export const VALID_PREFS = ['light', 'dark', 'system'];
 
-/** Read the stored preference; fall back to 'dark'. */
+/** Read the stored preference; fall back to 'light' for new users. */
 export function getStoredPref() {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
@@ -30,7 +30,7 @@ export function getStoredPref() {
   } catch {
     // localStorage may be unavailable (private browsing, SSR)
   }
-  return 'dark';
+  return 'light';
 }
 
 /** Persist a preference. */
@@ -46,13 +46,14 @@ export function setStoredPref(pref) {
 export function resolveTheme(pref) {
   if (pref === 'light') return 'light';
   if (pref === 'dark') return 'dark';
-  // 'system': follow OS
+  // 'system': follow OS; fall back to 'light' when matchMedia is unavailable
   try {
     if (window.matchMedia('(prefers-color-scheme: light)').matches) return 'light';
+    return 'dark';
   } catch {
-    // matchMedia not available
+    // matchMedia not available — default to light
   }
-  return 'dark';
+  return 'light';
 }
 
 /** Apply a resolved theme to the document root element. */
