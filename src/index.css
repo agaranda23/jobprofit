@@ -7229,11 +7229,12 @@ input[type=number] { -moz-appearance: textfield; }
   align-items: center;  /* price column centres vertically against the name+customer block — sits ~mid-height, never touching the top (was baseline, which pinned it level with the name's first line) */
   justify-content: space-between;
   gap: 12px;
-  /* Collision fence: reserve a gutter the full width of the absolute ⋯✕ strip
-     (44 + 4 gap + 44 = 92px) + buffer, so the price/chip's flex-end edge always
-     terminates LEFT of the corner icons in every price state. If the icon
-     tap-target sizes change, update this gutter in lockstep. */
-  padding-right: 96px;
+  /* Collision fence: reserve a gutter wider than the absolute ⋯✕ strip
+     (44 + 4 gap + 44 = 92px) so the price/chip's flex-end edge always
+     terminates LEFT of the corner icons in every price state, with a clear
+     ~28px breathing gap (was 96px → only ~12px, which read as "touching").
+     If the icon tap-target sizes change, update this gutter in lockstep. */
+  padding-right: 112px;
 }
 .jd-header-top-left {
   display: flex;
@@ -7524,6 +7525,9 @@ button.jd-money-chip:active { opacity: 0.75; }
   background: rgba(255, 255, 255, 0.1);  /* matches the ⋯ kebab disc — paired circular buttons in the corner */
   border: none;
   border-radius: 50%;        /* full disc, mirroring .jd-kebab-btn */
+  width: 44px;
+  height: 44px;              /* explicit square (global box-sizing:border-box) → a perfect circle, not an oval */
+  padding: 0;                /* override the base `button` 0.6em 1.2em — that horizontal padding widened the box to ~52px and ovalised the disc; the kebab escapes this because it sets padding:4px */
   color: var(--text-dim);
   font-size: var(--fs-subhead);
   cursor: pointer;
