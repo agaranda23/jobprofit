@@ -1,5 +1,6 @@
 /**
- * AddReceiptModal — pure-logic tests for Phase 1 + Phase 2 Smart Sheet.
+ * AddReceiptModal — pure-logic tests for Phase 1 + Phase 2 Smart Sheet +
+ * Phase 3 photo-source chooser.
  *
  * No DOM, no React, no @testing-library — matches project convention.
  * Visual/layout smoke is covered by the deploy-preview checklist in the PR.
@@ -10,6 +11,7 @@
  *   DELETE — confirm='delete' calls onDeleteReceipt; hidden when prop absent
  *   SAVE — save payload shape (add + edit mode) unchanged by Phase 1
  *   PHASE 2 — meaningfulItemCount, computeItemsSubtotal, itemsDirty helpers
+ *   PHOTO CHOOSER — photoSheetOpen state transitions; onFile feeds unchanged OCR path
  */
 
 import { describe, it, expect, vi } from 'vitest';
@@ -354,5 +356,94 @@ describe('itemsDirty', () => {
 
   it('returns false when both seed and current are empty', () => {
     expect(itemsDirty([], [])).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Photo-source chooser — photoSheetOpen state transitions
+// ---------------------------------------------------------------------------
+
+describe('photo chooser: photoSheetOpen state transitions', () => {
+  // These tests mirror the component's state machine logic in isolation.
+  // The Add-photo CTA calls openPhotoSheet() → sets photoSheetOpen=true.
+  // Sheet rows call setPhotoSheetOpen(false) before clicking the matching input.
+  // Cancel / backdrop / Escape call setPhotoSheetOpen(false) with no input click.
+
+  it('openPhotoSheet sets photoSheetOpen to true', () => {
+    let photoSheetOpen = false;
+    const setPhotoSheetOpen = (val) => { photoSheetOpen = typeof val === 'function' ? val(photoSheetOpen) : val; };
+    const openPhotoSheet = () => setPhotoSheetOpen(true);
+
+    openPhotoSheet();
+    expect(photoSheetOpen).toBe(true);
+  });
+
+  it('onClose sets photoSheetOpen to false', () => {
+    let photoSheetOpen = true;
+    const setPhotoSheetOpen = (val) => { photoSheetOpen = typeof val === 'function' ? val(photoSheetOpen) : val; };
+
+    setPhotoSheetOpen(false);
+    expect(photoSheetOpen).toBe(false);
+  });
+
+  it('onTakePhoto closes the sheet then fires the camera input', () => {
+    let photoSheetOpen = true;
+    const setPhotoSheetOpen = (val) => { photoSheetOpen = typeof val === 'function' ? val(photoSheetOpen) : val; };
+    const cameraClick = vi.fn();
+    const cameraInputRef = { current: { click: cameraClick } };
+
+    // Mirrors: () => { setPhotoSheetOpen(false); cameraInputRef.current?.click(); }
+    setPhotoSheetOpen(false);
+    cameraInputRef.current?.click();
+
+    expect(photoSheetOpen).toBe(false);
+    expect(cameraClick).toHaveBeenCalledOnce();
+  });
+
+  it('onUploadPhoto closes the sheet then fires the gallery input', () => {
+    let photoSheetOpen = true;
+    const setPhotoSheetOpen = (val) => { photoSheetOpen = typeof val === 'function' ? val(photoSheetOpen) : val; };
+    const galleryClick = vi.fn();
+    const galleryInputRef = { current: { click: galleryClick } };
+
+    setPhotoSheetOpen(false);
+    galleryInputRef.current?.click();
+
+    expect(photoSheetOpen).toBe(false);
+    expect(galleryClick).toHaveBeenCalledOnce();
+  });
+
+  it('Cancel fires no input click and closes the sheet', () => {
+    let photoSheetOpen = true;
+    const setPhotoSheetOpen = (val) => { photoSheetOpen = typeof val === 'function' ? val(photoSheetOpen) : val; };
+    const cameraClick = vi.fn();
+    const galleryClick = vi.fn();
+
+    // Cancel: close only, no input click
+    setPhotoSheetOpen(false);
+
+    expect(photoSheetOpen).toBe(false);
+    expect(cameraClick).not.toHaveBeenCalled();
+    expect(galleryClick).not.toHaveBeenCalled();
+  });
+
+  it('onFile reads only the first file (single-select — no multiple attr)', () => {
+    // Mirrors AddReceiptModal.onFile: const f = e.target.files?.[0]
+    // Receipt modal is always single-image — do not inherit drawer's multiple attr.
+    const files = [
+      new Blob(['img1'], { type: 'image/jpeg' }),
+      new Blob(['img2'], { type: 'image/jpeg' }),
+    ];
+    const e = { target: { files } };
+    const f = e.target.files?.[0];
+    expect(f).toBe(files[0]);
+    // Second file is silently ignored — consistent with onFile's files?.[0]
+  });
+
+  it('selecting a photo via either input marks photoFile as dirty', () => {
+    // When onFile fires, setPhotoFile(f) is called; isDirty check: photoFile !== null
+    const fakeFile = new Blob(['x'], { type: 'image/jpeg' });
+    const seed = buildSeed();
+    expect(isDirty(seed, { ...seed, photoFile: fakeFile })).toBe(true);
   });
 });

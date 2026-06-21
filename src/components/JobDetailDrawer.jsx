@@ -60,6 +60,7 @@ import {
 } from '../lib/visits';
 import StageTimeline from './StageTimeline';
 import { buildQuoteRecordMeta, buildInvoiceRecordMeta } from '../lib/documentRecord';
+import PhotoSourceSheet from './PhotoSourceSheet';
 // downloadQuotePDF/downloadInvoicePDF and isPro are consumed by DocumentsHub; no longer needed here.
 import DocumentsHub from './DocumentsHub';
 
@@ -2195,86 +2196,9 @@ function CardPaymentBlock({ job, token }) {
   );
 }
 
-// ── Photo source chooser sheet ────────────────────────────────────────────
-
-/**
- * PhotoSourceSheet — bottom action sheet that asks the user whether to take
- * a new photo or pick from their gallery.  Reuses .visit-editor-backdrop /
- * .visit-editor-sheet chrome so it matches the existing bottom-sheet look.
- *
- * Props:
- *   open            – boolean; controlled by parent
- *   onTakePhoto     – callback: close sheet then open camera input
- *   onUploadPhoto   – callback: close sheet then open gallery input
- *   onClose         – callback: close with no action
- *   triggerRef      – ref to the Add-photo button; focus returned on close
- */
-function PhotoSourceSheet({ open, onTakePhoto, onUploadPhoto, onClose, triggerRef }) {
-  const firstRowRef = React.useRef(null);
-
-  // Focus first row on open; return focus to trigger on close
-  React.useEffect(() => {
-    if (open) {
-      // rAF ensures the sheet is in the DOM before we focus
-      const id = requestAnimationFrame(() => { firstRowRef.current?.focus(); });
-      return () => cancelAnimationFrame(id);
-    } else {
-      triggerRef?.current?.focus();
-    }
-  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Escape closes the sheet
-  React.useEffect(() => {
-    if (!open) return;
-    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [open, onClose]);
-
-  if (!open) return null;
-
-  return (
-    <div
-      className="photo-source-backdrop"
-      role="dialog"
-      aria-modal="true"
-      aria-label="Add photo — choose source"
-      onClick={onClose}
-    >
-      <div
-        className="photo-source-sheet"
-        onClick={e => e.stopPropagation()}
-      >
-        <button
-          type="button"
-          ref={firstRowRef}
-          className="photo-source-row"
-          onClick={onTakePhoto}
-        >
-          <span className="photo-source-icon"><Icon name="camera" size={20} variant="muted" /></span>
-          Take photo
-        </button>
-        <button
-          type="button"
-          className="photo-source-row"
-          onClick={onUploadPhoto}
-        >
-          <span className="photo-source-icon"><Icon name="photos" size={20} variant="muted" /></span>
-          Upload from photos
-        </button>
-        <button
-          type="button"
-          className="photo-source-row photo-source-row--cancel"
-          onClick={onClose}
-        >
-          Cancel
-        </button>
-      </div>
-    </div>
-  );
-}
-
 // ── Main component ────────────────────────────────────────────────────────
+// PhotoSourceSheet is now a shared component in src/components/PhotoSourceSheet.jsx
+// imported at the top of this file — extracted as part of feat/receipt-photo-source-chooser.
 
 /**
  * JobDetailDrawer — bottom-sheet that slides up from the bottom of the screen.
