@@ -51,17 +51,17 @@ describe('resolveTheme', () => {
     expect(resolveTheme('system')).toBe('light');
   });
 
-  it('"system" falls back to "dark" when matchMedia throws', () => {
+  it('"system" falls back to "light" when matchMedia throws', () => {
     vi.stubGlobal('window', {
       matchMedia: () => { throw new Error('not supported'); },
     });
-    expect(resolveTheme('system')).toBe('dark');
+    expect(resolveTheme('system')).toBe('light');
   });
 
-  it('"system" falls back to "dark" when window is undefined (node/SSR)', () => {
+  it('"system" falls back to "light" when window is undefined (node/SSR)', () => {
     // In a pure Node environment window is not defined — the try/catch in
-    // resolveTheme catches the ReferenceError and returns 'dark'.
-    expect(resolveTheme('system')).toBe('dark');
+    // resolveTheme catches the ReferenceError and returns 'light'.
+    expect(resolveTheme('system')).toBe('light');
   });
 });
 
@@ -70,29 +70,37 @@ describe('resolveTheme', () => {
 describe('getStoredPref', () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it('returns "dark" when localStorage is unavailable (node)', () => {
-    // In Node there is no global localStorage — the function catches the error.
-    expect(getStoredPref()).toBe('dark');
+  it('returns "light" when localStorage is unavailable (node) — new-user default', () => {
+    // In Node there is no global localStorage — the function catches the error
+    // and returns the default, which is now 'light'.
+    expect(getStoredPref()).toBe('light');
   });
 
-  it('returns "dark" when localStorage has no entry', () => {
+  it('returns "light" when localStorage has no entry — fresh install default', () => {
+    // A brand-new user with no stored preference gets light.
     vi.stubGlobal('localStorage', { getItem: () => null, setItem: vi.fn() });
-    expect(getStoredPref()).toBe('dark');
+    expect(getStoredPref()).toBe('light');
   });
 
-  it('returns "light" when "light" is stored', () => {
+  it('returns "light" when "light" is stored — existing chooser unaffected', () => {
     vi.stubGlobal('localStorage', { getItem: () => 'light', setItem: vi.fn() });
     expect(getStoredPref()).toBe('light');
   });
 
-  it('returns "system" when "system" is stored', () => {
+  it('returns "dark" when "dark" is stored — existing chooser unaffected', () => {
+    // A user who explicitly picked dark keeps dark.
+    vi.stubGlobal('localStorage', { getItem: () => 'dark', setItem: vi.fn() });
+    expect(getStoredPref()).toBe('dark');
+  });
+
+  it('returns "system" when "system" is stored — existing chooser unaffected', () => {
     vi.stubGlobal('localStorage', { getItem: () => 'system', setItem: vi.fn() });
     expect(getStoredPref()).toBe('system');
   });
 
-  it('ignores an invalid stored value and falls back to "dark"', () => {
+  it('ignores an invalid stored value and falls back to "light"', () => {
     vi.stubGlobal('localStorage', { getItem: () => 'auto', setItem: vi.fn() });
-    expect(getStoredPref()).toBe('dark');
+    expect(getStoredPref()).toBe('light');
   });
 });
 
