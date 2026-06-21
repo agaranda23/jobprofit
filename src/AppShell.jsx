@@ -78,6 +78,7 @@ import { buildJobsCsv, downloadOrShareCsv, downloadOrShare } from './lib/exportC
 import { buildJobsPdf } from './lib/exportPdf.js';
 import { buildJobsXlsx } from './lib/exportXlsx.js';
 import ExportFormatSheet from './components/ExportFormatSheet.jsx';
+import AppErrorBoundary from './components/AppErrorBoundary.jsx';
 
 // ─── Feature flags ───────────────────────────────────────────────────────────
 // Slice-3 nav (Today / Jobs / Money / Settings) is the default for all users.
@@ -175,6 +176,13 @@ export default function AppShell() {
   // null = hidden; { job } = visible for that job.
   const [costSnackbar, setCostSnackbar] = useState(null);
   const costSnackbarTimerRef = useRef(null);
+  // Debounce timer for the realtime onChange → refreshFromCloud path.
+  // A burst of postgres_changes events (e.g. bulk offline sync flushes) would
+  // otherwise fire one full refetch per event.  2-second trailing debounce
+  // collapses the burst into a single fetch while keeping correctness: the
+  // latest cloud state is always fetched once the burst settles.
+  // NOT applied to initial load, onReconnect, or explicit user-triggered refreshes.
+  const realtimeDebounceRef = useRef(null);
   // Ref holding the most recent jobs array so the Realtime handler can compare
   // previous acceptedSignature state without a stale closure.
   const jobsRef = useRef([]);
@@ -578,17 +586,25 @@ export default function AppShell() {
       }
 
       // Refetch regardless of event type — keeps all state in sync.
-      await refreshFromCloud();
+      // Debounced: a burst of rapid changes (e.g. offline sync flush) collapses
+      // into a single fetch 2 s after the last event, preventing a refetch storm
+      // on flaky van connections.  The timer is cleaned up on unmount below.
+      clearTimeout(realtimeDebounceRef.current);
+      realtimeDebounceRef.current = setTimeout(() => { refreshFromCloud(); }, 2000);
     };
 
     const unsub = subscribeToJobs(
       userId,
       handleJobChange,
-      // onReconnect: immediate refetch to catch events missed during disconnect.
+      // onReconnect: immediate refetch (not debounced) to catch events missed
+      // during a disconnect.  We want this to fire promptly on reconnect.
       () => { refreshFromCloud(); }
     );
 
-    return () => { unsub(); };
+    return () => {
+      unsub();
+      clearTimeout(realtimeDebounceRef.current);
+    };
   }, [session, refreshFromCloud]);
 
   useEffect(() => {
@@ -1079,7 +1095,7 @@ export default function AppShell() {
   };
 
   return (
-    <>
+    <AppErrorBoundary variant="app">
       <ConsentBanner />
       {/* ── SLICE-3 NAV (Today / Jobs / Money / Settings) ───────────── */}
       {NAV_SLICE_3 && (
@@ -1134,22 +1150,24 @@ export default function AppShell() {
           )}
 
           {view === 'finance' && (
-            <FinanceScreen
-              jobs={jobs}
-              receipts={receipts}
-              session={session}
-              profile={profile}
-              // No avatar — Settings tab replaces the drawer in slice 3
-              // onMarkPaid removed: chase block deleted in Phase 1 Money redesign
-              onGoToJobs={() => navigate('work')}
-              onGoToSettings={(target) => {
-                navigate('settings');
-                if (target === 'overheads') setSettingsScrollTarget('overheads');
-              }}
-              onNavigateToCardPayments={() => { navigate('settings'); setSettingsSubView('card-payments'); }}
-              onProfileUpdate={handleProfileUpdate}
-              onExport={handleExportFromMoney}
-            />
+            <AppErrorBoundary variant="screen">
+              <FinanceScreen
+                jobs={jobs}
+                receipts={receipts}
+                session={session}
+                profile={profile}
+                // No avatar — Settings tab replaces the drawer in slice 3
+                // onMarkPaid removed: chase block deleted in Phase 1 Money redesign
+                onGoToJobs={() => navigate('work')}
+                onGoToSettings={(target) => {
+                  navigate('settings');
+                  if (target === 'overheads') setSettingsScrollTarget('overheads');
+                }}
+                onNavigateToCardPayments={() => { navigate('settings'); setSettingsSubView('card-payments'); }}
+                onProfileUpdate={handleProfileUpdate}
+                onExport={handleExportFromMoney}
+              />
+            </AppErrorBoundary>
           )}
 
           {view === 'settings' && settingsSubView === 'card-payments' && (
@@ -1264,18 +1282,20 @@ export default function AppShell() {
           )}
 
           {view === 'money' && (
-            <FinanceScreen
-              jobs={jobs}
-              receipts={receipts}
-              session={session}
-              profile={profile}
-              onAvatarClick={() => setDrawerOpen(true)}
-              // onMarkPaid removed: chase block deleted in Phase 1 Money redesign
-              onGoToJobs={() => navigate('jobs')}
-              // onGoToSettings omitted: new-nav has no dedicated settings tab
-              onProfileUpdate={handleProfileUpdate}
-              onExport={handleExportFromMoney}
-            />
+            <AppErrorBoundary variant="screen">
+              <FinanceScreen
+                jobs={jobs}
+                receipts={receipts}
+                session={session}
+                profile={profile}
+                onAvatarClick={() => setDrawerOpen(true)}
+                // onMarkPaid removed: chase block deleted in Phase 1 Money redesign
+                onGoToJobs={() => navigate('jobs')}
+                // onGoToSettings omitted: new-nav has no dedicated settings tab
+                onProfileUpdate={handleProfileUpdate}
+                onExport={handleExportFromMoney}
+              />
+            </AppErrorBoundary>
           )}
 
           <BottomNav
@@ -1558,6 +1578,6 @@ export default function AppShell() {
         onPick={handleMoneyExportFormatPick}
         onClose={() => setMoneyExportSheetOpen(false)}
       />
-    </>
+    </AppErrorBoundary>
   );
 }
