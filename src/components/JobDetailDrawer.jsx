@@ -3543,46 +3543,70 @@ export default function JobDetailDrawer({
           </div>
 
           {/* Action row — Call · Text · WhatsApp · Map.
-              Phone gates Call/Text/WhatsApp (comms group); Map always renders,
-              ghosting to a '+ add address' nudge when no address is set.
-              Row is omitted entirely when no phone is present. */}
+              All four ALWAYS render. When the underlying detail is missing the
+              button opens the relevant entry modal instead of acting:
+              Call/Text/WhatsApp → phone modal, Map → address modal — turning the
+              row into a discovery surface for completing customer details. */}
           {(() => {
             const phone = resolvePhone(job);
             const address = job.address || '';
-            if (!phone) return null;   // Map always renders inside; comms gate on phone
+            const hasPhone = !!phone;
+            const hasAddress = !!address;
             const smsBody = firstName ? `Hi ${firstName}, ` : '';
             const waBody = firstName ? `Hi ${firstName}, ` : '';
-            const smsLink = `sms:${phone}?body=${encodeURIComponent(smsBody)}`;
-            const waLink = phone ? buildWhatsAppLink({ phone, message: waBody }) : '';
+            const smsLink = hasPhone ? `sms:${phone}?body=${encodeURIComponent(smsBody)}` : '';
+            const waLink = hasPhone ? buildWhatsAppLink({ phone, message: waBody }) : '';
+
+            // Glyph + label for each action, defined once so the live <a>/<button>
+            // and the "needs details" fallback <button> can never drift apart.
+            const callInner = (<><svg width="15" height="15" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d="M4 3l2-1 2 3-1.5 1.5a8 8 0 0 0 4 4L12 9l3 2-1 2a2 2 0 0 1-2 1A11 11 0 0 1 3 5a2 2 0 0 1 1-2z"/></svg><span>Call</span></>);
+            const textInner = (<><svg width="15" height="15" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d="M3 3h12a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H5l-3 3V4a1 1 0 0 1 1-1z"/></svg><span>Text</span></>);
+            const waInner = (<><svg width="15" height="15" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d="M9 1.5A7.5 7.5 0 0 0 2 9a7.47 7.47 0 0 0 1.1 3.9L1.5 16.5l3.7-1.55A7.5 7.5 0 1 0 9 1.5z"/><path d="M6.5 6.3c.1-.2.4-.6.8-.6.35 0 .7.05.8.6l.3 1.2c.05.2-.05.45-.2.6l-.4.4a4.2 4.2 0 0 0 1.9 1.9l.4-.4c.15-.15.4-.25.6-.2l1.2.3c.55.1.6.45.6.8 0 .8-.85 1.4-1.3 1.4-1.8 0-5.4-3.4-5.4-5.3 0-.45.4-1.3 1.2-1.7z"/></svg><span>WhatsApp</span></>);
+            const mapInner = (<><svg width="15" height="15" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true"><path d="M9 1C6.24 1 4 3.24 4 6c0 4.25 5 11 5 11s5-6.75 5-11c0-2.76-2.24-5-5-5z"/><circle cx="9" cy="6" r="1.8" fill="currentColor" stroke="none"/></svg><span>Map</span></>);
+
+            // Comms tapped with no number on file → open the phone entry modal
+            // (mirrors Map → address below). Telemetry flags the empty tap.
+            const promptPhone = (key) => () => {
+              logTelemetry(`drawer_action_${key}`, { hasData: false, source: 'drawer' });
+              setEditingField('phone');
+            };
+
             return (
               <div className="jd-header-action-row">
-                {phone && (
+                {/* Call — dials when a number exists, else opens the phone modal */}
+                {hasPhone ? (
                   <a
                     href={`tel:${phone}`}
                     className="jt-action-btn"
                     aria-label={`Call ${firstName || 'customer'}`}
                     onClick={() => logTelemetry('drawer_action_call', { source: 'drawer' })}
-                  >
-                    <svg width="15" height="15" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
-                      <path d="M4 3l2-1 2 3-1.5 1.5a8 8 0 0 0 4 4L12 9l3 2-1 2a2 2 0 0 1-2 1A11 11 0 0 1 3 5a2 2 0 0 1 1-2z"/>
-                    </svg>
-                    <span>Call</span>
-                  </a>
+                  >{callInner}</a>
+                ) : (
+                  <button
+                    type="button"
+                    className="jt-action-btn"
+                    aria-label="Add a phone number to call"
+                    onClick={promptPhone('call')}
+                  >{callInner}</button>
                 )}
-                {phone && (
+                {/* Text */}
+                {hasPhone ? (
                   <a
                     href={smsLink}
                     className="jt-action-btn"
                     aria-label={`Text ${firstName || 'customer'}`}
                     onClick={() => logTelemetry('drawer_action_text', { source: 'drawer' })}
-                  >
-                    <svg width="15" height="15" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
-                      <path d="M3 3h12a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H5l-3 3V4a1 1 0 0 1 1-1z"/>
-                    </svg>
-                    <span>Text</span>
-                  </a>
+                  >{textInner}</a>
+                ) : (
+                  <button
+                    type="button"
+                    className="jt-action-btn"
+                    aria-label="Add a phone number to text"
+                    onClick={promptPhone('text')}
+                  >{textInner}</button>
                 )}
-                {phone && (
+                {/* WhatsApp */}
+                {hasPhone ? (
                   <button
                     type="button"
                     className="jt-action-btn"
@@ -3591,38 +3615,29 @@ export default function JobDetailDrawer({
                       logTelemetry('drawer_action_whatsapp', { source: 'drawer' });
                       window.open(waLink, '_blank', 'noopener');
                     }}
-                  >
-                    <svg width="15" height="15" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
-                      <path d="M9 1.5A7.5 7.5 0 0 0 2 9a7.47 7.47 0 0 0 1.1 3.9L1.5 16.5l3.7-1.55A7.5 7.5 0 1 0 9 1.5z"/>
-                      <path d="M6.5 6.3c.1-.2.4-.6.8-.6.35 0 .7.05.8.6l.3 1.2c.05.2-.05.45-.2.6l-.4.4a4.2 4.2 0 0 0 1.9 1.9l.4-.4c.15-.15.4-.25.6-.2l1.2.3c.55.1.6.45.6.8 0 .8-.85 1.4-1.3 1.4-1.8 0-5.4-3.4-5.4-5.3 0-.45.4-1.3 1.2-1.7z"/>
-                    </svg>
-                    <span>WhatsApp</span>
-                  </button>
+                  >{waInner}</button>
+                ) : (
+                  <button
+                    type="button"
+                    className="jt-action-btn"
+                    aria-label="Add a phone number to message on WhatsApp"
+                    onClick={promptPhone('whatsapp')}
+                  >{waInner}</button>
                 )}
-                {(() => {
-                  const hasAddress = !!address;
-                  return (
-                    <button
-                      type="button"
-                      className="jt-action-btn"
-                      aria-label={hasAddress ? `Navigate to ${address}` : 'Add job address'}
-                      onClick={() => {
-                        logTelemetry('drawer_action_map', { hasData: hasAddress, source: 'drawer' });
-                        if (hasAddress) {
-                          window.open(buildMapsUrl(address), '_blank', 'noopener');
-                        } else {
-                          setEditingField('address');
-                        }
-                      }}
-                    >
-                      <svg width="15" height="15" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
-                        <path d="M9 1C6.24 1 4 3.24 4 6c0 4.25 5 11 5 11s5-6.75 5-11c0-2.76-2.24-5-5-5z"/>
-                        <circle cx="9" cy="6" r="1.8" fill="currentColor" stroke="none"/>
-                      </svg>
-                      <span>Map</span>
-                    </button>
-                  );
-                })()}
+                {/* Map — navigates when an address exists, else opens the address modal */}
+                <button
+                  type="button"
+                  className="jt-action-btn"
+                  aria-label={hasAddress ? `Navigate to ${address}` : 'Add job address'}
+                  onClick={() => {
+                    logTelemetry('drawer_action_map', { hasData: hasAddress, source: 'drawer' });
+                    if (hasAddress) {
+                      window.open(buildMapsUrl(address), '_blank', 'noopener');
+                    } else {
+                      setEditingField('address');
+                    }
+                  }}
+                >{mapInner}</button>
               </div>
             );
           })()}
