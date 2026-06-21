@@ -2,6 +2,56 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { logTelemetry } from '../lib/telemetry';
 
+/**
+ * Reads OAuth error params from the URL hash or query string and strips them.
+ *
+ * Supabase may return the error in either location depending on the OAuth flow:
+ *   - Hash fragment: /#error=access_denied&error_description=...
+ *   - Query string:  /?error=access_denied&error_description=...
+ *
+ * Returns a human-friendly message string, or null when there is no error.
+ * Cleans the URL so the error params don't persist on refresh.
+ */
+function consumeOAuthError() {
+  // Try hash first (Supabase's default implicit flow), then query string.
+  const rawHash = window.location.hash.replace(/^#\/?/, '');
+  const hashParams = new URLSearchParams(rawHash);
+  const queryParams = new URLSearchParams(window.location.search);
+
+  const error = hashParams.get('error') || queryParams.get('error');
+  if (!error) return null;
+
+  const description =
+    hashParams.get('error_description') ||
+    queryParams.get('error_description') ||
+    '';
+
+  // Strip the error params from the URL without adding a history entry.
+  // Keep any non-error hash fragment (e.g. #/today view).
+  const cleanHash = window.location.hash.replace(
+    /[#&]?error=[^&]*(&error_description=[^&]*)?/,
+    ''
+  ).replace(/^#&/, '#').replace(/^#$/, '');
+  const cleanSearch = window.location.search.replace(
+    /[?&]?error=[^&]*(&error_description=[^&]*)?/,
+    ''
+  ).replace(/^\?$/, '');
+  window.history.replaceState(
+    null,
+    '',
+    window.location.pathname + cleanSearch + cleanHash
+  );
+
+  // access_denied = user clicked "Cancel" on the Google consent screen.
+  if (error === 'access_denied') {
+    return "Google sign-in was cancelled or didn't complete — try again, or use email below.";
+  }
+  // Anything else: show the raw description if present, otherwise a generic message.
+  return description
+    ? `Sign-in error: ${decodeURIComponent(description.replace(/\+/g, ' '))}`
+    : 'Google sign-in failed — try again, or use email below.';
+}
+
 export default function AuthScreen() {
   const [email, setEmail] = useState('');
   const [sent, setSent] = useState(false);
@@ -10,8 +60,14 @@ export default function AuthScreen() {
   const [error, setError] = useState('');
 
   // Funnel step 1: auth wall viewed.
+  // Also check for a returning OAuth error (e.g. user cancelled Google sign-in).
   useEffect(() => {
     logTelemetry('auth_screen_viewed');
+    const oauthError = consumeOAuthError();
+    if (oauthError) {
+      setError(oauthError);
+      logTelemetry('signin_google_callback_error', { raw: oauthError });
+    }
   }, []);
 
   const signInWithGoogle = async () => {
