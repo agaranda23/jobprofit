@@ -25,7 +25,8 @@ import {
 import { getReceiptPDFBlob, downloadReceiptPDF } from '../lib/receiptPDF.js';
 import { buildWhatsAppLink } from '../lib/invoiceMessage.js';
 import { logTelemetry } from '../lib/telemetry.js';
-import { generatePublicAccessToken, buildPublicReceiptUrl } from '../lib/publicReceiptToken.js';
+import { buildPublicReceiptUrl } from '../lib/publicReceiptToken.js';
+import { reissuePublicToken } from '../lib/store.js';
 import { resolveBusinessIdentity } from '../lib/resolveBusinessIdentity.js';
 import { isPro } from '../lib/plan.js';
 
@@ -123,9 +124,12 @@ export default function ReceiptModal({ job, biz, profile = null, onUpdate, onClo
 
   const phone = job?.customerPhone || job?.phone || job?.mobile || '';
 
-  // Mint/reuse the publicAccessToken so the /r/<token> URL is stable across re-sends.
-  // Same pattern as SendInvoiceModal's pendingToken — one token per job, lazily minted.
-  const token = job?.publicAccessToken || generatePublicAccessToken();
+  // Resolve the token to embed in the /r/ receipt URL.
+  // reissuePublicToken handles the revoke → re-share case: when the job's previous
+  // link was revoked, a fresh UUID is minted (making the old URL permanently dead —
+  // old token no longer matches any DB row) and wasRevoked is recorded so persistToken
+  // can clear publicTokenRevokedAt in the same onUpdate write.
+  const { token, wasRevoked: tokenWasRevoked } = reissuePublicToken(job);
   const hostedReceiptUrl = buildPublicReceiptUrl(token);
 
   // Merge biz + profile so every field saved in Settings appears on the receipt.
@@ -134,11 +138,16 @@ export default function ReceiptModal({ job, biz, profile = null, onUpdate, onClo
 
   const message = buildReceiptWhatsAppMessage({ job, biz: effectiveBiz, hostedReceiptUrl });
 
-  // Persist the publicAccessToken on the job when a new one was minted so the
-  // /r/<token> page can resolve the job. Mirrors SendInvoiceModal's onUpdate patch.
+  // Persist the publicAccessToken on the job so the /r/<token> page can resolve the job.
+  // When re-sharing after a revoke, also clears publicTokenRevokedAt so the new link
+  // is not blocked by the Netlify functions' revoke check.
   function persistToken() {
-    if (!job?.publicAccessToken && onUpdate) {
-      onUpdate({ ...job, publicAccessToken: token });
+    if (onUpdate && (tokenWasRevoked || !job?.publicAccessToken)) {
+      onUpdate({
+        ...job,
+        publicAccessToken: token,
+        ...(tokenWasRevoked ? { publicTokenRevokedAt: undefined } : {}),
+      });
     }
   }
 

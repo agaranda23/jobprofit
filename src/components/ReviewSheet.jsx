@@ -39,10 +39,9 @@ import { buildInvoiceWhatsAppMessage, buildWhatsAppLink } from '../lib/invoiceMe
 import { buildQuoteWhatsAppMessage } from '../lib/quoteMessage';
 import { nextInvoiceNumber } from '../lib/invoiceNumber';
 import {
-  generatePublicAccessToken,
   buildPublicQuoteUrl,
 } from '../lib/publicQuoteToken';
-import { persistPublicToken } from '../lib/store';
+import { persistPublicToken, reissuePublicToken } from '../lib/store';
 import { extractJobMeta, writeJobMeta } from '../lib/jobMeta';
 import { logTelemetry } from '../lib/telemetry';
 import { getJobProfit } from '../lib/cashflow';
@@ -426,10 +425,10 @@ export default function ReviewSheet({
     }
 
     setBusy(true);
-    let token = job.publicAccessToken;
-    if (!token) {
-      token = generatePublicAccessToken();
-    }
+    // When the job's previous link was revoked, mint a fresh UUID so the new link
+    // works and the old revoked URL stays dead (old token no longer matches any DB row).
+    // When not revoked, reuse the existing token to keep any bookmarked links stable.
+    const { token, wasRevoked } = reissuePublicToken(job);
 
     // ── Step 1: persist the token to cloud BEFORE producing the shareable URL ──
     // Build the full meta snapshot that includes the new token and stage fields so
@@ -448,6 +447,9 @@ export default function ReviewSheet({
       quoteStatus: 'sent',
       quoteSentAt: new Date().toISOString(),
       publicAccessToken: token,
+      // Clear the revoke flag when we minted a fresh token — without this the
+      // Netlify functions would still return 404 for the new link.
+      ...(wasRevoked ? { publicTokenRevokedAt: undefined } : {}),
       quoteDraft: false,
       deposit_percent:       depositPercent > 0 ? depositPercent : 0,
       deposit_amount_pence:  lockedDepositPence > 0 ? lockedDepositPence : null,

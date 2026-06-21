@@ -56,6 +56,11 @@ vi.mock('../../lib/store', () => ({
   deleteJobPhoto: vi.fn().mockResolvedValue(null),
   deleteJobFromCloud: vi.fn().mockResolvedValue(null),
   fetchPublicJob: vi.fn().mockResolvedValue({ data: null, error: 'not found' }),
+  persistPublicToken: vi.fn().mockResolvedValue({ ok: true }),
+  reissuePublicToken: vi.fn((job) => ({
+    token: job?.publicAccessToken || 'mock-token-uuid',
+    wasRevoked: false,
+  })),
 }));
 
 vi.mock('../../lib/telemetry', () => ({
