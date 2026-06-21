@@ -2055,33 +2055,40 @@ describe('CustomerCard — WhatsApp prefill is neutral greeting (not the invoice
   });
 });
 
-// ── Header action-row visibility gate (PRD 2026-06-14, updated 2026-06-15) ────
+// ── Header action-row — always-render + green-when-filled (PRD 2026-06-21) ─────
 //
-// Map ALWAYS renders full-colour (no ghost class) when phone is present.
-// Without an address, Map click routes to setEditingField('address') instead of
-// opening maps — but the button looks identical to Call/Text/WhatsApp either way.
-// Call/Text/WhatsApp are gated on phone. Row returns null when no phone.
+// The row and all FOUR buttons (Call · Text · WhatsApp · Map) always render.
+// A button is "live" (green: plain .jt-action-btn → border + label + svg tint to
+// var(--accent)) when its backing detail exists; otherwise it carries the class
+// .jt-action-btn--missing (neutral full-white) and a tap opens the entry modal:
+//   Call/Text/WhatsApp → phone editor   ·   Map → address editor
+// Comms gate on phone; Map gates on address (independently — a mixed row is valid).
+// Mirrors the JSX (<a>/<button> swap + the --missing classname) and the CSS in
+// index.css. DOM integration is verified on the deploy preview; here we mirror the
+// class/route logic only.
 
 function headerActionRowState(job) {
   const phone = job.customerPhone || job.phone || job.mobile || job.whatsapp || '';
   const address = job.address || '';
-  // Row is omitted entirely when no phone
-  const rowVisible = !!phone;
-  const showPhoneButtons = !!phone;
-  // Map always renders when row is visible — no ghost class regardless of address
-  const mapAlwaysRenders = !!phone;
-  const mapHasAddress = !!address;
-  // mapIsGhost: internal routing flag only — click routes to address editor when true.
-  // The CSS class jt-action-btn--missing is NOT applied (founder override 2026-06-15).
-  const mapIsGhost = !!phone && !address;
-  const mapGhostClass = '';   // always empty — Map is full-colour regardless of address
+  const hasPhone = !!phone;
+  const hasAddress = !!address;
+  // Row + all four buttons always render now (the old `if (!phone) return null`
+  // gate was removed in PRD 2026-06-20 "always render").
+  const rowVisible = true;
+  // Empty-state buttons carry the --missing class (neutral); live ones don't (green).
+  const commsGhostClass = hasPhone ? '' : ' jt-action-btn--missing';
+  const mapGhostClass = hasAddress ? '' : ' jt-action-btn--missing';
+  // A missing-detail tap routes to the relevant editor instead of acting.
+  const commsRoutesToPhoneEditor = !hasPhone;
+  const mapRoutesToAddressEditor = !hasAddress;
   return {
     rowVisible,
-    showPhoneButtons,
-    mapAlwaysRenders,
-    mapHasAddress,
-    mapIsGhost,
+    hasPhone,
+    hasAddress,
+    commsGhostClass,
     mapGhostClass,
+    commsRoutesToPhoneEditor,
+    mapRoutesToAddressEditor,
   };
 }
 
@@ -2092,83 +2099,60 @@ function buildSmsLink(phone, firstName) {
   return `sms:${phone}?body=${encodeURIComponent(body)}`;
 }
 
-describe('Header action-row — render gate', () => {
-  it('shows all three phone buttons when phone is present', () => {
-    const { rowVisible, showPhoneButtons } = headerActionRowState({ customerPhone: '07700900000' });
+describe('Header action-row — always renders, green when the detail is filled', () => {
+  it('row + all four buttons render even with no details (all neutral --missing)', () => {
+    const { rowVisible, commsGhostClass, mapGhostClass } = headerActionRowState({ customer: 'Alice' });
     expect(rowVisible).toBe(true);
-    expect(showPhoneButtons).toBe(true);
+    expect(commsGhostClass).toBe(' jt-action-btn--missing');
+    expect(mapGhostClass).toBe(' jt-action-btn--missing');
   });
 
-  it('hides phone buttons when no phone field is set', () => {
-    const { showPhoneButtons } = headerActionRowState({ address: '14 Elm Road' });
-    expect(showPhoneButtons).toBe(false);
+  it('Call/Text/WhatsApp are live (green, no --missing) when phone is present', () => {
+    const { commsGhostClass, commsRoutesToPhoneEditor } = headerActionRowState({ customerPhone: '07700900000' });
+    expect(commsGhostClass).toBe('');
+    expect(commsRoutesToPhoneEditor).toBe(false);
   });
 
-  it('Map always renders full-colour when phone is present and address exists', () => {
-    const { mapAlwaysRenders, mapHasAddress, mapIsGhost, mapGhostClass } = headerActionRowState({ customerPhone: '07700900000', address: '14 Elm Road' });
-    expect(mapAlwaysRenders).toBe(true);
-    expect(mapHasAddress).toBe(true);
-    expect(mapIsGhost).toBe(false);
+  it('Call/Text/WhatsApp carry --missing and route to the phone editor when no phone', () => {
+    const { commsGhostClass, commsRoutesToPhoneEditor } = headerActionRowState({ address: '14 Elm Road' });
+    expect(commsGhostClass).toBe(' jt-action-btn--missing');
+    expect(commsRoutesToPhoneEditor).toBe(true);
+  });
+
+  it('Map is live (green, no --missing) when address is present', () => {
+    const { mapGhostClass, mapRoutesToAddressEditor } = headerActionRowState({ address: '14 Elm Road' });
+    expect(mapGhostClass).toBe('');
+    expect(mapRoutesToAddressEditor).toBe(false);
+  });
+
+  it('Map carries --missing and routes to the address editor when no address', () => {
+    const { mapGhostClass, mapRoutesToAddressEditor } = headerActionRowState({ customerPhone: '07700900000' });
+    expect(mapGhostClass).toBe(' jt-action-btn--missing');
+    expect(mapRoutesToAddressEditor).toBe(true);
+  });
+
+  it('mixed: phone present but no address → comms green, Map --missing', () => {
+    const { commsGhostClass, mapGhostClass } = headerActionRowState({ customerPhone: '07700900000' });
+    expect(commsGhostClass).toBe('');
+    expect(mapGhostClass).toBe(' jt-action-btn--missing');
+  });
+
+  it('fully populated → all four buttons green (no --missing anywhere)', () => {
+    const { commsGhostClass, mapGhostClass } = headerActionRowState({ customerPhone: '07700900000', address: '14 Elm Road' });
+    expect(commsGhostClass).toBe('');
     expect(mapGhostClass).toBe('');
   });
 
-  it('Map renders full-colour (no ghost class) when phone present but no address', () => {
-    const { mapAlwaysRenders, mapHasAddress, mapIsGhost, mapGhostClass } = headerActionRowState({ customerPhone: '07700900000' });
-    expect(mapAlwaysRenders).toBe(true);
-    expect(mapHasAddress).toBe(false);
-    // mapIsGhost drives click routing only — button appearance is unchanged
-    expect(mapIsGhost).toBe(true);
-    expect(mapGhostClass).toBe('');
+  it('uses job.mobile as a phone fallback (comms go green)', () => {
+    const { hasPhone, commsGhostClass } = headerActionRowState({ mobile: '07700900002' });
+    expect(hasPhone).toBe(true);
+    expect(commsGhostClass).toBe('');
   });
 
-  it('Map with no address routes to address editor (setEditingField called with address)', () => {
-    // Verify the branch logic: no address → editor redirect, not maps open
-    const { mapIsGhost, mapGhostClass } = headerActionRowState({ phone: '07700900001' });
-    expect(mapIsGhost).toBe(true);
-    expect(mapGhostClass).toBe('');
-    // The click handler calls setEditingField('address') when !hasAddress;
-    // appearance is full-colour. DOM integration tested in the deploy preview.
-  });
-
-  it('hides the entire row when no phone is present (address-only job)', () => {
-    const { rowVisible } = headerActionRowState({ address: '1 High St' });
-    expect(rowVisible).toBe(false);
-  });
-
-  it('hides the entire row when neither phone nor address is present', () => {
-    const { rowVisible } = headerActionRowState({ customer: 'Alice' });
-    expect(rowVisible).toBe(false);
-  });
-
-  it('shows row when only phone is present (Map full-colour, routes to address editor)', () => {
-    const { rowVisible, showPhoneButtons, mapAlwaysRenders, mapIsGhost, mapGhostClass } = headerActionRowState({ phone: '07700900001' });
-    expect(rowVisible).toBe(true);
-    expect(showPhoneButtons).toBe(true);
-    expect(mapAlwaysRenders).toBe(true);
-    expect(mapIsGhost).toBe(true);
-    expect(mapGhostClass).toBe('');
-  });
-
-  it('uses job.mobile as phone fallback', () => {
-    const { showPhoneButtons } = headerActionRowState({ mobile: '07700900002' });
-    expect(showPhoneButtons).toBe(true);
-  });
-
-  it('uses job.whatsapp as last-resort phone fallback', () => {
-    const { showPhoneButtons } = headerActionRowState({ whatsapp: '+447700900003' });
-    expect(showPhoneButtons).toBe(true);
-  });
-
-  it('shows all four buttons when both phone and address are present (Map full-colour)', () => {
-    const { rowVisible, showPhoneButtons, mapAlwaysRenders, mapIsGhost, mapGhostClass } = headerActionRowState({
-      customerPhone: '07700900000',
-      address: '14 Elm Road',
-    });
-    expect(rowVisible).toBe(true);
-    expect(showPhoneButtons).toBe(true);
-    expect(mapAlwaysRenders).toBe(true);
-    expect(mapIsGhost).toBe(false);
-    expect(mapGhostClass).toBe('');
+  it('uses job.whatsapp as a last-resort phone fallback (comms go green)', () => {
+    const { hasPhone, commsGhostClass } = headerActionRowState({ whatsapp: '+447700900003' });
+    expect(hasPhone).toBe(true);
+    expect(commsGhostClass).toBe('');
   });
 });
 

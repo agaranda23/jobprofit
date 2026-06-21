@@ -7452,7 +7452,21 @@ input[type=number] { -moz-appearance: textfield; }
   flex: 1 1 0;
   width: auto;
   min-width: 0;
-  color: var(--text);  /* outdoor legibility — full-contrast text, not --text-dim */
+  /* Detail present → go green: outline + label + svg (svg uses currentColor),
+     matching the tile .jt-foot pattern and the primary "Send quote" CTA's
+     var(--accent). Fill stays --surface-2 (dark) — green outline, not green fill.
+     The no-data state resets to the neutral white look just below. */
+  border-color: var(--accent);
+  color: var(--accent);
+}
+/* No detail saved yet → reproduce this header's CURRENT look exactly: full-white
+   label+svg on a neutral --border outline, so green reads as "ready to use".
+   NB: deliberately var(--text), NOT the tile's var(--text-dim) — the header rule
+   above already used --text ("full-contrast, outdoor legibility"); matching it
+   keeps the empty state pixel-identical to before. Do not "align" this to --text-dim. */
+.jd-header-action-row .jt-action-btn--missing {
+  border-color: var(--border);
+  color: var(--text);
 }
 .jd-header-action-row .jt-action-btn span {
   white-space: nowrap;
