@@ -2080,6 +2080,14 @@ body {
   gap: 10px;
 }
 .arm-confirm__actions > button { flex: 1; }
+/* Discard trigger (discard-confirm) — de-escalated from filled red. Losing
+   unsaved edits is less severe than deleting a saved receipt, so this is red
+   text on a secondary button (matches the footer Delete trigger); filled-red
+   stays reserved for permanent deletion. No flex override here — it shares the
+   row evenly with "Keep editing" via .arm-confirm__actions > button. */
+.arm-confirm__discard {
+  color: var(--danger) !important; /* theme token — correct in light + dark */
+}
 
 /* Filled-red destructive button — used ONLY in the final confirm step
    (one tap from destruction; the trigger is text-only). */

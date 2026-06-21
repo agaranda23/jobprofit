@@ -208,7 +208,7 @@ export default function AddReceiptModal({
             </button>
             <button
               type="button"
-              className="btn-danger-filled"
+              className="btn-secondary arm-confirm__discard"
               onClick={onClose}
             >
               Discard
