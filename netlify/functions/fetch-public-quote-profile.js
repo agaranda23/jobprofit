@@ -92,7 +92,7 @@ export const handler = async function (event) {
   try {
     const { data, error } = await adminClient
       .from('jobs')
-      .select('id, user_id')
+      .select('id, user_id, meta')
       .eq('meta->>publicAccessToken', token)
       .single();
 
@@ -103,6 +103,12 @@ export const handler = async function (event) {
   } catch (err) {
     console.error('fetch-public-quote-profile: job lookup threw', err?.message);
     return json(502, { error: 'Could not load quote — please try again' });
+  }
+
+  // ── 3b. Revoke check ─────────────────────────────────────────────────────────
+  const jobMeta = (job.meta && typeof job.meta === 'object') ? job.meta : {};
+  if (jobMeta.publicTokenRevokedAt) {
+    return json(404, { error: 'Quote not found. The link may be invalid or the quote has been removed.' });
   }
 
   // ── 4. Fetch the trader's profile ─────────────────────────────────────────────

@@ -11409,6 +11409,9 @@ button.jd-money-chip:active { opacity: 0.75; }
   padding-top: 8px;
   margin-top: 2px;
 }
+.jd-kebab-item--danger {
+  color: #c0392b;
+}
 
 /* ── Bug #2 fix: replace overflow:hidden with a deterministic bottom boundary
    overflow:hidden was clipping the ⋯ kebab dropdown (position:absolute, opens

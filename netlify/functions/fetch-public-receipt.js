@@ -78,7 +78,7 @@ export const handler = async function (event) {
   try {
     const { data, error } = await adminClient
       .from('jobs')
-      .select('id, user_id')
+      .select('id, user_id, meta')
       .eq('meta->>publicAccessToken', token)
       .single();
 
@@ -89,6 +89,12 @@ export const handler = async function (event) {
   } catch (err) {
     console.error('fetch-public-receipt: job lookup threw', err?.message);
     return json(502, { error: 'Could not load receipt — please try again' });
+  }
+
+  // Revoke check — 404 beats 500 when the trader killed the link.
+  const jobMeta = (job.meta && typeof job.meta === 'object') ? job.meta : {};
+  if (jobMeta.publicTokenRevokedAt) {
+    return json(404, { error: 'Receipt not found. The link may be invalid or the receipt has been removed.' });
   }
 
   // Fetch the trader's profile.
