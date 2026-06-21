@@ -240,6 +240,56 @@ describe('parseJobFromSpeech — regex fallback (fetch fails)', () => {
   });
 });
 
+// ── regexAmount — £-prefix wins over a leading count word (fix/robustness-hardening) ──
+//
+// Bug: "for 3 people £380 cash" previously matched the FIRST bare number (3)
+// because the regex had no preference for £-prefixed values.
+// Fix: £-prefixed numbers take priority; bare numbers fall back to last match.
+
+describe('parseJobFromSpeech — regex fallback: £ prefix wins over bare count words', () => {
+  afterEach(() => { vi.restoreAllMocks(); });
+
+  it('"for 3 people £380 cash" extracts 380 not 3', async () => {
+    global.fetch = mockFetchFailure();
+    const result = await parseJobFromSpeech('for 3 people £380 cash');
+    expect(result.amount).toBe(380);
+    expect(result.paymentType).toBe('cash');
+  });
+
+  it('"£1.2k" extracts 1200 (k-multiplier on £-prefixed)', async () => {
+    global.fetch = mockFetchFailure();
+    const result = await parseJobFromSpeech('Boiler service £1.2k');
+    expect(result.amount).toBe(1200);
+  });
+
+  it('"plain 380" with no £ sign still extracts 380', async () => {
+    global.fetch = mockFetchFailure();
+    const result = await parseJobFromSpeech('Plastering 380');
+    expect(result.amount).toBe(380);
+  });
+
+  it('"200 quid" extracts 200 via bare-number fallback', async () => {
+    global.fetch = mockFetchFailure();
+    const result = await parseJobFromSpeech('Fence repair 200 quid');
+    expect(result.amount).toBe(200);
+    expect(result.paymentType).toBeNull();
+  });
+
+  it('takes the LAST £-amount when multiple are present', async () => {
+    global.fetch = mockFetchFailure();
+    // e.g. "was £400, now £350" — take the last one
+    const result = await parseJobFromSpeech('was £400 now £350 cash');
+    expect(result.amount).toBe(350);
+  });
+
+  it('takes the LAST bare number when no £ sign present', async () => {
+    global.fetch = mockFetchFailure();
+    // "2 rooms 450" — 450 is the price, 2 is a count
+    const result = await parseJobFromSpeech('2 rooms 450');
+    expect(result.amount).toBe(450);
+  });
+});
+
 // ── VOICE_LANGS list coverage ─────────────────────────────────────────────────
 // These tests lock in the expected locale list so accidental deletions are caught.
 // The list is duplicated here intentionally — the test is the contract.

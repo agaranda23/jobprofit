@@ -102,10 +102,25 @@ function normaliseArabicNumerals(text) {
 
 function regexAmount(text) {
   const t = normaliseArabicNumerals(text);
-  const m = t.match(/£?\s*([\d,]+(?:\.\d+)?)\s*(k|pounds?|quid)?/i);
-  if (!m) return null;
-  let n = parseFloat(m[1].replace(/,/g, ''));
-  if (m[2] && /^k$/i.test(m[2])) n *= 1000;
+
+  // Prefer £-prefixed amounts — they are unambiguous.
+  // Take the LAST match so "for 3 people £380" picks 380 not 3.
+  const poundMatches = [...t.matchAll(/£\s*([\d,]+(?:\.\d+)?)\s*(k|pounds?|quid)?/gi)];
+  if (poundMatches.length > 0) {
+    const last = poundMatches[poundMatches.length - 1];
+    let n = parseFloat(last[1].replace(/,/g, ''));
+    if (last[2] && /^k$/i.test(last[2])) n *= 1000;
+    return isNaN(n) ? null : n;
+  }
+
+  // Fallback: no £ sign present — match a bare number with optional suffix.
+  // Take the LAST match (rightmost in text) so a leading count word like
+  // "3 people 380 cash" picks 380 rather than 3.
+  const bareMatches = [...t.matchAll(/([\d,]+(?:\.\d+)?)\s*(k|pounds?|quid)?/gi)];
+  if (bareMatches.length === 0) return null;
+  const last = bareMatches[bareMatches.length - 1];
+  let n = parseFloat(last[1].replace(/,/g, ''));
+  if (last[2] && /^k$/i.test(last[2])) n *= 1000;
   return isNaN(n) ? null : n;
 }
 
