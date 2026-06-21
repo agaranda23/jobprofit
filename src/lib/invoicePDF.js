@@ -2,6 +2,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import QRCode from 'qrcode';
 import { resolveCisStatus } from './cashflow.js';
+import { splitVatInclusive } from './vatUtils.js';
 
 // Generates an invoice PDF for the new Get Paid workflow. Distinct from
 // the legacy generateInvoicePDF in App.jsx (which uses window.jspdf and
@@ -377,9 +378,11 @@ function drawSummaryBlock(doc, {
   const labelX = panelX + 6;
 
   // Derived values — computed regardless of itemiseDocuments so CIS is always correct
+  // Prices entered in the app are VAT-INCLUSIVE (gross). VAT is derived from
+  // the entered quote, never added on top. Decision locked: ACC, 2026-06-21.
   const labour     = Math.max(0, quote - materials);
-  const vat        = showVat ? Math.round(quote * 0.2 * 100) / 100 : 0;
-  const grossTotal = quote + vat;
+  const { vat }    = showVat ? splitVatInclusive(quote) : { vat: 0 };
+  const grossTotal = quote; // quote IS the gross (VAT-inclusive); customer pays exactly this
 
   // CIS deduction applied to labour (not materials, not VAT)
   // CRITICAL: materials always feeds this calculation even when itemiseDocuments=false
@@ -820,10 +823,11 @@ export async function generateInvoicePDF({
   y = drawLineItems(doc, job, y + 2) + 4;
 
   // ── Summary block (Labour / Materials / VAT / CIS / Total Payable) ────
+  // Prices entered in the app are VAT-INCLUSIVE (gross). VAT is derived from
+  // the entered quote, never added on top. Decision locked: ACC, 2026-06-21.
   const quote      = job?.total ?? job?.amount ?? 0;
   const showVat    = !!effectiveBiz.vatRegistered;
-  const vat        = showVat ? Math.round(quote * 0.2 * 100) / 100 : 0;
-  const grossTotal = quote + vat;
+  const grossTotal = quote; // quote IS the gross (VAT-inclusive); customer pays exactly this
   const cisDeduction = (isCisJob && cisRate > 0)
     ? Math.round(Math.max(0, quote - materials) * (cisRate / 100) * 100) / 100
     : 0;
@@ -1057,10 +1061,11 @@ export async function generateQuotePDF({ job, biz, profile = null, quoteUrl = ''
   y = drawLineItems(doc, job, y + 2) + 4;
 
   // ── Totals (legacy drawTotals-style for quotes — no CIS, simpler) ────
+  // Prices entered in the app are VAT-INCLUSIVE (gross). VAT is derived from
+  // the entered subtotal, never added on top. Decision locked: ACC, 2026-06-21.
   const subtotal = job?.total ?? job?.amount ?? 0;
   const showVat  = !!effectiveBiz.vatRegistered;
-  const vat      = showVat ? Math.round(subtotal * 0.2 * 100) / 100 : 0;
-  const gross    = subtotal + vat;
+  const gross    = subtotal; // subtotal IS the gross (VAT-inclusive)
 
   // Re-use the summary block for quotes too (simpler: no CIS, no deposit)
   y = drawSummaryBlock(doc, {

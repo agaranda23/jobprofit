@@ -343,14 +343,28 @@ describe('I. VAT line appears only when biz.vatRegistered is true', () => {
     expect(drawnTexts.some(t => String(t).includes('VAT (20%)'))).toBe(false);
   });
 
-  it('VAT amount is 20% of the quote: £1000 → VAT £200', async () => {
+  it('VAT is the portion within the gross: £1200 gross → VAT £200 (not £240)', async () => {
+    // Prices are VAT-inclusive. £1200 gross = £1000 net + £200 VAT.
+    // Old bug (add-on): would have shown £1200 + £240 = £1440 total due. Fixed.
     await generateInvoicePDF({
-      job: baseJob({ total: 1000 }),
+      job: baseJob({ total: 1200 }),
       biz: baseBiz({ vatRegistered: true, vatNumber: 'GB123456789' }),
       invoiceNumber: 'INV-VAT-03',
       dueDate: '2026-07-31',
     });
     expect(drawnTexts.some(t => String(t).includes('£200.00'))).toBe(true);
+  });
+
+  it('Total Payable = entered gross (VAT-inclusive, not inflated): £1200 → £1200', async () => {
+    await generateInvoicePDF({
+      job: baseJob({ total: 1200 }),
+      biz: baseBiz({ vatRegistered: true, vatNumber: 'GB123456789' }),
+      invoiceNumber: 'INV-VAT-04',
+      dueDate: '2026-07-31',
+    });
+    // Total Payable should be £1200, not £1440 (old bug: 1200 + 240)
+    expect(drawnTexts.some(t => String(t).includes('£1200.00') || String(t).includes('£1,200.00'))).toBe(true);
+    expect(drawnTexts.some(t => String(t).includes('£1440') || String(t).includes('£1,440'))).toBe(false);
   });
 });
 
@@ -465,17 +479,18 @@ describe('III. CIS deduction maths: labour × rate/100', () => {
     expect(drawnTexts.some(t => String(t).includes('£800.00'))).toBe(true);
   });
 
-  it('Total Payable = (quote + VAT) − CIS deduction: £1000 + £200 VAT − £200 CIS = £1000', async () => {
-    // quote = £1000, VAT = £200, labour = £1000 (no materials), CIS 20% = £200
-    // Total Payable = 1000 + 200 - 200 = £1000
+  it('Total Payable = gross − CIS deduction (VAT-inclusive pricing): £1200 gross − £240 CIS = £960', async () => {
+    // gross = £1200 (VAT-inclusive). Labour = £1200, CIS 20% = £240.
+    // Total Payable = £1200 − £240 = £960.
+    // (Old bug: would have computed 1200 + 240 VAT − 240 CIS = £1200, inflating the total.)
     await generateInvoicePDF({
-      job: baseJob({ total: 1000, cis: true }),
+      job: baseJob({ total: 1200, cis: true }),
       biz: baseBiz({ vatRegistered: true, vatNumber: 'GB123456789' }),
       profile: { is_cis_subcontractor: true, cis_default_rate: 20 },
       invoiceNumber: 'INV-CIS-M6',
       dueDate: '2026-07-31',
     });
-    expect(drawnTexts.some(t => String(t).includes('£1000.00') || String(t).includes('£1,000.00'))).toBe(true);
+    expect(drawnTexts.some(t => String(t).includes('£960.00') || String(t).includes('£960'))).toBe(true);
   });
 });
 

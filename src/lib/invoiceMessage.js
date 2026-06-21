@@ -2,6 +2,8 @@
 // Distinct from the legacy waInvoiceLink in App.jsx (which uses the old
 // `invoices` collection). This one reads directly from the job + biz.
 
+import { splitVatInclusive } from './vatUtils.js';
+
 const WA_URL_LIMIT = 2000; // wa.me practical URL cap; truncate long summaries
 
 /**
@@ -21,7 +23,10 @@ export function buildInvoiceWhatsAppMessage({ job, biz, invoiceNumber, dueDate, 
   const customer = (job?.customer || job?.customerName || '').split(' ')[0] || '';
   const total = job?.total ?? job?.amount ?? 0;
   const showVat = !!biz?.vatRegistered;
-  const grossTotal = showVat ? total + Math.round(total * 0.2 * 100) / 100 : total;
+  // Prices entered in the app are VAT-INCLUSIVE (gross). When the trader is
+  // VAT-registered we derive the VAT portion from the gross; we never add VAT
+  // on top. Non-registered traders: grossTotal = total, no VAT line shown.
+  const grossTotal = showVat ? splitVatInclusive(total).gross : total;
   const dueStr = new Date(dueDate).toLocaleDateString('en-GB');
   const summary = (job?.summary || 'Work completed').slice(0, 200);
   const stripeLink = biz?.stripePaymentLink || biz?.stripe_payment_link || '';

@@ -1030,10 +1030,12 @@ export function getDataTrustHint(jobs, receipts, profile, now = new Date()) {
 
 // ─── VAT helpers ─────────────────────────────────────────────────────────────
 
+import { splitVatInclusive } from './vatUtils.js';
+
 /**
  * VAT rate used throughout the app.
- * Matches the hardcoded 0.2 in invoiceMessage.js and invoicePDF.js.
- * If the rate ever changes, update all three locations together.
+ * Shared with invoiceMessage.js and invoicePDF.js via splitVatInclusive().
+ * If the rate ever changes, update vatUtils.js only.
  */
 export const VAT_RATE = 0.2;
 
@@ -1087,14 +1089,19 @@ export function vatQuarterRange(now = new Date()) {
  * on invoices issued. This is the standard basis for most small traders on the
  * flat-rate or standard scheme. Document this assumption in the UI disclaimer.
  *
+ * Prices entered in the app are VAT-INCLUSIVE (gross). We derive net and VAT
+ * from the gross using splitVatInclusive() — we never add VAT on top of an
+ * entered price. Decision locked: ACC, 2026-06-21.
+ *
  * @param {object[]} jobs
  * @param {object[]} receipts
  * @param {Date} [now]
  * @returns {{
- *   outputVat: number,   — VAT collected on paid sales this quarter
- *   inputVat:  number,   — VAT reclaimable from receipts this quarter
- *   netVat:    number,   — outputVat − inputVat (positive = owe HMRC)
- *   netSales:  number,   — net (ex-VAT) sales this quarter
+ *   grossSales: number,  — total gross (VAT-inclusive) sales this quarter
+ *   outputVat:  number,  — VAT portion of grossSales (derived, never added on top)
+ *   inputVat:   number,  — VAT reclaimable from receipts this quarter
+ *   netVat:     number,  — outputVat − inputVat (positive = owe HMRC)
+ *   netSales:   number,  — net (ex-VAT) sales this quarter (= grossSales − outputVat)
  * }}
  */
 export function getVatSummary(jobs, receipts, now = new Date()) {
@@ -1103,7 +1110,7 @@ export function getVatSummary(jobs, receipts, now = new Date()) {
 
   const { start, end } = vatQuarterRange(now);
 
-  let netSales = 0;
+  let grossSales = 0;
 
   for (const job of safeJobs) {
     if (isExcludedJob(job)) continue;
@@ -1111,8 +1118,12 @@ export function getVatSummary(jobs, receipts, now = new Date()) {
     const d = jobEarnedDate(job);
     if (!d) continue;
     if (d < start || d > end) continue;
-    netSales += Number(job.total ?? job.amount ?? 0);
+    grossSales += Number(job.total ?? job.amount ?? 0);
   }
+
+  // Derive net and output VAT from the VAT-inclusive gross total.
+  // Using the rate-generic form so 5%/0% rates survive if added later.
+  const { net: netSales, vat: outputVat } = splitVatInclusive(grossSales, VAT_RATE);
 
   let inputVat = 0;
 
@@ -1125,8 +1136,7 @@ export function getVatSummary(jobs, receipts, now = new Date()) {
     inputVat += Number(receipt.vat) || 0;
   }
 
-  const outputVat = netSales * VAT_RATE;
   const netVat = outputVat - inputVat;
 
-  return { outputVat, inputVat, netVat, netSales };
+  return { grossSales, outputVat, inputVat, netVat, netSales };
 }

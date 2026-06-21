@@ -703,9 +703,11 @@ describe('FinanceScreen VAT card: getVatSummary', () => {
     };
   }
 
-  it('outputVat = netSales × 0.2 for a paid in-quarter job', () => {
-    const { outputVat, netSales } = getVatSummary([vatJob({ amount: 1000 })], [], NOW);
-    expect(netSales).toBe(1000);
+  it('prices are VAT-inclusive: grossSales = entered amount, outputVat derived from gross', () => {
+    // £1200 gross → net £1000, vat £200 (at 20% inclusive)
+    const { outputVat, netSales, grossSales } = getVatSummary([vatJob({ amount: 1200 })], [], NOW);
+    expect(grossSales).toBe(1200);
+    expect(netSales).toBeCloseTo(1000, 10);
     expect(outputVat).toBeCloseTo(200, 10);
   });
 
@@ -727,14 +729,14 @@ describe('FinanceScreen VAT card: getVatSummary', () => {
 
   it('out-of-quarter job (Q1) excluded when NOW is in Q2', () => {
     const jobs = [vatJob({ amount: 9999, date: '2026-03-20' })]; // Q1
-    const { netSales } = getVatSummary(jobs, [], NOW);
-    expect(netSales).toBe(0);
+    const { grossSales } = getVatSummary(jobs, [], NOW);
+    expect(grossSales).toBe(0);
   });
 
   it('unpaid jobs excluded from VAT output', () => {
     const jobs = [{ id: 'u', amount: 9999, paid: false, date: '2026-05-10' }];
-    const { netSales } = getVatSummary(jobs, [], NOW);
-    expect(netSales).toBe(0);
+    const { grossSales } = getVatSummary(jobs, [], NOW);
+    expect(grossSales).toBe(0);
   });
 
   it('receipts without a vat field contribute 0 to inputVat', () => {
@@ -745,6 +747,7 @@ describe('FinanceScreen VAT card: getVatSummary', () => {
 
   it('null inputs return all zeros (null-safe)', () => {
     const result = getVatSummary(null, null, NOW);
+    expect(result.grossSales).toBe(0);
     expect(result.netSales).toBe(0);
     expect(result.outputVat).toBe(0);
     expect(result.inputVat).toBe(0);

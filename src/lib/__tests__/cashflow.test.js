@@ -1472,17 +1472,29 @@ describe('getVatSummary', () => {
     };
   }
 
-  it('outputVat = netSales × VAT_RATE for a paid in-quarter job', () => {
+  it('grossSales = entered amount (prices are VAT-inclusive)', () => {
     const jobs = [paidJobQ({ amount: 500, date: '2026-05-10' })];
-    const { outputVat, netSales } = getVatSummary(jobs, [], NOW);
-    expect(netSales).toBe(500);
-    expect(outputVat).toBeCloseTo(500 * 0.2, 10);
+    const { grossSales } = getVatSummary(jobs, [], NOW);
+    expect(grossSales).toBe(500);
+  });
+
+  it('outputVat = gross / 6 (VAT portion within the gross at 20%)', () => {
+    const jobs = [paidJobQ({ amount: 600, date: '2026-05-10' })];
+    const { outputVat } = getVatSummary(jobs, [], NOW);
+    // gross = 600, net = 600/1.2 = 500, vat = 600 - 500 = 100
+    expect(outputVat).toBeCloseTo(100, 10);
+  });
+
+  it('netSales = gross / 1.2 (ex-VAT portion at 20%)', () => {
+    const jobs = [paidJobQ({ amount: 600, date: '2026-05-10' })];
+    const { netSales } = getVatSummary(jobs, [], NOW);
+    expect(netSales).toBeCloseTo(500, 10);
   });
 
   it('uses job.total when present (prefers total over amount)', () => {
-    const jobs = [paidJobQ({ total: 800, amount: 500, date: '2026-05-10' })];
-    const { netSales } = getVatSummary(jobs, [], NOW);
-    expect(netSales).toBe(800);
+    const jobs = [paidJobQ({ total: 1200, amount: 500, date: '2026-05-10' })];
+    const { grossSales } = getVatSummary(jobs, [], NOW);
+    expect(grossSales).toBe(1200);
   });
 
   it('inputVat = sum of receipt.vat for in-quarter receipts', () => {
@@ -1495,11 +1507,13 @@ describe('getVatSummary', () => {
   });
 
   it('netVat = outputVat − inputVat (positive = owe HMRC)', () => {
-    const jobs = [paidJobQ({ amount: 1000, date: '2026-05-01' })];
+    // gross = £1200; net = £1000; vat = £200; inputVat = £50; netVat = £150
+    const jobs = [paidJobQ({ amount: 1200, date: '2026-05-01' })];
     const receipts = [receiptQ({ vat: 50, date: '2026-05-05' })];
     const { outputVat, inputVat, netVat } = getVatSummary(jobs, receipts, NOW);
     expect(netVat).toBeCloseTo(outputVat - inputVat, 10);
-    expect(netVat).toBeCloseTo(1000 * 0.2 - 50, 10);
+    expect(outputVat).toBeCloseTo(200, 10);
+    expect(netVat).toBeCloseTo(200 - 50, 10);
   });
 
   it('netVat is negative when inputVat > outputVat (reclaim scenario)', () => {
@@ -1509,11 +1523,11 @@ describe('getVatSummary', () => {
     expect(netVat).toBeLessThan(0);
   });
 
-  it('out-of-quarter paid jobs are excluded from netSales', () => {
+  it('out-of-quarter paid jobs are excluded from grossSales', () => {
     // Q1 2026 (Jan–Mar) — should be excluded when now is in Q2
     const jobs = [paidJobQ({ amount: 9999, date: '2026-03-20' })];
-    const { netSales } = getVatSummary(jobs, [], NOW);
-    expect(netSales).toBe(0);
+    const { grossSales } = getVatSummary(jobs, [], NOW);
+    expect(grossSales).toBe(0);
   });
 
   it('out-of-quarter receipts are excluded from inputVat', () => {
@@ -1522,16 +1536,16 @@ describe('getVatSummary', () => {
     expect(inputVat).toBe(0);
   });
 
-  it('excluded (cancelled) jobs do not contribute to netSales', () => {
+  it('excluded (cancelled) jobs do not contribute to grossSales', () => {
     const jobs = [paidJobQ({ amount: 9999, date: '2026-05-01', status: 'cancelled' })];
-    const { netSales } = getVatSummary(jobs, [], NOW);
-    expect(netSales).toBe(0);
+    const { grossSales } = getVatSummary(jobs, [], NOW);
+    expect(grossSales).toBe(0);
   });
 
-  it('unpaid jobs do not contribute to netSales', () => {
+  it('unpaid jobs do not contribute to grossSales', () => {
     const unpaid = { id: 'u1', amount: 9999, paid: false, date: '2026-05-10' };
-    const { netSales } = getVatSummary([unpaid], [], NOW);
-    expect(netSales).toBe(0);
+    const { grossSales } = getVatSummary([unpaid], [], NOW);
+    expect(grossSales).toBe(0);
   });
 
   it('receipts with no vat field contribute 0 to inputVat (null-safe)', () => {
@@ -1548,6 +1562,7 @@ describe('getVatSummary', () => {
 
   it('null-safe: non-array jobs returns zeros', () => {
     const result = getVatSummary(null, null, NOW);
+    expect(result.grossSales).toBe(0);
     expect(result.netSales).toBe(0);
     expect(result.outputVat).toBe(0);
     expect(result.inputVat).toBe(0);
@@ -1556,25 +1571,29 @@ describe('getVatSummary', () => {
 
   it('null-safe: undefined inputs return zeros', () => {
     const result = getVatSummary(undefined, undefined, NOW);
+    expect(result.grossSales).toBe(0);
     expect(result.netSales).toBe(0);
     expect(result.netVat).toBe(0);
   });
 
   it('empty arrays return all-zero result', () => {
     const result = getVatSummary([], [], NOW);
+    expect(result.grossSales).toBe(0);
     expect(result.outputVat).toBe(0);
     expect(result.inputVat).toBe(0);
     expect(result.netVat).toBe(0);
     expect(result.netSales).toBe(0);
   });
 
-  it('sums multiple in-quarter paid jobs', () => {
+  it('sums multiple in-quarter paid jobs — grossSales is sum, outputVat derived from gross', () => {
+    // Two jobs: £480 + £720 = £1200 gross; net = £1000; vat = £200
     const jobs = [
-      paidJobQ({ id: 'j1', amount: 400, date: '2026-04-10' }),
-      paidJobQ({ id: 'j2', amount: 600, date: '2026-05-20' }),
+      paidJobQ({ id: 'j1', amount: 480, date: '2026-04-10' }),
+      paidJobQ({ id: 'j2', amount: 720, date: '2026-05-20' }),
     ];
-    const { netSales, outputVat } = getVatSummary(jobs, [], NOW);
-    expect(netSales).toBe(1000);
+    const { grossSales, netSales, outputVat } = getVatSummary(jobs, [], NOW);
+    expect(grossSales).toBe(1200);
+    expect(netSales).toBeCloseTo(1000, 10);
     expect(outputVat).toBeCloseTo(200, 10);
   });
 
@@ -1587,15 +1606,63 @@ describe('getVatSummary', () => {
   it('Q4 boundary: jobs in Oct are in quarter when now is in Dec', () => {
     const nowDec = new Date(2026, 11, 15); // 2026-12-15 (Q4)
     const jobs = [paidJobQ({ amount: 300, date: '2026-10-05' })];
-    const { netSales } = getVatSummary(jobs, [], nowDec);
-    expect(netSales).toBe(300);
+    const { grossSales } = getVatSummary(jobs, [], nowDec);
+    expect(grossSales).toBe(300);
   });
 
   it('Q4 boundary: jobs in Sep are out-of-quarter when now is in Oct', () => {
     const nowOct = new Date(2026, 9, 5); // 2026-10-05 (Q4 started)
     const jobs = [paidJobQ({ amount: 300, date: '2026-09-30' })]; // Q3 — excluded
-    const { netSales } = getVatSummary(jobs, [], nowOct);
-    expect(netSales).toBe(0);
+    const { grossSales } = getVatSummary(jobs, [], nowOct);
+    expect(grossSales).toBe(0);
+  });
+});
+
+// ─── getVatSummary — inclusive-price correctness proofs ─────────────────────
+// These are the canonical arithmetic proofs for the VAT-inclusive fix
+// (ACC decision 2026-06-21). Prices entered in the app are gross-inclusive;
+// we derive net and VAT from the gross, never add on top.
+
+describe('getVatSummary — VAT-inclusive arithmetic proofs', () => {
+  const NOW = new Date(2026, 4, 28); // 2026-05-28
+
+  function paidJobQ(overrides = {}) {
+    return { id: 'vat-proof-j1', amount: 0, paid: true, date: '2026-05-10', ...overrides };
+  }
+
+  it('£240 gross → net £200, vat £40', () => {
+    const { grossSales, netSales, outputVat } = getVatSummary([paidJobQ({ amount: 240 })], [], NOW);
+    expect(grossSales).toBe(240);
+    expect(netSales).toBeCloseTo(200, 10);
+    expect(outputVat).toBeCloseTo(40, 10);
+  });
+
+  it('£1200 gross → net £1000, vat £200', () => {
+    const { grossSales, netSales, outputVat } = getVatSummary([paidJobQ({ amount: 1200 })], [], NOW);
+    expect(grossSales).toBe(1200);
+    expect(netSales).toBeCloseTo(1000, 10);
+    expect(outputVat).toBeCloseTo(200, 10);
+  });
+
+  it('outputVat + netSales === grossSales (no rounding gap)', () => {
+    const { grossSales, netSales, outputVat } = getVatSummary([paidJobQ({ amount: 360 })], [], NOW);
+    expect(outputVat + netSales).toBeCloseTo(grossSales, 10);
+  });
+
+  it('outputVat is NOT grossSales * 0.2 (that would be the old bug)', () => {
+    // At 20% inclusive, outputVat = gross / 6, NOT gross * 0.2
+    // gross £120 → vat = £20 (correct), NOT £24 (old bug)
+    const { outputVat } = getVatSummary([paidJobQ({ amount: 120 })], [], NOW);
+    expect(outputVat).toBeCloseTo(20, 10);
+    expect(outputVat).not.toBeCloseTo(24, 5); // guard against regression to old × 0.2
+  });
+
+  it('netVat = outputVat − inputVat for inclusive gross', () => {
+    // gross £1200 → net £1000, vat £200; inputVat £80 → netVat £120
+    const receipts = [{ id: 'r1', amount: 100, vat: 80, date: '2026-05-05' }];
+    const { netVat, outputVat } = getVatSummary([paidJobQ({ amount: 1200 })], receipts, NOW);
+    expect(outputVat).toBeCloseTo(200, 10);
+    expect(netVat).toBeCloseTo(120, 10);
   });
 });
 
