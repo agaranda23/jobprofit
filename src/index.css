@@ -7218,7 +7218,7 @@ input[type=number] { -moz-appearance: textfield; }
 }
 .jd-header-top {
   display: flex;
-  align-items: baseline;
+  align-items: center;  /* price column centres vertically against the name+customer block — sits ~mid-height, never touching the top (was baseline, which pinned it level with the name's first line) */
   justify-content: space-between;
   gap: 12px;
   /* Collision fence: reserve a gutter the full width of the absolute ⋯✕ strip
@@ -7513,15 +7513,19 @@ button.jd-money-chip:active { opacity: 0.75; }
 .invoice-no-price-add-btn:active { opacity: 0.7; }
 
 .job-detail-close {
-  background: none;
+  background: rgba(255, 255, 255, 0.1);  /* matches the ⋯ kebab disc — paired circular buttons in the corner */
   border: none;
+  border-radius: 50%;        /* full disc, mirroring .jd-kebab-btn */
   color: var(--text-dim);
   font-size: var(--fs-subhead);
   cursor: pointer;
   line-height: 1;
   flex-shrink: 0;
+  -webkit-tap-highlight-color: transparent;
   /* min-width/min-height/display set above in .jd-header-actions rule */
 }
+.job-detail-close:hover,
+.job-detail-close:active { background: var(--surface-2); }  /* press feedback parity with the kebab */
 .job-detail-body {
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -7592,14 +7596,14 @@ button.jd-money-chip:active { opacity: 0.75; }
 }
 
 .jd-kebab-btn {
-  background: none;
+  background: rgba(255, 255, 255, 0.1);  /* soft circular disc on the dark header (matches the ✕ reference); 44px box + 17px glyph = generous padding */
   border: none;
   color: var(--text-dim);
   font-size: var(--fs-subhead);
   cursor: pointer;
   padding: 4px;              /* symmetric — active highlight centred on glyph */
   line-height: 1;
-  border-radius: 8px;
+  border-radius: 50%;        /* full disc — was 8px rounded square */
   letter-spacing: 0.1em;
   -webkit-tap-highlight-color: transparent;
 }
