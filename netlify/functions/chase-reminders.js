@@ -195,7 +195,8 @@ export const handler = async function () {
         .from('jobs')
         .select('id, amount, paid, customer_name, summary, meta')
         .eq('user_id', userId)
-        .eq('paid', false);
+        .eq('paid', false)
+        .limit(200); // safety guard — protects against runaway reads at scale
 
       if (jobsError) {
         console.warn(`chase-reminders: jobs query failed for ${userId}`, jobsError.message);

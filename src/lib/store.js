@@ -213,7 +213,8 @@ export async function getJobsFromCloud() {
   const { data, error } = await supabase
     .from('jobs')
     .select('*')
-    .order('date', { ascending: false });
+    .order('date', { ascending: false })
+    .limit(500); // safety guard — normal users are well under this ceiling
   if (error) {
     console.warn('getJobsFromCloud failed', error);
     return [];
@@ -222,10 +223,12 @@ export async function getJobsFromCloud() {
 }
 
 export async function getReceiptsFromCloud() {
+  // receipts uses 'date' as its timestamp column (not created_at)
   const { data, error } = await supabase
     .from('receipts')
     .select('*')
-    .order('date', { ascending: false });
+    .order('date', { ascending: false })
+    .limit(500); // safety guard — normal users are well under this ceiling
   if (error) {
     console.warn('getReceiptsFromCloud failed', error);
     return [];

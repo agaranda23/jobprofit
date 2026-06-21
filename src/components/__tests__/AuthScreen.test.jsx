@@ -3,12 +3,13 @@
  * AuthScreen — value-first sign-in screen
  *
  * Covers: pitch copy (hero, loop chips, proof beats, trust line), reworded CTA,
- * existing submit handler behaviour, and telemetry events.
+ * existing submit handler behaviour, telemetry events, and Google OAuth callback
+ * error handling (FIX 1 — stress-test-batch-1).
  * Auth logic (supabase.auth.signInWithOtp) and telemetry calls are mocked —
  * we verify the wires are connected without making real network calls.
  */
 
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
 
 // ── Mocks ────────────────────────────────────────────────────────────────────
@@ -290,5 +291,90 @@ describe('AuthScreen — Google sign-in', () => {
     expect(emailInput).toBeTruthy();
     // compareDocumentPosition: 4 means emailInput follows googleBtn
     expect(googleBtn.compareDocumentPosition(emailInput) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+});
+
+// ── Google OAuth callback error handling (FIX 1 — stress-test-batch-1) ───────
+// When Google returns an error (e.g. user cancels the consent screen) Supabase
+// appends ?error=access_denied&error_description=... to the redirect URL.
+// AuthScreen must detect this on mount, surface a friendly message, and clean
+// the URL so a refresh doesn't re-show the error.
+
+describe('AuthScreen — OAuth callback error handling', () => {
+  // Save and restore window.location for each test
+  let originalLocation;
+  beforeEach(() => {
+    originalLocation = window.location.href;
+  });
+  afterEach(() => {
+    // Reset URL to clean state so tests don't bleed into each other
+    window.history.replaceState(null, '', originalLocation);
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  it('shows a friendly message when hash contains error=access_denied', () => {
+    window.history.replaceState(null, '', '/#error=access_denied&error_description=User+cancelled');
+    renderAuth();
+    expect(
+      screen.getByText(/Google sign-in was cancelled or didn't complete/i)
+    ).toBeTruthy();
+  });
+
+  it('shows a friendly message when query string contains error=access_denied', () => {
+    window.history.replaceState(null, '', '/?error=access_denied&error_description=User+cancelled');
+    renderAuth();
+    expect(
+      screen.getByText(/Google sign-in was cancelled or didn't complete/i)
+    ).toBeTruthy();
+  });
+
+  it('shows the error_description for non-access_denied errors', () => {
+    window.history.replaceState(null, '', '/?error=server_error&error_description=Internal+Server+Error');
+    renderAuth();
+    expect(screen.getByText(/Sign-in error: Internal Server Error/i)).toBeTruthy();
+  });
+
+  it('shows a generic fallback when error is set but description is absent', () => {
+    window.history.replaceState(null, '', '/?error=unknown_error');
+    renderAuth();
+    expect(
+      screen.getByText(/Google sign-in failed — try again, or use email below/i)
+    ).toBeTruthy();
+  });
+
+  it('cleans the error params from the URL after rendering', () => {
+    window.history.replaceState(null, '', '/?error=access_denied&error_description=User+cancelled');
+    renderAuth();
+    expect(window.location.search).not.toContain('error=');
+  });
+
+  it('does NOT show an error message when the URL has no error params', () => {
+    window.history.replaceState(null, '', '/');
+    renderAuth();
+    // The auth-error element should not be present
+    const errorEl = document.querySelector('.auth-error');
+    expect(errorEl).toBeNull();
+  });
+
+  it('fires signin_google_callback_error telemetry when an OAuth error is detected', () => {
+    window.history.replaceState(null, '', '/?error=access_denied');
+    renderAuth();
+    expect(logTelemetry).toHaveBeenCalledWith(
+      'signin_google_callback_error',
+      expect.objectContaining({ raw: expect.any(String) })
+    );
+  });
+
+  it('a normal sign-in flow is unaffected when URL has no error params', async () => {
+    window.history.replaceState(null, '', '/');
+    mockSignInWithOtp.mockResolvedValue({ error: null });
+    renderAuth();
+    fireEvent.change(screen.getByPlaceholderText('you@example.com'), {
+      target: { value: 'trade@van.com' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Start free/i }));
+    await waitFor(() => screen.getByText('Check your email'));
+    expect(screen.getByText('Check your email')).toBeTruthy();
   });
 });
