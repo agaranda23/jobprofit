@@ -27,7 +27,7 @@ import LinkReceiptModal from './components/LinkReceiptModal';
 import { supabase } from './lib/supabase';
 import AuthScreen from './components/AuthScreen';
 import { parseHash, replaceHistory } from './lib/navigation';
-import { writeJobMeta, extractJobMeta, applyJobMetaToJobs } from './lib/jobMeta';
+import { writeJobMeta, readJobMeta, extractJobMeta, applyJobMetaToJobs } from './lib/jobMeta';
 import { subscribeToJobs } from './lib/realtime';
 import { addPayment } from './lib/payments';
 import {
@@ -335,6 +335,35 @@ export default function AppShell() {
         getReceiptsFromCloud(),
         getMaterials(),
       ]);
+
+      // Ratchet fix: when the cloud says a quote is accepted, sync that
+      // acceptance state into localStorage BEFORE applyJobMetaToJobs runs.
+      // applyJobMeta does { ...cloudJob, ...readJobMeta(id) }, so a stale
+      // localStorage entry with quoteStatus:'sent' would shadow the cloud's
+      // quoteStatus:'accepted' — leaving the trader stuck on "Awaiting" even
+      // after the customer signed (app-closed case: no realtime event to
+      // trigger the writeJobMeta path in handleJobChange).
+      // Acceptance is a one-way ratchet — once the cloud says 'accepted',
+      // localStorage must agree. This mirrors what handleJobChange does for
+      // the realtime (app-open) case, covering the app-reopen path.
+      for (const cloudJob of cloudJobs) {
+        if (cloudJob.quoteStatus === 'accepted' && cloudJob.id) {
+          const localMeta = readJobMeta(cloudJob.id);
+          if (localMeta.quoteStatus !== 'accepted') {
+            writeJobMeta(cloudJob.id, {
+              quoteStatus:    'accepted',
+              acceptedAt:     cloudJob.acceptedAt     ?? null,
+              acceptedName:   cloudJob.acceptedName   ?? null,
+              acceptedSource: cloudJob.acceptedSource ?? null,
+              // Propagate acceptedSignature only when the cloud carries it.
+              ...(cloudJob.acceptedSignature
+                ? { acceptedSignature: cloudJob.acceptedSignature }
+                : {}),
+            });
+          }
+        }
+      }
+
       setJobs(applyJobMetaToJobs(cloudJobs));
       setReceipts(cloudReceipts);
       setMaterials(cloudMaterials);
