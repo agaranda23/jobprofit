@@ -2327,6 +2327,11 @@ export default function JobDetailDrawer({
   initialEditingField = null,
   // Called once the initialEditingField has been consumed so WorkScreen can clear it.
   onClearInitialEditingField,
+  // Global materials library from AppShell — threaded down so the OCR bookmark in
+  // AddReceiptModal can save items to the shared library. Named materialsLibrary to
+  // avoid shadowing the local `materials` variable (per-job cost total, line ~1079).
+  materialsLibrary,
+  onMaterialSaved,
 }) {
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
@@ -4357,15 +4362,38 @@ export default function JobDetailDrawer({
         <AddReceiptModal
           onClose={() => setReceiptModalOpen(false)}
           onSave={handleReceiptSave}
+          materialsLibrary={materialsLibrary}
+          onMaterialSaved={onMaterialSaved}
         />
       )}
 
-      {/* AddReceiptModal — edit mode: opened by tapping an existing receipt row */}
+      {/* AddReceiptModal — edit mode: opened by tapping an existing receipt row.
+          onDeleteReceipt is the raw AppShell handler (not handleDeleteReceipt) because
+          AddReceiptModal manages its own in-modal confirm — feeding it handleDeleteReceipt
+          would open a second confirm via setPendingDeleteAction (z-clash, Gotcha 1).
+          We wrap it to flash confirmation to the drawer after the delete completes. */}
       {editingReceipt && (
         <AddReceiptModal
           existingReceipt={editingReceipt}
           onUpdateReceipt={handleReceiptUpdate}
           onClose={() => setEditingReceipt(null)}
+          onDeleteReceipt={onDeleteReceipt ? async (id) => {
+            // Note: AppShell.handleDeleteReceipt never throws — it uses optimistic
+            // local removal on cloud failure and swallows the error internally.
+            // This wrapper's catch is therefore defensive only and will not fire
+            // in practice. We do NOT re-throw: if the catch somehow runs, the
+            // modal should still close (the local state will already be cleaned up
+            // by AppShell's optimistic removal) rather than leaving the user stuck.
+            try {
+              await onDeleteReceipt(id);
+              showFlash('Receipt deleted');
+            } catch {
+              showFlash('Could not delete receipt — try again');
+              // Intentionally NOT re-throwing — see note above.
+            }
+          } : undefined}
+          materialsLibrary={materialsLibrary}
+          onMaterialSaved={onMaterialSaved}
         />
       )}
 
