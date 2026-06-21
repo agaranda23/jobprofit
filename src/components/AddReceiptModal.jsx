@@ -1,7 +1,8 @@
-import { useRef, useState, useMemo } from 'react';
+import { useRef, useState, useMemo, useCallback, useEffect } from 'react';
 import { extractReceipt } from '../lib/receiptOCR';
 import { saveLineItemToLibrary } from '../lib/materials';
 import Icon from './Icon';
+import { meaningfulItemCount, computeItemsSubtotal, itemsDirty } from '../lib/receiptItemsHelpers';
 
 /**
  * AddReceiptModal — add a new receipt or edit an existing one.
@@ -33,6 +34,11 @@ export default function AddReceiptModal({
 }) {
   const isEditMode = !!existingReceipt;
   const fileRef = useRef(null);
+  // Ref to track the index of the newest item so we can focus its desc input
+  const newItemDescRef = useRef(null);
+  const pendingFocusRef = useRef(false);
+  // Ref to the expanded Itemise panel — used for scrollIntoView on manual open
+  const itemsPanelRef = useRef(null);
 
   const todayStr = () => {
     const d = new Date();
@@ -64,12 +70,26 @@ export default function AddReceiptModal({
   const [extractError, setExtractError] = useState('');
   const [error, setError]               = useState('');
   const [saving, setSaving]             = useState(false);
-  // savedItemIdx: which OCR item row just flashed the bookmark confirm
+  // savedItemIdx: which item row just flashed the bookmark confirm
   const [savedItemIdx, setSavedItemIdx] = useState(-1);
   // confirm: null | 'discard' | 'delete'
   const [confirm, setConfirm]           = useState(null);
+  // Phase 2: collapsible Itemise section — collapsed by default (fast-path)
+  const [isItemiseOpen, setIsItemiseOpen] = useState(false);
+
+  // Focus the last item's desc input after a new row is added.
+  // Dep array [items] ensures this fires only when the items array changes
+  // (i.e. after addItem/removeItem), not on every form keystroke.
+  useEffect(() => {
+    if (pendingFocusRef.current && newItemDescRef.current) {
+      newItemDescRef.current.focus();
+      pendingFocusRef.current = false;
+    }
+  }, [items]);
 
   // ── Dirty detection ───────────────────────────────────────────────────────
+  // Blank-desc rows are stripped before comparing so that opening Itemise +
+  // tapping "+ Add item" + closing does NOT pop a spurious "Discard changes?".
   const isDirty = (
     photoFile !== null ||
     label !== seed.label ||
@@ -77,7 +97,7 @@ export default function AddReceiptModal({
     vat !== seed.vat ||
     receiptDate !== seed.receiptDate ||
     invoiceNumber !== seed.invoiceNumber ||
-    JSON.stringify(items) !== JSON.stringify(seed.items)
+    itemsDirty(items, seed.items)
   );
 
   // ── Close guard — routes through dirty check ──────────────────────────────
@@ -109,7 +129,11 @@ export default function AddReceiptModal({
           if (result.merchant) setLabel(result.merchant);
           if (result.total != null) setAmount(String(result.total));
           if (result.vat != null) setVat(String(result.vat));
-          if (result.items?.length) setItems(result.items);
+          if (result.items?.length) {
+            setItems(result.items);
+            // Auto-open so the user sees what OCR read — no auto-scroll
+            setIsItemiseOpen(true);
+          }
           if (result.date) setReceiptDate(result.date);
           if (result.invoiceNumber) setInvoiceNumber(result.invoiceNumber);
           if (!result.merchant && result.total == null) {
@@ -127,6 +151,12 @@ export default function AddReceiptModal({
     setItems(prev => prev.map((it, i) => i === idx ? { ...it, [field]: field === 'cost' ? parseFloat(value) || 0 : value } : it));
   };
   const removeItem = (idx) => setItems(prev => prev.filter((_, i) => i !== idx));
+
+  const addItem = useCallback(() => {
+    setIsItemiseOpen(true);
+    setItems(prev => [...prev, { desc: '', cost: undefined }]);
+    pendingFocusRef.current = true;
+  }, []);
 
   const saveItemToMaterials = async (idx) => {
     const item = items[idx];
@@ -261,6 +291,10 @@ export default function AddReceiptModal({
     );
   }
 
+  // ── Derived values for Itemise section ───────────────────────────────────
+  const mCount = meaningfulItemCount(items);
+  const subtotal = computeItemsSubtotal(items);
+
   // ── Normal view ───────────────────────────────────────────────────────────
   return (
     <div className="modal-backdrop" onClick={requestClose}>
@@ -348,47 +382,114 @@ export default function AddReceiptModal({
             </div>
           </div>
 
-          {items.length > 0 && (
-            <div className="receipt-items">
-              <div className="receipt-items-header">
-                <span>Items</span>
-                <span>{items.length}</span>
+          {/* ── Itemise section (Phase 2) ─────────────────────────────────── */}
+          <div className="receipt-items">
+            {/* Collapse toggle header.
+                aria-controls is only set when the panel is in the DOM (expanded),
+                so screen readers following the reference always find the target. */}
+            <button
+              type="button"
+              className="receipt-items-toggle"
+              aria-expanded={isItemiseOpen}
+              aria-controls={isItemiseOpen ? 'receipt-items-panel' : undefined}
+              onClick={() => {
+                setIsItemiseOpen(o => {
+                  const next = !o;
+                  // On manual open: scroll panel into view so it isn't hidden
+                  // behind the sticky footer on short screens (e.g. iPhone SE).
+                  // OCR auto-open deliberately skips this scroll (spec decision).
+                  if (next && itemsPanelRef.current) {
+                    setTimeout(() => itemsPanelRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }), 50);
+                  }
+                  return next;
+                });
+              }}
+            >
+              <span className="receipt-items-toggle__label">
+                {mCount > 0
+                  ? `Items · ${mCount}`
+                  : 'Itemise (optional)'}
+              </span>
+              {/* aria-hidden: hint + chevron are decorative; label span carries the a11y name */}
+              <span className={`receipt-items-toggle__chevron${isItemiseOpen ? ' receipt-items-toggle__chevron--open' : ''}`} aria-hidden="true">
+                ›
+              </span>
+            </button>
+
+            {/* Expanded panel */}
+            {isItemiseOpen && (
+              <div id="receipt-items-panel" ref={itemsPanelRef}>
+                {/* Empty-state hint — shown when no meaningful items exist yet,
+                    so the user knows what to type even after opening the panel. */}
+                {mCount === 0 && (
+                  <p className="receipt-items-empty-hint" aria-hidden="true">Add nails, timber, fixings…</p>
+                )}
+                {items.length > 0 && (
+                  <ul className="receipt-items-list">
+                    {items.map((it, i) => (
+                      <li key={i} className="receipt-item">
+                        <input
+                          type="text"
+                          value={it.desc}
+                          onChange={e => updateItem(i, 'desc', e.target.value)}
+                          className="receipt-item-desc"
+                          placeholder="Item name"
+                          // Attach ref to the LAST item so addItem() can focus it
+                          ref={i === items.length - 1 ? newItemDescRef : null}
+                        />
+                        <input
+                          type="number"
+                          inputMode="decimal"
+                          value={it.cost ?? ''}
+                          onChange={e => updateItem(i, 'cost', e.target.value)}
+                          className="receipt-item-cost"
+                          placeholder="0.00"
+                        />
+                        {/* Bookmark — saves this line to the materials library at buy price */}
+                        <button
+                          className={`receipt-item-bookmark${savedItemIdx === i ? ' receipt-item-bookmark--saved' : ''}`}
+                          type="button"
+                          onClick={() => saveItemToMaterials(i)}
+                          title="Save to my materials"
+                          aria-label="Save to my materials"
+                        >
+                          {savedItemIdx === i
+                            ? <Icon name="check" size={14} variant="success" />
+                            : <Icon name="star"  size={14} variant="muted"   />
+                          }
+                        </button>
+                        <button
+                          className="receipt-item-x"
+                          type="button"
+                          onClick={() => removeItem(i)}
+                          title="Remove item"
+                          aria-label="Remove item"
+                        >×</button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+
+                {/* Add item button */}
+                <button
+                  type="button"
+                  className="receipt-items-add"
+                  onClick={addItem}
+                >
+                  + Add item
+                </button>
+
+                {/* Subtotal hint — NOT a roll-up; does not affect Amount.
+                    Only shown when there is at least one meaningful item so
+                    we never display a misleading "Items add up to £0.00". */}
+                {mCount > 0 && (
+                  <p className="receipt-items-subtotal">
+                    Items add up to £{subtotal.toFixed(2)}
+                  </p>
+                )}
               </div>
-              <ul className="receipt-items-list">
-                {items.map((it, i) => (
-                  <li key={i} className="receipt-item">
-                    <input
-                      type="text"
-                      value={it.desc}
-                      onChange={e => updateItem(i, 'desc', e.target.value)}
-                      className="receipt-item-desc"
-                    />
-                    <input
-                      type="number"
-                      inputMode="decimal"
-                      value={it.cost ?? ''}
-                      onChange={e => updateItem(i, 'cost', e.target.value)}
-                      className="receipt-item-cost"
-                    />
-                    {/* Bookmark — saves this OCR line to the materials library at buy price */}
-                    <button
-                      className={`receipt-item-bookmark${savedItemIdx === i ? ' receipt-item-bookmark--saved' : ''}`}
-                      type="button"
-                      onClick={() => saveItemToMaterials(i)}
-                      title="Save to my materials"
-                      aria-label="Save to my materials"
-                    >
-                      {savedItemIdx === i
-                        ? <Icon name="check" size={14} variant="success" />
-                        : <Icon name="star"  size={14} variant="muted"   />
-                      }
-                    </button>
-                    <button className="receipt-item-x" onClick={() => removeItem(i)} title="Remove">×</button>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
+            )}
+          </div>
 
           {error && <p className="modal-error">{error}</p>}
         </div>
