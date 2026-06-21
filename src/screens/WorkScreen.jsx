@@ -2321,6 +2321,8 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
             onViewReceipt={setReceiptJob}
             onNavigateToCardPayments={onNavigateToCardPayments}
             onProfileUpdate={onProfileUpdate}
+            materialsLibrary={materials}
+            onMaterialSaved={onMaterialSaved}
           />
         </DrawerErrorBoundary>
       )}
