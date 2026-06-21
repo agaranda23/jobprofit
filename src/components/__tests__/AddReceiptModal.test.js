@@ -1,5 +1,5 @@
 /**
- * AddReceiptModal — pure-logic tests for Phase 1 Smart Sheet shell.
+ * AddReceiptModal — pure-logic tests for Phase 1 + Phase 2 Smart Sheet.
  *
  * No DOM, no React, no @testing-library — matches project convention.
  * Visual/layout smoke is covered by the deploy-preview checklist in the PR.
@@ -9,9 +9,11 @@
  *   DISCARD — confirm='discard' triggered when dirty; skip when clean
  *   DELETE — confirm='delete' calls onDeleteReceipt; hidden when prop absent
  *   SAVE — save payload shape (add + edit mode) unchanged by Phase 1
+ *   PHASE 2 — meaningfulItemCount, computeItemsSubtotal, itemsDirty helpers
  */
 
 import { describe, it, expect, vi } from 'vitest';
+import { meaningfulItemCount, computeItemsSubtotal, itemsDirty } from '../../lib/receiptItemsHelpers.js';
 
 // ---------------------------------------------------------------------------
 // isDirty helper — mirrors the expression in AddReceiptModal.jsx
@@ -22,6 +24,7 @@ function buildSeed({ photo = null, label = '', amount = '', vat = '',
   return { photo, label, amount, vat, receiptDate, invoiceNumber, items };
 }
 
+// Phase 2: use the exported itemsDirty helper to match component behaviour.
 function isDirty(seed, { photoFile = null, label, amount, vat, receiptDate, invoiceNumber, items }) {
   return (
     photoFile !== null ||
@@ -30,7 +33,7 @@ function isDirty(seed, { photoFile = null, label, amount, vat, receiptDate, invo
     vat !== seed.vat ||
     receiptDate !== seed.receiptDate ||
     invoiceNumber !== seed.invoiceNumber ||
-    JSON.stringify(items) !== JSON.stringify(seed.items)
+    itemsDirty(items, seed.items)
   );
 }
 
@@ -86,7 +89,7 @@ describe('isDirty: dirty state', () => {
     expect(isDirty(seed, { ...seed, photoFile: fakeFile })).toBe(true);
   });
 
-  it('returns true when items change', () => {
+  it('returns true when items change (meaningful desc)', () => {
     const seed = buildSeed({ items: [{ desc: 'Screws', cost: 4.5 }] });
     const changed = [{ desc: 'Bolts', cost: 3.0 }];
     expect(isDirty(seed, { ...seed, photoFile: null, items: changed })).toBe(true);
@@ -249,5 +252,107 @@ describe('save payload: add mode', () => {
     const payload = buildAddPayload({ label: 'R', amount: '10', vat: '', invoiceNumber: '', receiptDate: '2026-06-21', items, photo: null });
     expect(payload.items).toHaveLength(1);
     expect(payload.items[0].desc).toBe('Screws');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Phase 2: meaningfulItemCount
+// ---------------------------------------------------------------------------
+
+describe('meaningfulItemCount', () => {
+  it('returns 0 for an empty array', () => {
+    expect(meaningfulItemCount([])).toBe(0);
+  });
+
+  it('counts only items with a non-empty desc', () => {
+    const items = [
+      { desc: 'Screws', cost: 4.5 },
+      { desc: '', cost: 2 },
+      { desc: '  ', cost: 1 }, // whitespace-only — not meaningful
+      { desc: 'Nails', cost: 3 },
+    ];
+    expect(meaningfulItemCount(items)).toBe(2);
+  });
+
+  it('counts OCR items and manually added items together (source-agnostic)', () => {
+    const items = [
+      { desc: 'OCR item', cost: 10 },
+      { desc: 'Manual item', cost: 5 },
+      { desc: '', cost: 0 }, // freshly added blank row
+    ];
+    expect(meaningfulItemCount(items)).toBe(2);
+  });
+
+  it('returns 0 when all rows are blank', () => {
+    const items = [{ desc: '', cost: 0 }, { desc: '  ', cost: 1 }];
+    expect(meaningfulItemCount(items)).toBe(0);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Phase 2: computeItemsSubtotal
+// ---------------------------------------------------------------------------
+
+describe('computeItemsSubtotal', () => {
+  it('returns 0 for an empty array', () => {
+    expect(computeItemsSubtotal([])).toBe(0);
+  });
+
+  it('sums all item costs including blank-desc rows', () => {
+    const items = [
+      { desc: 'Screws', cost: 4.5 },
+      { desc: '', cost: 2 },
+      { desc: 'Nails', cost: 3.75 },
+    ];
+    expect(computeItemsSubtotal(items)).toBeCloseTo(10.25);
+  });
+
+  it('treats undefined/null cost as 0', () => {
+    const items = [{ desc: 'Item', cost: undefined }, { desc: 'B', cost: null }];
+    expect(computeItemsSubtotal(items)).toBe(0);
+  });
+
+  it('handles a single item', () => {
+    expect(computeItemsSubtotal([{ desc: 'Timber', cost: 99.99 }])).toBeCloseTo(99.99);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Phase 2: itemsDirty — blank-desc rows stripped before comparison
+// ---------------------------------------------------------------------------
+
+describe('itemsDirty', () => {
+  it('returns false when meaningful items match seed', () => {
+    const seed = [{ desc: 'Screws', cost: 4.5 }];
+    const current = [{ desc: 'Screws', cost: 4.5 }];
+    expect(itemsDirty(current, seed)).toBe(false);
+  });
+
+  it('returns true when a meaningful item is changed', () => {
+    const seed = [{ desc: 'Screws', cost: 4.5 }];
+    const current = [{ desc: 'Bolts', cost: 4.5 }];
+    expect(itemsDirty(current, seed)).toBe(true);
+  });
+
+  it('returns false when current has an extra blank-desc row vs seed (open+add scenario)', () => {
+    // This is the key regression: user opens Itemise + taps "+ Add item" (blank row added)
+    // then tries to close — should NOT trigger dirty guard.
+    const seed = [{ desc: 'Screws', cost: 4.5 }];
+    const current = [{ desc: 'Screws', cost: 4.5 }, { desc: '', cost: undefined }];
+    expect(itemsDirty(current, seed)).toBe(false);
+  });
+
+  it('returns false for empty seed and only blank rows in current', () => {
+    expect(itemsDirty([{ desc: '', cost: undefined }], [])).toBe(false);
+  });
+
+  it('returns true when a previously blank row now has a desc', () => {
+    const seed = [{ desc: 'Screws', cost: 4.5 }];
+    const current = [{ desc: 'Screws', cost: 4.5 }, { desc: 'New item', cost: 2 }];
+    expect(itemsDirty(current, seed)).toBe(true);
+  });
+
+  it('returns false when both seed and current are empty', () => {
+    expect(itemsDirty([], [])).toBe(false);
   });
 });
