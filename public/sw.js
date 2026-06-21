@@ -88,8 +88,13 @@ self.addEventListener('notificationclick', (event) => {
 //      Fresh data when online; last-known rows when offline.
 //      Cache key is the full URL so different queries cache independently.
 //
-//   4. Everything else (app shell, JS chunks, CSS, icons) — stale-while-
-//      revalidate: serve cache immediately, update in background.
+//   4. Navigation requests (HTML document) — network-first with offline fallback.
+//      Serving stale index.html at a deploy boundary causes a blank page: the old
+//      shell references old content-hashed asset URLs that no longer exist in the
+//      new cache. Network-first guarantees the shell always matches the live assets.
+//
+//   5. Static assets (JS/CSS/fonts/icons) — cache-first.
+//      Content-hashed URLs are immutable per build; cache-first is safe and fast.
 
 self.addEventListener('fetch', event => {
   const { request } = event;
@@ -136,15 +141,74 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // ── 4. App shell & assets — stale-while-revalidate ───────────────────────
+  // ── 4. Navigation requests (HTML document) — network-first ───────────────
+  //
+  // MUST come before section 5 (assets). Navigation requests are for the HTML
+  // document itself (browser bar URL changes, hard reloads, deep-links).
+  //
+  // Why network-first here, not stale-while-revalidate:
+  //   On a deploy boundary the old cached index.html references old
+  //   content-hashed asset URLs (/assets/index-OLD.js). When a new SW
+  //   activates mid-load it deletes the old cache (see activate handler above),
+  //   so those old asset URLs 404 → blank page until the next refresh.
+  //   Serving the CURRENT index.html from the network guarantees the asset
+  //   references match what is actually cached from the new precache.
+  //
+  // Offline fallback: if the network is unreachable we serve the cached shell.
+  // ignoreSearch:true lets navigations carrying query strings (e.g. /?utm_source=card)
+  // resolve to the cached shell so offline QR-code scans still open the app.
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      (async () => {
+        try {
+          const fresh = await fetch(request);
+          // Cache a clone so the next offline cold-start has the latest shell
+          const clone = fresh.clone();
+          const cache = await caches.open(CACHE_NAME);
+          // Key under '/' so the fallback below always finds it regardless of
+          // the exact navigation URL (/?utm_source=x, /#today, etc.)
+          cache.put('/', clone);
+          return fresh;
+        } catch {
+          // Network failed — serve cached shell; ignoreSearch covers UTM params
+          const cached =
+            (await caches.match('/index.html', { ignoreSearch: true })) ||
+            (await caches.match('/', { ignoreSearch: true }));
+          if (cached) return cached;
+          // Absolute last resort — visible error rather than a silent hang
+          return new Response('<h1>JobProfit is offline</h1><p>Please reconnect and refresh.</p>', {
+            status: 503,
+            headers: { 'Content-Type': 'text/html' },
+          });
+        }
+      })()
+    );
+    return;
+  }
+
+  // ── 5. Static assets (JS/CSS/fonts/icons) — cache-first ─────────────────
+  //
+  // These are Vite content-hashed: the URL changes every build so a cached
+  // copy is always valid for its URL. Cache-first is faster than SWR and safe.
+  //
+  // Never-undefined guarantee: if both cache and network fail, return a real
+  // error Response rather than resolving respondWith(undefined) which causes
+  // a fetch error that silently breaks the load.
   event.respondWith(
-    caches.match(request).then(cached => {
-      const fetched = fetch(request).then(response => {
+    (async () => {
+      const cached = await caches.match(request);
+      if (cached) return cached;
+      try {
+        const response = await fetch(request);
         const clone = response.clone();
         caches.open(CACHE_NAME).then(cache => cache.put(request, clone));
         return response;
-      }).catch(() => cached);
-      return cached || fetched;
-    })
+      } catch {
+        return new Response('Asset unavailable offline', {
+          status: 503,
+          headers: { 'Content-Type': 'text/plain' },
+        });
+      }
+    })()
   );
 });
