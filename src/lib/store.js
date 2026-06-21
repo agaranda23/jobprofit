@@ -81,6 +81,11 @@ export function getTodayJobs() {
   const { jobs } = read();
   return jobs.map(j => ({
     id: j.id,
+    // Pass cloudId through so receipt-matching logic that keys on job.cloudId
+    // works when a localStorage job has been synced to cloud (addJobToCloud sets
+    // cloudId: data.id on the local record). Without this, getJobProfit misses
+    // receipts whose jobId is the UUID because job.id is the legacy numeric id.
+    cloudId: j.cloudId || null,
     name: j.customer || j.summary?.slice(0, 40) || 'Job',
     amount: Number(j.total || 0),
     paid: j.paymentStatus === 'paid',
@@ -249,6 +254,12 @@ function mapCloudJobToToday(r) {
   const job = {
     ...cloudMeta,
     id: r.id, // Supabase UUID (source of truth)
+    // cloudId mirrors id for cloud-only jobs so receipt-matching logic that keys
+    // on job.cloudId (getJobProfit, JobDetailDrawer, exportCsv, etc.) works even
+    // when the job was never written through the localStorage addTodayJob path.
+    // On the localStorage path, addJobToCloud already sets cloudId: data.id —
+    // this makes the cloud-only path consistent with that contract.
+    cloudId: r.id,
     name: r.customer_name || r.summary?.slice(0, 40) || 'Job',
     amount: Number(r.amount || 0),
     paid: r.paid === true,

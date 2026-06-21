@@ -1176,6 +1176,47 @@ describe('getJobProfit', () => {
     const { materials } = getJobProfit(job, receipts);
     expect(materials).toBe(0);
   });
+
+  // Regression: bug #7 cross-device materials fix.
+  // A cloud-only job (mapped via mapCloudJobToToday, cloudId === id === UUID)
+  // must include receipt costs linked by that UUID — profit must not be overstated.
+  it('cloud-only job: receipt linked by UUID is counted in materials (regression #7)', () => {
+    // Simulate mapCloudJobToToday output — id and cloudId are both the Supabase UUID.
+    // This is exactly what the store returns after the fix.
+    const uuid = 'a1b2c3d4-0000-0000-0000-000000000001';
+    const job = { id: uuid, cloudId: uuid, amount: 800, cloud: true };
+    const receipts = [
+      { id: 'r1', jobId: uuid, amount: 200 }, // linked by UUID
+      { id: 'r2', jobId: 'other-job-uuid', amount: 999 }, // different job — must be excluded
+    ];
+    const { materials, profit } = getJobProfit(job, receipts);
+    expect(materials).toBe(200);
+    expect(profit).toBe(600);
+  });
+
+  // Regression: the fix must not double-count a receipt when job.id === job.cloudId.
+  // Both branches of the OR would match the same receipt — the filter must not sum it twice.
+  it('no double-count when job.id === job.cloudId (post-fix cloud-only shape)', () => {
+    const uuid = 'a1b2c3d4-0000-0000-0000-000000000002';
+    const job = { id: uuid, cloudId: uuid, amount: 500, cloud: true };
+    const receipts = [{ id: 'r1', jobId: uuid, amount: 100 }];
+    const { materials } = getJobProfit(job, receipts);
+    // Must be 100, not 200, even though jobId matches both job.id and job.cloudId
+    expect(materials).toBe(100);
+  });
+
+  // Regression: legacy localStorage-synced job (id=numeric, cloudId=UUID) with
+  // a receipt whose jobId is the cloud UUID still matches via cloudId branch.
+  it('localStorage+cloud hybrid: receipt linked by cloudId UUID matches correctly', () => {
+    const uuid = 'a1b2c3d4-0000-0000-0000-000000000003';
+    const job = { id: 'J-5', cloudId: uuid, amount: 650 }; // getTodayJobs now passes cloudId through
+    const receipts = [
+      { id: 'r1', jobId: uuid, amount: 175 }, // saved after cloud sync; jobId is UUID
+    ];
+    const { materials, profit } = getJobProfit(job, receipts);
+    expect(materials).toBe(175);
+    expect(profit).toBe(475);
+  });
 });
 
 // ─── getBestWorstJobs ─────────────────────────────────────────────────────────
