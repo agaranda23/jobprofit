@@ -46,7 +46,11 @@ export default function PhotoSourceSheet({ open, onTakePhoto, onUploadPhoto, onC
       role="dialog"
       aria-modal="true"
       aria-label="Add photo — choose source"
-      onClick={onClose}
+      // stopPropagation: this sheet can render as a child of another backdrop
+      // (e.g. AddReceiptModal's .modal-backdrop, whose onClick closes the modal).
+      // A backdrop tap must dismiss ONLY this sheet, not bubble up and close the
+      // host modal / pop its discard-confirm.
+      onClick={(e) => { e.stopPropagation(); onClose(); }}
     >
       <div
         className="photo-source-sheet"

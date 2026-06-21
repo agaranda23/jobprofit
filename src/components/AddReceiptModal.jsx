@@ -554,8 +554,10 @@ export default function AddReceiptModal({
 
       </div>
 
-      {/* Photo-source chooser — rendered inside the modal wrapper so it layers
-          above the modal itself (z-index via .photo-source-backdrop uses --z-modal) */}
+      {/* Photo-source chooser — sibling of .modal (inside .modal-backdrop) so its
+          own fixed backdrop layers above the modal. PhotoSourceSheet stops click
+          propagation on its backdrop, so a backdrop tap dismisses only the sheet
+          and never bubbles to .modal-backdrop's requestClose. */}
       <PhotoSourceSheet
         open={photoSheetOpen}
         triggerRef={addPhotoBtnRef}
