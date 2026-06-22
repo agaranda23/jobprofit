@@ -14714,7 +14714,18 @@ button.jd-money-chip:active { opacity: 0.75; }
 }
 .jd-add-pill-row--pair {
   gap: 8px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+}
+/* Force equal 50/50 widths for the Notes & Photos "Add photo" / "Add note"
+   pair. flex-basis:0 (not auto) is load-bearing — it makes both buttons start
+   from zero content width so flex:1 distributes space equally regardless of
+   label length. justify-content:center centres icon+label inside each wider
+   half (base class left-packs). Scoped to --pair so all other .jd-add-dashed
+   usages (Quote "+ Add line", Schedule "+ Add visit") are untouched. */
+.jd-add-pill-row--pair .jd-add-dashed {
+  flex: 1 1 0;
+  min-width: 0;
+  justify-content: center;
 }
 .jd-capture-hint {
   margin: 2px 0 8px;
