@@ -16942,12 +16942,30 @@ button.jd-money-chip:active { opacity: 0.75; }
    Mobile-first — one-hand layout. All interactive targets ≥ 44px tall.     */
 
 /* ── MaterialsScreen ─────────────────────────────────────────────────────── */
+/*
+  Fixed-position full-screen overlay so MaterialsScreen covers the Settings
+  sub-screen (and the bottom nav) when opened from Settings → Materials or
+  the quote type-ahead "Browse all" link.
+
+  Without position:fixed the element renders in normal document flow as an
+  additive sibling of the Settings screen, which has min-height:100vh and
+  therefore paints over MaterialsScreen entirely.
+
+  z-index chosen as --z-modal (400) — sits above BottomNav (100), drawers
+  (300), and the Settings sub-screen (no z-index, document flow), but below
+  toasts (600) and the pro-upgrade sheet (700) so those still overlay it.
+  overflow-y:auto lets the list scroll on short screens without clipping.
+  padding-bottom keeps the last row clear of iOS home-indicator safe area.
+*/
 .ml-screen {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-modal);
+  overflow-y: auto;
   background: var(--bg);
-  min-height: 100dvh;
   display: flex;
   flex-direction: column;
-  padding-bottom: var(--nav-clearance, 80px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 .ml-header {
   display: flex;
