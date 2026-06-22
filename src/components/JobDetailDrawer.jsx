@@ -3998,9 +3998,6 @@ export default function JobDetailDrawer({
                     >
                       {onUpdateJob && (
                         <>
-                          {noteCount === 0 && photoCount === 0 && (
-                            <p className="jd-capture-hint">Snap a photo before you leave site, or jot a note for later.</p>
-                          )}
                           <div className="jd-add-pill-row jd-add-pill-row--pair">
                             <button
                               type="button"
