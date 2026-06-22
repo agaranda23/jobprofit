@@ -51,6 +51,7 @@ the audit script, and the long-term `supabase db push` path.
 | 28 | `20260610000001_add_default_markup_to_profiles.sql` | yes (2026-06-10) | Adds default_markup_percent to profiles |
 | 29 | `20260617000000_trial_starts_at_first_use.sql` | yes (2026-06-17) | Removes trial_ends_at DEFAULT so trial clock starts on first app use. **Negative migration — verifies ABSENCE of DEFAULT on profiles.trial_ends_at** |
 | 30 | `20260616000000_add_founding_member.sql` | yes (2026-06-19) | Founding Member price-lock columns applied to prod on launch day (2026-06-19) |
+| 31 | `20260622000000_add_welcome_email_sent_at.sql` | deferred | Adds profiles.welcome_email_sent_at (timestamptz) — idempotency guard for send-welcome-email function. Run in Supabase Studio after merging feat/welcome-email and before provisioning RESEND_API_KEY. |
 
 ---
 
