@@ -1628,10 +1628,10 @@ function LogoModal({ currentUrl, session, onSave, onClose }) {
         )}
 
         {/* Tab switcher */}
-        <div className="logo-modal__tabs" role="group" aria-label="Logo input method">
+        <div className="logo-modal__tabs work-segments" role="group" aria-label="Logo input method">
           <button
             type="button"
-            className={`logo-modal__tab${tab === 'upload' ? ' logo-modal__tab--active' : ''}`}
+            className={`work-segment${tab === 'upload' ? ' work-segment--active' : ''}`}
             onClick={() => { setTab('upload'); setError(''); }}
             disabled={uploading}
           >
@@ -1639,7 +1639,7 @@ function LogoModal({ currentUrl, session, onSave, onClose }) {
           </button>
           <button
             type="button"
-            className={`logo-modal__tab${tab === 'url' ? ' logo-modal__tab--active' : ''}`}
+            className={`work-segment${tab === 'url' ? ' work-segment--active' : ''}`}
             onClick={() => { setTab('url'); setError(''); }}
             disabled={uploading}
           >
