@@ -23,6 +23,13 @@ export function computeItemsSubtotal(items) {
  * that as a dirty change requiring a discard confirmation.
  */
 export function itemsDirty(current, seedItems) {
-  const normalise = arr => arr.filter(it => it.desc?.trim());
+  // Normalise cost to a Number before comparing. While editing, live items hold
+  // the raw string from the input (e.g. cost "12"), but the seed (existing
+  // receipt) holds a Number (12). Without this coercion the JSON.stringify
+  // compare would see "12" !== 12 and false-fire the discard prompt on an
+  // otherwise-untouched receipt. Empty/NaN cost normalises to 0 (the data contract).
+  const normalise = arr => arr
+    .filter(it => it.desc?.trim())
+    .map(it => ({ ...it, cost: Number(it.cost) || 0 }));
   return JSON.stringify(normalise(current)) !== JSON.stringify(normalise(seedItems));
 }
