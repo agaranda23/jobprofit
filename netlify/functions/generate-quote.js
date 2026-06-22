@@ -128,13 +128,12 @@ export const handler = async function (event) {
 
   // ── 4. Fetch trader profile ──────────────────────────────────────────────────
   // Columns: hourly_rate, vat_number, plan, ai_quote_builds_count,
-  //          ai_quote_builds_period, trade_type (if exists).
-  // trade_type may not exist on older schemas — handled gracefully below.
+  //          ai_quote_builds_period.
   let profile;
   try {
     const { data, error } = await adminClient
       .from('profiles')
-      .select('hourly_rate, vat_number, plan, ai_quote_builds_count, ai_quote_builds_period, trade_type')
+      .select('hourly_rate, vat_number, plan, ai_quote_builds_count, ai_quote_builds_period')
       .eq('id', userId)
       .single();
 

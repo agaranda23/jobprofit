@@ -122,12 +122,10 @@ export const handler = async function (event) {
         'email',
         'logo_url',
         'website',
-        'vat_registered',
         'vat_number',
         'account_name',
         'sort_code',
         'account_number',
-        'bank_details',
         'stripe_connect_status',
         'stripe_user_id',
         'stripe_payment_link',
@@ -168,12 +166,11 @@ export const handler = async function (event) {
     email:              profile.email                || '',
     logoUrl:            profile.logo_url             || '',
     website:            profile.website              || '',
-    vatRegistered:      profile.vat_registered       ?? false,
+    vatRegistered:      !!profile.vat_number,
     vatNumber:          profile.vat_number           || '',
     accountName:        profile.account_name         || '',
     sortCode:           profile.sort_code            || '',
     accountNumber:      profile.account_number       || '',
-    bankDetails:        profile.bank_details         || '',
     // isConnected: true means create-invoice-payment-link will work.
     // We expose this flag — not the raw stripe_user_id — so the client can
     // decide whether to show the Pay-now button.

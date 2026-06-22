@@ -109,7 +109,6 @@ export const handler = async function (event) {
         'email',
         'logo_url',
         'website',
-        'vat_registered',
         'vat_number',
         'utr_number',
         'plan',
@@ -139,7 +138,7 @@ export const handler = async function (event) {
     email:         profile.email          || '',
     logoUrl:       profile.logo_url       || '',
     website:       profile.website        || '',
-    vatRegistered: profile.vat_registered ?? false,
+    vatRegistered: !!profile.vat_number,
     vatNumber:     profile.vat_number     || '',
     utrNumber:     profile.utr_number     || '',
     // isPro: true hides the "Sent with JobProfit" footer on the public receipt page.
