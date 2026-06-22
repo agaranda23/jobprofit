@@ -58,10 +58,12 @@ let mockJobResult = {
   data: {
     id: FAKE_QUOTE_ID,
     user_id: FAKE_USER_ID,
-    total: 540,
+    // total and name are NOT real DB columns — amount is the column, meta.total is the stored value.
+    // customer and customerName are NOT real columns — customer_name is.
+    amount: 540,
     summary: 'Bathroom re-tile',
-    customer: 'Sam Whitlock',
-    meta: { publicAccessToken: FAKE_PUBLIC_TOK },
+    customer_name: 'Sam Whitlock',
+    meta: { publicAccessToken: FAKE_PUBLIC_TOK, total: 540 },
     deposit_percent: 25,
     deposit_amount_pence: null,
     deposit_paid_at: null,
@@ -133,8 +135,8 @@ describe('create-deposit-payment-link', () => {
     };
     mockJobResult = {
       data: {
-        id: FAKE_QUOTE_ID, user_id: FAKE_USER_ID, total: 540, summary: 'Bathroom re-tile',
-        customer: 'Sam Whitlock', meta: { publicAccessToken: FAKE_PUBLIC_TOK },
+        id: FAKE_QUOTE_ID, user_id: FAKE_USER_ID, amount: 540, summary: 'Bathroom re-tile',
+        customer_name: 'Sam Whitlock', meta: { publicAccessToken: FAKE_PUBLIC_TOK, total: 540 },
         deposit_percent: 25, deposit_amount_pence: null, deposit_paid_at: null,
       },
       error: null,
@@ -430,5 +432,48 @@ describe('create-deposit-payment-link', () => {
     const piMeta = params.payment_intent_data.metadata;
     expect(piMeta.consent_given).toBeUndefined();
     expect(piMeta.consent_at).toBeUndefined();
+  });
+
+  // ── Q. Regression: public-token path must NOT 404 due to invalid column names ─
+  // Previously the select included `customer`, `customerName`, `name`, and `total`
+  // which are not real jobs columns. PostgREST returned a 42703 error and the code
+  // at `if (error || !data)` short-circuited to 404 "Quote not found", masking the
+  // real cause. This test asserts the path reaches at least the Stripe-Connect check
+  // (409 NOT_CONNECTED when not provisioned) rather than returning a misleading 404.
+  it('Q: public-token path does not 404 when job exists — reaches NOT_CONNECTED gate instead', async () => {
+    const event = {
+      httpMethod: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ publicQuoteToken: FAKE_PUBLIC_TOK, consentGiven: true }),
+    };
+
+    // Trader profile: Pro but Stripe NOT connected — the expected gate in prod.
+    const notConnectedProfile = {
+      data: {
+        stripe_user_id: null,
+        stripe_connect_status: 'not_connected',
+        business_name: 'Murphy Tiling',
+        first_name: null,
+        last_name: null,
+        plan: 'pro',
+        trial_ends_at: null,
+      },
+      error: null,
+    };
+
+    let callCount = 0;
+    mockSingle.mockImplementation(async () => {
+      callCount++;
+      if (callCount === 1) return mockJobResult;       // job by publicAccessToken (uses customer_name, amount)
+      if (callCount === 2) return notConnectedProfile; // profile
+      return mockTokenIdempotentResult;
+    });
+
+    const res = await handler(event);
+    // Must NOT be 404 ("Quote not found") — the job was found; we hit the Stripe gate.
+    expect(res.statusCode).not.toBe(404);
+    // In prod without Stripe Connect, the correct response is 409 NOT_CONNECTED.
+    expect(res.statusCode).toBe(409);
+    expect(JSON.parse(res.body).code).toBe('NOT_CONNECTED');
   });
 });

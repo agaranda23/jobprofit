@@ -574,7 +574,7 @@ async function handleDepositCompleted(session, stripe, adminClient) {
 
   const { data: jobRow, error: jobFetchErr } = await adminClient
     .from('jobs')
-    .select('id, user_id, customer, customer_name, meta, summary, name, deposit_amount_pence, payments')
+    .select('id, user_id, customer_name, meta, summary, deposit_amount_pence, payments')
     .eq('id', jobId)
     .single();
 
