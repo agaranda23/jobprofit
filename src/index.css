@@ -15369,36 +15369,20 @@ button.jd-money-chip:active { opacity: 0.75; }
   background: var(--card-bg);
 }
 
-/* Tab switcher — Upload | Paste URL */
+/* Tab switcher — Upload | Paste URL.
+   Reuses the shared .work-segments recipe (same as the Documents & signatures
+   Quotes/Invoices control) for a consistent, readable segmented control. */
 .logo-modal__tabs {
-  display: flex;
-  gap: 0;
   margin: 16px 24px 0;
-  border-radius: 8px;
-  overflow: hidden;
-  border: 1px solid var(--border);
 }
-.logo-modal__tab {
-  flex: 1;
-  padding: 9px 12px;
-  font-size: var(--fs-label);
-  font-weight: 500;
-  background: transparent;
-  border: none;
-  color: #000;
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+.logo-modal__tabs .work-segment--active {
+  background: var(--accent);
+  color: #0a0a0a;
+  border-color: var(--accent);
 }
-.logo-modal__tab:disabled {
+.logo-modal__tabs .work-segment:disabled {
   opacity: 0.5;
   cursor: default;
-}
-.logo-modal__tab--active {
-  background: var(--accent);
-  color: #000;
-}
-.logo-modal__tab:not(.logo-modal__tab--active):not(:disabled):active {
-  background: var(--surface-hover, rgba(0,0,0,0.06));
 }
 
 /* Full-width "Choose image" button in the Upload tab */
