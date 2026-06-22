@@ -166,7 +166,7 @@ export const handler = async function (event) {
   try {
     const { data, error } = await adminClient
       .from('jobs')
-      .select('id, amount, total, summary, name, customer, customerName, meta')
+      .select('id, amount, summary, customer_name, meta')
       .eq('id', invoiceId)
       .eq('user_id', userId)
       .single();
@@ -207,7 +207,8 @@ export const handler = async function (event) {
   }
 
   // ── 8. Build Stripe Checkout Session params ───────────────────────────────────
-  const amountRaw = Number(job.total ?? job.amount ?? 0);
+  // total is not a DB column — derive from meta.total (set at invoice-send time) or fall back to amount.
+  const amountRaw = Number(job.meta?.total ?? job.amount ?? 0);
   if (!amountRaw || amountRaw <= 0) {
     return json(400, { error: 'Invoice has no amount — add a price before sending a Pay-now link' });
   }
@@ -217,7 +218,8 @@ export const handler = async function (event) {
   // Invoice reference from meta (new-nav stores it in job.meta.invoiceNumber)
   // or fall back to a generic label.
   const invoiceNumber = job.meta?.invoiceNumber || `INV-${invoiceId.slice(0, 8).toUpperCase()}`;
-  const jobDescription = truncate(job.summary || job.name || 'Work completed', 60);
+  // name is not a DB column — customer_name is the correct column.
+  const jobDescription = truncate(job.summary || job.customer_name || 'Work completed', 60);
   const businessName =
     profile.business_name ||
     [profile.first_name, profile.last_name].filter(Boolean).join(' ') ||

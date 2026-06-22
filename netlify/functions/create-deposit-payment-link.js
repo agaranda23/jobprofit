@@ -140,7 +140,7 @@ export const handler = async function (event) {
     try {
       const { data, error } = await adminClient
         .from('jobs')
-        .select('id, user_id, amount, total, summary, name, customer, customerName, meta, deposit_percent, deposit_amount_pence, deposit_paid_at')
+        .select('id, user_id, amount, summary, customer_name, meta, deposit_percent, deposit_amount_pence, deposit_paid_at')
         .eq('meta->>publicAccessToken', publicQuoteToken)
         .single();
 
@@ -222,7 +222,7 @@ export const handler = async function (event) {
     try {
       const { data, error } = await adminClient
         .from('jobs')
-        .select('id, amount, total, summary, name, customer, customerName, meta, deposit_percent, deposit_amount_pence, deposit_paid_at')
+        .select('id, amount, summary, customer_name, meta, deposit_percent, deposit_amount_pence, deposit_paid_at')
         .eq('id', quoteId)
         .eq('user_id', userId)
         .single();
@@ -275,7 +275,8 @@ export const handler = async function (event) {
   }
 
   // ── 10. Calculate deposit amount ─────────────────────────────────────────────
-  const totalRaw = Number(job.total ?? job.amount ?? 0);
+  // total is not a DB column — derive from meta.total (set at quote-send time) or fall back to amount.
+  const totalRaw = Number(job.meta?.total ?? job.amount ?? 0);
   if (!totalRaw || totalRaw <= 0) {
     return json(400, { error: 'Quote has no amount — add a price before requesting a deposit' });
   }
@@ -291,7 +292,8 @@ export const handler = async function (event) {
   }
 
   // ── 11. Build Stripe Checkout Session ────────────────────────────────────────
-  const jobDescription = truncate(job.summary || job.name || 'Work', 50);
+  // name is not a DB column — customer_name is the correct column.
+  const jobDescription = truncate(job.summary || job.customer_name || 'Work', 50);
   const totalGbp = (totalRaw).toFixed(2);
   const productName = `Deposit for: ${jobDescription} (${depositPercent}% of £${totalGbp})`;
 
