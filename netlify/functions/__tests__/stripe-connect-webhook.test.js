@@ -290,8 +290,11 @@ describe('C. checkout.session.completed — happy path', () => {
     expect(jobUpdate).toBeDefined();
     expect(jobUpdate.data.paid).toBe(true);
     expect(jobUpdate.data.status).toBe('paid');
-    expect(jobUpdate.data.paymentStatus).toBe('paid');
+    // payment_date replaces the invalid paidAt column; paymentStatus does not exist
+    expect(jobUpdate.data.payment_date).toBeTruthy();
     expect(jobUpdate.data.card_paid_at).toBeTruthy();
+    expect(jobUpdate.data.paidAt).toBeUndefined();
+    expect(jobUpdate.data.paymentStatus).toBeUndefined();
   });
 
   it('retrieves the balance_transaction from the connected account', async () => {
@@ -372,8 +375,11 @@ describe('F. charge.refunded — full refund', () => {
     expect(jobUpdate).toBeDefined();
     expect(jobUpdate.data.paid).toBe(false);
     expect(jobUpdate.data.status).toBe('invoice_sent');
-    expect(jobUpdate.data.paidAt).toBeNull();
+    // payment_date replaces the invalid paidAt column; paymentStatus does not exist
+    expect(jobUpdate.data.payment_date).toBeNull();
     expect(jobUpdate.data.card_paid_at).toBeNull();
+    expect(jobUpdate.data.paidAt).toBeUndefined();
+    expect(jobUpdate.data.paymentStatus).toBeUndefined();
   });
 });
 
@@ -506,7 +512,7 @@ describe('K. checkout.session.completed with jp_type=deposit', () => {
       data: {
         id:       FAKE_QUOTE_ID,
         user_id:  FAKE_TRADER_ID,
-        meta:     {},
+        meta:     { payments: [] },
         summary:  'Bathroom re-tile',
       },
     };
@@ -532,7 +538,7 @@ describe('K. checkout.session.completed with jp_type=deposit', () => {
       data: {
         id:      FAKE_QUOTE_ID,
         user_id: FAKE_TRADER_ID,
-        meta:    {},
+        meta:    { payments: [] },
         summary: 'Patio job',
       },
     };
@@ -681,9 +687,8 @@ describe('M. Deposit completed — consent fields in jobs.meta', () => {
       data: {
         id:       FAKE_QUOTE_ID,
         user_id:  FAKE_TRADER_ID,
-        meta:     {},
+        meta:     { payments: [] },
         summary:  'Kitchen fit',
-        payments: [],
       },
     };
 
@@ -708,9 +713,8 @@ describe('M. Deposit completed — consent fields in jobs.meta', () => {
       data: {
         id:       FAKE_QUOTE_ID,
         user_id:  FAKE_TRADER_ID,
-        meta:     {},
+        meta:     { payments: [] },
         summary:  'Old link job',
-        payments: [],
       },
     };
 
@@ -756,9 +760,9 @@ describe('M. Deposit completed — consent fields in jobs.meta', () => {
           consentGiven:         true,
           consentAt:            '2026-06-01T09:00:00.000Z',
           consentPolicyVersion: 'v1',
+          payments:             [],
         },
         summary:  'Already signed',
-        payments: [],
       },
     };
 

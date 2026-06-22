@@ -301,16 +301,14 @@ async function handleCheckoutCompleted(session, stripe, adminClient) {
   }
 
   // ── Update the parent jobs row to the canonical paid state ─────────────────
-  // Uses the same fields that WorkScreen's one-tap Mark Paid sets:
-  //   paid: true, status: 'paid', paidAt: <iso>, paymentStatus: 'paid'
-  // plus card_paid_at to distinguish card payments from manual in the drawer UI.
+  // Uses valid DB columns: paid (bool), payment_date (ISO timestamp), card_paid_at
+  // (distinguishes card from manual). paymentStatus / paidAt do not exist on jobs.
   const { error: jobErr } = await adminClient
     .from('jobs')
     .update({
       paid: true,
       status: 'paid',
-      paidAt: paidAt,
-      paymentStatus: 'paid',
+      payment_date: paidAt,
       card_paid_at: paidAt,
     })
     .eq('id', tokenRow.invoice_id);
@@ -379,26 +377,31 @@ async function handleChargeRefunded(charge, adminClient) {
       // customer signed before the refund. That's a trader decision to handle manually.
       const quoteId = tokenRow.quote_id || tokenRow.invoice_id;
 
-      // Also remove the 'Deposit on acceptance' payment row from payments[] so
+      // Also remove the 'Deposit on acceptance' payment row from meta.payments so
       // the balance-due calculation is not net-reduced by a refunded deposit.
-      let paymentsAfterRefund;
+      // Payments are stored in the meta JSONB (not a top-level column).
+      let metaAfterRefund;
       try {
         const { data: jobForRefund } = await adminClient
           .from('jobs')
-          .select('payments')
+          .select('meta')
           .eq('id', quoteId)
           .single();
-        const existingPays = Array.isArray(jobForRefund?.payments) ? jobForRefund.payments : [];
-        paymentsAfterRefund = existingPays.filter(p => p.note !== 'Deposit on acceptance');
+        const existingMeta = (jobForRefund?.meta && typeof jobForRefund.meta === 'object') ? jobForRefund.meta : {};
+        const existingPays = Array.isArray(existingMeta.payments) ? existingMeta.payments : [];
+        metaAfterRefund = {
+          ...existingMeta,
+          payments: existingPays.filter(p => p.note !== 'Deposit on acceptance'),
+        };
       } catch {
-        // Non-fatal: if we can't fetch the payments, skip the array update.
-        paymentsAfterRefund = undefined;
+        // Non-fatal: if we can't fetch the meta, skip the payments array update.
+        metaAfterRefund = undefined;
       }
 
       const refundPatch = {
         deposit_paid_at: null,
         deposit_payment_token_id: null,
-        ...(paymentsAfterRefund !== undefined ? { payments: paymentsAfterRefund } : {}),
+        ...(metaAfterRefund !== undefined ? { meta: metaAfterRefund } : {}),
       };
 
       const { error: jobErr } = await adminClient
@@ -419,8 +422,7 @@ async function handleChargeRefunded(charge, adminClient) {
         .update({
           paid: false,
           status: 'invoice_sent',
-          paidAt: null,
-          paymentStatus: null,
+          payment_date: null,
           card_paid_at: null,
         })
         .eq('id', tokenRow.invoice_id);
@@ -572,9 +574,10 @@ async function handleDepositCompleted(session, stripe, adminClient) {
   // ── Fetch the current job to merge meta safely ────────────────────────────
   const jobId = tokenRow.quote_id || tokenRow.invoice_id;
 
+  // Payments live in meta.payments (JSONB) — not a top-level jobs column.
   const { data: jobRow, error: jobFetchErr } = await adminClient
     .from('jobs')
-    .select('id, user_id, customer_name, meta, summary, deposit_amount_pence, payments')
+    .select('id, user_id, customer_name, meta, summary, deposit_amount_pence')
     .eq('id', jobId)
     .single();
 
@@ -621,7 +624,8 @@ async function handleDepositCompleted(session, stripe, adminClient) {
   const depositAmountGbp = (tokenRow.amount_pence || 0) / 100;
   const paidAtDate = paidAt.slice(0, 10); // YYYY-MM-DD
 
-  const existingPayments = Array.isArray(jobRow.payments) ? jobRow.payments : [];
+  // Payments are stored inside meta.payments (confirmed by fetch-public-job.js).
+  const existingPayments = Array.isArray(existingMeta.payments) ? existingMeta.payments : [];
   const depositAlreadyRecorded = existingPayments.some(
     p => p.note === 'Deposit on acceptance',
   );
@@ -641,14 +645,14 @@ async function handleDepositCompleted(session, stripe, adminClient) {
       ];
 
   // ── Update the job with deposit payment state and auto-acceptance ─────────
+  // Payments are stored inside meta.payments — not a top-level jobs column.
   const { error: jobErr } = await adminClient
     .from('jobs')
     .update({
       deposit_paid_at:           paidAt,
       deposit_payment_token_id:  tokenRow.id,
       status:                    'active', // move quote → active job
-      meta:                      updatedMeta,
-      payments:                  updatedPayments,
+      meta:                      { ...updatedMeta, payments: updatedPayments },
     })
     .eq('id', jobId);
 

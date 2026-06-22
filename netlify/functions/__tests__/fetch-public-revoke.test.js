@@ -83,7 +83,7 @@ function makeProfileRow() {
     email: 'smith@example.com',
     logo_url: '',
     website: '',
-    vat_registered: false,
+    // vat_registered does not exist — vatRegistered is derived from !!vat_number
     vat_number: '',
     utr_number: '',
     quote_validity_days: 30,
@@ -93,7 +93,7 @@ function makeProfileRow() {
     account_name: '',
     sort_code: '',
     account_number: '',
-    bank_details: '',
+    // bank_details does not exist as a column
     stripe_connect_status: 'not_connected',
     stripe_user_id: null,
     stripe_payment_link: '',
