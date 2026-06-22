@@ -15385,7 +15385,7 @@ button.jd-money-chip:active { opacity: 0.75; }
   font-weight: 500;
   background: transparent;
   border: none;
-  color: var(--text-dim);
+  color: #000;
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
 }
@@ -15395,7 +15395,7 @@ button.jd-money-chip:active { opacity: 0.75; }
 }
 .logo-modal__tab--active {
   background: var(--accent);
-  color: #fff;
+  color: #000;
 }
 .logo-modal__tab:not(.logo-modal__tab--active):not(:disabled):active {
   background: var(--surface-hover, rgba(0,0,0,0.06));
