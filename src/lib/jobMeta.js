@@ -72,6 +72,13 @@ const META_FIELDS = [
   'labourHours',   // number — hours worked on this job
   'deposit',       // number — deposit amount taken at booking
   'notes',         // string — free-text note logged at job creation
+  // Quote deposit fields — set by ReviewSheet at send time and read by
+  // fetch-public-job to render the deposit block on the public quote page.
+  // Previously absent from META_FIELDS so they were silently stripped on
+  // every meta write and never reached the public page (deposit_percent always
+  // read as 0). No DB column migration needed — JSONB meta is schema-free.
+  'deposit_percent',      // number (0–100) — percentage of total requested as deposit
+  'deposit_amount_pence', // number — locked pence value computed at send time
   // Schedule fields — drawer handleScheduleSave and App.jsx saveSchedule both
   // route through onUpdateJob → writeJobMeta. Without these entries the schedule
   // date/time would appear saved in-memory but be silently stripped on reload.
@@ -151,4 +158,39 @@ export function applyJobMeta(job) {
 
 export function applyJobMetaToJobs(jobs) {
   return Array.isArray(jobs) ? jobs.map(applyJobMeta) : jobs;
+}
+
+// Load-time heal: walks a cloud jobs array and corrects any localStorage entries
+// that hold a stale quoteStatus:'sent' (or stale status:'quoted') for jobs the
+// cloud already records as accepted. Must be called BEFORE applyJobMetaToJobs so
+// the overlay picks up the corrected values.
+//
+// This is a one-way ratchet — once the cloud says 'accepted', localStorage is
+// updated to agree. It never downgrades: if localStorage already says 'accepted',
+// nothing is touched. Normal still-quoted jobs are not affected.
+//
+// Both quoteStatus AND status are written so that deriveDisplayStatus sees
+// status:'active' and returns "On" correctly. The existing ratchet in
+// refreshFromCloud only wrote quoteStatus, leaving status:'quoted' in localStorage
+// to win the overlay — this function corrects that gap.
+export function healAcceptedMeta(cloudJobs) {
+  if (!Array.isArray(cloudJobs)) return;
+  for (const cloudJob of cloudJobs) {
+    if (cloudJob.quoteStatus !== 'accepted' || !cloudJob.id) continue;
+    const local = readJobMeta(cloudJob.id);
+    // Already healed — skip.
+    if (local.quoteStatus === 'accepted' && local.status === 'active') continue;
+    // Ratchet up: overwrite stale local state with cloud-accepted truth.
+    writeJobMeta(cloudJob.id, {
+      quoteStatus:    'accepted',
+      status:         cloudJob.status         ?? 'active',
+      jobStatus:      cloudJob.jobStatus      ?? 'active',
+      acceptedAt:     cloudJob.acceptedAt     ?? null,
+      acceptedName:   cloudJob.acceptedName   ?? null,
+      acceptedSource: cloudJob.acceptedSource ?? null,
+      ...(cloudJob.acceptedSignature
+        ? { acceptedSignature: cloudJob.acceptedSignature }
+        : {}),
+    });
+  }
 }

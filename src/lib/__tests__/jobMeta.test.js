@@ -168,3 +168,79 @@ describe('writeJobMeta/readJobMeta targetFinishDate', () => {
   it('round-trips', () => { writeJobMeta(FINISH_JOB_ID, { targetFinishDate: '2026-06-20' }); expect(readJobMeta(FINISH_JOB_ID).targetFinishDate).toBe('2026-06-20'); });
   it('null clears', () => { writeJobMeta(FINISH_JOB_ID, { targetFinishDate: null }); expect(readJobMeta(FINISH_JOB_ID).targetFinishDate).toBeNull(); });
 });
+
+// ── Deposit percent / amount_pence round-trip (Fix 2) ────────────────────────
+// Root cause: deposit_percent and deposit_amount_pence were absent from
+// META_FIELDS, so ReviewSheet's write of these fields was silently stripped
+// before the localStorage write. fetch-public-job reads them from the JSONB
+// meta column; without them in META_FIELDS they were always 0 on the public page.
+
+const DEPOSIT_JOB_ID = 'test-job-meta-deposit-001';
+
+describe('extractJobMeta — deposit fields', () => {
+  it('extracts deposit_percent when present', () => {
+    const meta = extractJobMeta({ id: DEPOSIT_JOB_ID, deposit_percent: 25 });
+    expect(meta.deposit_percent).toBe(25);
+  });
+
+  it('extracts deposit_amount_pence when present', () => {
+    const meta = extractJobMeta({ id: DEPOSIT_JOB_ID, deposit_amount_pence: 12500 });
+    expect(meta.deposit_amount_pence).toBe(12500);
+  });
+
+  it('does not include deposit_percent when absent from job', () => {
+    const meta = extractJobMeta({ id: DEPOSIT_JOB_ID, status: 'quoted' });
+    expect('deposit_percent' in meta).toBe(false);
+  });
+
+  it('does not include deposit_amount_pence when absent from job', () => {
+    const meta = extractJobMeta({ id: DEPOSIT_JOB_ID, status: 'quoted' });
+    expect('deposit_amount_pence' in meta).toBe(false);
+  });
+});
+
+describe('writeJobMeta / readJobMeta — deposit round-trip', () => {
+  it('persists deposit_percent and reads it back', () => {
+    writeJobMeta(DEPOSIT_JOB_ID, { deposit_percent: 25, deposit_amount_pence: 12500 });
+    const stored = readJobMeta(DEPOSIT_JOB_ID);
+    expect(stored.deposit_percent).toBe(25);
+    expect(stored.deposit_amount_pence).toBe(12500);
+  });
+
+  it('deposit_percent:0 clears correctly', () => {
+    writeJobMeta(DEPOSIT_JOB_ID, { deposit_percent: 25 });
+    writeJobMeta(DEPOSIT_JOB_ID, { deposit_percent: 0, deposit_amount_pence: null });
+    const stored = readJobMeta(DEPOSIT_JOB_ID);
+    expect(stored.deposit_percent).toBe(0);
+    expect(stored.deposit_amount_pence).toBeNull();
+  });
+
+  it('deposit fields survive alongside other meta fields', () => {
+    writeJobMeta(DEPOSIT_JOB_ID, {
+      quoteStatus: 'sent',
+      publicAccessToken: 'aaaabbbb-0000-4000-8000-ccccddddeeee',
+      deposit_percent: 30,
+      deposit_amount_pence: 9000,
+    });
+    const stored = readJobMeta(DEPOSIT_JOB_ID);
+    expect(stored.quoteStatus).toBe('sent');
+    expect(stored.deposit_percent).toBe(30);
+    expect(stored.deposit_amount_pence).toBe(9000);
+  });
+
+  it('a job with deposit_percent set has it appear in the shape fetch-public-job would read', () => {
+    // Simulate the full round-trip: ReviewSheet writes to meta via writeJobMeta,
+    // cloud sync writes to JSONB, fetch-public-job reads m.deposit_percent.
+    // In this test the "cloud JSONB" is represented by the stored meta object.
+    writeJobMeta(DEPOSIT_JOB_ID, {
+      quoteStatus:          'sent',
+      publicAccessToken:    'aaaabbbb-0000-4000-8000-ccccddddeeee',
+      deposit_percent:      25,
+      deposit_amount_pence: 12500,
+    });
+    const m = readJobMeta(DEPOSIT_JOB_ID);
+    // This is the shape fetch-public-job reads from meta (m.deposit_percent ?? 0)
+    expect(m.deposit_percent ?? 0).toBe(25);
+    expect(m.deposit_amount_pence ?? null).toBe(12500);
+  });
+});
