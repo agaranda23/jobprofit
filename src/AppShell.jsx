@@ -456,6 +456,22 @@ export default function AppShell() {
           localStorage.setItem('jp.telemetry.trialStarted', '1');
           logTelemetry('trial_started', { plan: 'trial' });
         }
+
+        // ── Welcome email trigger ────────────────────────────────────────────
+        // Fire-and-forget. The server function is the real idempotency guard
+        // (profiles.welcome_email_sent_at); the client check here just avoids
+        // a network call on every load for users who already received the email.
+        // Skips phone-OTP users (no email) — the function also guards this.
+        if (data.email && !data.welcome_email_sent_at) {
+          supabase.auth.getSession().then(({ data: sessionData }) => {
+            const token = sessionData?.session?.access_token;
+            if (!token) return;
+            fetch('/.netlify/functions/send-welcome-email', {
+              method: 'POST',
+              headers: { Authorization: `Bearer ${token}` },
+            }).catch(() => {});
+          }).catch(() => {});
+        }
       }
     } catch {
       // profiles table may not have first_name/last_name yet — that's fine for slice 1
