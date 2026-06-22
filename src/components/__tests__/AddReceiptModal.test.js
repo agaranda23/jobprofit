@@ -477,18 +477,56 @@ describe('Itemise price input: save payload coerces cost to a Number', () => {
   });
 });
 
-describe('Itemise price input: saveItemToMaterials buyPrice coercion', () => {
-  it('coerces a string cost to a numeric buyPrice', () => {
-    const item = { desc: 'Screws', cost: '4.50' };
-    const buyPrice = Number(item.cost) || 0;
-    expect(buyPrice).toBe(4.5);
-    expect(typeof buyPrice).toBe('number');
+// ---------------------------------------------------------------------------
+// saveItemToMaterials: VAT-netting logic
+// Receipt item costs are VAT-inclusive; the materials library stores ex-VAT
+// buy prices so that sellPrice = buyPrice * (1+markup) is not inflated by VAT.
+// ---------------------------------------------------------------------------
+
+// Mirrors the netting formula in AddReceiptModal.jsx saveItemToMaterials.
+function netBuyPrice(grossCost, receiptAmount, receiptVat) {
+  let vatRate = 0.20;
+  if (receiptVat > 0 && receiptAmount > receiptVat) {
+    vatRate = receiptVat / (receiptAmount - receiptVat);
+  }
+  return Math.round((grossCost / (1 + vatRate)) * 100) / 100;
+}
+
+describe('saveItemToMaterials: VAT-netting (receipt costs are gross → net them)', () => {
+  it('nets a 20% VAT-inclusive cost at the standard UK rate', () => {
+    // Receipt: £120 inc VAT (£100 net + £20 VAT). Line item cost = £24 inc.
+    // Expected net: £24 / 1.20 = £20.00
+    expect(netBuyPrice(24, 120, 20)).toBeCloseTo(20.0, 2);
   });
 
-  it('coerces a blank cost to buyPrice 0', () => {
-    const item = { desc: 'Screws', cost: '' };
-    const buyPrice = Number(item.cost) || 0;
-    expect(buyPrice).toBe(0);
+  it('derives VAT rate from receipt header (not always 20%)', () => {
+    // Receipt: £110 inc 10% VAT (£100 net + £10 VAT).
+    // vatRate = 10 / (110 - 10) = 0.10
+    // Line item: £11 gross → £11 / 1.10 = £10.00
+    expect(netBuyPrice(11, 110, 10)).toBeCloseTo(10.0, 2);
+  });
+
+  it('falls back to 20% when receipt has no VAT field (vatRate=0)', () => {
+    // vat=0 → vatRate stays 0.20; gross £12 → net £10
+    expect(netBuyPrice(12, 100, 0)).toBeCloseTo(10.0, 2);
+  });
+
+  it('falls back to 20% when amount equals vat (edge: divide-by-zero guard)', () => {
+    // amount === vat is a malformed receipt; guard prevents divide-by-zero
+    expect(netBuyPrice(12, 20, 20)).toBeCloseTo(10.0, 2);
+  });
+
+  it('falls back to 20% when amount < vat (guard condition)', () => {
+    expect(netBuyPrice(6, 10, 15)).toBeCloseTo(5.0, 2);
+  });
+
+  it('rounds to 2 decimal places (£ precision)', () => {
+    // £7 gross at 20% → 7/1.2 = 5.8333... → rounds to £5.83
+    expect(netBuyPrice(7, 120, 20)).toBe(5.83);
+  });
+
+  it('returns 0 for a zero-cost item', () => {
+    expect(netBuyPrice(0, 120, 20)).toBe(0);
   });
 });
 

@@ -4,6 +4,7 @@ import { saveLineItemToLibrary } from '../lib/materials';
 import Icon from './Icon';
 import PhotoSourceSheet from './PhotoSourceSheet';
 import { meaningfulItemCount, computeItemsSubtotal, itemsDirty } from '../lib/receiptItemsHelpers';
+import { logTelemetry } from '../lib/telemetry';
 
 /**
  * AddReceiptModal — add a new receipt or edit an existing one.
@@ -74,8 +75,10 @@ export default function AddReceiptModal({
   const [extractError, setExtractError] = useState('');
   const [error, setError]               = useState('');
   const [saving, setSaving]             = useState(false);
-  // savedItemIdx: which item row just flashed the bookmark confirm
+  // savedItemIdx: which item row just flashed the bookmark confirm (star→tick)
   const [savedItemIdx, setSavedItemIdx] = useState(-1);
+  // savedSnack: transient text shown in the toast after a successful library save
+  const [savedSnack, setSavedSnack]     = useState('');
   // confirm: null | 'discard' | 'delete'
   const [confirm, setConfirm]           = useState(null);
   // Phase 2: collapsible Itemise section — collapsed by default (fast-path)
@@ -171,14 +174,37 @@ export default function AddReceiptModal({
   const saveItemToMaterials = async (idx) => {
     const item = items[idx];
     if (!item?.desc?.trim()) return;
+
+    // Receipt item costs are VAT-INCLUSIVE (the trader paid the gross amount).
+    // The materials library stores buyPrice as the net (ex-VAT) figure so that
+    // sellPrice = buyPrice * (1 + markup/100) is not inflated by VAT.
+    //
+    // Derive VAT rate from the receipt header (vat / (amount - vat)) when vat>0
+    // and amount>vat; otherwise fall back to 20% (UK standard rate default).
+    //
+    // Quote-line costs captured via AddJobModal.handleSaveLineToLibrary are already
+    // the trader's own net cost (they enter ex-VAT when quoting) — those do NOT
+    // get re-netted. Receipt costs come from supplier invoices (VAT-inclusive) — they DO.
+    const grossCost = Number(item.cost) || 0;
+    const receiptAmt = parseFloat(amount);
+    const receiptVat = parseFloat(vat) || 0;
+    let vatRate = 0.20; // default: UK standard rate
+    if (receiptVat > 0 && receiptAmt > receiptVat) {
+      vatRate = receiptVat / (receiptAmt - receiptVat);
+    }
+    const netBuyPrice = Math.round((grossCost / (1 + vatRate)) * 100) / 100;
+
     const result = await saveLineItemToLibrary(
-      { desc: item.desc, buyPrice: Number(item.cost) || 0 },
+      { desc: item.desc, buyPrice: netBuyPrice },
       Array.isArray(materialsLibrary) ? materialsLibrary : []
     );
     if (result) {
       onMaterialSaved?.(result.saved);
       setSavedItemIdx(idx);
       setTimeout(() => setSavedItemIdx(-1), 1800);
+      setSavedSnack(`Saved to your materials. £${netBuyPrice.toFixed(2)} buy (ex-VAT).`);
+      setTimeout(() => setSavedSnack(''), 3000);
+      logTelemetry('material_saved_from_receipt', { source: 'receipt_bookmark' });
     }
   };
 
@@ -573,6 +599,14 @@ export default function AddReceiptModal({
         onUploadPhoto={() => { setPhotoSheetOpen(false); galleryInputRef.current?.click(); }}
         onClose={() => setPhotoSheetOpen(false)}
       />
+
+      {/* Saved-to-library snackbar — appears after bookmark tap, consistent with
+          AddJobModal's savedSnack pattern. Shows the net (ex-VAT) buy price. */}
+      {savedSnack && (
+        <div className="toast" role="status" aria-live="polite">
+          {savedSnack}
+        </div>
+      )}
     </div>
   );
 }
