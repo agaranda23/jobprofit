@@ -1546,7 +1546,7 @@ function JobsList({ jobs, receipts, selectedStage, showAll, searchQuery, layout,
 
 // ── WorkScreen (root) ─────────────────────────────────────────────────────────
 
-export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJob, onAddPayment, onUpdateJob, onDeleteJob, onAddReceipt, onDeleteReceipt, biz, profile, initialJobId, pendingWorkView, onPendingWorkViewConsumed, onNavigateToCardPayments, onProfileUpdate, materials, defaultMarkup, onBrowseMaterials, onMaterialSaved }) {
+export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJob, onAddPayment, onUpdateJob, onDeleteJob, onAddReceipt, onDeleteReceipt, onUpdateReceipt, biz, profile, initialJobId, pendingWorkView, onPendingWorkViewConsumed, onNavigateToCardPayments, onProfileUpdate, materials, defaultMarkup, onBrowseMaterials, onMaterialSaved }) {
   const [subview, setSubview] = useState(getPersistedView);
   const [selectedStage, setSelectedStage] = useState(() => getPersistedFilter().selectedStage);
   const [showAll, setShowAll] = useState(() => getPersistedFilter().showAll);
@@ -2311,6 +2311,7 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
             onUpdateJob={onUpdateJob}
             onAddReceipt={onAddReceipt}
             onDeleteReceipt={onDeleteReceipt}
+            onUpdateReceipt={onUpdateReceipt}
             onAddPayment={handleAddPayment}
             onClose={() => { setSelectedJob(null); setDrawerIntent(null); setDrawerTargetStage(null); setPendingEditField(null); }}
             intent={drawerIntent}

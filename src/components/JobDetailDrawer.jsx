@@ -2214,9 +2214,10 @@ function CardPaymentBlock({ job, token }) {
  *   profile                 – Supabase profiles row or null — needed for paywall gating
  *   jobs                    – all jobs array — needed by nextInvoiceNumber to avoid gaps
  *   onUpdateJob(updatedJob)    – persists job field updates (photos, notes, invoiceSentAt etc.)
- *   onAddReceipt(arg)          – AppShell handler; arg = { payload, photoFile } (same shape as TodayScreen)
- *   onDeleteReceipt(receiptId) – AppShell handler; deletes from Supabase + localStorage mirror
- *   onAddPayment(job, payload) – from AppShell, persists to jobMeta side-channel
+ *   onAddReceipt(arg)                  – AppShell handler; arg = { payload, photoFile }
+ *   onDeleteReceipt(receiptId)         – AppShell handler; deletes from Supabase + localStorage mirror
+ *   onUpdateReceipt(updatedReceipt)    – AppShell handler; writes edits to Supabase + updates receipts[] state
+ *   onAddPayment(job, payload)         – from AppShell, persists to jobMeta side-channel
  *   onClose()                  – called when the sheet should close
  */
 export default function JobDetailDrawer({
@@ -2228,6 +2229,7 @@ export default function JobDetailDrawer({
   onUpdateJob,
   onAddReceipt,
   onDeleteReceipt,
+  onUpdateReceipt,
   onAddPayment,
   onClose,
   // Optional intent passed by WorkScreen when the drawer is opened with a
@@ -2782,32 +2784,33 @@ export default function JobDetailDrawer({
 
   // ── Receipt update (edit mode) ────────────────────────────────────────────
   // Called by AddReceiptModal's onUpdateReceipt callback.
-  // Receipts live in the flat receipts[] array managed by AppShell, not in
-  // job.receipts. AppShell owns the cloud write; we pass back the updated object
-  // via onUpdateJob so the local state reflects the change immediately by
-  // threading the update through the same path AppShell uses for all job meta.
-  // AppShell doesn't have an onUpdateReceipt handler today, so we mirror
-  // the approach for the inline receipts[] stored on the job itself when present,
-  // and call onUpdateJob with the full job. If AppShell gains a dedicated
-  // onUpdateReceipt in a later sprint, swap here.
-  const handleReceiptUpdate = (updatedReceipt) => {
-    if (!onUpdateJob) return;
-    // Receipts may be stored either in job.receipts (job-embedded) or in the
-    // global receipts[] prop (Supabase receipts table). For embedded receipts,
-    // update job.receipts directly. For global receipts, there's no job-level
-    // mutation to make — the parent AppShell would need its own handler.
-    // We handle the job-embedded case here; global receipts are updated via
-    // the receipts prop refresh path on the next cloud sync.
-    if (Array.isArray(job.receipts)) {
-      const updatedReceipts = job.receipts.map(r =>
-        String(r.id) === String(updatedReceipt.id) ? updatedReceipt : r
-      );
-      onUpdateJob({ ...job, receipts: updatedReceipts });
+  //
+  // Receipts live in the flat global receipts[] owned by AppShell (not job.receipts).
+  // onUpdateReceipt (AppShell.handleUpdateReceipt) writes to Supabase and updates
+  // in-memory state; we await the write before closing the modal so "Receipt updated"
+  // is only shown on confirmed success, never on a silently dropped edit.
+  //
+  // The legacy job.receipts embedded branch is kept for non-cloud jobs that still
+  // have receipts stored directly on the job object.
+  const handleReceiptUpdate = async (updatedReceipt) => {
+    try {
+      if (onUpdateReceipt) {
+        // Cloud path: write to Supabase, update AppShell receipts[] state.
+        await onUpdateReceipt(updatedReceipt);
+      } else if (onUpdateJob && Array.isArray(job.receipts)) {
+        // Fallback: job-embedded receipts (non-cloud path).
+        const updatedReceipts = job.receipts.map(r =>
+          String(r.id) === String(updatedReceipt.id) ? updatedReceipt : r
+        );
+        onUpdateJob({ ...job, receipts: updatedReceipts });
+      }
+      setEditingReceipt(null);
+      showFlash('Receipt updated');
+    } catch (err) {
+      // Keep the modal open; surface the error so the user can retry.
+      console.error('handleReceiptUpdate failed', err);
+      showFlash('Save failed — check connection');
     }
-    // For Supabase-backed receipts, AppShell propagates the update; we just
-    // close the modal and flash so the user gets immediate feedback.
-    setEditingReceipt(null);
-    showFlash('Receipt updated');
   };
 
   // ── Photo delete ──────────────────────────────────────────────────────────

@@ -239,7 +239,25 @@ export async function getReceiptsFromCloud() {
     console.warn('getReceiptsFromCloud failed', error);
     return [];
   }
-  return (data || []).map(mapCloudReceiptToToday);
+  const receipts = data || [];
+  if (receipts.length === 0) return [];
+
+  // Fetch all receipt_items for these receipts in a single query (avoid N+1).
+  // Map DB columns: description → desc, cost → cost (numeric).
+  const ids = receipts.map(r => r.id);
+  const { data: itemRows } = await supabase
+    .from('receipt_items')
+    .select('receipt_id, description, cost')
+    .in('receipt_id', ids);
+
+  // Group items by receipt_id so mapCloudReceiptToToday can attach them.
+  const itemsByReceiptId = {};
+  for (const row of (itemRows || [])) {
+    if (!itemsByReceiptId[row.receipt_id]) itemsByReceiptId[row.receipt_id] = [];
+    itemsByReceiptId[row.receipt_id].push({ desc: row.description, cost: Number(row.cost || 0) });
+  }
+
+  return receipts.map(r => mapCloudReceiptToToday(r, itemsByReceiptId[r.id] || []));
 }
 
 function mapCloudJobToToday(r) {
@@ -307,7 +325,7 @@ function mapCloudJobToToday(r) {
   return job;
 }
 
-function mapCloudReceiptToToday(r) {
+function mapCloudReceiptToToday(r, items = []) {
   return {
     id: r.id,
     label: r.merchant || 'Receipt',
@@ -318,6 +336,9 @@ function mapCloudReceiptToToday(r) {
     invoiceNumber: r.invoice_number || null,
     imagePath: r.image_path || null,
     jobId: r.job_id || null,
+    // items: line-level breakdown from receipt_items table.
+    // An empty array means the user never itemised this receipt.
+    items,
     cloud: true,
   };
 }
@@ -952,4 +973,99 @@ export async function deleteReceiptFromCloud(receiptId) {
     e => e.cloudId !== receiptId && e.id !== receiptId
   );
   write(data);
+}
+
+/**
+ * Updates a cloud receipt's scalar fields and replaces its receipt_items rows.
+ *
+ * Patch fields accepted: merchant, amount, vat, date, invoice_number.
+ * Items: existing receipt_items rows for this receipt are deleted then
+ * re-inserted to match `updatedReceipt.items` — a delete+insert is simpler
+ * and safer than diffing UUIDs for a table with no UI-visible IDs.
+ *
+ * localStorage mirror is updated so the next getTodayReceipts() sees the edit
+ * even before the next cloud refresh.
+ *
+ * Throws on Supabase write failure so callers can surface an error and keep
+ * the modal open (never silently swallow a failed edit).
+ *
+ * @param {object} updatedReceipt — the full receipt object from AddReceiptModal
+ * @returns {Promise<object>}    — the updated receipt mapped via mapCloudReceiptToToday
+ */
+export async function updateReceiptInCloud(updatedReceipt) {
+  const user_id = await getUserId();
+  if (!user_id) throw new Error('Not signed in');
+
+  const receiptId = updatedReceipt.id;
+  const items = Array.isArray(updatedReceipt.items) ? updatedReceipt.items : [];
+
+  // 1. Update scalar columns on the receipts row
+  const { data: updatedRow, error: updateErr } = await supabase
+    .from('receipts')
+    .update({
+      merchant:       updatedReceipt.label || 'Receipt',
+      amount:         Number(updatedReceipt.amount || 0),
+      vat:            Number(updatedReceipt.vat || 0),
+      date:           updatedReceipt.date ? updatedReceipt.date.slice(0, 10) : undefined,
+      invoice_number: updatedReceipt.invoiceNumber || null,
+    })
+    .eq('id', receiptId)
+    .select()
+    .single();
+
+  if (updateErr) {
+    console.error('updateReceiptInCloud (receipt row) failed', updateErr);
+    throw updateErr;
+  }
+
+  // 2. Replace receipt_items: delete existing rows then re-insert
+  const meaningfulItems = items.filter(i => i.desc?.trim());
+  const { error: deleteErr } = await supabase
+    .from('receipt_items')
+    .delete()
+    .eq('receipt_id', receiptId);
+
+  if (deleteErr) {
+    console.error('updateReceiptInCloud (delete items) failed', deleteErr);
+    throw deleteErr;
+  }
+
+  if (meaningfulItems.length > 0) {
+    const itemRows = meaningfulItems.map(i => ({
+      receipt_id:  receiptId,
+      user_id,
+      description: i.desc,
+      cost:        Number(i.cost || 0),
+    }));
+    const { error: insertErr } = await supabase
+      .from('receipt_items')
+      .insert(itemRows);
+
+    if (insertErr) {
+      console.error('updateReceiptInCloud (insert items) failed', insertErr);
+      throw insertErr;
+    }
+  }
+
+  // 3. Mirror the edit to localStorage so getTodayReceipts() reflects the change
+  const localData = read();
+  localData.expenses = localData.expenses.map(e => {
+    if (e.cloudId !== receiptId && e.id !== receiptId) return e;
+    const desc = meaningfulItems.length > 0
+      ? meaningfulItems.map(i => i.desc).filter(Boolean).join(', ')
+      : '';
+    return {
+      ...e,
+      merchant:      updatedReceipt.label || 'Receipt',
+      amount:        Number(updatedReceipt.amount || 0),
+      vat:           Number(updatedReceipt.vat || 0),
+      date:          updatedReceipt.date ? updatedReceipt.date.slice(0, 10) : e.date,
+      invoiceNumber: updatedReceipt.invoiceNumber || null,
+      items:         meaningfulItems,
+      desc,
+    };
+  });
+  write(localData);
+
+  return mapCloudReceiptToToday(updatedRow, meaningfulItems);
 }

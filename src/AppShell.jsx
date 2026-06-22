@@ -41,6 +41,7 @@ import {
   addReceiptToCloud,
   linkReceiptToJob,
   deleteReceiptFromCloud,
+  updateReceiptInCloud,
   updateJobMetaInCloud,
 } from './lib/store';
 import {
@@ -761,6 +762,18 @@ export default function AppShell() {
     }
   };
 
+  // Writes the edited receipt to cloud and updates in-memory receipts[] state so
+  // the edit reflects immediately without waiting for the next cloud refresh.
+  // Returns the updated receipt object so JobDetailDrawer can close the modal
+  // only after a confirmed write — never flash "saved" on a silently dropped edit.
+  const handleUpdateReceipt = async (updatedReceipt) => {
+    const saved = await updateReceiptInCloud(updatedReceipt);
+    setReceipts(prev =>
+      prev.map(r => (r.id === saved.id ? saved : r))
+    );
+    return saved;
+  };
+
   // ── Materials library CRUD handlers ──────────────────────────────────────────
 
   const handleSaveMaterial = async (payload) => {
@@ -1160,6 +1173,7 @@ export default function AppShell() {
               onDeleteJob={onDeleteJob}
               onAddReceipt={handleAddReceipt}
               onDeleteReceipt={handleDeleteReceipt}
+              onUpdateReceipt={handleUpdateReceipt}
               biz={null}
               profile={profile}
               initialJobId={pendingJobId}
@@ -1278,6 +1292,7 @@ export default function AppShell() {
               onDeleteJob={onDeleteJob}
               onAddReceipt={handleAddReceipt}
               onDeleteReceipt={handleDeleteReceipt}
+              onUpdateReceipt={handleUpdateReceipt}
               biz={null}
               profile={profile}
               initialJobId={pendingJobId}
