@@ -42,7 +42,7 @@ import {
   nbaCta,
   jobAmount,
 } from '../lib/nextBestAction';
-import { isPro } from '../lib/plan';
+import { isPro, isTrialActive, trialDaysLeft } from '../lib/plan';
 import { UPGRADE_TRIGGERS } from '../lib/telemetry';
 
 // ── Snooze helpers (delegate to nextBestAction.js store, keep SNOOZE_MS local) ──
@@ -549,6 +549,32 @@ export default function TodayScreen({
                 )}
               </div>
             </>
+          )}
+        </section>
+      ) : jobs.length === 0 ? (
+        /* ── First-time activation nudge (zero jobs, brand-new user) ─────── */
+        <section className="empty-welcome-card" aria-label="Get started">
+          <div className="empty-welcome-icon" aria-hidden="true">
+            <Icon name="active-job" size={40} variant="brand" />
+          </div>
+          <div className="empty-welcome-text">
+            <p className="empty-welcome-headline">Welcome to JobProfit.</p>
+            <p className="empty-welcome-sub">Log your first job and see exactly what you made.</p>
+          </div>
+          <button
+            type="button"
+            className="btn btn--primary empty-welcome-cta"
+            onClick={() => setJobOpen(true)}
+            data-testid="activation-nudge-cta"
+          >
+            Log your first job
+          </button>
+          <p className="empty-welcome-reassure">Takes 60 seconds — just the price and what materials cost.</p>
+          {isTrialActive(profile) && (
+            <p className="empty-welcome-trial">
+              You&rsquo;re on a 14-day Pro trial
+              {trialDaysLeft(profile) > 0 ? ` — ${trialDaysLeft(profile)} day${trialDaysLeft(profile) === 1 ? '' : 's'} left` : ''}.
+            </p>
           )}
         </section>
       ) : (
