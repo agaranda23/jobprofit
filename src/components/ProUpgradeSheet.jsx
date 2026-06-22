@@ -60,7 +60,7 @@ const FEATURES = [
 const COMPETITORS = [
   { name: 'JobProfit Pro', price: '£12/mo', highlight: true },
   { name: 'Tradify Lite', price: '£34/user/mo', highlight: false },
-  { name: 'ServiceM8', price: '~£24/user/mo', highlight: false },
+  { name: 'ServiceM8', price: 'from £25/mo (per account)', highlight: false },
 ];
 
 export default function ProUpgradeSheet({
