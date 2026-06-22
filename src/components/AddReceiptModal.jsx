@@ -153,8 +153,12 @@ export default function AddReceiptModal({
     reader.readAsDataURL(f);
   };
 
+  // Store the raw string verbatim for every field — incl. cost. Eager-parsing
+  // cost on keystroke made the field un-clearable (parseFloat('')||0 === 0 stuck
+  // a "0" in) and blocked decimal entry (parseFloat('1.') === 1). Cost is coerced
+  // to a Number only at the boundaries: subtotal, save-to-materials, save payload.
   const updateItem = (idx, field, value) => {
-    setItems(prev => prev.map((it, i) => i === idx ? { ...it, [field]: field === 'cost' ? parseFloat(value) || 0 : value } : it));
+    setItems(prev => prev.map((it, i) => i === idx ? { ...it, [field]: value } : it));
   };
   const removeItem = (idx) => setItems(prev => prev.filter((_, i) => i !== idx));
 
@@ -168,7 +172,7 @@ export default function AddReceiptModal({
     const item = items[idx];
     if (!item?.desc?.trim()) return;
     const result = await saveLineItemToLibrary(
-      { desc: item.desc, buyPrice: item.cost || 0 },
+      { desc: item.desc, buyPrice: Number(item.cost) || 0 },
       Array.isArray(materialsLibrary) ? materialsLibrary : []
     );
     if (result) {
@@ -194,7 +198,9 @@ export default function AddReceiptModal({
           label: label.trim() || 'Receipt',
           amount: amt,
           vat: isNaN(vatNum) ? 0 : vatNum,
-          items: items.filter(i => i.desc?.trim()),
+          // Coerce the raw-string cost back to a Number at the persist boundary
+          // (empty/NaN => 0) so on-disk items keep the numeric data contract.
+          items: items.filter(i => i.desc?.trim()).map(it => ({ ...it, cost: Number(it.cost) || 0 })),
           invoiceNumber: invoiceNumber.trim() || null,
           date: dateISO,
           ...(photoFile ? { photo } : {}),
@@ -208,7 +214,9 @@ export default function AddReceiptModal({
             label: label.trim() || 'Receipt',
             amount: amt,
             vat: isNaN(vatNum) ? 0 : vatNum,
-            items: items.filter(i => i.desc?.trim()),
+            // Coerce the raw-string cost back to a Number at the persist boundary
+            // (empty/NaN => 0) so on-disk items keep the numeric data contract.
+            items: items.filter(i => i.desc?.trim()).map(it => ({ ...it, cost: Number(it.cost) || 0 })),
             invoiceNumber: invoiceNumber.trim() || null,
             photo,
             date: dateISO,

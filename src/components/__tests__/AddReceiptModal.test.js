@@ -360,6 +360,168 @@ describe('itemsDirty', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Itemise price input — raw-string editing + boundary coercion
+//
+// Regression coverage for the receipt Itemise price-input bug:
+//  - updateItem must store the raw string (no eager parseFloat) so the field
+//    is clearable and decimals are typeable.
+//  - cost is coerced to a Number only at the three boundaries: subtotal,
+//    save-to-materials buyPrice, and the save() payload (edit + create).
+//  - itemsDirty must not false-fire when a live string cost ("12") matches a
+//    numeric seed cost (12).
+// ---------------------------------------------------------------------------
+
+// Mirrors updateItem in AddReceiptModal.jsx: stores value verbatim for ALL fields.
+function updateItem(items, idx, field, value) {
+  return items.map((it, i) => (i === idx ? { ...it, [field]: value } : it));
+}
+
+// Mirrors the save() payload item mapping at both boundaries (edit + create).
+function buildPayloadItems(items) {
+  return items
+    .filter(i => i.desc?.trim())
+    .map(it => ({ ...it, cost: Number(it.cost) || 0 }));
+}
+
+describe('Itemise price input: raw-string editing (updateItem)', () => {
+  it('stores the raw string for cost, not a parsed number (decimals typeable)', () => {
+    let items = [{ desc: 'Timber', cost: undefined }];
+    // User types "12.50" — the input emits the literal string.
+    items = updateItem(items, 0, 'cost', '12.50');
+    expect(items[0].cost).toBe('12.50'); // verbatim — NOT 12.5, NOT truncated
+  });
+
+  it('preserves a trailing dot mid-entry ("1." stays "1.")', () => {
+    let items = [{ desc: 'Nails', cost: undefined }];
+    items = updateItem(items, 0, 'cost', '1.');
+    expect(items[0].cost).toBe('1.'); // eager parseFloat('1.') would have given 1
+  });
+
+  it('clearing the field leaves an empty string — NOT the number 0 / string "0"', () => {
+    // This is the core bug: deleting all characters must return to empty.
+    let items = [{ desc: 'Screws', cost: '4.50' }];
+    items = updateItem(items, 0, 'cost', ''); // backspaced to empty
+    expect(items[0].cost).toBe('');
+    expect(items[0].cost).not.toBe(0);
+    expect(items[0].cost).not.toBe('0');
+    // value={it.cost ?? ''} renders '' => the grey "0.00" placeholder shows.
+  });
+
+  it('typing successive digits yields "123", never "0123"', () => {
+    // With raw-string state, the controlled input reflects exactly what is typed.
+    let items = [{ desc: 'Bolts', cost: undefined }];
+    items = updateItem(items, 0, 'cost', '1');
+    items = updateItem(items, 0, 'cost', '12');
+    items = updateItem(items, 0, 'cost', '123');
+    expect(items[0].cost).toBe('123');
+  });
+
+  it('clearing row 2 cost does not disturb row 1 (per-idx update)', () => {
+    let items = [{ desc: 'A', cost: '5' }, { desc: 'B', cost: '9' }];
+    items = updateItem(items, 1, 'cost', '');
+    expect(items[0].cost).toBe('5'); // untouched
+    expect(items[1].cost).toBe('');
+  });
+});
+
+describe('Itemise price input: subtotal tolerates string costs', () => {
+  it('sums string costs correctly', () => {
+    const items = [{ desc: 'A', cost: '4.50' }, { desc: 'B', cost: '3.75' }];
+    expect(computeItemsSubtotal(items)).toBeCloseTo(8.25);
+  });
+
+  it('treats a blank-string cost as 0', () => {
+    const items = [{ desc: 'A', cost: '' }, { desc: 'B', cost: '10' }];
+    expect(computeItemsSubtotal(items)).toBeCloseTo(10);
+  });
+
+  it('treats a lone trailing dot as 0 mid-entry without NaN', () => {
+    const items = [{ desc: 'A', cost: '.' }];
+    expect(computeItemsSubtotal(items)).toBe(0); // Number('.') is NaN => 0
+  });
+});
+
+describe('Itemise price input: save payload coerces cost to a Number', () => {
+  it('persists a string cost "12.50" as the number 12.5', () => {
+    const items = [{ desc: 'Timber', cost: '12.50' }];
+    const out = buildPayloadItems(items);
+    expect(out[0].cost).toBe(12.5);
+    expect(typeof out[0].cost).toBe('number');
+  });
+
+  it('persists a blank cost as the number 0', () => {
+    const items = [{ desc: 'Screws', cost: '' }];
+    const out = buildPayloadItems(items);
+    expect(out[0].cost).toBe(0);
+    expect(typeof out[0].cost).toBe('number');
+  });
+
+  it('persists an undefined cost as the number 0', () => {
+    const items = [{ desc: 'Nails', cost: undefined }];
+    const out = buildPayloadItems(items);
+    expect(out[0].cost).toBe(0);
+  });
+
+  it('leaves an untouched numeric OCR cost unchanged (Number(12)===12)', () => {
+    const items = [{ desc: 'OCR row', cost: 12 }];
+    const out = buildPayloadItems(items);
+    expect(out[0].cost).toBe(12);
+  });
+
+  it('still strips blank-desc rows before persisting', () => {
+    const items = [{ desc: 'Keep', cost: '5' }, { desc: '', cost: '99' }];
+    const out = buildPayloadItems(items);
+    expect(out).toHaveLength(1);
+    expect(out[0].desc).toBe('Keep');
+    expect(out[0].cost).toBe(5);
+  });
+});
+
+describe('Itemise price input: saveItemToMaterials buyPrice coercion', () => {
+  it('coerces a string cost to a numeric buyPrice', () => {
+    const item = { desc: 'Screws', cost: '4.50' };
+    const buyPrice = Number(item.cost) || 0;
+    expect(buyPrice).toBe(4.5);
+    expect(typeof buyPrice).toBe('number');
+  });
+
+  it('coerces a blank cost to buyPrice 0', () => {
+    const item = { desc: 'Screws', cost: '' };
+    const buyPrice = Number(item.cost) || 0;
+    expect(buyPrice).toBe(0);
+  });
+});
+
+describe('Itemise price input: itemsDirty does not false-fire on string-vs-number cost', () => {
+  it('returns false when live string cost matches numeric seed cost (no spurious discard)', () => {
+    // Edit mode: seed item arrives from an existing receipt as a NUMBER.
+    const seed = [{ desc: 'Screws', cost: 12 }];
+    // After the first keystroke (or even no edit, once the input mounts the
+    // string), the live item can hold the string "12". This must NOT be dirty.
+    const current = [{ desc: 'Screws', cost: '12' }];
+    expect(itemsDirty(current, seed)).toBe(false);
+  });
+
+  it('returns false for an untouched decimal cost rendered as a string', () => {
+    const seed = [{ desc: 'Timber', cost: 12.5 }];
+    const current = [{ desc: 'Timber', cost: '12.5' }];
+    expect(itemsDirty(current, seed)).toBe(false);
+  });
+
+  it('still returns true when the cost genuinely changes', () => {
+    const seed = [{ desc: 'Screws', cost: 12 }];
+    const current = [{ desc: 'Screws', cost: '15' }];
+    expect(itemsDirty(current, seed)).toBe(true);
+  });
+
+  it('treats a cleared (empty-string) cost as 0 vs a seed cost of 0 — not dirty', () => {
+    const seed = [{ desc: 'Screws', cost: 0 }];
+    const current = [{ desc: 'Screws', cost: '' }];
+    expect(itemsDirty(current, seed)).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Photo-source chooser — photoSheetOpen state transitions
 // ---------------------------------------------------------------------------
 
