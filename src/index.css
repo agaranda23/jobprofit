@@ -18200,3 +18200,626 @@ button.jd-money-chip:active { opacity: 0.75; }
   margin-top: 8px;
   width: 100%;
 }
+
+/* ── EstimatorSheet — "Work it out" materials estimator ──────────────────────
+   All est-* classes are confined to EstimatorSheet.jsx.
+   Uses design-system tokens (--surface, --text, --accent, --border, etc.)
+   so light and dark modes are handled automatically via :root / [data-theme="light"].
+   Only hardcoded colours appear where a specific semantic shade is needed and
+   cannot be expressed as a token (e.g. the light-only [data-theme="light"] overrides).
+   ─────────────────────────────────────────────────────────────────────────── */
+
+/* ── est-sheet: the modal itself ──────────────────────────────────────────── */
+.est-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* ── B — INPUT STATE ─────────────────────────────────────────────────────── */
+
+/* Natural-language textarea wrapper — positions the mic button absolutely */
+.est-nl-wrap {
+  position: relative;
+  margin: 12px 0 4px;
+}
+
+.est-nl-input {
+  width: 100%;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  padding: 14px 48px 14px 14px; /* right padding keeps text clear of mic */
+  resize: none;
+  outline: none;
+  -webkit-appearance: none;
+}
+.est-nl-input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+.est-nl-input::placeholder {
+  color: var(--text-dim);
+}
+
+/* Mic button — overlaid at bottom-right of textarea */
+.est-mic-btn {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  padding: 6px;
+  cursor: pointer;
+  line-height: 1;
+  border-radius: 50%;
+  min-width: 36px;
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.15s, background 0.15s;
+}
+.est-mic-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+.est-mic-btn--active {
+  color: var(--accent);
+  background: rgba(52, 214, 114, 0.12);
+}
+[data-theme="light"] .est-mic-btn:hover {
+  background: rgba(0, 0, 0, 0.05);
+}
+[data-theme="light"] .est-mic-btn--active {
+  background: rgba(0, 168, 107, 0.1);
+}
+
+/* Helper hint below the textarea */
+.est-helper {
+  font-size: var(--fs-label);
+  color: var(--text-dim);
+  margin: 4px 0 8px;
+  line-height: var(--lh-label);
+}
+
+/* Quota error — layered on top of .modal-error for specificity */
+.est-quota-error {
+  margin-top: 4px;
+}
+
+/* Working spinner row */
+.est-working {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-dim);
+  font-size: var(--fs-label);
+  margin: 8px 0;
+  padding: 12px 0;
+}
+
+/* Structured fields (type sizes manually) reuse .modal-fields via className merge */
+.est-structured-fields {
+  margin-top: 8px;
+}
+
+/* ── C — CLARIFY STATE ───────────────────────────────────────────────────── */
+
+.est-clarify-question {
+  font-size: var(--fs-subhead);
+  font-weight: 600;
+  color: var(--text);
+  margin: 16px 0 12px;
+  line-height: var(--lh-subhead);
+}
+
+/* Chip group — reuses .aj-chip via className in JSX; just provides the wrap */
+.est-clarify-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+/* Numeric clarify row: input + unit side-by-side */
+.est-clarify-numeric {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.est-clarify-number-input {
+  flex: 1;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: var(--fs-subhead);
+  padding: 14px;
+  outline: none;
+  -moz-appearance: textfield;
+  -webkit-appearance: none;
+  min-width: 0;
+}
+.est-clarify-number-input::-webkit-outer-spin-button,
+.est-clarify-number-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.est-clarify-number-input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.est-clarify-unit {
+  font-size: var(--fs-label);
+  color: var(--text-dim);
+  white-space: nowrap;
+  min-width: 28px;
+}
+
+/* ── D — RESULT STATE ────────────────────────────────────────────────────── */
+
+.est-result-header {
+  font-size: var(--fs-subhead);
+  font-weight: 700;
+  color: var(--text);
+  margin: 12px 0 2px;
+  line-height: var(--lh-subhead);
+}
+
+.est-result-sub {
+  font-size: var(--fs-label);
+  color: var(--text-dim);
+  margin: 0 0 12px;
+  line-height: var(--lh-label);
+}
+
+/* Container for all quantity rows */
+.est-result-lines {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+/* One result row: ~ QTY UNIT   MATERIAL   [edit] */
+.est-result-line {
+  display: grid;
+  grid-template-columns: 16px auto auto 1fr auto;
+  align-items: center;
+  gap: 6px;
+  padding: 12px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+}
+.est-result-line:last-child {
+  border-bottom: none;
+}
+
+/* Editing state: swap to a two-cell layout (material + qty-edit block) */
+.est-result-line--editing {
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+}
+
+/* Tilde prefix — decorative, dimmed */
+.est-result-tilde {
+  font-size: var(--fs-label);
+  color: var(--text-dim);
+  grid-column: 1;
+  opacity: 0.6;
+}
+
+/* Quantity — prominent, monospace, accent-coloured */
+.est-result-qty {
+  font-family: var(--font-mono);
+  font-size: var(--fs-body);
+  font-weight: 700;
+  color: var(--accent);
+  grid-column: 2;
+  white-space: nowrap;
+}
+
+/* Unit — smaller, dimmed */
+.est-result-unit {
+  font-size: var(--fs-label);
+  color: var(--text-dim);
+  grid-column: 3;
+  white-space: nowrap;
+}
+
+/* Material name — fills remaining space */
+.est-result-material {
+  font-size: var(--fs-body);
+  color: var(--text);
+  grid-column: 4;
+  line-height: var(--lh-body);
+}
+.est-result-line--editing .est-result-material {
+  grid-column: 1;
+  font-size: var(--fs-label);
+  color: var(--text-dim);
+}
+
+/* edit button — ghost, clearly legible secondary action */
+.est-result-edit-btn {
+  grid-column: 5;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-dim);
+  font-size: var(--fs-label);
+  font-weight: 600;
+  font-family: var(--font-sans);
+  padding: 4px 10px;
+  min-height: 32px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.15s, border-color 0.15s;
+}
+.est-result-edit-btn:hover {
+  color: var(--text);
+  border-color: var(--text-dim);
+}
+.est-result-edit-btn:active {
+  opacity: 0.75;
+}
+[data-theme="light"] .est-result-edit-btn {
+  background: #ffffff;
+  border-color: #d1d5db;
+}
+
+/* Qty-edit row when line is in editing state */
+.est-result-qty-edit {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  grid-column: 2;
+}
+
+.est-result-qty-input {
+  width: 72px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: var(--fs-body);
+  font-weight: 700;
+  padding: 6px 10px;
+  outline: none;
+  text-align: right;
+  -moz-appearance: textfield;
+}
+.est-result-qty-input::-webkit-outer-spin-button,
+.est-result-qty-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.est-result-qty-input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* Confirm tick button when editing a quantity */
+.est-result-edit-confirm {
+  background: var(--accent);
+  border: none;
+  border-radius: 8px;
+  color: #0b1f10;
+  padding: 6px 10px;
+  min-height: 36px;
+  min-width: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-weight: 700;
+  transition: opacity 0.15s;
+}
+.est-result-edit-confirm:active { opacity: 0.8; }
+
+/* Notes under result rows */
+.est-result-notes {
+  margin-bottom: 4px;
+}
+.est-result-note {
+  font-size: var(--fs-label);
+  color: var(--text-dim);
+  margin: 4px 0;
+  padding-left: 12px;
+  border-left: 2px solid var(--border);
+  line-height: var(--lh-label);
+}
+
+/* Assumptions toggle button — ghost, full-width */
+.est-assumptions-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-dim);
+  font-size: var(--fs-label);
+  font-weight: 600;
+  font-family: var(--font-sans);
+  padding: 10px 12px;
+  cursor: pointer;
+  text-align: left;
+  margin: 4px 0 8px;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.est-assumptions-toggle:hover {
+  color: var(--text);
+  border-color: var(--text-dim);
+  background: var(--surface-2);
+}
+.est-assumptions-toggle:active { opacity: 0.75; }
+[data-theme="light"] .est-assumptions-toggle {
+  background: #ffffff;
+  border-color: #d1d5db;
+}
+[data-theme="light"] .est-assumptions-toggle:hover {
+  background: var(--surface-2);
+}
+
+/* Assumptions panel — expandable list of editable assumption rows */
+.est-assumptions-panel {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+  margin-bottom: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* One assumption row: label on left, input+unit on right */
+.est-assumption-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.est-assumption-label {
+  font-size: var(--fs-label);
+  color: var(--text-dim);
+  font-weight: 500;
+  flex: 1;
+  line-height: var(--lh-label);
+}
+
+.est-assumption-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.est-assumption-input {
+  width: 72px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: var(--fs-label);
+  font-weight: 600;
+  padding: 6px 8px;
+  text-align: right;
+  outline: none;
+  -moz-appearance: textfield;
+}
+.est-assumption-input::-webkit-outer-spin-button,
+.est-assumption-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.est-assumption-input:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.est-assumption-unit {
+  font-size: var(--fs-label);
+  color: var(--text-dim);
+  white-space: nowrap;
+  min-width: 36px;
+}
+
+.est-assumptions-footer {
+  font-size: var(--fs-label);
+  color: var(--text-dim);
+  margin: 4px 0 0;
+  line-height: var(--lh-label);
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+}
+
+/* ── E — PRICED STATE ────────────────────────────────────────────────────── */
+
+/* Confidence summary notice */
+.est-priced-notice {
+  font-size: var(--fs-label);
+  line-height: var(--lh-body);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin: 4px 0 10px;
+  font-weight: 500;
+}
+.est-priced-notice--ok {
+  background: rgba(52, 214, 114, 0.12);
+  color: var(--accent);
+  border: 1px solid rgba(52, 214, 114, 0.25);
+}
+.est-priced-notice--partial {
+  background: rgba(212, 160, 23, 0.12);
+  color: var(--gold);
+  border: 1px solid rgba(212, 160, 23, 0.25);
+}
+.est-priced-notice--none {
+  background: var(--surface-2);
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+}
+[data-theme="light"] .est-priced-notice--ok {
+  background: rgba(0, 168, 107, 0.1);
+  color: var(--accent);
+  border-color: rgba(0, 168, 107, 0.25);
+}
+[data-theme="light"] .est-priced-notice--partial {
+  background: rgba(217, 119, 6, 0.1);
+  color: var(--gold);
+  border-color: rgba(217, 119, 6, 0.25);
+}
+
+/* Container for all priced rows */
+.est-priced-lines {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+
+/* One priced row */
+.est-priced-line {
+  padding: 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface-2);
+}
+.est-priced-line:last-child {
+  border-bottom: none;
+}
+.est-priced-line--missing {
+  background: var(--surface-2);
+  border-left: 3px solid var(--border);
+}
+[data-theme="light"] .est-priced-line--missing {
+  border-left-color: #d1d5db;
+}
+
+/* Top row inside a priced line: material name + "qty unit" sub-text */
+.est-priced-line-desc {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 8px;
+}
+
+/* Material name — primary read target */
+.est-priced-material {
+  font-size: var(--fs-body);
+  font-weight: 600;
+  color: var(--text);
+  line-height: var(--lh-body);
+  display: block;
+}
+
+/* Qty + unit — secondary, clearly separated from the name */
+.est-priced-qty {
+  font-family: var(--font-mono);
+  font-size: var(--fs-label);
+  color: var(--text-dim);
+  display: block;
+}
+
+/* Right side of a priced row (price input or "Add price" chip) */
+.est-priced-line-right {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+/* "Add price" chip — legible secondary-action button */
+.est-add-price-chip {
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text);
+  font-size: var(--fs-label);
+  font-weight: 600;
+  font-family: var(--font-sans);
+  padding: 8px 16px;
+  min-height: 36px;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.est-add-price-chip:hover {
+  background: var(--accent);
+  color: #0b1f10;
+  border-color: transparent;
+}
+.est-add-price-chip:active { transform: scale(0.97); }
+[data-theme="light"] .est-add-price-chip {
+  background: #ffffff;
+  border-color: #d1d5db;
+  color: var(--text);
+}
+[data-theme="light"] .est-add-price-chip:hover {
+  background: var(--accent);
+  color: #ffffff;
+  border-color: transparent;
+}
+
+/* Cost input wrapper in a priced row — mirrors .aj-quote-line-cost-wrap */
+.est-priced-cost-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+/* Cost input — small, right-aligned, monospace */
+.est-priced-cost-input {
+  width: 80px;
+  background: transparent;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: var(--fs-body);
+  font-weight: 700;
+  padding: 4px 0;
+  outline: none;
+  text-align: right;
+  -moz-appearance: textfield;
+}
+.est-priced-cost-input::-webkit-outer-spin-button,
+.est-priced-cost-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.est-priced-cost-input:focus {
+  border-bottom-color: var(--accent);
+}
+
+/* "No saved price" copy under a missing row */
+.est-no-price-copy {
+  font-size: var(--fs-label);
+  color: var(--text-dim);
+  margin: 6px 0 0;
+  line-height: var(--lh-label);
+}
+
+/* ── Light-mode parity fixes ─────────────────────────────────────────────────
+   The inner surfaces inside .est-result-lines and .est-priced-lines are
+   hardcoded to var(--surface-2) which resolves correctly in both modes.
+   These rules fix any edge-case hardcoded colours that bleed through.       */
+[data-theme="light"] .est-result-line {
+  background: var(--surface-2);
+  border-bottom-color: var(--border);
+}
+[data-theme="light"] .est-priced-line {
+  background: var(--surface-2);
+  border-bottom-color: var(--border);
+}
+[data-theme="light"] .est-assumptions-panel {
+  background: var(--surface-2);
+}
+[data-theme="light"] .est-assumption-input {
+  background: #ffffff;
+  border-color: #d1d5db;
+}
