@@ -6,6 +6,26 @@ import AppShell from './AppShell.jsx';
 import { activateThemeController } from './lib/theme.js';
 import { getConsent } from './lib/consent.js';
 
+// ── Referral attribution — capture ?ref= BEFORE any auth redirect strips it ──
+// This runs synchronously at the very top of main so we never lose the code.
+// The code is persisted to sessionStorage; AppShell reads it on SIGNED_IN.
+(function captureReferralCode() {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const ref = params.get('ref');
+    if (ref && /^[A-Za-z0-9]{1,20}$/.test(ref)) {
+      sessionStorage.setItem('jp.referralCode', ref.trim());
+      // Clean the param from the URL bar without adding a history entry
+      params.delete('ref');
+      const newSearch = params.toString();
+      const newUrl = window.location.pathname + (newSearch ? '?' + newSearch : '') + window.location.hash;
+      history.replaceState(null, '', newUrl);
+    }
+  } catch {
+    // sessionStorage unavailable (private mode edge case) — silently skip
+  }
+})();
+
 // Bootstrap Google Analytics 4 only when VITE_GA4_ID is present.
 // Dev/PR previews without VITE_GA4_ID set will skip this block entirely.
 //

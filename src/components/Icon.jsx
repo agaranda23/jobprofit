@@ -97,6 +97,7 @@ import {
   WifiOff,
   FileSpreadsheet,
   CreditCard,
+  Gift,
 } from 'lucide-react';
 
 // ── Custom inline SVG glyphs ─────────────────────────────────────────────────
@@ -253,6 +254,9 @@ const REGISTRY = {
   unlock: Unlock,
   eye:    Eye,
   'eye-off': EyeOff,
+
+  // Referral / social
+  gift: Gift,
 };
 
 // ── Variant → CSS custom property ───────────────────────────────────────────

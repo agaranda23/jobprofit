@@ -458,6 +458,31 @@ export default function AppShell() {
         const isNew = Date.now() - createdAt < 60_000;
         logTelemetry('signed_in', { is_new_user: isNew });
         if (isNew) logTelemetry('sign_up', { plan: 'free' });
+
+        // Referral attribution (JP-LU7 Phase 1):
+        // If a ?ref= code was captured in main.jsx (persisted to sessionStorage),
+        // call the record-referral function fire-and-forget.
+        // We only attempt this on new sign-ups (isNew guard) to avoid re-attributing
+        // existing users who click a referral link while already signed in.
+        // The function itself also guards against self-referral and duplicates.
+        try {
+          const refCode = sessionStorage.getItem('jp.referralCode');
+          if (refCode && isNew && newSession.access_token) {
+            sessionStorage.removeItem('jp.referralCode');
+            fetch('/.netlify/functions/record-referral', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${newSession.access_token}`,
+              },
+              body: JSON.stringify({ referral_code: refCode }),
+            }).catch(() => {
+              // Fire-and-forget: attribution failure never blocks sign-in
+            });
+          }
+        } catch {
+          // sessionStorage unavailable — silently skip attribution
+        }
       }
     });
     return () => {
