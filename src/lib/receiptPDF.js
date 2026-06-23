@@ -268,7 +268,7 @@ function drawFooter(doc, biz, extra = '', hidePoweredBy = false) {
     doc.setFontSize(6.5);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(...LIGHT);
-    doc.text('Sent with JobProfit — getjobprofit.com', logoX + LOGO_SIZE + 1.5, footerY + 5.5, { align: 'left' });
+    doc.text('Sent with JobProfit — jobprofit.co.uk', logoX + LOGO_SIZE + 1.5, footerY + 5.5, { align: 'left' });
   }
 }
 

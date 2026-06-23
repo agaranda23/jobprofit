@@ -28,7 +28,7 @@
 
 const LABEL_TEXT = 'Sent with JobProfit — the app tradespeople use to quote, invoice and get paid';
 const CTA_TEXT   = 'Try it free';
-const BASE_URL   = 'https://getjobprofit.com';
+const BASE_URL   = 'https://jobprofit.co.uk';
 
 export default function PoweredByJobProfit({ source, hidden = false }) {
   if (hidden) return null;

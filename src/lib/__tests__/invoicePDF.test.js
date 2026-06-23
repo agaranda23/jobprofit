@@ -1053,7 +1053,7 @@ describe('white-label footer — hidePoweredBy flag', () => {
     expect(drawnTexts.some(t => String(t).includes('Sent with JobProfit'))).toBe(false);
   });
 
-  it('PDF footer includes getjobprofit.com URL for free traders', async () => {
+  it('PDF footer includes jobprofit.co.uk URL for free traders', async () => {
     await generateInvoicePDF({
       job: baseJob({ total: 300 }),
       biz: baseBiz(),
@@ -1061,10 +1061,10 @@ describe('white-label footer — hidePoweredBy flag', () => {
       dueDate: '2026-07-31',
       hidePoweredBy: false,
     });
-    expect(drawnTexts.some(t => String(t).includes('getjobprofit.com'))).toBe(true);
+    expect(drawnTexts.some(t => String(t).includes('jobprofit.co.uk'))).toBe(true);
   });
 
-  it('PDF footer does NOT include getjobprofit.com URL for Pro traders', async () => {
+  it('PDF footer does NOT include jobprofit.co.uk URL for Pro traders', async () => {
     await generateInvoicePDF({
       job: baseJob({ total: 300 }),
       biz: baseBiz(),
@@ -1072,7 +1072,7 @@ describe('white-label footer — hidePoweredBy flag', () => {
       dueDate: '2026-07-31',
       hidePoweredBy: true,
     });
-    expect(drawnTexts.some(t => String(t).includes('getjobprofit.com'))).toBe(false);
+    expect(drawnTexts.some(t => String(t).includes('jobprofit.co.uk'))).toBe(false);
   });
 });
 

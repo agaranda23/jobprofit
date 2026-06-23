@@ -74,7 +74,7 @@ export function buildShareData() {
   return {
     title: 'JobProfit',
     text: "I use JobProfit to quote, invoice and get paid from my phone — give it a go.",
-    url: 'https://getjobprofit.com',
+    url: 'https://jobprofit.co.uk',
   };
 }
 
