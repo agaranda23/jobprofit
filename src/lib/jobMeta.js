@@ -150,8 +150,40 @@ export function extractJobMeta(job) {
   return meta;
 }
 
+// STATUS RATCHET — cloud wins for authoritative status columns.
+//
+// Problem: applyJobMeta spreads ALL localStorage META_FIELDS on top of the cloud
+// object, so a stale local quoteStatus:'sent' / status:'quoted' would overwrite a
+// cloud quoteStatus:'accepted' set while the app was closed.
+//
+// Fix: before spreading local meta, if the cloud job is already 'accepted', write
+// both quoteStatus and status into localStorage so the overlay is consistent with
+// the cloud truth. This fires on EVERY merge path (initial load, storage-event, and
+// the realtime debounced refreshFromCloud path) because all paths call applyJobMeta.
+//
+// Only the authoritative status columns ('quoteStatus', 'status') get the ratchet.
+// All other fields — photos, lineItems, notes, etc. — still follow the normal local-
+// wins rule so offline edits are never discarded.
 export function applyJobMeta(job) {
   if (!job?.id) return job;
+
+  // Ratchet: if the cloud object carries quoteStatus:'accepted', ensure localStorage
+  // agrees before the overlay runs. One-way only — never downgrades local 'accepted'.
+  if (job.quoteStatus === 'accepted') {
+    const local = readJobMeta(job.id);
+    if (local.quoteStatus !== 'accepted' || local.status !== (job.status ?? 'active')) {
+      writeJobMeta(job.id, {
+        quoteStatus:    'accepted',
+        status:         job.status         ?? 'active',
+        jobStatus:      job.jobStatus      ?? 'active',
+        acceptedAt:     job.acceptedAt     ?? null,
+        acceptedName:   job.acceptedName   ?? null,
+        acceptedSource: job.acceptedSource ?? null,
+        ...(job.acceptedSignature ? { acceptedSignature: job.acceptedSignature } : {}),
+      });
+    }
+  }
+
   const meta = readJobMeta(job.id);
   return { ...job, ...meta };
 }
@@ -160,37 +192,3 @@ export function applyJobMetaToJobs(jobs) {
   return Array.isArray(jobs) ? jobs.map(applyJobMeta) : jobs;
 }
 
-// Load-time heal: walks a cloud jobs array and corrects any localStorage entries
-// that hold a stale quoteStatus:'sent' (or stale status:'quoted') for jobs the
-// cloud already records as accepted. Must be called BEFORE applyJobMetaToJobs so
-// the overlay picks up the corrected values.
-//
-// This is a one-way ratchet — once the cloud says 'accepted', localStorage is
-// updated to agree. It never downgrades: if localStorage already says 'accepted',
-// nothing is touched. Normal still-quoted jobs are not affected.
-//
-// Both quoteStatus AND status are written so that deriveDisplayStatus sees
-// status:'active' and returns "On" correctly. The existing ratchet in
-// refreshFromCloud only wrote quoteStatus, leaving status:'quoted' in localStorage
-// to win the overlay — this function corrects that gap.
-export function healAcceptedMeta(cloudJobs) {
-  if (!Array.isArray(cloudJobs)) return;
-  for (const cloudJob of cloudJobs) {
-    if (cloudJob.quoteStatus !== 'accepted' || !cloudJob.id) continue;
-    const local = readJobMeta(cloudJob.id);
-    // Already healed — skip.
-    if (local.quoteStatus === 'accepted' && local.status === 'active') continue;
-    // Ratchet up: overwrite stale local state with cloud-accepted truth.
-    writeJobMeta(cloudJob.id, {
-      quoteStatus:    'accepted',
-      status:         cloudJob.status         ?? 'active',
-      jobStatus:      cloudJob.jobStatus      ?? 'active',
-      acceptedAt:     cloudJob.acceptedAt     ?? null,
-      acceptedName:   cloudJob.acceptedName   ?? null,
-      acceptedSource: cloudJob.acceptedSource ?? null,
-      ...(cloudJob.acceptedSignature
-        ? { acceptedSignature: cloudJob.acceptedSignature }
-        : {}),
-    });
-  }
-}
