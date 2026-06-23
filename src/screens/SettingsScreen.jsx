@@ -2518,9 +2518,9 @@ export default function SettingsScreen({
         const pdfSublabel = isRecords
           ? 'A clean sheet you can send'
           : 'A clean sheet you can read or send';
-        const csvOption  = { id: 'csv',  icon: '📊', label: 'Spreadsheet (CSV)', sublabel: 'For your accountant or Excel' };
-        const xlsxOption = { id: 'xlsx', icon: '📗', label: 'Excel (.xlsx)',      sublabel: 'Opens in Excel or Google Sheets' };
-        const pdfOption  = { id: 'pdf',  icon: '📄', label: 'PDF summary',        sublabel: pdfSublabel };
+        const csvOption  = { id: 'csv',  icon: 'bar-chart',        label: 'Spreadsheet (CSV)', sublabel: 'For your accountant or Excel' };
+        const xlsxOption = { id: 'xlsx', icon: 'file-spreadsheet', label: 'Excel (.xlsx)',      sublabel: 'Opens in Excel or Google Sheets' };
+        const pdfOption  = { id: 'pdf',  icon: 'pdf',               label: 'PDF summary',        sublabel: pdfSublabel };
         const options    = csvFirst ? [csvOption, xlsxOption, pdfOption] : [pdfOption, csvOption, xlsxOption];
         return (
           <ExportFormatSheet

@@ -1614,19 +1614,19 @@ export default function AppShell() {
         options={[
           {
             id: 'csv',
-            icon: '📊',
+            icon: 'bar-chart',
             label: 'Spreadsheet (CSV)',
             sublabel: 'For your accountant or Excel',
           },
           {
             id: 'xlsx',
-            icon: '📗',
+            icon: 'file-spreadsheet',
             label: 'Excel (.xlsx)',
             sublabel: 'Opens in Excel or Google Sheets',
           },
           {
             id: 'pdf',
-            icon: '📄',
+            icon: 'pdf',
             label: 'PDF summary',
             sublabel: 'A clean sheet you can send',
           },

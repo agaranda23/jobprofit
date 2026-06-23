@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { logTelemetry } from '../lib/telemetry';
+import Icon from './Icon';
 
 /**
  * Reads OAuth error params from the URL hash or query string and strips them.
@@ -187,7 +188,7 @@ export default function AuthScreen() {
         </>
       ) : (
         <div className="auth-sent">
-          <div className="auth-sent-icon">✉️</div>
+          <div className="auth-sent-icon"><Icon name="email" size={32} variant="brand" label="Email sent" /></div>
           <h2>Check your email</h2>
           <p>We've sent your sign-in link to <strong>{email}</strong>.</p>
           <p className="auth-hint">Tap the link on this phone and you're in. No password to remember.</p>

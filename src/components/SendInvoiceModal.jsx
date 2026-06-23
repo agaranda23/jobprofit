@@ -51,6 +51,7 @@ import { persistPublicToken, reissuePublicToken } from '../lib/store';
 import { extractJobMeta, writeJobMeta } from '../lib/jobMeta';
 import InvoiceDocumentPreview from './InvoiceDocumentPreview';
 import ProUpgradeSheet from './ProUpgradeSheet';
+import Icon from './Icon';
 
 // Returns true when this browser supports navigator.share() with a files array.
 // Stored as a module-level constant so we don't recalculate on every render.
@@ -862,9 +863,10 @@ export default function SendInvoiceModal({
           disabled={isUnpriced || (isConnected && payNowLoading && !effectivePaymentLink)}
           aria-disabled={isUnpriced}
         >
+          <Icon name="send" size={16} />
           {isConnected && payNowUrl
-            ? '💬 Send invoice with Pay-now link'
-            : '💬 Send invoice link via WhatsApp'}
+            ? ' Send invoice with Pay-now link'
+            : ' Send invoice link via WhatsApp'}
         </button>
 
         {/* More ways to send — secondary options, always visible */}
