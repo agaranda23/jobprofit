@@ -74,6 +74,17 @@ vi.mock('qrcode', () => ({
   },
 }));
 
+// Mock downscaleDataUrl — the canvas API it uses isn't available in jsdom.
+// Returns a predictable JPEG data URL so addImage call-site assertions stay
+// deterministic. The shape { dataUrl, format } mirrors the real implementation.
+vi.mock('../photoCompress.js', () => ({
+  downscaleDataUrl: vi.fn(async (dataUrl) => ({
+    dataUrl: 'data:image/jpeg;base64,compressed==',
+    format:  'JPEG',
+  })),
+  compressPhoto: vi.fn(async () => 'data:image/jpeg;base64,photo=='),
+}));
+
 // ── Import under test (after mocks) ──────────────────────────────────────────
 const { generateInvoicePDF, generateQuotePDF, logoUrlToBase64 } = await import('../invoicePDF.js');
 
@@ -545,7 +556,10 @@ describe('VI. Logo rendering — biz.logoUrl and biz.logo_url fallback', () => {
     // addImage should have been called at least once (for the logo)
     expect(addImageCalls.length).toBeGreaterThan(0);
     // First addImage call should use the logo data URL
-    expect(addImageCalls[0][0]).toBe('data:image/jpeg;base64,/9j/fake');
+    // Logo is downscaled before addImage — the first call receives the mock's
+    // compressed output, not the raw input, and the format is always JPEG.
+    expect(addImageCalls[0][0]).toBe('data:image/jpeg;base64,compressed==');
+    expect(addImageCalls[0][1]).toBe('JPEG');
   });
 
   it('calls addImage when biz.logo_url is set (snake_case profile field)', async () => {
@@ -556,7 +570,9 @@ describe('VI. Logo rendering — biz.logoUrl and biz.logo_url fallback', () => {
       dueDate: '2026-07-31',
     });
     expect(addImageCalls.length).toBeGreaterThan(0);
-    expect(addImageCalls[0][0]).toBe('data:image/png;base64,fakepng');
+    // PNG logos are also downscaled and converted to JPEG before embedding.
+    expect(addImageCalls[0][0]).toBe('data:image/jpeg;base64,compressed==');
+    expect(addImageCalls[0][1]).toBe('JPEG');
   });
 
   it('does not call addImage for logo when neither logoUrl nor logo_url are set', async () => {
@@ -566,10 +582,9 @@ describe('VI. Logo rendering — biz.logoUrl and biz.logo_url fallback', () => {
       invoiceNumber: 'INV-LOGO-03',
       dueDate: '2026-07-31',
     });
-    // addImage may still be called for QR code — but not for logo
-    // Logo call would be the FIRST call if logo was rendered; verify none match a logo URL
-    const logoCall = addImageCalls.find(c => String(c[0]).startsWith('data:image/jpeg') || String(c[0]).startsWith('data:image/png;base64,fakepng'));
-    expect(logoCall).toBeUndefined();
+    // When no logo is set, downscaleDataUrl must not be called.
+    const { downscaleDataUrl } = await import('../photoCompress.js');
+    expect(downscaleDataUrl).not.toHaveBeenCalled();
   });
 
   it('falls back gracefully if addImage throws (logo decode error)', async () => {
@@ -764,7 +779,7 @@ describe('IX. generateQuotePDF — valid until + quote number', () => {
   beforeEach(() => { drawnTexts = []; addImageCalls = []; vi.clearAllMocks(); });
 
   it('renders "Valid until" in the quote meta fields', async () => {
-    generateQuotePDF({
+    await generateQuotePDF({
       job: baseJob({ date: '2026-06-01' }),
       biz: baseBiz(),
       profile: { quote_validity_days: 30 },
@@ -773,7 +788,7 @@ describe('IX. generateQuotePDF — valid until + quote number', () => {
   });
 
   it('renders "Quote ref" label in the quote meta fields', async () => {
-    generateQuotePDF({
+    await generateQuotePDF({
       job: baseJob({ id: 'j-001' }),
       biz: baseBiz(),
     });
@@ -781,7 +796,7 @@ describe('IX. generateQuotePDF — valid until + quote number', () => {
   });
 
   it('uses job.quoteNumber when present', async () => {
-    generateQuotePDF({
+    await generateQuotePDF({
       job: baseJob({ quoteNumber: 'Q-0042' }),
       biz: baseBiz(),
     });
@@ -789,7 +804,7 @@ describe('IX. generateQuotePDF — valid until + quote number', () => {
   });
 
   it('derives valid-until date correctly: 2026-06-01 + 30 days = 01/07/2026', async () => {
-    generateQuotePDF({
+    await generateQuotePDF({
       job: baseJob({ date: '2026-06-01' }),
       biz: baseBiz(),
       profile: { quote_validity_days: 30 },
@@ -843,7 +858,7 @@ describe('XI. Invoice footer — "Thank you for your business."', () => {
   });
 
   it('does NOT render thank-you text on a quote PDF', async () => {
-    generateQuotePDF({
+    await generateQuotePDF({
       job: baseJob({ total: 300 }),
       biz: baseBiz(),
     });
@@ -896,8 +911,8 @@ describe('XII. Terms & conditions — rendered on invoice/quote when set (PR-C)'
     expect(drawnTexts.some(t => String(t).includes('Terms & conditions'))).toBe(false);
   });
 
-  it('renders "Terms & conditions" on quote when biz.termsText is set', () => {
-    generateQuotePDF({
+  it('renders "Terms & conditions" on quote when biz.termsText is set', async () => {
+    await generateQuotePDF({
       job: baseJob({ total: 500 }),
       biz: baseBiz({ termsText: 'Quote valid 30 days. 50% deposit required.' }),
     });
@@ -905,8 +920,8 @@ describe('XII. Terms & conditions — rendered on invoice/quote when set (PR-C)'
     expect(drawnTexts.some(t => String(t).includes('Quote valid 30 days. 50% deposit required.'))).toBe(true);
   });
 
-  it('does NOT render "Terms & conditions" on quote when termsText is absent', () => {
-    generateQuotePDF({
+  it('does NOT render "Terms & conditions" on quote when termsText is absent', async () => {
+    await generateQuotePDF({
       job: baseJob({ total: 500 }),
       biz: baseBiz(),
     });
@@ -951,8 +966,8 @@ describe('XIII. Website in header contact line (PR-C)', () => {
     expect(drawnTexts.some(t => String(t).includes('https://from-profile.co.uk'))).toBe(true);
   });
 
-  it('renders website in the quote header when set', () => {
-    generateQuotePDF({
+  it('renders website in the quote header when set', async () => {
+    await generateQuotePDF({
       job: baseJob({ total: 300 }),
       biz: baseBiz({ website: 'https://murphy.co.uk' }),
     });
@@ -1021,16 +1036,16 @@ describe('white-label footer — hidePoweredBy flag', () => {
     expect(drawnTexts.some(t => String(t).includes('Murphy Plumbing Ltd') && String(t).includes('Generated'))).toBe(true);
   });
 
-  it('quote PDF shows "Sent with JobProfit" footer for a free trader (hidePoweredBy omitted)', () => {
-    generateQuotePDF({
+  it('quote PDF shows "Sent with JobProfit" footer for a free trader (hidePoweredBy omitted)', async () => {
+    await generateQuotePDF({
       job: baseJob({ total: 300 }),
       biz: baseBiz(),
     });
     expect(drawnTexts.some(t => String(t).includes('Sent with JobProfit'))).toBe(true);
   });
 
-  it('quote PDF HIDES "Sent with JobProfit" footer when hidePoweredBy is true (Pro trader)', () => {
-    generateQuotePDF({
+  it('quote PDF HIDES "Sent with JobProfit" footer when hidePoweredBy is true (Pro trader)', async () => {
+    await generateQuotePDF({
       job: baseJob({ total: 300 }),
       biz: baseBiz(),
       hidePoweredBy: true,
@@ -1143,5 +1158,55 @@ describe('Z. generateInvoicePDF — auto-derive deposit from job.payments', () =
     });
     expect(drawnTexts.some(t => String(t).includes('Deposit paid'))).toBe(true);
     expect(drawnTexts).toContain('BALANCE DUE');
+  });
+});
+
+// ── VI-A. Logo downscaling — downscaleDataUrl is called, format is JPEG ─────────────────────
+// Regression guard: verifies that the logo compression path is exercised on
+// every PDF generation. If downscaleDataUrl is not called, the user logo is
+// being embedded at full resolution again (the 6 MB bug).
+
+describe('VI-A. Logo downscaling — downscaleDataUrl is called for every logo', () => {
+  beforeEach(() => { drawnTexts = []; addImageCalls = []; vi.clearAllMocks(); });
+
+  it('calls downscaleDataUrl with the logo URL and maxEdge=600 when a logo is present', async () => {
+    const { downscaleDataUrl } = await import('../photoCompress.js');
+    await generateInvoicePDF({
+      job: baseJob(),
+      biz: baseBiz({ logoUrl: 'data:image/png;base64,biglogo==' }),
+      invoiceNumber: 'INV-SCALE-01',
+      dueDate: '2026-07-31',
+    });
+    expect(downscaleDataUrl).toHaveBeenCalledWith(
+      'data:image/png;base64,biglogo==',
+      600,
+      0.85,
+    );
+  });
+
+  it('calls downscaleDataUrl for the quote PDF logo too', async () => {
+    const { downscaleDataUrl } = await import('../photoCompress.js');
+    await generateQuotePDF({
+      job: baseJob(),
+      biz: baseBiz({ logoUrl: 'data:image/jpeg;base64,quotelogo==' }),
+    });
+    expect(downscaleDataUrl).toHaveBeenCalledWith(
+      'data:image/jpeg;base64,quotelogo==',
+      600,
+      0.85,
+    );
+  });
+
+  it('calls downscaleDataUrl for accepted signature with maxEdge=470, quality=0.80', async () => {
+    const { downscaleDataUrl } = await import('../photoCompress.js');
+    await generateQuotePDF({
+      job: baseJob({ acceptedSignature: 'data:image/png;base64,sig==' }),
+      biz: baseBiz(),
+    });
+    expect(downscaleDataUrl).toHaveBeenCalledWith(
+      'data:image/png;base64,sig==',
+      470,
+      0.80,
+    );
   });
 });

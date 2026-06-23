@@ -54,6 +54,97 @@ function compressDataUrl(dataUrl, maxWidth = 800, quality = 0.7) {
 }
 
 /**
+ * Returns true when a PNG data-URL contains meaningful (non-trivial) alpha.
+ *
+ * Draws the image into an offscreen canvas and samples the alpha channel.
+ * "Meaningful" means at least one pixel has alpha < 250 (i.e. not fully opaque).
+ * Non-PNG inputs are treated as opaque (return false).
+ *
+ * @param {string} dataUrl
+ * @returns {Promise<boolean>}
+ */
+function hasMeaningfulAlpha(dataUrl) {
+  return new Promise((resolve) => {
+    if (!dataUrl.startsWith('data:image/png')) {
+      resolve(false);
+      return;
+    }
+    const img = new Image();
+    img.onload = () => {
+      // Sample at a capped resolution to keep this fast
+      const MAX = 256;
+      const scale = Math.min(1, MAX / Math.max(img.width, img.height));
+      const w = Math.round(img.width * scale);
+      const h = Math.round(img.height * scale);
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, w, h);
+      const data = ctx.getImageData(0, 0, w, h).data;
+      for (let i = 3; i < data.length; i += 4) {
+        if (data[i] < 250) { resolve(true); return; }
+      }
+      resolve(false);
+    };
+    img.onerror = () => resolve(false);
+    img.src = dataUrl;
+  });
+}
+
+/**
+ * Downscales a logo data-URL so its longest edge is ≤ maxEdge pixels,
+ * then re-encodes as JPEG (quality q) on a white background.
+ *
+ * Transparency guard: if the source is a PNG with meaningful alpha, the
+ * image is flattened onto white before JPEG encoding (safe because the PDF
+ * header background is white). The result is always JPEG — smaller and
+ * sufficient for a small header logo.
+ *
+ * Non-image or already-small inputs are passed through as-is when both
+ * dimensions are already ≤ maxEdge AND the source is already JPEG.
+ *
+ * @param {string}  dataUrl  – any browser-decodable image data-URL
+ * @param {number}  maxEdge  – longest edge cap in pixels (default 600)
+ * @param {number}  q        – JPEG quality 0–1 (default 0.85)
+ * @returns {Promise<{ dataUrl: string, format: 'JPEG' }>}
+ */
+export async function downscaleDataUrl(dataUrl, maxEdge = 600, q = 0.85) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = async () => {
+      let w = img.naturalWidth || img.width;
+      let h = img.naturalHeight || img.height;
+
+      // Scale so longest edge ≤ maxEdge
+      const longest = Math.max(w, h);
+      if (longest > maxEdge) {
+        const ratio = maxEdge / longest;
+        w = Math.round(w * ratio);
+        h = Math.round(h * ratio);
+      }
+
+      const canvas = document.createElement('canvas');
+      canvas.width  = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+
+      // White background — ensures transparent PNGs are flattened cleanly
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, w, h);
+      ctx.drawImage(img, 0, 0, w, h);
+
+      resolve({ dataUrl: canvas.toDataURL('image/jpeg', q), format: 'JPEG' });
+    };
+    img.onerror = () => {
+      // Decode failed — return the original unchanged so the caller can decide
+      resolve({ dataUrl, format: dataUrl.startsWith('data:image/jpeg') ? 'JPEG' : 'PNG' });
+    };
+    img.src = dataUrl;
+  });
+}
+
+/**
  * Full pipeline: File → base64 → resize/compress → JPEG data-URL.
  *
  * @param {File} file
