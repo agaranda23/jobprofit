@@ -493,7 +493,7 @@ export default function ReviewSheet({
     let qrDataUrl = '';
     try {
       qrDataUrl = await QRCode.toDataURL(quoteUrl, {
-        width: 220,
+        width: 128,
         margin: 1,
         errorCorrectionLevel: 'M',
       });
@@ -596,7 +596,7 @@ export default function ReviewSheet({
       if (downloadQuoteUrl) {
         try {
           downloadQrDataUrl = await QRCode.toDataURL(downloadQuoteUrl, {
-            width: 220,
+            width: 128,
             margin: 1,
             errorCorrectionLevel: 'M',
           });

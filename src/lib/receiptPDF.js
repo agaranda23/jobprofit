@@ -2,6 +2,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { resolvePaidDate, resolveAmountPaid, formatReceiptDate } from './receiptMessage.js';
 import { logoUrlToBase64 } from './invoicePDF.js';
+import { downscaleDataUrl } from './photoCompress.js';
 
 /**
  * Generates a branded RECEIPT PDF.
@@ -74,15 +75,18 @@ function inferImageType(src) {
  *
  * Returns y position below the header rule.
  */
-function drawHeader(doc, biz) {
+async function drawHeader(doc, biz) {
   const w = doc.internal.pageSize.getWidth();
   let y = 16;
 
   const logo = bizLogoUrl(biz);
   if (logo) {
     try {
-      const imgType = inferImageType(logo);
-      doc.addImage(logo, imgType, MARGIN, y, HEADER_LOGO_W, HEADER_LOGO_H);
+      // Downscale the user logo to longest-edge ≤600 px and re-encode as JPEG
+      // before embedding — matches invoicePDF.js behaviour. Transparent PNGs are
+      // flattened onto white (the header background), so JPEG is always safe.
+      const { dataUrl: scaledLogo, format: scaledFmt } = await downscaleDataUrl(logo, 600, 0.85);
+      doc.addImage(scaledLogo, scaledFmt, MARGIN, y, HEADER_LOGO_W, HEADER_LOGO_H);
     } catch { /* logo decode failed — skip silently */ }
   }
 
@@ -244,7 +248,7 @@ function drawLineItems(doc, job, startY) {
  * @param {string} [extra]          - override text for the main footer line
  * @param {boolean} [hidePoweredBy] - true for Pro traders (white-label perk); suppresses the "Sent with JobProfit" line
  */
-function drawFooter(doc, biz, extra = '', hidePoweredBy = false) {
+async function drawFooter(doc, biz, extra = '', hidePoweredBy = false) {
   const w = doc.internal.pageSize.getWidth();
   const footerY = PAGE_H - 10;
   rule(doc, footerY - 4);
@@ -256,14 +260,17 @@ function drawFooter(doc, biz, extra = '', hidePoweredBy = false) {
 
   if (!hidePoweredBy) {
     // JP monogram logo — small icon left of the "Sent with JobProfit" text.
-    // White rect drawn first so the transparent PNG prints cleanly on white paper.
+    // White rect drawn first. The monogram sits on white in every PDF, so we
+    // flatten it to JPEG (200 px) — avoids embedding the raw 500×500 RGBA PNG
+    // which costs ~1 MB uncompressed inside jsPDF (750 KB RGB + 250 KB alpha mask).
     const LOGO_SIZE = 5;  // mm — small mark, not a distraction
     const logoX = w / 2 - 30;
     const logoY = footerY + 2;
     try {
       doc.setFillColor(255, 255, 255);
       doc.rect(logoX, logoY, LOGO_SIZE, LOGO_SIZE, 'F');
-      doc.addImage(JP_LOGO_B64, 'PNG', logoX, logoY, LOGO_SIZE, LOGO_SIZE);
+      const { dataUrl: monoDataUrl, format: monoFmt } = await downscaleDataUrl(JP_LOGO_B64, 200, 0.85);
+      doc.addImage(monoDataUrl, monoFmt, logoX, logoY, LOGO_SIZE, LOGO_SIZE);
     } catch { /* logo decode failed — skip silently */ }
     doc.setFontSize(6.5);
     doc.setFont('helvetica', 'normal');
@@ -374,7 +381,7 @@ export async function generateReceiptPDF({ job, biz, profile = null, hidePowered
   }
 
   // ── Business header ──────────────────────────────────────────────────────
-  let y = drawHeader(doc, effectiveBiz);
+  let y = await drawHeader(doc, effectiveBiz);
 
   // ── RECEIPT heading ──────────────────────────────────────────────────────
   y = drawDocTitle(doc, 'RECEIPT', [
@@ -489,7 +496,7 @@ export async function generateReceiptPDF({ job, biz, profile = null, hidePowered
   doc.text('Thank you for your business.', MARGIN, y);
 
   // ── Footer ───────────────────────────────────────────────────────────────
-  drawFooter(doc, effectiveBiz, `${effectiveBiz.name || 'JobProfit'}  •  Receipt generated ${new Date().toLocaleDateString('en-GB')}`, hidePoweredBy);
+  await drawFooter(doc, effectiveBiz, `${effectiveBiz.name || 'JobProfit'}  •  Receipt generated ${new Date().toLocaleDateString('en-GB')}`, hidePoweredBy);
 
   return doc;
 }

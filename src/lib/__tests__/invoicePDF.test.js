@@ -58,6 +58,7 @@ vi.mock('jspdf', () => {
     this.lastAutoTable   = { finalY: 120 };
     this.output          = vi.fn(() => new Blob([]));
     this.save            = vi.fn();
+    this.rect            = vi.fn(); // needed for white-bg behind JP monogram in drawFooter
   }
   return { jsPDF: MockJsPDF };
 });
@@ -575,16 +576,21 @@ describe('VI. Logo rendering — biz.logoUrl and biz.logo_url fallback', () => {
     expect(addImageCalls[0][1]).toBe('JPEG');
   });
 
-  it('does not call addImage for logo when neither logoUrl nor logo_url are set', async () => {
+  it('does not call downscaleDataUrl for logo when neither logoUrl nor logo_url are set', async () => {
+    const { downscaleDataUrl } = await import('../photoCompress.js');
+    // Restore implementation after vi.clearAllMocks() in beforeEach so the
+    // monogram path (downscaleDataUrl(JP_LOGO_B64, 200, 0.85)) can run cleanly.
+    vi.mocked(downscaleDataUrl).mockResolvedValue({ dataUrl: 'data:image/jpeg;base64,compressed==', format: 'JPEG' });
     await generateInvoicePDF({
       job: baseJob(),
       biz: baseBiz({ logoUrl: '', logo_url: '' }),
       invoiceNumber: 'INV-LOGO-03',
       dueDate: '2026-07-31',
     });
-    // When no logo is set, downscaleDataUrl must not be called.
-    const { downscaleDataUrl } = await import('../photoCompress.js');
-    expect(downscaleDataUrl).not.toHaveBeenCalled();
+    // When no user logo is set, downscaleDataUrl must NOT be called with maxEdge=600
+    // (the user-logo compression path). The monogram call (maxEdge=200) is expected.
+    const logoCalls = downscaleDataUrl.mock.calls.filter(([, maxEdge]) => maxEdge === 600);
+    expect(logoCalls.length).toBe(0);
   });
 
   it('falls back gracefully if addImage throws (logo decode error)', async () => {
@@ -1208,5 +1214,45 @@ describe('VI-A. Logo downscaling — downscaleDataUrl is called for every logo',
       470,
       0.80,
     );
+  });
+
+  it('calls downscaleDataUrl for the JP monogram with maxEdge=200 (not raw 500×500 PNG)', async () => {
+    // Guard against re-introducing the 1 MB raw-PNG embed of the JP monogram.
+    // The monogram is a 500×500 RGBA PNG that costs ~1 MB uncompressed in jsPDF.
+    // Fix: downscaleDataUrl called at maxEdge=200 flattens it to a ~8 KB JPEG.
+    //
+    // vi.clearAllMocks() in beforeEach wipes mock implementations, so we restore
+    // the return value here before generating the PDF.
+    const { downscaleDataUrl } = await import('../photoCompress.js');
+    vi.mocked(downscaleDataUrl).mockResolvedValue({ dataUrl: 'data:image/jpeg;base64,compressed==', format: 'JPEG' });
+    await generateInvoicePDF({
+      job:           baseJob({ total: 500 }),
+      biz:           baseBiz(),
+      invoiceNumber: 'INV-MONO-01',
+      dueDate:       '2026-07-31',
+      hidePoweredBy: false, // ensure the footer / monogram branch is entered
+    });
+    // The first positional argument to any downscaleDataUrl call that uses
+    // maxEdge=200 must be the JP_LOGO_B64 constant (starts with data:image/png).
+    const monoCalls = downscaleDataUrl.mock.calls.filter(
+      ([, maxEdge]) => maxEdge === 200,
+    );
+    expect(monoCalls.length).toBeGreaterThanOrEqual(1);
+    expect(monoCalls[0][0]).toMatch(/^data:image\/png;base64,/);
+  });
+
+  it('calls downscaleDataUrl for the JP monogram on quote PDF too', async () => {
+    const { downscaleDataUrl } = await import('../photoCompress.js');
+    // Restore implementation after vi.clearAllMocks() in beforeEach
+    vi.mocked(downscaleDataUrl).mockResolvedValue({ dataUrl: 'data:image/jpeg;base64,compressed==', format: 'JPEG' });
+    await generateQuotePDF({
+      job:           baseJob({ total: 500 }),
+      biz:           baseBiz(),
+      hidePoweredBy: false,
+    });
+    const monoCalls = downscaleDataUrl.mock.calls.filter(
+      ([, maxEdge]) => maxEdge === 200,
+    );
+    expect(monoCalls.length).toBeGreaterThanOrEqual(1);
   });
 });
