@@ -554,7 +554,7 @@ function drawTermsBlock(doc, termsText, footerRuleY) {
  * @param {string} [termsText]- terms & conditions text to draw above the rule
  * @param {boolean} [hidePoweredBy] - true for Pro traders (white-label perk); suppresses the "Sent with JobProfit" line
  */
-function drawFooter(doc, biz, label = '', termsText = '', hidePoweredBy = false) {
+async function drawFooter(doc, biz, label = '', termsText = '', hidePoweredBy = false) {
   const w = doc.internal.pageSize.getWidth();
   let footerRuleY = PAGE_H - 14;
 
@@ -570,14 +570,17 @@ function drawFooter(doc, biz, label = '', termsText = '', hidePoweredBy = false)
 
   if (!hidePoweredBy) {
     // JP monogram logo — small icon left of the "Sent with JobProfit" text.
-    // White rect drawn first so the transparent PNG prints cleanly on white paper.
+    // White rect drawn first. The monogram sits on white in every PDF, so we
+    // flatten it to JPEG (200 px) — avoids embedding the raw 500×500 RGBA PNG
+    // which costs ~1 MB uncompressed inside jsPDF (750 KB RGB + 250 KB alpha mask).
     const LOGO_SIZE = 5;  // mm — small mark, not a distraction
     const logoX = w / 2 - 30;
     const logoY = footerRuleY + 8;
     try {
       doc.setFillColor(255, 255, 255);
       doc.rect(logoX, logoY, LOGO_SIZE, LOGO_SIZE, 'F');
-      doc.addImage(JP_LOGO_B64, 'PNG', logoX, logoY, LOGO_SIZE, LOGO_SIZE);
+      const { dataUrl: monoDataUrl, format: monoFmt } = await downscaleDataUrl(JP_LOGO_B64, 200, 0.85);
+      doc.addImage(monoDataUrl, monoFmt, logoX, logoY, LOGO_SIZE, LOGO_SIZE);
     } catch { /* logo decode failed — skip silently */ }
     doc.setFontSize(6.5);
     doc.setFont('helvetica', 'normal');
@@ -965,7 +968,7 @@ export async function generateInvoicePDF({
   doc.text('Thank you for your business.', MARGIN, y);
 
   // ── Footer (with terms & conditions when set) ────────────────────────
-  drawFooter(doc, effectiveBiz, '', effectiveBiz.termsText, hidePoweredBy);
+  await drawFooter(doc, effectiveBiz, '', effectiveBiz.termsText, hidePoweredBy);
 
   return doc;
 }
@@ -1147,7 +1150,7 @@ export async function generateQuotePDF({ job, biz, profile = null, quoteUrl = ''
   }
 
   // ── Footer (with terms & conditions when set) ────────────────────────
-  drawFooter(doc, effectiveBiz, '', effectiveBiz.termsText, hidePoweredBy);
+  await drawFooter(doc, effectiveBiz, '', effectiveBiz.termsText, hidePoweredBy);
 
   return doc;
 }

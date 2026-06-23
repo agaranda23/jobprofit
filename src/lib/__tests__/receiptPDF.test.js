@@ -45,6 +45,7 @@ vi.mock('jspdf', () => {
     this.lastAutoTable  = { finalY: 120 };
     this.output         = vi.fn(() => new Blob([]));
     this.save           = vi.fn();
+    this.rect           = vi.fn(); // needed for white-bg rect behind JP monogram in drawFooter
   }
   return { jsPDF: MockJsPDF };
 });
@@ -53,6 +54,17 @@ vi.mock('jspdf-autotable', () => ({
   default: vi.fn((doc) => {
     doc.lastAutoTable = { finalY: 120 };
   }),
+}));
+
+// Mock downscaleDataUrl — the canvas API it uses isn't available in Node.
+// Returns a predictable JPEG data URL so addImage call-site assertions stay
+// deterministic. drawHeader and drawFooter are both async now (PR fix/pdf-logo-size).
+vi.mock('../photoCompress.js', () => ({
+  downscaleDataUrl: vi.fn(async (dataUrl) => ({
+    dataUrl: 'data:image/jpeg;base64,compressed==',
+    format:  'JPEG',
+  })),
+  compressPhoto: vi.fn(async () => 'data:image/jpeg;base64,photo=='),
 }));
 
 // Import after mocks
@@ -182,24 +194,24 @@ describe('B. resolvePaymentMethod', () => {
 describe('C. Receipt number appears in PDF meta', () => {
   beforeEach(() => { drawnTexts = []; addImageCalls = []; vi.clearAllMocks(); });
 
-  it('renders the receipt number label', () => {
-    generateReceiptPDF({
+  it('renders the receipt number label', async () => {
+    await generateReceiptPDF({
       job: baseJob({ invoiceNumber: 'JP-2026-0001' }),
       biz: baseBiz(),
     });
     expect(drawnTexts.some(t => String(t).includes('Receipt no'))).toBe(true);
   });
 
-  it('renders the derived R-<invoiceNumber> receipt number value', () => {
-    generateReceiptPDF({
+  it('renders the derived R-<invoiceNumber> receipt number value', async () => {
+    await generateReceiptPDF({
       job: baseJob({ invoiceNumber: 'JP-2026-0001' }),
       biz: baseBiz(),
     });
     expect(drawnTexts.some(t => String(t).includes('R-JP-2026-0001'))).toBe(true);
   });
 
-  it('renders a receipt number derived from job.id when no invoiceNumber', () => {
-    generateReceiptPDF({
+  it('renders a receipt number derived from job.id when no invoiceNumber', async () => {
+    await generateReceiptPDF({
       job: baseJob({ id: 'j-ABCD1234' }),
       biz: baseBiz(),
     });
@@ -215,40 +227,40 @@ describe('C. Receipt number appears in PDF meta', () => {
 describe('D. "Paid by:" line — present when method known, absent when unknown', () => {
   beforeEach(() => { drawnTexts = []; addImageCalls = []; vi.clearAllMocks(); });
 
-  it('renders "Paid by: Cash" when payments[].method = cash', () => {
-    generateReceiptPDF({
+  it('renders "Paid by: Cash" when payments[].method = cash', async () => {
+    await generateReceiptPDF({
       job: baseJob({ payments: [{ date: '2026-06-01', amount: 250, method: 'cash' }] }),
       biz: baseBiz(),
     });
     expect(drawnTexts.some(t => String(t).includes('Paid by: Cash'))).toBe(true);
   });
 
-  it('renders "Paid by: Bank transfer" when payments[].method = bank', () => {
-    generateReceiptPDF({
+  it('renders "Paid by: Bank transfer" when payments[].method = bank', async () => {
+    await generateReceiptPDF({
       job: baseJob({ payments: [{ date: '2026-06-01', amount: 250, method: 'bank' }] }),
       biz: baseBiz(),
     });
     expect(drawnTexts.some(t => String(t).includes('Paid by: Bank transfer'))).toBe(true);
   });
 
-  it('renders "Paid by: Card" when paymentType = card (legacy field)', () => {
-    generateReceiptPDF({
+  it('renders "Paid by: Card" when paymentType = card (legacy field)', async () => {
+    await generateReceiptPDF({
       job: baseJob({ paymentType: 'card' }),
       biz: baseBiz(),
     });
     expect(drawnTexts.some(t => String(t).includes('Paid by: Card'))).toBe(true);
   });
 
-  it('does NOT render "Paid by:" when method is unknown', () => {
-    generateReceiptPDF({
+  it('does NOT render "Paid by:" when method is unknown', async () => {
+    await generateReceiptPDF({
       job: baseJob({ payments: [{ date: '2026-06-01', amount: 250, method: 'unknown' }] }),
       biz: baseBiz(),
     });
     expect(drawnTexts.some(t => String(t).includes('Paid by:'))).toBe(false);
   });
 
-  it('does NOT render "Paid by:" when no payment method information exists', () => {
-    generateReceiptPDF({
+  it('does NOT render "Paid by:" when no payment method information exists', async () => {
+    await generateReceiptPDF({
       job: baseJob(),
       biz: baseBiz(),
     });
@@ -263,8 +275,8 @@ describe('D. "Paid by:" line — present when method known, absent when unknown'
 describe('E. VAT breakdown — shown when vatRegistered, absent when not', () => {
   beforeEach(() => { drawnTexts = []; addImageCalls = []; vi.clearAllMocks(); });
 
-  it('shows "Net (ex. VAT)" and "VAT (20%)" rows when vatRegistered is true', () => {
-    generateReceiptPDF({
+  it('shows "Net (ex. VAT)" and "VAT (20%)" rows when vatRegistered is true', async () => {
+    await generateReceiptPDF({
       job: baseJob({ total: 300 }),
       biz: baseBiz({ vatRegistered: true, vatNumber: 'GB123456789' }),
     });
@@ -272,8 +284,8 @@ describe('E. VAT breakdown — shown when vatRegistered, absent when not', () =>
     expect(drawnTexts.some(t => String(t).includes('VAT (20%)'))).toBe(true);
   });
 
-  it('does NOT show VAT rows when vatRegistered is false', () => {
-    generateReceiptPDF({
+  it('does NOT show VAT rows when vatRegistered is false', async () => {
+    await generateReceiptPDF({
       job: baseJob({ total: 300 }),
       biz: baseBiz({ vatRegistered: false }),
     });
@@ -281,16 +293,16 @@ describe('E. VAT breakdown — shown when vatRegistered, absent when not', () =>
     expect(drawnTexts.some(t => String(t).includes('VAT (20%)'))).toBe(false);
   });
 
-  it('does NOT show VAT rows when vatRegistered is absent (defaults to false)', () => {
-    generateReceiptPDF({
+  it('does NOT show VAT rows when vatRegistered is absent (defaults to false)', async () => {
+    await generateReceiptPDF({
       job: baseJob({ total: 300 }),
       biz: baseBiz(),
     });
     expect(drawnTexts.some(t => String(t).includes('VAT'))).toBe(false);
   });
 
-  it('profile.vat_registered = true enables VAT rows (profile wins over biz)', () => {
-    generateReceiptPDF({
+  it('profile.vat_registered = true enables VAT rows (profile wins over biz)', async () => {
+    await generateReceiptPDF({
       job: baseJob({ total: 300 }),
       biz: baseBiz({ vatRegistered: false }),
       profile: { vat_registered: true, vat_number: 'GB111111111' },
@@ -299,8 +311,8 @@ describe('E. VAT breakdown — shown when vatRegistered, absent when not', () =>
     expect(drawnTexts.some(t => String(t).includes('VAT (20%)'))).toBe(true);
   });
 
-  it('VAT amount = gross / 6 (reverse-charged 20%): £300 → VAT = £50', () => {
-    generateReceiptPDF({
+  it('VAT amount = gross / 6 (reverse-charged 20%): £300 → VAT = £50', async () => {
+    await generateReceiptPDF({
       job: baseJob({ total: 300 }),
       biz: baseBiz({ vatRegistered: true, vatNumber: 'GB123456789' }),
     });
@@ -315,16 +327,16 @@ describe('E. VAT breakdown — shown when vatRegistered, absent when not', () =>
 describe('F. Header parity — website shown in contact line when set', () => {
   beforeEach(() => { drawnTexts = []; addImageCalls = []; vi.clearAllMocks(); });
 
-  it('renders website when biz.website is set', () => {
-    generateReceiptPDF({
+  it('renders website when biz.website is set', async () => {
+    await generateReceiptPDF({
       job: baseJob(),
       biz: baseBiz({ website: 'https://murphy.co.uk' }),
     });
     expect(drawnTexts.some(t => String(t).includes('https://murphy.co.uk'))).toBe(true);
   });
 
-  it('renders website from profile when set (profile wins)', () => {
-    generateReceiptPDF({
+  it('renders website from profile when set (profile wins)', async () => {
+    await generateReceiptPDF({
       job: baseJob(),
       biz: baseBiz(),
       profile: { website: 'https://from-profile.co.uk' },
@@ -332,8 +344,8 @@ describe('F. Header parity — website shown in contact line when set', () => {
     expect(drawnTexts.some(t => String(t).includes('https://from-profile.co.uk'))).toBe(true);
   });
 
-  it('does not render website line when website is absent', () => {
-    generateReceiptPDF({
+  it('does not render website line when website is absent', async () => {
+    await generateReceiptPDF({
       job: baseJob(),
       biz: baseBiz(),
     });
@@ -350,16 +362,16 @@ describe('F. Header parity — website shown in contact line when set', () => {
 describe('G. VAT Reg number in header — only when vatRegistered = true', () => {
   beforeEach(() => { drawnTexts = []; addImageCalls = []; vi.clearAllMocks(); });
 
-  it('renders "VAT Reg: GB123456789" in header when vatRegistered and vatNumber are set', () => {
-    generateReceiptPDF({
+  it('renders "VAT Reg: GB123456789" in header when vatRegistered and vatNumber are set', async () => {
+    await generateReceiptPDF({
       job: baseJob(),
       biz: baseBiz({ vatRegistered: true, vatNumber: 'GB123456789' }),
     });
     expect(drawnTexts.some(t => String(t).includes('VAT Reg: GB123456789'))).toBe(true);
   });
 
-  it('does NOT render VAT Reg in header when vatRegistered is false', () => {
-    generateReceiptPDF({
+  it('does NOT render VAT Reg in header when vatRegistered is false', async () => {
+    await generateReceiptPDF({
       job: baseJob(),
       biz: baseBiz({ vatRegistered: false, vatNumber: 'GB123456789' }),
     });
@@ -367,8 +379,8 @@ describe('G. VAT Reg number in header — only when vatRegistered = true', () =>
     expect(drawnTexts.some(t => String(t).includes('VAT Reg:'))).toBe(false);
   });
 
-  it('does NOT render VAT Reg in header when vatNumber is absent (even if vatRegistered)', () => {
-    generateReceiptPDF({
+  it('does NOT render VAT Reg in header when vatNumber is absent (even if vatRegistered)', async () => {
+    await generateReceiptPDF({
       job: baseJob(),
       biz: baseBiz({ vatRegistered: true, vatNumber: '' }),
     });
@@ -383,9 +395,9 @@ describe('G. VAT Reg number in header — only when vatRegistered = true', () =>
 describe('H. Non-VAT trader — zero VAT lines or numbers on receipt', () => {
   beforeEach(() => { drawnTexts = []; addImageCalls = []; vi.clearAllMocks(); });
 
-  it('non-registered trader with vatNumber set: still shows nothing VAT-related', () => {
+  it('non-registered trader with vatNumber set: still shows nothing VAT-related', async () => {
     // Edge case: vatNumber is in biz but vatRegistered is false — must stay hidden
-    generateReceiptPDF({
+    await generateReceiptPDF({
       job: baseJob({ total: 500 }),
       biz: baseBiz({ vatRegistered: false, vatNumber: 'GB999999999' }),
     });
@@ -395,8 +407,8 @@ describe('H. Non-VAT trader — zero VAT lines or numbers on receipt', () => {
     expect(vatLines.length).toBe(0);
   });
 
-  it('non-registered trader with no profile: no VAT lines', () => {
-    generateReceiptPDF({
+  it('non-registered trader with no profile: no VAT lines', async () => {
+    await generateReceiptPDF({
       job: baseJob({ total: 500 }),
       biz: baseBiz(),
       profile: null,
