@@ -20,7 +20,7 @@ function buildShareData() {
   return {
     title: 'JobProfit',
     text: "I use JobProfit to quote, invoice and get paid from my phone — give it a go.",
-    url: 'https://getjobprofit.com',
+    url: 'https://jobprofit.co.uk',
   };
 }
 
@@ -32,7 +32,7 @@ function buildWhatsAppSupportUrl() {
 
 describe('buildShareData', () => {
   it('returns the correct URL', () => {
-    expect(buildShareData().url).toBe('https://getjobprofit.com');
+    expect(buildShareData().url).toBe('https://jobprofit.co.uk');
   });
 
   it('returns the correct title', () => {
