@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useSnackbar, markSession1Done, isSession1Done } from './lib/snackbar.js';
+import Snackbar from './components/Snackbar.jsx';
 import { useKeyboardInset } from './lib/useKeyboardInset.js';
 import {
   shouldShowCostPrompt,
@@ -168,15 +170,13 @@ export default function AppShell() {
   const [cloudLoaded, setCloudLoaded] = useState(false);
   const [pendingLink, setPendingLink] = useState(null); // receipt awaiting job link
   const [drawerOpen, setDrawerOpen] = useState(false);
-  // First-open toast for users seeing the new nav for the first time
-  const [navToast, setNavToast] = useState(null);
-  // Realtime event toast — shape: { message: string, jobId: string|null } | null
-  // jobId lets the trader tap the toast to jump straight to that job.
-  const [realtimeToast, setRealtimeToast] = useState(null);
-  // Post-paid cost snackbar — shown after Today quick mark-paid.
-  // null = hidden; { job } = visible for that job.
-  const [costSnackbar, setCostSnackbar] = useState(null);
-  const costSnackbarTimerRef = useRef(null);
+  // ── Snackbar manager (JP-LU2) ────────────────────────────────────────────────
+  // Single priority-queue surface replacing the old navToast / realtimeToast /
+  // costSnackbar state + their individual setTimeout calls.
+  const { active: snackbarActive, enqueue: snackbarEnqueue, dismiss: snackbarDismiss } = useSnackbar();
+  // costSnackbar: used only for the expanded modal path (+ Add cost tapped).
+  // The collapsed snackbar itself is rendered via Snackbar.jsx.
+  const [costSnackbarJob, setCostSnackbarJob] = useState(null);
   // Debounce timer for the realtime onChange → refreshFromCloud path.
   // A burst of postgres_changes events (e.g. bulk offline sync flushes) would
   // otherwise fire one full refetch per event.  2-second trailing debounce
@@ -538,8 +538,12 @@ export default function AppShell() {
       if (status !== 'default') return;
       if (localStorage.getItem('jp.pushPromptDismissed')) return;
 
-      // Wait 5 s after sign-in before showing — give the user time to orient
+      // Wait 5 s after sign-in before showing — give the user time to orient.
+      // Session-one gate (JP-LU2): defer the prompt if an active snackbar is
+      // showing during the first session (e.g. a nav orientation toast).
+      // isSession1Done() returns true after first markPaid or first job save.
       const t = setTimeout(() => {
+        if (!isSession1Done() && snackbarActive) return;
         setPushPromptVisible(true);
       }, 5000);
       return () => clearTimeout(t);
@@ -600,12 +604,13 @@ export default function AppShell() {
               const amountStr = amount > 0
                 ? ` · £${amount.toLocaleString('en-GB', { minimumFractionDigits: 0 })}`
                 : '';
-              setRealtimeToast({
+              snackbarEnqueue({
+                type: 'realtime',
                 message: `${customerName} accepted your quote${amountStr}`,
                 jobId: incoming.id || null,
+                dwell: 8000,
+                priority: 10,
               });
-              const t = setTimeout(() => setRealtimeToast(null), 8000);
-              void t;
             } else {
               // Declined — pre-sync localStorage so the trader's job card flips
               // without waiting for the debounced refreshFromCloud.
@@ -616,12 +621,13 @@ export default function AppShell() {
               });
 
               const customerName = incomingMeta.declinedName || incoming.customer_name || prev?.customer || prev?.name || 'Customer';
-              setRealtimeToast({
+              snackbarEnqueue({
+                type: 'realtime',
                 message: `${customerName} declined your quote`,
                 jobId: incoming.id || null,
+                dwell: 8000,
+                priority: 10,
               });
-              const t = setTimeout(() => setRealtimeToast(null), 8000);
-              void t;
             }
           }
         }
@@ -664,24 +670,22 @@ export default function AppShell() {
     return () => window.removeEventListener('storage', onStorage);
   }, [cloudLoaded]);
 
-  // Show a one-time orientation toast when a nav mode first activates
+  // Show a one-time orientation toast when a nav mode first activates (JP-LU2: via snackbar)
   useEffect(() => {
     if (NAV_SLICE_3) {
       const toastKey = 'jp.slice3NavToast.v2';
       if (localStorage.getItem(toastKey)) return;
-      setNavToast("Your new nav: Jobs for your work, Money for your finances, Settings for your account.");
+      snackbarEnqueue({ type: 'nav', message: "Your new nav: Jobs for your work, Money for your finances, Settings for your account.", dwell: 6000, priority: 1 });
       localStorage.setItem(toastKey, '1');
-      const t = setTimeout(() => setNavToast(null), 6000);
-      return () => clearTimeout(t);
+      return;
     }
     if (NEW_NAV) {
       const toastKey = 'jp.newNavToast.v1';
       if (localStorage.getItem(toastKey)) return;
-      setNavToast("Business is now Jobs, Schedule, and Money. Settings is top-right.");
+      snackbarEnqueue({ type: 'nav', message: "Business is now Jobs, Schedule, and Money. Settings is top-right.", dwell: 6000, priority: 1 });
       localStorage.setItem(toastKey, '1');
-      const t = setTimeout(() => setNavToast(null), 6000);
-      return () => clearTimeout(t);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Wizard auto-open removed (feat/zero-friction-entry, 2026-06-02).
@@ -841,6 +845,7 @@ export default function AppShell() {
   // Mark-paid from the new Today awaiting section. Writes the new payment fields
   // into the jobMeta side-channel, then fires the cloud write async.
   const onMarkPaidFromToday = (job, method) => {
+    markSession1Done();
     logTelemetry('mark_paid', { source: 'today', method: method ?? 'unknown' });
     // job_paid: compute profit props here while the full receipts array is in scope.
     const { quote: headline_price, materials: job_costs, profit: true_profit } =
@@ -878,9 +883,15 @@ export default function AppShell() {
     });
     if (showSnackbar) {
       recordPromptShown(job.id);
-      if (costSnackbarTimerRef.current) clearTimeout(costSnackbarTimerRef.current);
-      setCostSnackbar({ job, jobCostTotal });
-      costSnackbarTimerRef.current = setTimeout(() => setCostSnackbar(null), 6000);
+      setCostSnackbarJob({ job, jobCostTotal });
+      snackbarEnqueue({
+        type: 'cost',
+        message: 'Paid — add what this job cost you?',
+        job,
+        jobCostTotal,
+        dwell: 6000,
+        priority: 4,
+      });
     }
   };
 
@@ -1174,6 +1185,8 @@ export default function AppShell() {
               defaultMarkup={profile?.default_markup ?? 20}
               onBrowseMaterials={() => setMaterialsOpen(true)}
               onMaterialSaved={handleMaterialSaved}
+              onSnackbar={snackbarEnqueue}
+              onSnackbarDismiss={snackbarDismiss}
             />
           )}
 
@@ -1293,6 +1306,8 @@ export default function AppShell() {
               defaultMarkup={profile?.default_markup ?? 20}
               onBrowseMaterials={() => setMaterialsOpen(true)}
               onMaterialSaved={handleMaterialSaved}
+              onSnackbar={snackbarEnqueue}
+              onSnackbarDismiss={snackbarDismiss}
             />
           )}
 
@@ -1409,99 +1424,51 @@ export default function AppShell() {
       {/* ── Offline sync badge — shown when IndexedDB queue has pending rows ── */}
       <SyncBadge onSignIn={handleSyncSignIn} />
 
-      {/* ── One-time orientation toast ──────────────────────────────────── */}
-      {navToast && (
-        <div className="nav-toast" role="status">
-          {navToast}
-          <button className="nav-toast-close" onClick={() => setNavToast(null)} aria-label="Dismiss"><Icon name="close" size={16} /></button>
-        </div>
-      )}
+      {/* ── Unified snackbar manager (JP-LU2) ─────────────────────────── */}
+      {/* Single renderer for nav/toast/realtime/cost/nudge/got-paid.     */}
+      {/* The old navToast, realtimeToast, costSnackbar surfaces are gone; */}
+      {/* TodayScreen's toast/gotPaid/payNowNudge are now here too.        */}
+      <Snackbar
+        active={snackbarActive}
+        onDismiss={(id) => snackbarDismiss(id)}
+        onTap={(descriptor) => {
+          if (descriptor.jobId) {
+            setPendingJobId(descriptor.jobId);
+            navigate(NAV_SLICE_3 ? 'work' : NEW_NAV ? 'jobs' : 'today');
+          }
+        }}
+        onExpandCost={(descriptor) => {
+          snackbarDismiss(descriptor.id);
+          setCostSnackbarJob(prev => prev ?? { job: descriptor.job, jobCostTotal: descriptor.jobCostTotal ?? 0 });
+        }}
+        onCostDismiss={() => {
+          const { shouldAutoMute } = recordDismissal();
+          if (shouldAutoMute) handleProfileUpdate({ remind_job_costs: false });
+          setCostSnackbarJob(null);
+        }}
+        onSetupPayNow={() => navigate(NAV_SLICE_3 ? 'settings' : NEW_NAV ? 'settings' : 'today')}
+        onGotPaidChip={(job, method) => {
+          if (job) onMarkPaidFromToday(job, method);
+        }}
+      />
 
-      {/* ── Realtime event toast — quote accepted (app open when customer signed) ── */}
-      {/* Tapping navigates to the job in the Jobs tab. ✕ dismisses without nav. */}
-      {realtimeToast && (
-        <div
-          className="nav-toast nav-toast--realtime nav-toast--accepted"
-          role="status"
-          aria-live="polite"
-        >
-          <button
-            type="button"
-            className="nav-toast-body"
-            onClick={() => {
-              setRealtimeToast(null);
-              if (realtimeToast.jobId) {
-                setPendingJobId(realtimeToast.jobId);
-                navigate(NAV_SLICE_3 ? 'work' : NEW_NAV ? 'jobs' : 'today');
-              }
-            }}
-            aria-label={`${realtimeToast.message} — tap to view job`}
-          >
-            <Icon name="complete" size={16} variant="success" className="nav-toast-check" />
-            {realtimeToast.message}
-          </button>
-          <button
-            type="button"
-            className="nav-toast-close"
-            onClick={() => setRealtimeToast(null)}
-            aria-label="Dismiss"
-          >
-            <Icon name="close" size={16} />
-          </button>
-        </div>
-      )}
-
-      {/* ── Post-paid cost snackbar — fires after Today quick mark-paid ── */}
-      {/* Payment is already recorded. This is a secondary, skippable nudge.  */}
-      {/* Auto-dismisses after 6 s if the user does nothing.                  */}
-      {costSnackbar && !costSnackbar.expanded && (
-        <div className="nav-toast nav-toast--cost-capture" role="status" aria-live="polite">
-          <span className="nav-toast-cost-msg">
-            Paid &#10003; &mdash; add what this job cost you?
-          </span>
-          <button
-            type="button"
-            className="nav-toast-add-cost"
-            onClick={() => {
-              if (costSnackbarTimerRef.current) clearTimeout(costSnackbarTimerRef.current);
-              setCostSnackbar(prev => prev ? { ...prev, expanded: true } : null);
-            }}
-            aria-label="Add job cost"
-          >
-            + Add cost
-          </button>
-          <button
-            type="button"
-            className="nav-toast-close"
-            onClick={() => {
-              if (costSnackbarTimerRef.current) clearTimeout(costSnackbarTimerRef.current);
-              const { shouldAutoMute } = recordDismissal();
-              if (shouldAutoMute) handleProfileUpdate({ remind_job_costs: false });
-              setCostSnackbar(null);
-            }}
-            aria-label="Dismiss"
-          >
-            <Icon name="close" size={16} />
-          </button>
-        </div>
-      )}
-
-      {/* ── Expanded cost-capture modal (from Today snackbar "+ Add cost" tap) ── */}
-      {costSnackbar?.expanded && (
-        <div className="modal-backdrop" onClick={() => setCostSnackbar(null)}>
+      {/* ── Expanded cost-capture modal (from Snackbar "+ Add cost" tap) ── */}
+      {/* Payment is already recorded; this is a secondary, skippable modal. */}
+      {costSnackbarJob && (
+        <div className="modal-backdrop" onClick={() => setCostSnackbarJob(null)}>
           <div className="modal modal--paid-success" onClick={e => e.stopPropagation()}>
             <div className="modal-paid-badge">
               <Icon name="paid" size={24} variant="success" className="modal-paid-check" />
               <span className="modal-paid-label">Paid</span>
             </div>
             <PostPaidCostRow
-              job={costSnackbar.job}
-              jobCostTotal={costSnackbar.jobCostTotal ?? 0}
-              variant={costPromptVariant(costSnackbar.jobCostTotal ?? 0)}
+              job={costSnackbarJob.job}
+              jobCostTotal={costSnackbarJob.jobCostTotal ?? 0}
+              variant={costPromptVariant(costSnackbarJob.jobCostTotal ?? 0)}
               onSave={handleAddReceipt}
-              onSkip={() => setCostSnackbar(null)}
+              onSkip={() => setCostSnackbarJob(null)}
               onAutoMute={() => {
-                setCostSnackbar(null);
+                setCostSnackbarJob(null);
                 handleProfileUpdate({ remind_job_costs: false });
               }}
             />
