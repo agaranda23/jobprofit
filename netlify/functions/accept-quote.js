@@ -1,11 +1,18 @@
 /**
- * accept-quote — Netlify function (Phase G-2)
+ * accept-quote — Netlify function (Phase G-2 redesign)
  *
- * Receives a customer signature from the public quote page and writes it to
- * the jobs row via the service-role client (bypasses RLS, safe only server-side).
+ * Receives a customer acceptance decision from the public quote page and writes
+ * it to the jobs row via the service-role client (bypasses RLS, safe only
+ * server-side).
+ *
+ * Signature capture removed (Phase G-2, 2026-06-23): data-minimisation under
+ * UK GDPR. An audited timestamped tap with consent flag and optional name fully
+ * serves the legal purpose. The signature PNG (~200 KB) was the largest PII
+ * collected with no added legal weight. Backfill of historic signatures is a
+ * fast-follow (LGL sign-off advisable, not blocking).
  *
  * POST body (JSON):
- *   { token: string, signature: string, acceptedName?: string }
+ *   { token: string, acceptedName?: string, consentGiven: true }
  *
  * Required env vars (set in Netlify dashboard — NEVER commit to the repo):
  *   SUPABASE_SERVICE_ROLE_KEY  — Supabase dashboard → Project Settings → API → service_role
@@ -31,12 +38,6 @@ const CORS_HEADERS = {
 /** UUID v4 shape — must match isValidToken in publicQuoteToken.js */
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-/** data:image/png;base64,... prefix */
-const DATA_URL_PREFIX = 'data:image/png;base64,';
-
-/** Maximum signature payload: 200 KB expressed as base64 character count */
-const MAX_SIG_CHARS = Math.ceil((200 * 1024 * 4) / 3);
-
 function json(statusCode, body) {
   return { statusCode, headers: CORS_HEADERS, body: JSON.stringify(body) };
 }
@@ -59,22 +60,11 @@ export const handler = async function (event) {
     return json(400, { error: 'Invalid JSON body' });
   }
 
-  const { token, signature, acceptedName, consentGiven } = body;
+  const { token, acceptedName, consentGiven } = body;
 
   // ── 2. Validate token ────────────────────────────────────────────────────────
   if (typeof token !== 'string' || !UUID_RE.test(token)) {
     return json(400, { error: 'Invalid token format' });
-  }
-
-  // ── 3. Validate signature ────────────────────────────────────────────────────
-  if (typeof signature !== 'string') {
-    return json(400, { error: 'Signature is required' });
-  }
-  if (!signature.startsWith(DATA_URL_PREFIX)) {
-    return json(400, { error: 'Signature must be a PNG dataURL' });
-  }
-  if (signature.length > MAX_SIG_CHARS + DATA_URL_PREFIX.length) {
-    return json(400, { error: 'Signature exceeds maximum size (200 KB)' });
   }
 
   // acceptedName is optional; strip to plain string if present
@@ -87,7 +77,6 @@ export const handler = async function (event) {
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
   if (!supabaseUrl || !serviceRoleKey) {
-    // Log clearly so Netlify function logs surface the misconfiguration
     console.error(
       'accept-quote: missing env vars.',
       'VITE_SUPABASE_URL present:', !!supabaseUrl,
@@ -97,7 +86,6 @@ export const handler = async function (event) {
   }
 
   // ── 5. Initialize service-role Supabase client ───────────────────────────────
-  // Service role bypasses RLS — only used server-side, never exposed to the browser.
   const adminClient = createClient(supabaseUrl, serviceRoleKey, {
     auth: { persistSession: false },
   });
@@ -121,26 +109,26 @@ export const handler = async function (event) {
   }
 
   // ── 7. Idempotency — return existing state if already accepted ───────────────
-  // NOTE: the already-accepted path does NOT re-check consent. The consent was
-  // given at the time of first acceptance; re-requiring it on a reload would be
-  // confusing and serves no legal purpose.
+  // Idempotency checks both quoteStatus:'accepted' (button-path, G-2) and
+  // acceptedSignature (legacy signature-path, pre G-2). Both mean accepted.
   const existingMeta = (jobRow.meta && typeof jobRow.meta === 'object') ? jobRow.meta : {};
-  if (existingMeta.acceptedSignature) {
+  if (existingMeta.quoteStatus === 'accepted' || existingMeta.acceptedSignature) {
     return json(200, {
       acceptedAt: existingMeta.acceptedAt,
       alreadyAccepted: true,
     });
   }
 
-  // ── 7a. Validate consent (new acceptances only) ──────────────────────────────
-  // The customer must tick the T&Cs + Privacy checkbox on the public quote page
-  // before the Confirm button becomes active. This is a belt-and-braces server
-  // check. consentGiven must be exactly boolean true.
+  // ── 8. Validate consent (new acceptances only) ───────────────────────────────
+  // Checked after idempotency so a network-retry of an already-accepted token
+  // never fails on a missing consentGiven field — the 200 alreadyAccepted path
+  // above short-circuits first. Consent is conveyed by the inline copy on the
+  // Accept button (not a checkbox). The frontend always sends consentGiven:true.
   if (consentGiven !== true) {
     return json(400, { error: 'Consent is required to accept this quote' });
   }
 
-  // ── 8. Write acceptance ──────────────────────────────────────────────────────
+  // ── 9. Write acceptance ──────────────────────────────────────────────────────
   const acceptedAt = new Date().toISOString();
 
   // Only advance to On (active) when the job is currently Quoted — never
@@ -150,15 +138,16 @@ export const handler = async function (event) {
 
   const updatedMeta = {
     ...existingMeta,
-    acceptedSignature: signature,
+    // No signature stored — data minimisation (UK GDPR, 2026-06-23).
     acceptedAt,
     acceptedName: cleanName,
     acceptedSource: 'remote',
     quoteStatus: 'accepted',
-    // Set canonical status field (read by mapCloudJobToToday as cloudMeta.status).
-    // Old code only set jobStatus:'active' (legacy field), so the job never
-    // moved from Quoted → On in the trader's app after remote signing.
     ...(isCurrentlyQuoted ? { status: 'active', jobStatus: 'active' } : {}),
+    // Consent markers kept for compliance audit trail (negligible size).
+    // consentPolicyVersion changelog:
+    //   v1 (2026-06-23) — inline copy on Accept button; no checkbox; optional name.
+    //   Increment to v2 when LGL approves an updated wording and note date + change.
     consentGiven: true,
     consentAt: acceptedAt,
     consentPolicyVersion: 'v1',
@@ -172,22 +161,21 @@ export const handler = async function (event) {
 
     if (updateError) {
       console.error('accept-quote: DB update failed', jobRow.id, updateError?.message);
-      return json(502, { error: 'Could not save signature — please try again' });
+      return json(502, { error: 'Could not save your decision — please try again' });
     }
   } catch (err) {
     console.error('accept-quote: DB update threw', jobRow.id, err?.message);
-    return json(502, { error: 'Could not save signature — please try again' });
+    return json(502, { error: 'Could not save your decision — please try again' });
   }
 
-  // ── 9. Notify the trader via push (fire-and-forget) ─────────────────────────
+  // ── 10. Notify the trader via push (fire-and-forget) ────────────────────────
   // The trader also gets a real-time in-app toast via Supabase Realtime when
   // the app is open. Push covers the closed/backgrounded case.
-  // If VAPID keys aren't configured yet, sendPushToUser is a silent no-op.
   if (jobRow.user_id) {
     const customerName = jobRow.customer_name || cleanName || 'A customer';
     sendPushToUser(jobRow.user_id, {
       title: 'Quote accepted',
-      body: `${customerName} signed your quote`,
+      body: `${customerName} accepted your quote`,
       url: '/',
       tag: `quote-accepted-${jobRow.id}`,
     }).catch((err) => {
@@ -195,6 +183,5 @@ export const handler = async function (event) {
     });
   }
 
-  // Return only what the public page needs — no internal IDs or other tokens
   return json(200, { acceptedAt });
 };

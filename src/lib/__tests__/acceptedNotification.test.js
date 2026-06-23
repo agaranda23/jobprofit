@@ -11,6 +11,9 @@ import {
   getNewlyAcceptedJobs,
   buildAcceptedLabel,
   formatAcceptedDate,
+  isNewlyDeclined,
+  getNewlyDeclinedJobs,
+  buildDeclinedLabel,
 } from '../acceptedNotification.js';
 
 // ─── isNewlyAccepted ──────────────────────────────────────────────────────────
@@ -123,6 +126,96 @@ describe('buildAcceptedLabel', () => {
   it('prefers acceptedName over customer', () => {
     const job = { acceptedName: 'Gemma', customer: 'SomeCompany Ltd', total: 100 };
     expect(buildAcceptedLabel(job)).toBe('Gemma accepted · £100');
+  });
+});
+
+// ─── isNewlyDeclined ─────────────────────────────────────────────────────────
+
+describe('isNewlyDeclined', () => {
+  const base = { id: 'j5', quoteStatus: 'declined', declinedAt: '2026-06-23T10:00:00Z' };
+
+  it('returns true when quoteStatus=declined + declinedAt set + no declinedSeenAt', () => {
+    expect(isNewlyDeclined(base)).toBe(true);
+  });
+
+  it('returns false when declinedSeenAt is set (already seen)', () => {
+    expect(isNewlyDeclined({ ...base, declinedSeenAt: '2026-06-23T11:00:00Z' })).toBe(false);
+  });
+
+  it('returns false when quoteStatus is not declined', () => {
+    expect(isNewlyDeclined({ ...base, quoteStatus: 'sent' })).toBe(false);
+  });
+
+  it('returns false when quoteStatus is accepted (not a decline)', () => {
+    expect(isNewlyDeclined({ ...base, quoteStatus: 'accepted' })).toBe(false);
+  });
+
+  it('returns false when declinedAt is missing', () => {
+    expect(isNewlyDeclined({ ...base, declinedAt: undefined })).toBe(false);
+  });
+
+  it('returns false for null input', () => {
+    expect(isNewlyDeclined(null)).toBe(false);
+  });
+
+  it('returns false for undefined input', () => {
+    expect(isNewlyDeclined(undefined)).toBe(false);
+  });
+
+  it('returns true when declinedSeenAt is empty string (falsy — not seen)', () => {
+    expect(isNewlyDeclined({ ...base, declinedSeenAt: '' })).toBe(true);
+  });
+});
+
+// ─── getNewlyDeclinedJobs ─────────────────────────────────────────────────────
+
+describe('getNewlyDeclinedJobs', () => {
+  const declined = { id: 'j5', quoteStatus: 'declined', declinedAt: '2026-06-23T10:00:00Z' };
+  const seen     = { id: 'j6', quoteStatus: 'declined', declinedAt: '2026-06-23T09:00:00Z', declinedSeenAt: '2026-06-23T11:00:00Z' };
+  const lead     = { id: 'j7', quoteStatus: 'sent' };
+  const accepted = { id: 'j8', quoteStatus: 'accepted', acceptedAt: '2026-06-22T08:00:00Z' };
+
+  it('returns only unseen declined jobs from a mixed array', () => {
+    const result = getNewlyDeclinedJobs([declined, seen, lead, accepted]);
+    expect(result.map(j => j.id)).toEqual(['j5']);
+  });
+
+  it('returns empty array when all declined jobs are seen', () => {
+    expect(getNewlyDeclinedJobs([seen])).toEqual([]);
+  });
+
+  it('returns empty array for null input', () => {
+    expect(getNewlyDeclinedJobs(null)).toEqual([]);
+  });
+
+  it('returns empty array for empty input', () => {
+    expect(getNewlyDeclinedJobs([])).toEqual([]);
+  });
+});
+
+// ─── buildDeclinedLabel ───────────────────────────────────────────────────────
+
+describe('buildDeclinedLabel', () => {
+  it('uses declinedName and appends reason when both present', () => {
+    const job = { declinedName: 'Sarah', declineReason: 'Too expensive' };
+    expect(buildDeclinedLabel(job)).toBe('Sarah declined — Too expensive');
+  });
+
+  it('falls back to customer_name when declinedName is absent', () => {
+    const job = { customer_name: 'Bob', declineReason: 'Gone elsewhere' };
+    expect(buildDeclinedLabel(job)).toBe('Bob declined — Gone elsewhere');
+  });
+
+  it('falls back to "Customer" when no name fields exist', () => {
+    expect(buildDeclinedLabel({})).toBe('Customer declined');
+  });
+
+  it('omits reason when not set', () => {
+    expect(buildDeclinedLabel({ declinedName: 'Sue' })).toBe('Sue declined');
+  });
+
+  it('returns "Quote declined" for null job', () => {
+    expect(buildDeclinedLabel(null)).toBe('Quote declined');
   });
 });
 

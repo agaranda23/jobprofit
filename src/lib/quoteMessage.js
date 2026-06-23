@@ -43,7 +43,7 @@ export function buildQuoteWhatsAppMessage({ job, biz, quoteUrl, depositPayUrl = 
   const lines = [
     firstName ? `Hi ${firstName},` : 'Hi,',
     '',
-    `📝 Tap to view and sign your quote:`,
+    `📝 Tap to view and accept or decline your quote:`,
     quoteUrl,
     '',
     `🔨 ${summary}`,

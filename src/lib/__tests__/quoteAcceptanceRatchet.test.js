@@ -46,19 +46,31 @@ beforeEach(() => {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-/** Simulate what mapCloudJobToToday returns after accept-quote writes accepted meta. */
+/** Simulate what mapCloudJobToToday returns after accept-quote writes accepted meta.
+ *  Phase G-2: no acceptedSignature field — button-based acceptance stores only the
+ *  timestamp, name, source, and consent markers. Historic rows may still carry
+ *  acceptedSignature; the ratchet handles that via the conditional spread below.
+ */
 function cloudAcceptedJob(id = 'job-uuid-001') {
   return {
     id,
-    quoteStatus:       'accepted',
-    acceptedAt:        '2026-06-21T10:00:00.000Z',
-    acceptedName:      'Dave',
-    acceptedSource:    'remote',
+    quoteStatus:    'accepted',
+    acceptedAt:     '2026-06-21T10:00:00.000Z',
+    acceptedName:   'Dave',
+    acceptedSource: 'remote',
+    // acceptedSignature intentionally absent — G-2 button path
+    status:         'active',
+    jobStatus:      'active',
+    total:          420,
+    amount:         420,
+  };
+}
+
+/** Legacy accepted job fixture — carries a signature PNG from before G-2. */
+function legacyCloudAcceptedJob(id = 'job-uuid-legacy') {
+  return {
+    ...cloudAcceptedJob(id),
     acceptedSignature: 'data:image/png;base64,abc123',
-    status:            'active',
-    jobStatus:         'active',
-    total:             420,
-    amount:            420,
   };
 }
 
@@ -120,11 +132,35 @@ describe('ratchet fix: writeJobMeta before applyJobMetaToJobs', () => {
     expect(result.quoteStatus).toBe('accepted');
   });
 
-  it('ratchet preserves all acceptance fields after merge', () => {
+  it('ratchet preserves all acceptance fields after merge (G-2 button path, no signature)', () => {
     const id = 'job-uuid-ratchet-002';
     writeJobMeta(id, { quoteStatus: 'sent' });
 
     const cloudJob = cloudAcceptedJob(id);
+    writeJobMeta(id, {
+      quoteStatus:    cloudJob.quoteStatus,
+      acceptedAt:     cloudJob.acceptedAt,
+      acceptedName:   cloudJob.acceptedName,
+      acceptedSource: cloudJob.acceptedSource,
+      ...(cloudJob.acceptedSignature
+        ? { acceptedSignature: cloudJob.acceptedSignature }
+        : {}),
+    });
+
+    const result = applyJobMeta(cloudJob);
+    expect(result.quoteStatus).toBe('accepted');
+    expect(result.acceptedAt).toBe('2026-06-21T10:00:00.000Z');
+    expect(result.acceptedName).toBe('Dave');
+    expect(result.acceptedSource).toBe('remote');
+    // G-2 path: no acceptedSignature collected
+    expect(result.acceptedSignature).toBeUndefined();
+  });
+
+  it('ratchet preserves acceptedSignature when present on legacy cloud job', () => {
+    const id = 'job-uuid-ratchet-002b';
+    writeJobMeta(id, { quoteStatus: 'sent' });
+
+    const cloudJob = legacyCloudAcceptedJob(id);
     writeJobMeta(id, {
       quoteStatus:       cloudJob.quoteStatus,
       acceptedAt:        cloudJob.acceptedAt,
@@ -134,10 +170,6 @@ describe('ratchet fix: writeJobMeta before applyJobMetaToJobs', () => {
     });
 
     const result = applyJobMeta(cloudJob);
-    expect(result.quoteStatus).toBe('accepted');
-    expect(result.acceptedAt).toBe('2026-06-21T10:00:00.000Z');
-    expect(result.acceptedName).toBe('Dave');
-    expect(result.acceptedSource).toBe('remote');
     expect(result.acceptedSignature).toBe('data:image/png;base64,abc123');
   });
 
@@ -225,6 +257,7 @@ describe('healAcceptedMeta — status field is written alongside quoteStatus', (
     const id = 'heal-001';
     writeJobMeta(id, { quoteStatus: 'sent', status: 'quoted' });
 
+    // G-2 cloud job: no acceptedSignature (button-based acceptance)
     const cloudJobs = [{
       id,
       quoteStatus:    'accepted',
@@ -233,7 +266,6 @@ describe('healAcceptedMeta — status field is written alongside quoteStatus', (
       acceptedAt:     '2026-06-22T09:00:00.000Z',
       acceptedName:   'Sarah',
       acceptedSource: 'remote',
-      acceptedSignature: 'data:image/png;base64,abc',
       total: 500,
     }];
 
@@ -256,7 +288,7 @@ describe('healAcceptedMeta — status field is written alongside quoteStatus', (
       acceptedAt:     '2026-06-22T09:00:00.000Z',
       acceptedName:   'Sarah',
       acceptedSource: 'remote',
-      acceptedSignature: 'data:image/png;base64,abc',
+      // no acceptedSignature — G-2 button path
       total: 500,
       amount: 500,
     };

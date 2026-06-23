@@ -1,7 +1,7 @@
 /**
- * acceptedNotification.js — Phase G-3
+ * acceptedNotification.js — Phase G-3 (updated G-2 redesign)
  *
- * Pure helpers for the accepted-quote in-app notification system.
+ * Pure helpers for the accepted/declined-quote in-app notification system.
  * No React, no DOM, no Supabase. All logic is testable in Vitest.
  *
  * A job is "newly accepted" when:
@@ -9,11 +9,13 @@
  *   - meta.acceptedAt is set (the acceptance timestamp)
  *   - meta.acceptedSeenAt is NOT set (trader hasn't acknowledged it yet)
  *
- * "Seen" is stored in acceptedSeenAt (ISO timestamp written to the jobMeta
- * side-channel by writeJobMeta). It lives in localStorage only — it does not
- * need to round-trip to Supabase because it is purely a per-device UI state.
- * (If the trader uses two devices, they see the banner on each device until
- * they dismiss it on that device. Acceptable at v1 scale.)
+ * A job is "newly declined" when:
+ *   - meta.quoteStatus === 'declined' (written by decline-quote Netlify function)
+ *   - meta.declinedAt is set (the decline timestamp)
+ *   - meta.declinedSeenAt is NOT set (trader hasn't acknowledged it yet)
+ *
+ * "Seen" is stored in acceptedSeenAt / declinedSeenAt (ISO timestamp written to
+ * the jobMeta side-channel by writeJobMeta). Per-device UI state only.
  */
 
 /**
@@ -77,4 +79,46 @@ export function formatAcceptedDate(isoString) {
   yesterday.setDate(yesterday.getDate() - 1);
   if (acceptedStr === yesterday.toDateString()) return 'Yesterday';
   return accepted.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+}
+
+// ── Decline notification helpers (Phase G-2) ─────────────────────────────────
+
+/**
+ * Returns true when a single job has been declined but the trader hasn't
+ * acknowledged it on this device yet.
+ *
+ * @param {object} job
+ * @returns {boolean}
+ */
+export function isNewlyDeclined(job) {
+  if (!job) return false;
+  const isDeclined = job.quoteStatus === 'declined' && !!job.declinedAt;
+  const isSeen = !!job.declinedSeenAt;
+  return isDeclined && !isSeen;
+}
+
+/**
+ * Returns jobs that have been declined by the customer but not yet seen
+ * (acknowledged) by the tradesperson on this device.
+ *
+ * @param {Array} jobs
+ * @returns {Array}
+ */
+export function getNewlyDeclinedJobs(jobs) {
+  if (!Array.isArray(jobs)) return [];
+  return jobs.filter(isNewlyDeclined);
+}
+
+/**
+ * Builds the display label for a declined job banner row.
+ *
+ * @param {object} job
+ * @returns {string}
+ */
+export function buildDeclinedLabel(job) {
+  if (!job) return 'Quote declined';
+  const name = (job.declinedName || job.customer_name || job.customer || '').trim();
+  const namePart = name || 'Customer';
+  const reason = (job.declineReason || '').trim();
+  return reason ? `${namePart} declined — ${reason}` : `${namePart} declined`;
 }

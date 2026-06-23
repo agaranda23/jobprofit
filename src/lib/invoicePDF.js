@@ -650,13 +650,13 @@ function drawSignQuoteRow(doc, { quoteUrl, qrDataUrl }, startY) {
   doc.setFontSize(11);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(255, 255, 255);
-  doc.text('Tap to view and sign this quote', MARGIN + BTN_W / 2, rowY + 7.5, { align: 'center' });
+  doc.text('Tap to view and accept this quote', MARGIN + BTN_W / 2, rowY + 7.5, { align: 'center' });
 
   // Subtitle (mirrors pay-now styling)
   doc.setFontSize(7.5);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(...LIGHT);
-  doc.text('Sign on your phone — no app, no login', MARGIN + BTN_W / 2, rowY + BTN_H + 5, { align: 'center' });
+  doc.text('Accept or decline on your phone — no app, no login', MARGIN + BTN_W / 2, rowY + BTN_H + 5, { align: 'center' });
 
   // QR code (right side)
   const qrX = MARGIN + BTN_W + 6;
@@ -1096,10 +1096,13 @@ export async function generateQuotePDF({ job, biz, profile = null, quoteUrl = ''
     y += 22;
   }
 
-  // ── Sign quote CTA ────────────────────────────────────────────────────────
-  // Shown when the quote has not yet been signed AND we have a public URL.
-  // Skipped after acceptance so the PDF history isn't littered with stale CTAs.
-  if (quoteUrl && !job?.acceptedSignature) {
+  // ── Accept/decline CTA ─────────────────────────────────────────────────────
+  // Shown when the quote has not yet been decided AND we have a public URL.
+  // Skipped after acceptance/decline. Legacy: also skip when acceptedSignature is
+  // present (pre G-2 rows).
+  const isAlreadyDecided = job?.quoteStatus === 'accepted' || job?.quoteStatus === 'declined'
+    || !!job?.acceptedSignature;
+  if (quoteUrl && !isAlreadyDecided) {
     y += 4;
     y = drawSignQuoteRow(doc, { quoteUrl, qrDataUrl }, y);
   }

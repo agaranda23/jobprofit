@@ -73,6 +73,7 @@ export function overdueHeadline(customerFirstName, daysOverdue) {
  *   isInvoiced: boolean,
  *   isQuoteAccepted: boolean,
  *   isQuoteSent: boolean,
+ *   isQuoteDeclined: boolean,
  *   showChase: boolean,
  *   chaseBlocked: boolean,
  *   tier: number,
@@ -88,6 +89,7 @@ export function deriveNextStepContent({
   isInvoiced,
   isQuoteAccepted,
   isQuoteSent,
+  isQuoteDeclined = false,
   showChase,
   chaseBlocked,
   tier,
@@ -137,6 +139,17 @@ export function deriveNextStepContent({
       microCtas: [
         { label: 'Log receipt', action: 'openReceiptModal' },
         { label: 'Add photo', action: 'openPhotoInput' },
+      ],
+    };
+  }
+
+  // Quote declined by customer — prompt trader to reopen or adjust
+  if (isQuoteDeclined) {
+    return {
+      headline: 'Quote declined',
+      primaryCta: { label: 'Resend quote', action: 'sendQuoteLink' },
+      microCtas: [
+        { label: 'Edit price', action: 'editPrice' },
       ],
     };
   }

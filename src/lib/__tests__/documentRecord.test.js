@@ -138,13 +138,14 @@ describe('buildQuoteRecordMeta', () => {
     expect(buildQuoteRecordMeta(job).state).toBe('signed');
   });
 
-  // ── resolveSignedLabel parity (ported from publicQuoteViewG2.test.js) ───────
-  // These verify that our signed-state detection matches the cases that the
-  // accept-quote function and public quote page rely on.
+  // ── parity tests (aligned with publicQuoteViewG2.test.js) ───────────────────
+  // These verify that signed-state detection matches the accept-quote function
+  // and public quote page logic.
 
-  it('[parity] detects Phase F path (acceptedSignature only, no acceptedSource)', () => {
+  it('[parity] acceptedSignature only with no acceptedAt — NOT signed (Phase F legacy edge)', () => {
+    // Pre-G-2 Phase F path: signature set but no acceptedAt and no quoteStatus.
+    // buildQuoteRecordMeta requires acceptedAt or quoteStatus to reach signed state.
     const job = { acceptedSignature: 'data:image/png;base64,...' };
-    // Phase F: no acceptedAt, no quoteStatus — should NOT be signed
     expect(buildQuoteRecordMeta(job).state).not.toBe('signed');
   });
 

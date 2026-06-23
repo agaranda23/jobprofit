@@ -1,5 +1,5 @@
 /**
- * PublicQuoteView — Phase G-1.
+ * PublicQuoteView — Phase G-2 (accept/decline redesign).
  *
  * Customer-facing, read-only quote view at /q/<token>.
  * No authentication required. No state mutations.
@@ -8,7 +8,8 @@
  *   - Trader business name (from job meta / profile fields in meta)
  *   - Customer name + job description
  *   - Line items breakdown + total
- *   - "Accepted" badge if acceptedSignature is already set (Phase F trader-side)
+ *   - Accept / Decline buttons when quote is pending
+ *   - Read-only terminal state when already accepted or declined
  *
  * What is deliberately NOT rendered:
  *   - Payment history, receipts, photos, internal notes
@@ -17,10 +18,13 @@
  *
  * Design: mobile-first, max-width 600px on desktop, no auth shell.
  *
- * Phase G-2 will add: signature pad, POST handler, customer name entry.
+ * Signature pad removed (Phase G-2 redesign): data-minimisation under UK GDPR.
+ * An audited timestamped tap with inline consent and optional name fully serves
+ * the legal purpose. Signature was the largest PII with no added legal weight.
+ * Backfill of historic signatures is a fast-follow (LGL sign-off advisable).
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { isValidToken } from '../lib/publicQuoteToken';
 
 // Fetch job data via the server-side function so the anon Supabase client is
@@ -38,7 +42,6 @@ async function fetchPublicJobViaFunction(token) {
     return null;
   }
 }
-import SignaturePad from '../components/SignaturePad';
 import ConsentBanner from '../components/ConsentBanner.jsx';
 import PoweredByJobProfit from '../components/PoweredByJobProfit.jsx';
 
@@ -62,9 +65,10 @@ function fmtDate(raw) {
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const ACCEPT_QUOTE_URL       = '/.netlify/functions/accept-quote';
-const TRACK_OPEN_URL         = '/.netlify/functions/track-quote-open';
-const CREATE_DEPOSIT_URL     = '/.netlify/functions/create-deposit-payment-link';
+const ACCEPT_QUOTE_URL        = '/.netlify/functions/accept-quote';
+const DECLINE_QUOTE_URL       = '/.netlify/functions/decline-quote';
+const TRACK_OPEN_URL          = '/.netlify/functions/track-quote-open';
+const CREATE_DEPOSIT_URL      = '/.netlify/functions/create-deposit-payment-link';
 const FETCH_QUOTE_PROFILE_URL = '/.netlify/functions/fetch-public-quote-profile';
 
 // ── Sub-components ────────────────────────────────────────────────────────────
@@ -146,10 +150,10 @@ function LineItemsTable({ items }) {
 }
 
 /**
- * RemoteAcceptedBlock — shown after a successful G-2 submission.
- * Displays the signature thumbnail + confirmed timestamp.
+ * RemoteAcceptedBlock — shown after customer accepts in this session.
+ * Also shown on revisit when quoteStatus is already 'accepted'.
  */
-function RemoteAcceptedBlock({ signatureDataUrl, acceptedAt }) {
+function RemoteAcceptedBlock({ acceptedAt, showBankDetails, depositPercent, depositAmountPence, accountName, sortCode, accountNumber }) {
   return (
     <div className="pqv-sign-accepted" role="status">
       <div className="pqv-sign-accepted-title">Quote accepted</div>
@@ -161,48 +165,68 @@ function RemoteAcceptedBlock({ signatureDataUrl, acceptedAt }) {
       <div className="pqv-sign-accepted-consent">
         Accepted quote &amp; terms (v1)
       </div>
-      {signatureDataUrl && (
-        <img
-          src={signatureDataUrl}
-          alt="Your signature"
-          className="pqv-sign-accepted-img"
-        />
+      <p className="pqv-sign-accepted-note">
+        Thanks — your trader has been told.
+      </p>
+      {/* Keep bank details visible after accept so the customer can pay the deposit */}
+      {showBankDetails && (
+        <div className="pqv-bank-details" style={{ marginTop: 12, fontSize: 'var(--fs-label)', lineHeight: 1.7, color: '#086B45' }}>
+          <div style={{ fontWeight: 700, marginBottom: 4, color: '#086B45' }}>
+            Deposit ({depositPercent}%) — {depositAmountPence > 0 ? new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(depositAmountPence / 100) : ''}
+          </div>
+          {accountName && <div><strong>Name:</strong> {accountName}</div>}
+          <div><strong>Sort code:</strong> {sortCode}</div>
+          <div><strong>Account:</strong> {accountNumber}</div>
+          <div style={{ marginTop: 6, color: 'var(--text-mid, #505050)', fontSize: 'var(--fs-label)' }}>
+            Use your name as the reference, then message your trader to confirm.
+          </div>
+        </div>
       )}
     </div>
   );
 }
 
 /**
- * SignSection — signature pad + customer name entry for Phase G-2.
+ * RemoteDeclinedBlock — shown after customer declines in this session.
+ * Also shown on revisit when quoteStatus is 'declined'.
+ */
+function RemoteDeclinedBlock({ declinedAt }) {
+  return (
+    <div className="pqv-sign-declined" role="status">
+      <div className="pqv-sign-declined-title">Quote declined</div>
+      {declinedAt && (
+        <div className="pqv-sign-declined-date">
+          Declined on {fmtDate(declinedAt)}
+        </div>
+      )}
+      <p className="pqv-sign-declined-note">
+        No problem — message your trader directly to reopen it.
+      </p>
+    </div>
+  );
+}
+
+/**
+ * DecisionSection — Accept / Decline buttons for Phase G-2 redesign.
+ *
+ * No signature pad. Customer taps Accept or Decline. Decline opens an inline
+ * confirm with an optional free-text reason field. Consent is via inline copy
+ * on the Accept button rather than a checkbox.
  *
  * Props:
- *   token        – the publicAccessToken from the URL
- *   onAccepted   – callback({ acceptedAt }) when the server confirms acceptance
+ *   token       – the publicAccessToken from the URL
+ *   onAccepted  – callback({ acceptedAt }) when server confirms acceptance
+ *   onDeclined  – callback({ declinedAt }) when server confirms decline
  */
-function SignSection({ token, onAccepted }) {
+function DecisionSection({ token, onAccepted, onDeclined }) {
   const [customerName, setCustomerName] = useState('');
+  const [declineOpen, setDeclineOpen] = useState(false);
+  const [declineReason, setDeclineReason] = useState('');
   const [submitState, setSubmitState] = useState('idle'); // 'idle' | 'submitting' | 'error'
   const [errorMsg, setErrorMsg] = useState('');
-  // capturedSig holds the dataURL after the pad's onSave fires
-  const [capturedSig, setCapturedSig] = useState(null);
-  // consentChecked: customer must tick T&Cs + Privacy before Confirm is active
-  const [consentChecked, setConsentChecked] = useState(false);
-  const [consentNudge, setConsentNudge] = useState(false);
 
-  const handlePadSave = useCallback((dataUrl) => {
-    setCapturedSig(dataUrl);
-  }, []);
-
-  const handlePadCancel = useCallback(() => {
-    setCapturedSig(null);
-  }, []);
-
-  async function handleSubmit() {
-    if (!capturedSig) return;
-    if (!consentChecked) {
-      setConsentNudge(true);
-      return;
-    }
+  async function handleAccept() {
+    if (submitState === 'submitting') return;
     setSubmitState('submitting');
     setErrorMsg('');
 
@@ -212,14 +236,13 @@ function SignSection({ token, onAccepted }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           token,
-          signature: capturedSig,
           acceptedName: customerName.trim() || undefined,
           consentGiven: true,
         }),
       });
 
       if (!res.ok) {
-        let msg = "Couldn't submit — please try again";
+        let msg = 'Could not send that — try again';
         try {
           const errData = await res.json();
           if (errData?.error) msg = errData.error;
@@ -231,106 +254,151 @@ function SignSection({ token, onAccepted }) {
 
       const result = await res.json();
       setSubmitState('idle');
-      onAccepted({ acceptedAt: result.acceptedAt, signatureDataUrl: capturedSig });
+      onAccepted({ acceptedAt: result.acceptedAt });
     } catch {
-      setErrorMsg("Couldn't submit — please try again");
+      setErrorMsg('Could not send that — try again');
+      setSubmitState('error');
+    }
+  }
+
+  async function handleDeclineConfirm() {
+    if (submitState === 'submitting') return;
+    setSubmitState('submitting');
+    setErrorMsg('');
+
+    try {
+      const res = await fetch(DECLINE_QUOTE_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token,
+          declinedName: customerName.trim() || undefined,
+          declineReason: declineReason.trim() || undefined,
+        }),
+      });
+
+      if (!res.ok) {
+        let msg = 'Could not send that — try again';
+        try {
+          const errData = await res.json();
+          if (errData?.error) msg = errData.error;
+        } catch { /* ignore parse failure */ }
+        setErrorMsg(msg);
+        setSubmitState('error');
+        return;
+      }
+
+      const result = await res.json();
+      setSubmitState('idle');
+      onDeclined({ declinedAt: result.declinedAt });
+    } catch {
+      setErrorMsg('Could not send that — try again');
       setSubmitState('error');
     }
   }
 
   const isSubmitting = submitState === 'submitting';
 
-  // If the pad has not yet delivered a signature, show the name input + pad
-  if (!capturedSig) {
-    return (
-      <div className="pqv-section pqv-sign-section">
-        <h2 className="pqv-section-title">Sign to accept this quote</h2>
-
-        <div className="pqv-sign-name-row">
-          <label className="pqv-sign-name-label" htmlFor="pqv-customer-name">
-            Your name (optional)
-          </label>
-          <input
-            id="pqv-customer-name"
-            type="text"
-            className="pqv-sign-name-input"
-            value={customerName}
-            onChange={(e) => setCustomerName(e.target.value)}
-            placeholder="e.g. Jane Smith"
-            maxLength={200}
-            autoComplete="name"
-          />
-        </div>
-
-        <SignaturePad
-          onSave={handlePadSave}
-          onCancel={handlePadCancel}
-          width={320}
-          height={180}
-        />
-      </div>
-    );
-  }
-
-  // Signature captured — show preview + consent checkbox + confirm/redo buttons
   return (
     <div className="pqv-section pqv-sign-section">
-      <h2 className="pqv-section-title">Confirm your signature</h2>
+      <h2 className="pqv-section-title">Your decision</h2>
+      <p className="pqv-sign-section-helper">Take a look, then let your trader know.</p>
 
-      <img
-        src={capturedSig}
-        alt="Your signature preview"
-        className="pqv-sign-preview-img"
-      />
-
-      {/* Consent checkbox — must be ticked before Confirm is active */}
-      <label
-        className="pqv-consent-row"
-        style={{ display: 'flex', alignItems: 'flex-start', gap: 10, minHeight: 44, cursor: 'pointer', marginTop: 14, marginBottom: 4 }}
-      >
+      {/* Optional name — used on both accept and decline */}
+      <div className="pqv-sign-name-row">
+        <label className="pqv-sign-name-label" htmlFor="pqv-customer-name">
+          Your name (optional)
+        </label>
         <input
-          type="checkbox"
-          checked={consentChecked}
-          onChange={(e) => { setConsentChecked(e.target.checked); if (e.target.checked) setConsentNudge(false); }}
-          style={{ marginTop: 3, flexShrink: 0, width: 20, height: 20, cursor: 'pointer' }}
-          aria-label="Accept terms and privacy policy"
+          id="pqv-customer-name"
+          type="text"
+          className="pqv-sign-name-input"
+          value={customerName}
+          onChange={(e) => setCustomerName(e.target.value)}
+          placeholder="e.g. Jane Smith"
+          maxLength={200}
+          autoComplete="name"
         />
-        <span style={{ fontSize: 'var(--fs-label)', lineHeight: 1.5, color: 'var(--text, #1a1a1a)' }}>
-          I accept this quote and the{' '}
-          <a href="/terms" target="_blank" rel="noopener" style={{ color: 'inherit', textDecoration: 'underline' }}>terms</a>.
-          {' '}&middot;{' '}
-          <a href="/privacy" target="_blank" rel="noopener" style={{ color: 'inherit', textDecoration: 'underline', fontSize: 'var(--fs-label)', opacity: 0.75 }}>See how your details are used</a>
-        </span>
-      </label>
-      {consentNudge && !consentChecked && (
-        <p className="pqv-sign-error" role="alert" style={{ margin: '0 0 8px' }}>
-          Tick the box to accept.
-        </p>
-      )}
+      </div>
 
       {submitState === 'error' && (
         <p className="pqv-sign-error" role="alert">{errorMsg}</p>
       )}
 
-      <div className="pqv-sign-confirm-actions">
-        <button
-          type="button"
-          className="btn-ghost pqv-sign-btn-redo"
-          onClick={() => { setCapturedSig(null); setSubmitState('idle'); setErrorMsg(''); setConsentChecked(false); setConsentNudge(false); }}
-          disabled={isSubmitting}
-        >
-          Redo
-        </button>
-        <button
-          type="button"
-          className="btn-convert pqv-sign-btn-submit"
-          onClick={handleSubmit}
-          disabled={isSubmitting || !consentChecked}
-          aria-busy={isSubmitting}
-        >
-          {isSubmitting ? 'Submitting...' : 'Confirm'}
-        </button>
-      </div>
+      {!declineOpen ? (
+        <div className="pqv-decision-actions">
+          {/* Primary: Accept */}
+          <button
+            type="button"
+            className="pqv-btn-accept"
+            onClick={handleAccept}
+            disabled={isSubmitting}
+            aria-busy={isSubmitting}
+          >
+            {isSubmitting ? 'Sending…' : 'Accept quote'}
+          </button>
+          {/* Inline consent copy — no checkbox required */}
+          <p className="pqv-decision-consent">
+            By accepting you agree to the quote and the{' '}
+            <a href="/terms" target="_blank" rel="noopener">terms</a>.{' '}
+            <a href="/privacy" target="_blank" rel="noopener">See how your details are used</a>.
+          </p>
+
+          {/* Secondary: Decline */}
+          <button
+            type="button"
+            className="pqv-btn-decline"
+            onClick={() => setDeclineOpen(true)}
+            disabled={isSubmitting}
+          >
+            Decline quote
+          </button>
+        </div>
+      ) : (
+        /* Inline decline confirm — shows reason field then confirm button */
+        <div className="pqv-decline-confirm">
+          <h3 className="pqv-decline-confirm-title">Decline this quote</h3>
+
+          <div className="pqv-sign-name-row" style={{ marginTop: 8 }}>
+            <label className="pqv-sign-name-label" htmlFor="pqv-decline-reason">
+              Reason (optional)
+            </label>
+            <textarea
+              id="pqv-decline-reason"
+              className="pqv-sign-name-input pqv-decline-reason-input"
+              value={declineReason}
+              onChange={(e) => setDeclineReason(e.target.value)}
+              placeholder="e.g. Gone with another quote"
+              maxLength={500}
+              rows={3}
+            />
+          </div>
+
+          {submitState === 'error' && (
+            <p className="pqv-sign-error" role="alert">{errorMsg}</p>
+          )}
+
+          <div className="pqv-decision-actions" style={{ marginTop: 8 }}>
+            <button
+              type="button"
+              className="pqv-btn-decline"
+              onClick={handleDeclineConfirm}
+              disabled={isSubmitting}
+              aria-busy={isSubmitting}
+            >
+              {isSubmitting ? 'Sending…' : 'Decline this quote'}
+            </button>
+            <button
+              type="button"
+              className="pqv-btn-back"
+              onClick={() => { setDeclineOpen(false); setErrorMsg(''); setSubmitState('idle'); }}
+              disabled={isSubmitting}
+            >
+              Back
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -365,11 +433,14 @@ function BankDepositBlock({ depositPercent, depositAmountPence, accountName, sor
         <div className="pqv-deposit-block-sub">
           Pay by bank transfer to secure your booking
         </div>
-        <div className="pqv-bank-details" style={{ marginTop: 10, fontSize: 'var(--fs-label)', lineHeight: 1.7 }}>
+        {/* color:#086B45 is explicit here — the parent .pqv-deposit-block has no
+            inherited color, so without this the values render invisible on the
+            light-green (#D6F5E6) background. Contrast ratio ~6.7:1 passes AA. */}
+        <div className="pqv-bank-details" style={{ marginTop: 10, fontSize: 'var(--fs-label)', lineHeight: 1.7, color: '#086B45' }}>
           {accountName && <div><strong>Name:</strong> {accountName}</div>}
           <div><strong>Sort code:</strong> {sortCode}</div>
           <div><strong>Account:</strong> {accountNumber}</div>
-          <div style={{ marginTop: 6, color: 'var(--text-mid, #505050)', fontSize: 'var(--fs-label)' }}>
+          <div style={{ marginTop: 6, opacity: 0.75, fontSize: 'var(--fs-label)' }}>
             Use your name as the reference, then message your trader to confirm.
           </div>
         </div>
@@ -541,10 +612,12 @@ export default function PublicQuoteView({ token }) {
   // ── All hooks must sit above any early return (PR #125 binding rule) ──────────
   const [fetchState, setFetchState] = useState({ status: 'loading', job: null, errorMsg: '' });
   const [profileState, setProfileState] = useState({ status: 'loading', profile: null });
-  // remoteAccepted: set when the customer completes the sign flow in this session.
-  const [remoteAccepted, setRemoteAccepted] = useState(null); // null | { acceptedAt, signatureDataUrl }
-  // showSignSection: toggled to true when customer taps "Accept without deposit"
-  const [showSignSection, setShowSignSection] = useState(false);
+  // remoteAccepted: set when the customer accepts in this session.
+  const [remoteAccepted, setRemoteAccepted] = useState(null); // null | { acceptedAt }
+  // remoteDeclined: set when the customer declines in this session.
+  const [remoteDeclined, setRemoteDeclined] = useState(null); // null | { declinedAt }
+  // showDecisionSection: toggled to true when customer taps "Accept without deposit"
+  const [showDecisionSection, setShowDecisionSection] = useState(false);
 
   // Read ?deposit_success and ?deposit_cancelled from the URL (set by Stripe redirect).
   // Computed once at mount — URL params don't change during the page lifetime.
@@ -655,34 +728,38 @@ export default function PublicQuoteView({ token }) {
   // Deposit already paid (either from DB or from ?deposit_success param this session)
   const depositAlreadyPaid = !!job.deposit_paid_at || depositSuccess;
 
-  // Accepted if: server already has a signature, quoteStatus is accepted,
-  // deposit was paid (which auto-accepts), or customer just signed in this session.
-  const isAccepted = !!job.acceptedSignature || job.quoteStatus === 'accepted'
-    || depositAlreadyPaid || !!remoteAccepted;
+  // Accepted if: quoteStatus is accepted (canonical G-2 signal), deposit was paid
+  // (auto-accepts), customer just accepted in this session, or legacy row carries
+  // acceptedSignature with no quoteStatus yet (pre-G-2 fallback, checked last).
+  const isAccepted = job.quoteStatus === 'accepted'
+    || depositAlreadyPaid || !!remoteAccepted || !!job.acceptedSignature;
+  const isDeclined = !isAccepted && (job.quoteStatus === 'declined' || !!remoteDeclined);
+  const isTerminal = isAccepted || isDeclined;
   const acceptedAt = remoteAccepted?.acceptedAt || job.acceptedAt || null;
+  const declinedAt = remoteDeclined?.declinedAt || job.declinedAt || null;
   const quoteDate = job.date || job.createdAt || null;
 
   // Determine which deposit path to render.
-  // stripeOnline: true when the trader profile indicates an online Stripe deposit link
-  // was embedded — in V1 we infer this from whether the public profile has an account_name
-  // that is empty BUT depositAmountPence is set (Stripe path sets deposit_amount_pence too).
-  // Simpler heuristic: if bank details are present on the profile, show bank path;
-  // if the job has a Stripe-paid deposit, show the existing DepositBlock.
-  // V1 decision: if deposit_paid_at exists → already online-paid → not bank path.
-  // For V1 we check: is there a Stripe deposit already (deposit_paid_at)?
-  // If yes → existing DepositBlock handles success state.
-  // If no deposit_paid_at and bank details are present → show BankDepositBlock (informational).
-  // If no deposit_paid_at and no bank details → fall through to existing DepositBlock (Stripe).
+  // stripeOnline: true when bank details are absent (Stripe path).
+  // If bank details are present → show BankDepositBlock (informational) above decision.
+  // If no deposit → fall straight through to DecisionSection.
   const hasBankDetails = !!(traderSortCode && traderAccountNumber);
   const isOnlineStripeDeposit = hasDeposit && !hasBankDetails;
-  // When should we show the deposit flow vs the sign flow vs nothing?
-  // - isAccepted: show accepted badge only (no action needed)
-  // - hasDeposit && isOnlineStripeDeposit && !isAccepted && !showSignSection: show DepositBlock (Stripe)
-  // - hasDeposit && !isOnlineStripeDeposit && !isAccepted: show BankDepositBlock (informational) ABOVE sign
-  // - !hasDeposit || showSignSection: show SignSection (existing flow)
-  const showDepositBlock = hasDeposit && isOnlineStripeDeposit && !isAccepted && !showSignSection;
-  const showBankDepositBlock = hasDeposit && !isOnlineStripeDeposit && !isAccepted;
-  const showSignFlow = !isAccepted && (!hasDeposit || showSignSection || showBankDepositBlock);
+  // hadBankDepositBlock: true when the trader uses bank-transfer deposits.
+  // Computed BEFORE the isTerminal gate so it remains true after the customer
+  // accepts — the PRD requires bank details to stay visible post-accept so the
+  // customer can pay the deposit. showBankDepositBlock gates on !isTerminal
+  // (controls the pre-decision block above the buttons); hadBankDepositBlock
+  // is used to pass showBankDetails into RemoteAcceptedBlock independently.
+  const hadBankDepositBlock = hasDeposit && !isOnlineStripeDeposit && hasBankDetails;
+  // Show paths:
+  //   isTerminal                     → show terminal state only (no action buttons)
+  //   hasDeposit + Stripe + !terminal → DepositBlock (Stripe path, leads to accept via redirect)
+  //   hasDeposit + bank + !terminal   → BankDepositBlock (informational) + DecisionSection below
+  //   !hasDeposit + !terminal         → DecisionSection directly
+  const showDepositBlock = hasDeposit && isOnlineStripeDeposit && !isTerminal && !showDecisionSection;
+  const showBankDepositBlock = hadBankDepositBlock && !isTerminal;
+  const showDecisionFlow = !isTerminal && (!hasDeposit || showDecisionSection || showBankDepositBlock);
 
   return (
     <>
@@ -726,10 +803,9 @@ export default function PublicQuoteView({ token }) {
           <div className="pqv-quote-valid-until">Valid until {validUntilStr}</div>
         </div>
 
-        {/* Accepted badge — suppressed when remoteAccepted is set so that
-            RemoteAcceptedBlock (rendered below) is the sole confirmation
-            after a fresh in-session sign. The badge still shows for the
-            already-accepted-on-load case (remoteAccepted is null). */}
+        {/* Accepted badge — shown on load when quote was already accepted before
+            this session. Suppressed when remoteAccepted is set so that
+            RemoteAcceptedBlock (rendered below) is the sole confirmation. */}
         {isAccepted && !remoteAccepted && <AcceptedBadge acceptedAt={acceptedAt} />}
 
         {/* Customer + description */}
@@ -763,13 +839,13 @@ export default function PublicQuoteView({ token }) {
             token={token}
             depositPercent={depositPercent}
             depositAmountPence={depositAmountPence}
-            onAcceptWithoutDeposit={() => setShowSignSection(true)}
+            onAcceptWithoutDeposit={() => setShowDecisionSection(true)}
             depositSuccess={depositSuccess}
             depositCancelled={depositCancelled}
           />
         )}
 
-        {/* Bank-transfer deposit block — shown informational above sign for bank-path traders */}
+        {/* Bank-transfer deposit block — shown informational above decision for bank-path traders */}
         {showBankDepositBlock && (
           <BankDepositBlock
             depositPercent={depositPercent}
@@ -780,19 +856,36 @@ export default function PublicQuoteView({ token }) {
           />
         )}
 
-        {/* Sign section — shown when no deposit, or bank-deposit path (always signable), or customer chose "Accept without deposit" */}
-        {showSignFlow && (
-          <SignSection
+        {/* Decision section — shown when no deposit, or bank-deposit path, or customer chose "Accept without deposit" */}
+        {showDecisionFlow && (
+          <DecisionSection
             token={token}
             onAccepted={(result) => setRemoteAccepted(result)}
+            onDeclined={(result) => setRemoteDeclined(result)}
           />
         )}
 
-        {/* Post-submit confirmation block */}
+        {/* Post-submit confirmation blocks — only one will render */}
         {remoteAccepted && (
           <RemoteAcceptedBlock
-            signatureDataUrl={remoteAccepted.signatureDataUrl}
             acceptedAt={remoteAccepted.acceptedAt}
+            showBankDetails={hadBankDepositBlock}
+            depositPercent={depositPercent}
+            depositAmountPence={depositAmountPence}
+            accountName={traderAccountName}
+            sortCode={traderSortCode}
+            accountNumber={traderAccountNumber}
+          />
+        )}
+        {remoteDeclined && (
+          <RemoteDeclinedBlock
+            declinedAt={remoteDeclined.declinedAt}
+          />
+        )}
+        {/* Read-only terminal state on revisit after decline (no in-session state) */}
+        {isDeclined && !remoteDeclined && (
+          <RemoteDeclinedBlock
+            declinedAt={declinedAt}
           />
         )}
 

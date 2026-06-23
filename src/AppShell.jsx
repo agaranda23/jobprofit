@@ -563,50 +563,66 @@ export default function AppShell() {
     const userId = session.user.id;
 
     const handleJobChange = async (payload) => {
-      // Detect remote signature: compare previous job state (from ref) to the
-      // incoming change. Only fire a toast when:
+      // Detect remote decision (G-2): compare previous job quoteStatus (from ref)
+      // to the incoming change. Fire a toast and pre-sync localStorage when:
       //   1. The event is an UPDATE
-      //   2. The changed row has acceptedSignature set
-      //   3. The previous in-memory version for that row had no acceptedSignature
-      //   4. acceptedSource is 'remote' (written by the Phase G-2 Netlify function)
+      //   2. incomingMeta.quoteStatus is 'accepted' or 'declined'
+      //   3. The previous in-memory quoteStatus for that row was different
+      //      (prevents re-notifying on subsequent cloud syncs of the same row)
       if (payload.eventType === 'UPDATE' && payload.new) {
         const incoming = payload.new;
         const incomingMeta = (incoming.meta && typeof incoming.meta === 'object') ? incoming.meta : {};
-        const hasRemoteSig = incomingMeta.acceptedSignature && incomingMeta.acceptedSource === 'remote';
+        const newQuoteStatus = incomingMeta.quoteStatus;
 
-        if (hasRemoteSig) {
+        if (newQuoteStatus === 'accepted' || newQuoteStatus === 'declined') {
           const prev = jobsRef.current.find(j => j.id === incoming.id);
-          const prevHadSig = !!(prev?.acceptedSignature);
+          const prevQuoteStatus = prev?.quoteStatus || null;
+          const isNewDecision = prevQuoteStatus !== newQuoteStatus;
 
-          // Sync acceptance fields into localStorage BEFORE refreshFromCloud().
-          // applyJobMetaToJobs overlays localStorage on top of cloud data, so
-          // without this the stale localStorage quoteStatus:'sent' would win over
-          // the cloud's quoteStatus:'accepted', leaving the trader's view stuck
-          // showing "Awaiting {name}'s go-ahead" even after the customer signed.
-          if (!prevHadSig && incoming.id) {
-            writeJobMeta(incoming.id, {
-              quoteStatus:       'accepted',
-              status:            incomingMeta.status ?? 'active',
-              jobStatus:         'active',
-              acceptedAt:        incomingMeta.acceptedAt,
-              acceptedName:      incomingMeta.acceptedName ?? null,
-              acceptedSource:    'remote',
-              acceptedSignature: incomingMeta.acceptedSignature,
-            });
-          }
+          if (isNewDecision && incoming.id) {
+            if (newQuoteStatus === 'accepted') {
+              // Sync acceptance fields into localStorage BEFORE refreshFromCloud().
+              // applyJobMetaToJobs overlays localStorage on top of cloud data, so
+              // without this a stale quoteStatus:'sent' in localStorage would win
+              // over the cloud's quoteStatus:'accepted', leaving the view stuck on
+              // "Awaiting go-ahead". No acceptedSignature — G-2 does not write it.
+              writeJobMeta(incoming.id, {
+                quoteStatus:    'accepted',
+                status:         incomingMeta.status ?? 'active',
+                jobStatus:      'active',
+                acceptedAt:     incomingMeta.acceptedAt,
+                acceptedName:   incomingMeta.acceptedName ?? null,
+                acceptedSource: 'remote',
+              });
 
-          if (!prevHadSig) {
-            const customerName = incomingMeta.acceptedName || incoming.customer_name || prev?.customer || prev?.name || 'Customer';
-            const amount = Number(prev?.total ?? prev?.amount ?? incomingMeta.total ?? 0) || 0;
-            const amountStr = amount > 0
-              ? ` · £${amount.toLocaleString('en-GB', { minimumFractionDigits: 0 })}`
-              : '';
-            setRealtimeToast({
-              message: `${customerName} accepted your quote${amountStr}`,
-              jobId: incoming.id || null,
-            });
-            const t = setTimeout(() => setRealtimeToast(null), 8000);
-            void t;
+              const customerName = incomingMeta.acceptedName || incoming.customer_name || prev?.customer || prev?.name || 'Customer';
+              const amount = Number(prev?.total ?? prev?.amount ?? incomingMeta.total ?? 0) || 0;
+              const amountStr = amount > 0
+                ? ` · £${amount.toLocaleString('en-GB', { minimumFractionDigits: 0 })}`
+                : '';
+              setRealtimeToast({
+                message: `${customerName} accepted your quote${amountStr}`,
+                jobId: incoming.id || null,
+              });
+              const t = setTimeout(() => setRealtimeToast(null), 8000);
+              void t;
+            } else {
+              // Declined — pre-sync localStorage so the trader's job card flips
+              // without waiting for the debounced refreshFromCloud.
+              writeJobMeta(incoming.id, {
+                quoteStatus: 'declined',
+                declinedAt:  incomingMeta.declinedAt,
+                declinedName: incomingMeta.declinedName ?? null,
+              });
+
+              const customerName = incomingMeta.declinedName || incoming.customer_name || prev?.customer || prev?.name || 'Customer';
+              setRealtimeToast({
+                message: `${customerName} declined your quote`,
+                jobId: incoming.id || null,
+              });
+              const t = setTimeout(() => setRealtimeToast(null), 8000);
+              void t;
+            }
           }
         }
       }

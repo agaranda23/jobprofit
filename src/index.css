@@ -9861,6 +9861,144 @@ button.jd-money-chip:active { opacity: 0.75; }
   background: #ffffff;
 }
 
+.pqv-sign-accepted-note {
+  font-size: var(--fs-label);
+  color: #065f46;
+  margin: 4px 0 0;
+}
+
+/* Declined state: neutral card — no red */
+.pqv-sign-declined {
+  margin-top: 28px;
+  padding: 20px 16px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  text-align: center;
+}
+
+.pqv-sign-declined-title {
+  font-size: var(--fs-subhead);
+  font-weight: 700;
+  color: #374151;
+  margin: 0 0 6px;
+}
+
+.pqv-sign-declined-date {
+  font-size: var(--fs-label);
+  color: #6b7280;
+  margin: 0 0 6px;
+}
+
+.pqv-sign-declined-note {
+  font-size: var(--fs-label);
+  color: #6b7280;
+  margin: 4px 0 0;
+}
+
+/* ── Accept / Decline decision section ──────────────────────────────────────── */
+/* PRD spec: Accept = green bg + black text (matches convert button); Decline = ghost dark green border. */
+
+/* Helper text below the section title */
+.pqv-sign-section-helper {
+  font-size: var(--fs-label);
+  color: var(--text-mid, #6b7280);
+  margin: 0 0 16px;
+}
+
+/* Stacked button column — Accept on top, Decline below */
+.pqv-decision-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+/* Primary Accept button — green bg + black text, >=44px touch target */
+.pqv-btn-accept {
+  display: block;
+  width: 100%;
+  padding: 16px 14px;
+  background: #2BC48A;
+  color: #000000;
+  border: none;
+  border-radius: 10px;
+  font-size: var(--fs-body);
+  font-weight: 700;
+  cursor: pointer;
+  text-align: center;
+  min-height: 52px;
+  letter-spacing: .01em;
+}
+.pqv-btn-accept:active { opacity: 0.85; }
+.pqv-btn-accept:disabled { opacity: 0.6; cursor: default; }
+
+/* Secondary Decline button — ghost with dark green border (no red) */
+.pqv-btn-decline {
+  display: block;
+  width: 100%;
+  padding: 14px;
+  background: transparent;
+  color: #086B45;
+  border: 1.5px solid #086B45;
+  border-radius: 10px;
+  font-size: var(--fs-body);
+  font-weight: 600;
+  cursor: pointer;
+  text-align: center;
+  min-height: 48px;
+}
+.pqv-btn-decline:active { opacity: 0.7; }
+.pqv-btn-decline:disabled { opacity: 0.5; cursor: default; }
+
+/* Back link button in decline confirm inline panel */
+.pqv-btn-back {
+  display: block;
+  width: 100%;
+  padding: 12px;
+  background: transparent;
+  color: var(--text-mid, #6b7280);
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  font-size: var(--fs-label);
+  font-weight: 500;
+  cursor: pointer;
+  text-align: center;
+  min-height: 44px;
+}
+.pqv-btn-back:active { opacity: 0.7; }
+
+/* Inline consent line below Accept button */
+.pqv-decision-consent {
+  font-size: var(--fs-label);
+  color: var(--text-mid, #6b7280);
+  line-height: 1.5;
+  margin: -4px 0 4px;
+  text-align: center;
+}
+.pqv-decision-consent a {
+  color: inherit;
+  text-decoration: underline;
+}
+
+/* Inline decline confirm sub-section */
+.pqv-decline-confirm {
+  margin-top: 8px;
+}
+
+.pqv-decline-confirm-title {
+  font-size: var(--fs-subhead);
+  font-weight: 700;
+  color: var(--text, #1a1a1a);
+  margin: 0 0 8px;
+}
+
+/* Textarea shares the same style as the name input */
+.pqv-decline-reason-input {
+  resize: vertical;
+  min-height: 72px;
+}
+
 /* ── Business header meta rows (address, phone/email, VAT) ─────────────────── */
 /* Smaller and dimmer than .pqv-business-name; sits directly below it.         */
 .pqv-business-meta {

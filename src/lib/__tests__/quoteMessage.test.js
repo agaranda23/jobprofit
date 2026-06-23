@@ -178,14 +178,14 @@ describe('buildQuoteWhatsAppMessage', () => {
     expect(firstFour).toContain(QUOTE_URL);
   });
 
-  it('includes a clear sign-call before the URL', () => {
+  it('includes a clear accept/decline call before the URL', () => {
     const msg = buildQuoteWhatsAppMessage({
       job: { customer: 'Alan', total: 500 },
       biz: { name: 'A Plumbing' },
       quoteUrl: QUOTE_URL,
     });
-    // "Tap to view and sign" must appear before the URL
-    expect(msg.indexOf('sign')).toBeLessThan(msg.indexOf(QUOTE_URL));
+    // "Tap to view and accept or decline" must appear before the URL
+    expect(msg.indexOf('accept or decline')).toBeLessThan(msg.indexOf(QUOTE_URL));
   });
 });
 
