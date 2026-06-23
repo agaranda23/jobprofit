@@ -26,10 +26,10 @@
  * Note: WorkScreen is the single canonical "Jobs" tab. The legacy JobsScreen stub was
  * deleted in the stage-consolidation PR; stage derivation now lives solely in lib/jobStatus.js.
  */
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import Icon from '../components/Icon';
-import WorkCalendar from './WorkCalendar';
+// WorkCalendar import removed (JP-LU5 PR1) — file kept on disk for future Plan-Mode feature.
 import AddJobModal from '../components/AddJobModal';
 import JobDetailDrawer from '../components/JobDetailDrawer';
 import DrawerErrorBoundary from '../components/DrawerErrorBoundary';
@@ -40,11 +40,11 @@ import { logTelemetry } from '../lib/telemetry';
 import { deriveDisplayStatus, requiresPriceForStage, stagePatch } from '../lib/jobStatus';
 import { deleteJobFromCloud } from '../lib/store';
 import { shouldShowPartPaidChip, formatPartPaidLabel } from '../lib/partPaidChip';
-import { jobMatchesQuery, sortJobsByStage, sortJobsByColumn, daysInStage, firstLineOfAddress } from '../lib/jobSort';
+// JP-LU5 PR1: sortJobsByColumn, daysInStage removed from WorkScreen import —
+// call sites in JobsTable deleted. Both are still exported from lib/jobSort.js.
+import { jobMatchesQuery, sortJobsByStage, firstLineOfAddress } from '../lib/jobSort';
 import JobProgressDots from '../components/JobProgressDots';
-import ProGate from '../components/ProGate';
-import ProUpgradeSheet from '../components/ProUpgradeSheet';
-import { isPro } from '../lib/plan';
+// JP-LU5 PR1: ProGate and isPro imports removed — only used in JobsTable (deleted).
 import ReceiptModal from '../components/ReceiptModal';
 import {
   computeTier,
@@ -58,106 +58,19 @@ import {
   DEFAULT_PAYMENT_TERMS_DAYS,
 } from '../lib/chaseLadder';
 import { supabase } from '../lib/supabase';
-import { deriveJobRows } from '../lib/exportCsv';
+// JP-LU5 PR1: deriveJobRows removed from WorkScreen — was only used in JobsTable.
 
-const STORAGE_KEY = 'jp.workView';
+// JP-LU5 PR1: STORAGE_KEY ('jp.workView'), LAYOUT_STORAGE_KEY, LAYOUT_COACHMARK_KEY,
+// SORT_STORAGE_KEY, VALID_SORT_COLUMNS, and DEFAULT_DIR removed — calendar and
+// table-layout surfaces deleted. Existing 'calendar' localStorage values are
+// harmless (subview state gone; card view is always rendered).
 const FILTER_STORAGE_KEY = 'jp.workscreen.filter.v1';
-const LAYOUT_STORAGE_KEY = 'jp.workListLayout';
-const LAYOUT_COACHMARK_KEY = 'jp.workListLayout.coachmarkSeen';
-const SORT_STORAGE_KEY = 'jp.workListSort';
-
-// Valid sort column keys — used to validate persisted values on read.
-const VALID_SORT_COLUMNS = ['name', 'date', 'amount', 'profit'];
-
-// Default sort direction per column: asc for name (A-Z natural); desc for all
-// money/time columns (biggest or most recent first — most useful at the top).
-const DEFAULT_DIR = { name: 'asc', date: 'desc', amount: 'desc', profit: 'desc' };
 
 // Valid stage keys — used to validate persisted selectedStage values.
 const VALID_STAGES = ['Lead', 'Quoted', 'On', 'Invoiced', 'Overdue', 'Paid'];
 
-function getPersistedView() {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored === 'calendar') return 'calendar';
-  } catch {
-    // localStorage unavailable — default to list
-  }
-  return 'list';
-}
-
-function persistView(v) {
-  try {
-    localStorage.setItem(STORAGE_KEY, v);
-  } catch {
-    // ignore
-  }
-}
-
-/** Returns 'card' or 'table'; defaults to 'card' when storage unavailable. */
-function getPersistedLayout() {
-  try {
-    const stored = localStorage.getItem(LAYOUT_STORAGE_KEY);
-    if (stored === 'table') return 'table';
-  } catch {
-    // localStorage unavailable — default to card
-  }
-  return 'card';
-}
-
-function persistLayout(v) {
-  try {
-    localStorage.setItem(LAYOUT_STORAGE_KEY, v);
-  } catch {
-    // ignore — private mode
-  }
-}
-
-function getCoachmarkSeen() {
-  try {
-    return !!localStorage.getItem(LAYOUT_COACHMARK_KEY);
-  } catch {
-    return false;
-  }
-}
-
-function markCoachmarkSeen() {
-  try {
-    localStorage.setItem(LAYOUT_COACHMARK_KEY, '1');
-  } catch {
-    // ignore
-  }
-}
-
-/**
- * Lazy-init helper for the column sort state.
- * Reads {column, dir} from localStorage under SORT_STORAGE_KEY.
- * Falls back to {column:null, dir:'asc'} if absent, malformed, or if
- * column is not one of VALID_SORT_COLUMNS.
- */
-function getPersistedSort() {
-  try {
-    const raw = localStorage.getItem(SORT_STORAGE_KEY);
-    if (!raw) return { column: null, dir: 'asc' };
-    const parsed = JSON.parse(raw);
-    const col = parsed.column ?? null;
-    const dir = parsed.dir === 'desc' ? 'desc' : 'asc';
-    if (col !== null && !VALID_SORT_COLUMNS.includes(col)) {
-      return { column: null, dir: 'asc' };
-    }
-    return { column: col, dir };
-  } catch {
-    return { column: null, dir: 'asc' };
-  }
-}
-
-function persistSort(v) {
-  try {
-    localStorage.setItem(SORT_STORAGE_KEY, JSON.stringify(v));
-  } catch {
-    // ignore — private mode or storage full
-  }
-}
+// JP-LU5 PR1: getPersistedView/persistView, getPersistedLayout/persistLayout,
+// getCoachmarkSeen/markCoachmarkSeen, getPersistedSort/persistSort removed.
 
 /**
  * Lazy-init helper for the stage filter state.
@@ -1022,449 +935,15 @@ function EmptyState({ stage, onAddJob }) {
   );
 }
 
-// ── Layout toggle (card / table) ──────────────────────────────────────────────
+// JP-LU5 PR1: LayoutToggle component, TABLE_EMPTY_COPY constant, and JobsTable
+// component removed. Card view is always rendered. CSS tombstones in index.css.
 
-/**
- * LayoutToggle — two-button segmented control for card / table layout.
- * Sits top-right of the tab content header alongside the Show all pill.
- * Spec §1: role="group", each button aria-pressed, aria-label per option.
- */
-function LayoutToggle({ layout, onChange }) {
-  return (
-    <div className="work-layout-toggle" role="group" aria-label="Switch between card and table view">
-      <button
-        type="button"
-        className={`work-layout-btn${layout === 'card' ? ' work-layout-btn--active' : ''}`}
-        aria-pressed={layout === 'card'}
-        aria-label="Card view"
-        onClick={() => onChange('card')}
-      >
-        <Icon name="layout-card" size={16} aria-hidden="true" />
-      </button>
-      <button
-        type="button"
-        className={`work-layout-btn${layout === 'table' ? ' work-layout-btn--active' : ''}`}
-        aria-pressed={layout === 'table'}
-        aria-label="Table view"
-        onClick={() => onChange('table')}
-      >
-        <Icon name="layout-table" size={16} aria-hidden="true" />
-      </button>
-    </div>
-  );
-}
-
-// ── Table view empty states (spec §7) ─────────────────────────────────────────
-
-const TABLE_EMPTY_COPY = {
-  Lead:     'No leads yet. New enquiries land here first.',
-  Quoted:   'Nothing quoted. When you send a quote it shows up here.',
-  On:       'No jobs on the go. Accepted quotes move here automatically.',
-  Invoiced: 'Nothing waiting on payment. Send an invoice and it lands here.',
-  Overdue:  'Nothing overdue. Nice.',
-  Paid:     'No paid jobs yet. This fills up as the money comes in.',
-  All:      'No jobs yet.',
-};
-
-/**
- * JobsTable — table / compact-row rendering of the same job data shown in card view.
- *
- * Responsive at runtime:
- *   ≥768px  → 6-col sortable grid (all columns, sticky header)
- *   <768px  → compact 2-line rows with sticky header + profit sub-line
- *
- * Profit column/figure is Pro-gated: free users see it blurred via <ProGate>.
- * Profit sort (compact header) is Pro-only — free users see no profit sort control.
- *
- * Props:
- *   jobs          — already-filtered & stage-sorted array (profit-sort applied here)
- *   receipts      — for deriveJobRows profit calc
- *   selectedStage — used for daysInStage and empty-state copy
- *   showAll       — determines empty-state label
- *   profile       — for isPro() check
- *   onJobSelect   — opens JobDetailDrawer
- *   onUpgrade     — opens ProUpgradeSheet (insight_locked trigger)
- *   colSort       — { column: 'name'|'amount'|'date'|'profit'|null, dir: 'asc'|'desc' }
- *   onColSort     — (column) => void — toggles sort state
- */
-function JobsTable({ jobs, receipts, selectedStage, showAll, profile, onJobSelect, onUpgrade, colSort, onColSort }) {
-  const userIsPro = isPro(profile);
-
-  if (jobs.length === 0) {
-    const emptyKey = showAll ? 'All' : (selectedStage || 'On');
-    return (
-      <div className="screen-empty">
-        <p className="screen-empty-title">{TABLE_EMPTY_COPY[emptyKey] ?? TABLE_EMPTY_COPY.All}</p>
-      </div>
-    );
-  }
-
-  // Derive per-job row data from the single source of truth (exportCsv).
-  // Build a map keyed by job id for O(1) lookup.
-  const rowMap = new Map();
-  const allRows = deriveJobRows(jobs, receipts || []);
-  jobs.forEach((job, i) => {
-    rowMap.set(job.id, allRows[i]);
-  });
-
-  function getRow(job) {
-    return rowMap.get(job.id) || { invoiced: 0, profit: 0, date: '', status: '', customer: '' };
-  }
-
-  // Profit sort is applied inline here (after rowMap is built) because it requires
-  // receipt data that the pure sortJobsByColumn function intentionally doesn't touch.
-  let sortedJobs = jobs;
-  if (colSort.column === 'profit') {
-    const multiplier = colSort.dir === 'asc' ? 1 : -1;
-    sortedJobs = [...jobs].sort((a, b) => {
-      const aProfit = (rowMap.get(a.id) || {}).profit ?? 0;
-      const bProfit = (rowMap.get(b.id) || {}).profit ?? 0;
-      return (aProfit - bProfit) * multiplier;
-    });
-  }
-
-  function formatDate(dateStr) {
-    if (!dateStr) return '—';
-    try {
-      const d = new Date(dateStr);
-      if (isNaN(d.getTime())) return '—';
-      return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' });
-    } catch {
-      return '—';
-    }
-  }
-
-  function formatProfit(val) {
-    if (val == null || !isFinite(val)) return '—';
-    const abs = Math.abs(val);
-    return (val < 0 ? '-' : '') + '£' + formatAmount(abs);
-  }
-
-  function renderDays(job) {
-    const stage = deriveDisplayStatus(job);
-    const d = daysInStage(job, stage);
-    return d === null ? '—' : `${d}d`;
-  }
-
-  function renderSortCaret(col) {
-    if (colSort.column !== col) return null;
-    return (
-      <span className="jt-table-caret" aria-hidden="true">
-        {colSort.dir === 'asc' ? ' ▲' : ' ▼'}
-      </span>
-    );
-  }
-
-  function ariaSortAttr(col) {
-    if (colSort.column !== col) return 'none';
-    return colSort.dir === 'asc' ? 'ascending' : 'descending';
-  }
-
-  // ── Compact row (phone / tablet-narrow, <768px) ───────────────────────────
-  // The media-class approach: render both variants; CSS hides the appropriate one.
-  // This avoids matchMedia React state (no flash on first render, SSR-safe).
-  //
-  // CORRECTNESS: The compact row is a <div role="button"> (NOT a <button>) so
-  // that the ProGate <button> can legally nest inside it (nested <button> in
-  // <button> is invalid HTML and breaks keyboard/AT interaction).
-
-  const compactRows = (
-    <>
-      {/* Sticky header — control strip above the list; NOT a list row */}
-      <div className="jt-compact-header" role="row" aria-label="Sort jobs">
-        <button
-          type="button"
-          className={`jt-compact-header-btn jt-compact-header-btn--name${colSort.column === 'name' ? ' jt-compact-header-btn--active' : ''}`}
-          aria-label="Sort by name"
-          aria-sort={ariaSortAttr('name')}
-          onClick={() => onColSort('name')}
-        >
-          Name{renderSortCaret('name')}
-        </button>
-        <button
-          type="button"
-          className={`jt-compact-header-btn jt-compact-header-btn--date${colSort.column === 'date' ? ' jt-compact-header-btn--active' : ''}`}
-          aria-label="Sort by date"
-          aria-sort={ariaSortAttr('date')}
-          onClick={() => onColSort('date')}
-        >
-          Date{renderSortCaret('date')}
-        </button>
-        <div className="jt-compact-header-right">
-          <button
-            type="button"
-            className={`jt-compact-header-btn jt-compact-header-btn--amount${colSort.column === 'amount' ? ' jt-compact-header-btn--active' : ''}`}
-            aria-label="Sort by amount"
-            aria-sort={ariaSortAttr('amount')}
-            onClick={() => onColSort('amount')}
-          >
-            Amount{renderSortCaret('amount')}
-          </button>
-          {/* Profit sort control — Pro users only. Free users: no control here
-              (the blurred row figure is the sole upgrade nudge on this screen). */}
-          {userIsPro && (
-            <button
-              type="button"
-              className={`jt-compact-header-btn jt-compact-header-btn--profit${colSort.column === 'profit' ? ' jt-compact-header-btn--active' : ''}`}
-              aria-label="Sort by profit"
-              aria-sort={ariaSortAttr('profit')}
-              onClick={() => onColSort('profit')}
-            >
-              Profit{renderSortCaret('profit')}
-            </button>
-          )}
-        </div>
-      </div>
-
-      <ul className="jt-table-compact" aria-label="Jobs list">
-        {sortedJobs.map(job => {
-          const row = getRow(job);
-          const stage = deriveDisplayStatus(job);
-          const amountStr = '£' + formatAmount(row.invoiced);
-          const customer = row.customer || 'Untitled';
-          // Mirror the JobTile primary/secondary label logic so the compact row
-          // shows the same identity as the tile: summary is the primary descriptor,
-          // customer is the name. When both exist and differ, display customer as
-          // the emphasis line and summary as the sub-label so each row is distinct.
-          const jobSummary = (row.summary || '').trim();
-          const customerName = customer.trim();
-          const compactPrimary = customerName;
-          const compactSub = (jobSummary && jobSummary !== customerName) ? jobSummary : '';
-          const profitVal = row.profit;
-          const hasRevenue = row.invoiced > 0;
-          // Determine which jobs have cost data logged (any receipt for this job)
-          const hasCostData = (receipts || []).some(r => r.jobId === job.id || r.job_id === job.id);
-
-          // Profit sub-line copy (verbatim from spec)
-          let profitContent = null;
-          if (!hasRevenue) {
-            profitContent = <span className="jt-compact-profit jt-compact-profit--dash">—</span>;
-          } else if (!hasCostData) {
-            // No cost data logged — quiet "add costs" affordance; opens drawer (NOT Pro-gated)
-            profitContent = (
-              <button
-                type="button"
-                className="jt-compact-profit jt-compact-profit--add-costs"
-                aria-label="Add costs to this job"
-                onClick={e => { e.stopPropagation(); onJobSelect(job); }}
-              >
-                add costs
-              </button>
-            );
-          } else if (userIsPro) {
-            // Pro: show real profit figure
-            const profitStr = formatProfit(profitVal);
-            const isLoss = profitVal < 0;
-            const absStr = formatProfit(Math.abs(profitVal));
-            profitContent = (
-              <span className={`jt-compact-profit${isLoss ? ' jt-compact-profit--loss' : ''}`}>
-                {isLoss ? `lost ${absStr.replace('-', '')}` : `made ${profitStr}`}
-              </span>
-            );
-          } else {
-            // Free: show blurred figure with an inline compact lock badge.
-            // We avoid the full <ProGate> card wrapper here — its absolute-positioned
-            // badge overflows a single-line metadata row. Instead we render an
-            // inline-flex unit: "made £•••  🔒Pro" all on one line, vertically
-            // self-contained within the row's line-height.
-            const profitStr = formatProfit(profitVal);
-            const isLoss = profitVal < 0;
-            const absStr = formatProfit(Math.abs(profitVal));
-            profitContent = (
-              <button
-                type="button"
-                className={`jt-compact-profit jt-compact-profit--locked${isLoss ? ' jt-compact-profit--loss' : ''}`}
-                aria-label="Upgrade to Pro to see profit"
-                onClick={e => { e.stopPropagation(); onUpgrade?.(); }}
-              >
-                <span className="jt-compact-profit__word">{isLoss ? 'lost' : 'made'}</span>
-                <span className="jt-compact-profit__blurred" aria-hidden="true">
-                  {isLoss ? absStr.replace('-', '') : profitStr}
-                </span>
-                <span className="jt-compact-profit__badge" aria-hidden="true">Pro</span>
-              </button>
-            );
-          }
-
-          // Aria label: include profit for Pro users
-          const ariaLabel = userIsPro && hasRevenue && hasCostData
-            ? `Open job for ${customer}, ${amountStr}, ${profitVal < 0 ? 'lost' : 'made'} ${formatProfit(Math.abs(profitVal))}`
-            : `Open job for ${customer}, ${amountStr}`;
-
-          return (
-            <li key={job.id || job.cloudId}>
-              {/* div role="button" instead of <button> so ProGate's <button> can legally nest */}
-              <div
-                className="jt-compact-row"
-                role="button"
-                tabIndex={0}
-                aria-label={ariaLabel}
-                onClick={() => onJobSelect(job)}
-                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onJobSelect(job); } }}
-              >
-                <div className="jt-compact-line1">
-                  <span className="jt-compact-name-block">
-                    <span className="jt-compact-customer">{compactPrimary}</span>
-                    {compactSub && (
-                      <span className="jt-compact-summary">{compactSub}</span>
-                    )}
-                  </span>
-                  <span className="jt-compact-amount">{amountStr}</span>
-                </div>
-                <div className="jt-compact-line2">
-                  <span
-                    className={`jt-stage-label jt-stage-label--${stage.toLowerCase()}`}
-                    style={{
-                      '--chip-hue': (STAGE_META[stage] || STAGE_META.Lead).hue,
-                      '--chip-fill': (STAGE_META[stage] || STAGE_META.Lead).fill,
-                      '--chip-ink': (STAGE_META[stage] || STAGE_META.Lead).ink || (STAGE_META[stage] || STAGE_META.Lead).hue,
-                    }}
-                  >
-                    {stage}
-                  </span>
-                  <span className="jt-compact-date">{formatDate(row.date)}</span>
-                  {profitContent}
-                </div>
-              </div>
-            </li>
-          );
-        })}
-      </ul>
-    </>
-  );
-
-  // ── Desktop/tablet grid (≥768px) ──────────────────────────────────────────
-  const desktopGrid = (
-    <div className="jt-table-grid-wrap">
-      <table className="jt-table-grid" role="grid">
-        <thead>
-          <tr>
-            <th
-              scope="col"
-              className="jt-th jt-th--customer jt-th--sortable"
-              aria-sort={ariaSortAttr('name')}
-            >
-              <button
-                type="button"
-                className="jt-th-btn"
-                onClick={() => onColSort('name')}
-                aria-label="Sort by name"
-              >
-                Customer{renderSortCaret('name')}
-              </button>
-            </th>
-            <th
-              scope="col"
-              className="jt-th jt-th--amount jt-th--sortable"
-              aria-sort={ariaSortAttr('amount')}
-            >
-              <button
-                type="button"
-                className="jt-th-btn"
-                onClick={() => onColSort('amount')}
-                aria-label="Sort by amount"
-              >
-                Amount{renderSortCaret('amount')}
-              </button>
-            </th>
-            <th scope="col" className="jt-th jt-th--status">Status</th>
-            <th
-              scope="col"
-              className="jt-th jt-th--date jt-th--sortable"
-              aria-sort={ariaSortAttr('date')}
-            >
-              <button
-                type="button"
-                className="jt-th-btn"
-                onClick={() => onColSort('date')}
-                aria-label="Sort by date"
-              >
-                Date{renderSortCaret('date')}
-              </button>
-            </th>
-            <th
-              scope="col"
-              className="jt-th jt-th--profit jt-th--sortable"
-              aria-sort={ariaSortAttr('profit')}
-            >
-              {userIsPro ? (
-                <button
-                  type="button"
-                  className="jt-th-btn"
-                  onClick={() => onColSort('profit')}
-                  aria-label="Sort by profit"
-                >
-                  Profit{renderSortCaret('profit')}
-                </button>
-              ) : (
-                'Profit'
-              )}
-            </th>
-            <th scope="col" className="jt-th jt-th--days">Days</th>
-          </tr>
-        </thead>
-        <tbody>
-          {sortedJobs.map(job => {
-            const row = getRow(job);
-            const stage = deriveDisplayStatus(job);
-            const customer = row.customer || 'Untitled';
-            const amountStr = '£' + formatAmount(row.invoiced);
-            const profitVal = row.profit;
-            const profitStr = formatProfit(profitVal);
-            const profitNeg = profitVal < 0;
-
-            return (
-              <tr
-                key={job.id || job.cloudId}
-                className="jt-table-row"
-                onClick={() => onJobSelect(job)}
-                role="button"
-                tabIndex={0}
-                aria-label={`Open job for ${customer}, ${amountStr}`}
-                onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') onJobSelect(job); }}
-              >
-                <td className="jt-td jt-td--customer">{customer}</td>
-                <td className="jt-td jt-td--amount">{amountStr}</td>
-                <td className="jt-td jt-td--status">
-                  <span
-                    className={`jt-stage-label jt-stage-label--${stage.toLowerCase()}`}
-                    style={{
-                      '--chip-hue': (STAGE_META[stage] || STAGE_META.Lead).hue,
-                      '--chip-fill': (STAGE_META[stage] || STAGE_META.Lead).fill,
-                      '--chip-ink': (STAGE_META[stage] || STAGE_META.Lead).ink || (STAGE_META[stage] || STAGE_META.Lead).hue,
-                    }}
-                  >
-                    {stage}
-                  </span>
-                </td>
-                <td className="jt-td jt-td--date">{formatDate(row.date)}</td>
-                <td className="jt-td jt-td--profit" onClick={e => e.stopPropagation()}>
-                  <ProGate locked={!userIsPro} hasValue onUpgrade={onUpgrade}>
-                    <span className={`pro-gate__figure jt-profit-figure${profitNeg ? ' jt-profit-figure--loss' : ''}`}>
-                      {profitStr}
-                    </span>
-                  </ProGate>
-                </td>
-                <td className="jt-td jt-td--days">{renderDays(job)}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
-
-  return (
-    <>
-      <div className="jt-table-compact-wrap">{compactRows}</div>
-      <div className="jt-table-desktop-wrap">{desktopGrid}</div>
-    </>
-  );
-}
+// JP-LU5 PR1: JobsTable function removed — see tombstone comment above.
 
 // ── JobsList subview ──────────────────────────────────────────────────────────
 
-function JobsList({ jobs, receipts, selectedStage, showAll, searchQuery, layout, profile, onJobSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJob, onCopyJob, onArchiveJob, onDeleteJob, biz, onShowToast, onViewReceipt, onAddJob, onActionRedirect, onUpgrade, colSort, onColSort }) {
+// JP-LU5 PR1: layout, colSort, onColSort, onUpgrade props removed — card view only.
+function JobsList({ jobs, receipts, selectedStage, showAll, searchQuery, profile, onJobSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJob, onCopyJob, onArchiveJob, onDeleteJob, biz, onShowToast, onViewReceipt, onAddJob, onActionRedirect }) {
   const q = (searchQuery || '').trim();
 
   // When searching: ignore the stage filter — show everything that matches (1B spec).
@@ -1477,39 +956,9 @@ function JobsList({ jobs, receipts, selectedStage, showAll, searchQuery, layout,
     stageFiltered = sortJobsByStage(stageJobs, showAll ? null : selectedStage);
   }
 
-  // Apply column sort whenever a column is active — applies to both compact list
-  // and desktop grid (removed the layout==='table' gate).
-  // Profit sort is handled inline after rowMap is built (below), so skip it here.
-  let visible = stageFiltered;
-  if (colSort.column && colSort.column !== 'profit') {
-    visible = sortJobsByColumn(stageFiltered, colSort.column, colSort.dir);
-  }
+  const visible = stageFiltered;
 
-  if (layout === 'table') {
-    if (visible.length === 0 && q) {
-      return (
-        <div className="screen-empty">
-          <p className="screen-empty-title">No jobs match &ldquo;{q}&rdquo;</p>
-          <p className="screen-empty-hint">Check the spelling or tap + New job.</p>
-        </div>
-      );
-    }
-    return (
-      <JobsTable
-        jobs={visible}
-        receipts={receipts}
-        selectedStage={selectedStage}
-        showAll={showAll}
-        profile={profile}
-        onJobSelect={onJobSelect}
-        onUpgrade={onUpgrade}
-        colSort={colSort}
-        onColSort={onColSort}
-      />
-    );
-  }
-
-  // Card view (default)
+  // Card view (always — table layout removed in JP-LU5 PR1)
   if (visible.length === 0) {
     if (q) {
       return (
@@ -1548,8 +997,9 @@ function JobsList({ jobs, receipts, selectedStage, showAll, searchQuery, layout,
 
 // ── WorkScreen (root) ─────────────────────────────────────────────────────────
 
-export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJob, onAddPayment, onUpdateJob, onDeleteJob, onAddReceipt, onDeleteReceipt, onUpdateReceipt, biz, profile, initialJobId, pendingWorkView, onPendingWorkViewConsumed, onNavigateToCardPayments, onProfileUpdate, materials, defaultMarkup, onBrowseMaterials, onMaterialSaved }) {
-  const [subview, setSubview] = useState(getPersistedView);
+// JP-LU5 PR1: pendingWorkView and onPendingWorkViewConsumed removed from props —
+// calendar subview gone. AppShell's handleSeeTheWeek now plain navigate('work').
+export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJob, onAddPayment, onUpdateJob, onDeleteJob, onAddReceipt, onDeleteReceipt, onUpdateReceipt, biz, profile, initialJobId, onNavigateToCardPayments, onProfileUpdate, materials, defaultMarkup, onBrowseMaterials, onMaterialSaved }) {
   const [selectedStage, setSelectedStage] = useState(() => getPersistedFilter().selectedStage);
   const [showAll, setShowAll] = useState(() => getPersistedFilter().showAll);
   // 1B: client-side search — pure JS filter, works offline
@@ -1573,9 +1023,7 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
   const [toast, setToast] = useState('');
   // addJobOpen drives the inline AddJobModal — same pattern as TodayScreen.
   const [addJobOpen, setAddJobOpen] = useState(false);
-  // addJobDate — pre-filled ISO date when AddJobModal is opened from the calendar.
-  // Null when opened via the regular "+ New job" CTA (no date pre-fill).
-  const [addJobDate, setAddJobDate] = useState(null);
+  // JP-LU5 PR1: addJobDate state removed — only used by WorkCalendar path.
   // chaseStepIndex — tracks which job to nudge next in the batch-chase flow
   const [chaseStepIndex, setChaseStepIndex] = useState(0);
   // chaseBarJustChased — job that was just chased; drives the 1.5s "Chased" transition
@@ -1589,16 +1037,7 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
   // Reuses DocumentSearchOverlay exactly as TodayScreen does — not a new overlay, same component.
   const [docOverlay, setDocOverlay] = useState(null);
 
-  // ── Table view state ────────────────────────────────────────────────────────
-  // layout: 'card' | 'table' — one global preference, persisted in localStorage.
-  // colSort: { column: 'name'|'amount'|'date'|'profit'|null, dir: 'asc'|'desc' }
-  //   Persisted in jp.workListSort; null column = smart stage-urgency default.
-  //   A chosen sort STICKS across stage/tab switches (no reset on tab change).
-  // upgradeSheetOpen: ProUpgradeSheet visibility (reuses FinanceScreen pattern).
-  const [layout, setLayout] = useState(getPersistedLayout);
-  const [colSort, setColSort] = useState(getPersistedSort);
-  const [upgradeSheetOpen, setUpgradeSheetOpen] = useState(false);
-  const [showCoachmark, setShowCoachmark] = useState(false);
+  // JP-LU5 PR1: layout, colSort, upgradeSheetOpen, showCoachmark state removed.
 
   // If AppShell navigated here with a specific job to open (e.g. from TodayScreen
   // card-body tap), find it in the jobs array and pre-open the drawer.
@@ -1691,23 +1130,7 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
     return () => { cancelled = true; };
   }, [isConnected, jobs]);
 
-  const switchSubview = useCallback((v) => {
-    logTelemetry('work_subview', { subview: v });
-    setSubview(v);
-    persistView(v);
-  }, []);
-
-  // "See the week" deep-link: force Calendar + Week on mount when AppShell
-  // has set pendingWorkView. One-shot empty-dep effect mirrors initialJobId
-  // above — fires once on this WorkScreen instance, never on data refresh.
-  // Placed after switchSubview so the closure captures the defined callback.
-  // switchSubview persists + fires telemetry so the subview write is canonical.
-  useEffect(() => {
-    if (pendingWorkView !== 'calendar-week') return;
-    switchSubview('calendar');
-    onPendingWorkViewConsumed?.();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // JP-LU5 PR1: switchSubview callback and pendingWorkView useEffect removed.
 
   // Keep the drawer's job in sync when AppShell refreshes jobs[] after a payment.
   const liveSelectedJob = selectedJob
@@ -1744,32 +1167,7 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
     }
   };
 
-  // Switch layout (card ↔ table) — persists globally, fires coachmark on first table switch.
-  const handleLayoutChange = (newLayout) => {
-    setLayout(newLayout);
-    persistLayout(newLayout);
-    if (newLayout === 'table' && !getCoachmarkSeen()) {
-      setShowCoachmark(true);
-    }
-  };
-
-  // Column sort handler — toggles asc/desc for the active column; opens a new
-  // column at its natural default direction (DEFAULT_DIR). Persists to localStorage.
-  const handleColSort = (col) => {
-    setColSort(prev => {
-      const next = prev.column === col
-        ? { column: col, dir: prev.dir === 'asc' ? 'desc' : 'asc' }
-        : { column: col, dir: DEFAULT_DIR[col] ?? 'asc' };
-      persistSort(next);
-      return next;
-    });
-  };
-
-  // Dismiss coachmark and mark it seen permanently.
-  const dismissCoachmark = () => {
-    setShowCoachmark(false);
-    markCoachmarkSeen();
-  };
+  // JP-LU5 PR1: handleLayoutChange, handleColSort, dismissCoachmark removed.
 
   // Exclude archived and deleted jobs from every rendered surface in this screen.
   // This single derivation feeds StageStrip totals, the chase bar, and JobsList
@@ -1867,20 +1265,13 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
 
   const handleJobSave = (job) => {
     setAddJobOpen(false);
-    setAddJobDate(null);
     onAddJob?.(job);
     showToast('Job saved');
   };
 
   const openAddJob = () => setAddJobOpen(true);
 
-  // Opens the inline AddJobModal pre-filled with the tapped calendar date.
-  // Called from WorkCalendar — passes the ISO date so the form lands on the
-  // details view with the correct date already set (no voice auto-start).
-  const handleNewJobOnDate = (iso) => {
-    setAddJobDate(iso || null);
-    setAddJobOpen(true);
-  };
+  // JP-LU5 PR1: handleNewJobOnDate removed — only used by WorkCalendar render.
 
   // Wraps onUpdateJob to fire a confirmation toast when a job is moved to Paid
   // via the stage-chip dropdown. JobDetailDrawer has its own showFlash for the
@@ -2125,7 +1516,8 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
            Paid is excluded from the summary to keep the line short: the Paid
            tile in the StageStrip already gives the full count + £. Only shown
            when there are any jobs to summarise. Visual only — tapping does nothing. */}
-      {subview === 'list' && (() => {
+      {/* JP-LU5 PR1: subview === 'list' guard removed — always in list mode. */}
+      {(() => {
         const SUMMARY_STAGES = ['Lead', 'Quoted', 'On', 'Invoiced', 'Overdue'];
         const counts = SUMMARY_STAGES.reduce((acc, s) => {
           acc[s] = visibleJobs.filter(j => deriveDisplayStatus(j) === s).length;
@@ -2144,90 +1536,58 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
         );
       })()}
 
-      {/* Stage Strip — 6 equal segments, no "All" tile. "Show all" lives in the
-           controls row below. Hidden in calendar mode: the stage filter has no
-           meaning over a calendar view (every dated job shows regardless of stage). */}
-      {subview === 'list' && (
-        <StageStrip
-          jobs={visibleJobs}
-          selectedStage={selectedStage}
-          showAll={showAll}
-          onSelectStage={handleSelectStage}
-          deriveStatus={deriveDisplayStatus}
-          formatAmount={formatAmount}
+      {/* Stage Strip — 6 equal segments, no "All" tile. */}
+      <StageStrip
+        jobs={visibleJobs}
+        selectedStage={selectedStage}
+        showAll={showAll}
+        onSelectStage={handleSelectStage}
+        deriveStatus={deriveDisplayStatus}
+        formatAmount={formatAmount}
+      />
+
+      {/* 1B: Search bar — sticky under the stage strip, pure client-side filter. */}
+      <div className="jobs-search-wrap">
+        <input
+          type="search"
+          className={`jobs-search${searchQuery ? ' jobs-search--has-value' : ''}`}
+          placeholder="Search name, job or street"
+          value={searchQuery}
+          onChange={e => setSearchQuery(e.target.value)}
+          aria-label="Search jobs"
+          autoComplete="off"
+          autoCorrect="off"
+          autoCapitalize="off"
+          spellCheck="false"
         />
-      )}
-
-      {/* 1B: Search bar — sticky under the stage strip, pure client-side filter.
-           Hidden in calendar mode: search is a list concept; calendar shows all dated jobs. */}
-      {subview === 'list' && (
-        <div className="jobs-search-wrap">
-          <input
-            type="search"
-            className={`jobs-search${searchQuery ? ' jobs-search--has-value' : ''}`}
-            placeholder="Search name, job or street"
-            value={searchQuery}
-            onChange={e => setSearchQuery(e.target.value)}
-            aria-label="Search jobs"
-            autoComplete="off"
-            autoCorrect="off"
-            autoCapitalize="off"
-            spellCheck="false"
-          />
-          {searchQuery && (
-            <button
-              type="button"
-              className="jobs-search-clear"
-              aria-label="Clear search"
-              onClick={() => setSearchQuery('')}
-            >
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
-                <line x1="4" y1="4" x2="12" y2="12"/>
-                <line x1="12" y1="4" x2="4" y2="12"/>
-              </svg>
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* Controls row: List/Calendar toggle (left) + Show all pill (right).
-           Show all activates showAll mode (all stages visible at once).
-           Tapping any stage tile exits show-all and filters to that stage.
-           The "All" pill is hidden in calendar mode — the stage filter has no
-           meaning over a calendar (every dated job shows regardless of stage). */}
-      <div className="work-controls-row">
-        <div className="work-segments" role="group" aria-label="Switch between list and calendar view">
-          <button
-            className={`work-segment ${subview === 'list' ? 'work-segment--active' : ''}`}
-            onClick={() => switchSubview('list')}
-            aria-pressed={subview === 'list'}
-          >
-            List
-          </button>
-          <button
-            className={`work-segment ${subview === 'calendar' ? 'work-segment--active' : ''}`}
-            onClick={() => switchSubview('calendar')}
-            aria-pressed={subview === 'calendar'}
-          >
-            Calendar
-          </button>
-        </div>
-        {subview === 'list' && (
+        {searchQuery && (
           <button
             type="button"
-            className={`show-all-pill${showAll ? ' show-all-pill--active' : ''}`}
-            onClick={handleSelectAll}
-            aria-pressed={showAll}
-            aria-label={showAll ? `Back to ${selectedStage}` : 'Show all stages'}
+            className="jobs-search-clear"
+            aria-label="Clear search"
+            onClick={() => setSearchQuery('')}
           >
-            All
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+              <line x1="4" y1="4" x2="12" y2="12"/>
+              <line x1="12" y1="4" x2="4" y2="12"/>
+            </svg>
           </button>
         )}
-        {/* Records pill — opens the global DocumentSearchOverlay in 'quotes' mode.
-            Defaulting to 'quotes' because that's what most users navigate here for
-            (looking up what they quoted), and the in-overlay mode switcher lets them
-            reach All jobs or Invoices without closing. Pipeline = current stage per job;
-            Records = every quote and invoice ever sent, searchable. Free, always visible. */}
+      </div>
+
+      {/* JP-LU5 PR1: List/Calendar segmented control removed — card view only.
+           Controls row retains: Show all pill + Records pill. */}
+      <div className="work-controls-row">
+        <button
+          type="button"
+          className={`show-all-pill${showAll ? ' show-all-pill--active' : ''}`}
+          onClick={handleSelectAll}
+          aria-pressed={showAll}
+          aria-label={showAll ? `Back to ${selectedStage}` : 'Show all stages'}
+        >
+          All
+        </button>
+        {/* Records pill — opens the global DocumentSearchOverlay in 'quotes' mode. */}
         <button
           type="button"
           className="show-all-pill work-records-pill"
@@ -2240,61 +1600,30 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
           <Icon name="search" size={13} aria-hidden="true" />
           Records
         </button>
-        {/* Layout toggle — card / table. Hidden in calendar mode. */}
-        {subview === 'list' && (
-          <LayoutToggle layout={layout} onChange={handleLayoutChange} />
-        )}
       </div>
 
-      {/* First-switch coachmark — shown once on first switch to table view (spec §8). */}
-      {showCoachmark && (
-        <div
-          className="work-table-coachmark"
-          role="status"
-          onClick={dismissCoachmark}
-        >
-          <strong>Same jobs, spreadsheet style.</strong> Tap any row to open it.
-          <button
-            type="button"
-            className="work-table-coachmark-dismiss"
-            aria-label="Dismiss tip"
-            onClick={e => { e.stopPropagation(); dismissCoachmark(); }}
-          >
-            <Icon name="close" size={14} aria-hidden="true" />
-          </button>
-        </div>
-      )}
-
-      {/* Subview */}
-      {subview === 'list' ? (
-        <JobsList
-          jobs={visibleJobs}
-          receipts={receipts}
-          selectedStage={selectedStage}
-          showAll={showAll}
-          searchQuery={searchQuery}
-          layout={layout}
-          profile={profile}
-          onJobSelect={job => { setSelectedJob(job); if (showCoachmark) dismissCoachmark(); }}
-          onSendInvoice={setReviewJob}
-          onUpdateJob={handleUpdateJob}
-          onNewJob={onNewJob}
-          onOpenJob={handleOpenJob}
-          onCopyJob={handleCopyJob}
-          onArchiveJob={handleArchiveJob}
-          onDeleteJob={handleRequestDeleteJob}
-          biz={biz}
-          onShowToast={showToast}
-          onViewReceipt={setReceiptJob}
-          onAddJob={openAddJob}
-          onActionRedirect={handleActionRedirect}
-          onUpgrade={() => setUpgradeSheetOpen(true)}
-          colSort={colSort}
-          onColSort={handleColSort}
-        />
-      ) : (
-        <WorkCalendar jobs={visibleJobs} onNewJobOnDate={handleNewJobOnDate} onJobTap={setSelectedJob} forceWeekOnMount={pendingWorkView === 'calendar-week'} />
-      )}
+      {/* Card view — always rendered (JP-LU5 PR1: table layout removed) */}
+      <JobsList
+        jobs={visibleJobs}
+        receipts={receipts}
+        selectedStage={selectedStage}
+        showAll={showAll}
+        searchQuery={searchQuery}
+        profile={profile}
+        onJobSelect={setSelectedJob}
+        onSendInvoice={setReviewJob}
+        onUpdateJob={handleUpdateJob}
+        onNewJob={onNewJob}
+        onOpenJob={handleOpenJob}
+        onCopyJob={handleCopyJob}
+        onArchiveJob={handleArchiveJob}
+        onDeleteJob={handleRequestDeleteJob}
+        biz={biz}
+        onShowToast={showToast}
+        onViewReceipt={setReceiptJob}
+        onAddJob={openAddJob}
+        onActionRedirect={handleActionRedirect}
+      />
 
       {/* Job detail drawer — wrapped in an error boundary so a render crash
           shows a fallback instead of a blank white screen. Keyed by job id
@@ -2356,14 +1685,11 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
         />
       )}
 
-      {/* AddJobModal — mounted inline, same pattern as TodayScreen.
-          When opened from the calendar (addJobDate set), lands on the details
-          form with the tapped date pre-filled and no mic auto-start. */}
+      {/* AddJobModal — inline; JP-LU5 PR1: addJobDate/calendar pre-fill removed. */}
       {addJobOpen && (
         <AddJobModal
-          onClose={() => { setAddJobOpen(false); setAddJobDate(null); }}
+          onClose={() => setAddJobOpen(false)}
           onSave={handleJobSave}
-          {...(addJobDate ? { initialDate: addJobDate, defaultMode: 'details-manual' } : {})}
           materials={materials}
           defaultMarkup={defaultMarkup ?? profile?.default_markup ?? 20}
           onBrowseMaterials={onBrowseMaterials}
@@ -2434,17 +1760,7 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
         />
       )}
 
-      {/* ProUpgradeSheet — opened by Profit column lock badge in table view.
-          trigger='insight_locked' matches UPGRADE_TRIGGERS.INSIGHT_LOCKED from telemetry.js.
-          Using the string literal here to avoid importing UPGRADE_TRIGGERS into WorkScreen
-          (existing test mocks for telemetry only stub logTelemetry). */}
-      <ProUpgradeSheet
-        open={upgradeSheetOpen}
-        trigger="insight_locked"
-        profile={profile}
-        jobs={jobs}
-        onClose={() => setUpgradeSheetOpen(false)}
-      />
+      {/* JP-LU5 PR1: ProUpgradeSheet removed — was only wired to table-view profit lock. */}
 
       {toast && <div className="toast">{toast}</div>}
     </div>

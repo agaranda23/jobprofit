@@ -177,10 +177,7 @@ export default function AppShell() {
   // pendingJobId: when Today navigates to Work with a specific job to open, store
   // the job ID here so WorkScreen can pre-open the drawer on mount.
   const [pendingJobId, setPendingJobId] = useState(null);
-  // pendingWorkView: when "See the week" deep-links to Jobs, force WorkScreen into
-  // Calendar + Week view for that navigation only. Consumed on WorkScreen mount.
-  // 'calendar-week' | null
-  const [pendingWorkView, setPendingWorkView] = useState(null);
+  // JP-LU5 PR1: pendingWorkView state removed — WorkScreen calendar subview deleted.
   // workResetKey: bumped on every explicit tab-click to the work/jobs tab.
   // WorkScreen receives this as its React key, which causes a full remount and
   // therefore discards any open drawer or modal state. Programmatic navigation
@@ -1074,10 +1071,9 @@ export default function AppShell() {
     // so the intended drawer-open still fires.
     if (nextView === 'work') {
       setWorkResetKey(k => k + 1);
-      // Also clear the pending job and any pending work view so a remounted
-      // WorkScreen has no initialJobId or forced subview.
+      // Also clear the pending job so a remounted WorkScreen has no initialJobId.
+      // JP-LU5 PR1: setPendingWorkView removed — calendar subview deleted.
       setPendingJobId(null);
-      setPendingWorkView(null);
     }
   }, []);
 
@@ -1092,15 +1088,11 @@ export default function AppShell() {
   }, [resetTransientUI, navigate]);
 
   /**
-   * "See the week" deep-link from TodayScreen's all-clear card.
-   * Forces WorkScreen into Calendar + Week view, anchored to today.
-   * Does NOT go through resetTransientUI / handleTabChange so workResetKey
-   * is NOT bumped — the pending state must survive into the mounted WorkScreen
-   * (same lifecycle as pendingJobId from onJobTap).
+   * "See the week" — navigates to the Jobs tab (card view only since JP-LU5 PR1).
+   * JP-LU5 PR1: pendingWorkView / calendar forced-view removed; now a plain navigate.
    * Defined before conditional early returns (Rules of Hooks).
    */
   const handleSeeTheWeek = useCallback(() => {
-    setPendingWorkView('calendar-week');
     navigate('work');
   }, [navigate]);
 
@@ -1163,8 +1155,6 @@ export default function AppShell() {
           biz={null}
           profile={profile}
           initialJobId={pendingJobId}
-          pendingWorkView={pendingWorkView}
-          onPendingWorkViewConsumed={() => setPendingWorkView(null)}
           onNavigateToCardPayments={() => setSettingsSubView('card-payments')}
           onProfileUpdate={handleProfileUpdate}
           materials={materials}
