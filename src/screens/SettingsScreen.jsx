@@ -38,6 +38,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import pkg from '../../package.json';
 import { supabase } from '../lib/supabase.js';
+import {
+  buildReferralLink,
+  copyReferralLink,
+  ensureReferralCode,
+} from '../lib/referral.js';
 import { logTelemetry, UPGRADE_TRIGGERS } from '../lib/telemetry.js';
 
 const LOGOS_BUCKET = 'logos';
@@ -1859,6 +1864,112 @@ function SubScreenHeader({ title, onBack }) {
   );
 }
 
+// ── ReferralRow ───────────────────────────────────────────────────────────────
+// Replaces the generic "Refer a mate" row in the Help sub-screen.
+//
+// On mount, calls ensureReferralCode to lazily generate + persist the user's
+// personal referral code. If the code is available, renders:
+//   - a tap-to-copy pill showing the full link
+//   - a Share icon CTA
+//
+// If ensureReferralCode returns null (migration not yet applied), falls back
+// to the existing generic share so nothing breaks before the SQL is run.
+//
+// Props:
+//   session         — Supabase session (for user ID)
+//   profile         — current profile object (checked for existing code)
+//   onGenericShare  — () => void  fallback when migration is pending
+
+function ReferralRow({ session, profile, onGenericShare }) {
+  const [code, setCode]       = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [copied, setCopied]   = useState(false);
+  const copyTimerRef          = useRef(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const userId = session?.user?.id;
+    if (!userId) {
+      setLoading(false);
+      return;
+    }
+
+    ensureReferralCode(supabase, userId, profile).then((result) => {
+      if (!cancelled) {
+        setCode(result);
+        setLoading(false);
+      }
+    });
+
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.user?.id]);
+
+  const handleCopy = async () => {
+    if (!code) return;
+    await copyReferralLink(code);
+    // Show copied feedback for 2 s
+    setCopied(true);
+    if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+    copyTimerRef.current = setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleShare = async () => {
+    if (!code) {
+      // Migration not applied — fall back to generic share
+      onGenericShare?.();
+      return;
+    }
+    await copyReferralLink(code);
+    setCopied(true);
+    if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+    copyTimerRef.current = setTimeout(() => setCopied(false), 2000);
+  };
+
+  // Loading state — keep the row present but passive
+  if (loading) {
+    return <Row label="Refer a mate" value="Loading…" chevron={false} />;
+  }
+
+  // Migration not applied — fall back to generic share row so nothing breaks
+  if (!code) {
+    return <Row label="Refer a mate" onTap={onGenericShare} />;
+  }
+
+  const link = buildReferralLink(code);
+
+  return (
+    <div className="settings-row settings-row--passive referral-row">
+      <span className="settings-row-label">
+        <Icon name="gift" size={16} variant="brand" />
+        {' '}Refer a mate
+      </span>
+      <div className="referral-row__right">
+        <button
+          type="button"
+          className="referral-row__pill"
+          onClick={handleCopy}
+          aria-label={copied ? 'Link copied' : 'Copy referral link'}
+          title={link}
+        >
+          <Icon name="copy" size={14} />
+          <span className="referral-row__pill-text">
+            {copied ? 'Copied!' : `jobprofit.co.uk/?ref=${code}`}
+          </span>
+        </button>
+        <button
+          type="button"
+          className="referral-row__share-btn"
+          onClick={handleShare}
+          aria-label="Share referral link"
+        >
+          <Icon name="share" size={18} />
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ── SettingsScreen ────────────────────────────────────────────────────────────
 
 export default function SettingsScreen({
@@ -2876,7 +2987,11 @@ export default function SettingsScreen({
           <Row label="Chat with us" value="WhatsApp" onTap={handleWhatsApp} />
           <Row label="Send feedback" value="Email" onTap={handleSendFeedback} />
           <Row label="Report a bug" value="Email" onTap={handleSendBugReport} />
-          <Row label="Refer a mate" onTap={handleShare} />
+          <ReferralRow
+            session={session}
+            profile={profile}
+            onGenericShare={handleShare}
+          />
           <button
             className={`settings-row${whatsNewDot ? ' settings-row--has-dot' : ''}`}
             type="button"
