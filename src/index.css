@@ -11100,51 +11100,6 @@ button.jd-money-chip:active { opacity: 0.75; }
   margin-left: 12px;
 }
 
-/* ── View buttons row ("Look at your work") ─────────────────────────────────── */
-
-.foreman-view-group {
-  margin: 0 16px 12px;
-}
-
-.foreman-view-label {
-  display: block;
-  font-size: var(--fs-label);
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--text-dim);
-  margin-bottom: 8px;
-}
-
-.foreman-view-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 8px;
-}
-
-.foreman-view-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: none;
-  border: 1.5px solid var(--border, #1F2B44);
-  border-radius: 10px;
-  color: var(--text-dim, #9CA3AF);
-  font-size: var(--fs-label);
-  font-weight: 600;
-  font-family: inherit;
-  padding: 12px 8px;
-  min-height: 44px;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-  transition: border-color 0.15s, color 0.15s;
-}
-.foreman-view-btn:active {
-  border-color: var(--accent, #34d672);
-  color: var(--accent, #34d672);
-  opacity: 0.9;
-}
-
 /* ── DocumentSearchOverlay ───────────────────────────────────────────────────── */
 
 .dso-backdrop {
