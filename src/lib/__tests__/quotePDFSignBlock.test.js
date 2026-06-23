@@ -1,14 +1,22 @@
 /**
- * Tests for the sign-quote link + QR block added to generateQuotePDF.
+ * Tests for the accept-quote link + QR block added to generateQuotePDF.
+ *
+ * Phase G-2 update: "Tap to view and sign" → "Tap to view and accept".
+ * The CTA block is now skipped when quoteStatus is 'accepted' or 'declined',
+ * in addition to the legacy acceptedSignature check.
  *
  * Covers:
  *   1. No crash when called with quoteUrl + qrDataUrl
  *   2. Backwards compat — no crash without quoteUrl/qrDataUrl
  *   3. No crash when qrDataUrl is empty (QR failed — button-only fallback)
- *   4. Sign block skipped when acceptedSignature is already set
- *   5. Sign block drawn — "Tap to view and sign" text present
- *   6. Sign block skipped — text absent when quoteUrl is empty
- *   7. Sign block skipped — text absent when already signed
+ *   4. No crash when acceptedSignature is set (legacy signed)
+ *   5. CTA drawn — "Tap to view and accept" text present for unsigned quote
+ *   6. CTA skipped — text absent when quoteUrl is empty
+ *   7. CTA skipped — text absent when acceptedSignature is present (legacy)
+ *   8. CTA skipped — text absent when quoteStatus is accepted (G-2)
+ *   9. CTA skipped — text absent when quoteStatus is declined (G-2)
+ *  10. doc.link called with quoteUrl when CTA is shown
+ *  11. doc.link NOT called when CTA is skipped
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -109,36 +117,48 @@ describe('generateQuotePDF — sign-quote link block', () => {
     ).not.toThrow();
   });
 
-  it('4. does not crash when acceptedSignature is set (already signed)', () => {
+  it('4. does not crash when acceptedSignature is set (legacy signed)', () => {
     const signedJob = { ...baseJob(), acceptedSignature: TEST_QR, acceptedAt: '2026-06-01T10:00:00Z' };
     expect(() =>
       generateQuotePDF({ job: signedJob, biz: baseBiz(), quoteUrl: TEST_URL, qrDataUrl: TEST_QR })
     ).not.toThrow();
   });
 
-  it('5. renders "Tap to view and sign" text when quoteUrl is set and quote unsigned', () => {
+  it('5. renders "Tap to view and accept" text when quoteUrl is set and quote undecided', () => {
     generateQuotePDF({ job: baseJob(), biz: baseBiz(), quoteUrl: TEST_URL, qrDataUrl: TEST_QR });
-    expect(drawnTexts.some(t => String(t).includes('Tap to view and sign'))).toBe(true);
+    expect(drawnTexts.some(t => String(t).includes('Tap to view and accept'))).toBe(true);
   });
 
-  it('6. does not render "Tap to view and sign" when quoteUrl is absent', () => {
+  it('6. does not render "Tap to view and accept" when quoteUrl is absent', () => {
     generateQuotePDF({ job: baseJob(), biz: baseBiz() });
-    expect(drawnTexts.some(t => String(t).includes('Tap to view and sign'))).toBe(false);
+    expect(drawnTexts.some(t => String(t).includes('Tap to view and accept'))).toBe(false);
   });
 
-  it('7. does not render "Tap to view and sign" when acceptedSignature is present', () => {
+  it('7. does not render CTA when acceptedSignature is present (legacy pre-G-2 path)', () => {
     const signedJob = { ...baseJob(), acceptedSignature: TEST_QR, acceptedAt: '2026-06-01T10:00:00Z' };
     generateQuotePDF({ job: signedJob, biz: baseBiz(), quoteUrl: TEST_URL, qrDataUrl: TEST_QR });
-    expect(drawnTexts.some(t => String(t).includes('Tap to view and sign'))).toBe(false);
+    expect(drawnTexts.some(t => String(t).includes('Tap to view and accept'))).toBe(false);
   });
 
-  it('8. doc.link is called with the quoteUrl when sign block is shown', () => {
+  it('8. does not render CTA when quoteStatus is accepted (G-2 button path)', () => {
+    const acceptedJob = { ...baseJob(), quoteStatus: 'accepted', acceptedAt: '2026-06-23T10:00:00Z' };
+    generateQuotePDF({ job: acceptedJob, biz: baseBiz(), quoteUrl: TEST_URL, qrDataUrl: TEST_QR });
+    expect(drawnTexts.some(t => String(t).includes('Tap to view and accept'))).toBe(false);
+  });
+
+  it('9. does not render CTA when quoteStatus is declined (G-2 decline path)', () => {
+    const declinedJob = { ...baseJob(), quoteStatus: 'declined', declinedAt: '2026-06-23T10:00:00Z' };
+    generateQuotePDF({ job: declinedJob, biz: baseBiz(), quoteUrl: TEST_URL, qrDataUrl: TEST_QR });
+    expect(drawnTexts.some(t => String(t).includes('Tap to view and accept'))).toBe(false);
+  });
+
+  it('10. doc.link is called with the quoteUrl when CTA is shown', () => {
     generateQuotePDF({ job: baseJob(), biz: baseBiz(), quoteUrl: TEST_URL, qrDataUrl: TEST_QR });
     const linkCall = linkCalls.find(c => c[4]?.url === TEST_URL);
     expect(linkCall).toBeDefined();
   });
 
-  it('9. doc.link is NOT called with the quoteUrl when sign block is skipped (no quoteUrl)', () => {
+  it('11. doc.link is NOT called with the quoteUrl when CTA is skipped (no quoteUrl)', () => {
     generateQuotePDF({ job: baseJob(), biz: baseBiz() });
     const linkCall = linkCalls.find(c => c[4]?.url === TEST_URL);
     expect(linkCall).toBeUndefined();

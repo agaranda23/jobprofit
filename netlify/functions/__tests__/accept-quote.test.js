@@ -1,29 +1,27 @@
 /**
- * Tests for netlify/functions/accept-quote.js — Phase G-2.
+ * Tests for netlify/functions/accept-quote.js — Phase G-2 redesign.
+ *
+ * Signature capture removed (2026-06-23, data-minimisation). The function now
+ * accepts { token, acceptedName?, consentGiven:true } — no signature field.
  *
  * No network, no Supabase connection. All DB calls are mocked.
- * Pattern: pure-logic + mocked I/O, matches the project's no-DOM test convention.
  *
  * Covers:
- *   A. Input validation — token shape, signature shape, size limit
- *   B. Idempotency — already-accepted token returns 200 without overwriting
- *   C. Success path — new token writes and returns 200 { acceptedAt }
- *   D. Error paths — token not found → 404, DB failure → 502, missing env → 500
+ *   A. Input validation — token shape, consent required, no signature needed
+ *   B. Missing env vars → 500
+ *   C. Token not found → 404
+ *   D. Idempotency — already accepted returns 200 without overwriting
+ *   E. Success path — new acceptance writes meta and returns 200 { acceptedAt }
+ *   F. acceptedSource field — must be written as 'remote'
+ *   G. Status promotion — quoted → active; no regression for active/invoiced/paid
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-// ── Env setup ─────────────────────────────────────────────────────────────────
-// Must be set BEFORE the module is imported so process.env is available at
-// module evaluation time.
 const FAKE_URL = 'https://abc.supabase.co';
 const FAKE_SERVICE_KEY = 'service-role-key-fake';
 
-// ── Supabase admin client mock ────────────────────────────────────────────────
-// The module calls createClient() at handler invocation time (not module load),
-// so we can intercept via vi.mock.
-
-let mockSelectResult = null; // { data, error }
+let mockSelectResult = null;
 
 vi.mock('@supabase/supabase-js', () => {
   return {
@@ -38,10 +36,6 @@ vi.mock('@supabase/supabase-js', () => {
   };
 });
 
-// ── Dynamic import after env setup ───────────────────────────────────────────
-// We import the handler fresh each test group to avoid module-level env caching.
-// The env vars are set on process.env directly.
-
 function makeEvent(body, method = 'POST') {
   return {
     httpMethod: method,
@@ -50,14 +44,8 @@ function makeEvent(body, method = 'POST') {
 }
 
 const VALID_TOKEN = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11';
-const VALID_SIG = 'data:image/png;base64,' + 'A'.repeat(100);
-
-// A signature that exceeds the 200 KB limit
-// MAX_SIG_CHARS = ceil(200*1024*4/3) ≈ 273,067 chars; add prefix
-const OVERSIZED_SIG = 'data:image/png;base64,' + 'A'.repeat(300_000);
 
 async function getHandler() {
-  // Re-import to pick up process.env changes and fresh mock state
   const mod = await import('../accept-quote.js');
   return mod.handler;
 }
@@ -99,55 +87,61 @@ describe('A. Input validation', () => {
 
   it('returns 400 when token is missing', async () => {
     const handler = await getHandler();
-    const res = await handler(makeEvent({ signature: VALID_SIG }));
+    const res = await handler(makeEvent({ consentGiven: true }));
     expect(res.statusCode).toBe(400);
     expect(JSON.parse(res.body).error).toMatch(/token/i);
   });
 
   it('returns 400 when token is not a UUID v4', async () => {
     const handler = await getHandler();
-    const res = await handler(makeEvent({ token: 'not-a-uuid', signature: VALID_SIG }));
+    const res = await handler(makeEvent({ token: 'not-a-uuid', consentGiven: true }));
     expect(res.statusCode).toBe(400);
     expect(JSON.parse(res.body).error).toMatch(/invalid token/i);
   });
 
   it('returns 400 when token is a UUID v3 (wrong version bit)', async () => {
     const handler = await getHandler();
-    // version 3 — "3" in position after third dash
     const v3 = 'a0eebc99-9c0b-3ef8-bb6d-6bb9bd380a11';
-    const res = await handler(makeEvent({ token: v3, signature: VALID_SIG }));
+    const res = await handler(makeEvent({ token: v3, consentGiven: true }));
     expect(res.statusCode).toBe(400);
   });
 
-  it('returns 400 when signature is missing', async () => {
+  it('returns 400 when consentGiven is missing (consent check runs after idempotency)', async () => {
+    // Must supply a DB row so the token-not-found path doesn't fire first.
+    mockSelectResult = { data: { id: 'job-1', user_id: 'u1', customer_name: 'Jane', meta: { quoteStatus: 'sent' } }, error: null };
     const handler = await getHandler();
     const res = await handler(makeEvent({ token: VALID_TOKEN }));
     expect(res.statusCode).toBe(400);
-    expect(JSON.parse(res.body).error).toMatch(/signature/i);
+    expect(JSON.parse(res.body).error).toMatch(/consent/i);
   });
 
-  it('returns 400 when signature is not a PNG dataURL', async () => {
+  it('returns 400 when consentGiven is false (consent check runs after idempotency)', async () => {
+    mockSelectResult = { data: { id: 'job-1', user_id: 'u1', customer_name: 'Jane', meta: { quoteStatus: 'sent' } }, error: null };
     const handler = await getHandler();
-    const res = await handler(makeEvent({ token: VALID_TOKEN, signature: 'data:image/jpeg;base64,abc' }));
+    const res = await handler(makeEvent({ token: VALID_TOKEN, consentGiven: false }));
     expect(res.statusCode).toBe(400);
-    expect(JSON.parse(res.body).error).toMatch(/PNG dataURL/i);
+    expect(JSON.parse(res.body).error).toMatch(/consent/i);
   });
 
-  it('returns 400 when signature exceeds 200 KB', async () => {
+  it('does NOT require a signature field (G-2 data-minimisation)', async () => {
+    // This test confirms the old signature requirement is gone.
+    // The handler should proceed past validation when only token + consent are provided.
+    // (It will hit the DB mock which returns null → 404, not 400)
+    mockSelectResult = { data: null, error: { message: 'No rows' } };
     const handler = await getHandler();
-    const res = await handler(makeEvent({ token: VALID_TOKEN, signature: OVERSIZED_SIG }));
-    expect(res.statusCode).toBe(400);
-    expect(JSON.parse(res.body).error).toMatch(/200 KB/i);
+    const res = await handler(makeEvent({ token: VALID_TOKEN, consentGiven: true }));
+    // 404 (token not found) means validation passed — 400 would mean sig still required
+    expect(res.statusCode).toBe(404);
   });
 });
 
-// ─── B. Env var guard ─────────────────────────────────────────────────────────
+// ─── B. Missing env vars ──────────────────────────────────────────────────────
 
 describe('B. Missing env vars', () => {
   it('returns 500 when SUPABASE_SERVICE_ROLE_KEY is not set', async () => {
     delete process.env.SUPABASE_SERVICE_ROLE_KEY;
     const handler = await getHandler();
-    const res = await handler(makeEvent({ token: VALID_TOKEN, signature: VALID_SIG }));
+    const res = await handler(makeEvent({ token: VALID_TOKEN, consentGiven: true }));
     expect(res.statusCode).toBe(500);
     expect(JSON.parse(res.body).error).toMatch(/configuration/i);
   });
@@ -155,7 +149,7 @@ describe('B. Missing env vars', () => {
   it('returns 500 when VITE_SUPABASE_URL is not set', async () => {
     delete process.env.VITE_SUPABASE_URL;
     const handler = await getHandler();
-    const res = await handler(makeEvent({ token: VALID_TOKEN, signature: VALID_SIG }));
+    const res = await handler(makeEvent({ token: VALID_TOKEN, consentGiven: true }));
     expect(res.statusCode).toBe(500);
     expect(JSON.parse(res.body).error).toMatch(/configuration/i);
   });
@@ -167,7 +161,7 @@ describe('C. Token not found', () => {
   it('returns 404 when the token does not match any job', async () => {
     mockSelectResult = { data: null, error: { message: 'No rows found' } };
     const handler = await getHandler();
-    const res = await handler(makeEvent({ token: VALID_TOKEN, signature: VALID_SIG }));
+    const res = await handler(makeEvent({ token: VALID_TOKEN, consentGiven: true }));
     expect(res.statusCode).toBe(404);
     expect(JSON.parse(res.body).error).toMatch(/not found/i);
   });
@@ -176,11 +170,33 @@ describe('C. Token not found', () => {
 // ─── D. Idempotency ───────────────────────────────────────────────────────────
 
 describe('D. Idempotency', () => {
-  it('returns 200 + alreadyAccepted:true without overwriting when token is already accepted', async () => {
-    const existingAt = '2026-05-01T10:00:00.000Z';
+  it('returns 200 + alreadyAccepted:true when quoteStatus is already accepted (G-2 path)', async () => {
+    const existingAt = '2026-06-23T10:00:00.000Z';
     mockSelectResult = {
       data: {
         id: 'job-uuid-123',
+        meta: {
+          quoteStatus: 'accepted',
+          acceptedAt: existingAt,
+          acceptedSource: 'remote',
+        },
+      },
+      error: null,
+    };
+    const handler = await getHandler();
+    const res = await handler(makeEvent({ token: VALID_TOKEN, consentGiven: true }));
+
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(body.alreadyAccepted).toBe(true);
+    expect(body.acceptedAt).toBe(existingAt);
+  });
+
+  it('returns 200 + alreadyAccepted:true when acceptedSignature is present (legacy pre-G-2 path)', async () => {
+    const existingAt = '2026-05-01T10:00:00.000Z';
+    mockSelectResult = {
+      data: {
+        id: 'job-uuid-legacy',
         meta: {
           acceptedSignature: 'data:image/png;base64,EXISTING',
           acceptedAt: existingAt,
@@ -190,25 +206,23 @@ describe('D. Idempotency', () => {
       error: null,
     };
     const handler = await getHandler();
-    const res = await handler(makeEvent({ token: VALID_TOKEN, signature: VALID_SIG }));
+    const res = await handler(makeEvent({ token: VALID_TOKEN, consentGiven: true }));
 
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.body);
     expect(body.alreadyAccepted).toBe(true);
     expect(body.acceptedAt).toBe(existingAt);
-    // Idempotency is validated via the response — existing state returned, no overwrite.
   });
 });
 
 // ─── E. Success path ──────────────────────────────────────────────────────────
 
 describe('E. Success path', () => {
-  it('returns 200 { acceptedAt } on a valid new submission', async () => {
+  it('returns 200 { acceptedAt } on a valid new submission without signature', async () => {
     mockSelectResult = {
       data: { id: 'job-uuid-456', meta: { publicAccessToken: VALID_TOKEN } },
       error: null,
     };
-    // Mock update to succeed
     const { createClient } = await import('@supabase/supabase-js');
     createClient.mockImplementationOnce(() => ({
       from: vi.fn(() => ({
@@ -224,7 +238,6 @@ describe('E. Success path', () => {
     const handler = await getHandler();
     const res = await handler(makeEvent({
       token: VALID_TOKEN,
-      signature: VALID_SIG,
       acceptedName: 'Jane Customer',
       consentGiven: true,
     }));
@@ -233,7 +246,6 @@ describe('E. Success path', () => {
     const body = JSON.parse(res.body);
     expect(body.acceptedAt).toBeDefined();
     expect(typeof body.acceptedAt).toBe('string');
-    // Must not expose job IDs or internal tokens in the response
     expect(body.id).toBeUndefined();
     expect(body.token).toBeUndefined();
   });
@@ -243,22 +255,10 @@ describe('E. Success path', () => {
       data: { id: 'job-uuid-consent', meta: { publicAccessToken: VALID_TOKEN } },
       error: null,
     };
-    const { createClient } = await import('@supabase/supabase-js');
-    createClient.mockImplementationOnce(() => ({
-      from: vi.fn(() => ({
-        select: vi.fn().mockReturnThis(),
-        eq: vi.fn().mockReturnThis(),
-        single: vi.fn(async () => mockSelectResult),
-        update: vi.fn(() => ({
-          eq: vi.fn(async () => ({ error: null })),
-        })),
-      })),
-    }));
 
     const handler = await getHandler();
     const res = await handler(makeEvent({
       token: VALID_TOKEN,
-      signature: VALID_SIG,
       // consentGiven deliberately omitted
     }));
 
@@ -289,11 +289,38 @@ describe('E. Success path', () => {
     }));
 
     const handler = await getHandler();
-    await handler(makeEvent({ token: VALID_TOKEN, signature: VALID_SIG, acceptedName: longName, consentGiven: true }));
+    await handler(makeEvent({ token: VALID_TOKEN, acceptedName: longName, consentGiven: true }));
 
-    // capturedMeta may not be set in all mock configurations — soft check
     if (capturedMeta) {
       expect(capturedMeta.acceptedName.length).toBeLessThanOrEqual(200);
+    }
+  });
+
+  it('does NOT write acceptedSignature to meta (data-minimisation)', async () => {
+    mockSelectResult = {
+      data: { id: 'job-no-sig', meta: {} },
+      error: null,
+    };
+
+    const { createClient } = await import('@supabase/supabase-js');
+    let capturedMeta = null;
+    createClient.mockImplementationOnce(() => ({
+      from: vi.fn(() => ({
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        single: vi.fn(async () => mockSelectResult),
+        update: vi.fn((payload) => {
+          capturedMeta = payload?.meta;
+          return { eq: vi.fn(async () => ({ error: null })) };
+        }),
+      })),
+    }));
+
+    const handler = await getHandler();
+    await handler(makeEvent({ token: VALID_TOKEN, consentGiven: true }));
+
+    if (capturedMeta) {
+      expect(capturedMeta.acceptedSignature).toBeUndefined();
     }
   });
 });
@@ -301,7 +328,7 @@ describe('E. Success path', () => {
 // ─── F. acceptedSource field ──────────────────────────────────────────────────
 
 describe('F. acceptedSource field in written meta', () => {
-  it('sets acceptedSource to "remote"', async () => {
+  it('sets acceptedSource to "remote" and quoteStatus to "accepted"', async () => {
     mockSelectResult = {
       data: { id: 'job-src-test', meta: {} },
       error: null,
@@ -322,21 +349,19 @@ describe('F. acceptedSource field in written meta', () => {
     }));
 
     const handler = await getHandler();
-    await handler(makeEvent({ token: VALID_TOKEN, signature: VALID_SIG, consentGiven: true }));
+    await handler(makeEvent({ token: VALID_TOKEN, consentGiven: true }));
 
     if (writtenMeta) {
       expect(writtenMeta.acceptedSource).toBe('remote');
       expect(writtenMeta.quoteStatus).toBe('accepted');
       expect(writtenMeta.jobStatus).toBe('active');
-      expect(writtenMeta.acceptedSignature).toBe(VALID_SIG);
+      // G-2: no signature stored
+      expect(writtenMeta.acceptedSignature).toBeUndefined();
     }
   });
 });
 
 // ─── G. Status promotion on acceptance ────────────────────────────────────────
-// Covers the "still awaiting approval" bug: accept-quote must promote status
-// to 'active' for any pre-acceptance status, and must NOT regress a job that
-// is already past the Quoted stage (e.g. trader moved it to On/Invoiced manually).
 
 function makeMockClient(writtenMetaRef) {
   return {
@@ -363,7 +388,7 @@ describe('G. Status promotion on acceptance', () => {
     createClient.mockImplementationOnce(() => makeMockClient(ref));
 
     const handler = await getHandler();
-    const res = await handler(makeEvent({ token: VALID_TOKEN, signature: VALID_SIG, consentGiven: true }));
+    const res = await handler(makeEvent({ token: VALID_TOKEN, consentGiven: true }));
 
     expect(res.statusCode).toBe(200);
     if (ref.value) {
@@ -383,7 +408,7 @@ describe('G. Status promotion on acceptance', () => {
     createClient.mockImplementationOnce(() => makeMockClient(ref));
 
     const handler = await getHandler();
-    const res = await handler(makeEvent({ token: VALID_TOKEN, signature: VALID_SIG, consentGiven: true }));
+    const res = await handler(makeEvent({ token: VALID_TOKEN, consentGiven: true }));
 
     expect(res.statusCode).toBe(200);
     if (ref.value) {
@@ -392,7 +417,7 @@ describe('G. Status promotion on acceptance', () => {
     }
   });
 
-  it('does NOT regress status when job is already active (trader started the job early)', async () => {
+  it('does NOT regress status when job is already active', async () => {
     mockSelectResult = {
       data: { id: 'job-already-on', meta: { status: 'active', quoteStatus: 'sent' } },
       error: null,
@@ -402,11 +427,10 @@ describe('G. Status promotion on acceptance', () => {
     createClient.mockImplementationOnce(() => makeMockClient(ref));
 
     const handler = await getHandler();
-    const res = await handler(makeEvent({ token: VALID_TOKEN, signature: VALID_SIG, consentGiven: true }));
+    const res = await handler(makeEvent({ token: VALID_TOKEN, consentGiven: true }));
 
     expect(res.statusCode).toBe(200);
     if (ref.value) {
-      // status must remain active, quoteStatus flips to accepted
       expect(ref.value.status).toBe('active');
       expect(ref.value.quoteStatus).toBe('accepted');
     }
@@ -422,11 +446,10 @@ describe('G. Status promotion on acceptance', () => {
     createClient.mockImplementationOnce(() => makeMockClient(ref));
 
     const handler = await getHandler();
-    const res = await handler(makeEvent({ token: VALID_TOKEN, signature: VALID_SIG, consentGiven: true }));
+    const res = await handler(makeEvent({ token: VALID_TOKEN, consentGiven: true }));
 
     expect(res.statusCode).toBe(200);
     if (ref.value) {
-      // status must stay invoice_sent — accept-quote never time-travels backwards
       expect(ref.value.status).toBe('invoice_sent');
       expect(ref.value.quoteStatus).toBe('accepted');
     }
@@ -442,7 +465,7 @@ describe('G. Status promotion on acceptance', () => {
     createClient.mockImplementationOnce(() => makeMockClient(ref));
 
     const handler = await getHandler();
-    const res = await handler(makeEvent({ token: VALID_TOKEN, signature: VALID_SIG, consentGiven: true }));
+    const res = await handler(makeEvent({ token: VALID_TOKEN, consentGiven: true }));
 
     expect(res.statusCode).toBe(200);
     if (ref.value) {
@@ -463,7 +486,6 @@ describe('G. Status promotion on acceptance', () => {
     const handler = await getHandler();
     const res = await handler(makeEvent({
       token: VALID_TOKEN,
-      signature: VALID_SIG,
       acceptedName: 'Sarah Jones',
       consentGiven: true,
     }));

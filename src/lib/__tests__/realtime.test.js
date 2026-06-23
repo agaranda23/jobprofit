@@ -273,102 +273,120 @@ describe('subscribeToJobs — unsub', () => {
   });
 });
 
-// ─── H. Signature detection logic (AppShell handler inline mirror) ───────────
+// ─── H. Remote decision detection logic (AppShell handler inline mirror) ─────
 //
-// The AppShell Realtime handler detects a remote signature by comparing the
-// previous job state (from jobsRef) to the incoming payload. This tests the
-// detection logic in isolation — no React, no DOM.
+// Phase G-2 update: detection is now based on quoteStatus transitions
+// ('sent' → 'accepted' or 'sent' → 'declined') rather than the presence of
+// acceptedSignature. This mirrors what the AppShell Realtime handler should
+// check when it receives an UPDATE payload. Tested in isolation — no React, no DOM.
 
-function detectRemoteSignature(payload, previousJobs) {
+/**
+ * Returns the decision type ('accepted' | 'declined') and customer name when
+ * a quoteStatus transition is detected (null/sent → accepted/declined).
+ * Returns null when no new decision is detected.
+ */
+function detectRemoteDecision(payload, previousJobs) {
   if (payload.eventType !== 'UPDATE' || !payload.new) return null;
   const incoming = payload.new;
   const incomingMeta = (incoming.meta && typeof incoming.meta === 'object') ? incoming.meta : {};
-  const hasRemoteSig = incomingMeta.acceptedSignature && incomingMeta.acceptedSource === 'remote';
-  if (!hasRemoteSig) return null;
+  const newStatus = incomingMeta.quoteStatus;
+  if (newStatus !== 'accepted' && newStatus !== 'declined') return null;
+
   const prev = previousJobs.find(j => j.id === incoming.id);
-  const prevHadSig = !!(prev?.acceptedSignature);
-  if (prevHadSig) return null;
-  return incoming.customer_name || prev?.name || 'Customer';
+  const prevStatus = prev?.quoteStatus || null;
+  // Only fire when the status is newly set (transition, not an existing state)
+  if (prevStatus === newStatus) return null;
+
+  const customerName = incoming.customer_name || prev?.name || 'Customer';
+  return { decision: newStatus, customerName };
 }
 
-describe('detectRemoteSignature — AppShell toast logic', () => {
-  const BASE_PAYLOAD = {
+describe('detectRemoteDecision — AppShell toast logic (G-2)', () => {
+  const ACCEPT_PAYLOAD = {
     eventType: 'UPDATE',
     new: {
       id: 'j-uuid-1',
       customer_name: 'Sarah Mitchell',
-      meta: { acceptedSignature: 'data:image/png;base64,...', acceptedSource: 'remote' },
+      meta: { quoteStatus: 'accepted', acceptedAt: '2026-06-23T10:00:00Z', acceptedSource: 'remote' },
     },
   };
 
-  it('returns customer name when signature transitions null → set with acceptedSource=remote', () => {
-    const prevJobs = [{ id: 'j-uuid-1', name: 'Sarah Mitchell', acceptedSignature: null }];
-    const name = detectRemoteSignature(BASE_PAYLOAD, prevJobs);
-    expect(name).toBe('Sarah Mitchell');
+  const DECLINE_PAYLOAD = {
+    eventType: 'UPDATE',
+    new: {
+      id: 'j-uuid-2',
+      customer_name: 'Bob Jones',
+      meta: { quoteStatus: 'declined', declinedAt: '2026-06-23T10:00:00Z' },
+    },
+  };
+
+  it('returns accepted decision when quoteStatus transitions to accepted', () => {
+    const prevJobs = [{ id: 'j-uuid-1', quoteStatus: 'sent' }];
+    const result = detectRemoteDecision(ACCEPT_PAYLOAD, prevJobs);
+    expect(result).toEqual({ decision: 'accepted', customerName: 'Sarah Mitchell' });
   });
 
-  it('returns null when the job already had a signature (no transition)', () => {
-    const prevJobs = [{ id: 'j-uuid-1', acceptedSignature: 'data:image/png;base64,...' }];
-    const name = detectRemoteSignature(BASE_PAYLOAD, prevJobs);
-    expect(name).toBeNull();
+  it('returns declined decision when quoteStatus transitions to declined', () => {
+    const prevJobs = [{ id: 'j-uuid-2', quoteStatus: 'sent' }];
+    const result = detectRemoteDecision(DECLINE_PAYLOAD, prevJobs);
+    expect(result).toEqual({ decision: 'declined', customerName: 'Bob Jones' });
   });
 
-  it('returns null when acceptedSource is not remote (e.g. in-person)', () => {
-    const payload = {
-      eventType: 'UPDATE',
-      new: {
-        id: 'j-uuid-1',
-        customer_name: 'Bob',
-        meta: { acceptedSignature: 'data:...', acceptedSource: 'in-person' },
-      },
-    };
-    const prevJobs = [{ id: 'j-uuid-1', acceptedSignature: null }];
-    expect(detectRemoteSignature(payload, prevJobs)).toBeNull();
+  it('returns null when quoteStatus was already accepted (no re-notify)', () => {
+    const prevJobs = [{ id: 'j-uuid-1', quoteStatus: 'accepted' }];
+    expect(detectRemoteDecision(ACCEPT_PAYLOAD, prevJobs)).toBeNull();
+  });
+
+  it('returns null when quoteStatus was already declined (no re-notify)', () => {
+    const prevJobs = [{ id: 'j-uuid-2', quoteStatus: 'declined' }];
+    expect(detectRemoteDecision(DECLINE_PAYLOAD, prevJobs)).toBeNull();
   });
 
   it('returns null when event is INSERT (not an update)', () => {
-    const payload = { eventType: 'INSERT', new: { id: 'j-uuid-2', customer_name: 'Bob', meta: { acceptedSignature: 'sig', acceptedSource: 'remote' } } };
-    expect(detectRemoteSignature(payload, [])).toBeNull();
+    const payload = { eventType: 'INSERT', new: { id: 'j-uuid-1', meta: { quoteStatus: 'accepted' } } };
+    expect(detectRemoteDecision(payload, [])).toBeNull();
   });
 
   it('returns null when event is DELETE', () => {
-    const payload = { eventType: 'DELETE', old: { id: 'j-uuid-2' } };
-    expect(detectRemoteSignature(payload, [])).toBeNull();
+    const payload = { eventType: 'DELETE', old: { id: 'j-uuid-1' } };
+    expect(detectRemoteDecision(payload, [])).toBeNull();
   });
 
-  it('returns null when meta has no acceptedSignature', () => {
+  it('returns null when meta quoteStatus is not a decision (e.g. sent)', () => {
     const payload = {
       eventType: 'UPDATE',
-      new: { id: 'j-uuid-1', customer_name: 'Bob', meta: { acceptedSource: 'remote' } },
+      new: { id: 'j-uuid-1', meta: { quoteStatus: 'sent' } },
     };
-    expect(detectRemoteSignature(payload, [{ id: 'j-uuid-1', acceptedSignature: null }])).toBeNull();
+    expect(detectRemoteDecision(payload, [])).toBeNull();
   });
 
-  it('falls back to prev.name when customer_name is not on the incoming row', () => {
+  it('falls back to prev.name when customer_name is absent on incoming row', () => {
     const payload = {
       eventType: 'UPDATE',
-      new: { id: 'j-uuid-1', meta: { acceptedSignature: 'sig', acceptedSource: 'remote' } },
+      new: { id: 'j-uuid-1', meta: { quoteStatus: 'accepted' } },
     };
-    const prevJobs = [{ id: 'j-uuid-1', name: 'Fallback Name', acceptedSignature: null }];
-    expect(detectRemoteSignature(payload, prevJobs)).toBe('Fallback Name');
+    const prevJobs = [{ id: 'j-uuid-1', name: 'Fallback Name', quoteStatus: 'sent' }];
+    const result = detectRemoteDecision(payload, prevJobs);
+    expect(result?.customerName).toBe('Fallback Name');
   });
 
   it('falls back to "Customer" when neither customer_name nor prev.name exists', () => {
     const payload = {
       eventType: 'UPDATE',
-      new: { id: 'j-uuid-1', meta: { acceptedSignature: 'sig', acceptedSource: 'remote' } },
+      new: { id: 'j-uuid-1', meta: { quoteStatus: 'accepted' } },
     };
-    expect(detectRemoteSignature(payload, [])).toBe('Customer');
+    const result = detectRemoteDecision(payload, []);
+    expect(result?.customerName).toBe('Customer');
   });
 
   it('returns null when payload.new is absent', () => {
     const payload = { eventType: 'UPDATE' };
-    expect(detectRemoteSignature(payload, [])).toBeNull();
+    expect(detectRemoteDecision(payload, [])).toBeNull();
   });
 
-  it('handles job not found in previousJobs (new job receiving a sig)', () => {
-    // prevHadSig is false when prev is undefined — should fire toast
-    const name = detectRemoteSignature(BASE_PAYLOAD, []);
-    expect(name).toBe('Sarah Mitchell');
+  it('fires on accept even when job is not in previousJobs (new job)', () => {
+    const result = detectRemoteDecision(ACCEPT_PAYLOAD, []);
+    expect(result?.decision).toBe('accepted');
+    expect(result?.customerName).toBe('Sarah Mitchell');
   });
 });

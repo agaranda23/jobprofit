@@ -432,7 +432,7 @@ function CustomerCard({ job, onEditName, onEditPhone, onEditAddress, onEditEmail
             Accepted by {job.acceptedName || 'customer'}
           </div>
           <div className="sig-accepted-source">
-            {job.acceptedSource === 'remote' ? 'Signed remotely' : 'Signed on screen'}
+            {job.acceptedSource === 'remote' ? 'Accepted remotely' : 'Accepted on screen'}
           </div>
           <div className="sig-accepted-date">
             {fmtDate(job.acceptedAt)}
@@ -3084,15 +3084,18 @@ export default function JobDetailDrawer({
     !!job.publicAccessToken &&
     !job.publicTokenRevokedAt;
 
-  // Send link: visible when job has lineItems and is not yet accepted (used for kebab too)
+  // Send link: visible when job has lineItems and is not yet accepted or declined.
+  // Declined quotes hide this CTA — the trader should reopen/edit first.
   const showSendLink = onUpdateJob &&
     Array.isArray(job.lineItems) && job.lineItems.length > 0 &&
-    job.quoteStatus !== 'accepted';
+    job.quoteStatus !== 'accepted' &&
+    job.quoteStatus !== 'declined';
 
   // Mark Sent: visible when quoteStatus is 'draft' (quote exists but not yet sent)
   const showMarkSent = job.quoteStatus === 'draft' && onUpdateJob;
-  // Accept Quote: the Tradify-steal CTA — shows when quote is sent but not yet accepted
-  const showAcceptQuote = onUpdateJob && job.quoteStatus === 'sent' && !job.acceptedSignature;
+  // Accept Quote: the Tradify-steal CTA — shows when quote is sent and not yet decided.
+  // quoteStatus is the canonical signal (G-2); acceptedSignature guard removed (dead code).
+  const showAcceptQuote = onUpdateJob && job.quoteStatus === 'sent';
   // Convert: fallback for jobs already accepted without a signature, or legacy quoteStatus edge cases
   const showConvert =
     onUpdateJob && !showAcceptQuote && (
@@ -3121,6 +3124,7 @@ export default function JobDetailDrawer({
     (job.jobStatus === 'active' && job.quoteStatus !== 'draft' && job.quoteStatus !== 'sent');
 
   const isQuoteSent = job.quoteStatus === 'sent';
+  const isQuoteDeclined = job.quoteStatus === 'declined';
 
   // Profit for the Paid state headline: quote minus all linked receipt costs.
   const quoteValue = Number(job.total ?? job.amount ?? 0);
@@ -3137,6 +3141,7 @@ export default function JobDetailDrawer({
     isInvoiced,
     isQuoteAccepted,
     isQuoteSent,
+    isQuoteDeclined,
     showChase,
     chaseBlocked,
     tier,

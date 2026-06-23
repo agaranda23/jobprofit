@@ -953,14 +953,15 @@ describe('lineItems save — total recomputed and written to job.amount / job.to
 // Canvas drawing is covered by visual smoke on the deploy preview.
 
 /**
- * Mirrors the showAcceptQuote visibility logic in JobDetailDrawer:
- *   - visible when quoteStatus is 'sent' AND acceptedSignature is absent
- *   - hidden when quoteStatus is 'accepted' (already signed)
+ * Mirrors the showAcceptQuote visibility logic in JobDetailDrawer (G-2):
+ *   - visible when quoteStatus is 'sent'
+ *   - hidden when quoteStatus is 'accepted' (already decided)
+ *   - hidden when quoteStatus is 'declined' (already decided)
  *   - hidden when quoteStatus is 'draft' (not yet sent)
- *   - hidden when acceptedSignature already present (already accepted with sig)
+ *   Note: acceptedSignature guard removed in G-2 (quoteStatus is now canonical).
  */
 function showAcceptQuoteGate(job) {
-  return job.quoteStatus === 'sent' && !job.acceptedSignature;
+  return job.quoteStatus === 'sent';
 }
 
 /**
@@ -993,21 +994,25 @@ function showConvertFallbackGate(job) {
 const FAKE_SIG = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
 const FAKE_AT  = '2026-05-20T10:30:00.000Z';
 
-describe('Phase F — Accept Quote visibility gate', () => {
-  it('shows Accept Quote when quoteStatus is sent and no signature yet', () => {
+describe('Phase G-2 — Accept Quote visibility gate', () => {
+  it('shows Accept Quote when quoteStatus is sent', () => {
     expect(showAcceptQuoteGate({ quoteStatus: 'sent' })).toBe(true);
   });
 
-  it('hides Accept Quote when quoteStatus is accepted (already signed)', () => {
-    expect(showAcceptQuoteGate({ quoteStatus: 'accepted', acceptedSignature: FAKE_SIG })).toBe(false);
+  it('shows Accept Quote when quoteStatus is sent even if acceptedSignature present (legacy, G-2 ignores it)', () => {
+    expect(showAcceptQuoteGate({ quoteStatus: 'sent', acceptedSignature: FAKE_SIG })).toBe(true);
+  });
+
+  it('hides Accept Quote when quoteStatus is accepted', () => {
+    expect(showAcceptQuoteGate({ quoteStatus: 'accepted' })).toBe(false);
+  });
+
+  it('hides Accept Quote when quoteStatus is declined', () => {
+    expect(showAcceptQuoteGate({ quoteStatus: 'declined' })).toBe(false);
   });
 
   it('hides Accept Quote when quoteStatus is draft (not sent yet)', () => {
     expect(showAcceptQuoteGate({ quoteStatus: 'draft' })).toBe(false);
-  });
-
-  it('hides Accept Quote when acceptedSignature already present (idempotent)', () => {
-    expect(showAcceptQuoteGate({ quoteStatus: 'sent', acceptedSignature: FAKE_SIG })).toBe(false);
   });
 });
 

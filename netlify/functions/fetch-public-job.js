@@ -155,6 +155,9 @@ export const handler = async function (event) {
     quoteNumber:       m.quoteNumber    ?? null,
     acceptedSignature: m.acceptedSignature ?? null,
     acceptedAt:        m.acceptedAt     ?? null,
+    // declinedAt exposed so RemoteDeclinedBlock can show "Declined on {date}" on revisit.
+    // declinedName and declineReason are NOT returned — trader-only data.
+    declinedAt:        m.declinedAt     ?? null,
 
     // Invoice-specific fields from meta
     invoiceNumber:  m.invoiceNumber  ?? null,
