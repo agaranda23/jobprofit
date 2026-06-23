@@ -70,6 +70,30 @@
   --lh-money-sm:    1.2;
   --lh-money-hero:  1.1;
 
+  /* ── Space scale (base-4) ── JP-LU4 PR1 */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  /* ── Radius scale ── JP-LU4 PR1 */
+  --radius-xs:   4px;
+  --radius-sm:   6px;
+  --radius-md:   10px;
+  --radius-lg:   12px;
+  --radius-xl:   16px;
+  --radius-2xl:  20px;
+  --radius-pill: 999px;
+
+  /* ── Elevation (theme-agnostic dark defaults) ── JP-LU4 PR1 */
+  --shadow-xs: 0 1px 0 rgba(0,0,0,0.25);
+  --shadow-sm: 0 1px 4px rgba(0,0,0,0.12);
+  --shadow-md: 0 4px 16px rgba(0,0,0,0.12);
+  --shadow-lg: 0 8px 24px rgba(0,0,0,0.4);
+
   font-family: var(--font-sans);
   line-height: 1.5;
   font-weight: 400;
@@ -269,6 +293,9 @@ button:focus-visible {
 
   /* DrawerAvatar border — dark uses rgba(255,255,255,0.12) which is invisible on white */
   --avatar-border: rgba(0, 0, 0, 0.12);
+
+  /* Elevation overrides for light mode — JP-LU4 PR1 */
+  --shadow-md: 0 4px 16px rgba(0,0,0,0.12);
 }
 
 /* Status badge backgrounds in light mode — tints on white rather than
@@ -1168,7 +1195,9 @@ body { background: var(--bg); color: var(--text); -webkit-font-smoothing: antial
 .mic-button { width: 100%; padding: 24px; background: var(--accent); color: #0b1f10; border: none; border-radius: 14px; font-size: var(--fs-subhead); font-weight: 600; cursor: pointer; margin-bottom: 12px; }
 .mic-button:active { transform: scale(0.98); }
 .modal-or { text-align: center; color: var(--text-dim); font-size: var(--fs-label); margin: 4px 0 8px; letter-spacing: 0.05em; }
-.voice-indicator.pulsing { animation: pulse 1.2s ease-in-out infinite; }
+@media (prefers-reduced-motion: no-preference) {
+  .voice-indicator.pulsing { animation: pulse 1.2s ease-in-out infinite; }
+}
 @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.55; } }
 
 /* v2 polish */
@@ -1782,8 +1811,10 @@ body {
 }
 
 /* Profit flash on change */
-.profit-value.flash {
-  animation: profit-flash 0.9s ease-out;
+@media (prefers-reduced-motion: no-preference) {
+  .profit-value.flash {
+    animation: profit-flash 0.9s ease-out;
+  }
 }
 @keyframes profit-flash {
   0%   { transform: scale(1); color: var(--accent); }
@@ -1808,8 +1839,10 @@ body {
   font-size: var(--fs-body);
   font-weight: 500;
   z-index: var(--z-toast);
-  animation: toast-in 0.25s ease-out;
   box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .toast { animation: toast-in 0.25s ease-out; }
 }
 @keyframes toast-in {
   from { opacity: 0; transform: translate(-50%, 10px); }
@@ -1840,8 +1873,10 @@ body {
   gap: 10px;
   max-width: calc(100vw - 40px);
   box-shadow: 0 8px 24px rgba(0,0,0,0.4);
-  animation: toast-in 0.25s ease-out;
   line-height: 1.4;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .snackbar { animation: toast-in 0.25s ease-out; }
 }
 .snackbar__msg {
   flex: 1;
@@ -2003,9 +2038,11 @@ body {
   gap: 8px;
   z-index: var(--z-toast);
   box-shadow: 0 8px 24px rgba(0,0,0,0.4);
-  animation: toast-in 0.25s ease-out;
   white-space: nowrap;
   max-width: calc(100vw - 32px);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .got-paid-toast { animation: toast-in 0.25s ease-out; }
 }
 .got-paid-toast__label {
   font-size: var(--fs-label);
@@ -2294,7 +2331,13 @@ body {
   border: 2px solid var(--border);
   border-top-color: var(--accent);
   border-radius: 50%;
-  animation: spin 0.8s linear infinite;
+  opacity: 1;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .ocr-spinner { animation: spin 0.8s linear infinite; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ocr-spinner { animation: none; opacity: 1; }
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
@@ -3328,7 +3371,9 @@ input[type=number] { -moz-appearance: textfield; }
   inset: 0;
   background: rgba(0,0,0,0.55);
   z-index: var(--z-backdrop);
-  animation: fade-in 0.2s ease;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .drawer-backdrop { animation: fade-in 0.2s ease; }
 }
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
 
@@ -3344,7 +3389,9 @@ input[type=number] { -moz-appearance: textfield; }
   overflow-y: auto;
   padding: 24px 20px calc(24px + env(safe-area-inset-bottom));
   box-sizing: border-box;
-  animation: slide-in-right 0.25s ease-out;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .account-drawer { animation: slide-in-right 0.25s ease-out; }
 }
 @keyframes slide-in-right {
   from { transform: translateX(100%); }
@@ -5142,8 +5189,10 @@ input[type=number] { -moz-appearance: textfield; }
   gap: 10px;
   max-width: calc(100vw - 40px);
   box-shadow: 0 8px 24px rgba(0,0,0,0.4);
-  animation: toast-in 0.25s ease-out;
   line-height: 1.4;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .nav-toast { animation: toast-in 0.25s ease-out; }
 }
 .nav-toast-close {
   background: none;
@@ -5201,8 +5250,14 @@ input[type=number] { -moz-appearance: textfield; }
   border: 1.5px solid rgba(96, 165, 250, 0.3);
   border-top-color: #60a5fa;
   border-radius: 50%;
-  animation: sync-spin 0.7s linear infinite;
   flex-shrink: 0;
+  opacity: 1;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .sync-badge__spinner { animation: sync-spin 0.7s linear infinite; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sync-badge__spinner { animation: none; opacity: 1; }
 }
 @keyframes sync-spin {
   to { transform: rotate(360deg); }
@@ -6014,8 +6069,10 @@ input[type=number] { -moz-appearance: textfield; }
   border: 1px solid var(--border);
   border-radius: 12px;
   margin-top: 8px;
+}
+@media (prefers-reduced-motion: no-preference) {
   /* Subtle entrance — fades in so it doesn't feel jarring on first load */
-  animation: coachmark-fadein 0.25s ease both;
+  .pipeline-coachmark { animation: coachmark-fadein 0.25s ease both; }
 }
 
 @keyframes coachmark-fadein {
@@ -6143,7 +6200,9 @@ input[type=number] { -moz-appearance: textfield; }
   border-radius: 16px 16px 0 0;
   padding: 12px 0 max(24px, env(safe-area-inset-bottom)) 0;
   z-index: var(--z-sheet);
-  animation: sheet-slide-up 0.2s ease;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .job-overflow-sheet { animation: sheet-slide-up 0.2s ease; }
 }
 @keyframes sheet-slide-up {
   from { transform: translateY(100%); }
@@ -7489,9 +7548,11 @@ input[type=number] { -moz-appearance: textfield; }
   z-index: var(--z-sheet);
   display: flex;
   flex-direction: column;
-  animation: slide-up 0.25s ease-out;
   /* padding-bottom removed: the sticky BottomActionBar handles safe-area-inset-bottom
      itself. Adding it on the sheet too would double-count on notched iPhones. */
+}
+@media (prefers-reduced-motion: no-preference) {
+  .job-detail-sheet { animation: slide-up 0.25s ease-out; }
 }
 @keyframes slide-up {
   from { transform: translateY(100%); }
@@ -7877,7 +7938,9 @@ button.jd-money-chip:active { opacity: 0.75; }
   border-radius: 12px;
   text-align: center;
   pointer-events: none;
-  animation: fade-in 0.2s ease;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .job-detail-toast { animation: fade-in 0.2s ease; }
 }
 
 /* Desktop: constrain drawer to card width, centred, with card-style border */
@@ -7931,7 +7994,9 @@ button.jd-money-chip:active { opacity: 0.75; }
   z-index: 10;
   min-width: 180px;
   overflow: hidden;
-  animation: fade-in 0.15s ease;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .jd-kebab-menu { animation: fade-in 0.15s ease; }
 }
 
 .jd-kebab-item {
@@ -8988,7 +9053,9 @@ button.jd-money-chip:active { opacity: 0.75; }
   /* Shrink when the keyboard is up so sheet body stays within the visible area. */
   max-height: calc(90svh - var(--kb-inset, 0px));
   overflow-y: auto;
-  animation: slide-up 0.25s ease-out;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .modal-sheet { animation: slide-up 0.25s ease-out; }
 }
 .modal-sheet-header {
   display: flex;
@@ -9862,10 +9929,12 @@ button.jd-money-chip:active { opacity: 0.75; }
 .pqv-skeleton {
   background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
   background-size: 200% 100%;
-  animation: pqv-shimmer 1.4s infinite;
   border-radius: 6px;
   margin-bottom: 14px;
   height: 16px;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .pqv-skeleton { animation: pqv-shimmer 1.4s infinite; }
 }
 
 .pqv-skeleton--title { height: 24px; width: 60%; }
@@ -10246,7 +10315,9 @@ button.jd-money-chip:active { opacity: 0.75; }
   max-width: calc(100vw - 40px);
   width: 340px;
   box-shadow: 0 8px 24px rgba(0,0,0,0.4);
-  animation: toast-in 0.25s ease-out;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .push-prompt { animation: toast-in 0.25s ease-out; }
 }
 .push-prompt-text {
   font-size: var(--fs-label);
@@ -11282,8 +11353,9 @@ button.jd-money-chip:active { opacity: 0.75; }
   display: flex;
   align-items: flex-end;
   padding: 0;
-  /* Slide-up animation */
-  animation: dso-fade-in 0.18s ease-out;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .dso-backdrop { animation: dso-fade-in 0.18s ease-out; }
 }
 
 @keyframes dso-fade-in {
@@ -11308,7 +11380,9 @@ button.jd-money-chip:active { opacity: 0.75; }
   flex-direction: column;
   overflow: hidden;
   padding-bottom: env(safe-area-inset-bottom, 0px);
-  animation: dso-slide-up 0.2s ease-out;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .dso-sheet { animation: dso-slide-up 0.2s ease-out; }
 }
 
 @keyframes dso-slide-up {
@@ -16210,8 +16284,10 @@ button.jd-money-chip:active { opacity: 0.75; }
   display: flex;
   flex-direction: column;
   gap: 0;
+}
+@media (prefers-reduced-motion: no-preference) {
   /* Smooth slide-in from bottom */
-  animation: sheet-slide-in 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+  .pro-upgrade-sheet { animation: sheet-slide-in 0.28s cubic-bezier(0.32, 0.72, 0, 1); }
 }
 
 @keyframes sheet-slide-in {
