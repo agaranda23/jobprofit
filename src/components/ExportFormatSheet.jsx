@@ -17,6 +17,7 @@
  */
 
 import { useEffect, useRef } from 'react';
+import Icon from './Icon';
 
 export default function ExportFormatSheet({ open, title, subtitle, options = [], onPick, onClose }) {
   const sheetRef = useRef(null);
@@ -110,7 +111,7 @@ export default function ExportFormatSheet({ open, title, subtitle, options = [],
             >
               {opt.icon && (
                 <span className="export-format-sheet__option-icon" aria-hidden="true">
-                  {opt.icon}
+                  <Icon name={opt.icon} size={20} />
                 </span>
               )}
               <span className="export-format-sheet__option-text">

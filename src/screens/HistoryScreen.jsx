@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
 import { gbp } from '../lib/today';
+import Icon from '../components/Icon';
 
 export default function HistoryScreen({ jobs = [], receipts = [], onMarkPaid }) {
   const now = new Date();
@@ -99,7 +100,7 @@ export default function HistoryScreen({ jobs = [], receipts = [], onMarkPaid }) 
         <section className="recent">
           <div className="recent-divider" />
           <div className="screen-empty">
-            <div className="screen-empty-icon" aria-hidden="true">📊</div>
+            <div className="screen-empty-icon"><Icon name="bar-chart" size={32} variant="muted" /></div>
             <p className="screen-empty-title">No history yet.</p>
             <p className="screen-empty-hint">Your timeline appears here as you log jobs and receipts.</p>
           </div>

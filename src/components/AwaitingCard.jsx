@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { daysSinceInvoice } from '../lib/jobStatus';
 import { gbp } from '../lib/today';
+import Icon from './Icon';
 
 /** Returns a human-readable "N days ago" string, or '' for same-day. */
 function daysAgoLabel(isoDate) {
@@ -54,18 +55,18 @@ export default function AwaitingCard({ job, onMarkPaid }) {
           <div className="awaiting-job-picker-label">How were you paid?</div>
           <div className="awaiting-job-picker-grid">
             <button type="button" className="awaiting-job-method-btn awaiting-job-method-bank"
-              onClick={() => { onMarkPaid?.(job, 'bank transfer'); setPickerOpen(false); }}>💳 Bank</button>
+              onClick={() => { onMarkPaid?.(job, 'bank transfer'); setPickerOpen(false); }}><Icon name="credit-card" size={16} /> Bank</button>
             <button type="button" className="awaiting-job-method-btn awaiting-job-method-cash"
-              onClick={() => { onMarkPaid?.(job, 'cash'); setPickerOpen(false); }}>💵 Cash</button>
+              onClick={() => { onMarkPaid?.(job, 'cash'); setPickerOpen(false); }}><Icon name="price" size={16} /> Cash</button>
             <button type="button" className="awaiting-job-method-btn awaiting-job-method-card"
-              onClick={() => { onMarkPaid?.(job, 'card'); setPickerOpen(false); }}>💳 Card</button>
+              onClick={() => { onMarkPaid?.(job, 'card'); setPickerOpen(false); }}><Icon name="credit-card" size={16} /> Card</button>
           </div>
           <button type="button" className="awaiting-job-picker-cancel"
             onClick={() => setPickerOpen(false)}>Cancel</button>
         </div>
       ) : (
         <button type="button" className="awaiting-job-paid-btn"
-          onClick={() => setPickerOpen(true)}>💷 Mark Paid</button>
+          onClick={() => setPickerOpen(true)}><Icon name="paid" size={16} variant="brand" /> Mark Paid</button>
       )}
     </div>
   );

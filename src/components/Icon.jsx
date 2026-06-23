@@ -95,6 +95,8 @@ import {
   ReceiptText,
   Wrench,
   WifiOff,
+  FileSpreadsheet,
+  CreditCard,
 } from 'lucide-react';
 
 // ── Custom inline SVG glyphs ─────────────────────────────────────────────────
@@ -241,6 +243,10 @@ const REGISTRY = {
   map:        Map,
   navigate:   Navigation,
   'map-pin':  MapPin,
+
+  // Export formats
+  'file-spreadsheet': FileSpreadsheet,  // 📗 Excel / XLSX export
+  'credit-card':      CreditCard,       // 💳 card / bank payment method
 
   // Auth
   lock:   Lock,
