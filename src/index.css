@@ -17652,6 +17652,7 @@ button.jd-money-chip:active { opacity: 0.75; }
 
 /* ── Work screen: card ↔ table layout toggle (feat/work-table-view) ──────── */
 
+/* JP-LU5 dead-CSS: remove after slim-workscreen merges */
 /* Segmented control — card icon | table icon, top-right of the controls row */
 .work-layout-toggle {
   display: inline-flex;
@@ -17688,6 +17689,7 @@ button.jd-money-chip:active { opacity: 0.75; }
   background: var(--surface-3, var(--border));
 }
 
+/* JP-LU5 dead-CSS: remove after slim-workscreen merges */
 /* First-switch coachmark — anchored under the controls row */
 .work-table-coachmark {
   position: relative;
@@ -17725,6 +17727,7 @@ button.jd-money-chip:active { opacity: 0.75; }
   -webkit-tap-highlight-color: transparent;
 }
 
+/* JP-LU5 dead-CSS: remove after slim-workscreen merges */
 /* ── Compact 2-line row (<768px) ────────────────────────────────────────────── */
 
 /* Show compact on narrow; hide on desktop */
@@ -17979,6 +17982,7 @@ button.jd-money-chip:active { opacity: 0.75; }
   opacity: 0.7;
 }
 
+/* JP-LU5 dead-CSS: remove after slim-workscreen merges */
 /* ── Desktop/tablet 6-column sortable grid (≥768px) ──────────────────────── */
 
 .jt-table-grid-wrap {

@@ -551,7 +551,7 @@ export default function TodayScreen({
             className="foreman-empty-secondary"
             onClick={() => onSeeTheWeek?.()}
           >
-            See the week
+            Go to Jobs
           </button>
         </section>
       )}
