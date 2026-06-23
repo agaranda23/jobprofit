@@ -271,8 +271,9 @@ describe('CSS regression guard — .jd-csr overflow (4th expansion regression)',
     expect(blockWithoutComments).not.toMatch(/overflow\s*:\s*hidden/);
   });
 
-  it('.jd-csr rule still has border-radius:12px (visual chrome preserved after fix)', () => {
-    expect(jdCsrBlock).toMatch(/border-radius\s*:\s*12px/);
+  it('.jd-csr rule still has border-radius set to --radius-lg (12px, visual chrome preserved after token migration)', () => {
+    // JP-LU4 PR2: raw 12px migrated to var(--radius-lg) — guard updated to match token form.
+    expect(jdCsrBlock).toMatch(/border-radius\s*:\s*var\(--radius-lg\)/);
   });
 
   it('.jd-csr rule still has min-height:48px (thin-line regression guard preserved)', () => {
