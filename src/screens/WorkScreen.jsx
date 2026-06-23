@@ -310,13 +310,15 @@ function resolveAddress(job) {
 const STAGES = ['Lead', 'Quoted', 'On', 'Invoiced', 'Overdue', 'Paid'];
 
 // Stage palette tokens — explicit hex to avoid color-mix() (no confirmed Safari 16.4+ baseline)
+// Token mapping: values marked ✓ are byte-identical to their token in all themes.
+// Values marked ✗ have no exact token match and are intentionally left as hex.
 const STAGE_META = {
-  Lead:     { hue: '#3B82F6', fill: '#1a2a4a', ink: null },
-  Quoted:   { hue: '#B3F0D5', fill: '#7FDFB4', ink: '#1E8A5C' },
-  On:       { hue: '#5FD9A6', fill: '#1a3a2e', ink: null },
-  Invoiced: { hue: '#28B581', fill: '#1a3028', ink: null },
-  Overdue:  { hue: '#E5484D', fill: '#3a1a1a', ink: null },
-  Paid:     { hue: '#0E6B43', fill: '#0a2a1e', ink: '#B3F0D5' },
+  Lead:     { hue: '#3B82F6',              fill: 'var(--stage-fill-lead)',     ink: null },                     // hue ✗: --jp-blue is #2563eb in light mode
+  Quoted:   { hue: 'var(--grn-quoted)',    fill: '#7FDFB4',                    ink: '#1E8A5C' },               // fill ✗: light tint, no token; ink ✗: no match
+  On:       { hue: 'var(--grn-on)',        fill: 'var(--stage-fill-on)',       ink: null },
+  Invoiced: { hue: 'var(--grn-invoiced)', fill: 'var(--stage-fill-invoiced)', ink: null },
+  Overdue:  { hue: '#E5484D',              fill: 'var(--stage-fill-overdue)',  ink: null },                     // hue ✗: #E5484D ≠ --danger (#ef4444 / #dc2626)
+  Paid:     { hue: '#0E6B43',              fill: 'var(--stage-fill-paid)',     ink: 'var(--grn-quoted)' },      // hue ✗: #0E6B43 ≠ --grn-paid (#18865A)
 };
 
 /**

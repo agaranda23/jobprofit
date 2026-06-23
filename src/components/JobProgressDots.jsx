@@ -19,11 +19,13 @@ import { stageToFilledCount } from '../lib/pipelineProgress';
 const STEPS = ['Quoted', 'On', 'Invoiced', 'Paid'];
 
 // Colour for each filled segment (matches WorkScreen STAGE_META hues).
+// Token mapping verified byte-identical. #0E6B43 ≠ --grn-paid (#18865A) — left as hex until
+// the paid dot colour is reconciled with the token palette.
 const SEGMENT_COLORS = {
-  Quoted:   '#B3F0D5', // quoted green-tint
-  On:       '#5FD9A6', // active green
-  Invoiced: '#28B581', // invoiced deep green
-  Paid:     '#0E6B43', // paid dark green
+  Quoted:   'var(--grn-quoted)',   // #B3F0D5 == --grn-quoted
+  On:       'var(--grn-on)',       // #5FD9A6 == --grn-on
+  Invoiced: 'var(--grn-invoiced)', // #28B581 == --grn-invoiced
+  Paid:     '#0E6B43',             // no token: #0E6B43 ≠ --grn-paid (#18865A)
 };
 
 export default function JobProgressDots({ job }) {

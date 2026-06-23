@@ -8,13 +8,15 @@ import Icon from './Icon';
 
 // Colour palette mirrors the STAGE_META hues in WorkScreen (explicit hex, no
 // color-mix() — keeps Safari 15 compatible).
+// fg values that exactly match design tokens use var() — others kept as hex until a token lands.
+// bg values are opacity-modulated rgba — no token match; left as-is.
 const STAGE_COLORS = {
-  Lead:     { bg: 'rgba(59,130,246,0.15)', fg: '#93bbf6' },
-  Quoted:   { bg: 'rgba(179,240,213,0.18)', fg: '#1E8A5C' },
-  On:       { bg: 'rgba(95,217,166,0.18)', fg: '#28B581' },
-  Invoiced: { bg: 'rgba(40,181,129,0.18)', fg: '#28B581' },
-  Overdue:  { bg: 'rgba(229,72,77,0.15)', fg: '#E5484D' },
-  Paid:     { bg: 'rgba(14,107,67,0.20)', fg: '#28B581' },
+  Lead:     { bg: 'rgba(59,130,246,0.15)', fg: '#93bbf6' },           // #93bbf6: no token
+  Quoted:   { bg: 'rgba(179,240,213,0.18)', fg: '#1E8A5C' },          // #1E8A5C: no token
+  On:       { bg: 'rgba(95,217,166,0.18)', fg: 'var(--grn-invoiced)' },  // #28B581 == --grn-invoiced
+  Invoiced: { bg: 'rgba(40,181,129,0.18)', fg: 'var(--grn-invoiced)' },  // #28B581 == --grn-invoiced
+  Overdue:  { bg: 'rgba(229,72,77,0.15)', fg: '#E5484D' },            // #E5484D ≠ --danger (#ef4444)
+  Paid:     { bg: 'rgba(14,107,67,0.20)', fg: 'var(--grn-invoiced)' },   // #28B581 == --grn-invoiced
 };
 
 const STAGE_ICON = {
@@ -42,7 +44,7 @@ export default function StatusBadge({ job, size = 'sm' }) {
       alignItems: 'center',
       gap: 4,
       padding,
-      borderRadius: 999,
+      borderRadius: 'var(--radius-pill)',
       background: bg,
       color: fg,
       fontSize: 'var(--fs-stage)',
