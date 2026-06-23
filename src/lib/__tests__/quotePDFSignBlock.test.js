@@ -99,67 +99,59 @@ const TEST_QR  = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAf
 describe('generateQuotePDF — sign-quote link block', () => {
   beforeEach(() => { drawnTexts = []; linkCalls = []; vi.clearAllMocks(); });
 
-  it('1. does not crash when called with quoteUrl + qrDataUrl', () => {
-    expect(() =>
-      generateQuotePDF({ job: baseJob(), biz: baseBiz(), quoteUrl: TEST_URL, qrDataUrl: TEST_QR })
-    ).not.toThrow();
+  it('1. does not crash when called with quoteUrl + qrDataUrl', async () => {
+    await expect(generateQuotePDF({ job: baseJob(), biz: baseBiz(), quoteUrl: TEST_URL, qrDataUrl: TEST_QR })).resolves.toBeDefined();
   });
 
-  it('2. does not crash without quoteUrl/qrDataUrl (backwards compat)', () => {
-    expect(() =>
-      generateQuotePDF({ job: baseJob(), biz: baseBiz() })
-    ).not.toThrow();
+  it('2. does not crash without quoteUrl/qrDataUrl (backwards compat)', async () => {
+    await expect(generateQuotePDF({ job: baseJob(), biz: baseBiz() })).resolves.toBeDefined();
   });
 
-  it('3. does not crash when qrDataUrl is empty (button-only fallback)', () => {
-    expect(() =>
-      generateQuotePDF({ job: baseJob(), biz: baseBiz(), quoteUrl: TEST_URL, qrDataUrl: '' })
-    ).not.toThrow();
+  it('3. does not crash when qrDataUrl is empty (button-only fallback)', async () => {
+    await expect(generateQuotePDF({ job: baseJob(), biz: baseBiz(), quoteUrl: TEST_URL, qrDataUrl: '' })).resolves.toBeDefined();
   });
 
-  it('4. does not crash when acceptedSignature is set (legacy signed)', () => {
+  it('4. does not crash when acceptedSignature is set (legacy signed)', async () => {
     const signedJob = { ...baseJob(), acceptedSignature: TEST_QR, acceptedAt: '2026-06-01T10:00:00Z' };
-    expect(() =>
-      generateQuotePDF({ job: signedJob, biz: baseBiz(), quoteUrl: TEST_URL, qrDataUrl: TEST_QR })
-    ).not.toThrow();
+    await expect(generateQuotePDF({ job: signedJob, biz: baseBiz(), quoteUrl: TEST_URL, qrDataUrl: TEST_QR })).resolves.toBeDefined();
   });
 
-  it('5. renders "Tap to view and accept" text when quoteUrl is set and quote undecided', () => {
-    generateQuotePDF({ job: baseJob(), biz: baseBiz(), quoteUrl: TEST_URL, qrDataUrl: TEST_QR });
+  it('5. renders "Tap to view and accept" text when quoteUrl is set and quote undecided', async () => {
+    await generateQuotePDF({ job: baseJob(), biz: baseBiz(), quoteUrl: TEST_URL, qrDataUrl: TEST_QR });
     expect(drawnTexts.some(t => String(t).includes('Tap to view and accept'))).toBe(true);
   });
 
-  it('6. does not render "Tap to view and accept" when quoteUrl is absent', () => {
-    generateQuotePDF({ job: baseJob(), biz: baseBiz() });
+  it('6. does not render "Tap to view and accept" when quoteUrl is absent', async () => {
+    await generateQuotePDF({ job: baseJob(), biz: baseBiz() });
     expect(drawnTexts.some(t => String(t).includes('Tap to view and accept'))).toBe(false);
   });
 
-  it('7. does not render CTA when acceptedSignature is present (legacy pre-G-2 path)', () => {
+  it('7. does not render CTA when acceptedSignature is present (legacy pre-G-2 path)', async () => {
     const signedJob = { ...baseJob(), acceptedSignature: TEST_QR, acceptedAt: '2026-06-01T10:00:00Z' };
-    generateQuotePDF({ job: signedJob, biz: baseBiz(), quoteUrl: TEST_URL, qrDataUrl: TEST_QR });
+    await generateQuotePDF({ job: signedJob, biz: baseBiz(), quoteUrl: TEST_URL, qrDataUrl: TEST_QR });
     expect(drawnTexts.some(t => String(t).includes('Tap to view and accept'))).toBe(false);
   });
 
-  it('8. does not render CTA when quoteStatus is accepted (G-2 button path)', () => {
+  it('8. does not render CTA when quoteStatus is accepted (G-2 button path)', async () => {
     const acceptedJob = { ...baseJob(), quoteStatus: 'accepted', acceptedAt: '2026-06-23T10:00:00Z' };
-    generateQuotePDF({ job: acceptedJob, biz: baseBiz(), quoteUrl: TEST_URL, qrDataUrl: TEST_QR });
+    await generateQuotePDF({ job: acceptedJob, biz: baseBiz(), quoteUrl: TEST_URL, qrDataUrl: TEST_QR });
     expect(drawnTexts.some(t => String(t).includes('Tap to view and accept'))).toBe(false);
   });
 
-  it('9. does not render CTA when quoteStatus is declined (G-2 decline path)', () => {
+  it('9. does not render CTA when quoteStatus is declined (G-2 decline path)', async () => {
     const declinedJob = { ...baseJob(), quoteStatus: 'declined', declinedAt: '2026-06-23T10:00:00Z' };
-    generateQuotePDF({ job: declinedJob, biz: baseBiz(), quoteUrl: TEST_URL, qrDataUrl: TEST_QR });
+    await generateQuotePDF({ job: declinedJob, biz: baseBiz(), quoteUrl: TEST_URL, qrDataUrl: TEST_QR });
     expect(drawnTexts.some(t => String(t).includes('Tap to view and accept'))).toBe(false);
   });
 
-  it('10. doc.link is called with the quoteUrl when CTA is shown', () => {
-    generateQuotePDF({ job: baseJob(), biz: baseBiz(), quoteUrl: TEST_URL, qrDataUrl: TEST_QR });
+  it('10. doc.link is called with the quoteUrl when CTA is shown', async () => {
+    await generateQuotePDF({ job: baseJob(), biz: baseBiz(), quoteUrl: TEST_URL, qrDataUrl: TEST_QR });
     const linkCall = linkCalls.find(c => c[4]?.url === TEST_URL);
     expect(linkCall).toBeDefined();
   });
 
-  it('11. doc.link is NOT called with the quoteUrl when CTA is skipped (no quoteUrl)', () => {
-    generateQuotePDF({ job: baseJob(), biz: baseBiz() });
+  it('11. doc.link is NOT called with the quoteUrl when CTA is skipped (no quoteUrl)', async () => {
+    await generateQuotePDF({ job: baseJob(), biz: baseBiz() });
     const linkCall = linkCalls.find(c => c[4]?.url === TEST_URL);
     expect(linkCall).toBeUndefined();
   });

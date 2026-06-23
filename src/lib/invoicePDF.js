@@ -3,6 +3,7 @@ import autoTable from 'jspdf-autotable';
 import QRCode from 'qrcode';
 import { resolveCisStatus } from './cashflow.js';
 import { splitVatInclusive } from './vatUtils.js';
+import { downscaleDataUrl } from './photoCompress.js';
 
 // Generates an invoice PDF for the new Get Paid workflow. Distinct from
 // the legacy generateInvoicePDF in App.jsx (which uses window.jspdf and
@@ -102,15 +103,19 @@ function inferImageType(src) {
  *                        UTR / VAT reg (right, muted — when set)
  *   ── rule ──────────────────────────────────────────────────────
  */
-function drawHeader(doc, biz) {
+async function drawHeader(doc, biz) {
   const w = doc.internal.pageSize.getWidth();
   let y = 16;
 
   const logo = bizLogoUrl(biz);
   if (logo) {
     try {
-      const imgType = inferImageType(logo);
-      doc.addImage(logo, imgType, MARGIN, y, HEADER_LOGO_W, HEADER_LOGO_H);
+      // Downscale the user logo to longest-edge ≤600 px and re-encode as JPEG
+      // before embedding. At 28×28 mm display size a 600 px source is already
+      // ~54 dpi — plenty for screen and home-print quality. Transparent PNGs
+      // are flattened onto white (the header background), so JPEG is always safe.
+      const { dataUrl: scaledLogo, format: scaledFmt } = await downscaleDataUrl(logo, 600, 0.85);
+      doc.addImage(scaledLogo, scaledFmt, MARGIN, y, HEADER_LOGO_W, HEADER_LOGO_H);
     } catch { /* logo decode failed — skip silently */ }
   }
 
@@ -797,7 +802,7 @@ export async function generateInvoicePDF({
   }
 
   // ── Header ──────────────────────────────────────────────────────────────
-  let y = drawHeader(doc, effectiveBiz);
+  let y = await drawHeader(doc, effectiveBiz);
 
   // ── Document title block ──────────────────────────────────────────────
   const metaFields = [
@@ -1035,7 +1040,7 @@ export async function generateQuotePDF({ job, biz, profile = null, quoteUrl = ''
   }
 
   // ── Header ──────────────────────────────────────────────────────────────
-  let y = drawHeader(doc, effectiveBiz);
+  let y = await drawHeader(doc, effectiveBiz);
 
   // ── Document title block ──────────────────────────────────────────────
   const metaFields = [
@@ -1120,7 +1125,10 @@ export async function generateQuotePDF({ job, biz, profile = null, quoteUrl = ''
       doc.text('ACCEPTED BY CUSTOMER', MARGIN, y);
       y += 5;
 
-      doc.addImage(job.acceptedSignature, 'PNG', MARGIN, y, 80, 40);
+      // Downscale signature: 80×40 mm at PDF resolution needs ~470 px longest edge.
+      // Flatten on white — the signature block sits on a white page background.
+      const { dataUrl: scaledSig, format: sigFmt } = await downscaleDataUrl(job.acceptedSignature, 470, 0.80);
+      doc.addImage(scaledSig, sigFmt, MARGIN, y, 80, 40);
       y += 44;
 
       if (job.acceptedAt) {
