@@ -6,6 +6,8 @@ import Icon from './Icon';
  *
  * Badge props:
  *   financeBadge — overdue count shown on the Money tab.
+ *   workBadge    — count of jobs that need chasing (48h suppression applied),
+ *                  shown on the Jobs tab.
  *
  * Icon system (Wave 1): Unicode glyphs replaced with <Icon> from Icon.jsx.
  * Active tab = brand-green filled icon + brand label.
@@ -15,10 +17,11 @@ export default function BottomNav({
   view,
   onChange,
   financeBadge = 0,
+  workBadge = 0,
 }) {
   const tabs = [
     { id: 'today',    label: 'Today',    icon: 'today' },
-    { id: 'work',     label: 'Jobs',     icon: 'jobs' },
+    { id: 'work',     label: 'Jobs',     icon: 'jobs',  badge: workBadge > 0 ? workBadge : 0 },
     { id: 'finance',  label: 'Money',    icon: 'money', badge: financeBadge > 0 ? financeBadge : 0 },
     { id: 'settings', label: 'Settings', icon: 'settings' },
   ];
