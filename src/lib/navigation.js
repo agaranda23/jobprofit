@@ -1,38 +1,27 @@
 // Hash-routing helpers for back-button reliability.
 // Hash format:
-//   #/today                       → top-level view
-//   #/history                     → top-level view
-//   #/manage                      → top-level view (inner tab defaults to Overview)
-//   #/manage/<innerTab>           → manage view + specific inner tab (slugified)
+//   #/today    → Today screen
+//   #/work     → Work / Jobs screen
+//   #/finance  → Finance / Money screen
+//   #/settings → Settings screen
 //
-// Inner-tab slugs match App.jsx TABS, lowercased and dashed:
-//   "Overview" → overview
-//   "Create detailed job" → create-detailed-job
-//   "Jobs" → jobs
-//   "Schedule" → schedule
-//   "Materials" → materials
-//   "Settings" → settings
+// Legacy aliases ('#/jobs', '#/money', '#/schedule') are mapped in parseHash()
+// so old bookmarks and push-notification deep-links don't white-screen.
 
-export const TOP_VIEWS = ['today', 'history', 'manage', 'jobs', 'schedule', 'money'];
+// All four slice-3 views must be listed here — parseHash() and navigateToView()
+// use this set to validate view strings. Any view NOT in this list causes the
+// Back button to break (navigateToView silently no-ops for unknown views).
+export const TOP_VIEWS = ['today', 'work', 'finance', 'settings'];
 
-export const INNER_TAB_TO_SLUG = {
-  'Overview': 'overview',
-  'Create detailed job': 'create-detailed-job',
-  'Jobs': 'jobs',
-  'Schedule': 'schedule',
-  'Materials': 'materials',
-  'Settings': 'settings',
+// Legacy alias map — old deep-links and bookmarks that may exist in the wild.
+// These are resolved by parseHash() so they never produce a white screen.
+const LEGACY_ALIAS = {
+  jobs:     'work',
+  schedule: 'work',
+  money:    'finance',
 };
 
-export const SLUG_TO_INNER_TAB = Object.fromEntries(
-  Object.entries(INNER_TAB_TO_SLUG).map(([k, v]) => [v, k])
-);
-
-function buildHash(view, innerTab) {
-  if (view === 'manage' && innerTab && innerTab !== 'Overview') {
-    const slug = INNER_TAB_TO_SLUG[innerTab];
-    if (slug) return `#/manage/${slug}`;
-  }
+function buildHash(view) {
   return `#/${view}`;
 }
 
@@ -44,7 +33,7 @@ export function replaceHistory(state, hash) {
   window.history.replaceState(state, '', hash);
 }
 
-// Push a top-level view change (today/history/manage).
+// Push a top-level view change (today/work/finance/settings).
 export function navigateToView(view) {
   if (!TOP_VIEWS.includes(view)) return;
   const hash = buildHash(view);
@@ -52,32 +41,20 @@ export function navigateToView(view) {
   pushHistory({ view }, hash);
 }
 
-// Push an inner App.jsx tab change. Inner tabs only exist under view='manage'.
-export function navigateToInnerTab(innerTab) {
-  if (!INNER_TAB_TO_SLUG[innerTab]) return;
-  const hash = buildHash('manage', innerTab);
-  if (window.location.hash === hash) return;
-  pushHistory({ view: 'manage', innerTab }, hash);
-}
-
 export function goBack() {
   window.history.back();
 }
 
-// Parse a hash string into { view, innerTab } with sensible defaults.
+// Parse a hash string into { view } with sensible defaults.
+// Resolves legacy aliases ('jobs' → 'work', 'money' → 'finance', 'schedule' → 'work')
+// so old bookmarks and push-notification links don't white-screen.
 export function parseHash(hash = window.location.hash) {
   if (!hash || hash === '#' || hash === '#/') {
-    return { view: 'today', innerTab: null };
+    return { view: 'today' };
   }
   // Strip leading "#/" or "#"
-  const path = hash.replace(/^#\/?/, '');
-  const [head, sub] = path.split('/');
-  if (!TOP_VIEWS.includes(head)) {
-    return { view: 'today', innerTab: null };
-  }
-  if (head === 'manage') {
-    const innerTab = sub ? SLUG_TO_INNER_TAB[sub] || null : null;
-    return { view: 'manage', innerTab };
-  }
-  return { view: head, innerTab: null };
+  const head = hash.replace(/^#\/?/, '').split('/')[0];
+  if (LEGACY_ALIAS[head]) return { view: LEGACY_ALIAS[head] };
+  if (TOP_VIEWS.includes(head)) return { view: head };
+  return { view: 'today' };
 }

@@ -16,20 +16,16 @@ import {
   subscribe as pushSubscribe,
 } from './lib/pushSubscribe.js';
 import TodayScreen from './screens/TodayScreen';
-import HistoryScreen from './screens/HistoryScreen';
-import ScheduleScreen from './screens/ScheduleScreen';
 import FinanceScreen from './screens/FinanceScreen';
 import WorkScreen from './screens/WorkScreen';
 import SettingsScreen from './screens/SettingsScreen';
 import OnboardingWizard from './screens/OnboardingWizard';
 import BottomNav from './components/BottomNav';
-import HeaderAvatar from './components/HeaderAvatar';
-import AccountDrawer from './components/AccountDrawer';
 import LinkReceiptModal from './components/LinkReceiptModal';
 import { supabase } from './lib/supabase';
 import AuthScreen from './components/AuthScreen';
 import { parseHash, replaceHistory } from './lib/navigation';
-import { writeJobMeta, readJobMeta, extractJobMeta, applyJobMetaToJobs, healAcceptedMeta } from './lib/jobMeta';
+import { writeJobMeta, readJobMeta, extractJobMeta, applyJobMetaToJobs } from './lib/jobMeta';
 import { subscribeToJobs } from './lib/realtime';
 import { addPayment } from './lib/payments';
 import {
@@ -83,18 +79,13 @@ import { buildJobsXlsx } from './lib/exportXlsx.js';
 import ExportFormatSheet from './components/ExportFormatSheet.jsx';
 import AppErrorBoundary from './components/AppErrorBoundary.jsx';
 
-// ─── Feature flags ───────────────────────────────────────────────────────────
-// Slice-3 nav (Today / Jobs / Money / Settings) is the default for all users.
-// Escape hatch to fall back to legacy nav (debugging only):
-//   localStorage.setItem('jp.navSlice3', '0'); location.reload();
-// Legacy 4-tab newNav remains opt-in:
-//   localStorage.setItem('jp.newNav', '1'); location.reload();
-const NEW_NAV        = localStorage.getItem('jp.newNav')        === '1';
-const NAV_SLICE_3    = localStorage.getItem('jp.navSlice3')    !== '0';
+// ─── App-boot cleanup ─────────────────────────────────────────────────────────
+// Remove localStorage keys that were used by the now-deleted newNav and
+// navSlice3 feature flags so they don't linger in existing users' browsers.
+// Both keys were checked at module evaluation time — running this cleanup once
+// per boot is sufficient to clear them for any user who previously had them set.
+['jp.newNav', 'jp.navSlice3'].forEach(k => { try { localStorage.removeItem(k); } catch { /* ignore */ } });
 
-// View IDs recognised by each nav mode.
-// SLICE_3_VIEWS mirrors NEW_NAV_VIEWS but uses 'work'/'finance'/'settings'.
-const NEW_NAV_VIEWS  = ['today', 'jobs', 'schedule', 'money'];
 const SLICE_3_VIEWS  = ['today', 'work', 'finance', 'settings'];
 
 function wipeLegacyDemoData() {
@@ -138,21 +129,10 @@ function migrateLegacyTodayData() {
 }
 
 function parseViewFromHash() {
-  if (NAV_SLICE_3) {
-    // Read the hash directly so slice-3 view names ('work', 'finance', 'settings')
-    // are not filtered out by parseHash(), which only knows the older view set.
-    const raw = window.location.hash.replace(/^#\/?/, '').split('/')[0];
-    // Map legacy deep-link aliases that may still appear in the wild
-    if (raw === 'jobs' || raw === 'schedule') return 'work';
-    if (raw === 'money') return 'finance';
-    return SLICE_3_VIEWS.includes(raw) ? raw : 'today';
-  }
+  // parseHash() resolves legacy aliases (jobs → work, money → finance, etc.)
+  // and falls back to 'today' for any unrecognised segment.
   const { view } = parseHash();
-  if (NEW_NAV) {
-    // Accept new-nav view names; map unknown ones to 'today'
-    return NEW_NAV_VIEWS.includes(view) ? view : 'today';
-  }
-  return view;
+  return SLICE_3_VIEWS.includes(view) ? view : 'today';
 }
 
 export default function AppShell() {
@@ -337,14 +317,9 @@ export default function AppShell() {
         getMaterials(),
       ]);
 
-      // Heal stale localStorage entries for accepted quotes BEFORE the overlay
-      // runs. healAcceptedMeta writes both quoteStatus:'accepted' AND
-      // status:'active' so that deriveDisplayStatus returns "On" (not "Quoted").
-      // The previous inline ratchet only wrote quoteStatus, leaving a stale
-      // status:'quoted' in localStorage to win the spread — which is why jobs
-      // accepted while the app was closed stayed stuck on "Quoted" after reopen.
-      healAcceptedMeta(cloudJobs);
-
+      // applyJobMetaToJobs includes the per-job status ratchet inside applyJobMeta:
+      // if the cloud job is already quoteStatus:'accepted', localStorage is updated
+      // to agree before the overlay runs, so the merged job always reflects cloud truth.
       setJobs(applyJobMetaToJobs(cloudJobs));
       setReceipts(cloudReceipts);
       setMaterials(cloudMaterials);
@@ -670,23 +645,9 @@ export default function AppShell() {
     return () => window.removeEventListener('storage', onStorage);
   }, [cloudLoaded]);
 
-  // Show a one-time orientation toast when a nav mode first activates (JP-LU2: via snackbar)
-  useEffect(() => {
-    if (NAV_SLICE_3) {
-      const toastKey = 'jp.slice3NavToast.v2';
-      if (localStorage.getItem(toastKey)) return;
-      snackbarEnqueue({ type: 'nav', message: "Your new nav: Jobs for your work, Money for your finances, Settings for your account.", dwell: 6000, priority: 1 });
-      localStorage.setItem(toastKey, '1');
-      return;
-    }
-    if (NEW_NAV) {
-      const toastKey = 'jp.newNavToast.v1';
-      if (localStorage.getItem(toastKey)) return;
-      snackbarEnqueue({ type: 'nav', message: "Business is now Jobs, Schedule, and Money. Settings is top-right.", dwell: 6000, priority: 1 });
-      localStorage.setItem(toastKey, '1');
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // Nav orientation toast removed: slice-3 has been live for weeks and all
+  // existing users already have jp.slice3NavToast.v2 set. New users land
+  // on a clean app where the nav is self-evident. Dead key cleaned up at boot.
 
   // Wizard auto-open removed (feat/zero-friction-entry, 2026-06-02).
   // New users land directly on Today. The wizard is reachable on demand from
@@ -1091,7 +1052,7 @@ export default function AppShell() {
     // Profile-completeness gate removed (feat/zero-friction-entry, 2026-06-02).
     // Users can create jobs immediately after sign-in. Missing business/bank
     // details are collected just-in-time at the invoice-send step.
-    navigate(NAV_SLICE_3 ? 'work' : 'jobs');
+    navigate('work');
   };
 
   /**
@@ -1107,12 +1068,11 @@ export default function AppShell() {
   const resetTransientUI = useCallback((nextView) => {
     // Clear the account drawer (new-nav)
     setDrawerOpen(false);
-    // If the user taps the work/jobs tab directly, bump the reset key so
+    // If the user taps the work tab directly, bump the reset key so
     // WorkScreen remounts and discards any open JobDetailDrawer. When navigating
     // programmatically (e.g. from Today's job-tap), workResetKey stays the same
     // so the intended drawer-open still fires.
-    const workView = NAV_SLICE_3 ? 'work' : 'jobs';
-    if (nextView === workView) {
+    if (nextView === 'work') {
       setWorkResetKey(k => k + 1);
       // Also clear the pending job and any pending work view so a remounted
       // WorkScreen has no initialJobId or forced subview.
@@ -1141,7 +1101,7 @@ export default function AppShell() {
    */
   const handleSeeTheWeek = useCallback(() => {
     setPendingWorkView('calendar-week');
-    navigate(NAV_SLICE_3 ? 'work' : 'jobs');
+    navigate('work');
   }, [navigate]);
 
   if (!authReady) {
@@ -1162,237 +1122,116 @@ export default function AppShell() {
   return (
     <AppErrorBoundary variant="app">
       <ConsentBanner />
-      {/* ── SLICE-3 NAV (Today / Jobs / Money / Settings) ───────────── */}
-      {NAV_SLICE_3 && (
-        <>
-          {view === 'today' && (
-            <TodayScreen
-              onOpenDetailed={openDetailed}
-              onChase={() => navigate('finance')}
-              onMarkPaid={onMarkPaidFromToday}
-              onJobTap={(job) => { if (job?.id) setPendingJobId(job.id); navigate('work'); }}
-              jobs={jobs}
-              receipts={receipts}
-              onAddJob={handleAddJob}
-              onUpdateJob={onUpdateJob}
-              onAddReceipt={handleAddReceipt}
-              avatarProps={avatarProps}
-              profile={profile}
-              onNavigateToMoney={() => navigate('finance')}
-              onSeeTheWeek={handleSeeTheWeek}
-              onNavigateToCardPayments={() => setSettingsSubView('card-payments')}
-              materials={materials}
-              defaultMarkup={profile?.default_markup ?? 20}
-              onBrowseMaterials={() => setMaterialsOpen(true)}
-              onMaterialSaved={handleMaterialSaved}
-              onSnackbar={snackbarEnqueue}
-              onSnackbarDismiss={snackbarDismiss}
-            />
-          )}
-
-          {view === 'work' && (
-            <WorkScreen
-              key={workResetKey}
-              jobs={jobs}
-              receipts={receipts}
-              onNewJob={openDetailed}
-              onAddJob={handleAddJob}
-              onAddPayment={onAddPayment}
-              onUpdateJob={onUpdateJob}
-              onDeleteJob={onDeleteJob}
-              onAddReceipt={handleAddReceipt}
-              onDeleteReceipt={handleDeleteReceipt}
-              onUpdateReceipt={handleUpdateReceipt}
-              biz={null}
-              profile={profile}
-              initialJobId={pendingJobId}
-              pendingWorkView={pendingWorkView}
-              onPendingWorkViewConsumed={() => setPendingWorkView(null)}
-              onNavigateToCardPayments={() => setSettingsSubView('card-payments')}
-              onProfileUpdate={handleProfileUpdate}
-              materials={materials}
-              defaultMarkup={profile?.default_markup ?? 20}
-              onBrowseMaterials={() => setMaterialsOpen(true)}
-              onMaterialSaved={handleMaterialSaved}
-            />
-          )}
-
-          {view === 'finance' && (
-            <AppErrorBoundary variant="screen">
-              <FinanceScreen
-                jobs={jobs}
-                receipts={receipts}
-                session={session}
-                profile={profile}
-                // No avatar — Settings tab replaces the drawer in slice 3
-                // onMarkPaid removed: chase block deleted in Phase 1 Money redesign
-                onGoToJobs={() => navigate('work')}
-                onGoToSettings={(target) => {
-                  navigate('settings');
-                  if (target === 'overheads') setSettingsScrollTarget('overheads');
-                }}
-                onNavigateToCardPayments={() => { navigate('settings'); setSettingsSubView('card-payments'); }}
-                onProfileUpdate={handleProfileUpdate}
-                onExport={handleExportFromMoney}
-              />
-            </AppErrorBoundary>
-          )}
-
-          {view === 'settings' && settingsSubView === 'card-payments' && (
-            <CardPaymentsScreen
-              profile={profile}
-              onBack={() => setSettingsSubView(null)}
-              onProfileUpdate={(patch) => {
-                // Optimistically update local profile state so the screen flips
-                // immediately; the authoritative update comes from the next
-                // refreshProfile call (which happens automatically on next sign-in
-                // or can be triggered by the parent).
-                setProfile(prev => prev ? { ...prev, ...patch } : prev);
-              }}
-            />
-          )}
-
-          {view === 'settings' && settingsSubView !== 'card-payments' && (
-            <SettingsScreen
-              session={session}
-              profile={profile}
-              jobs={jobs}
-              receipts={receipts}
-              onSignOut={handleSignOut}
-              onOpenWizard={openWizardFromSettings}
-              onProfileUpdate={handleProfileUpdate}
-              onNavigateToCardPayments={() => setSettingsSubView('card-payments')}
-              onBrowseMaterials={() => setMaterialsOpen(true)}
-              onOpenJob={(jobId) => {
-                if (jobId) setPendingJobId(jobId);
-                navigate('work');
-              }}
-              scrollTarget={settingsScrollTarget}
-              onScrollTargetConsumed={() => setSettingsScrollTarget(null)}
-            />
-          )}
-
-          {/* HeaderAvatar and AccountDrawer are NOT rendered when slice 3 is active.
-              The Settings tab is the single account entry point. */}
-
-          <BottomNav
-            view={view}
-            onChange={handleTabChange}
-            slice3={true}
-          />
-        </>
-      )}
-
-      {/* ── NEW NAV (Today / Jobs / Schedule / Money) ────────────────── */}
-      {!NAV_SLICE_3 && NEW_NAV && (
-        <>
-          {view === 'today' && (
-            <TodayScreen
-              onOpenDetailed={openDetailed}
-              onChase={() => navigate('money')}
-              onMarkPaid={onMarkPaidFromToday}
-              onJobTap={(job) => { if (job?.id) setPendingJobId(job.id); navigate('jobs'); }}
-              jobs={jobs}
-              receipts={receipts}
-              onAddJob={handleAddJob}
-              onUpdateJob={onUpdateJob}
-              onAddReceipt={handleAddReceipt}
-              avatarProps={avatarProps}
-              profile={profile}
-              onNavigateToMoney={() => navigate('money')}
-              onSeeTheWeek={handleSeeTheWeek}
-              onNavigateToCardPayments={() => setSettingsSubView('card-payments')}
-              materials={materials}
-              defaultMarkup={profile?.default_markup ?? 20}
-              onBrowseMaterials={() => setMaterialsOpen(true)}
-              onMaterialSaved={handleMaterialSaved}
-              onSnackbar={snackbarEnqueue}
-              onSnackbarDismiss={snackbarDismiss}
-            />
-          )}
-
-          {view === 'jobs' && (
-            <WorkScreen
-              key={workResetKey}
-              jobs={jobs}
-              receipts={receipts}
-              onNewJob={openDetailed}
-              onAddJob={handleAddJob}
-              onAddPayment={onAddPayment}
-              onUpdateJob={onUpdateJob}
-              onDeleteJob={onDeleteJob}
-              onAddReceipt={handleAddReceipt}
-              onDeleteReceipt={handleDeleteReceipt}
-              onUpdateReceipt={handleUpdateReceipt}
-              biz={null}
-              profile={profile}
-              initialJobId={pendingJobId}
-              pendingWorkView={pendingWorkView}
-              onPendingWorkViewConsumed={() => setPendingWorkView(null)}
-              onNavigateToCardPayments={() => setSettingsSubView('card-payments')}
-              onProfileUpdate={handleProfileUpdate}
-              materials={materials}
-              defaultMarkup={profile?.default_markup ?? 20}
-              onBrowseMaterials={() => setMaterialsOpen(true)}
-              onMaterialSaved={handleMaterialSaved}
-            />
-          )}
-
-          {view === 'schedule' && (
-            <ScheduleScreen
-              jobs={jobs}
-              session={session}
-              profile={profile}
-              onAvatarClick={() => setDrawerOpen(true)}
-              onAddJob={openDetailed}
-              onJobTap={(job) => {
-                if (job?.id) setPendingJobId(job.id);
-                navigate('work');
-              }}
-            />
-          )}
-
-          {view === 'money' && (
-            <AppErrorBoundary variant="screen">
-              <FinanceScreen
-                jobs={jobs}
-                receipts={receipts}
-                session={session}
-                profile={profile}
-                onAvatarClick={() => setDrawerOpen(true)}
-                // onMarkPaid removed: chase block deleted in Phase 1 Money redesign
-                onGoToJobs={() => navigate('jobs')}
-                // onGoToSettings omitted: new-nav has no dedicated settings tab
-                onProfileUpdate={handleProfileUpdate}
-                onExport={handleExportFromMoney}
-              />
-            </AppErrorBoundary>
-          )}
-
-          <BottomNav
-            view={view}
-            onChange={handleTabChange}
-            newNav={true}
-          />
-        </>
-      )}
-
-
-      {/* ── Account drawer (new nav only — slice 3 uses Settings tab instead) ─ */}
-      {!NAV_SLICE_3 && NEW_NAV && (
-        <AccountDrawer
-          open={drawerOpen}
-          session={session}
+      {view === 'today' && (
+        <TodayScreen
+          onOpenDetailed={openDetailed}
+          onChase={() => navigate('finance')}
+          onMarkPaid={onMarkPaidFromToday}
+          onJobTap={(job) => { if (job?.id) setPendingJobId(job.id); navigate('work'); }}
+          jobs={jobs}
+          receipts={receipts}
+          onAddJob={handleAddJob}
+          onUpdateJob={onUpdateJob}
+          onAddReceipt={handleAddReceipt}
+          avatarProps={avatarProps}
           profile={profile}
-          onClose={() => setDrawerOpen(false)}
-          onSignOut={handleSignOut}
-          onOpenWizard={() => {
-            setDrawerOpen(false);
-            sessionStorage.setItem('jp.wizardActive', '1');
-            setWizardOpen(true);
+          onNavigateToMoney={() => navigate('finance')}
+          onSeeTheWeek={handleSeeTheWeek}
+          onNavigateToCardPayments={() => setSettingsSubView('card-payments')}
+          materials={materials}
+          defaultMarkup={profile?.default_markup ?? 20}
+          onBrowseMaterials={() => setMaterialsOpen(true)}
+          onMaterialSaved={handleMaterialSaved}
+          onSnackbar={snackbarEnqueue}
+          onSnackbarDismiss={snackbarDismiss}
+        />
+      )}
+
+      {view === 'work' && (
+        <WorkScreen
+          key={workResetKey}
+          jobs={jobs}
+          receipts={receipts}
+          onNewJob={openDetailed}
+          onAddJob={handleAddJob}
+          onAddPayment={onAddPayment}
+          onUpdateJob={onUpdateJob}
+          onDeleteJob={onDeleteJob}
+          onAddReceipt={handleAddReceipt}
+          onDeleteReceipt={handleDeleteReceipt}
+          onUpdateReceipt={handleUpdateReceipt}
+          biz={null}
+          profile={profile}
+          initialJobId={pendingJobId}
+          pendingWorkView={pendingWorkView}
+          onPendingWorkViewConsumed={() => setPendingWorkView(null)}
+          onNavigateToCardPayments={() => setSettingsSubView('card-payments')}
+          onProfileUpdate={handleProfileUpdate}
+          materials={materials}
+          defaultMarkup={profile?.default_markup ?? 20}
+          onBrowseMaterials={() => setMaterialsOpen(true)}
+          onMaterialSaved={handleMaterialSaved}
+        />
+      )}
+
+      {view === 'finance' && (
+        <AppErrorBoundary variant="screen">
+          <FinanceScreen
+            jobs={jobs}
+            receipts={receipts}
+            session={session}
+            profile={profile}
+            onGoToJobs={() => navigate('work')}
+            onGoToSettings={(target) => {
+              navigate('settings');
+              if (target === 'overheads') setSettingsScrollTarget('overheads');
+            }}
+            onNavigateToCardPayments={() => { navigate('settings'); setSettingsSubView('card-payments'); }}
+            onProfileUpdate={handleProfileUpdate}
+            onExport={handleExportFromMoney}
+          />
+        </AppErrorBoundary>
+      )}
+
+      {view === 'settings' && settingsSubView === 'card-payments' && (
+        <CardPaymentsScreen
+          profile={profile}
+          onBack={() => setSettingsSubView(null)}
+          onProfileUpdate={(patch) => {
+            // Optimistically update local profile state so the screen flips
+            // immediately; the authoritative update comes from the next
+            // refreshProfile call (which happens automatically on next sign-in
+            // or can be triggered by the parent).
+            setProfile(prev => prev ? { ...prev, ...patch } : prev);
           }}
         />
       )}
+
+      {view === 'settings' && settingsSubView !== 'card-payments' && (
+        <SettingsScreen
+          session={session}
+          profile={profile}
+          jobs={jobs}
+          receipts={receipts}
+          onSignOut={handleSignOut}
+          onOpenWizard={openWizardFromSettings}
+          onProfileUpdate={handleProfileUpdate}
+          onNavigateToCardPayments={() => setSettingsSubView('card-payments')}
+          onBrowseMaterials={() => setMaterialsOpen(true)}
+          onOpenJob={(jobId) => {
+            if (jobId) setPendingJobId(jobId);
+            navigate('work');
+          }}
+          scrollTarget={settingsScrollTarget}
+          onScrollTargetConsumed={() => setSettingsScrollTarget(null)}
+        />
+      )}
+
+      <BottomNav
+        view={view}
+        onChange={handleTabChange}
+      />
+
 
       {/* ── Push permission prompt (shown once per device, 5 s after sign-in) ── */}
       {/* Non-blocking: sits at the bottom above the nav, never blocks content.  */}
@@ -1434,7 +1273,7 @@ export default function AppShell() {
         onTap={(descriptor) => {
           if (descriptor.jobId) {
             setPendingJobId(descriptor.jobId);
-            navigate(NAV_SLICE_3 ? 'work' : NEW_NAV ? 'jobs' : 'today');
+            navigate('work');
           }
         }}
         onExpandCost={(descriptor) => {
@@ -1446,7 +1285,7 @@ export default function AppShell() {
           if (shouldAutoMute) handleProfileUpdate({ remind_job_costs: false });
           setCostSnackbarJob(null);
         }}
-        onSetupPayNow={() => navigate(NAV_SLICE_3 ? 'settings' : NEW_NAV ? 'settings' : 'today')}
+        onSetupPayNow={() => navigate('settings')}
         onGotPaidChip={(job, method) => {
           if (job) onMarkPaidFromToday(job, method);
         }}
@@ -1529,8 +1368,8 @@ export default function AppShell() {
         />
       )}
 
-      {/* ── Onboarding wizard (new nav + slice-3) ──────────────────────── */}
-      {(NEW_NAV || NAV_SLICE_3) && wizardOpen && (
+      {/* ── Onboarding wizard (opened on demand from Settings) ─────────── */}
+      {wizardOpen && (
         <OnboardingWizard
           session={session}
           profile={profile}
@@ -1542,7 +1381,7 @@ export default function AppShell() {
               navigate(postWizardNav);
               setPostWizardNav(null);
               // If user was trying to create a job, force WorkScreen remount so AddJob opens.
-              if (postWizardNav === 'jobs' || postWizardNav === 'work') {
+              if (postWizardNav === 'work') {
                 setWorkResetKey(k => k + 1);
               }
             }

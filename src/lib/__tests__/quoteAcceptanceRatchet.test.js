@@ -3,28 +3,30 @@
  *
  * Regression cover for: "Signed quote still shows Awaiting after app reopen."
  *
- * Root cause: refreshFromCloud calls applyJobMetaToJobs which overlays
- * readJobMeta(id) on top of the cloud-mapped job. When the local
- * jp.jobMeta.<id> entry still held quoteStatus:'sent' from before the
- * customer signed (and the app was closed so no realtime event fired the
- * writeJobMeta ratchet in handleJobChange), the stale local value shadowed
- * the cloud's quoteStatus:'accepted'.
+ * Root cause (original): refreshFromCloud called applyJobMetaToJobs which overlaid
+ * readJobMeta(id) on top of the cloud-mapped job. When the local jp.jobMeta.<id>
+ * entry still held quoteStatus:'sent' from before the customer signed (and the app
+ * was closed so no realtime event fired the writeJobMeta ratchet in handleJobChange),
+ * the stale local value shadowed the cloud's quoteStatus:'accepted'.
  *
- * Fix: refreshFromCloud now calls writeJobMeta to sync acceptance state for
- * any cloud job where cloudJob.quoteStatus === 'accepted' but the local
- * meta disagrees — before applyJobMetaToJobs runs. This test validates:
+ * Fix (JP-LU6): The ratchet is now embedded inside applyJobMeta() itself. When the
+ * cloud object carries quoteStatus:'accepted', applyJobMeta() writes both quoteStatus
+ * AND status into localStorage BEFORE spreading the local meta on top. This fires on
+ * every merge path (initial load, storage-event, and realtime debounced paths) without
+ * needing a separate pre-pass like the now-deleted healAcceptedMeta().
  *
- *   1. applyJobMeta shadows cloud quoteStatus with stale localStorage value
- *      (demonstrates the bug without the fix).
- *   2. After the ratchet writeJobMeta call, applyJobMeta resolves 'accepted'.
+ * This test file validates:
+ *   1. applyJobMeta now resolves 'accepted' correctly (the bug is fixed).
+ *   2. The explicit ratchet writeJobMeta-before-apply pattern still works.
  *   3. The ratchet is one-way: a local 'accepted' is never downgraded.
- *   4. Jobs that were never quoted (quoteStatus absent or 'active') are
- *      not touched by the ratchet.
+ *   4. Jobs that were never quoted are not touched.
+ *
+ * NOTE: the healAcceptedMeta() function was deleted in JP-LU6. Tests for the
+ * equivalent behaviour now live in jobMetaRatchet.test.js.
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { writeJobMeta, readJobMeta, applyJobMeta, healAcceptedMeta } from '../jobMeta';
-import { deriveDisplayStatus } from '../jobStatus';
+import { writeJobMeta, readJobMeta, applyJobMeta } from '../jobMeta';
 
 // ── localStorage mock ─────────────────────────────────────────────────────────
 function makeLocalStorageMock() {
@@ -84,10 +86,12 @@ function cloudQuotedJob(id = 'job-uuid-002') {
   };
 }
 
-// ── THE BUG (without fix) ─────────────────────────────────────────────────────
+// ── THE FIX IS NOW IN applyJobMeta ───────────────────────────────────────────
+// JP-LU6: healAcceptedMeta() was deleted. The ratchet now lives inside
+// applyJobMeta() itself, so it fires on every merge path automatically.
 
-describe('applyJobMeta — stale localStorage shadows cloud acceptance', () => {
-  it('demonstrates the pre-fix bug: stale quoteStatus:sent overwrites cloud accepted', () => {
+describe('applyJobMeta — ratchet embedded in applyJobMeta (JP-LU6)', () => {
+  it('resolves quoteStatus:accepted even when local has stale :sent (bug is fixed)', () => {
     const id = 'job-uuid-shadow-001';
     // Simulate localStorage holding the pre-signing state (quoteStatus:'sent')
     writeJobMeta(id, { quoteStatus: 'sent' });
@@ -95,11 +99,10 @@ describe('applyJobMeta — stale localStorage shadows cloud acceptance', () => {
     // Cloud job now says accepted (after customer signed while app was closed)
     const cloudJob = { ...cloudAcceptedJob(id) };
 
-    // applyJobMeta overlays localStorage on top of cloud — stale value wins
+    // applyJobMeta now has the ratchet embedded — accepted wins
     const result = applyJobMeta(cloudJob);
 
-    // This is the bug: the stale local meta clobbers the cloud's accepted state
-    expect(result.quoteStatus).toBe('sent');
+    expect(result.quoteStatus).toBe('accepted');
   });
 });
 
@@ -245,113 +248,7 @@ describe('ratchet fix: writeJobMeta before applyJobMetaToJobs', () => {
   });
 });
 
-// ── healAcceptedMeta — load-time heal (Fix 1 extension) ──────────────────────
-// The original inline ratchet only wrote quoteStatus:'accepted' but not
-// status:'active'. This left a stale status:'quoted' (or status:'lead') in
-// localStorage to win the applyJobMeta overlay, causing deriveDisplayStatus to
-// return "Quoted" instead of "On" even after the customer signed.
-// healAcceptedMeta writes BOTH quoteStatus AND status so the "On" stage resolves.
-
-describe('healAcceptedMeta — status field is written alongside quoteStatus', () => {
-  it('writes status:active when local has stale status:quoted', () => {
-    const id = 'heal-001';
-    writeJobMeta(id, { quoteStatus: 'sent', status: 'quoted' });
-
-    // G-2 cloud job: no acceptedSignature (button-based acceptance)
-    const cloudJobs = [{
-      id,
-      quoteStatus:    'accepted',
-      status:         'active',
-      jobStatus:      'active',
-      acceptedAt:     '2026-06-22T09:00:00.000Z',
-      acceptedName:   'Sarah',
-      acceptedSource: 'remote',
-      total: 500,
-    }];
-
-    healAcceptedMeta(cloudJobs);
-
-    const stored = readJobMeta(id);
-    expect(stored.quoteStatus).toBe('accepted');
-    expect(stored.status).toBe('active');
-  });
-
-  it('after heal, deriveDisplayStatus resolves to "On" (not "Quoted")', () => {
-    const id = 'heal-002';
-    writeJobMeta(id, { quoteStatus: 'sent', status: 'quoted' });
-
-    const cloudJob = {
-      id,
-      quoteStatus:    'accepted',
-      status:         'active',
-      jobStatus:      'active',
-      acceptedAt:     '2026-06-22T09:00:00.000Z',
-      acceptedName:   'Sarah',
-      acceptedSource: 'remote',
-      // no acceptedSignature — G-2 button path
-      total: 500,
-      amount: 500,
-    };
-
-    healAcceptedMeta([cloudJob]);
-
-    // applyJobMeta overlays localStorage on top of the cloud job
-    const localMeta = readJobMeta(id);
-    const healed = { ...cloudJob, ...localMeta };
-    expect(deriveDisplayStatus(healed)).toBe('On');
-  });
-
-  it('skips jobs where local already has quoteStatus:accepted AND status:active', () => {
-    const id = 'heal-003';
-    writeJobMeta(id, { quoteStatus: 'accepted', status: 'active', acceptedAt: '2026-06-20T08:00:00.000Z' });
-
-    const cloudJobs = [{ id, quoteStatus: 'accepted', status: 'active', total: 300 }];
-    healAcceptedMeta(cloudJobs);
-
-    const stored = readJobMeta(id);
-    // Should be unchanged — the pre-existing acceptedAt must still be there
-    expect(stored.acceptedAt).toBe('2026-06-20T08:00:00.000Z');
-  });
-
-  it('does not touch still-quoted jobs', () => {
-    const id = 'heal-004';
-    writeJobMeta(id, { quoteStatus: 'sent', status: 'quoted' });
-
-    const cloudJobs = [{ id, quoteStatus: 'sent', status: 'quoted', total: 200 }];
-    healAcceptedMeta(cloudJobs);
-
-    const stored = readJobMeta(id);
-    // quoteStatus must remain 'sent' — heal must not write 'accepted'
-    expect(stored.quoteStatus).toBe('sent');
-    expect(stored.status).toBe('quoted');
-  });
-
-  it('handles an empty array without throwing', () => {
-    expect(() => healAcceptedMeta([])).not.toThrow();
-  });
-
-  it('handles null/undefined without throwing', () => {
-    expect(() => healAcceptedMeta(null)).not.toThrow();
-    expect(() => healAcceptedMeta(undefined)).not.toThrow();
-  });
-
-  it('heals local entry that has quoteStatus:accepted but stale status:quoted (partial earlier fix)', () => {
-    const id = 'heal-005';
-    // This is the partial-fix scenario: old ratchet wrote quoteStatus:'accepted'
-    // but missed status — so local has accepted quoteStatus but wrong status.
-    writeJobMeta(id, { quoteStatus: 'accepted', status: 'quoted' });
-
-    const cloudJobs = [{
-      id,
-      quoteStatus: 'accepted',
-      status:      'active',
-      total:       300,
-    }];
-
-    healAcceptedMeta(cloudJobs);
-
-    const stored = readJobMeta(id);
-    // status must now be 'active' even though quoteStatus was already 'accepted'
-    expect(stored.status).toBe('active');
-  });
-});
+// ── healAcceptedMeta deleted (JP-LU6) ────────────────────────────────────────
+// The ratchet that healAcceptedMeta() provided is now baked into applyJobMeta().
+// Tests for the equivalent guarantees live in jobMetaRatchet.test.js.
+// This section is intentionally empty — do not re-add healAcceptedMeta calls here.

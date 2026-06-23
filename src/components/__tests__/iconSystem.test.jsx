@@ -216,33 +216,16 @@ describe('BottomNav — Wave 1 icons (slice3 layout)', () => {
   });
 });
 
-describe('BottomNav — Wave 1 icons (newNav layout)', () => {
-  function renderNewNav(view = 'today') {
-    return render(
-      <BottomNav
-        view={view}
-        onChange={() => {}}
-        newNav={true}
-      />
-    );
-  }
+// ── JP-LU6: newNav and legacy nav layouts deleted. BottomNav is now slice-3 only.
+// The badge test is updated to use the live financeBadge prop (was moneyBadge).
 
-  it('renders 4 tabs each containing a .jp-icon svg', () => {
-    const { container } = renderNewNav();
-    const tabs = container.querySelectorAll('.nav-tab');
-    expect(tabs.length).toBe(4);
-    tabs.forEach(tab => {
-      expect(tab.querySelector('.jp-icon svg')).not.toBeNull();
-    });
-  });
-
-  it('money badge renders alongside the icon (not replacing it)', () => {
+describe('BottomNav — financeBadge renders alongside the icon (slice-3)', () => {
+  it('financeBadge renders alongside the icon (not replacing it)', () => {
     const { container } = render(
       <BottomNav
         view="today"
         onChange={() => {}}
-        newNav={true}
-        moneyBadge={3}
+        financeBadge={3}
       />
     );
     const moneyTab = Array.from(container.querySelectorAll('.nav-tab'))
@@ -250,21 +233,6 @@ describe('BottomNav — Wave 1 icons (newNav layout)', () => {
     expect(moneyTab.querySelector('.jp-icon svg')).not.toBeNull();
     expect(moneyTab.querySelector('.nav-badge')).not.toBeNull();
     expect(moneyTab.querySelector('.nav-badge').textContent).toBe('3');
-  });
-});
-
-describe('BottomNav — Wave 1 icons (legacy layout)', () => {
-  function renderLegacy(view = 'today') {
-    return render(<BottomNav view={view} onChange={() => {}} />);
-  }
-
-  it('renders 3 tabs in legacy layout each with a .jp-icon', () => {
-    const { container } = renderLegacy();
-    const tabs = container.querySelectorAll('.nav-tab');
-    expect(tabs.length).toBe(3);
-    tabs.forEach(tab => {
-      expect(tab.querySelector('.jp-icon')).not.toBeNull();
-    });
   });
 });
 
