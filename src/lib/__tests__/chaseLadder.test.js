@@ -3,6 +3,9 @@ import {
   getChaseState,
   recordChase,
   clearChase,
+  recordChaseCloud,
+  clearChaseCloud,
+  hydrateChaseState,
   computeTier,
   daysPastDue,
   daysUntilDue,
@@ -386,5 +389,148 @@ describe('lastChasedLabel', () => {
     const fiveDaysAgo = new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString();
     const state = { lastChasedAt: fiveDaysAgo };
     expect(lastChasedLabel(state)).toBe('Last chased 5d ago');
+  });
+});
+
+// ── Cloud helpers — hydrateChaseState ─────────────────────────────────────
+// These tests mock the Supabase client; they verify merge logic and
+// graceful-degrade on error. They do NOT hit the real database.
+
+function makeSupabaseMock({ rows = [], error = null, user = { id: 'user-abc' } } = {}) {
+  return {
+    auth: {
+      getUser: vi.fn().mockResolvedValue({ data: { user } }),
+    },
+    from: vi.fn(() => ({
+      select: vi.fn().mockReturnThis(),
+      eq: vi.fn().mockReturnThis(),
+      upsert: vi.fn().mockResolvedValue({ error }),
+      delete: vi.fn().mockReturnThis(),
+      single: vi.fn().mockResolvedValue({ data: rows[0] ?? null, error }),
+      // chain: select().eq().eq() returns a thenable with { data, error }
+      then: undefined, // handled by making eq() return a promise-like below
+    })),
+  };
+}
+
+// More granular mock for hydrateChaseState which calls .select().eq() and expects
+// the final result directly (not .single()).
+function makeHydrateMock({ rows = [], error = null, user = { id: 'user-abc' } } = {}) {
+  const queryChain = {
+    select: vi.fn().mockReturnThis(),
+    eq: vi.fn().mockReturnThis(),
+    // The chain resolves when awaited
+    then: (resolve) => resolve({ data: rows, error }),
+  };
+  return {
+    auth: {
+      getUser: vi.fn().mockResolvedValue({ data: { user } }),
+    },
+    from: vi.fn(() => queryChain),
+  };
+}
+
+describe('hydrateChaseState — cloud-wins-on-freshness merge', () => {
+  it('overlays cloud record into localStorage when cloud lastChasedAt is newer', async () => {
+    const jobId = 'job-hydrate-1';
+    // Seed a stale local record
+    recordChase(jobId); // sets lastChasedAt = now
+    const localState = getChaseState(jobId);
+
+    // Cloud record is 2 hours AHEAD of what local has (simulated via a future timestamp)
+    const cloudTs = new Date(new Date(localState.lastChasedAt).getTime() + 2 * 60 * 60 * 1000).toISOString();
+    const cloudRows = [{
+      job_id: jobId,
+      chase_count: 5,
+      last_chased_at: cloudTs,
+      first_chased_at: localState.firstChasedAt,
+    }];
+
+    const mockClient = makeHydrateMock({ rows: cloudRows });
+    await hydrateChaseState(mockClient);
+
+    const merged = getChaseState(jobId);
+    expect(merged.count).toBe(5);
+    expect(merged.lastChasedAt).toBe(cloudTs);
+  });
+
+  it('keeps local record when local lastChasedAt is newer than cloud', async () => {
+    const jobId = 'job-hydrate-2';
+    recordChase(jobId);
+    const localState = getChaseState(jobId);
+
+    // Cloud record is 2 hours BEHIND local
+    const cloudTs = new Date(new Date(localState.lastChasedAt).getTime() - 2 * 60 * 60 * 1000).toISOString();
+    const cloudRows = [{
+      job_id: jobId,
+      chase_count: 1,
+      last_chased_at: cloudTs,
+      first_chased_at: cloudTs,
+    }];
+
+    const mockClient = makeHydrateMock({ rows: cloudRows });
+    await hydrateChaseState(mockClient);
+
+    const afterHydrate = getChaseState(jobId);
+    // Local should be unchanged
+    expect(afterHydrate.lastChasedAt).toBe(localState.lastChasedAt);
+    expect(afterHydrate.count).toBe(localState.count);
+  });
+
+  it('does not throw and localStorage still works when cloud returns an error', async () => {
+    const jobId = 'job-hydrate-3';
+    recordChase(jobId);
+    const localState = getChaseState(jobId);
+
+    const errorMock = makeHydrateMock({ rows: null, error: { message: 'relation "job_chase_states" does not exist', code: '42P01' } });
+    // Must not throw even with a missing-table error
+    await expect(hydrateChaseState(errorMock)).resolves.toBeUndefined();
+
+    // localStorage record is untouched
+    expect(getChaseState(jobId)).toEqual(localState);
+  });
+});
+
+describe('cloud write failure — graceful degrade', () => {
+  it('recordChaseCloud swallows table-missing error and does not throw', async () => {
+    const jobId = 'job-cloud-fail-1';
+    recordChase(jobId); // localStorage write succeeds
+
+    // Supabase returns the 42P01 "relation does not exist" error
+    const failingMock = {
+      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'u1' } } }) },
+      from: vi.fn(() => ({
+        upsert: vi.fn().mockResolvedValue({ error: { message: 'relation "job_chase_states" does not exist', code: '42P01' } }),
+      })),
+    };
+
+    await expect(recordChaseCloud(jobId, failingMock)).resolves.toBeUndefined();
+    // localStorage record is still intact
+    expect(getChaseState(jobId)).not.toBeNull();
+  });
+
+  it('clearChaseCloud swallows table-missing error and does not throw', async () => {
+    const jobId = 'job-cloud-fail-2';
+    recordChase(jobId);
+
+    const failingMock = {
+      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'u1' } } }) },
+      from: vi.fn(() => ({
+        delete: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        then: (resolve) => resolve({ error: { message: 'relation "job_chase_states" does not exist', code: '42P01' } }),
+      })),
+    };
+
+    await expect(clearChaseCloud(jobId, failingMock)).resolves.toBeUndefined();
+  });
+
+  it('hydrateChaseState is a no-op when user is not signed in', async () => {
+    const noUserMock = {
+      auth: { getUser: vi.fn().mockResolvedValue({ data: { user: null } }) },
+      from: vi.fn(),
+    };
+    await expect(hydrateChaseState(noUserMock)).resolves.toBeUndefined();
+    expect(noUserMock.from).not.toHaveBeenCalled();
   });
 });

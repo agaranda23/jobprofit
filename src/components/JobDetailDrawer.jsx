@@ -23,7 +23,9 @@ import { deriveNextStepContent } from '../lib/nextStepContent';
 import { sectionsNeedingAttention } from '../lib/sectionAttention';
 import {
   recordChase,
+  recordChaseCloud,
   clearChase,
+  clearChaseCloud,
   buildChaseLink,
   computeTier,
   daysPastDue,
@@ -2544,6 +2546,8 @@ export default function JobDetailDrawer({
     });
     if (!link) return;
     recordChase(job.id);
+    // Cloud sync is fire-and-forget — localStorage tap is already recorded above.
+    recordChaseCloud(job.id, supabase).catch(console.warn);
     window.open(link, '_blank', 'noopener,noreferrer');
   };
 
@@ -3618,6 +3622,8 @@ export default function JobDetailDrawer({
                       note: '',
                     });
                     clearChase(job.id);
+                    // Cloud sync is fire-and-forget — localStorage clear already done above.
+                    clearChaseCloud(job.id, supabase).catch(console.warn);
                     // Payment recorded first (dopamine). Cost prompt appears after.
                     showFlash('Job marked paid');
                     const jobIncome = job.total ?? job.amount ?? 0;

@@ -23,6 +23,7 @@ import OnboardingWizard from './screens/OnboardingWizard';
 import BottomNav from './components/BottomNav';
 import LinkReceiptModal from './components/LinkReceiptModal';
 import { supabase } from './lib/supabase';
+import { hydrateChaseState } from './lib/chaseLadder';
 import AuthScreen from './components/AuthScreen';
 import { parseHash, replaceHistory } from './lib/navigation';
 import { writeJobMeta, readJobMeta, extractJobMeta, applyJobMetaToJobs } from './lib/jobMeta';
@@ -471,6 +472,10 @@ export default function AppShell() {
     if (session) {
       refreshFromCloud();
       refreshProfile(session.user.id);
+      // Hydrate chase state from cloud on every sign-in (merge-on-open, cloud wins on
+      // freshness). Fire-and-forget — does not block render; falls back to localStorage
+      // silently if the job_chase_states table doesn't exist yet (migration pending).
+      hydrateChaseState(supabase).catch(console.warn);
     }
   }, [session, refreshFromCloud, refreshProfile]);
 

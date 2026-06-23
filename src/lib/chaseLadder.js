@@ -1,12 +1,17 @@
 /**
  * chaseLadder.js — Per-job chase state + tiered WhatsApp message templates.
  *
- * State lives in localStorage only (fast-follow: migrate to Supabase when
- * crew accounts land). Degrades gracefully in Safari private mode (try/catch
- * on every I/O call).
+ * State is mirrored to Supabase (job_chase_states) for cross-device persistence,
+ * with localStorage as the instant-feedback + offline fallback. The cloud path
+ * degrades gracefully: if the table doesn't exist yet (migration pending) or any
+ * cloud operation fails, the error is swallowed with console.warn and localStorage
+ * continues to be the source of truth for the current session.
  *
  * localStorage key: jobprofit:chases:v1
  * Value shape: { [jobId]: { count, lastChasedAt, firstChasedAt } }
+ *
+ * Cloud table: job_chase_states (user_id, job_id, chase_count, last_chased_at, first_chased_at)
+ * RLS: SELECT/INSERT/UPDATE/DELETE scoped to auth.uid() = user_id.
  *
  * Tier is keyed off DAYS PAST DUE DATE (not chase count/lastChasedAt):
  *   Tier 0  — pre-due (heads-up bar when due in 1-2 days)
@@ -385,6 +390,152 @@ export function buildChaseMessageWithPayNow({ payNowUrl = '', depositPaidPence =
   }
 
   return `Pay by card here: ${payNowUrl}\n\n${baseMessage}`;
+}
+
+// ── Cloud helpers (async, fire-and-forget at call sites) ─────────────────
+//
+// All three functions accept the Supabase anon browser client as a parameter
+// so they can be unit-tested with a mock without touching the module singleton.
+// The anon client relies on RLS (user_id = auth.uid()) — never use service-role here.
+//
+// Error handling contract:
+//   - PostgREST code 42703 = column not found (table might not exist yet)
+//   - Any error is caught, logged with console.warn, and the call returns undefined.
+//   - The caller must never await these in a hot render path — always fire-and-forget.
+
+/**
+ * Upserts a chase record to the cloud for the given jobId.
+ * Must be called AFTER recordChase() has already written to localStorage.
+ * The count/timestamps are read from localStorage so both stores stay consistent.
+ *
+ * @param {string} jobId
+ * @param {import('@supabase/supabase-js').SupabaseClient} supabaseClient
+ */
+export async function recordChaseCloud(jobId, supabaseClient) {
+  if (!jobId || !supabaseClient) return;
+  try {
+    const { data: { user } } = await supabaseClient.auth.getUser();
+    if (!user) return;
+    const state = getChaseState(jobId);
+    if (!state) return;
+    const { error } = await supabaseClient
+      .from('job_chase_states')
+      .upsert(
+        {
+          user_id: user.id,
+          job_id: jobId,
+          chase_count: state.count,
+          last_chased_at: state.lastChasedAt,
+          first_chased_at: state.firstChasedAt,
+        },
+        { onConflict: 'user_id,job_id' }
+      );
+    if (error) console.warn('[chaseLadder] recordChaseCloud failed:', error.message);
+  } catch (err) {
+    console.warn('[chaseLadder] recordChaseCloud unexpected error:', err?.message ?? err);
+  }
+}
+
+/**
+ * Returns the cloud chase state for the given jobId, or null on any failure.
+ *
+ * @param {string} jobId
+ * @param {import('@supabase/supabase-js').SupabaseClient} supabaseClient
+ * @returns {Promise<{count: number, lastChasedAt: string, firstChasedAt: string}|null>}
+ */
+export async function getChaseStateCloud(jobId, supabaseClient) {
+  if (!jobId || !supabaseClient) return null;
+  try {
+    const { data: { user } } = await supabaseClient.auth.getUser();
+    if (!user) return null;
+    const { data, error } = await supabaseClient
+      .from('job_chase_states')
+      .select('chase_count, last_chased_at, first_chased_at')
+      .eq('user_id', user.id)
+      .eq('job_id', jobId)
+      .single();
+    if (error) {
+      console.warn('[chaseLadder] getChaseStateCloud failed:', error.message);
+      return null;
+    }
+    if (!data) return null;
+    return {
+      count: data.chase_count,
+      lastChasedAt: data.last_chased_at,
+      firstChasedAt: data.first_chased_at,
+    };
+  } catch (err) {
+    console.warn('[chaseLadder] getChaseStateCloud unexpected error:', err?.message ?? err);
+    return null;
+  }
+}
+
+/**
+ * Deletes the cloud chase record for the given jobId (called when Mark Paid fires).
+ *
+ * @param {string} jobId
+ * @param {import('@supabase/supabase-js').SupabaseClient} supabaseClient
+ */
+export async function clearChaseCloud(jobId, supabaseClient) {
+  if (!jobId || !supabaseClient) return;
+  try {
+    const { data: { user } } = await supabaseClient.auth.getUser();
+    if (!user) return;
+    const { error } = await supabaseClient
+      .from('job_chase_states')
+      .delete()
+      .eq('user_id', user.id)
+      .eq('job_id', jobId);
+    if (error) console.warn('[chaseLadder] clearChaseCloud failed:', error.message);
+  } catch (err) {
+    console.warn('[chaseLadder] clearChaseCloud unexpected error:', err?.message ?? err);
+  }
+}
+
+/**
+ * One-shot hydration: reads ALL of the signed-in user's rows from cloud and
+ * overlays them into the localStorage store where the cloud lastChasedAt is
+ * newer (cloud wins on freshness). Safe to call on every app open — it never
+ * downgrades a newer local record and never throws.
+ *
+ * Call once after auth is ready (e.g. AppShell after refreshFromCloud).
+ * Does NOT block render — fire-and-forget with .catch(console.warn).
+ *
+ * @param {import('@supabase/supabase-js').SupabaseClient} supabaseClient
+ */
+export async function hydrateChaseState(supabaseClient) {
+  if (!supabaseClient) return;
+  try {
+    const { data: { user } } = await supabaseClient.auth.getUser();
+    if (!user) return;
+    const { data, error } = await supabaseClient
+      .from('job_chase_states')
+      .select('job_id, chase_count, last_chased_at, first_chased_at')
+      .eq('user_id', user.id);
+    if (error) {
+      console.warn('[chaseLadder] hydrateChaseState failed:', error.message);
+      return;
+    }
+    if (!data?.length) return;
+    const store = readStore();
+    let changed = false;
+    for (const row of data) {
+      const local = store[row.job_id];
+      const cloudTs = row.last_chased_at ? new Date(row.last_chased_at).getTime() : 0;
+      const localTs = local?.lastChasedAt ? new Date(local.lastChasedAt).getTime() : 0;
+      if (cloudTs > localTs) {
+        store[row.job_id] = {
+          count: row.chase_count,
+          lastChasedAt: row.last_chased_at,
+          firstChasedAt: row.first_chased_at,
+        };
+        changed = true;
+      }
+    }
+    if (changed) writeStore(store);
+  } catch (err) {
+    console.warn('[chaseLadder] hydrateChaseState unexpected error:', err?.message ?? err);
+  }
 }
 
 // ── Display helpers ───────────────────────────────────────────────────────

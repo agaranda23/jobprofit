@@ -28,7 +28,7 @@ import GetProPill from '../components/GetProPill';
 import ProUpgradeSheet from '../components/ProUpgradeSheet';
 import { gbp, formatToday } from '../lib/today';
 import { isAwaitingPayment, deriveStatus } from '../lib/jobStatus';
-import { daysPastDue, recordChase, buildChaseMessage, computeTier, buildPaymentDetails } from '../lib/chaseLadder';
+import { daysPastDue, recordChase, recordChaseCloud, buildChaseMessage, computeTier, buildPaymentDetails } from '../lib/chaseLadder';
 import { writeJobMeta, extractJobMeta } from '../lib/jobMeta';
 import { getNewlyAcceptedJobs, buildAcceptedLabel, formatAcceptedDate } from '../lib/acceptedNotification';
 import {
@@ -244,6 +244,8 @@ export default function TodayScreen({
       const clean = phone.replace(/\s/g, '').replace(/^0/, '44').replace(/^\+/, '');
       window.open(`https://wa.me/${clean}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener');
       recordChase(promptJob.id);
+      // Cloud sync is fire-and-forget — localStorage tap is already recorded above.
+      recordChaseCloud(promptJob.id, supabase).catch(console.warn);
       setRankVersion(v => v + 1);
       return;
     }
@@ -264,6 +266,8 @@ export default function TodayScreen({
       });
       window.open(`mailto:${email}?subject=Invoice reminder&body=${encodeURIComponent(msg)}`, '_blank', 'noopener');
       recordChase(promptJob.id);
+      // Cloud sync is fire-and-forget — localStorage tap is already recorded above.
+      recordChaseCloud(promptJob.id, supabase).catch(console.warn);
       setRankVersion(v => v + 1);
       return;
     }
