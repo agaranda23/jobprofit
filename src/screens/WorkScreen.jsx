@@ -54,6 +54,7 @@ import {
   buildChaseMessage,
   buildPaymentDetails,
   recordChase,
+  recordChaseCloud,
   isDoubleSendBlocked,
   DEFAULT_PAYMENT_TERMS_DAYS,
 } from '../lib/chaseLadder';
@@ -191,6 +192,8 @@ function chaseJobTiered(job, biz = null, forceTier = null, payNowUrl = '') {
 
   window.open(finalUrl, '_blank', 'noopener');
   recordChase(job.id);
+  // Cloud sync is fire-and-forget — localStorage tap is already recorded above.
+  recordChaseCloud(job.id, supabase).catch(console.warn);
   return true;
 }
 
