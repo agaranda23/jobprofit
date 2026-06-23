@@ -71,6 +71,9 @@ export default function TodayScreen({
   defaultMarkup,
   onBrowseMaterials,
   onMaterialSaved,
+  // Snackbar manager (JP-LU2): floats up to AppShell so one renderer handles all surfaces.
+  onSnackbar,
+  onSnackbarDismiss,
 }) {
   const [jobOpen, setJobOpen] = useState(false);
   // jobOpenMode: 'normal' | 'quote' — controls defaultMode prop on AddJobModal.
@@ -80,15 +83,12 @@ export default function TodayScreen({
   // reviewQuoteJob: when set, opens ReviewSheet in quote mode immediately after
   // a voice "Save & send quote" action. Cleared when the sheet closes.
   const [reviewQuoteJob, setReviewQuoteJob] = useState(null);
-  const [toast, setToast] = useState('');
-  // toastAction: { label, onClick } — an optional action button inside the toast.
-  // Only used for the fast-save "View" link. Cleared when toast auto-dismisses.
-  const [toastAction, setToastAction] = useState(null);
-  // gotPaidToastQueue: FIFO array of { job, timerId } shown after Speed-mode saves.
-  // Each item displays "Got paid? £{amount}" with Cash / Bank / Card chips.
-  // Auto-dismisses after 5 s. Multiple Speed-mode saves stack — we show one at a
-  // time and shift the queue when dismissed or a chip is tapped.
-  const [gotPaidToastQueue, setGotPaidToastQueue] = useState([]);
+  // toast/gotPaidToastQueue/payNowNudge removed (JP-LU2) — managed by snackbar in AppShell.
+  // showToast shim: keeps all existing call-sites unchanged; delegates to onSnackbar.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const showToast = useCallback((msg, action = null) => {
+    onSnackbar?.({ type: 'toast', message: msg, action, dwell: 2400, priority: 8 });
+  }, [onSnackbar]);
   // rankVersion bumps after Mark paid / Snooze to force re-rank without a full re-fetch
   const [rankVersion, setRankVersion] = useState(0);
   // invoicePickerOpen: "Send an invoice" pivot button opened the job picker
@@ -99,34 +99,13 @@ export default function TodayScreen({
   // this session. Kept in component state so it is lost on reload — the real persistence
   // is acceptedSeenAt written to the jobMeta side-channel.
   const [dismissedAcceptedIds, setDismissedAcceptedIds] = useState(() => new Set());
-  // payNowNudgeDismissed: session-level flag so the Pay-now soft prompt
-  // (Section 1.3 c) doesn't re-appear if dismissed once during this session.
-  const [payNowNudgeDismissed, setPayNowNudgeDismissed] = useState(false);
-  // showPayNowNudge: set to true after a job is saved as completed when the trader
-  // is not connected to Stripe. Cleared when dismissed or session ends.
-  const [showPayNowNudge, setShowPayNowNudge] = useState(false);
+  // payNowNudge removed (JP-LU2): now enqueued via onSnackbar({ type: 'nudge' }) in handleJobSave.
   // upgradeSheetOpen: controls ProUpgradeSheet visibility on Today.
   const [upgradeSheetOpen, setUpgradeSheetOpen] = useState(false);
 
-  // gotPaidDeferTimers: refs to pending show-delay timers for "Got paid?" chip
-  // toasts. Stored so we can cancel them on unmount or if the user saves another
-  // job before the deferred chip fires (prevents stale-timer leaks).
-  const gotPaidDeferTimers = useRef([]);
-
-  // Cancel all pending chip-show deferral timers when the component unmounts.
-  useEffect(() => {
-    return () => {
-      gotPaidDeferTimers.current.forEach(id => clearTimeout(id));
-    };
-  }, []);
+  // gotPaidDeferTimers removed (JP-LU2): snackbar manager handles dwell/sequencing.
 
   const now = new Date();
-
-  const showToast = (msg, action = null) => {
-    setToast(msg);
-    setToastAction(action);
-    setTimeout(() => { setToast(''); setToastAction(null); }, 2400);
-  };
 
   const handleJobSave = async (payload) => {
     setJobOpen(false);
@@ -149,28 +128,11 @@ export default function TodayScreen({
         onClick: () => onJobTap?.(payload),
       });
 
-      // Speed-mode saves also enqueue the "Got paid?" chip toast (Part B).
-      // Sequential behaviour: "Added to Leads" shows alone for its full 2400ms
-      // auto-dismiss window, then the chip appears 200ms later (2600ms total).
-      // This matches the comment intent — previous code pushed synchronously,
-      // causing both toasts to overlap. The 2600ms figure is 2400ms (showToast
-      // auto-dismiss defined on line ~115) + 200ms breathing room.
+      // Speed-mode saves also enqueue the "Got paid?" chip (JP-LU2: via snackbar manager).
+      // The toast dwell (2400ms) runs in the snackbar queue; the got-paid chip is lower
+      // priority (6 vs 8) so it naturally follows once the toast expires.
       if (payload?.speedMode) {
-        const deferTimerId = setTimeout(() => {
-          // Remove this deferral from the tracking ref.
-          gotPaidDeferTimers.current = gotPaidDeferTimers.current.filter(id => id !== deferTimerId);
-
-          // Schedule the 5s auto-dismiss for this chip entry.
-          const timerId = setTimeout(() => {
-            setGotPaidToastQueue(q => {
-              if (q.length === 0) return q;
-              const [, ...rest] = q;
-              return rest;
-            });
-          }, 5000);
-          setGotPaidToastQueue(q => [...q, { job: payload, timerId }]);
-        }, 2600); // 2400ms toast dismiss + 200ms buffer — see showToast timeout above
-        gotPaidDeferTimers.current = [...gotPaidDeferTimers.current, deferTimerId];
+        onSnackbar?.({ type: 'got-paid', job: payload, dwell: 5000, priority: 6 });
       }
     } else if (isDetailedPath) {
       // Detailed-save path: navigate to the new job's detail view (Jobs tab, drawer open).
@@ -181,12 +143,16 @@ export default function TodayScreen({
       showToast('Job saved');
     }
 
-    // Pay-now soft prompt (Section 1.3 c): surface when the trader saves a
-    // completed job and hasn't connected to Stripe yet. Non-blocking, session only.
+    // Pay-now soft prompt (Section 1.3 c, JP-LU2): enqueue as a snackbar nudge.
+    // The snackbar manager enforces priority — it won't show while a higher-priority
+    // item is active. Session-persistence: nudge type has dwell:0 (dismissal only),
+    // so it stays until dismissed. onSnackbar is idempotent for same-id descriptors.
     const isConnected = profile?.stripe_connect_status === 'connected' && !!profile?.stripe_user_id;
     const isCompleted = payload?.status === 'completed' || payload?.status === 'active';
-    if (!isConnected && isCompleted && !payNowNudgeDismissed && onNavigateToCardPayments) {
-      setShowPayNowNudge(true);
+    if (!isConnected && isCompleted && onNavigateToCardPayments) {
+      // dwell: 30s — nudge lingers for 30 seconds then auto-hides.
+      // User can also dismiss explicitly via the snackbar × button.
+      onSnackbar?.({ id: 'pay-now-nudge', type: 'nudge', message: 'Pay-now button available', dwell: 30000, priority: 2 });
     }
 
     try { await onAddJob?.(payload); } catch {
@@ -325,25 +291,15 @@ export default function TodayScreen({
     setRankVersion(v => v + 1);
   }, [onMarkPaid]);
 
-  // Got Paid toast helpers (Speed mode, Part B)
-  // Dismiss without setting payment — user can still set it via tile's + Add details.
-  const dismissGotPaidToast = useCallback(() => {
-    setGotPaidToastQueue(q => {
-      if (q.length === 0) return q;
-      const [head, ...rest] = q;
-      clearTimeout(head.timerId);
-      return rest;
-    });
-  }, []);
-
-  // Tapping a chip on the Got Paid toast sets payment status immediately
-  // then shifts the queue. Uses onMarkPaid which the parent already wires.
+  // Got Paid chip handlers (JP-LU2: chip tap wired via Snackbar.onGotPaidChip in AppShell).
+  // These are no longer used directly from TodayScreen JSX but kept so that any
+  // future direct invocations (e.g. from keyboard shortcuts) still work.
   const handleGotPaidChip = useCallback((job, method) => {
-    dismissGotPaidToast();
+    onSnackbarDismiss?.();
     onMarkPaid?.(job, method);
     showToast(`${gbp(job.amount != null ? job.amount : 0)} marked paid`);
     setRankVersion(v => v + 1);
-  }, [dismissGotPaidToast, onMarkPaid]);
+  }, [onSnackbarDismiss, onMarkPaid, showToast]);
 
   const handleSnooze = useCallback((job) => {
     snoozeJob(job.id);
@@ -714,80 +670,8 @@ export default function TodayScreen({
         />
       )}
 
-      {toast && (
-        <div className="toast" role="status">
-          <span className="toast-msg">{toast}</span>
-          {toastAction && (
-            <button
-              type="button"
-              className="toast-action"
-              onClick={() => { setToast(''); setToastAction(null); toastAction.onClick(); }}
-            >
-              {toastAction.label}
-            </button>
-          )}
-        </div>
-      )}
-
-      {/* Got Paid chip toast — Speed-mode post-save prompt (Part B).
-          Shows the first item in the queue. Tapping a chip sets paymentType without
-          reopening the modal. Tapping × dismisses and moves to next in queue. */}
-      {gotPaidToastQueue.length > 0 && (() => {
-        const { job } = gotPaidToastQueue[0];
-        const amtLabel = job.amount != null ? ` £${job.amount}` : '';
-        return (
-          <div className="toast got-paid-toast" role="status" aria-live="polite">
-            <span className="got-paid-toast__label">Got paid?{amtLabel}</span>
-            <div className="got-paid-toast__chips">
-              <button type="button" className="got-paid-toast__chip" onClick={() => handleGotPaidChip(job, 'cash')}>Cash</button>
-              <button type="button" className="got-paid-toast__chip" onClick={() => handleGotPaidChip(job, 'bank transfer')}>Bank</button>
-              <button type="button" className="got-paid-toast__chip" onClick={() => handleGotPaidChip(job, 'card')}>Card</button>
-            </div>
-            <button
-              type="button"
-              className="got-paid-toast__dismiss"
-              aria-label="Dismiss"
-              onClick={dismissGotPaidToast}
-            >
-              &times;
-            </button>
-          </div>
-        );
-      })()}
-
-      {/* Pay-now soft prompt (Section 1.3 c) — shown after job completion when not connected.
-          Not modal, not blocking. Dismissed for this session when trader taps the X.
-          Frequency cap: suppressed while a toast or got-paid chip is showing so at most
-          one transient nudge appears at a time (priority: toast > got-paid chip > pay-now). */}
-      {showPayNowNudge && !payNowNudgeDismissed && !toast && gotPaidToastQueue.length === 0 && (
-        <div className="pay-now-nudge" role="status">
-          <span className="pay-now-nudge__copy">
-            Pay-now button available{' '}
-            <button
-              type="button"
-              className="pay-now-nudge__setup"
-              onClick={() => {
-                setShowPayNowNudge(false);
-                setPayNowNudgeDismissed(true);
-                onNavigateToCardPayments?.();
-              }}
-            >
-              Set up
-            </button>
-          </span>
-          <button
-            type="button"
-            className="pay-now-nudge__dismiss"
-            aria-label="Dismiss"
-            onClick={() => {
-              setShowPayNowNudge(false);
-              setPayNowNudgeDismissed(true);
-            }}
-          >
-            &times;
-          </button>
-        </div>
-      )}
+      {/* toast / got-paid chips / pay-now nudge removed (JP-LU2) — rendered by
+          <Snackbar /> in AppShell.jsx via onSnackbar / onSnackbarDismiss props. */}
 
 
       {/* ── ProUpgradeSheet — opened by GetProPill on Today ──────────────── */}

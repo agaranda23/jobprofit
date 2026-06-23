@@ -1791,6 +1791,7 @@ body {
   100% { transform: scale(1); color: var(--accent); }
 }
 
+/* DEPRECATED — remove after JP-LU2 ships (separate zero-risk CSS PR) */
 /* Toast — sits above all drawers, sheets and modals (--z-toast: 600).
    Root cause fix: was z-index:200 (same as backdrops) which caused the "Added
    to Leads" toast to paint behind the got-paid card/sheet. Now uses --z-toast. */
@@ -1815,6 +1816,176 @@ body {
   to   { opacity: 1; transform: translate(-50%, 0); }
 }
 
+/* ── Snackbar manager (JP-LU2) ─────────────────────────────────────────────────
+   Single fixed-position surface replacing navToast / realtimeToast /
+   costSnackbar / TodayScreen toast / gotPaidToast / payNowNudge.
+   Base layout mirrors .nav-toast (same position, z-index, animation).
+   --type modifiers handle visual variants.
+   ──────────────────────────────────────────────────────────────────────────── */
+.snackbar {
+  position: fixed;
+  bottom: calc(var(--nav-clearance) + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 16px 12px 18px;
+  font-size: var(--fs-label);
+  font-weight: 500;
+  z-index: var(--z-toast);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: calc(100vw - 40px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  animation: toast-in 0.25s ease-out;
+  line-height: 1.4;
+}
+.snackbar__msg {
+  flex: 1;
+}
+.snackbar__action {
+  background: none;
+  border: none;
+  color: var(--accent, #2bc48a);
+  font-size: var(--fs-label);
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
+  min-height: 32px;
+}
+.snackbar__close {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  font-size: var(--fs-label);
+  cursor: pointer;
+  padding: 2px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+}
+/* realtime variant — dark green glass (mirrors .nav-toast--accepted) */
+.snackbar--realtime {
+  background: rgba(6, 78, 59, 0.95);
+  border-color: rgba(52, 214, 114, 0.4);
+  color: #e4ffe4;
+  padding: 0;
+  gap: 0;
+  cursor: default;
+}
+.snackbar__realtime-body {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 6px 12px 14px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  color: inherit;
+  font-size: var(--fs-label);
+  font-weight: 500;
+  font-family: inherit;
+  -webkit-tap-highlight-color: transparent;
+  min-height: 44px;
+}
+.snackbar__realtime-body:active { opacity: 0.75; }
+.snackbar__realtime-check {
+  font-size: var(--fs-body);
+  color: var(--accent);
+  flex-shrink: 0;
+  line-height: 1;
+}
+/* got-paid variant — green left border chip row */
+.snackbar--got-paid {
+  border-left: 3px solid var(--jp-green);
+  padding: 10px 14px;
+  white-space: nowrap;
+}
+.snackbar__got-paid-label {
+  font-size: var(--fs-label);
+  font-weight: 600;
+  color: var(--text);
+  flex-shrink: 0;
+}
+.snackbar__got-paid-chips {
+  display: flex;
+  gap: 6px;
+}
+.snackbar__got-paid-chip {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text);
+  font-size: var(--fs-label);
+  font-weight: 600;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  min-height: 32px;
+}
+.snackbar__got-paid-chip:active,
+.snackbar__got-paid-chip:hover {
+  background: var(--jp-green);
+  border-color: var(--jp-green);
+  color: #000;
+}
+/* cost variant — mirrors .nav-toast--cost-capture */
+.snackbar--cost {
+  gap: 8px;
+  padding: 10px 12px;
+}
+.snackbar__cost-msg {
+  flex: 1;
+  font-size: var(--fs-label);
+  color: var(--text);
+  min-width: 0;
+}
+.snackbar__add-cost {
+  background: var(--accent, #22c55e);
+  color: #000;
+  border: none;
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: var(--fs-label);
+  font-weight: 700;
+  font-family: inherit;
+  cursor: pointer;
+  flex-shrink: 0;
+  min-height: 32px;
+}
+.snackbar__add-cost:active { opacity: 0.85; }
+/* nudge variant — mirrors .pay-now-nudge */
+.snackbar--nudge {
+  left: 16px;
+  right: 16px;
+  transform: none;
+  bottom: var(--nav-clearance);
+  max-width: none;
+  border-color: rgba(43, 196, 138, 0.4);
+}
+.snackbar__nudge-copy {
+  flex: 1;
+  line-height: 1.4;
+}
+.snackbar__nudge-setup {
+  background: none;
+  border: none;
+  color: var(--accent, #2bc48a);
+  font-size: var(--fs-label);
+  font-weight: 700;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0;
+  min-height: 44px;
+}
+.snackbar__nudge-setup:active { opacity: 0.7; }
+
+/* DEPRECATED — remove after JP-LU2 ships (separate zero-risk CSS PR) */
 /* Got Paid chip toast — Speed-mode post-save prompt (Part B).
    Uses --z-toast like .toast so both float above all sheets and drawers. */
 .got-paid-toast {
@@ -4951,6 +5122,7 @@ input[type=number] { -moz-appearance: textfield; }
   color: #fff;
 }
 
+/* DEPRECATED — remove after JP-LU2 ships (separate zero-risk CSS PR) */
 /* ── Orientation toast ────────────────────────── */
 .nav-toast {
   position: fixed;
@@ -13356,6 +13528,7 @@ button.jd-money-chip:active { opacity: 0.75; }
   opacity: 0.8;
 }
 
+/* DEPRECATED — remove after JP-LU2 ships (separate zero-risk CSS PR) */
 /* ── Realtime toast — accepted variant (AppShell, app is open when signed) ── */
 .nav-toast--accepted {
   background: rgba(6, 78, 59, 0.95);
@@ -14384,6 +14557,7 @@ button.jd-money-chip:active { opacity: 0.75; }
 }
 .pay-now-money-banner__dismiss:active { opacity: 0.7; }
 
+/* DEPRECATED — remove after JP-LU2 ships (separate zero-risk CSS PR) */
 /* ── TodayScreen: Pay-now soft nudge (Section 1.3 c) ── */
 .pay-now-nudge {
   position: fixed;
@@ -15976,6 +16150,7 @@ button.jd-money-chip:active { opacity: 0.75; }
   margin-top: 4px;
 }
 
+/* DEPRECATED — remove after JP-LU2 ships (separate zero-risk CSS PR) */
 /* ─── Cost snackbar additions ─────────────────────────────────────────────────
    Builds on the existing .nav-toast base in index.css.
    ─────────────────────────────────────────────────────────────────────────── */
