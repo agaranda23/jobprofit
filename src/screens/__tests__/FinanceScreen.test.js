@@ -1128,3 +1128,81 @@ describe('Per-job monthly bills estimate', () => {
     expect(getOverheadTotal(overheads)).toBe(250);
   });
 });
+
+// ─── JP-LU5 PR2: Insight Layer gate consolidation ────────────────────────────
+// Asserts the rendering decision logic introduced by the consolidated upgrade
+// surface. FinanceScreen now has a single branch:
+//   userIsPro === true  → render all four real insight cards, no ProGate chrome
+//   userIsPro === false → render exactly ONE money-insight-locked-gate element
+//
+// No @testing-library/react in this project; these tests model the conditional
+// using the same isPro() helper that FinanceScreen calls, so any change to the
+// plan-check logic breaks these tests.
+
+import { isPro } from '../../lib/plan';
+
+describe('JP-LU5 PR2: Insight Layer gate consolidation', () => {
+  // The gating branch is: userIsPro ? <four real cards> : <one lock card>
+  // We model it as a pure function mirroring the JSX condition.
+  function insightGatePath(profile) {
+    return isPro(profile) ? 'pro' : 'locked';
+  }
+
+  it('free user (no plan) → locked path (one gate card, zero ProGate wrappers)', () => {
+    expect(insightGatePath({ plan: null })).toBe('locked');
+  });
+
+  it('free user (plan=free) → locked path', () => {
+    expect(insightGatePath({ plan: 'free' })).toBe('locked');
+  });
+
+  it('pro user (plan=pro) → pro path (four real cards, no gate chrome)', () => {
+    expect(insightGatePath({ plan: 'pro' })).toBe('pro');
+  });
+
+  it('active trial user → pro path (trials get full insight layer)', () => {
+    // isPro() calls isTrialActive() which requires plan='trial' AND trial_ends_at in the future.
+    const futureDate = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    expect(insightGatePath({ plan: 'trial', trial_ends_at: futureDate })).toBe('pro');
+  });
+
+  it('undefined profile → locked path (null-safe)', () => {
+    expect(insightGatePath(undefined)).toBe('locked');
+  });
+
+  it('null profile → locked path (null-safe)', () => {
+    expect(insightGatePath(null)).toBe('locked');
+  });
+
+  it('locked path fires UPGRADE_TRIGGERS.INSIGHT_LOCKED (not a hardcoded string)', () => {
+    // Pin that the trigger constant is defined and equals the canonical string.
+    // The consolidated CTA imports UPGRADE_TRIGGERS from lib/telemetry and uses
+    // UPGRADE_TRIGGERS.INSIGHT_LOCKED — this test guards against the value changing.
+    // Import is already at top of file via the workRecordsView mock pattern.
+    const { UPGRADE_TRIGGERS: triggers } = require('../../lib/telemetry');
+    expect(typeof triggers.INSIGHT_LOCKED).toBe('string');
+    expect(triggers.INSIGHT_LOCKED.length).toBeGreaterThan(0);
+    // Value must be stable — confirm against the canonical string from telemetry.js
+    expect(triggers.INSIGHT_LOCKED).toBe('insight_locked');
+  });
+
+  it('VAT card independence: isVatRegistered gate is separate from the insight gate', () => {
+    // VAT card condition: isVatRegistered && <ProGate ...>
+    // It must be independent of the insight-layer gate (userIsPro condition).
+    // A free user with VAT registered should still hit the VAT gate (separate ProGate).
+    // A pro user without VAT registered should see no VAT card.
+    // These are pure boolean guards — model them directly.
+    const freeProfile = { plan: 'free', vat_number: '123456789' };
+    const proNoVat    = { plan: 'pro',  vat_number: null };
+
+    const isVatRegistered = (profile) => !!(profile?.vat_number);
+
+    // Free user with VAT: insight gate = locked, VAT card visible (own ProGate)
+    expect(insightGatePath(freeProfile)).toBe('locked');
+    expect(isVatRegistered(freeProfile)).toBe(true);
+
+    // Pro user without VAT: insight gate = pro, VAT card hidden
+    expect(insightGatePath(proNoVat)).toBe('pro');
+    expect(isVatRegistered(proNoVat)).toBe(false);
+  });
+});

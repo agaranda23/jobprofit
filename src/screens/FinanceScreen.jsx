@@ -17,13 +17,13 @@
  *   8. Margin nudge (conditional — only when |delta| >= 10%)                [PRO]
  *   9. Recent transactions — collapsed expandable timeline                  [FREE]
  *
- * Pro gating: ProGate wraps cards 3, 4, 7, 8 and adds a corner lock badge
- * when the card has a real number (hasValue=true). When the card is in its
- * empty/setup state (hasValue=false) it renders plain — the setup prompt is
- * useful to all users and must not look locked.
- *
- * UpgradeBanner is rendered once (not inside ProGate) so the upgrade CTA
- * never repeats for each gated card.
+ * Pro gating (JP-LU5 PR2): cards 3, 7, 8 and the margin nudge are consolidated
+ * behind a single userIsPro branch:
+ *   Free user  → one "Unlock the Insight Layer" card (money-insight-locked-gate)
+ *   Pro user   → all four real insight cards, no ProGate blur chrome
+ * The VAT card (3b) remains independently conditioned on isVatRegistered and
+ * keeps its own ProGate — it must never show a teaser to non-VAT users.
+ * The UpgradeBanner at the top of the screen is unchanged (separate surface).
  *
  * Upgrade flow: onUpgrade prop bubbles up to AppShell. Wiring to a real
  * Stripe/waitlist paywall is a separate task — today it falls back to the
@@ -819,128 +819,178 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
         </div>
       )}
 
-      {/* ── 3. Tax Pot card (Pro-gated) ────────────────────────────────── */}
-      {/* hasValue logic:
-          - Pro users: always false (they see real content, not the blur chrome).
-          - Free users with data: true → ProGate blurs the real figures.
-          - Free users with NO data: also true → ProGate blurs the example teaser
-            so the temptation exists from day one.
-          Passing `!userIsPro` as the hasValue shorthand achieves this: ProGate
-          only blurs when locked=true AND hasValue=true, and for free users we
-          always want the blur chrome regardless of whether they have data. */}
-      <ProGate locked={!userIsPro} hasValue={!userIsPro} onUpgrade={() => handleUpgrade(UPGRADE_TRIGGERS.INSIGHT_LOCKED)}>
-        <div className="money-card money-tax-setaside">
-          <div className="money-tax-setaside__label-row">
-            <div className="money-tax-setaside__label">Tax Pot</div>
-            {/* Only Pro users can edit from here — free users tap to upgrade via ProGate */}
-            {userIsPro && onProfileUpdate && (
-              <button
-                type="button"
-                className="money-tax-setaside__edit-btn"
-                onClick={() => setTaxPotSheetOpen(true)}
-                aria-label="Edit tax pot percentage"
-              >
-                {taxSetAsidePct}% &rsaquo;
-              </button>
-            )}
-          </div>
+      {/* ── 3–9. Insight Layer — consolidated gate for free users ──────────── */}
+      {/* Free users see ONE unlock card instead of four separate blurred cards.
+          Pro users see all four real insight cards with no gate chrome.
+          VAT card is outside this block (conditioned on isVatRegistered). */}
+      {userIsPro ? (
+        <>
+          {/* ── Pro: Tax Pot card ─────────────────────────────────────────── */}
+          <div className="money-card money-tax-setaside">
+            <div className="money-tax-setaside__label-row">
+              <div className="money-tax-setaside__label">Tax Pot</div>
+              {onProfileUpdate && (
+                <button
+                  type="button"
+                  className="money-tax-setaside__edit-btn"
+                  onClick={() => setTaxPotSheetOpen(true)}
+                  aria-label="Edit tax pot percentage"
+                >
+                  {taxSetAsidePct}% &rsaquo;
+                </button>
+              )}
+            </div>
 
-          {isCisSubcontractor ? (
-            /* ── CIS-aware two-block view ───────────────────────────────── */
-            (() => {
-              const cisAmt = ytd.cisDeductedYtd ?? 0;
-              const setAsideAmt = ytdTaxPot;
-              const nonCisBase = ytd.nonCisProfit ?? 0;
-              const allCis = nonCisBase <= 0 && ytd.profit > 0;
+            {isCisSubcontractor ? (
+              (() => {
+                const cisAmt = ytd.cisDeductedYtd ?? 0;
+                const setAsideAmt = ytdTaxPot;
+                const nonCisBase = ytd.nonCisProfit ?? 0;
+                const allCis = nonCisBase <= 0 && ytd.profit > 0;
 
-              if (ytd.paid === 0 && cisAmt === 0) {
+                if (ytd.paid === 0 && cisAmt === 0) {
+                  return (
+                    <>
+                      <p className="money-insight__example-label">Example — your numbers appear here on Pro</p>
+                      <div className="money-tax-setaside__figure">£437</div>
+                      <p className="money-tax-setaside__sub">Tax pot estimate</p>
+                    </>
+                  );
+                }
+
                 return (
                   <>
-                    {/* "Example" sits outside pro-gate__figure so it's readable under the blur */}
-                    <p className="money-insight__example-label">Example — your numbers appear here on Pro</p>
-                    <div className="money-tax-setaside__figure pro-gate__figure">
-                      £437
+                    <div className="money-tax-cis-block">
+                      <div className="money-tax-cis-block__label">Already deducted (CIS)</div>
+                      <div className="money-tax-cis-block__figure">{gbp(cisAmt)}</div>
+                      <p className="money-tax-cis-block__sub">
+                        Taken by contractors this tax year. This usually comes back as a refund.
+                      </p>
                     </div>
-                    <p className="money-tax-setaside__sub pro-gate__figure">
-                      Tax pot estimate
+                    {allCis ? (
+                      <p className="money-tax-setaside__empty money-tax-setaside__empty--cis-all">
+                        Nothing extra to set aside &mdash; all your work this year was CIS.
+                      </p>
+                    ) : nonCisBase > 0 ? (
+                      <div className="money-tax-cis-block money-tax-cis-block--setaside">
+                        <div className="money-tax-cis-block__label">Set aside on the rest</div>
+                        <div className="money-tax-cis-block__figure">{gbp(setAsideAmt)}</div>
+                        <p className="money-tax-cis-block__sub">
+                          {taxSetAsidePct}% of your non-CIS profit ({gbp(nonCisBase)}).
+                          The CIS work is already covered.
+                        </p>
+                      </div>
+                    ) : null}
+                    <p className="money-tax-setaside__disclaimer">
+                      Estimate only &mdash; not tax advice. Figures are based on the details
+                      you enter. CIS deductions are advance payments toward your tax, reconciled
+                      on your Self Assessment &mdash; you may owe more or be due a refund.
+                      Check with your accountant or HMRC.
                     </p>
                   </>
                 );
-              }
-
-              return (
+              })()
+            ) : (
+              ytd.profit <= 0 ? (
                 <>
-                  {/* Block 1: CIS already deducted — always shown for CIS users with any paid jobs */}
-                  <div className="money-tax-cis-block">
-                    <div className="money-tax-cis-block__label">Already deducted (CIS)</div>
-                    <div className="money-tax-cis-block__figure pro-gate__figure">
-                      {gbp(cisAmt)}
-                    </div>
-                    <p className="money-tax-cis-block__sub">
-                      Taken by contractors this tax year. This usually comes back as a refund.
-                    </p>
-                  </div>
-
-                  {/* Block 2: set-aside on the rest — collapses when 100% CIS */}
-                  {allCis ? (
-                    <p className="money-tax-setaside__empty money-tax-setaside__empty--cis-all">
-                      Nothing extra to set aside &mdash; all your work this year was CIS.
-                    </p>
-                  ) : nonCisBase > 0 ? (
-                    <div className="money-tax-cis-block money-tax-cis-block--setaside">
-                      <div className="money-tax-cis-block__label">Set aside on the rest</div>
-                      <div className="money-tax-cis-block__figure pro-gate__figure">
-                        {gbp(setAsideAmt)}
-                      </div>
-                      <p className="money-tax-cis-block__sub">
-                        {taxSetAsidePct}% of your non-CIS profit ({gbp(nonCisBase)}).
-                        The CIS work is already covered.
-                      </p>
-                    </div>
-                  ) : null}
-
-                  <p className="money-tax-setaside__disclaimer">
-                    Estimate only &mdash; not tax advice. Figures are based on the details
-                    you enter. CIS deductions are advance payments toward your tax, reconciled
-                    on your Self Assessment &mdash; you may owe more or be due a refund.
-                    Check with your accountant or HMRC.
+                  <p className="money-insight__example-label">Example — your numbers appear here on Pro</p>
+                  <div className="money-tax-setaside__figure">£437</div>
+                  <p className="money-tax-setaside__sub">Tax pot estimate</p>
+                </>
+              ) : (
+                <>
+                  <div className="money-tax-setaside__figure">{gbp(ytdTaxPot)}</div>
+                  <p className="money-tax-setaside__sub">
+                    Put by for the taxman &middot; {taxSetAsidePct}% of profit &middot; {gbp(monthTaxPot)} this month
+                  </p>
+                  <p className="money-tax-setaside__keep">
+                    Leaves you {gbp(Math.max(0, ytd.profit) - ytdTaxPot)} to keep
                   </p>
                 </>
-              );
-            })()
+              )
+            )}
+          </div>
+
+          {/* ── Pro: Est. Profit/Hour card ────────────────────────────────── */}
+          {profitPerHour.value !== null ? (
+            <div className="money-card money-insight money-insight--pph">
+              <div className="money-insight__row">
+                <span className="money-insight__label">Est. Profit/Hour</span>
+                <span className="money-insight__tooltip" title="Based on your default hourly rate. Add hours to a job to make this exact.">
+                  <Icon name="info" size={16} />
+                </span>
+              </div>
+              <div className="money-insight__value">
+                {gbp(Math.round(profitPerHour.value))}
+                {profitPerHour.comparisonValue !== null && (
+                  <span className={`money-insight__delta money-insight__delta--${profitPerHour.deltaSign}`}>
+                    {profitPerHour.deltaSign === 'up' ? ' ▲' : profitPerHour.deltaSign === 'down' ? ' ▼' : ' –'}
+                    {' '}{gbp(Math.round(Math.abs(profitPerHour.value - profitPerHour.comparisonValue)))} vs last wk
+                  </span>
+                )}
+              </div>
+              {hourlyRate > 0 && (
+                <p className="money-insight__rate-compare">
+                  You charge {gbp(hourlyRate)}/hr &middot; {gbp(Math.max(0, hourlyRate - Math.round(profitPerHour.value)))} goes to costs
+                </p>
+              )}
+            </div>
           ) : (
-            /* ── Standard (non-CIS) view ─────────────────────────────────── */
-            ytd.profit <= 0 ? (
-              /* No real data yet — render example teaser so it blurs on day one.
-                 The "Example" label sits OUTSIDE pro-gate__figure so it stays
-                 readable when ProGate applies the blur — never looks like a
-                 hidden real number. */
-              <>
-                <p className="money-insight__example-label">Example — your numbers appear here on Pro</p>
-                <div className="money-tax-setaside__figure pro-gate__figure">
-                  £437
-                </div>
-                <p className="money-tax-setaside__sub pro-gate__figure">
-                  Tax pot estimate
-                </p>
-              </>
-            ) : (
-              <>
-                <div className="money-tax-setaside__figure pro-gate__figure">
-                  {gbp(ytdTaxPot)}
-                </div>
-                <p className="money-tax-setaside__sub">
-                  Put by for the taxman &middot; {taxSetAsidePct}% of profit &middot; {gbp(monthTaxPot)} this month
-                </p>
-                {/* "Leaves you £X to keep" = YTD profit minus YTD tax pot */}
-                <p className="money-tax-setaside__keep pro-gate__figure">
-                  Leaves you {gbp(Math.max(0, ytd.profit) - ytdTaxPot)} to keep
-                </p>
-              </>
-            )
+            <div className="money-card money-insight money-insight--pph">
+              <div className="money-insight__row">
+                <span className="money-insight__label">Est. Profit/Hour</span>
+                <span className="money-insight__tooltip" title="Based on your default hourly rate. Add hours to a job to make this exact.">
+                  <Icon name="info" size={16} />
+                </span>
+              </div>
+              <p className="money-insight__empty">
+                Add your hourly rate in Settings to see this.
+              </p>
+            </div>
           )}
+
+          {/* ── Pro: Best & worst jobs card ───────────────────────────────── */}
+          {bestWorstJobs.best ? (
+            <BestWorstCard best={bestWorstJobs.best} worst={bestWorstJobs.worst} />
+          ) : (
+            <div className="money-card money-best-worst">
+              <div className="money-best-worst__label">Best &amp; worst jobs</div>
+              <p className="money-insight__empty">Complete a job to see rankings.</p>
+            </div>
+          )}
+
+          {/* ── Pro: Margin nudge (conditional — threshold-gated) ─────────── */}
+          {showMarginNudge && (
+            <div className={`money-card money-nudge money-nudge--${marginTrend.deltaSign}`}>
+              {marginTrend.deltaSign === 'up'
+                ? <Icon name="trend-up" size={20} variant="success" className="money-nudge__icon" />
+                : <Icon name="trend-down" size={20} variant="danger" className="money-nudge__icon" />
+              }
+              <span className="money-nudge__copy">{marginNudgeCopy}</span>
+              {marginTrend.deltaSign !== 'up' && (
+                <span className="money-nudge__caret"> →</span>
+              )}
+            </div>
+          )}
+        </>
+      ) : (
+        /* ── Free user: single consolidated unlock card ──────────────────── */
+        <div className="money-insight-locked-gate">
+          <p className="money-insight-locked-gate__headline">Unlock the Insight Layer</p>
+          <ul className="money-insight-locked-gate__bullets">
+            <li>Tax Pot — how much to keep back for HMRC</li>
+            <li>Profit/Hour — are you actually worth your rate?</li>
+            <li>Best &amp; Worst jobs — know what to chase more of</li>
+          </ul>
+          <button
+            type="button"
+            className="money-insight-locked-gate__cta"
+            onClick={() => handleUpgrade(UPGRADE_TRIGGERS.INSIGHT_LOCKED)}
+          >
+            Start 14-day free trial
+          </button>
         </div>
-      </ProGate>
+      )}
 
       {/* ── 3b. VAT this quarter (Pro-gated, VAT-registered users only) ───── */}
       {/* Only rendered when the user has a VAT number set. No teaser for non-VAT users. */}
@@ -1041,98 +1091,6 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
           <div className="money-twoUp__value">{monthSummary.jobCount}</div>
         </div>
       </div>
-
-      {/* ── 7. Est. Profit/Hour (Pro-gated) ──────────────────────────────── */}
-      {/* hasValue: always true for free users (show example teaser day one).
-          For Pro users the gate is unlocked so hasValue has no effect. */}
-      <ProGate locked={!userIsPro} hasValue={!userIsPro || profitPerHour.value !== null} onUpgrade={() => handleUpgrade(UPGRADE_TRIGGERS.INSIGHT_LOCKED)}>
-        {profitPerHour.value !== null ? (
-          <div className="money-card money-insight money-insight--pph">
-            <div className="money-insight__row">
-              <span className="money-insight__label">Est. Profit/Hour</span>
-              <span className="money-insight__tooltip" title="Based on your default hourly rate. Add hours to a job to make this exact.">
-                <Icon name="info" size={16} />
-              </span>
-            </div>
-            <div className="money-insight__value pro-gate__figure">
-              {gbp(Math.round(profitPerHour.value))}
-              {profitPerHour.comparisonValue !== null && (
-                <span className={`money-insight__delta money-insight__delta--${profitPerHour.deltaSign}`}>
-                  {profitPerHour.deltaSign === 'up' ? ' ▲' : profitPerHour.deltaSign === 'down' ? ' ▼' : ' –'}
-                  {' '}{gbp(Math.round(Math.abs(profitPerHour.value - profitPerHour.comparisonValue)))} vs last wk
-                </span>
-              )}
-            </div>
-            {/* Rate comparison — only when hourly_rate is set and pph differs from it */}
-            {hourlyRate > 0 && (
-              <p className="money-insight__rate-compare pro-gate__figure">
-                You charge {gbp(hourlyRate)}/hr &middot; {gbp(Math.max(0, hourlyRate - Math.round(profitPerHour.value)))} goes to costs
-              </p>
-            )}
-          </div>
-        ) : (
-          /* No real profit/hour data yet — show example teaser for free users so
-             the card is visible and blurred from day one. Pro users with no data
-             see the setup prompt as before (gate is unlocked for them).
-             The "Example" label sits OUTSIDE pro-gate__figure so it stays
-             readable when ProGate applies the blur — never looks like a
-             hidden real number. */
-          <div className="money-card money-insight money-insight--pph">
-            <div className="money-insight__row">
-              <span className="money-insight__label">Est. Profit/Hour</span>
-              <span className="money-insight__tooltip" title="Based on your default hourly rate. Add hours to a job to make this exact.">
-                <Icon name="info" size={16} />
-              </span>
-            </div>
-            <p className="money-insight__example-label">Example — your numbers appear here on Pro</p>
-            <div className="money-insight__value pro-gate__figure">
-              £18/hr
-            </div>
-          </div>
-        )}
-      </ProGate>
-
-      {/* ── 8. Best & worst jobs (Pro-gated) ─────────────────────────────── */}
-      {/* hasValue: always true for free users (show example teaser day one).
-          For Pro users the gate is unlocked so hasValue has no effect. */}
-      <ProGate locked={!userIsPro} hasValue={!userIsPro || !!bestWorstJobs.best} onUpgrade={() => handleUpgrade(UPGRADE_TRIGGERS.INSIGHT_LOCKED)}>
-        {bestWorstJobs.best ? (
-          <BestWorstCard best={bestWorstJobs.best} worst={bestWorstJobs.worst} />
-        ) : (
-          /* No real jobs yet — show example teaser for free users.
-             Pro users without completed jobs see the setup prompt as before.
-             The "Example" label sits OUTSIDE pro-gate__figure so it stays
-             readable when ProGate applies the blur. */
-          <div className="money-card money-best-worst">
-            <div className="money-best-worst__label">Best &amp; worst jobs</div>
-            <p className="money-insight__example-label">Example — your numbers appear here on Pro</p>
-            <div className="money-best-worst__best pro-gate__figure">
-              Best: Bathroom refit &middot; £620 profit
-            </div>
-            <div className="money-best-worst__worst pro-gate__figure">
-              Worst: Fence repair &middot; £38 profit
-            </div>
-          </div>
-        )}
-      </ProGate>
-
-      {/* ── 9. Margin nudge (conditional — single, threshold-gated, Pro-gated) */}
-      {/* hasValue is always true here: nudge only renders when showMarginNudge is true,
-          which means there is real delta data — the copy is the value being gated. */}
-      {showMarginNudge && (
-        <ProGate locked={!userIsPro} hasValue={true} onUpgrade={() => handleUpgrade(UPGRADE_TRIGGERS.INSIGHT_LOCKED)}>
-          <div className={`money-card money-nudge money-nudge--${marginTrend.deltaSign}`}>
-            {marginTrend.deltaSign === 'up'
-              ? <Icon name="trend-up" size={20} variant="success" className="money-nudge__icon" />
-              : <Icon name="trend-down" size={20} variant="danger" className="money-nudge__icon" />
-            }
-            <span className="money-nudge__copy pro-gate__figure">{marginNudgeCopy}</span>
-            {marginTrend.deltaSign !== 'up' && (
-              <span className="money-nudge__caret"> →</span>
-            )}
-          </div>
-        </ProGate>
-      )}
 
       {/* ── 10. Recent transactions (demoted — collapsed by default) ─────── */}
       {totalTimelineEntries > 0 && (
