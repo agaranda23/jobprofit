@@ -234,7 +234,7 @@ export default function SyncBadge({ onSignIn }) {
                 <button
                   type="button"
                   className="modal-btn"
-                  style={{ background: 'var(--accent)', color: '#0b1f10' }}
+                  style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}
                   onClick={() => {
                     setSheetOpen(false);
                     if (onSignIn) onSignIn();
@@ -246,7 +246,7 @@ export default function SyncBadge({ onSignIn }) {
                 <button
                   type="button"
                   className="modal-btn"
-                  style={{ background: 'var(--accent)', color: '#0b1f10' }}
+                  style={{ background: 'var(--accent)', color: 'var(--on-accent)' }}
                   onClick={handleRetry}
                 >
                   Retry now

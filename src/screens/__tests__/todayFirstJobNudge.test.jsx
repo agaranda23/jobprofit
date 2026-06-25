@@ -158,6 +158,18 @@ describe('TodayScreen — first-job activation nudge', () => {
     expect(screen.getByTestId('activation-nudge-cta')).toBeInTheDocument();
   });
 
+  it('CTA button uses btn-primary class (Brand Blue #2563EB with white text — regression guard)', () => {
+    // When the OHNAR re-skin changed --accent from green to blue, the button used
+    // the BEM class "btn--primary" which has no matching CSS rule, causing it to
+    // fall back to the Vite scaffold reset: background #1a1a1a (near-black) with
+    // dark text. The fix is class "btn-primary" (single hyphen). This test pins
+    // the class name so a future rename cannot silently break button contrast.
+    renderToday([], PROFILE_FREE);
+    const cta = screen.getByTestId('activation-nudge-cta');
+    expect(cta.classList.contains('btn-primary')).toBe(true);
+    expect(cta.classList.contains('btn--primary')).toBe(false);
+  });
+
   it('clicking the CTA opens the AddJobModal (a modal appears in the DOM)', () => {
     renderToday([], PROFILE_FREE);
     const cta = screen.getByTestId('activation-nudge-cta');
