@@ -143,13 +143,16 @@ describe('auth landing — Paid chip uses success green animation', () => {
     expect(css).toContain('auth-chip-pulse-paid');
   });
 
-  it('auth-chip-pulse-paid keyframe uses a green colour (#16a34a)', () => {
+  it('auth-chip-pulse-paid keyframe uses accessible success green (#15803d, 5.02:1 with white AA)', () => {
+    // Surface darkened from #16a34a (3.30:1 — decorative only) to #15803d (5.02:1 — passes AA
+    // for 13px label text). The intent (green Paid chip) is preserved; the shade is accessible.
     const kfStart = css.indexOf('@keyframes auth-chip-pulse-paid');
     expect(kfStart).toBeGreaterThan(-1);
     // Find the block
     const kfEnd = css.indexOf('}', css.indexOf('}', kfStart) + 1);
     const kfBlock = css.slice(kfStart, kfEnd + 1);
-    expect(kfBlock.toLowerCase()).toContain('#16a34a');
+    expect(kfBlock.toLowerCase()).toContain('#15803d');
+    expect(kfBlock.toLowerCase()).not.toContain('#16a34a');
   });
 
   it('chip--4 (Paid) uses the paid keyframe, not the generic blue one', () => {

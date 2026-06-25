@@ -1,7 +1,7 @@
 /**
  * ON-COLOUR TOKEN PINNING TESTS
  *
- * Pins the three-part fix for OHNAR re-skin contrast bugs:
+ * Pins the four-part fix for OHNAR re-skin contrast bugs:
  *
  *  1. Global dark resets killed — bare `button { background:#1a1a1a }` and
  *     `:root { background-color:#242424 }` scaffold defaults are gone.
@@ -9,6 +9,13 @@
  *     token in :root (dark) and [data-theme="light"].
  *  3. Low-contrast failure sites fixed — chase button amber, placeholder
  *     double-opacity, margin cost input, jobs search placeholder.
+ *  4. WCAG AA failures fixed (verified ratios):
+ *       --on-success: brand green #16A34A/white = 3.30 (decorative/icon ≥3:1 ✓).
+ *         Normal-text surfaces use #15803D (5.02:1 ✓ AA).
+ *       --on-danger:  dark --danger darkened from #ef4444 to #dc2626 → 4.83:1 ✓ AA.
+ *       --on-gold:    switched from white to #0b1320 (dark navy).
+ *         Dark: #0b1320 on #d4a017 = 7.84:1 ✓ AAA.
+ *         Light: #0b1320 on #b8880a = 5.82:1 ✓ AA.
  *
  * Test strategy: read index.css and JSX sources directly — no JSDOM required.
  */
@@ -161,7 +168,7 @@ describe('on-colour tokens defined in :root (dark theme)', () => {
     expect(rootBlock).toMatch(/--on-amber:\s*#0b1320/i);
   });
 
-  it('--on-danger is #ffffff (white on red)', () => {
+  it('--on-danger is #ffffff (white on red — dark --danger is now #dc2626, ratio 4.83:1 AA)', () => {
     const rootBlock = getRootBlock();
     expect(rootBlock).toMatch(/--on-danger:\s*#ffffff/i);
   });
@@ -187,9 +194,9 @@ describe('on-colour tokens defined in [data-theme="light"]', () => {
     expect(light).toMatch(/--on-danger:\s*#ffffff/i);
   });
 
-  it('--on-gold in light theme is #ffffff', () => {
+  it('--on-gold in light theme is #0b1320 (dark navy — 5.82:1 on #b8880a, AA)', () => {
     const light = getLightThemeBlock();
-    expect(light).toMatch(/--on-gold:\s*#ffffff/i);
+    expect(light).toMatch(/--on-gold:\s*#0b1320/i);
   });
 });
 
@@ -297,5 +304,126 @@ describe('ConsentBanner — token-driven colours', () => {
     // Look ahead 300 chars — the style prop follows immediately
     const region = consentSrc.slice(onClickIdx, onClickIdx + 300);
     expect(region).toContain("var(--text)");
+  });
+});
+
+// ── 7. WCAG AA failure fixes — four failing pairs corrected ──────────────────
+
+describe('WCAG AA fix — --on-success normal-text surfaces use #15803D', () => {
+  it('.jt-cta--markpaid standalone rule uses #15803D not #16A34A (5.02:1 vs 3.30:1 with white)', () => {
+    // Use the standalone selector (preceded by newline) to skip the multi-selector block
+    const selector = '\n.jt-cta--markpaid {';
+    const idx = css.indexOf(selector);
+    expect(idx).toBeGreaterThan(-1);
+    const braceStart = css.indexOf('{', idx + 1); // skip the newline, find the opening brace
+    const braceEnd   = css.indexOf('\n}', braceStart);
+    const block = css.slice(braceStart, braceEnd + 2);
+    expect(block).toContain('#15803D');
+    expect(block).not.toContain('#16A34A');
+    expect(block).not.toContain('#16a34a');
+  });
+
+  it('auth-chip-pulse-paid keyframe uses #15803d not #16a34a', () => {
+    const idx = css.indexOf('@keyframes auth-chip-pulse-paid {');
+    expect(idx).toBeGreaterThan(-1);
+    const braceStart = css.indexOf('{', idx);
+    const braceEnd   = css.indexOf('}', braceStart);
+    const block = css.slice(braceStart, braceEnd + 1);
+    expect(block).toContain('#15803d');
+    expect(block).not.toContain('#16a34a');
+  });
+
+  it('auth-chip-pulse-paid-light keyframe uses #15803d not #16a34a', () => {
+    const idx = css.indexOf('@keyframes auth-chip-pulse-paid-light {');
+    expect(idx).toBeGreaterThan(-1);
+    const braceStart = css.indexOf('{', idx);
+    const braceEnd   = css.indexOf('}', braceStart);
+    const block = css.slice(braceStart, braceEnd + 1);
+    expect(block).toContain('#15803d');
+    expect(block).not.toContain('#16a34a');
+  });
+});
+
+describe('WCAG AA fix — --on-danger: dark --danger token darkened to #dc2626', () => {
+  it(':root dark --danger is #dc2626 (4.83:1 with white, AA) not #ef4444 (3.76:1)', () => {
+    const rootBlock = getRootBlock();
+    // The :root dark token must be #dc2626
+    expect(rootBlock).toMatch(/--danger:\s*#dc2626/i);
+    expect(rootBlock).not.toMatch(/--danger:\s*#ef4444/i);
+  });
+});
+
+describe('WCAG AA fix — --on-gold switched to dark navy in both themes', () => {
+  it(':root dark --on-gold is #0b1320 (7.84:1 on #d4a017, AAA)', () => {
+    const rootBlock = getRootBlock();
+    expect(rootBlock).toMatch(/--on-gold:\s*#0b1320/i);
+  });
+
+  it('upgrade-banner__btn base rule uses var(--on-gold) not #fff', () => {
+    // The base rule starts with newline (not inside [data-theme="light"])
+    const selector = '\n.upgrade-banner__btn {';
+    const idx = css.indexOf(selector);
+    expect(idx).toBeGreaterThan(-1);
+    const braceStart = css.indexOf('{', idx + 1);
+    const braceEnd   = css.indexOf('\n}', braceStart);
+    const block = css.slice(braceStart, braceEnd + 2);
+    expect(block).toContain('var(--on-gold)');
+    expect(block).not.toMatch(/color:\s*#fff\b/i);
+  });
+
+  it('pro-upgrade-sheet__cta base rule uses var(--on-gold) not #fff', () => {
+    // The base rule starts with newline (not inside [data-theme="light"])
+    const selector = '\n.pro-upgrade-sheet__cta {';
+    const idx = css.indexOf(selector);
+    expect(idx).toBeGreaterThan(-1);
+    const braceStart = css.indexOf('{', idx + 1);
+    const braceEnd   = css.indexOf('\n}', braceStart);
+    const block = css.slice(braceStart, braceEnd + 2);
+    expect(block).toContain('var(--on-gold)');
+    expect(block).not.toMatch(/color:\s*#fff\b/i);
+  });
+
+  it('get-pro-pill__copy uses var(--on-gold) not #fff', () => {
+    const idx = css.indexOf('.get-pro-pill__copy {');
+    expect(idx).toBeGreaterThan(-1);
+    const braceStart = css.indexOf('{', idx);
+    const braceEnd   = css.indexOf('}', braceStart);
+    const block = css.slice(braceStart, braceEnd + 1);
+    expect(block).toContain('var(--on-gold)');
+    expect(block).not.toMatch(/color:\s*#fff\b/i);
+  });
+
+  it('get-pro-pill__icon uses var(--on-gold) not #fff', () => {
+    const idx = css.indexOf('.get-pro-pill__icon {');
+    expect(idx).toBeGreaterThan(-1);
+    const braceStart = css.indexOf('{', idx);
+    const braceEnd   = css.indexOf('}', braceStart);
+    const block = css.slice(braceStart, braceEnd + 1);
+    expect(block).toContain('var(--on-gold)');
+    expect(block).not.toMatch(/color:\s*#fff\b/i);
+  });
+});
+
+describe('WCAG AA fix — gold-text-on-white surfaces use accessible dark gold', () => {
+  it('light-theme money-hero__label-net uses #906e00 (4.76:1 on white) not #b8880a (3.20:1)', () => {
+    const idx = css.indexOf('[data-theme="light"] .money-hero__label-net');
+    expect(idx).toBeGreaterThan(-1);
+    const braceStart = css.indexOf('{', idx);
+    const braceEnd   = css.indexOf('}', braceStart);
+    const block = css.slice(braceStart, braceEnd + 1);
+    expect(block).toContain('#906e00');
+    expect(block).not.toContain('#b8880a');
+    expect(block).not.toContain('var(--gold)');
+  });
+
+  it('light-theme pro-upgrade-sheet__eyebrow uses #906e00 (4.76:1 on white)', () => {
+    const idx = css.indexOf('[data-theme="light"] .pro-upgrade-sheet__eyebrow');
+    expect(idx).toBeGreaterThan(-1);
+    const braceStart = css.indexOf('{', idx);
+    const braceEnd   = css.indexOf('}', braceStart);
+    const block = css.slice(braceStart, braceEnd + 1);
+    expect(block).toContain('#906e00');
+    expect(block).not.toContain('#b8880a');
+    expect(block).not.toContain('var(--gold)');
   });
 });
