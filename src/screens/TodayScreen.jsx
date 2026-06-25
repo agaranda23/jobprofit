@@ -520,7 +520,7 @@ export default function TodayScreen({
           </div>
           <button
             type="button"
-            className="btn btn--primary empty-welcome-cta"
+            className="btn-primary empty-welcome-cta"
             onClick={() => setJobOpen(true)}
             data-testid="activation-nudge-cta"
           >
