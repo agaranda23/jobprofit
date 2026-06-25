@@ -7,9 +7,10 @@
  * future stages are uniformly greyed.
  *
  * Two size variants:
- *   variant="compact"  — Job Card row: small coloured rings, no text labels.
- *                        Icons are omitted at compact size (ring colour alone
- *                        carries the identity — legibility > decoration at 11px).
+ *   variant="compact"  — Job Card row: coloured rings + stage icons, no text labels.
+ *                        Rings are 26px (current=28px) so icons are legible on a
+ *                        one-handed mobile tap. Card becomes slightly taller —
+ *                        expected; all existing card elements still lay out correctly.
  *   variant="full"     — Job Detail: larger rings + Lucide icons + labels;
  *                        primary status visual at the top of the drawer.
  *
@@ -109,12 +110,18 @@ export default function WorkflowCircles({ job, variant = 'compact' }) {
         const colourVar = STAGE_COLOUR_VAR[s];
         const prevState = idx > 0 ? circles[idx - 1].state : null;
 
-        // Icon choice: the stage's own icon for all states in full variant.
-        // Compact: no icon rendered (rings-only at 11px — clean and legible).
+        // Icon choice: the stage's own icon for all states, both variants.
+        // Compact uses a slightly smaller size so icons sit neatly in the 26px ring.
         const iconName = STAGE_ICONS[s];
 
         // Paid circle gets the animation class when the job IS paid.
         const paidAnim = (s === 'Paid' && isPaid) ? ' wfc__circle--paid-anim' : '';
+
+        // Icon sizes: full — 16/14px as before; compact — 12/11px (fits 26px ring).
+        const isEmphasisState = state === 'current' || state === 'overdue';
+        const iconSize = isFull
+          ? (isEmphasisState ? 16 : 14)
+          : (isEmphasisState ? 12 : 11);
 
         return (
           <div
@@ -130,15 +137,13 @@ export default function WorkflowCircles({ job, variant = 'compact' }) {
               />
             )}
 
-            {/* Circle — coloured ring with optional icon inside */}
+            {/* Circle — coloured ring with stage icon inside (both variants) */}
             <div className={`wfc__circle wfc__circle--${state}${paidAnim}`}>
-              {isFull && (
-                <Icon
-                  name={iconName}
-                  size={state === 'current' || state === 'overdue' ? 16 : 14}
-                  variant="inherit"
-                />
-              )}
+              <Icon
+                name={iconName}
+                size={iconSize}
+                variant="inherit"
+              />
             </div>
 
             {/* Label — full variant only */}

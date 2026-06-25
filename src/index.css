@@ -17160,9 +17160,9 @@ button.jd-money-chip:active { opacity: 0.75; }
   height: 0;
 }
 
-/* ── Compact variant — small coloured rings, no labels ───────────────────── */
+/* ── Compact variant — coloured rings + icons, no labels ─────────────────── */
 .wfc--compact {
-  padding: 5px 0 2px;
+  padding: 6px 0 4px;
   gap: 0;
 }
 .wfc--compact .wfc__step {
@@ -17185,40 +17185,46 @@ button.jd-money-chip:active { opacity: 0.75; }
 .wfc--compact .wfc__connector--skipped {
   height: 0;
 }
-/* Compact base circle — coloured ring; state overrides below */
+/* Compact base circle — coloured ring + icon, matching the full variant's brand
+   treatment at card scale. 26px base (28px for current/overdue) gives enough room
+   for an 11-12px Lucide icon to be legible on a one-handed mobile view.
+   border-radius: 50% is set explicitly so the circle stays round at every size —
+   no box-shadow or scale can make it look square at this radius. */
 .wfc--compact .wfc__circle {
-  width: 11px;
-  height: 11px;
+  width: 26px;
+  height: 26px;
   border-radius: 50%;
   border: 2px solid var(--circle-colour, var(--wf-future-ring));
   background: transparent;
+  color: var(--circle-colour, var(--wf-future-ring));
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
   position: relative;
   z-index: 1;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.25s ease;
+  transition: border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease, transform 0.25s ease;
 }
-/* Compact: current stage — same ring size but slightly thicker and glowing */
+/* Compact: current stage — slightly larger ring + coloured glow (matches full variant logic) */
 .wfc--compact .wfc__circle--current {
   border-width: 2.5px;
-  width: 13px;
-  height: 13px;
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--circle-colour, #2563EB) 25%, transparent);
+  width: 28px;
+  height: 28px;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--circle-colour, #2563EB) 25%, transparent);
 }
-/* Compact: overdue — same as current sizing, orange ring */
+/* Compact: overdue — same emphasis sizing, orange ring + glow */
 .wfc--compact .wfc__circle--overdue {
   border-width: 2.5px;
-  width: 13px;
-  height: 13px;
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--stage-overdue) 25%, transparent);
+  width: 28px;
+  height: 28px;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--stage-overdue) 25%, transparent);
 }
-/* Compact: future/muted — ring uses the muted grey token */
+/* Compact: future/muted — ring + icon use the muted grey token */
 .wfc--compact .wfc__circle--future {
   border-color: var(--wf-future-ring);
+  color: var(--wf-future-icon);
 }
-/* Compact: skipped Overdue — dashed muted ring */
+/* Compact: skipped Overdue — dashed muted ring (outline keeps border-radius: 50% intact) */
 .wfc--compact .wfc__circle--skipped {
   border: none;
   outline: 2px dashed var(--wf-skipped-ring);
