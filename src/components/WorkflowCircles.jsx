@@ -33,7 +33,7 @@
  */
 
 import { deriveDisplayStatus } from '../lib/jobStatus';
-import { deriveCircleStates, deriveWasOverdue, WORKFLOW_STAGES } from '../lib/workflowCircles';
+import { deriveCircleStates, deriveConnectorClass, deriveWasOverdue, WORKFLOW_STAGES } from '../lib/workflowCircles';
 import Icon from './Icon';
 
 // ── Icon map (semantic names from Icon.jsx REGISTRY) ────────────────────────
@@ -92,13 +92,14 @@ export default function WorkflowCircles({ job, variant = 'compact' }) {
         const iconVariant = 'inherit';
         // The Paid circle gets a paid-animation class when the job IS paid
         const paidAnim = (s === 'Paid' && isPaid) ? ' wfc__circle--paid-anim' : '';
+        const prevState = idx > 0 ? circles[idx - 1].state : null;
 
         return (
           <div key={s} className={`wfc__step wfc__step--${state}`} aria-hidden="true">
             {/* Connector line before every circle except the first */}
             {!isFirst && (
               <div
-                className={`wfc__connector${(state === 'completed' || (state === 'was-overdue') || (state === 'skipped' && idx > 0 && circles[idx - 1]?.state === 'completed')) ? ' wfc__connector--done' : ''}`}
+                className={`wfc__connector${deriveConnectorClass(prevState, state)}`}
               />
             )}
 

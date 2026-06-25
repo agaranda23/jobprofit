@@ -235,7 +235,48 @@ describe('deriveWasOverdue', () => {
   });
 });
 
-// ── 11. Integration: all valid stage → no state is undefined ─────────────────
+// ── 11. deriveConnectorClass — connector state derivation ────────────────────
+
+import { deriveConnectorClass } from '../workflowCircles.js';
+
+describe('deriveConnectorClass', () => {
+  it('returns --done when both endpoints are completed', () => {
+    expect(deriveConnectorClass('completed', 'completed')).toBe(' wfc__connector--done');
+  });
+
+  it('returns --done when both endpoints are was-overdue / completed', () => {
+    expect(deriveConnectorClass('completed', 'was-overdue')).toBe(' wfc__connector--done');
+    expect(deriveConnectorClass('was-overdue', 'completed')).toBe(' wfc__connector--done');
+  });
+
+  it('returns --skipped when right endpoint is skipped (connector touches bypass)', () => {
+    // This is the connector between Invoiced (completed) and Overdue (skipped)
+    expect(deriveConnectorClass('completed', 'skipped')).toBe(' wfc__connector--skipped');
+  });
+
+  it('returns --skipped when left endpoint is skipped (connector after bypass)', () => {
+    // This is the connector between Overdue (skipped) and Paid (completed)
+    expect(deriveConnectorClass('skipped', 'completed')).toBe(' wfc__connector--skipped');
+  });
+
+  it('returns "" when right endpoint is future', () => {
+    expect(deriveConnectorClass('completed', 'future')).toBe('');
+  });
+
+  it('returns "" when right endpoint is current', () => {
+    expect(deriveConnectorClass('completed', 'current')).toBe('');
+  });
+
+  it('returns "" when right endpoint is overdue', () => {
+    expect(deriveConnectorClass('completed', 'overdue')).toBe('');
+  });
+
+  it('returns "" when both endpoints are future', () => {
+    expect(deriveConnectorClass('future', 'future')).toBe('');
+  });
+});
+
+// ── 12. Integration: all valid stage → no state is undefined ─────────────────
 
 describe('deriveCircleStates — no undefined states for any valid stage', () => {
   const validStates = new Set(['future', 'completed', 'current', 'overdue', 'skipped', 'was-overdue']);

@@ -301,13 +301,50 @@ describe('WorkflowCircles — connector lines', () => {
     expect(container.querySelectorAll('.wfc__connector')).toHaveLength(5);
   });
 
-  it('connectors before completed circles have --done class', () => {
-    // Paid job: circles 0-4 are completed/skipped; connector before index 4 is between 3+4
+  it('paid-on-time job: connectors between completed circles are --done', () => {
+    // Paid (no overdue): Lead/Quoted/On/Invoiced = completed; Overdue = skipped; Paid = completed
+    // connectors[0] = Lead→Quoted (completed→completed) → --done
+    // connectors[1] = Quoted→On (completed→completed) → --done
+    // connectors[2] = On→Invoiced (completed→completed) → --done
     const { container } = render(<WorkflowCircles job={makeJob('paid')} variant="full" />);
-    // First 4 connectors (before Quoted, On, Invoiced, Overdue) should be --done
-    // because the preceding circles are completed
     const connectors = Array.from(container.querySelectorAll('.wfc__connector'));
-    // connectors[0] is before Quoted (Lead is completed → done)
     expect(connectors[0].classList.contains('wfc__connector--done')).toBe(true);
+    expect(connectors[1].classList.contains('wfc__connector--done')).toBe(true);
+    expect(connectors[2].classList.contains('wfc__connector--done')).toBe(true);
+  });
+
+  it('paid-on-time job: connector touching skipped Overdue is --skipped, NOT --done', () => {
+    // connectors[3] = Invoiced→Overdue (completed→skipped) → --skipped
+    // connectors[4] = Overdue→Paid (skipped→completed) → --skipped
+    const { container } = render(<WorkflowCircles job={makeJob('paid')} variant="full" />);
+    const connectors = Array.from(container.querySelectorAll('.wfc__connector'));
+    // Connector before Overdue (index 3 in connectors array = 4th circle)
+    expect(connectors[3].classList.contains('wfc__connector--skipped')).toBe(true);
+    expect(connectors[3].classList.contains('wfc__connector--done')).toBe(false);
+    // Connector before Paid (index 4 in connectors array = 5th circle)
+    expect(connectors[4].classList.contains('wfc__connector--skipped')).toBe(true);
+    expect(connectors[4].classList.contains('wfc__connector--done')).toBe(false);
+  });
+
+  it('paid-after-overdue job: all connectors between completed/was-overdue are --done, none --skipped', () => {
+    // Overdue = completed, Paid = was-overdue — all stages fully traversed
+    const { container } = render(
+      <WorkflowCircles
+        job={{ status: 'paid', overdue_history: ['2026-06-01T10:00:00Z'] }}
+        variant="full"
+      />
+    );
+    const connectors = Array.from(container.querySelectorAll('.wfc__connector'));
+    connectors.forEach(c => {
+      expect(c.classList.contains('wfc__connector--done')).toBe(true);
+      expect(c.classList.contains('wfc__connector--skipped')).toBe(false);
+    });
+  });
+
+  it('compact variant: connector touching skipped Overdue is --skipped, NOT --done', () => {
+    const { container } = render(<WorkflowCircles job={makeJob('paid')} variant="compact" />);
+    const connectors = Array.from(container.querySelectorAll('.wfc__connector'));
+    expect(connectors[3].classList.contains('wfc__connector--skipped')).toBe(true);
+    expect(connectors[3].classList.contains('wfc__connector--done')).toBe(false);
   });
 });

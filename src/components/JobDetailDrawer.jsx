@@ -3420,10 +3420,14 @@ export default function JobDetailDrawer({
                 const overdurePlural = daysOverdue === 1 ? 'day' : 'days';
 
                 if (isPaid) {
+                  // computeAmountPaid sums job.payments[]. On jobs marked paid via the
+                  // legacy toggle (no payments array), that sum is £0 — misleading on a
+                  // £380 job. Fall back to job.amount (the job total) when paid sum = 0.
+                  const paidAmount = computeAmountPaid(job) || job.amount || 0;
                   return (
                     <div className="jd-money-chip jd-chip--paid">
                       <span className="jd-chip-primary">Paid</span>
-                      <span className="jd-chip-sub">{gbp(computeAmountPaid(job))}</span>
+                      <span className="jd-chip-sub">{gbp(paidAmount)}</span>
                     </div>
                   );
                 }
