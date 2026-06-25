@@ -7905,6 +7905,13 @@ button.jd-money-chip:active { opacity: 0.75; }
 }
 .job-detail-close:hover,
 .job-detail-close:active { background: var(--surface-2); }  /* press feedback parity with the kebab */
+/* OHNAR workflow circles wrapper — sits between action row and scrollable body */
+.jd-workflow-circles {
+  padding: 8px 16px 4px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
 .job-detail-body {
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -16998,6 +17005,293 @@ button.jd-money-chip:active { opacity: 0.75; }
   color: var(--text-dim);
   opacity: 0.6;
   white-space: nowrap;
+}
+
+/* ── OHNAR Brand Palette + WorkflowCircles (feat/ohnar-six-stage-workflow) ──
+   OHNAR design tokens — primitive palette.
+   These are the raw brand values; semantic workflow tokens below map onto them.
+   The rest of the app still uses the JobProfit green theme; WorkflowCircles is
+   intentionally the first element rendered in the OHNAR palette.
+   ─────────────────────────────────────────────────────────────────────────── */
+:root {
+  --ohnar-navy:        #0B1320;
+  --ohnar-blue:        #2563EB;
+  --ohnar-green:       #16A34A;
+  --ohnar-amber:       #F59E0B;
+  --ohnar-grey:        #F3F4F6;
+  --ohnar-red:         #DC2626;
+
+  /* ── Semantic workflow tokens ─────────────────────────────────────────────
+     Component references ONLY these tokens — never the ohnar-* primitives
+     directly. When the full OHNAR re-skin lands, update the mappings here
+     and every WorkflowCircles instance updates automatically.
+
+     Token names:
+       --wf-current          fill for the active/current circle
+       --wf-current-text     icon/text colour inside the current circle
+       --wf-current-shadow   emphasis shadow on the current circle
+       --wf-complete         fill for completed circles (passed stages)
+       --wf-complete-text    icon colour inside completed circles (white checkmark)
+       --wf-future-bg        fill for future (not-yet-reached) circles
+       --wf-future-outline   border colour for future circles
+       --wf-future-text      icon colour inside future circles
+       --wf-skipped-bg       fill for the Overdue circle when job paid w/o overdue
+       --wf-skipped-outline  dashed border for the skipped circle
+       --wf-overdue          fill for the Overdue circle when job is actively overdue
+       --wf-overdue-text     icon colour inside the active overdue circle
+       --wf-was-overdue-ring faint red ring on the Paid circle when job was late
+       --wf-connector        colour of the joining line between circles (future)
+       --wf-connector-done   colour of the joining line between circles (completed)
+     ──────────────────────────────────────────────────────────────────────── */
+  --wf-current:          var(--ohnar-blue);
+  --wf-current-text:     #ffffff;
+  --wf-current-shadow:   0 0 0 3px rgba(37,99,235,0.25);
+  --wf-complete:         var(--ohnar-green);
+  --wf-complete-text:    #ffffff;
+  --wf-future-bg:        #ffffff;
+  --wf-future-outline:   var(--ohnar-navy);
+  --wf-future-text:      var(--ohnar-navy);
+  --wf-skipped-bg:       rgba(11,19,32,0.06);
+  --wf-skipped-outline:  rgba(11,19,32,0.28);
+  --wf-overdue:          var(--ohnar-red);
+  --wf-overdue-text:     #ffffff;
+  --wf-was-overdue-ring: 0 0 0 2px rgba(220,38,38,0.45);
+  --wf-connector:        rgba(11,19,32,0.18);
+  --wf-connector-done:   var(--ohnar-green);
+}
+
+/* ── WorkflowCircles — six-stage status visual (compact + full variants) ──── */
+
+/* Outer track — row of steps with connectors */
+.wfc {
+  display: flex;
+  align-items: center;
+  width: 100%;
+}
+
+/* Each step = optional connector + circle + optional label */
+.wfc__step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  position: relative;
+  flex: 1;
+}
+
+/* The connector line sits between step circles, not inside them.
+   It's rendered inside each step (except the first) and positioned
+   to span from the previous circle to the current one. */
+.wfc__connector {
+  position: absolute;
+  /* sits on the same horizontal axis as the circle centres */
+  top: 50%;
+  right: 50%;   /* start from left edge of this step */
+  width: 100%;
+  height: 2px;
+  background: var(--wf-connector);
+  transform: translateY(-50%);
+  /* Pull back so it stops at the circle rim (compact: ~9px, full: ~14px)
+     — the circle's own overflow:hidden clips the overlap */
+  margin-right: 0;
+  z-index: 0;
+}
+.wfc__connector--done {
+  background: var(--wf-connector-done);
+}
+
+/* ── Compact variant — small circles, no labels ─────────────────────────── */
+.wfc--compact {
+  padding: 5px 0 2px;
+  gap: 0;
+}
+.wfc--compact .wfc__step {
+  flex-direction: row;
+}
+.wfc--compact .wfc__connector {
+  position: static;
+  flex: 1;
+  height: 2px;
+  width: auto;
+  top: auto;
+  right: auto;
+  transform: none;
+}
+.wfc--compact .wfc__circle {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1.5px solid var(--wf-future-outline);
+  background: var(--wf-future-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.25s ease;
+}
+
+/* ── Full variant — larger circles with icons and labels ─────────────────── */
+.wfc--full {
+  padding: 12px 0 4px;
+  gap: 0;
+}
+.wfc--full .wfc__step {
+  flex-direction: column;
+  gap: 0;
+}
+.wfc--full .wfc__connector {
+  top: 18px; /* vertically centres on the 36px full-variant circles */
+  height: 2px;
+}
+.wfc--full .wfc__circle {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 2px solid var(--wf-future-outline);
+  background: var(--wf-future-bg);
+  color: var(--wf-future-text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1;
+  transition: background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease;
+}
+.wfc--full .wfc__label {
+  margin-top: 6px;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  text-align: center;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+/* ── Circle state styles — shared across both variants ───────────────────── */
+
+/* Future — default (no override needed, base is already future state) */
+.wfc__circle--future {
+  background: var(--wf-future-bg);
+  border-color: var(--wf-future-outline);
+  color: var(--wf-future-text);
+}
+
+/* Completed — success green + white icon */
+.wfc__circle--completed {
+  background: var(--wf-complete);
+  border-color: var(--wf-complete);
+  color: var(--wf-complete-text);
+}
+
+/* Current — OHNAR Blue, slight scale + shadow emphasis */
+.wfc__circle--current {
+  background: var(--wf-current);
+  border-color: var(--wf-current);
+  color: var(--wf-current-text);
+  box-shadow: var(--wf-current-shadow);
+  transform: scale(1.12);
+}
+
+/* Compact: current is slightly larger */
+.wfc--compact .wfc__circle--current {
+  width: 12px;
+  height: 12px;
+  transform: scale(1.0); /* already larger by absolute size */
+}
+
+/* Overdue (active) — red fill */
+.wfc__circle--overdue {
+  background: var(--wf-overdue);
+  border-color: var(--wf-overdue);
+  color: var(--wf-overdue-text);
+  box-shadow: 0 0 6px rgba(220,38,38,0.4);
+  transform: scale(1.12);
+}
+.wfc--compact .wfc__circle--overdue {
+  width: 12px;
+  height: 12px;
+  transform: scale(1.0);
+}
+
+/* Skipped (Overdue bypassed — paid without going overdue).
+   CRITICAL distinction from 'future': dashed border + muted fill.
+   A paid job must NOT show a plain grey gap that reads as "incomplete." */
+.wfc__circle--skipped {
+  background: var(--wf-skipped-bg);
+  border: 1.5px dashed var(--wf-skipped-outline);
+  color: var(--wf-skipped-outline);
+}
+
+/* Was-overdue (Paid after being Overdue) — green fill + faint red ring */
+.wfc__circle--was-overdue {
+  background: var(--wf-complete);
+  border-color: var(--wf-complete);
+  color: var(--wf-complete-text);
+  box-shadow: var(--wf-was-overdue-ring);
+}
+
+/* ── Paid completion animation (full variant only) ─────────────────────────
+   Triggers when the job transitions into the Paid stage.
+   ~300ms ease — satisfying but premium, no bounce.
+   prefers-reduced-motion: skip the animation entirely (instant snap). */
+.wfc__circle--paid-anim {
+  animation: wfc-paid-arrive 0.3s ease forwards;
+}
+
+@keyframes wfc-paid-arrive {
+  0%   { transform: scale(1.0); opacity: 0.6; }
+  60%  { transform: scale(1.22); opacity: 1; }
+  100% { transform: scale(1.12); opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wfc__circle--paid-anim {
+    animation: none;
+  }
+  .wfc__circle {
+    transition: none !important;
+  }
+}
+
+/* ── Light mode overrides ───────────────────────────────────────────────────
+   The OHNAR palette is already designed for light surfaces, so most tokens
+   work as-is. Future-circle border is visible on white; skipped is readable. */
+[data-theme="light"] {
+  --wf-future-bg:        #ffffff;
+  --wf-future-outline:   var(--ohnar-navy);
+  --wf-connector:        rgba(11,19,32,0.15);
+  --wf-skipped-bg:       rgba(11,19,32,0.04);
+  --wf-skipped-outline:  rgba(11,19,32,0.25);
+  --wf-current-shadow:   0 0 0 3px rgba(37,99,235,0.20);
+}
+
+/* Compact: muted unfilled circles need more contrast on white in light mode */
+[data-theme="light"] .wfc--compact .wfc__circle--future {
+  border-color: rgba(11,19,32,0.35);
+}
+
+/* ── Label colour overrides — stage-specific accent on current/active ──────── */
+.wfc--full .wfc__step--current .wfc__label {
+  color: var(--ohnar-blue);
+  font-weight: 700;
+}
+.wfc--full .wfc__step--overdue .wfc__label {
+  color: var(--ohnar-red);
+  font-weight: 700;
+}
+.wfc--full .wfc__step--completed .wfc__label {
+  color: var(--ohnar-green);
+}
+.wfc--full .wfc__step--was-overdue .wfc__label {
+  color: var(--ohnar-green);
+}
+.wfc--full .wfc__step--skipped .wfc__label {
+  color: var(--text-dim);
+  opacity: 0.6;
 }
 
 /* ── DocumentsHub — Design 2 (feat/document-records-design2, 2026-06) ─────── */
