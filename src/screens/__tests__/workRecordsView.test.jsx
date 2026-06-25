@@ -197,34 +197,7 @@ describe('WorkScreen — Records entry point (fix/discoverability-polish)', () =
   });
 });
 
-describe('TodayScreen — updated view-group label (feat/work-records-view)', () => {
-  afterEach(() => vi.clearAllMocks());
-
-  it('renders "Find a quote, invoice or job" as the view-group heading', () => {
-    render(
-      <TodayScreen
-        jobs={[]}
-        receipts={[]}
-        biz={BIZ}
-        profile={PROFILE_FREE}
-        onNavigateToMoney={NOOP}
-        onJobTap={NOOP}
-      />
-    );
-    expect(screen.getByText('Find a quote, invoice or job')).toBeTruthy();
-  });
-
-  it('does NOT render the old "Look at your work" label', () => {
-    render(
-      <TodayScreen
-        jobs={[]}
-        receipts={[]}
-        biz={BIZ}
-        profile={PROFILE_FREE}
-        onNavigateToMoney={NOOP}
-        onJobTap={NOOP}
-      />
-    );
-    expect(screen.queryByText('Look at your work')).toBeNull();
-  });
-});
+// NOTE (JP-LU3, PR #467): The TodayScreen doc-finder row ("Find a quote, invoice or job")
+// was intentionally removed as a redundant surface. The feature lives only in WorkScreen
+// (Records pill in the controls row). The two TodayScreen assertions below were removed
+// because the element they tested no longer exists — the feature was cut, not broken.
