@@ -203,3 +203,211 @@ describe('AuthScreen JSX — OHNAR branding already in source', () => {
     expect(block).toContain('var(--accent)');
   });
 });
+
+// ── O mark + wordmark header lockup ──────────────────────────────────────────
+
+describe('OHNAR O mark header lockup — screen headers', () => {
+  const screens = [
+    ['TodayScreen', resolve(__dirname, '../TodayScreen.jsx')],
+    ['WorkScreen',  resolve(__dirname, '../WorkScreen.jsx')],
+    ['FinanceScreen', resolve(__dirname, '../FinanceScreen.jsx')],
+    ['SettingsScreen', resolve(__dirname, '../SettingsScreen.jsx')],
+  ];
+
+  screens.forEach(([name, path]) => {
+    describe(name, () => {
+      const src = readFileSync(path, 'utf8');
+
+      it('renders the O mark img with class screen-header-logo-o', () => {
+        expect(src).toContain('screen-header-logo-o');
+        expect(src).toContain('ohnar-O-transparent-512.png');
+      });
+
+      it('wraps O mark and wordmark in screen-header-lockup', () => {
+        expect(src).toContain('screen-header-lockup');
+      });
+
+      it('wordmark span still contains OHNAR text', () => {
+        expect(src).toContain('>OHNAR<');
+      });
+
+      it('O img has empty alt (decorative — wordmark carries the name)', () => {
+        expect(src).toContain('alt=""');
+      });
+    });
+  });
+
+  it('HistoryScreen app-brand includes O mark img', () => {
+    const src = readFileSync(resolve(__dirname, '../HistoryScreen.jsx'), 'utf8');
+    expect(src).toContain('screen-header-logo-o');
+    expect(src).toContain('ohnar-O-transparent-512.png');
+    expect(src).toContain('app-brand-name--ohnar');
+  });
+
+  it('AuthScreen lockup includes O mark img with auth-logo-o class', () => {
+    const src = readFileSync(resolve(__dirname, '../../components/AuthScreen.jsx'), 'utf8');
+    expect(src).toContain('auth-logo-o');
+    expect(src).toContain('ohnar-O-transparent-512.png');
+    expect(src).toContain('auth-wordmark-lockup');
+  });
+});
+
+describe('OHNAR O mark CSS — screen-header-lockup token', () => {
+  it('defines .screen-header-lockup rule', () => {
+    expect(css).toContain('.screen-header-lockup {');
+  });
+
+  it('.screen-header-lockup uses inline-flex to sit O and wordmark side by side', () => {
+    const idx = css.indexOf('.screen-header-lockup {');
+    const block = css.slice(idx, idx + 250);
+    expect(block).toContain('inline-flex');
+  });
+
+  it('defines .screen-header-logo-o with a height (22px–26px range)', () => {
+    const idx = css.indexOf('.screen-header-logo-o {');
+    expect(idx).toBeGreaterThan(-1);
+    const block = css.slice(idx, idx + 150);
+    expect(block).toMatch(/height:\s*2[2-6]px/);
+  });
+
+  it('defines .auth-logo-o with 36px height (larger, auth hero context)', () => {
+    const idx = css.indexOf('.auth-logo-o {');
+    expect(idx).toBeGreaterThan(-1);
+    const block = css.slice(idx, idx + 150);
+    expect(block).toContain('36px');
+  });
+});
+
+// ── Deep Navy ink token — Change 2 ───────────────────────────────────────────
+
+describe('Deep Navy ink token — --ink defined in :root', () => {
+  it('defines --ink: #0B1320 in :root', () => {
+    expect(css).toContain('--ink: #0B1320');
+  });
+});
+
+describe('Deep Navy ink conversions — opaque text on accent/green buttons', () => {
+  const convertedClasses = [
+    '.snackbar__add-cost',
+    '.nav-toast-add-cost',
+    '.ppc-btn-primary',
+    '.ppc-chip--active',
+    '.photo-lightbox-edit-btn',
+    '.visit-invoice-prompt-btn',
+    '.wc-day-add-btn',
+    '.modal-paid-check',
+  ];
+
+  convertedClasses.forEach((cls) => {
+    it(`${cls} uses var(--ink) not bare #000`, () => {
+      const idx = css.indexOf(cls + ' {');
+      expect(idx).toBeGreaterThan(-1);
+      const block = css.slice(idx, idx + 300);
+      expect(block).toContain('var(--ink)');
+      // Must not have bare #000 as a colour (allow #000 inside rgba() shadows)
+      expect(block).not.toMatch(/color:\s*#000[^a-f0-9]/i);
+    });
+  });
+
+  it('.got-paid-toast__chip:active uses var(--ink) not #000', () => {
+    const idx = css.indexOf('.got-paid-toast__chip:active');
+    expect(idx).toBeGreaterThan(-1);
+    const block = css.slice(idx, idx + 150);
+    expect(block).toContain('var(--ink)');
+    expect(block).not.toMatch(/color:\s*#000[^a-f0-9]/i);
+  });
+
+  it('.snackbar__got-paid-chip:active uses var(--ink) not #000', () => {
+    const idx = css.indexOf('.snackbar__got-paid-chip:active');
+    expect(idx).toBeGreaterThan(-1);
+    const block = css.slice(idx, idx + 150);
+    expect(block).toContain('var(--ink)');
+    expect(block).not.toMatch(/color:\s*#000[^a-f0-9]/i);
+  });
+});
+
+describe('Deep Navy ink — rgba fills/borders use 11,19,32 not 0,0,0 where converted', () => {
+  it('--cf-track-bg uses rgba(11, 19, 32, ...) not rgba(0, 0, 0, ...)', () => {
+    const idx = css.indexOf('--cf-track-bg');
+    expect(idx).toBeGreaterThan(-1);
+    const chunk = css.slice(idx, idx + 60);
+    expect(chunk).toContain('11, 19, 32');
+    expect(chunk).not.toContain('0, 0, 0');
+  });
+
+  it('--avatar-border uses rgba(11, 19, 32, ...) not rgba(0, 0, 0, ...)', () => {
+    const idx = css.indexOf('--avatar-border:');
+    expect(idx).toBeGreaterThan(-1);
+    const chunk = css.slice(idx, idx + 60);
+    expect(chunk).toContain('11, 19, 32');
+  });
+
+  it('[data-theme=light] .pro-gate__lock-badge uses rgba(11, 19, 32, ...)', () => {
+    const idx = css.indexOf('[data-theme="light"] .pro-gate__lock-badge {');
+    expect(idx).toBeGreaterThan(-1);
+    const block = css.slice(idx, idx + 120);
+    expect(block).toContain('11, 19, 32');
+  });
+
+  it('[data-theme=light] .stage-timeline__dot uses rgba(11, 19, 32, ...)', () => {
+    const idx = css.indexOf('[data-theme="light"] .stage-timeline__dot {');
+    expect(idx).toBeGreaterThan(-1);
+    const block = css.slice(idx, idx + 150);
+    expect(block).toContain('11, 19, 32');
+  });
+});
+
+describe('Deep Navy ink — shadows/overlays/scrims left black (kept)', () => {
+  const keptBlackScrims = [
+    '.modal-backdrop',
+    '.drawer-backdrop',
+    '.photo-lightbox-backdrop',
+    '.jd-pbs-backdrop',
+  ];
+
+  keptBlackScrims.forEach((cls) => {
+    it(`${cls} still uses rgba(0,0,*) black scrim (not converted)`, () => {
+      const idx = css.indexOf(cls + ' {');
+      if (idx < 0) return; // skip if class renamed in future
+      const block = css.slice(idx, idx + 200);
+      expect(block).toMatch(/rgba\(0,\s*0,\s*0,/);
+    });
+  });
+
+  it('--shadow-xs keeps black shadow (not converted to navy)', () => {
+    const idx = css.indexOf('--shadow-xs:');
+    expect(idx).toBeGreaterThan(-1);
+    const chunk = css.slice(idx, idx + 60);
+    expect(chunk).toContain('rgba(0,0,0,');
+  });
+});
+
+describe('Deep Navy ink — SignaturePad canvas stroke is Deep Navy', () => {
+  it('SignaturePad.jsx init uses #0B1320 not #000 for strokeStyle', () => {
+    const src = readFileSync(
+      resolve(__dirname, '../../components/SignaturePad.jsx'),
+      'utf8'
+    );
+    const occurrences = (src.match(/#0B1320/gi) || []).length;
+    expect(occurrences).toBeGreaterThanOrEqual(2); // init + draw handler
+    expect(src).not.toContain("strokeStyle = '#000'");
+  });
+});
+
+describe('Deep Navy ink — jsPDF DARK constant is Deep Navy [11,19,32]', () => {
+  it('invoicePDF.js DARK constant is [11, 19, 32]', () => {
+    const src = readFileSync(
+      resolve(__dirname, '../../lib/invoicePDF.js'),
+      'utf8'
+    );
+    expect(src).toContain('DARK          = [11, 19, 32]');
+  });
+
+  it('receiptPDF.js DARK constant is [11, 19, 32]', () => {
+    const src = readFileSync(
+      resolve(__dirname, '../../lib/receiptPDF.js'),
+      'utf8'
+    );
+    expect(src).toContain('DARK          = [11, 19, 32]');
+  });
+});

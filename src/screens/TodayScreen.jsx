@@ -364,7 +364,10 @@ export default function TodayScreen({
       {/* ── Header ──────────────────────────────────────────────────────────── */}
       <header className="foreman-header screen-header">
         <h1 className="screen-title">{formatToday()}</h1>
-        <span className="screen-header-wordmark" aria-hidden="true">OHNAR</span>
+        <span className="screen-header-lockup" aria-hidden="true">
+          <img src="/ohnar-O-transparent-512.png" className="screen-header-logo-o" alt="" aria-hidden="true" />
+          <span className="screen-header-wordmark">OHNAR</span>
+        </span>
       </header>
 
       {/* ── Get Pro upsell pill (free users + active trials only) ──────── */}

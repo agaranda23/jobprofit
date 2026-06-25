@@ -1370,7 +1370,10 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
       {/* Header */}
       <div className="screen-header">
         <h1 className="screen-title">Jobs</h1>
-        <span className="screen-header-wordmark" aria-hidden="true">OHNAR</span>
+        <span className="screen-header-lockup" aria-hidden="true">
+          <img src="/ohnar-O-transparent-512.png" className="screen-header-logo-o" alt="" aria-hidden="true" />
+          <span className="screen-header-wordmark">OHNAR</span>
+        </span>
         <div className="screen-header-right">
           <button className="new-btn" onClick={openAddJob}>
             <Icon name="active-job" size={16} aria-hidden="true" />

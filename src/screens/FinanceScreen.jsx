@@ -589,7 +589,10 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
     <div className="screen finance-screen">
       <div className="screen-header">
         <h1 className="screen-title">Money</h1>
-        <span className="screen-header-wordmark" aria-hidden="true">OHNAR</span>
+        <span className="screen-header-lockup" aria-hidden="true">
+          <img src="/ohnar-O-transparent-512.png" className="screen-header-logo-o" alt="" aria-hidden="true" />
+          <span className="screen-header-wordmark">OHNAR</span>
+        </span>
         {onAvatarClick && (
           <div className="screen-header-right">
             <HeaderAvatar session={session} profile={profile} onClick={onAvatarClick} />
