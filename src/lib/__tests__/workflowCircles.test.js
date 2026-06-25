@@ -99,9 +99,10 @@ describe('deriveCircleStates — Overdue (active)', () => {
 // ── 7. Stage: Paid WITHOUT going overdue (skipped case) ──────────────────────
 
 describe('deriveCircleStates — Paid, wasOverdue=false (skipped)', () => {
-  it('Lead/Quoted/On/Invoiced are completed; Overdue is SKIPPED (not future, not completed); Paid is current', () => {
+  it('Lead/Quoted/On/Invoiced are completed; Overdue is SKIPPED; Paid is COMPLETED (terminal green, not current)', () => {
     const result = states('Paid', false);
-    expect(result).toEqual(['completed', 'completed', 'completed', 'completed', 'skipped', 'current']);
+    // Fix #1: Paid is 'completed' (green terminal win), NOT 'current' (blue in-progress)
+    expect(result).toEqual(['completed', 'completed', 'completed', 'completed', 'skipped', 'completed']);
   });
 
   it('Overdue state is specifically "skipped" — not "future"', () => {
@@ -112,40 +113,56 @@ describe('deriveCircleStates — Paid, wasOverdue=false (skipped)', () => {
     expect(overdueCircle.state).not.toBe('completed');
   });
 
-  it('Paid state is "current" (not "was-overdue") when wasOverdue is false', () => {
+  it('Paid state is "completed" (terminal green) — NOT "current", NOT "was-overdue"', () => {
     const result = deriveCircleStates('Paid', false);
     const paidCircle = result.find(c => c.stage === 'Paid');
-    expect(paidCircle.state).toBe('current');
+    expect(paidCircle.state).toBe('completed');
+    expect(paidCircle.state).not.toBe('current');
     expect(paidCircle.state).not.toBe('was-overdue');
   });
 
-  it('default wasOverdue=false gives skipped Overdue (default param)', () => {
+  it('NO circle is in "current" state on a paid job (terminal success = all green, no blue)', () => {
+    const result = deriveCircleStates('Paid', false);
+    const currentCircles = result.filter(c => c.state === 'current');
+    expect(currentCircles).toHaveLength(0);
+  });
+
+  it('default wasOverdue=false gives skipped Overdue + completed Paid (default param)', () => {
     const result = deriveCircleStates('Paid'); // no second arg
     const overdueCircle = result.find(c => c.stage === 'Overdue');
+    const paidCircle = result.find(c => c.stage === 'Paid');
     expect(overdueCircle.state).toBe('skipped');
+    expect(paidCircle.state).toBe('completed');
   });
 });
 
 // ── 8. Stage: Paid WITH overdue history (was-overdue case) ───────────────────
 
 describe('deriveCircleStates — Paid, wasOverdue=true (was-overdue trace)', () => {
-  it('Lead/Quoted/On/Invoiced/Overdue are completed; Paid is "was-overdue"', () => {
+  it('Lead/Quoted/On/Invoiced/Overdue are completed; Paid is "was-overdue" (green + red trace)', () => {
     const result = states('Paid', true);
     expect(result).toEqual(['completed', 'completed', 'completed', 'completed', 'completed', 'was-overdue']);
   });
 
-  it('Overdue is "completed" (not "skipped") when wasOverdue is true', () => {
+  it('Overdue is "completed" (green — it DID happen) when wasOverdue is true', () => {
     const result = deriveCircleStates('Paid', true);
     const overdueCircle = result.find(c => c.stage === 'Overdue');
     expect(overdueCircle.state).toBe('completed');
     expect(overdueCircle.state).not.toBe('skipped');
   });
 
-  it('Paid circle is "was-overdue" (carries red trace signal)', () => {
+  it('Paid circle is "was-overdue" (terminal green + red-trace; NOT "current", NOT "completed")', () => {
     const result = deriveCircleStates('Paid', true);
     const paidCircle = result.find(c => c.stage === 'Paid');
     expect(paidCircle.state).toBe('was-overdue');
     expect(paidCircle.state).not.toBe('current');
+    expect(paidCircle.state).not.toBe('completed');
+  });
+
+  it('NO circle is in "current" state on a paid-after-overdue job', () => {
+    const result = deriveCircleStates('Paid', true);
+    const currentCircles = result.filter(c => c.state === 'current');
+    expect(currentCircles).toHaveLength(0);
   });
 });
 
@@ -245,6 +262,18 @@ describe('skipped vs future — critical distinction for Paid jobs', () => {
     const result = deriveCircleStates('Paid', false);
     const hasFuture = result.some(c => c.state === 'future');
     expect(hasFuture).toBe(false);
+  });
+
+  it('a paid job (no overdue history) never has a "current" circle — green wins', () => {
+    const result = deriveCircleStates('Paid', false);
+    const hasCurrent = result.some(c => c.state === 'current');
+    expect(hasCurrent).toBe(false);
+  });
+
+  it('a paid-after-overdue job never has a "current" circle', () => {
+    const result = deriveCircleStates('Paid', true);
+    const hasCurrent = result.some(c => c.state === 'current');
+    expect(hasCurrent).toBe(false);
   });
 
   it('a non-paid job always has at least one "future" circle', () => {

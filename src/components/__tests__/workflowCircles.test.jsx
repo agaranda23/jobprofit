@@ -178,15 +178,19 @@ describe('WorkflowCircles — circle state classes', () => {
     expect(overdueCircle.classList.contains('wfc__circle--future')).toBe(false);
   });
 
-  it('Paid stage (no overdue history): Overdue circle has --skipped class', () => {
+  it('Paid stage (no overdue history): Overdue circle is --skipped, Paid circle is --completed (not --current)', () => {
     const { container } = render(
       <WorkflowCircles job={makeJob('paid')} variant="compact" />
     );
     const circles = Array.from(getCircles(container));
     const overdueCircle = circles[4]; // index 4 = Overdue
+    const paidCircle = circles[5];    // index 5 = Paid
     expect(overdueCircle.classList.contains('wfc__circle--skipped')).toBe(true);
     expect(overdueCircle.classList.contains('wfc__circle--future')).toBe(false);
     expect(overdueCircle.classList.contains('wfc__circle--completed')).toBe(false);
+    // Fix #1: Paid = terminal green, never blue current
+    expect(paidCircle.classList.contains('wfc__circle--completed')).toBe(true);
+    expect(paidCircle.classList.contains('wfc__circle--current')).toBe(false);
   });
 
   it('Paid stage with overdue history: Overdue circle is --completed, Paid is --was-overdue', () => {
@@ -203,7 +207,7 @@ describe('WorkflowCircles — circle state classes', () => {
     expect(paidCircle.classList.contains('wfc__circle--was-overdue')).toBe(true);
   });
 
-  it('Paid stage via legacy overdue:true fallback: Paid is --was-overdue', () => {
+  it('Paid stage via legacy overdue:true fallback: Paid is --was-overdue (not --current)', () => {
     const { container } = render(
       <WorkflowCircles
         job={{ status: 'paid', overdue: true }}
@@ -213,6 +217,16 @@ describe('WorkflowCircles — circle state classes', () => {
     const circles = Array.from(getCircles(container));
     const paidCircle = circles[5];
     expect(paidCircle.classList.contains('wfc__circle--was-overdue')).toBe(true);
+    expect(paidCircle.classList.contains('wfc__circle--current')).toBe(false);
+  });
+
+  it('no circle has --current class on a paid job (all-green terminal state)', () => {
+    const { container } = render(
+      <WorkflowCircles job={makeJob('paid')} variant="compact" />
+    );
+    const circles = Array.from(getCircles(container));
+    const currentCircles = circles.filter(c => c.classList.contains('wfc__circle--current'));
+    expect(currentCircles).toHaveLength(0);
   });
 });
 

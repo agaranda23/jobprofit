@@ -13,7 +13,7 @@
  * Circle state enum (string):
  *   'future'        — not yet reached; white fill + navy outline
  *   'completed'     — reached and passed; success green + checkmark
- *   'current'       — job is at this stage right now; OHNAR Blue fill
+ *   'current'       — job is at this stage right now; OHNAR Blue ring (hollow, not fill)
  *   'overdue'       — Overdue circle when the job is actively overdue; red fill
  *   'skipped'       — Overdue circle when job reached Paid WITHOUT going overdue;
  *                     muted / dashed ring so it reads "bypassed, not missing"
@@ -40,7 +40,8 @@ export const WORKFLOW_STAGES = ['Lead', 'Quoted', 'On', 'Invoiced', 'Overdue', '
  *   ─ When stage === 'Paid':
  *     Lead/Quoted/On/Invoiced → 'completed'
  *     Overdue → 'skipped' (if !wasOverdue) OR 'completed' (if wasOverdue)
- *     Paid → 'current' (or 'was-overdue' if wasOverdue — carries red trace)
+ *     Paid → 'completed' (terminal green win; or 'was-overdue' if wasOverdue — green + red trace)
+ *     NOTE: 'current' (blue) is NEVER used when stage === 'Paid'. Green = the win.
  *
  *   ─ When stage === 'Overdue':
  *     Lead/Quoted/On/Invoiced → 'completed'
@@ -92,7 +93,9 @@ export function deriveCircleStates(stage, wasOverdue = false) {
     // ── Paid circle special case ─────────────────────────────────────────────
     if (s === 'Paid') {
       if (stage === 'Paid') {
-        return { stage: s, state: wasOverdue ? 'was-overdue' : 'current' };
+        // Terminal success: Paid is always green ('completed' or 'was-overdue').
+        // 'current' (blue) is never correct for a completed job — green IS the win.
+        return { stage: s, state: wasOverdue ? 'was-overdue' : 'completed' };
       }
       return { stage: s, state: 'future' };
     }
