@@ -55,12 +55,14 @@ const ICON_JSX       = path.resolve(__dirname, '../../components/Icon.jsx');
 const SETTINGS_JSX   = path.resolve(__dirname, '../SettingsScreen.jsx');
 const TODAY_JSX      = path.resolve(__dirname, '../TodayScreen.jsx');
 const APPSHELL_JSX   = path.resolve(__dirname, '../../AppShell.jsx');
+const SNACKBAR_JSX   = path.resolve(__dirname, '../../components/Snackbar.jsx');
 const NAVIGATION_JS  = path.resolve(__dirname, '../../lib/navigation.js');
 
 const iconSrc       = fs.readFileSync(ICON_JSX,     'utf8');
 const settingsSrc   = fs.readFileSync(SETTINGS_JSX, 'utf8');
 const todaySrc      = fs.readFileSync(TODAY_JSX,    'utf8');
 const appShellSrc   = fs.readFileSync(APPSHELL_JSX, 'utf8');
+const snackbarSrc   = fs.readFileSync(SNACKBAR_JSX, 'utf8');
 const navigationSrc = fs.readFileSync(NAVIGATION_JS, 'utf8');
 
 // ── SettingsScreen ────────────────────────────────────────────────────────────
@@ -221,7 +223,8 @@ describe('AppShell.jsx — realtime toast glyphs converted', () => {
   });
 
   it('Icon name="complete" used for realtime toast accepted check', () => {
-    expect(appShellSrc).toContain('name="complete"');
+    // JP-LU2: realtime toast rendering moved to Snackbar.jsx (extracted component)
+    expect(snackbarSrc).toContain('name="complete"');
   });
 
   it('no &#x2715; entity in realtime toast dismiss button', () => {
@@ -233,7 +236,8 @@ describe('AppShell.jsx — realtime toast glyphs converted', () => {
 
 describe('AppShell.jsx — cost snackbar dismiss converted', () => {
   it('Icon name="close" is used (covers nav-toast + snackbar + realtime dismisses)', () => {
-    expect(appShellSrc).toContain('name="close"');
+    // JP-LU2: snackbar rendering (including close buttons) moved to Snackbar.jsx
+    expect(snackbarSrc).toContain('name="close"');
   });
 });
 
@@ -253,8 +257,9 @@ describe('AppShell.jsx — modal-paid-badge branded micro-touch', () => {
 
 describe('AppShell.jsx — inline copy left intact (content emoji, not icon slot)', () => {
   it('snackbar cost copy with inline &#10003; check is left as content text', () => {
-    // "Paid ✓ — add what this job cost you?" — inline copy, not a control glyph
-    expect(appShellSrc).toContain('&#10003;');
+    // "Paid ✓ — add what this job cost you?" — inline copy, not a control glyph.
+    // JP-LU2: cost snackbar rendering moved to Snackbar.jsx; the entity lives there now.
+    expect(snackbarSrc).toContain('&#10003;');
   });
 });
 
