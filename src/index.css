@@ -17104,8 +17104,17 @@ button.jd-money-chip:active { opacity: 0.75; }
   padding: 5px 0 2px;
   gap: 0;
 }
+/* Each step = [connector flex:1] [circle fixed] — both siblings in a flex row.
+   The step itself is flex:1 so all six steps split the track width equally,
+   giving even connector lengths across the row. */
 .wfc--compact .wfc__step {
+  flex: 1;
   flex-direction: row;
+  align-items: center;
+}
+/* First step has no connector so it shrinks to the circle width only */
+.wfc--compact .wfc__step:first-child {
+  flex: 0 0 auto;
 }
 .wfc--compact .wfc__connector {
   position: static;
@@ -17116,6 +17125,7 @@ button.jd-money-chip:active { opacity: 0.75; }
   right: auto;
   transform: none;
 }
+/* Base circle — default (future) colours only; state classes below override */
 .wfc--compact .wfc__circle {
   width: 10px;
   height: 10px;
@@ -17129,6 +17139,18 @@ button.jd-money-chip:active { opacity: 0.75; }
   position: relative;
   z-index: 1;
   transition: background 0.2s ease, border-color 0.2s ease, transform 0.25s ease;
+}
+/* Compact: completed circles must clearly read green (border shorthand on
+   the base class would otherwise win over the shared border-color rule) */
+.wfc--compact .wfc__circle--completed {
+  background: var(--wf-complete);
+  border-color: var(--wf-complete);
+}
+/* Compact: was-overdue mirrors completed green (red trace via box-shadow) */
+.wfc--compact .wfc__circle--was-overdue {
+  background: var(--wf-complete);
+  border-color: var(--wf-complete);
+  box-shadow: var(--wf-was-overdue-ring);
 }
 
 /* ── Full variant — larger circles with icons and labels ─────────────────── */
@@ -17187,19 +17209,23 @@ button.jd-money-chip:active { opacity: 0.75; }
   color: var(--wf-complete-text);
 }
 
-/* Current — OHNAR Blue, slight scale + shadow emphasis */
+/* Current — OHNAR Blue ring (hollow): transparent bg + blue border + blue icon.
+   Founder preference: ring look, NOT solid fill. */
 .wfc__circle--current {
-  background: var(--wf-current);
+  background: transparent;
   border-color: var(--wf-current);
-  color: var(--wf-current-text);
+  border-width: 2.5px;
+  color: var(--wf-current);
   box-shadow: var(--wf-current-shadow);
   transform: scale(1.12);
 }
 
-/* Compact: current is slightly larger */
+/* Compact: current is slightly larger; ring uses a thinner border so the
+   hollow centre reads clearly at 12px. */
 .wfc--compact .wfc__circle--current {
   width: 12px;
   height: 12px;
+  border-width: 2px;
   transform: scale(1.0); /* already larger by absolute size */
 }
 
@@ -17218,12 +17244,17 @@ button.jd-money-chip:active { opacity: 0.75; }
 }
 
 /* Skipped (Overdue bypassed — paid without going overdue).
-   CRITICAL distinction from 'future': dashed border + muted fill.
-   A paid job must NOT show a plain grey gap that reads as "incomplete." */
+   CRITICAL distinction from 'future' (solid navy outline) and 'completed' (green fill):
+   clearly dashed ring + muted fill = "bypassed because paid in time = good."
+   Border must be visibly dashed at compact (10px) size — use a fat dashed stroke. */
 .wfc__circle--skipped {
   background: var(--wf-skipped-bg);
-  border: 1.5px dashed var(--wf-skipped-outline);
+  border: 2px dashed var(--wf-skipped-outline);
   color: var(--wf-skipped-outline);
+}
+/* Compact: skipped needs enough stroke width to show dashes on a 10px circle */
+.wfc--compact .wfc__circle--skipped {
+  border-width: 2px;
 }
 
 /* Was-overdue (Paid after being Overdue) — green fill + faint red ring */
