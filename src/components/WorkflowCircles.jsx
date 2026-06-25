@@ -1,50 +1,71 @@
 /**
- * WorkflowCircles — OHNAR six-stage workflow circle component.
+ * WorkflowCircles — OHNAR six-stage brand-cycle component.
  *
- * Replaces the four-segment JobProgressDots bar with a six-circle horizontal
- * track: Lead · Quoted · On · Invoiced · Overdue · Paid.
+ * Redesigned (feat/workflow-circles-brand-cycle) to match the brand graphic:
+ * each stage is a COLOURED RING with its stage ICON inside, in that stage's
+ * signature colour. Progress is vivid-vs-muted — reached stages are vivid,
+ * future stages are uniformly greyed.
  *
  * Two size variants:
- *   variant="compact"  — Job Card row: small circles, no text labels.
- *   variant="full"     — Job Detail: larger circles + Lucide icons + labels;
+ *   variant="compact"  — Job Card row: small coloured rings, no text labels.
+ *                        Icons are omitted at compact size (ring colour alone
+ *                        carries the identity — legibility > decoration at 11px).
+ *   variant="full"     — Job Detail: larger rings + Lucide icons + labels;
  *                        primary status visual at the top of the drawer.
  *
- * Circle states (from workflowCircles.js):
- *   future     — white fill, navy outline, navy icon
- *   completed  — success green fill, white checkmark
- *   current    — OHNAR Blue fill, white icon, slight scale + shadow emphasis
- *   overdue    — red fill + exclamation icon
- *   skipped    — muted fill + dashed ring (paid WITHOUT going overdue)
- *   was-overdue — success green fill + faint red outline ring (paid after overdue)
+ * Per-stage colours (canonical --stage-* tokens from index.css):
+ *   Lead      → --stage-lead     (#2563EB, blue)
+ *   Quoted    → --stage-quoted   (#0EA5B7, teal)
+ *   On        → --stage-on       (#22C55E, green)
+ *   Invoiced  → --stage-invoiced (#F59E0B, amber)
+ *   Overdue   → --stage-overdue  (#F97316, orange)
+ *   Paid      → --stage-paid     (#16A34A, deep green)
  *
- * Design tokens used (all defined in index.css):
- *   --wf-current, --wf-complete, --wf-future-bg, --wf-future-outline,
- *   --wf-skipped-bg, --wf-skipped-outline, --wf-overdue, --wf-paid,
- *   --wf-was-overdue-ring, --wf-connector, --wf-connector-done
+ * Each step receives --circle-colour as an inline CSS custom property so the
+ * shared state classes (vivid/muted) can resolve the correct hue without extra
+ * per-stage class permutations. Future/skipped circles ignore --circle-colour
+ * (overridden to --wf-future-ring via !important in the CSS state classes).
  *
- * Paid transition: CSS class .wfc--paid-anim triggers a ~300ms scale+opacity
- * transition when the job moves into Paid. Applied when the current stage is Paid.
- * Respects prefers-reduced-motion (animation shortened to 0ms via CSS media query).
+ * Circle states (from workflowCircles.js — unchanged):
+ *   future      — muted grey ring + muted grey icon (--wf-future-ring/icon)
+ *   completed   — vivid coloured ring + icon
+ *   current     — vivid coloured ring + icon + scale(1.12) + glow
+ *   overdue     — vivid orange ring + icon + scale(1.12) + glow
+ *   skipped     — muted dashed ring (Overdue bypassed)
+ *   was-overdue — vivid paid-green ring + faint red trace (Paid after overdue)
+ *
+ * Paid transition: CSS class .wfc__circle--paid-anim triggers ~300ms animation.
+ * Respects prefers-reduced-motion (animation: none via CSS media query).
  *
  * Accessibility:
- *   - Outer wrapper has aria-label announcing the full stage (e.g. "Job stage: Invoiced").
+ *   - Outer wrapper has role="img" + aria-label (full stage announced).
  *   - Overdue variant appends "— overdue" to the aria-label.
- *   - Individual circles are aria-hidden (the wrapper label covers the reading).
+ *   - Individual circles are aria-hidden.
  */
 
 import { deriveDisplayStatus } from '../lib/jobStatus';
 import { deriveCircleStates, deriveConnectorClass, deriveWasOverdue, WORKFLOW_STAGES } from '../lib/workflowCircles';
 import Icon from './Icon';
 
-// ── Icon map (semantic names from Icon.jsx REGISTRY) ────────────────────────
-// Pick the closest Lucide name for each stage.
+// ── Stage colour tokens — map stage name → CSS custom property ───────────────
+// These resolve to the canonical --stage-* tokens defined in index.css.
+const STAGE_COLOUR_VAR = {
+  Lead:     'var(--stage-lead)',
+  Quoted:   'var(--stage-quoted)',
+  On:       'var(--stage-on)',
+  Invoiced: 'var(--stage-invoiced)',
+  Overdue:  'var(--stage-overdue)',
+  Paid:     'var(--stage-paid)',
+};
+
+// ── Icon map (Lucide names via Icon.jsx REGISTRY) ────────────────────────────
 const STAGE_ICONS = {
-  Lead:     'user',          // User (ClipboardList alias exists as 'lead' too)
-  Quoted:   'file',          // FileText
-  On:       'job',           // Briefcase
-  Invoiced: 'receipt',       // ReceiptText
-  Overdue:  'clock',         // Clock (AlertTriangle is warning; clock = time-sensitive)
-  Paid:     'check',         // Check
+  Lead:     'user',
+  Quoted:   'file',
+  On:       'job',
+  Invoiced: 'receipt',
+  Overdue:  'clock',
+  Paid:     'check',
 };
 
 // Labels shown only in variant="full"
@@ -57,10 +78,7 @@ const STAGE_LABELS = {
   Paid:     'Paid',
 };
 
-/**
- * Build a human-readable aria-label for the whole component.
- * Example: "Job stage: Invoiced — overdue"
- */
+/** Build a human-readable aria-label for the whole component. */
 function buildAriaLabel(stage) {
   if (stage === 'Overdue') return 'Job stage: Invoiced — overdue';
   return `Job stage: ${stage}`;
@@ -88,14 +106,23 @@ export default function WorkflowCircles({ job, variant = 'compact' }) {
     >
       {circles.map(({ stage: s, state }, idx) => {
         const isFirst = idx === 0;
-        const iconName = state === 'completed' ? 'check' : (state === 'overdue' ? 'overdue' : STAGE_ICONS[s]);
-        const iconVariant = 'inherit';
-        // The Paid circle gets a paid-animation class when the job IS paid
-        const paidAnim = (s === 'Paid' && isPaid) ? ' wfc__circle--paid-anim' : '';
+        const colourVar = STAGE_COLOUR_VAR[s];
         const prevState = idx > 0 ? circles[idx - 1].state : null;
 
+        // Icon choice: the stage's own icon for all states in full variant.
+        // Compact: no icon rendered (rings-only at 11px — clean and legible).
+        const iconName = STAGE_ICONS[s];
+
+        // Paid circle gets the animation class when the job IS paid.
+        const paidAnim = (s === 'Paid' && isPaid) ? ' wfc__circle--paid-anim' : '';
+
         return (
-          <div key={s} className={`wfc__step wfc__step--${state}`} aria-hidden="true">
+          <div
+            key={s}
+            className={`wfc__step wfc__step--${state}`}
+            style={{ '--circle-colour': colourVar }}
+            aria-hidden="true"
+          >
             {/* Connector line before every circle except the first */}
             {!isFirst && (
               <div
@@ -103,19 +130,14 @@ export default function WorkflowCircles({ job, variant = 'compact' }) {
               />
             )}
 
-            {/* Circle */}
+            {/* Circle — coloured ring with optional icon inside */}
             <div className={`wfc__circle wfc__circle--${state}${paidAnim}`}>
               {isFull && (
                 <Icon
                   name={iconName}
-                  size={state === 'current' ? 16 : 14}
-                  variant={iconVariant}
+                  size={state === 'current' || state === 'overdue' ? 16 : 14}
+                  variant="inherit"
                 />
-              )}
-              {!isFull && state === 'completed' && (
-                /* Compact variant: tiny check-mark on completed circles via CSS pseudo only.
-                   No icon component rendered here to keep the compact bar lean. */
-                null
               )}
             </div>
 

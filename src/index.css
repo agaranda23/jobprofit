@@ -5929,7 +5929,8 @@ input[type=number] { -moz-appearance: textfield; }
   color: #0B1220;
 }
 
-/* Active segment gets a solid colour fill + concentric 8px radius (inset from 10px container) */
+/* Active segment gets a solid colour fill + concentric 8px radius (inset from 10px container)
+   Default selected fill uses the brand green (On/Invoiced); stage-specific overrides below. */
 .stage-tile--selected {
   background: var(--jp-green);
   box-shadow: none; /* override the inset divider — active tile has no right-border */
@@ -5980,9 +5981,9 @@ input[type=number] { -moz-appearance: textfield; }
   color: #0B1220;
 }
 
-/* Lead selected: blue fill with white text */
+/* Lead selected: brand-cycle blue fill with white text */
 .stage-tile--lead.stage-tile--selected {
-  background: var(--jp-blue);
+  background: var(--stage-lead);
 }
 .stage-tile--lead.stage-tile--selected .stage-tile-name,
 .stage-tile--lead.stage-tile--selected .stage-tile-count,
@@ -5994,9 +5995,9 @@ input[type=number] { -moz-appearance: textfield; }
   opacity: 0.7;
 }
 
-/* Overdue selected: rose fill */
+/* Overdue selected: brand-cycle orange fill */
 .stage-tile--overdue.stage-tile--selected {
-  background: var(--jp-rose);
+  background: var(--stage-overdue);
 }
 .stage-tile--overdue.stage-tile--selected .stage-tile-name,
 .stage-tile--overdue.stage-tile--selected .stage-tile-count,
@@ -6008,30 +6009,31 @@ input[type=number] { -moz-appearance: textfield; }
   opacity: 0.7;
 }
 
-/* Per-stage selected fills — green-family (Quoted → Paid) */
-.stage-tile--quoted.stage-tile--selected { background: var(--grn-quoted); }
+/* Per-stage selected fills — canonical --stage-* tokens (feat/workflow-circles-brand-cycle)
+   Chips and circles now share the same palette so stage colours agree across the UI. */
+.stage-tile--quoted.stage-tile--selected { background: var(--stage-quoted); }
 .stage-tile--quoted.stage-tile--selected .stage-tile-name,
 .stage-tile--quoted.stage-tile--selected .stage-tile-count,
 .stage-tile--quoted.stage-tile--selected .stage-tile-amount {
-  color: #0B1220;
+  color: #ffffff;
 }
 
-.stage-tile--on.stage-tile--selected { background: var(--grn-on); }
+.stage-tile--on.stage-tile--selected { background: var(--stage-on); }
 .stage-tile--on.stage-tile--selected .stage-tile-name,
 .stage-tile--on.stage-tile--selected .stage-tile-count,
 .stage-tile--on.stage-tile--selected .stage-tile-amount {
   color: #0B1220;
 }
 
-.stage-tile--invoiced.stage-tile--selected { background: var(--grn-invoiced); }
+.stage-tile--invoiced.stage-tile--selected { background: var(--stage-invoiced); }
 .stage-tile--invoiced.stage-tile--selected .stage-tile-name,
 .stage-tile--invoiced.stage-tile--selected .stage-tile-count,
 .stage-tile--invoiced.stage-tile--selected .stage-tile-amount {
   color: #0B1220;
 }
 
-/* Paid is dark enough to need white text */
-.stage-tile--paid.stage-tile--selected { background: var(--grn-paid); }
+/* Paid — deep green, white text for contrast */
+.stage-tile--paid.stage-tile--selected { background: var(--stage-paid); }
 .stage-tile--paid.stage-tile--selected .stage-tile-name,
 .stage-tile--paid.stage-tile--selected .stage-tile-count,
 .stage-tile--paid.stage-tile--selected .stage-tile-amount {
@@ -17064,46 +17066,62 @@ button.jd-money-chip:active { opacity: 0.75; }
   --ohnar-grey:        #F3F4F6;
   --ohnar-red:         #DC2626;
 
+  /* ── Canonical stage colours — single source of truth (feat/workflow-circles-brand-cycle)
+     Matches the brand graphic's Six Stage Job Cycle.
+     Used by: WorkflowCircles rings, StageStrip selected fills, any future stage-coloured UI.
+     One palette — chips and circles always agree.
+
+       --stage-lead      blue   — new enquiry, not yet priced
+       --stage-quoted    teal   — quote sent, awaiting decision
+       --stage-on        green  — work in progress
+       --stage-invoiced  amber  — invoice sent, awaiting payment
+       --stage-overdue   orange — invoice past due
+       --stage-paid      green  — complete, money received
+     ──────────────────────────────────────────────────────────────────────── */
+  --stage-lead:     #2563EB;  /* blue  */
+  --stage-quoted:   #0EA5B7;  /* teal/cyan */
+  --stage-on:       #22C55E;  /* green */
+  --stage-invoiced: #F59E0B;  /* amber/gold */
+  --stage-overdue:  #F97316;  /* orange */
+  --stage-paid:     #16A34A;  /* deep green */
+
   /* ── Semantic workflow tokens ─────────────────────────────────────────────
      Component references ONLY these tokens — never the ohnar-* primitives
      directly. When the full OHNAR re-skin lands, update the mappings here
      and every WorkflowCircles instance updates automatically.
 
      Token names:
-       --wf-current          fill for the active/current circle
-       --wf-current-text     icon/text colour inside the current circle
-       --wf-current-shadow   emphasis shadow on the current circle
-       --wf-complete         fill for completed circles (passed stages)
-       --wf-complete-text    icon colour inside completed circles (white checkmark)
-       --wf-future-bg        fill for future (not-yet-reached) circles
-       --wf-future-outline   border colour for future circles
-       --wf-future-text      icon colour inside future circles
-       --wf-skipped-bg       fill for the Overdue circle when job paid w/o overdue
-       --wf-skipped-outline  dashed border for the skipped circle
-       --wf-overdue          fill for the Overdue circle when job is actively overdue
-       --wf-overdue-text     icon colour inside the active overdue circle
-       --wf-was-overdue-ring faint red ring on the Paid circle when job was late
+       --wf-current-shadow   glow/emphasis shadow on the current circle ring
+       --wf-future-bg        fill for future (not-yet-reached) circles (transparent centre)
+       --wf-future-ring      ring colour for future circles (muted grey)
+       --wf-future-icon      icon colour inside future circles (muted grey)
+       --wf-skipped-ring     dashed ring for the Overdue circle when job paid w/o overdue
+       --wf-was-overdue-ring extra ring on the Paid circle when job was late
        --wf-connector        colour of the joining line between circles (future)
-       --wf-connector-done   colour of the joining line between circles (completed)
+       --wf-connector-done   colour of the joining line between circles (reached)
      ──────────────────────────────────────────────────────────────────────── */
-  --wf-current:          var(--ohnar-blue);
-  --wf-current-text:     #ffffff;
   --wf-current-shadow:   0 0 0 3px rgba(37,99,235,0.25);
-  --wf-complete:         var(--ohnar-green);
-  --wf-complete-text:    #ffffff;
-  --wf-future-bg:        #ffffff;
-  --wf-future-outline:   var(--ohnar-navy);
-  --wf-future-text:      var(--ohnar-navy);
-  --wf-skipped-bg:       rgba(11,19,32,0.06);
-  --wf-skipped-outline:  rgba(11,19,32,0.28);
-  --wf-overdue:          var(--ohnar-red);
-  --wf-overdue-text:     #ffffff;
+  --wf-future-bg:        transparent;
+  --wf-future-ring:      rgba(160,163,175,0.45);
+  --wf-future-icon:      rgba(160,163,175,0.55);
+  --wf-skipped-ring:     rgba(160,163,175,0.35);
   --wf-was-overdue-ring: 0 0 0 2px rgba(220,38,38,0.45);
-  --wf-connector:        rgba(11,19,32,0.18);
-  --wf-connector-done:   var(--ohnar-green);
+  --wf-connector:        rgba(160,163,175,0.35);
+  --wf-connector-done:   rgba(160,163,175,0.55);
 }
 
-/* ── WorkflowCircles — six-stage status visual (compact + full variants) ──── */
+/* ── WorkflowCircles — Six-Stage Brand Cycle (feat/workflow-circles-brand-cycle) ──
+   Design: coloured rings per stage (brand graphic).
+   Each circle is a RING (coloured border, transparent/white centre) with the
+   stage icon inside in the same signature colour.
+
+   State model:
+     vivid   = reached (completed, current, overdue, was-overdue)
+     muted   = not yet reached (future, skipped)
+
+   Each step carries --circle-colour (set inline by the component) so shared
+   state classes can pick up the per-stage hue without extra class permutations.
+   ─────────────────────────────────────────────────────────────────────────── */
 
 /* Outer track — row of steps with connectors */
 .wfc {
@@ -17121,94 +17139,98 @@ button.jd-money-chip:active { opacity: 0.75; }
   flex: 1;
 }
 
-/* The connector line sits between step circles, not inside them.
-   It's rendered inside each step (except the first) and positioned
-   to span from the previous circle to the current one. */
+/* Connector lines — thin horizontal bridges between circles. */
 .wfc__connector {
   position: absolute;
-  /* sits on the same horizontal axis as the circle centres */
   top: 50%;
-  right: 50%;   /* start from left edge of this step */
+  right: 50%;
   width: 100%;
-  height: 2px;
+  height: 1.5px;
   background: var(--wf-connector);
   transform: translateY(-50%);
-  /* Pull back so it stops at the circle rim (compact: ~9px, full: ~14px)
-     — the circle's own overflow:hidden clips the overlap */
-  margin-right: 0;
   z-index: 0;
 }
 .wfc__connector--done {
   background: var(--wf-connector-done);
 }
-/* Connector touching a skipped stage: grey + dashed so the green path visibly
-   stops before the bypassed Overdue circle rather than running through it.
-   background: transparent so the dashed border-top is the only visible mark. */
+/* Connector touching a skipped stage: dashed so the path visibly bypasses it. */
 .wfc__connector--skipped {
   background: transparent;
-  border-top: 2px dashed var(--wf-connector);
+  border-top: 1.5px dashed var(--wf-connector);
   height: 0;
 }
 
-/* ── Compact variant — small circles, no labels ─────────────────────────── */
+/* ── Compact variant — small coloured rings, no labels ───────────────────── */
 .wfc--compact {
   padding: 5px 0 2px;
   gap: 0;
 }
-/* Each step = [connector flex:1] [circle fixed] — both siblings in a flex row.
-   The step itself is flex:1 so all six steps split the track width equally,
-   giving even connector lengths across the row. */
 .wfc--compact .wfc__step {
   flex: 1;
   flex-direction: row;
   align-items: center;
 }
-/* First step has no connector so it shrinks to the circle width only */
 .wfc--compact .wfc__step:first-child {
   flex: 0 0 auto;
 }
 .wfc--compact .wfc__connector {
   position: static;
   flex: 1;
-  height: 2px;
+  height: 1.5px;
   width: auto;
   top: auto;
   right: auto;
   transform: none;
 }
-/* Compact skipped connector: restore height:0 so the dashed border-top shows */
 .wfc--compact .wfc__connector--skipped {
   height: 0;
 }
-/* Base circle — default (future) colours only; state classes below override */
+/* Compact base circle — coloured ring; state overrides below */
 .wfc--compact .wfc__circle {
-  width: 10px;
-  height: 10px;
+  width: 11px;
+  height: 11px;
   border-radius: 50%;
-  border: 1.5px solid var(--wf-future-outline);
-  background: var(--wf-future-bg);
+  border: 2px solid var(--circle-colour, var(--wf-future-ring));
+  background: transparent;
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
   position: relative;
   z-index: 1;
-  transition: background 0.2s ease, border-color 0.2s ease, transform 0.25s ease;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.25s ease;
 }
-/* Compact: completed circles must clearly read green (border shorthand on
-   the base class would otherwise win over the shared border-color rule) */
-.wfc--compact .wfc__circle--completed {
-  background: var(--wf-complete);
-  border-color: var(--wf-complete);
+/* Compact: current stage — same ring size but slightly thicker and glowing */
+.wfc--compact .wfc__circle--current {
+  border-width: 2.5px;
+  width: 13px;
+  height: 13px;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--circle-colour, #2563EB) 25%, transparent);
 }
-/* Compact: was-overdue mirrors completed green (red trace via box-shadow) */
+/* Compact: overdue — same as current sizing, orange ring */
+.wfc--compact .wfc__circle--overdue {
+  border-width: 2.5px;
+  width: 13px;
+  height: 13px;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--stage-overdue) 25%, transparent);
+}
+/* Compact: future/muted — ring uses the muted grey token */
+.wfc--compact .wfc__circle--future {
+  border-color: var(--wf-future-ring);
+}
+/* Compact: skipped Overdue — dashed muted ring */
+.wfc--compact .wfc__circle--skipped {
+  border: none;
+  outline: 2px dashed var(--wf-skipped-ring);
+  outline-offset: -1px;
+}
+/* Compact: was-overdue Paid — vivid paid colour + red trace */
 .wfc--compact .wfc__circle--was-overdue {
-  background: var(--wf-complete);
-  border-color: var(--wf-complete);
+  border-color: var(--stage-paid);
   box-shadow: var(--wf-was-overdue-ring);
 }
 
-/* ── Full variant — larger circles with icons and labels ─────────────────── */
+/* ── Full variant — larger coloured rings + icons + labels ───────────────── */
 .wfc--full {
   padding: 12px 0 4px;
   gap: 0;
@@ -17218,29 +17240,29 @@ button.jd-money-chip:active { opacity: 0.75; }
   gap: 0;
 }
 .wfc--full .wfc__connector {
-  top: 18px; /* vertically centres on the 36px full-variant circles */
-  height: 2px;
+  top: 18px; /* centres on the 36px circles */
+  height: 1.5px;
 }
-/* Full skipped connector: restore height:0 so dashed border-top renders;
-   top:18px is inherited from the rule above and still centres it correctly. */
 .wfc--full .wfc__connector--skipped {
   height: 0;
 }
+/* Full base circle — coloured ring, transparent centre, icon inside */
 .wfc--full .wfc__circle {
   width: 36px;
   height: 36px;
   border-radius: 50%;
-  border: 2px solid var(--wf-future-outline);
-  background: var(--wf-future-bg);
-  color: var(--wf-future-text);
+  border: 2.5px solid var(--circle-colour, var(--wf-future-ring));
+  background: transparent;
+  color: var(--circle-colour, var(--wf-future-ring));
   display: flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
   position: relative;
   z-index: 1;
-  transition: background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease;
+  transition: border-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease;
 }
+/* Full label — dim by default; overridden per state below */
 .wfc--full .wfc__label {
   margin-top: 6px;
   font-size: 9px;
@@ -17253,86 +17275,63 @@ button.jd-money-chip:active { opacity: 0.75; }
   white-space: nowrap;
 }
 
-/* ── Circle state styles — shared across both variants ───────────────────── */
+/* ── Circle state styles — shared vivid/muted logic ─────────────────────── */
 
-/* Future — default (no override needed, base is already future state) */
+/* VIVID states: ring + icon use the stage's --circle-colour (set inline).
+   completed, current, overdue, was-overdue all share the vivid treatment —
+   the only difference is the optional glow on current/overdue and the
+   red trace box-shadow on was-overdue. */
+
+/* Future — muted ring, muted icon. The inline --circle-colour is ignored
+   deliberately so future circles all look uniform and "not yet". */
 .wfc__circle--future {
-  background: var(--wf-future-bg);
-  border-color: var(--wf-future-outline);
-  color: var(--wf-future-text);
+  border-color: var(--wf-future-ring) !important;
+  color: var(--wf-future-icon) !important;
 }
 
-/* Completed — success green + white icon */
+/* Completed — vivid coloured ring + icon. --circle-colour drives the colour. */
 .wfc__circle--completed {
-  background: var(--wf-complete);
-  border-color: var(--wf-complete);
-  color: var(--wf-complete-text);
+  /* border-color and color inherit from the base (.wfc--full .wfc__circle uses
+     var(--circle-colour)), so no override needed here — vivid by default. */
 }
 
-/* Current — OHNAR Blue ring (hollow): transparent bg + blue border + blue icon.
-   Founder preference: ring look, NOT solid fill. */
+/* Current — vivid ring, same as completed + scale emphasis + glow */
 .wfc__circle--current {
-  background: transparent;
-  border-color: var(--wf-current);
-  border-width: 2.5px;
-  color: var(--wf-current);
+  transform: scale(1.12);
   box-shadow: var(--wf-current-shadow);
-  transform: scale(1.12);
+}
+/* Override the generic --wf-current-shadow with a per-stage-colour glow */
+.wfc--full .wfc__circle--current {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--circle-colour, #2563EB) 28%, transparent);
 }
 
-/* Compact: current is slightly larger; ring uses a thinner border so the
-   hollow centre reads clearly at 12px. */
-.wfc--compact .wfc__circle--current {
-  width: 12px;
-  height: 12px;
-  border-width: 2px;
-  transform: scale(1.0); /* already larger by absolute size */
-}
-
-/* Overdue (active) — red fill */
+/* Overdue — vivid orange ring; colour is set via inline --circle-colour=#F97316 */
 .wfc__circle--overdue {
-  background: var(--wf-overdue);
-  border-color: var(--wf-overdue);
-  color: var(--wf-overdue-text);
-  box-shadow: 0 0 6px rgba(220,38,38,0.4);
   transform: scale(1.12);
-}
-.wfc--compact .wfc__circle--overdue {
-  width: 12px;
-  height: 12px;
-  transform: scale(1.0);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--stage-overdue) 40%, transparent);
 }
 
-/* Skipped (Overdue bypassed — paid without going overdue).
-   CRITICAL distinction from 'future' (solid navy outline) and 'completed' (green fill):
-   clearly dashed ring + muted fill = "bypassed because paid in time = good."
-   Border must be visibly dashed at compact (10px) size — use a fat dashed stroke. */
+/* Skipped (Overdue bypassed — paid on time without going overdue).
+   Dashed muted ring — reads "bypassed, not missing". */
 .wfc__circle--skipped {
-  background: var(--wf-skipped-bg);
-  border: 2px dashed var(--wf-skipped-outline);
-  color: var(--wf-skipped-outline);
+  border: 2px dashed var(--wf-skipped-ring) !important;
+  color: var(--wf-future-icon) !important;
 }
-/* Compact: skipped — thicker stroke + outline style so dashes read clearly on
-   a 10px circle (circumference ~31px; default dash+gap can merge to solid).
-   outline-style:dashed is more reliable than border-dashed at this small size. */
 .wfc--compact .wfc__circle--skipped {
-  border: none;
-  outline: 2.5px dashed var(--wf-skipped-outline);
+  border: none !important;
+  outline: 2px dashed var(--wf-skipped-ring);
   outline-offset: -1px;
 }
 
-/* Was-overdue (Paid after being Overdue) — green fill + faint red ring */
+/* Was-overdue (Paid circle when the job was previously overdue).
+   Vivid paid-green ring + subtle red trace to acknowledge the delay. */
 .wfc__circle--was-overdue {
-  background: var(--wf-complete);
-  border-color: var(--wf-complete);
-  color: var(--wf-complete-text);
   box-shadow: var(--wf-was-overdue-ring);
 }
 
-/* ── Paid completion animation (full variant only) ─────────────────────────
-   Triggers when the job transitions into the Paid stage.
-   ~300ms ease — satisfying but premium, no bounce.
-   prefers-reduced-motion: skip the animation entirely (instant snap). */
+/* ── Paid completion animation ─────────────────────────────────────────────
+   ~300ms ease on the Paid circle when the job reaches Paid.
+   prefers-reduced-motion: no animation. */
 .wfc__circle--paid-anim {
   animation: wfc-paid-arrive 0.3s ease forwards;
 }
@@ -17353,40 +17352,38 @@ button.jd-money-chip:active { opacity: 0.75; }
 }
 
 /* ── Light mode overrides ───────────────────────────────────────────────────
-   The OHNAR palette is already designed for light surfaces, so most tokens
-   work as-is. Future-circle border is visible on white; skipped is readable. */
+   Slightly stronger muted ring in light mode so future circles read on white. */
 [data-theme="light"] {
-  --wf-future-bg:        #ffffff;
-  --wf-future-outline:   var(--ohnar-navy);
-  --wf-connector:        rgba(11,19,32,0.15);
-  --wf-skipped-bg:       rgba(11,19,32,0.04);
-  --wf-skipped-outline:  rgba(11,19,32,0.25);
+  --wf-future-ring:      rgba(120,124,135,0.4);
+  --wf-future-icon:      rgba(120,124,135,0.5);
+  --wf-skipped-ring:     rgba(120,124,135,0.3);
+  --wf-connector:        rgba(120,124,135,0.3);
+  --wf-connector-done:   rgba(120,124,135,0.45);
   --wf-current-shadow:   0 0 0 3px rgba(37,99,235,0.20);
 }
 
-/* Compact: muted unfilled circles need more contrast on white in light mode */
-[data-theme="light"] .wfc--compact .wfc__circle--future {
-  border-color: rgba(11,19,32,0.35);
-}
-
-/* ── Label colour overrides — stage-specific accent on current/active ──────── */
+/* ── Full variant label colour: vivid for reached stages, muted for future ── */
 .wfc--full .wfc__step--current .wfc__label {
-  color: var(--ohnar-blue);
+  color: var(--circle-colour, var(--stage-lead));
   font-weight: 700;
 }
 .wfc--full .wfc__step--overdue .wfc__label {
-  color: var(--ohnar-red);
+  color: var(--stage-overdue);
   font-weight: 700;
 }
 .wfc--full .wfc__step--completed .wfc__label {
-  color: var(--ohnar-green);
+  color: var(--circle-colour, var(--stage-paid));
 }
 .wfc--full .wfc__step--was-overdue .wfc__label {
-  color: var(--ohnar-green);
+  color: var(--circle-colour, var(--stage-paid));
+}
+.wfc--full .wfc__step--future .wfc__label {
+  color: var(--text-dim);
+  opacity: 0.55;
 }
 .wfc--full .wfc__step--skipped .wfc__label {
   color: var(--text-dim);
-  opacity: 0.6;
+  opacity: 0.45;
 }
 
 /* ── DocumentsHub — Design 2 (feat/document-records-design2, 2026-06) ─────── */
