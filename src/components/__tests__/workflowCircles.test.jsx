@@ -5,13 +5,16 @@
  * Tests the rendered DOM output for:
  *   1. Both variants (compact, full) render six circles
  *   2. Correct CSS classes per circle state
- *   3. Full variant renders labels and icons
+ *   3. Full variant renders labels and icons; compact is rings-only (no Icon component)
  *   4. aria-label announces the correct stage
  *   5. Overdue circle has --overdue class when stage is Overdue
  *   6. Skipped circle has --skipped class (not --future) on a paid job
  *   7. Was-overdue circle has --was-overdue class on paid-after-overdue
  *   8. Paid animation class applied to Paid circle when job is Paid
  *   9. Filter chips (StageStrip) are NOT rendered by this component (scope check)
+ *  10. Per-stage --circle-colour inline style is set on each wfc__step
+ *  11. Stage colour tokens: Lead=blue, Quoted=teal, On=green, Invoiced=amber, Overdue=orange, Paid=deep-green
+ *  12. Chips and circles share one stage palette (--stage-* tokens drive both)
  */
 
 import { describe, it, expect, vi } from 'vitest';
@@ -61,7 +64,8 @@ describe('WorkflowCircles — compact variant', () => {
     expect(container.querySelectorAll('.wfc__label')).toHaveLength(0);
   });
 
-  it('does NOT render jp-icon spans in compact mode (no icons in compact)', () => {
+  it('does NOT render jp-icon spans in compact mode (rings-only at small size)', () => {
+    // Compact = coloured rings without Icon components — clean at 11px.
     const { container } = render(<WorkflowCircles job={makeJob('lead')} variant="compact" />);
     expect(container.querySelectorAll('.jp-icon')).toHaveLength(0);
   });
@@ -272,6 +276,119 @@ describe('WorkflowCircles — scope (filter chips untouched)', () => {
     const { container } = render(<WorkflowCircles job={makeJob('lead')} />);
     expect(container.querySelector('.stage-strip')).toBeNull();
     expect(container.querySelector('.stage-tile')).toBeNull();
+  });
+});
+
+// ── Brand-cycle: per-stage --circle-colour on each step ──────────────────────
+
+describe('WorkflowCircles — brand-cycle per-stage colours (feat/workflow-circles-brand-cycle)', () => {
+  /**
+   * Each wfc__step carries --circle-colour as an inline CSS custom property.
+   * This drives the ring and icon colour for vivid states; future/skipped states
+   * override to muted via !important in CSS so the value here is present but inert.
+   */
+  it('each wfc__step has a --circle-colour inline style', () => {
+    const { container } = render(<WorkflowCircles job={makeJob('lead')} variant="full" />);
+    const steps = Array.from(container.querySelectorAll('.wfc__step'));
+    steps.forEach(step => {
+      const colour = step.style.getPropertyValue('--circle-colour');
+      expect(colour.trim().length).toBeGreaterThan(0);
+    });
+  });
+
+  it('Lead step has --circle-colour pointing to --stage-lead (blue)', () => {
+    const { container } = render(<WorkflowCircles job={makeJob('lead')} variant="full" />);
+    const leadStep = container.querySelectorAll('.wfc__step')[0];
+    expect(leadStep.style.getPropertyValue('--circle-colour')).toBe('var(--stage-lead)');
+  });
+
+  it('Quoted step has --circle-colour pointing to --stage-quoted (teal)', () => {
+    const { container } = render(<WorkflowCircles job={makeJob('lead')} variant="full" />);
+    const quotedStep = container.querySelectorAll('.wfc__step')[1];
+    expect(quotedStep.style.getPropertyValue('--circle-colour')).toBe('var(--stage-quoted)');
+  });
+
+  it('On step has --circle-colour pointing to --stage-on (green)', () => {
+    const { container } = render(<WorkflowCircles job={makeJob('lead')} variant="full" />);
+    const onStep = container.querySelectorAll('.wfc__step')[2];
+    expect(onStep.style.getPropertyValue('--circle-colour')).toBe('var(--stage-on)');
+  });
+
+  it('Invoiced step has --circle-colour pointing to --stage-invoiced (amber)', () => {
+    const { container } = render(<WorkflowCircles job={makeJob('lead')} variant="full" />);
+    const invoicedStep = container.querySelectorAll('.wfc__step')[3];
+    expect(invoicedStep.style.getPropertyValue('--circle-colour')).toBe('var(--stage-invoiced)');
+  });
+
+  it('Overdue step has --circle-colour pointing to --stage-overdue (orange)', () => {
+    const { container } = render(<WorkflowCircles job={makeJob('lead')} variant="full" />);
+    const overdueStep = container.querySelectorAll('.wfc__step')[4];
+    expect(overdueStep.style.getPropertyValue('--circle-colour')).toBe('var(--stage-overdue)');
+  });
+
+  it('Paid step has --circle-colour pointing to --stage-paid (deep green)', () => {
+    const { container } = render(<WorkflowCircles job={makeJob('lead')} variant="full" />);
+    const paidStep = container.querySelectorAll('.wfc__step')[5];
+    expect(paidStep.style.getPropertyValue('--circle-colour')).toBe('var(--stage-paid)');
+  });
+
+  it('stage order matches WORKFLOW_STAGES: Lead→Quoted→On→Invoiced→Overdue→Paid', () => {
+    const { container } = render(<WorkflowCircles job={makeJob('lead')} variant="full" />);
+    const expectedColours = [
+      'var(--stage-lead)',
+      'var(--stage-quoted)',
+      'var(--stage-on)',
+      'var(--stage-invoiced)',
+      'var(--stage-overdue)',
+      'var(--stage-paid)',
+    ];
+    const steps = Array.from(container.querySelectorAll('.wfc__step'));
+    const actualColours = steps.map(s => s.style.getPropertyValue('--circle-colour'));
+    expect(actualColours).toEqual(expectedColours);
+  });
+
+  it('compact variant also carries --circle-colour on each step (shared one palette)', () => {
+    const { container } = render(<WorkflowCircles job={makeJob('active')} variant="compact" />);
+    const steps = Array.from(container.querySelectorAll('.wfc__step'));
+    steps.forEach(step => {
+      const colour = step.style.getPropertyValue('--circle-colour');
+      expect(colour.trim().length).toBeGreaterThan(0);
+    });
+  });
+});
+
+// ── Brand-cycle: vivid/muted visual distinction ───────────────────────────────
+
+describe('WorkflowCircles — vivid vs muted state classes (brand-cycle)', () => {
+  it('future circles carry --future class so CSS can apply muted treatment', () => {
+    const { container } = render(<WorkflowCircles job={makeJob('lead')} variant="full" />);
+    const circles = Array.from(getCircles(container));
+    // On a Lead job, circles 1-5 are future
+    circles.slice(1).forEach(c => {
+      expect(c.classList.contains('wfc__circle--future')).toBe(true);
+    });
+  });
+
+  it('current circle carries --current class so CSS applies the scale+glow emphasis', () => {
+    const { container } = render(<WorkflowCircles job={makeJob('quoted')} variant="full" />);
+    const circles = Array.from(getCircles(container));
+    // Quoted (index 1) = current
+    expect(circles[1].classList.contains('wfc__circle--current')).toBe(true);
+  });
+
+  it('future step also carries wfc__step--future so the label mute rule applies', () => {
+    const { container } = render(<WorkflowCircles job={makeJob('lead')} variant="full" />);
+    const steps = Array.from(container.querySelectorAll('.wfc__step'));
+    // steps 1-5 are future on a Lead job
+    steps.slice(1).forEach(step => {
+      expect(step.classList.contains('wfc__step--future')).toBe(true);
+    });
+  });
+
+  it('current step carries wfc__step--current so the label accent rule applies', () => {
+    const { container } = render(<WorkflowCircles job={makeJob('lead')} variant="full" />);
+    const steps = Array.from(container.querySelectorAll('.wfc__step'));
+    expect(steps[0].classList.contains('wfc__step--current')).toBe(true);
   });
 });
 
