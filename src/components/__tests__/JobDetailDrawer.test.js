@@ -2199,3 +2199,58 @@ describe('Text button — SMS link builder', () => {
     expect(link).toMatch(/\?body=.+/);
   });
 });
+
+// ── Paid header pill amount — must never show £0 on a paid job ────────────────
+//
+// This mirrors the paidAmount derivation added to the header pill in
+// JobDetailDrawer.jsx: computeAmountPaid(job) || job.amount || 0
+// The rule: if the payments sum is 0 (legacy toggle-paid job with no payments array),
+// fall back to job.amount (the job total). Never show £0 on a paid job.
+
+function paidHeaderAmount(job) {
+  return computeAmountPaid(job) || job.amount || 0;
+}
+
+describe('Paid header pill — paidAmount derivation', () => {
+  it('returns the payments sum when job.payments is populated (normal path)', () => {
+    const job = { status: 'paid', amount: 380, payments: [{ amount: 380, date: '2026-06-01', method: 'bank' }] };
+    expect(paidHeaderAmount(job)).toBe(380);
+  });
+
+  it('returns job.amount when payments array is absent (legacy toggle-paid job)', () => {
+    // Pre-payments system: job marked paid via toggle, no payments[] array
+    const job = { status: 'paid', amount: 380 };
+    expect(paidHeaderAmount(job)).toBe(380);
+  });
+
+  it('returns job.amount when payments is an empty array (should not happen in practice)', () => {
+    const job = { status: 'paid', amount: 380, payments: [] };
+    expect(paidHeaderAmount(job)).toBe(380);
+  });
+
+  it('returns payments sum (not job.amount) when partial payments add up to a non-zero total', () => {
+    const job = {
+      status: 'paid',
+      amount: 500,
+      payments: [
+        { amount: 200, date: '2026-05-01', method: 'cash' },
+        { amount: 300, date: '2026-05-15', method: 'bank' },
+      ],
+    };
+    // Sum = 500, same as job.amount in this case, but the source is payments[]
+    expect(paidHeaderAmount(job)).toBe(500);
+  });
+
+  it('never returns 0 for a paid job that has job.amount set (the £0 bug)', () => {
+    // This is the exact failing case reported: paid job, no payments array, amount=380
+    const legacyPaidJob = { status: 'paid', paid: true, amount: 380 };
+    const result = paidHeaderAmount(legacyPaidJob);
+    expect(result).not.toBe(0);
+    expect(result).toBe(380);
+  });
+
+  it('returns 0 only when both payments and job.amount are absent (edge case, unpriced job)', () => {
+    const job = { status: 'paid', paid: true };
+    expect(paidHeaderAmount(job)).toBe(0);
+  });
+});

@@ -17098,6 +17098,14 @@ button.jd-money-chip:active { opacity: 0.75; }
 .wfc__connector--done {
   background: var(--wf-connector-done);
 }
+/* Connector touching a skipped stage: grey + dashed so the green path visibly
+   stops before the bypassed Overdue circle rather than running through it.
+   background: transparent so the dashed border-top is the only visible mark. */
+.wfc__connector--skipped {
+  background: transparent;
+  border-top: 2px dashed var(--wf-connector);
+  height: 0;
+}
 
 /* ── Compact variant — small circles, no labels ─────────────────────────── */
 .wfc--compact {
@@ -17124,6 +17132,10 @@ button.jd-money-chip:active { opacity: 0.75; }
   top: auto;
   right: auto;
   transform: none;
+}
+/* Compact skipped connector: restore height:0 so the dashed border-top shows */
+.wfc--compact .wfc__connector--skipped {
+  height: 0;
 }
 /* Base circle — default (future) colours only; state classes below override */
 .wfc--compact .wfc__circle {
@@ -17165,6 +17177,11 @@ button.jd-money-chip:active { opacity: 0.75; }
 .wfc--full .wfc__connector {
   top: 18px; /* vertically centres on the 36px full-variant circles */
   height: 2px;
+}
+/* Full skipped connector: restore height:0 so dashed border-top renders;
+   top:18px is inherited from the rule above and still centres it correctly. */
+.wfc--full .wfc__connector--skipped {
+  height: 0;
 }
 .wfc--full .wfc__circle {
   width: 36px;
@@ -17252,9 +17269,13 @@ button.jd-money-chip:active { opacity: 0.75; }
   border: 2px dashed var(--wf-skipped-outline);
   color: var(--wf-skipped-outline);
 }
-/* Compact: skipped needs enough stroke width to show dashes on a 10px circle */
+/* Compact: skipped — thicker stroke + outline style so dashes read clearly on
+   a 10px circle (circumference ~31px; default dash+gap can merge to solid).
+   outline-style:dashed is more reliable than border-dashed at this small size. */
 .wfc--compact .wfc__circle--skipped {
-  border-width: 2px;
+  border: none;
+  outline: 2.5px dashed var(--wf-skipped-outline);
+  outline-offset: -1px;
 }
 
 /* Was-overdue (Paid after being Overdue) — green fill + faint red ring */

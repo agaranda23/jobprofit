@@ -108,6 +108,25 @@ export function deriveCircleStates(stage, wasOverdue = false) {
 }
 
 /**
+ * Returns the CSS class suffix for a connector segment between two circles.
+ *
+ * A connector is "done" (green) only when BOTH endpoint circles are fully reached
+ * (completed or was-overdue). A connector touching a skipped circle renders grey +
+ * dashed — so the green path visibly stops before the bypassed stage. Connectors
+ * touching future/current/overdue circles stay plain grey (no modifier).
+ *
+ * @param {string} prevState - Circle state of the left endpoint.
+ * @param {string} thisState - Circle state of the right endpoint.
+ * @returns {string} '' | ' wfc__connector--done' | ' wfc__connector--skipped'
+ */
+export function deriveConnectorClass(prevState, thisState) {
+  const reached = s => s === 'completed' || s === 'was-overdue';
+  if (reached(prevState) && reached(thisState)) return ' wfc__connector--done';
+  if (thisState === 'skipped' || prevState === 'skipped') return ' wfc__connector--skipped';
+  return '';
+}
+
+/**
  * Determine whether a job was overdue before being paid.
  *
  * The canonical signal is job.overdue_history (array of timestamps written when
