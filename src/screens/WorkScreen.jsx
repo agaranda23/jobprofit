@@ -912,13 +912,13 @@ function JobTile({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJo
 // CircleCheck at hero size gives warmth from colour + copy, not from emoji.
 function EmptyState({ stage, onAddJob }) {
   const copy = {
-    Lead:     { iconName: 'lead',       title: 'No leads yet',         hint: 'Got a phone enquiry? Log it now and JobProfit tracks it from here.', cta: true },
+    Lead:     { iconName: 'lead',       title: 'No leads yet',         hint: 'Got a phone enquiry? Log it now and OHNAR tracks it from here.', cta: true },
     Quoted:   { iconName: 'quote-sent', title: 'No quotes out',        hint: 'Tap + New job to create a quote — it lands here once sent.', cta: true },
     On:       { iconName: 'active-job', title: 'Nothing on the go',    hint: "Either you're on holiday or it's time to chase a quote." },
     Invoiced: { iconName: 'invoice',    title: 'No invoices waiting',  hint: 'Finish a job and send the invoice — it sits here until paid.' },
     Overdue:  { iconName: 'complete',   title: 'Nothing overdue',      hint: 'Good week. All invoices are in date.', branded: true },
     Paid:     { iconName: 'paid',       title: 'No paid jobs yet',     hint: 'Paid jobs show here once the money lands.' },
-    All:      { iconName: 'lead',       title: 'No jobs yet',          hint: 'Log your first job and JobProfit does the maths.', cta: true },
+    All:      { iconName: 'lead',       title: 'No jobs yet',          hint: 'Log your first job and OHNAR does the maths.', cta: true },
   };
   const { iconName, title, hint, cta, branded } = copy[stage] ?? { iconName: 'lead', title: 'No jobs', hint: 'Tap + New job to get started.', cta: true };
   // branded: Overdue all-clear gets brand-green (earned positive signal); others muted
@@ -1370,7 +1370,7 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
       {/* Header */}
       <div className="screen-header">
         <h1 className="screen-title">Jobs</h1>
-        <img src="/jobprofit-logo.png" alt="" className="screen-header-logo" aria-hidden="true" />
+        <span className="screen-header-wordmark" aria-hidden="true">OHNAR</span>
         <div className="screen-header-right">
           <button className="new-btn" onClick={openAddJob}>
             <Icon name="active-job" size={16} aria-hidden="true" />

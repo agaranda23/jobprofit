@@ -64,7 +64,7 @@ export default function PreChargeReminderBanner({ chargeDate, onKeep, onCancel, 
         Your free month of Pro ends on {chargeDate}
       </p>
       <p className="pre-charge-banner__body">
-        After {chargeDate}, JobProfit Pro is &pound;12/month. Want to keep it? Do nothing. Don&rsquo;t want it? Cancel in two taps and you won&rsquo;t be charged.
+        After {chargeDate}, OHNAR Pro is &pound;12/month. Want to keep it? Do nothing. Don&rsquo;t want it? Cancel in two taps and you won&rsquo;t be charged.
       </p>
       <div className="pre-charge-banner__actions">
         <button

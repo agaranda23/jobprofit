@@ -60,7 +60,7 @@ function getModeConfig(mode) {
         searchPlaceholder: 'Search a name, job or street',
         emptyIconName: 'job',
         emptyTitle: 'No jobs yet',
-        emptyBody: 'Log your first job and JobProfit does the maths.',
+        emptyBody: 'Log your first job and OHNAR does the maths.',
         emptyCta: 'Log a job',
         noResultsHint: 'Check the spelling, or try a job name instead of a customer.',
       };

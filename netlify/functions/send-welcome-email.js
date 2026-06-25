@@ -44,7 +44,7 @@ const CORS_HEADERS = {
 };
 
 const APP_URL = 'https://jobprofit.co.uk';
-const FROM_ADDRESS = 'Alan at JobProfit <alan@jobprofit.co.uk>';
+const FROM_ADDRESS = 'Alan at OHNAR <alan@jobprofit.co.uk>';
 const RESEND_API_URL = 'https://api.resend.com/emails';
 
 function json(statusCode, body) {
@@ -88,7 +88,7 @@ export function buildEmailHtml(firstName) {
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Welcome to JobProfit</title>
+  <title>Welcome to OHNAR</title>
 </head>
 <body style="margin:0;padding:0;background:#f5f5f5;font-family:'DM Sans',Arial,Helvetica,sans-serif;">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f5f5f5;padding:32px 16px;">
@@ -98,8 +98,8 @@ export function buildEmailHtml(firstName) {
 
           <!-- Header bar -->
           <tr>
-            <td style="background:#00A86B;padding:24px 32px;">
-              <p style="margin:0;font-size:22px;font-weight:700;color:#ffffff;letter-spacing:-0.5px;">JobProfit</p>
+            <td style="background:#0B1320;padding:24px 32px;">
+              <p style="margin:0;font-size:22px;font-weight:700;color:#ffffff;letter-spacing:-0.5px;">OHNAR</p>
             </td>
           </tr>
 
@@ -112,15 +112,15 @@ export function buildEmailHtml(firstName) {
                 Welcome aboard &#8212; really glad you're here.
               </p>
 
-              <p style="margin:0 0 24px;font-size:17px;font-weight:600;color:#00A86B;line-height:1.4;border-left:3px solid #00A86B;padding-left:12px;">
+              <p style="margin:0 0 24px;font-size:17px;font-weight:600;color:#2563EB;line-height:1.4;border-left:3px solid #2563EB;padding-left:12px;">
                 A spreadsheet tells you what you charged.<br />
-                JobProfit tells you what you made.
+                OHNAR tells you what you made.
               </p>
 
               <!-- CTA button -->
               <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 24px;">
                 <tr>
-                  <td style="background:#00A86B;border-radius:8px;">
+                  <td style="background:#2563EB;border-radius:8px;">
                     <a href="${APP_URL}"
                        style="display:inline-block;padding:14px 28px;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;letter-spacing:0.2px;">
                       Log your first job &#8212; 60 seconds
@@ -135,7 +135,7 @@ export function buildEmailHtml(firstName) {
 
               <p style="margin:0;font-size:15px;color:#374151;line-height:1.5;">
                 Any questions, just reply to this email.<br /><br />
-                &#8212; Alan, JobProfit
+                &#8212; Alan, OHNAR
               </p>
             </td>
           </tr>
@@ -144,7 +144,7 @@ export function buildEmailHtml(firstName) {
           <tr>
             <td style="background:#f9fafb;padding:16px 32px;border-top:1px solid #e5e7eb;">
               <p style="margin:0;font-size:12px;color:#9ca3af;line-height:1.5;">
-                JobProfit Ltd &middot; <a href="${APP_URL}" style="color:#6b7280;text-decoration:none;">jobprofit.co.uk</a>
+                OHNAR &middot; <a href="${APP_URL}" style="color:#6b7280;text-decoration:none;">jobprofit.co.uk</a>
               </p>
             </td>
           </tr>
@@ -165,7 +165,7 @@ export function buildEmailText(firstName) {
     '',
     "Welcome aboard — really glad you're here.",
     '',
-    '"A spreadsheet tells you what you charged. JobProfit tells you what you made."',
+    '"A spreadsheet tells you what you charged. OHNAR tells you what you made."',
     '',
     `Log your first job (60 seconds): ${APP_URL}`,
     '',
@@ -173,7 +173,7 @@ export function buildEmailText(firstName) {
     '',
     'Any questions, just reply to this email.',
     '',
-    '— Alan, JobProfit',
+    '— Alan, OHNAR',
   ].join('\n');
 }
 

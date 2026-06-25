@@ -364,7 +364,7 @@ export default function TodayScreen({
       {/* ── Header ──────────────────────────────────────────────────────────── */}
       <header className="foreman-header screen-header">
         <h1 className="screen-title">{formatToday()}</h1>
-        <img src="/jobprofit-logo.png" alt="" className="screen-header-logo" aria-hidden="true" />
+        <span className="screen-header-wordmark" aria-hidden="true">OHNAR</span>
       </header>
 
       {/* ── Get Pro upsell pill (free users + active trials only) ──────── */}
@@ -515,7 +515,7 @@ export default function TodayScreen({
             <Icon name="active-job" size={40} variant="brand" />
           </div>
           <div className="empty-welcome-text">
-            <p className="empty-welcome-headline">Welcome to JobProfit.</p>
+            <p className="empty-welcome-headline">Welcome to OHNAR.</p>
             <p className="empty-welcome-sub">Log your first job and see exactly what you made.</p>
           </div>
           <button

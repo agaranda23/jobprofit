@@ -1,11 +1,11 @@
 {
-  "name": "JobProfit",
-  "short_name": "JobProfit",
+  "name": "OHNAR",
+  "short_name": "OHNAR",
   "description": "Build wealth, not just jobs",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#111827",
-  "theme_color": "#1DBA63",
+  "theme_color": "#0B1320",
   "orientation": "portrait",
   "icons": [
     {

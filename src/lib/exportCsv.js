@@ -264,8 +264,8 @@ export async function downloadOrShare(blob, filename, mime) {
       try {
         await navigator.share({
           files: [file],
-          title: 'JobProfit export',
-          text: 'Your export from JobProfit',
+          title: 'OHNAR export',
+          text: 'Your export from OHNAR',
         });
         return;
       } catch (err) {

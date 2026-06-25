@@ -122,8 +122,8 @@ export async function ensureReferralCode(supabase, userId, profile) {
 export async function copyReferralLink(code) {
   const url = buildReferralLink(code);
   const shareData = {
-    title: 'JobProfit',
-    text: "I use JobProfit to quote, invoice and get paid from my phone — give it a go.",
+    title: 'OHNAR',
+    text: "I use OHNAR to quote, invoice and get paid from my phone — give it a go.",
     url,
   };
 

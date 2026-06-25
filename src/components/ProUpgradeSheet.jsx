@@ -36,8 +36,8 @@ import { deriveProofLine, formatChargeDate } from '../lib/trialConversion';
 // ── Moment-1 benefit bullets ──────────────────────────────────────────────────
 
 const TRIAL_END_BENEFITS = [
-  'Your name on every doc — not “Sent with JobProfit”',
-  'Auto-chase — JobProfit chases late payers so you don’t have to',
+  "Your name on every doc — not \"Sent with OHNAR\"",
+  "Auto-chase — OHNAR chases late payers so you don't have to",
   'True profit after your monthly bills — what you actually make',
   'Tax pot — enough kept back for the taxman, all year',
 ];
@@ -45,7 +45,7 @@ const TRIAL_END_BENEFITS = [
 // ── Feature list (default variant) ───────────────────────────────────────────
 
 const FEATURES = [
-  { label: 'White-label documents', sub: 'remove "Sent with JobProfit" — your brand only on every quote, invoice & receipt' },
+  { label: 'White-label documents', sub: 'remove "Sent with OHNAR" — your brand only on every quote, invoice & receipt' },
   { label: 'Auto-chase ladder', sub: 'polite nudge → firm reminder → final notice — Pro automates the escalation' },
   { label: 'True profit after your monthly bills', sub: 'see what you actually make, not just what came in' },
   { label: 'Tax pot (year-to-date)', sub: 'keep enough back for the taxman, all year' },
@@ -58,7 +58,7 @@ const FEATURES = [
 ];
 
 const COMPETITORS = [
-  { name: 'JobProfit Pro', price: '£12/mo', highlight: true },
+  { name: 'OHNAR Pro', price: '£12/mo', highlight: true },
   { name: 'Tradify Lite', price: '£34/user/mo', highlight: false },
   { name: 'ServiceM8', price: 'from £25/mo (per account)', highlight: false },
 ];
@@ -180,7 +180,7 @@ export default function ProUpgradeSheet({
         className="pro-upgrade-sheet"
         role="dialog"
         aria-modal="true"
-        aria-label={isTrialEnd ? 'Keep Pro free for another month' : 'Upgrade to JobProfit Pro'}
+        aria-label={isTrialEnd ? 'Keep Pro free for another month' : 'Upgrade to OHNAR Pro'}
       >
         {/* Close button (top-right) */}
         <button
@@ -269,7 +269,7 @@ export default function ProUpgradeSheet({
           <>
             {/* 1. Header */}
             <div className="pro-upgrade-sheet__header">
-              <div className="pro-upgrade-sheet__title">JobProfit Pro</div>
+              <div className="pro-upgrade-sheet__title">OHNAR Pro</div>
               <div className="pro-upgrade-sheet__price">£12<span className="pro-upgrade-sheet__price-period">/month</span></div>
               <div className="pro-upgrade-sheet__trust">14-day free trial &middot; no card needed &middot; cancel anytime</div>
             </div>

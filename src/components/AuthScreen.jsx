@@ -119,8 +119,8 @@ export default function AuthScreen() {
   return (
     <div className="auth-screen">
       <div className="auth-brand">
-        <img src="/jobprofit-logo.png" alt="" className="auth-logo" />
-        <h1 className="auth-title">JobProfit</h1>
+        <span className="auth-wordmark" aria-hidden="true">OHNAR</span>
+        <h1 className="auth-title">OHNAR</h1>
         <p className="auth-hero">Quote it, send it, get paid. From the van.</p>
 
         <div className="auth-loop" aria-label="Quote, Signed, Invoiced, Paid">

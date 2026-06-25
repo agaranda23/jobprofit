@@ -301,7 +301,7 @@ describe('F. Email payload shape sent to Resend', () => {
     });
     const handler = await getHandler();
     await handler(makeEvent());
-    expect(capturedBody.from).toContain('JobProfit');
+    expect(capturedBody.from).toContain('OHNAR');
   });
 
   it('uses the expected subject line', async () => {
@@ -415,7 +415,7 @@ describe('I. buildEmailHtml and buildEmailText shape', () => {
     const { buildEmailHtml } = await import('../send-welcome-email.js');
     const html = buildEmailHtml('Dave');
     expect(html).toContain('A spreadsheet tells you what you charged');
-    expect(html).toContain('JobProfit tells you what you made');
+    expect(html).toContain('OHNAR tells you what you made');
   });
 
   it('buildEmailHtml contains the CTA linking to jobprofit.co.uk', async () => {
@@ -427,14 +427,14 @@ describe('I. buildEmailHtml and buildEmailText shape', () => {
   it('buildEmailHtml contains on-brand green colour', async () => {
     const { buildEmailHtml } = await import('../send-welcome-email.js');
     const html = buildEmailHtml(null);
-    expect(html).toContain('#00A86B');
+    expect(html).toContain('#2563EB');
   });
 
   it('buildEmailText contains the spine line', async () => {
     const { buildEmailText } = await import('../send-welcome-email.js');
     const text = buildEmailText('Dave');
     expect(text).toContain('A spreadsheet tells you what you charged');
-    expect(text).toContain('JobProfit tells you what you made');
+    expect(text).toContain('OHNAR tells you what you made');
   });
 
   it('buildEmailText contains the app URL', async () => {
@@ -452,6 +452,6 @@ describe('I. buildEmailHtml and buildEmailText shape', () => {
   it('buildEmailText contains the sign-off from Alan', async () => {
     const { buildEmailText } = await import('../send-welcome-email.js');
     const text = buildEmailText(null);
-    expect(text).toContain('Alan, JobProfit');
+    expect(text).toContain('Alan, OHNAR');
   });
 });
