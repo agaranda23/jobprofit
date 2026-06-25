@@ -1630,10 +1630,10 @@ body {
   justify-content: center;
   gap: 6px;
   width: 100%;
-  /* Subtle green tint: keeps it clearly secondary vs the solid green primary,
-     but gives it enough presence to read as a real call-to-action on a build site. */
-  background: rgba(34, 197, 94, 0.08);
-  border: 2px solid rgba(34, 197, 94, 0.45);
+  /* Subtle blue tint: secondary to the solid Brand Blue primary,
+     but unmissable as a real CTA. Updated from green tint post-OHNAR re-skin. */
+  background: rgba(37, 99, 235, 0.08);
+  border: 2px solid rgba(37, 99, 235, 0.35);
   border-radius: var(--radius-lg);
   color: var(--text);
   font-size: var(--fs-body);
@@ -1646,16 +1646,16 @@ body {
   min-height: 58px;
 }
 .aj-details-btn:active {
-  background: rgba(34, 197, 94, 0.18);
+  background: rgba(37, 99, 235, 0.18);
   border-color: var(--accent);
 }
-/* Dark-mode: the rgba tint naturally works since --accent is the same green. */
+/* Dark-mode: blue rgba tint on the dark quote-builder surface. */
 [data-theme="dark"] .aj-details-btn {
-  background: rgba(34, 197, 94, 0.1);
-  border-color: rgba(34, 197, 94, 0.5);
+  background: rgba(37, 99, 235, 0.1);
+  border-color: rgba(37, 99, 235, 0.45);
 }
 [data-theme="dark"] .aj-details-btn:active {
-  background: rgba(34, 197, 94, 0.2);
+  background: rgba(37, 99, 235, 0.2);
 }
 .aj-details-btn-plus {
   color: var(--accent);
@@ -1667,6 +1667,40 @@ body {
   color: var(--accent);
   font-size: var(--fs-subhead);
   font-weight: 700;
+}
+
+/* Amount summary row in stage-1 voice-job flow (value + pencil edit button) */
+.aj-amount-chip-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin: 8px 0 4px;
+}
+.aj-amount-chip-value {
+  font-size: var(--fs-money-sm);
+  font-weight: 700;
+  color: var(--text);
+}
+/* Pencil edit icon button — ghost/transparent; only the icon should be visible */
+.aj-amount-chip-edit {
+  background: none;
+  border: none;
+  padding: 4px;
+  color: var(--text-dim);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  min-height: 32px;
+  border-radius: var(--radius-sm);
+  -webkit-tap-highlight-color: transparent;
+}
+.aj-amount-chip-edit:active { opacity: 0.6; }
+/* Edit panel revealed when pencil is tapped */
+.aj-amount-edit-panel {
+  margin: 6px 0 4px;
 }
 
 /* "Say it instead" voice row — explicit tap only, no auto-arm */
@@ -2689,16 +2723,23 @@ body {
   white-space: nowrap;
 }
 /* Cycling animation: each chip lights up in sequence on a 4 s loop.
+   Chips 1–3 (Quote, Signed, Invoiced) pulse Brand Blue.
+   Chip 4 (Paid) pulses success green — Paid is always green in the product's
+   semantic colour system, and the animation should mirror that meaning.
    Reduced-motion users see all chips at rest (static, fully legible). */
 @media (prefers-reduced-motion: no-preference) {
   @keyframes auth-chip-pulse {
     0%, 20%   { background: var(--accent); color: #ffffff; }
     25%, 100% { background: var(--surface-2); color: var(--text-dim); }
   }
+  @keyframes auth-chip-pulse-paid {
+    0%, 20%   { background: #16a34a; color: #ffffff; }
+    25%, 100% { background: var(--surface-2); color: var(--text-dim); }
+  }
   .auth-loop-chip--1 { animation: auth-chip-pulse 4s ease-in-out infinite 0s; }
   .auth-loop-chip--2 { animation: auth-chip-pulse 4s ease-in-out infinite 1s; }
   .auth-loop-chip--3 { animation: auth-chip-pulse 4s ease-in-out infinite 2s; }
-  .auth-loop-chip--4 { animation: auth-chip-pulse 4s ease-in-out infinite 3s; }
+  .auth-loop-chip--4 { animation: auth-chip-pulse-paid 4s ease-in-out infinite 3s; }
 }
 /* Light-mode contrast fix: --accent (#2563eb) on white is fine;
    use --accent-pressed (#1d4ed8) for the active chip background. */
@@ -2708,10 +2749,14 @@ body {
       0%, 20%   { background: var(--accent-pressed); color: #fff; }
       25%, 100% { background: var(--surface-2); color: var(--text-dim); }
     }
+    @keyframes auth-chip-pulse-paid-light {
+      0%, 20%   { background: #16a34a; color: #fff; }
+      25%, 100% { background: var(--surface-2); color: var(--text-dim); }
+    }
     .auth-loop-chip--1 { animation: auth-chip-pulse-light 4s ease-in-out infinite 0s; }
     .auth-loop-chip--2 { animation: auth-chip-pulse-light 4s ease-in-out infinite 1s; }
     .auth-loop-chip--3 { animation: auth-chip-pulse-light 4s ease-in-out infinite 2s; }
-    .auth-loop-chip--4 { animation: auth-chip-pulse-light 4s ease-in-out infinite 3s; }
+    .auth-loop-chip--4 { animation: auth-chip-pulse-paid-light 4s ease-in-out infinite 3s; }
   }
 }
 .auth-benefits {
@@ -7147,6 +7192,63 @@ input[type=number] { -moz-appearance: textfield; }
 .settings-faq-a p {
   margin: 0;
 }
+
+/* ── Settings — Referral row (Help & FAQ sub-screen) ────────────────────────
+   The referral-row sits inside a .settings-row--passive which handles the
+   outer padding/layout. These rules style the inner right-hand cluster only.
+   Without these, the pill and share button fall to the Vite global
+   button { background:#1a1a1a } reset and render as solid black boxes. */
+.referral-row__right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  min-width: 0;
+}
+/* Copyable link pill — reads as a readonly input field, not a CTA button */
+.referral-row__pill {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  padding: 5px 10px;
+  cursor: pointer;
+  max-width: 180px;
+  overflow: hidden;
+  white-space: nowrap;
+  min-height: 36px;
+}
+.referral-row__pill-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.referral-row__pill:active {
+  background: var(--surface);
+  border-color: var(--accent);
+  color: var(--text);
+}
+/* Share icon button — ghost, 44px touch target */
+.referral-row__share-btn {
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  padding: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  border-radius: var(--radius-sm);
+  -webkit-tap-highlight-color: transparent;
+}
+.referral-row__share-btn:active { opacity: 0.6; }
 
 /* ── Settings — theme picker ─────────────────────────────────────────────── */
 
