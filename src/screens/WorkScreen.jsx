@@ -43,7 +43,8 @@ import { shouldShowPartPaidChip, formatPartPaidLabel } from '../lib/partPaidChip
 // JP-LU5 PR1: sortJobsByColumn, daysInStage removed from WorkScreen import —
 // call sites in JobsTable deleted. Both are still exported from lib/jobSort.js.
 import { jobMatchesQuery, sortJobsByStage, firstLineOfAddress } from '../lib/jobSort';
-import JobProgressDots from '../components/JobProgressDots';
+// JobProgressDots replaced by WorkflowCircles (feat/ohnar-six-stage-workflow)
+import WorkflowCircles from '../components/WorkflowCircles';
 // JP-LU5 PR1: ProGate and isPro imports removed — only used in JobsTable (deleted).
 import ReceiptModal from '../components/ReceiptModal';
 import {
@@ -812,8 +813,8 @@ function JobTile({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJo
         </button>
       )}
 
-      {/* Progress dots — 4-segment bar showing pipeline position */}
-      <JobProgressDots job={job} />
+      {/* Workflow circles — six-stage OHNAR progress visual (compact variant) */}
+      <WorkflowCircles job={job} variant="compact" />
 
       {/* CTA row — stopPropagation so taps don't open the drawer */}
       {cta && (

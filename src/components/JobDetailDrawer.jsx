@@ -61,6 +61,7 @@ import {
   tomorrowDateString,
 } from '../lib/visits';
 import StageTimeline from './StageTimeline';
+import WorkflowCircles from './WorkflowCircles';
 import { buildQuoteRecordMeta, buildInvoiceRecordMeta } from '../lib/documentRecord';
 import PhotoSourceSheet from './PhotoSourceSheet';
 // downloadQuotePDF/downloadInvoicePDF and isPro are consumed by DocumentsHub; no longer needed here.
@@ -3577,6 +3578,11 @@ export default function JobDetailDrawer({
               </div>
             );
           })()}
+        </div>
+
+        {/* OHNAR workflow circles — six-stage primary status visual (full variant) */}
+        <div className="jd-workflow-circles">
+          <WorkflowCircles job={job} variant="full" />
         </div>
 
         {/* Scrollable body — Stacked Cards layout (PRD 2026-05-31, Option 2) */}
