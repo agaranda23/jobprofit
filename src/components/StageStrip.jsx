@@ -23,10 +23,25 @@ export const COACHMARK_KEY = 'jp.jobs_pipeline_coachmark_seen';
 
 export const STAGES = ['Lead', 'Quoted', 'On', 'Invoiced', 'Overdue', 'Paid'];
 
+/** Map each stage to its canonical --stage-* CSS token for the ring colour. */
+const STAGE_TOKEN = {
+  Lead:     'var(--stage-lead)',
+  Quoted:   'var(--stage-quoted)',
+  On:       'var(--stage-on)',
+  Invoiced: 'var(--stage-invoiced)',
+  Overdue:  'var(--stage-overdue)',
+  Paid:     'var(--stage-paid)',
+};
+
 /**
  * StageTile — one segment in the unified bar.
  * The Paid tile gets a green finish-line accent (tick + name colour) so the strip
  * visually reads as a journey ending in a win — in both selected and unselected states.
+ *
+ * Each chip carries a small circular stage marker (mini cycle ring) rendered as an
+ * 10px filled dot in the stage's canonical --stage-* colour. The dot uses a white
+ * ring outline on selected chips (where the background fills with the stage colour)
+ * so it stays visible against the filled background.
  */
 function StageTile({ stage, count, total, selected, onSelect, tileRef, formatAmount }) {
   const accentClass = `stage-tile--${stage.toLowerCase()}`;
@@ -44,6 +59,12 @@ function StageTile({ stage, count, total, selected, onSelect, tileRef, formatAmo
       onClick={() => onSelect(stage)}
       aria-pressed={selected}
     >
+      <span
+        className={`stage-marker${selected ? ' stage-marker--selected' : ''}`}
+        aria-hidden="true"
+        data-stage={stage.toLowerCase()}
+        style={{ '--marker-colour': STAGE_TOKEN[stage] }}
+      />
       <span className="stage-tile-name">{stage.toUpperCase()}</span>
       <span className="stage-tile-count">{count} {count === 1 ? 'job' : 'jobs'}</span>
       <span className={amountClass}>{amountText}</span>
