@@ -336,7 +336,7 @@ export default function CardPaymentsScreen({ profile, onBack, onProfileUpdate })
               </li>
               <li className="card-payments-reassurance__item">
                 <span className="card-payments-reassurance__icon" aria-hidden="true">&#x1F4B3;</span>
-                <span>Card details never touch JobProfit.</span>
+                <span>Card details never touch OHNAR.</span>
               </li>
               <li className="card-payments-reassurance__item">
                 <span className="card-payments-reassurance__icon" aria-hidden="true">&#x1F3E6;</span>

@@ -449,7 +449,7 @@ export default function SendInvoiceModal({
           </div>
           <div className="modal-sheet-body">
             <p className="modal-sheet-text modal-sheet-text--muted">
-              Your customer will see &ldquo;Sent with JobProfit&rdquo; on this.
+              Your customer will see &ldquo;Sent with OHNAR&rdquo; on this.
               Make it your name only &mdash;{' '}
               <button
                 type="button"

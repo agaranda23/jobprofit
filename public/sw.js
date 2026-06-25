@@ -36,7 +36,7 @@ self.addEventListener('activate', event => {
 // On unsupported devices this handler is simply never called.
 self.addEventListener('push', (event) => {
   const data = event.data ? event.data.json() : {};
-  const title = data.title || 'JobProfit';
+  const title = data.title || 'OHNAR';
   const options = {
     body: data.body || '',
     icon: '/icon-192.png',
@@ -176,7 +176,7 @@ self.addEventListener('fetch', event => {
             (await caches.match('/', { ignoreSearch: true }));
           if (cached) return cached;
           // Absolute last resort — visible error rather than a silent hang
-          return new Response('<h1>JobProfit is offline</h1><p>Please reconnect and refresh.</p>', {
+          return new Response('<h1>OHNAR is offline</h1><p>Please reconnect and refresh.</p>', {
             status: 503,
             headers: { 'Content-Type': 'text/html' },
           });

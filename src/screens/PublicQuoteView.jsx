@@ -899,7 +899,7 @@ export default function PublicQuoteView({ token }) {
 
         <div className="pqv-footer">
           <p className="pqv-footer-note">
-            Your details are held by <strong>{businessName || 'your trader'}</strong> to handle this quote, using JobProfit.{' '}
+            Your details are held by <strong>{businessName || 'your trader'}</strong> to handle this quote, using OHNAR.{' '}
             <a href="/privacy" target="_blank" rel="noopener">How your data is used</a>
           </p>
           <PoweredByJobProfit source="quote" hidden={!!traderProfile.isPro} />

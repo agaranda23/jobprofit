@@ -26,7 +26,7 @@ import { deriveJobRows } from './exportCsv.js';
 import { downloadOrShare } from './exportCsv.js';
 
 const GBP_FORMAT = '£#,##0.00';
-const HEADER_BG  = '#00A86B'; // brand green
+const HEADER_BG  = '#2563EB'; // brand blue
 const HEADER_FG  = '#FFFFFF';
 
 /**

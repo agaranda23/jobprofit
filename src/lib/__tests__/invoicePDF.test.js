@@ -998,17 +998,17 @@ describe('XIII. Website in header contact line (PR-C)', () => {
 describe('white-label footer — hidePoweredBy flag', () => {
   beforeEach(() => { drawnTexts = []; addImageCalls = []; });
 
-  it('invoice PDF shows "Sent with JobProfit" footer for a free trader (hidePoweredBy omitted)', async () => {
+  it('invoice PDF shows "Sent with OHNAR" footer for a free trader (hidePoweredBy omitted)', async () => {
     await generateInvoicePDF({
       job: baseJob({ total: 300 }),
       biz: baseBiz(),
       invoiceNumber: 'JP-WL-01',
       dueDate: '2026-07-31',
     });
-    expect(drawnTexts.some(t => String(t).includes('Sent with JobProfit'))).toBe(true);
+    expect(drawnTexts.some(t => String(t).includes('Sent with OHNAR'))).toBe(true);
   });
 
-  it('invoice PDF shows "Sent with JobProfit" footer when hidePoweredBy is false', async () => {
+  it('invoice PDF shows "Sent with OHNAR" footer when hidePoweredBy is false', async () => {
     await generateInvoicePDF({
       job: baseJob({ total: 300 }),
       biz: baseBiz(),
@@ -1016,10 +1016,10 @@ describe('white-label footer — hidePoweredBy flag', () => {
       dueDate: '2026-07-31',
       hidePoweredBy: false,
     });
-    expect(drawnTexts.some(t => String(t).includes('Sent with JobProfit'))).toBe(true);
+    expect(drawnTexts.some(t => String(t).includes('Sent with OHNAR'))).toBe(true);
   });
 
-  it('invoice PDF HIDES "Sent with JobProfit" footer when hidePoweredBy is true (Pro trader)', async () => {
+  it('invoice PDF HIDES "Sent with OHNAR" footer when hidePoweredBy is true (Pro trader)', async () => {
     await generateInvoicePDF({
       job: baseJob({ total: 300 }),
       biz: baseBiz(),
@@ -1027,7 +1027,7 @@ describe('white-label footer — hidePoweredBy flag', () => {
       dueDate: '2026-07-31',
       hidePoweredBy: true,
     });
-    expect(drawnTexts.some(t => String(t).includes('Sent with JobProfit'))).toBe(false);
+    expect(drawnTexts.some(t => String(t).includes('Sent with OHNAR'))).toBe(false);
   });
 
   it('invoice PDF footer still has the business name line when hidePoweredBy is true', async () => {
@@ -1042,21 +1042,21 @@ describe('white-label footer — hidePoweredBy flag', () => {
     expect(drawnTexts.some(t => String(t).includes('Murphy Plumbing Ltd') && String(t).includes('Generated'))).toBe(true);
   });
 
-  it('quote PDF shows "Sent with JobProfit" footer for a free trader (hidePoweredBy omitted)', async () => {
+  it('quote PDF shows "Sent with OHNAR" footer for a free trader (hidePoweredBy omitted)', async () => {
     await generateQuotePDF({
       job: baseJob({ total: 300 }),
       biz: baseBiz(),
     });
-    expect(drawnTexts.some(t => String(t).includes('Sent with JobProfit'))).toBe(true);
+    expect(drawnTexts.some(t => String(t).includes('Sent with OHNAR'))).toBe(true);
   });
 
-  it('quote PDF HIDES "Sent with JobProfit" footer when hidePoweredBy is true (Pro trader)', async () => {
+  it('quote PDF HIDES "Sent with OHNAR" footer when hidePoweredBy is true (Pro trader)', async () => {
     await generateQuotePDF({
       job: baseJob({ total: 300 }),
       biz: baseBiz(),
       hidePoweredBy: true,
     });
-    expect(drawnTexts.some(t => String(t).includes('Sent with JobProfit'))).toBe(false);
+    expect(drawnTexts.some(t => String(t).includes('Sent with OHNAR'))).toBe(false);
   });
 
   it('PDF footer includes jobprofit.co.uk URL for free traders', async () => {

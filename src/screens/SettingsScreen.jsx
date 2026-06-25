@@ -77,14 +77,14 @@ const APP_VERSION = pkg.version;
 
 export function buildShareData() {
   return {
-    title: 'JobProfit',
-    text: "I use JobProfit to quote, invoice and get paid from my phone — give it a go.",
+    title: 'OHNAR',
+    text: "I use OHNAR to quote, invoice and get paid from my phone — give it a go.",
     url: 'https://jobprofit.co.uk',
   };
 }
 
 export function buildWhatsAppSupportUrl() {
-  return 'https://wa.me/447411353356?text=Hi%2C%20I\'ve%20got%20a%20question%20about%20JobProfit';
+  return 'https://wa.me/447411353356?text=Hi%2C%20I\'ve%20got%20a%20question%20about%20OHNAR';
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -499,7 +499,7 @@ function CisSetupSheet({ profile, onProfileUpdate, onClose }) {
         <div className="cis-sheet__body">
           <p className="cis-sheet__explainer">
             Do contractors deduct tax from your pay before you get it? That&rsquo;s CIS
-            (Construction Industry Scheme). If yes, JobProfit can track it so your
+            (Construction Industry Scheme). If yes, OHNAR can track it so your
             Tax Pot is accurate.
           </p>
 
@@ -678,7 +678,7 @@ function TradeSetupSheet({ profile, onProfileUpdate, onClose }) {
 
         <div className="cis-sheet__body">
           <p className="cis-sheet__explainer">
-            Pick what you do. We&rsquo;ll tailor JobProfit to suit — and it helps us
+            Pick what you do. We&rsquo;ll tailor OHNAR to suit — and it helps us
             build the right tools for your trade.
           </p>
 
@@ -2235,7 +2235,7 @@ export default function SettingsScreen({
   };
 
   const handleSendFeedback = () => {
-    window.location.href = 'mailto:getjobprofit@gmail.com?subject=JobProfit%20feedback';
+    window.location.href = 'mailto:getjobprofit@gmail.com?subject=OHNAR%20feedback';
   };
 
   const handleSendBugReport = () => {
@@ -2246,7 +2246,7 @@ export default function SettingsScreen({
     const body = encodeURIComponent(
       `What happened:\n\n\nWhat you expected:\n\n\n---\nApp: ${version} | Plan: ${plan} | Ref: ${userRef}\nDevice: ${ua}`,
     );
-    window.location.href = `mailto:getjobprofit@gmail.com?subject=JobProfit%20bug%20report%20v${version}&body=${body}`;
+    window.location.href = `mailto:getjobprofit@gmail.com?subject=OHNAR%20bug%20report%20v${version}&body=${body}`;
   };
 
   const handleSave = async (patch) => {
@@ -3012,7 +3012,7 @@ export default function SettingsScreen({
             <p>Log a job, set the amount, then tap the job to open it and hit "Send invoice". Your customer gets a link they can open in any browser — no app needed. They can also pay by card if you&rsquo;ve connected Stripe in Settings &rarr; Card payments.</p>
           </FaqItem>
           <FaqItem question="How does the free trial work? What happens after 14 days?">
-            <p>You get 14 days of Pro free — no card required to start. After that, you drop to the free tier: the full Get Paid loop (quotes, invoices, receipts) stays unlimited forever, and your documents carry a &ldquo;Sent with JobProfit&rdquo; footer. Upgrade to Pro for £12/mo at any time from Settings &rarr; Subscription to remove the footer, unlock the Insight Layer, and get the automatic chase ladder.</p>
+            <p>You get 14 days of Pro free — no card required to start. After that, you drop to the free tier: the full Get Paid loop (quotes, invoices, receipts) stays unlimited forever, and your documents carry a &ldquo;Sent with OHNAR&rdquo; footer. Upgrade to Pro for £12/mo at any time from Settings &rarr; Subscription to remove the footer, unlock the Insight Layer, and get the automatic chase ladder.</p>
           </FaqItem>
           <FaqItem question="How do I cancel or change my plan?">
             <p>Go to Settings &rarr; Subscription &rarr; Manage billing. That opens the Stripe billing portal where you can cancel or update your card. Cancellation takes effect at the end of your current billing period — no pro-rata charge.</p>
@@ -3089,7 +3089,7 @@ export default function SettingsScreen({
     <div className="screen settings-screen" ref={screenRef}>
       <div className="screen-header">
         <h1 className="screen-title">Settings</h1>
-        <img src="/jobprofit-logo.png" alt="" className="screen-header-logo" aria-hidden="true" />
+        <span className="screen-header-wordmark" aria-hidden="true">OHNAR</span>
       </div>
 
       {/* ── Pinned block 1: Identity card ─────────────────────────────────── */}

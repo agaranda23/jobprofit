@@ -27,7 +27,7 @@
 
 import { resolveCisStatus } from '../lib/cashflow.js';
 
-const GREEN = '#2bc48a';
+const GREEN = '#2563eb';
 const DARK  = '#141414';
 const MID   = '#505050';
 const LIGHT = '#969696';

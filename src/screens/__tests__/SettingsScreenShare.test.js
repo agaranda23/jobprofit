@@ -18,14 +18,14 @@ import { describe, it, expect } from 'vitest';
 
 function buildShareData() {
   return {
-    title: 'JobProfit',
-    text: "I use JobProfit to quote, invoice and get paid from my phone — give it a go.",
+    title: 'OHNAR',
+    text: "I use OHNAR to quote, invoice and get paid from my phone — give it a go.",
     url: 'https://jobprofit.co.uk',
   };
 }
 
 function buildWhatsAppSupportUrl() {
-  return "https://wa.me/447411353356?text=Hi%2C%20I've%20got%20a%20question%20about%20JobProfit";
+  return "https://wa.me/447411353356?text=Hi%2C%20I've%20got%20a%20question%20about%20OHNAR";
 }
 
 // ── buildShareData ────────────────────────────────────────────────────────────
@@ -36,15 +36,15 @@ describe('buildShareData', () => {
   });
 
   it('returns the correct title', () => {
-    expect(buildShareData().title).toBe('JobProfit');
+    expect(buildShareData().title).toBe('OHNAR');
   });
 
   it('returns a non-empty text snippet', () => {
     expect(buildShareData().text.length).toBeGreaterThan(0);
   });
 
-  it('text mentions JobProfit', () => {
-    expect(buildShareData().text).toContain('JobProfit');
+  it('text mentions OHNAR', () => {
+    expect(buildShareData().text).toContain('OHNAR');
   });
 });
 

@@ -67,12 +67,12 @@ describe('B. Stored / displayed acceptance string', () => {
 
 function buildQuoteFooterNote(businessName) {
   const name = businessName || 'your trader';
-  return `Your details are held by ${name} to handle this quote, using JobProfit.`;
+  return `Your details are held by ${name} to handle this quote, using OHNAR.`;
 }
 
 function buildInvoiceFooterNote(bizName) {
   const name = bizName || 'your trader';
-  return `Your details are held by ${name} to handle this invoice, using JobProfit.`;
+  return `Your details are held by ${name} to handle this invoice, using OHNAR.`;
 }
 
 describe('C. Privacy footer text', () => {
@@ -80,7 +80,7 @@ describe('C. Privacy footer text', () => {
     const note = buildQuoteFooterNote('Smith Plumbing Ltd');
     expect(note).toContain('Smith Plumbing Ltd');
     expect(note).toContain('quote');
-    expect(note).toContain('JobProfit');
+    expect(note).toContain('OHNAR');
   });
 
   it('quote footer falls back gracefully when businessName is empty', () => {
@@ -93,7 +93,7 @@ describe('C. Privacy footer text', () => {
     const note = buildInvoiceFooterNote('Alan Aranda Electrical');
     expect(note).toContain('Alan Aranda Electrical');
     expect(note).toContain('invoice');
-    expect(note).toContain('JobProfit');
+    expect(note).toContain('OHNAR');
   });
 
   it('invoice footer falls back gracefully when biz.name is empty', () => {
@@ -119,7 +119,7 @@ describe('C. Privacy footer text', () => {
 
 function shouldShowPrivacyFooter(/* isPro: any */) {
   // The footer note is always rendered — it is plan-independent.
-  // PoweredByJobProfit's hidden prop only affects the "Sent with JobProfit" wordmark.
+  // PoweredByJobProfit's hidden prop only affects the "Sent with OHNAR" wordmark.
   return true;
 }
 

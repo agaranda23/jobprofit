@@ -50,7 +50,7 @@ import PoweredByJobProfit from '../components/PoweredByJobProfit.jsx';
 
 const FETCH_PROFILE_URL = '/.netlify/functions/fetch-public-receipt';
 
-const GREEN       = '#2bc48a';
+const GREEN       = '#2563eb';
 const PAID_BG     = '#0e6b43';
 const PAID_FG     = '#dcffee';
 const DARK        = '#141414';

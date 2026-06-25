@@ -69,7 +69,7 @@ export default function ConsentBanner() {
           style={{
             flex: '1 1 140px',
             minHeight: 44,
-            background: 'var(--color-accent, #2bc48a)',
+            background: 'var(--color-accent, #2563eb)',
             color: '#fff',
             border: 'none',
             borderRadius: 8,

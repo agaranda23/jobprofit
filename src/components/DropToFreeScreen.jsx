@@ -118,7 +118,7 @@ export default function DropToFreeScreen({
           <div className="drop-to-free-footer-note">
             <div className="drop-to-free-footer-note-title">One thing to know</div>
             <p className="drop-to-free-footer-note-body">
-              From now on, new quotes and invoices show a small &ldquo;Sent with JobProfit&rdquo; line at the bottom. Your existing documents don&rsquo;t change. Go Pro any time to remove it and put only your name on your work.
+              From now on, new quotes and invoices show a small &ldquo;Sent with OHNAR&rdquo; line at the bottom. Your existing documents don&rsquo;t change. Go Pro any time to remove it and put only your name on your work.
             </p>
           </div>
 

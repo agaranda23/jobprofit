@@ -40,7 +40,7 @@ function htmlPage(title, body) {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>${title} — JobProfit</title>
+  <title>${title} — OHNAR</title>
   <style>
     body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
            background: #f8f8f8; margin: 0; padding: 40px 20px; text-align: center; }
