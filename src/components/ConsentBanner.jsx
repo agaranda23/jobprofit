@@ -49,13 +49,14 @@ export default function ConsentBanner() {
       aria-modal="false"
       className="consent-banner"
       style={{
-        background: 'var(--color-surface, #fff)',
-        borderTop: '1px solid var(--color-border, #e5e5e5)',
+        background: 'var(--surface, #fff)',
+        borderTop: '1px solid var(--border, #e5e5e5)',
         padding: '16px 20px',
         boxShadow: '0 -2px 16px rgba(0,0,0,0.08)',
       }}
     >
-      <p style={{ margin: '0 0 14px', fontSize: 'var(--fs-label)', lineHeight: 1.55, color: 'var(--color-text, #1a1a1a)' }}>
+      {/* Uses --text token — not a hardcoded colour — so dark theme reads correctly */}
+      <p style={{ margin: '0 0 14px', fontSize: 'var(--fs-label)', lineHeight: 1.55, color: 'var(--text)' }}>
         We use essential cookies to keep you logged in and take payments. We'd also like analytics to
         see what's working and fix what isn't. Your call.{' '}
         <a href="/privacy" target="_blank" rel="noopener" style={{ color: 'inherit', textDecoration: 'underline' }}>Privacy</a>
@@ -69,8 +70,8 @@ export default function ConsentBanner() {
           style={{
             flex: '1 1 140px',
             minHeight: 44,
-            background: 'var(--color-accent, #2563eb)',
-            color: '#fff',
+            background: 'var(--accent, #2563eb)',
+            color: 'var(--on-accent)',
             border: 'none',
             borderRadius: 8,
             fontWeight: 600,
@@ -80,6 +81,7 @@ export default function ConsentBanner() {
         >
           Accept all
         </button>
+        {/* Ghost button: inherits --text so contrast works in both themes */}
         <button
           type="button"
           onClick={handleEssentials}
@@ -87,8 +89,8 @@ export default function ConsentBanner() {
             flex: '1 1 140px',
             minHeight: 44,
             background: 'transparent',
-            color: 'var(--color-text, #1a1a1a)',
-            border: '1.5px solid var(--color-border, #d1d1d1)',
+            color: 'var(--text)',
+            border: '1.5px solid var(--border, #d1d1d1)',
             borderRadius: 8,
             fontWeight: 600,
             fontSize: 'var(--fs-body)',
