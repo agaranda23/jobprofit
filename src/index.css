@@ -5879,36 +5879,64 @@ input[type=number] { -moz-appearance: textfield; }
   box-shadow: inset -1px 0 0 var(--border);
 }
 
-/* ── Resting-state ramp tints + per-stage top-accent bar ─────────────────────
+/* ── Mini cycle ring (stage marker) ──────────────────────────────────────────
+   A small filled dot in the stage's canonical --stage-* colour, rendered via the
+   --marker-colour custom property set inline on each .stage-marker element.
+   10 px diameter — large enough to read at arm's length on a small phone screen
+   but restrained enough to stay secondary to the count/amount data.
+
+   Selected state: white dot with a semi-opaque ring so the marker remains
+   distinguishable against the solid stage-colour fill on the chip background.
+   No vivid/muted logic — these chips are stage buckets (always shown in their
+   stage colour), not a single job's progress indicator. */
+.stage-marker {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--marker-colour);
+  flex-shrink: 0;
+  /* 2 px transparent ring separates the dot from the chip background subtly */
+  box-shadow: 0 0 0 2px transparent;
+  margin-bottom: 1px;
+}
+
+/* On a selected chip the background fills with the stage colour, so a same-colour
+   dot would vanish. Switch to white with a semi-opaque ring outline for contrast. */
+.stage-marker--selected {
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.35);
+}
+
+/* ── Resting-state ramp tints ─────────────────────────────────────────────────
    Faint green fill ramp: Quoted→Paid so the pipeline gradient is visible even
    when no stage is selected. Lead gets a blue tint. All scoped to
    :not(.stage-tile--selected) so selected-state fills are never overridden.
 
-   Each chip also carries a 3 px coloured top-bar accent (inset 0 3px 0 <token>)
-   using the --stage-accent-* semantic tokens. This visually rhymes with the
-   OHNAR workflow circles without flooding the chip with colour.
-   GREEN reserved for Paid; RED reserved for Overdue — no cross-use.
-   The right-edge divider (inset -1px 0 0 var(--border)) is combined into the
-   same box-shadow declaration; Paid is last-child so the divider is invisible but harmless. */
+   The previous 3 px coloured top-bar accent (inset 0 3px 0 <token>) has been
+   replaced by the per-chip .stage-marker dot (feat/stage-chip-rings) — one
+   circular stage indicator per chip, echoing the workflow-cycle circles.
+   The right-edge divider stays as a separate inset shadow on the right edge. */
 .stage-tile--lead:not(.stage-tile--selected) {
   background: rgba(37,99,235,0.07);
-  box-shadow: inset 0 3px 0 var(--stage-accent-lead), inset -1px 0 0 var(--border);
+  box-shadow: inset -1px 0 0 var(--border);
 }
 .stage-tile--quoted:not(.stage-tile--selected) {
   background: rgba(40,181,129,0.06);
-  box-shadow: inset 0 3px 0 var(--stage-accent-quoted), inset -1px 0 0 var(--border);
+  box-shadow: inset -1px 0 0 var(--border);
 }
 .stage-tile--on:not(.stage-tile--selected) {
   background: rgba(40,181,129,0.12);
-  box-shadow: inset 0 3px 0 var(--stage-accent-on), inset -1px 0 0 var(--border);
+  box-shadow: inset -1px 0 0 var(--border);
 }
 .stage-tile--invoiced:not(.stage-tile--selected) {
   background: rgba(40,181,129,0.20);
-  box-shadow: inset 0 3px 0 var(--stage-accent-invoiced), inset -1px 0 0 var(--border);
+  box-shadow: inset -1px 0 0 var(--border);
 }
 .stage-tile--paid:not(.stage-tile--selected) {
   background: rgba(24,134,90,0.16);
-  box-shadow: inset 0 3px 0 var(--stage-accent-paid);
+  /* Paid is :last-child — no right-edge divider needed, but box-shadow: none is
+     explicit so the rule is consistent and a future sibling addition is safe. */
+  box-shadow: none;
 }
 
 /* Resting ink override — LIGHT THEME ONLY.
@@ -5951,12 +5979,12 @@ input[type=number] { -moz-appearance: textfield; }
 
 /* ── Overdue overlay reskin (Tweak 2) ────────────────────────────────────────
    Unselected Overdue: green-tinted background (matches the Invoiced ramp step)
-   + red top-bar accent (via --stage-accent-overdue token) + rose amount.
-   Higher specificity :not() wins over the base ramp tint above.
-   The SELECTED Overdue rose-fill state (defined further below) is untouched. */
+   + rose amount. The previous red top-bar accent is superseded by the .stage-marker
+   dot (feat/stage-chip-rings). Higher specificity :not() wins over the base ramp
+   tint above. The SELECTED Overdue rose-fill state (defined further below) is untouched. */
 .stage-tile--overdue:not(.stage-tile--selected) {
   background: rgba(40,181,129,0.20);
-  box-shadow: inset 0 3px 0 var(--stage-accent-overdue), inset -1px 0 0 var(--border);
+  box-shadow: inset -1px 0 0 var(--border);
 }
 .stage-tile--overdue:not(.stage-tile--selected) .stage-tile-amount { color: #FFB8B8; }
 /* name/count/amount dark ink — LIGHT THEME ONLY (#FFB8B8 is unreadable on white) */
