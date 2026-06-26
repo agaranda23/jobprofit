@@ -10943,16 +10943,18 @@ button.jd-money-chip:active { opacity: 0.75; }
   margin: 10px auto 8px;
 }
 
-/* Sheet title line */
+/* Sheet title line — sentence-case; truncates long customer names */
 .jt-sheet-title {
   font-size: var(--fs-label);
   font-weight: 700;
   color: var(--text-dim);
-  text-transform: uppercase;
   letter-spacing: 0.06em;
   padding: 0 4px 8px;
   border-bottom: 1px solid var(--border);
   margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .jt-menu-label {
