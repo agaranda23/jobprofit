@@ -255,6 +255,7 @@ function StageChipDropdown({ job, currentStage, onUpdateJob, _onSendInvoice, onS
   const [open, setOpen] = useState(false);
   const chipRef = useRef(null);
   const menuRef = useRef(null);
+  const sheetRef = useRef(null);
   const dotsRef = useRef(null);
   const [menuPos, setMenuPos] = useState({ top: 0, right: 0 });
 
@@ -262,9 +263,15 @@ function StageChipDropdown({ job, currentStage, onUpdateJob, _onSendInvoice, onS
   useEffect(() => {
     if (!open) return;
     function handleClickOutside(e) {
+      // Guard both the desktop dropdown (menuRef) AND the mobile sheet (sheetRef).
+      // Without sheetRef, touchstart on a chip inside the sheet passes the
+      // contains() check, closes the sheet, and the click event fires on an
+      // unmounted node — making every interaction appear dead on mobile.
+      const insideMenu  = menuRef.current  && menuRef.current.contains(e.target);
+      const insideSheet = sheetRef.current && sheetRef.current.contains(e.target);
       if (
         chipRef.current && !chipRef.current.contains(e.target) &&
-        menuRef.current && !menuRef.current.contains(e.target)
+        !insideMenu && !insideSheet
       ) {
         setOpen(false);
       }
@@ -331,10 +338,13 @@ function StageChipDropdown({ job, currentStage, onUpdateJob, _onSendInvoice, onS
 
   const customerLabel = job.customer || job.name || 'Job';
 
-  // Shared menu content used in both the dropdown and the bottom-sheet
+  // Shared menu content used in both the dropdown and the bottom-sheet.
+  // The contextual heading ("Move Enel to") is rendered here so both mobile
+  // sheet and desktop dropdown receive it. The standalone .jt-sheet-title that
+  // was above menuContent in the mobile sheet has been removed to avoid duplication.
   const menuContent = (
     <>
-      <div className="jt-menu-label">Move to</div>
+      <div className="jt-sheet-title">Move {customerLabel} to</div>
       {/* One-tap restage: 6 colour swatches in a single row */}
       <div className="jt-menu-swatches" role="group" aria-label="Move to stage">
         {STAGES.map(s => {
@@ -481,12 +491,12 @@ function StageChipDropdown({ job, currentStage, onUpdateJob, _onSendInvoice, onS
                 above the mobile breakpoint). */}
             {createPortal(
               <div
+                ref={sheetRef}
                 className="jt-menu jt-menu--sheet"
                 role="menu"
                 onClick={e => e.stopPropagation()}
               >
                 <div className="jt-sheet-grab" aria-hidden="true" />
-                <div className="jt-sheet-title">Move {customerLabel} to</div>
                 {menuContent}
               </div>,
               document.body
