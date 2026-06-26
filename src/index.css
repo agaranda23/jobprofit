@@ -1059,9 +1059,9 @@ body { background: var(--bg); color: var(--text); -webkit-font-smoothing: antial
   cursor: pointer;
 }
 .nav-tab.active {
-  background: rgba(52, 214, 114, 0.14);
+  background: rgba(37, 99, 235, 0.14);
   color: var(--accent);
-  border: 1px solid rgba(34, 197, 94, 0.35);
+  border: 1px solid rgba(37, 99, 235, 0.35);
   padding: 7px 0 5px;
 }
 .nav-icon { font-size: var(--fs-subhead); }
@@ -1106,13 +1106,13 @@ body { background: var(--bg); color: var(--text); -webkit-font-smoothing: antial
    "Filled = you are here" signal. Inactive tabs stay at fill:none (Lucide default).
    We target the SVG directly inside the active tab's .jp-icon span. */
 .nav-tab.active .jp-icon svg {
-  fill: rgba(52, 214, 114, 0.18);
+  fill: rgba(37, 99, 235, 0.18);
   /* Stroke stays on to keep Lucide's outline strokes; the subtle fill overlay
      creates the "filled" impression without a separate icon set. */
 }
 
 [data-theme="light"] .nav-tab.active .jp-icon svg {
-  fill: rgba(0, 168, 107, 0.15);
+  fill: rgba(37, 99, 235, 0.15);
 }
 
 /* Desktop: bar is capped at --app-max-width and centered via margin-inline:auto,
