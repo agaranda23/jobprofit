@@ -60,6 +60,7 @@ import { getOverheadTotal } from '../lib/cashflow.js';
 import { isPro, isTrialActive, trialDaysLeft, UNLOCK_PRO_FOR_ALL } from '../lib/plan.js';
 import { openBillingPortal } from '../lib/billing.js';
 import { isValidStripePaymentLink } from '../lib/bizValidation.js';
+import { addJobToCloud } from '../lib/store.js';
 import { buildJobsCsv, buildEverythingCsv, downloadOrShareCsv } from '../lib/exportCsv.js';
 import { buildJobsPdf } from '../lib/exportPdf.js';
 import { buildJobsXlsx } from '../lib/exportXlsx.js';
@@ -69,6 +70,7 @@ import { WHATS_NEW, formatWhatsNewDate } from '../lib/whatsNew.js';
 import { getStoredPref, setPref as setThemePref } from '../lib/theme.js';
 import ProUpgradeSheet from '../components/ProUpgradeSheet.jsx';
 import ExportFormatSheet from '../components/ExportFormatSheet.jsx';
+import SpreadsheetImporter from '../components/SpreadsheetImporter.jsx';
 import { getConsent, setConsent } from '../lib/consent.js';
 
 const APP_VERSION = pkg.version;
@@ -2119,6 +2121,22 @@ export default function SettingsScreen({
     setUpgradeSheetOpen(true);
   }, []);
 
+  // ── Import sheet state ────────────────────────────────────────────────────
+  // showImportSheet: opens SpreadsheetImporter in a modal from Settings → Data & Privacy.
+  // Free — no Pro gate (data portability is always free).
+  const [showImportSheet, setShowImportSheet] = useState(false);
+
+  async function handleSettingsImport(jobs) {
+    const results = await Promise.allSettled(jobs.map(job => addJobToCloud(job)));
+    const imported = results.filter(r => r.status === 'fulfilled').length;
+    const failed   = jobs.filter((_, i) => results[i].status === 'rejected');
+    return { imported, failed };
+  }
+
+  function closeImportSheet() {
+    setShowImportSheet(false);
+  }
+
   // ── Export state ──────────────────────────────────────────────────────────
   const [exporting, setExporting] = useState(false);
   // exportSheetContext: null | { section: 'records' | 'everything' }
@@ -2621,6 +2639,40 @@ export default function SettingsScreen({
         onClose={() => setUpgradeSheetOpen(false)}
       />
 
+      {/* ── Import sheet ─────────────────────────────────────────────────── */}
+      {showImportSheet && (
+        <div
+          className="modal-backdrop"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Import jobs"
+          onClick={closeImportSheet}
+        >
+          <div
+            className="modal import-settings-modal"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="import-settings-modal__header">
+              <h2 className="modal-title">Import jobs</h2>
+              <button
+                type="button"
+                className="chase-list-close"
+                onClick={closeImportSheet}
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+            <SpreadsheetImporter
+              onImport={handleSettingsImport}
+              onDone={closeImportSheet}
+              onSkip={closeImportSheet}
+              logTelemetry={logTelemetry}
+            />
+          </div>
+        </div>
+      )}
+
       {/* ── Export format sheet ──────────────────────────────────────────── */}
       {exportSheetContext && (() => {
         const isRecords = exportSheetContext.section === 'records';
@@ -2951,6 +3003,12 @@ export default function SettingsScreen({
           {/* Export records folded in from the old standalone "Accountant" section.
               Placed above "Export everything" so the accountant-facing export is found first. */}
           <Row
+            label="Import jobs"
+            value="CSV or Excel"
+            onTap={() => setShowImportSheet(true)}
+            chevron
+          />
+          <Row
             label="Export records"
             value={exporting ? 'Preparing…' : 'Choose format'}
             onTap={() => openExportSheet('records')}
@@ -3023,8 +3081,8 @@ export default function SettingsScreen({
           <FaqItem question="How does a customer accept a quote and pay?">
             <p>Send them the quote link. They open it in their browser, review the breakdown, sign with their finger, tick the T&amp;Cs checkbox, and tap Confirm. If you&rsquo;ve set a deposit, they can pay it via Stripe right there. You get a push notification the moment they accept.</p>
           </FaqItem>
-          <FaqItem question="How do I export or delete my data?">
-            <p>Settings &rarr; Data &amp; privacy &rarr; Export everything lets you download all your jobs as a spreadsheet (CSV) or a PDF summary. Delete account wipes everything immediately — no email to support, no waiting.</p>
+          <FaqItem question="How do I import, export, or delete my data?">
+            <p>Settings &rarr; Data &amp; privacy &rarr; Import jobs lets you bring existing jobs across from a CSV or Excel spreadsheet. Export everything downloads all your jobs as a spreadsheet (CSV) or a PDF summary. Delete account wipes everything immediately — no email to support, no waiting.</p>
           </FaqItem>
         </SectionCard>
 
