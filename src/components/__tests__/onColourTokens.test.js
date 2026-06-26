@@ -177,16 +177,16 @@ describe('on-colour tokens defined in :root (dark theme)', () => {
 // ── 3. on-* tokens defined in [data-theme="light"] ───────────────────────────
 
 describe('on-colour tokens defined in [data-theme="light"]', () => {
-  it('--on-surface overridden for light (#111827 on white)', () => {
+  it('--on-surface overridden for light (#0B1320 Deep Navy on white)', () => {
     const light = getLightThemeBlock();
     expect(light).not.toBeNull();
     expect(light).toContain('--on-surface');
-    expect(light).toMatch(/--on-surface:\s*#111827/i);
+    expect(light).toMatch(/--on-surface:\s*#0B1320/i);
   });
 
-  it('--on-bg overridden for light (#111827 on near-white)', () => {
+  it('--on-bg overridden for light (#0B1320 Deep Navy on near-white)', () => {
     const light = getLightThemeBlock();
-    expect(light).toMatch(/--on-bg:\s*#111827/i);
+    expect(light).toMatch(/--on-bg:\s*#0B1320/i);
   });
 
   it('--on-danger in light theme is #ffffff (white on red)', () => {

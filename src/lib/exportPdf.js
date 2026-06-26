@@ -101,7 +101,7 @@ export async function buildPdfFromRows(rows, { title = 'Export', businessName = 
 
   // ── Brand colours ──────────────────────────────────────────────────────────
   const GREEN = [37, 99, 235];   // #2563EB brand blue
-  const BLACK = [17, 24, 39];    // #111827
+  const BLACK = [11, 19, 32];    // #0B1320 Deep Navy
   const GREY  = [107, 114, 128]; // #6B7280
   const WHITE = [255, 255, 255];
   const STRIPE = [249, 250, 251]; // #F9FAFB — zebra even row

@@ -291,7 +291,7 @@ button:focus-visible {
   --surface-expanded: #e9ebef; /* one shade below --surface-2 for expanded accordion cards */
 
   /* Text */
-  --text:        #111827;
+  --text:        #0B1320;
   --text-dim:    #6b7280;
 
   /* Brand accent — OHNAR Blue, replacing JobProfit green */
@@ -357,16 +357,16 @@ button:focus-visible {
      Light-mode contrast ratios:
        --on-accent  #fff on #2563eb  →  4.54:1  ✓ AA  (same as dark)
        --on-navy    #fff on #0b1320  → 18.1:1   ✓ AAA (same as dark)
-       --on-surface #111827 on #fff  → 16.75:1  ✓ AAA
-       --on-bg      #111827 on #f9fafb → 15.3:1 ✓ AAA
+       --on-surface #0B1320 on #fff  → 18.6:1   ✓ AAA
+       --on-bg      #0B1320 on #f9fafb → 17.1:1 ✓ AAA
        --on-success #fff on #16a34a   →  3.30:1  decorative/icon/bold-button ≥3:1 ✓
                     #fff on #15803D  →  5.02:1  normal text surfaces ✓ AA
        --on-amber   #0b1320 on #d97706 → 7.1:1  ✓ AAA (light amber is deeper)
        --on-danger  #fff on #dc2626  →  4.83:1  ✓ AA
        --on-gold    #0b1320 on #b8880a →  5.82:1 ✓ AA  (switched to dark fg)
   */
-  --on-surface:   #111827;
-  --on-bg:        #111827;
+  --on-surface:   #0B1320;
+  --on-bg:        #0B1320;
   --on-amber:     #0b1320;
   --on-danger:    #ffffff;
   --on-gold:      #0b1320;
@@ -4939,7 +4939,7 @@ input[type=number] { -moz-appearance: textfield; }
   border-radius: var(--radius-md);
   font-size: var(--fs-body);
   font-weight: 500;
-  color: var(--text-primary, #111827);
+  color: var(--text-primary, #0B1320);
   cursor: pointer;
   text-align: left;
   transition: background 0.15s ease;
@@ -10239,7 +10239,7 @@ button.jd-money-chip:active { opacity: 0.75; }
 /* color-scheme: light also prevents iOS Safari from darkening form inputs.      */
 .pqv-card {
   color-scheme: light;
-  --text:       #111827;
+  --text:       #0B1320;
   --text-dim:   #6b7280;
   --bg:         #f9fafb;
   --surface:    #f3f4f6;
