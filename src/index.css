@@ -88,6 +88,9 @@
   --radius-2xl:  20px;
   --radius-pill: 999px;
 
+  /* ── Deep Navy ink token — replaces opaque pure-black text/fill/border usages ── */
+  --ink: #0B1320;
+
   /* ── Elevation (theme-agnostic dark defaults) ── JP-LU4 PR1 */
   --shadow-xs: 0 1px 0 rgba(0,0,0,0.25);
   --shadow-sm: 0 1px 4px rgba(0,0,0,0.12);
@@ -288,7 +291,7 @@ button:focus-visible {
   --surface-expanded: #e9ebef; /* one shade below --surface-2 for expanded accordion cards */
 
   /* Text */
-  --text:        #111827;
+  --text:        #0B1320;
   --text-dim:    #6b7280;
 
   /* Brand accent — OHNAR Blue, replacing JobProfit green */
@@ -336,7 +339,7 @@ button:focus-visible {
   --cf-red:       #dc2626;
   --cf-amber:     #d97706;
   --cf-navy:      #2563eb;
-  --cf-track-bg:  rgba(0, 0, 0, 0.06);
+  --cf-track-bg:  rgba(11, 19, 32, 0.06);
   --cf-empty-color: #9ca3af;
 
   /* Surface variants used by jd-card, visit-editor-sheet, photo-source-sheet, etc.
@@ -345,7 +348,7 @@ button:focus-visible {
   --card-bg:        #ffffff;
 
   /* DrawerAvatar border — dark uses rgba(255,255,255,0.12) which is invisible on white */
-  --avatar-border: rgba(0, 0, 0, 0.12);
+  --avatar-border: rgba(11, 19, 32, 0.12);
 
   /* Elevation overrides for light mode — JP-LU4 PR1 */
   --shadow-md: 0 4px 16px rgba(0,0,0,0.12);
@@ -354,16 +357,16 @@ button:focus-visible {
      Light-mode contrast ratios:
        --on-accent  #fff on #2563eb  →  4.54:1  ✓ AA  (same as dark)
        --on-navy    #fff on #0b1320  → 18.1:1   ✓ AAA (same as dark)
-       --on-surface #111827 on #fff  → 16.75:1  ✓ AAA
-       --on-bg      #111827 on #f9fafb → 15.3:1 ✓ AAA
+       --on-surface #0B1320 on #fff  → 18.6:1   ✓ AAA
+       --on-bg      #0B1320 on #f9fafb → 17.1:1 ✓ AAA
        --on-success #fff on #16a34a   →  3.30:1  decorative/icon/bold-button ≥3:1 ✓
                     #fff on #15803D  →  5.02:1  normal text surfaces ✓ AA
        --on-amber   #0b1320 on #d97706 → 7.1:1  ✓ AAA (light amber is deeper)
        --on-danger  #fff on #dc2626  →  4.83:1  ✓ AA
        --on-gold    #0b1320 on #b8880a →  5.82:1 ✓ AA  (switched to dark fg)
   */
-  --on-surface:   #111827;
-  --on-bg:        #111827;
+  --on-surface:   #0B1320;
+  --on-bg:        #0B1320;
   --on-amber:     #0b1320;
   --on-danger:    #ffffff;
   --on-gold:      #0b1320;
@@ -706,12 +709,12 @@ button:focus-visible {
 
 /* 17. ProGate lock badge — rgba(255,255,255,0.08/0.12) panels on white */
 [data-theme="light"] .pro-gate__lock-badge {
-  background: rgba(0, 0, 0, 0.04);
-  border-color: rgba(0, 0, 0, 0.10);
+  background: rgba(11, 19, 32, 0.04);
+  border-color: rgba(11, 19, 32, 0.10);
 }
 [data-theme="light"] .money-hero__true-profit-locked-badge {
-  background: rgba(0, 0, 0, 0.05);
-  border-color: rgba(0, 0, 0, 0.10);
+  background: rgba(11, 19, 32, 0.05);
+  border-color: rgba(11, 19, 32, 0.10);
 }
 
 /* 18. visit-editor-sheet / photo-source-sheet — hardcoded #111827 */
@@ -2069,7 +2072,7 @@ body {
 .snackbar__got-paid-chip:hover {
   background: var(--jp-green);
   border-color: var(--jp-green);
-  color: #000;
+  color: var(--ink);
 }
 /* cost variant — mirrors .nav-toast--cost-capture */
 .snackbar--cost {
@@ -2084,7 +2087,7 @@ body {
 }
 .snackbar__add-cost {
   background: var(--accent, #22c55e);
-  color: #000;
+  color: var(--ink);
   border: none;
   border-radius: 8px;
   padding: 6px 12px;
@@ -2172,7 +2175,7 @@ body {
 .got-paid-toast__chip:hover {
   background: var(--jp-green);
   border-color: var(--jp-green);
-  color: #000;
+  color: var(--ink);
 }
 .got-paid-toast__dismiss {
   background: none;
@@ -2728,15 +2731,25 @@ body {
   text-align: center;
   margin-bottom: 24px;
 }
-/* Interim OHNAR wordmark replaces the auth screen logo image */
+/* OHNAR auth lockup: O mark + wordmark stacked above the h1 */
+.auth-wordmark-lockup {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.auth-logo-o {
+  height: 36px;
+  width: auto;
+  flex-shrink: 0;
+}
 .auth-wordmark {
-  display: block;
   font-family: var(--font-sans);
   font-size: 36px;
   font-weight: 800;
   letter-spacing: -0.04em;
   color: var(--accent);
-  margin-bottom: 16px;
   line-height: 1;
 }
 .auth-title {
@@ -3423,20 +3436,32 @@ input[type=number] { -moz-appearance: textfield; }
    Using left:50vw was wrong: it measures 50vw from the header's left edge, not from
    the viewport origin — producing a right-shifted logo on any viewport wider than
    the container. */
-/* Interim OHNAR wordmark replaces the per-screen header logo images */
-.screen-header-wordmark {
+/* OHNAR header lockup: O mark + wordmark, centred in the header bar */
+.screen-header-lockup {
   position: absolute;
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  pointer-events: none;
+  white-space: nowrap;
+}
+.screen-header-logo-o {
+  height: 22px;
+  width: auto;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+.screen-header-wordmark {
   font-family: var(--font-sans);
   font-size: var(--fs-label);
   font-weight: 800;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--accent);
-  pointer-events: none;
-  white-space: nowrap;
+  line-height: 1;
 }
 
 .screen-empty {
@@ -4914,7 +4939,7 @@ input[type=number] { -moz-appearance: textfield; }
   border-radius: var(--radius-md);
   font-size: var(--fs-body);
   font-weight: 500;
-  color: var(--text-primary, #111827);
+  color: var(--text-primary, #0B1320);
   cursor: pointer;
   text-align: left;
   transition: background 0.15s ease;
@@ -6869,7 +6894,7 @@ input[type=number] { -moz-appearance: textfield; }
   width: 100%;
   min-height: 48px;
   background: var(--jp-green);
-  color: #000;
+  color: var(--ink);
   border: none;
   border-radius: var(--radius-md);
   font-size: var(--fs-body);
@@ -7107,7 +7132,7 @@ input[type=number] { -moz-appearance: textfield; }
    Sits between Monthly bills and Job costs in the Settings scroll. */
 .settings-section-divider {
   height: 1px;
-  background: var(--border, rgba(0,0,0,0.1));
+  background: var(--border, rgba(11,19,32,0.1));
   margin: 8px 0 24px;
   opacity: 0.6;
 }
@@ -8786,7 +8811,7 @@ button.jd-money-chip:active { opacity: 0.75; }
 
 .jd-photo-reorder-btn {
   pointer-events: auto;
-  background: rgba(0,0,0,0.55);
+  background: rgba(11,19,32,0.55);
   color: #fff;
   border: none;
   border-radius: var(--radius-xs);
@@ -8807,7 +8832,7 @@ button.jd-money-chip:active { opacity: 0.75; }
 }
 
 .jd-photo-reorder-btn:not(:disabled):active {
-  background: rgba(0,0,0,0.75);
+  background: rgba(11,19,32,0.75);
 }
 
 /* ── Photo caption ── */
@@ -9142,7 +9167,7 @@ button.jd-money-chip:active { opacity: 0.75; }
 .photo-lightbox-edit-btn {
   flex-shrink: 0;
   background: var(--accent);
-  color: #000;
+  color: var(--ink);
   border: none;
   border-radius: 8px;
   padding: 8px 18px;
@@ -10214,7 +10239,7 @@ button.jd-money-chip:active { opacity: 0.75; }
 /* color-scheme: light also prevents iOS Safari from darkening form inputs.      */
 .pqv-card {
   color-scheme: light;
-  --text:       #111827;
+  --text:       #0B1320;
   --text-dim:   #6b7280;
   --bg:         #f9fafb;
   --surface:    #f3f4f6;
@@ -12591,7 +12616,7 @@ button.jd-money-chip:active { opacity: 0.75; }
 [data-theme="light"] .jd-doc-chip--green   { background:#d1fae5; color:#065f46; }
 [data-theme="light"] .jd-doc-chip--amber   { background:#fef3c7; color:#92400e; }
 [data-theme="light"] .jd-doc-chip--rose    { background:#fee2e2; color:#991b1b; }
-[data-theme="light"] .jd-doc-chip--muted   { background:rgba(0,0,0,.07); color:#6b7280; }
+[data-theme="light"] .jd-doc-chip--muted   { background:rgba(11,19,32,.07); color:#6b7280; }
 
 .jd-doc-row { display:flex; flex-direction:column; gap:4px; padding:10px 16px; }
 .jd-doc-row-line1 { display:flex; align-items:center; gap:8px; }
@@ -15901,7 +15926,7 @@ button.jd-money-chip:active { opacity: 0.75; }
   flex-shrink: 0;
   padding: 6px 12px;
   background: var(--accent, #2563EB);
-  color: #000;
+  color: var(--ink);
   font-size: var(--fs-label);
   font-weight: 700;
   border: none;
@@ -16271,7 +16296,7 @@ button.jd-money-chip:active { opacity: 0.75; }
 }
 .ppc-chip--active {
   background: var(--accent, #22c55e);
-  color: #000;
+  color: var(--ink);
   border-color: var(--accent, #22c55e);
   font-weight: 600;
 }
@@ -16293,7 +16318,7 @@ button.jd-money-chip:active { opacity: 0.75; }
   padding: 13px 16px;
   border-radius: var(--radius-lg);
   background: var(--accent, #22c55e);
-  color: #000;
+  color: var(--ink);
   font-size: var(--fs-body);
   font-weight: 700;
   font-family: inherit;
@@ -16392,7 +16417,7 @@ button.jd-money-chip:active { opacity: 0.75; }
   height: 28px;
   border-radius: 50%;
   background: var(--accent, #22c55e);
-  color: #000;
+  color: var(--ink);
   font-size: var(--fs-body);
   font-weight: 700;
   flex-shrink: 0;
@@ -16506,7 +16531,7 @@ button.jd-money-chip:active { opacity: 0.75; }
 
 .nav-toast-add-cost {
   background: var(--accent, #22c55e);
-  color: #000;
+  color: var(--ink);
   border: none;
   border-radius: 8px;
   padding: 6px 12px;
@@ -17145,7 +17170,7 @@ button.jd-money-chip:active { opacity: 0.75; }
 }
 /* Light mode: muted unfilled dots need more contrast on white */
 [data-theme="light"] .jp-dot:not(.jp-dot--filled) {
-  background: rgba(0, 0, 0, 0.12) !important;
+  background: rgba(11, 19, 32, 0.12) !important;
 }
 
 /* ── FunnelStrip — single-line pipeline count summary ──────────────────── */
@@ -17193,7 +17218,7 @@ button.jd-money-chip:active { opacity: 0.75; }
   background: rgba(40, 181, 129, 0.4);
 }
 [data-theme="light"] .stage-timeline__line {
-  background: rgba(0, 0, 0, 0.08);
+  background: rgba(11, 19, 32, 0.08);
 }
 [data-theme="light"] .stage-timeline__line--reached {
   background: rgba(40, 181, 129, 0.35);
@@ -17215,8 +17240,8 @@ button.jd-money-chip:active { opacity: 0.75; }
   border-color: var(--accent);
 }
 [data-theme="light"] .stage-timeline__dot {
-  background: rgba(0, 0, 0, 0.1);
-  border-color: rgba(0, 0, 0, 0.15);
+  background: rgba(11, 19, 32, 0.1);
+  border-color: rgba(11, 19, 32, 0.15);
 }
 [data-theme="light"] .stage-timeline__dot--reached {
   background: var(--accent);

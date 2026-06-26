@@ -32,7 +32,7 @@ export default function SignaturePad({ onSave, onCancel, width = 300, height = 1
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     ctx.lineWidth = 2.5;
-    ctx.strokeStyle = '#000';
+    ctx.strokeStyle = '#0B1320';
   }, [width, height]);
 
   // ── Coordinate helper: map pointer client coords → canvas logical coords ──
@@ -73,7 +73,7 @@ export default function SignaturePad({ onSave, onCancel, width = 300, height = 1
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
     ctx.lineWidth = 2.5;
-    ctx.strokeStyle = '#000';
+    ctx.strokeStyle = '#0B1320';
     ctx.beginPath();
     ctx.moveTo(stroke[stroke.length - 2].x, stroke[stroke.length - 2].y);
     ctx.lineTo(stroke[stroke.length - 1].x, stroke[stroke.length - 1].y);

@@ -119,7 +119,10 @@ export default function AuthScreen() {
   return (
     <div className="auth-screen">
       <div className="auth-brand">
-        <span className="auth-wordmark" aria-hidden="true">OHNAR</span>
+        <span className="auth-wordmark-lockup" aria-hidden="true">
+          <img src="/ohnar-O-transparent-512.png" className="auth-logo-o" alt="" aria-hidden="true" />
+          <span className="auth-wordmark">OHNAR</span>
+        </span>
         <h1 className="auth-title">OHNAR</h1>
         <p className="auth-hero">Quote it, send it, get paid. From the van.</p>
 

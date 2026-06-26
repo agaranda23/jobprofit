@@ -3147,7 +3147,10 @@ export default function SettingsScreen({
     <div className="screen settings-screen" ref={screenRef}>
       <div className="screen-header">
         <h1 className="screen-title">Settings</h1>
-        <span className="screen-header-wordmark" aria-hidden="true">OHNAR</span>
+        <span className="screen-header-lockup" aria-hidden="true">
+          <img src="/ohnar-O-transparent-512.png" className="screen-header-logo-o" alt="" aria-hidden="true" />
+          <span className="screen-header-wordmark">OHNAR</span>
+        </span>
       </div>
 
       {/* ── Pinned block 1: Identity card ─────────────────────────────────── */}
