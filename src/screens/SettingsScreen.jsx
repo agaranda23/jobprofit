@@ -170,7 +170,7 @@ function Row({ label, value, action, onTap, danger = false, chevron = true, high
       <span className="settings-row-right">
         {value && <span className="settings-row-value">{value}</span>}
         {action && <span className="settings-row-action">{action}</span>}
-        {chevron && <span className="settings-row-chevron">›</span>}
+        {chevron && <span className="settings-row-chevron"><Icon name="chevron-right" size={16} /></span>}
       </span>
     </button>
   );
@@ -225,7 +225,7 @@ function FaqItem({ question, children }) {
       >
         <span className="settings-row-label">{question}</span>
         <span className="settings-row-right">
-          <span className="settings-row-chevron" style={{ transition: 'transform 0.2s', transform: open ? 'rotate(90deg)' : 'none' }}>›</span>
+          <span className="settings-row-chevron" style={{ transition: 'transform 0.2s', transform: open ? 'rotate(90deg)' : 'none' }}><Icon name="chevron-right" size={16} /></span>
         </span>
       </button>
       {open && (
@@ -1841,7 +1841,7 @@ function HubCategoryRow({ label, iconName, hint, onTap, dot = false }) {
       </span>
       <span className="settings-row-right">
         {hint && <span className="settings-row-value">{hint}</span>}
-        <span className="settings-row-chevron">›</span>
+        <span className="settings-row-chevron"><Icon name="chevron-right" size={16} /></span>
       </span>
     </button>
   );
@@ -2605,7 +2605,7 @@ export default function SettingsScreen({
                         {row.daysPastDue}d overdue
                       </span>
                     </div>
-                    <span className="chase-list-row-chevron">›</span>
+                    <span className="chase-list-row-chevron"><Icon name="chevron-right" size={16} /></span>
                   </button>
                 ))}
               </div>
@@ -3087,7 +3087,7 @@ export default function SettingsScreen({
               {whatsNewDot && <span className="settings-new-dot" aria-label="New updates available" />}
             </span>
             <span className="settings-row-right">
-              <span className="settings-row-chevron">›</span>
+              <span className="settings-row-chevron"><Icon name="chevron-right" size={16} /></span>
             </span>
           </button>
         </SectionCard>
@@ -3197,7 +3197,7 @@ export default function SettingsScreen({
           type="button"
         >
           <span>Profile incomplete — tap to finish setup</span>
-          <span>›</span>
+          <span className="settings-row-chevron"><Icon name="chevron-right" size={16} /></span>
         </button>
       )}
 
