@@ -286,8 +286,9 @@ describe('OHNAR O mark CSS — screen-header-lockup token', () => {
     // The auth context sets size via the `size` prop; the img scales via em.
     expect(css).toContain('.ohnar-wm__o {');
     const idx = css.indexOf('.ohnar-wm__o {');
-    const block = css.slice(idx, idx + 200);
-    expect(block).toContain('height: 0.92em');
+    const block = css.slice(idx, idx + 350);
+    // Tight-cropped asset (ohnar-O-tight-512.png) — 0.78em matches HNAR cap height
+    expect(block).toContain('height: 0.78em');
   });
 });
 

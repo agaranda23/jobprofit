@@ -2642,11 +2642,13 @@ body {
   line-height: 1;
 }
 .ohnar-wm__o {
-  /* Scale the ring to roughly match cap height: 0.92em ≈ cap height at fw 800 */
-  height: 0.92em;
+  /* Tight-cropped asset (ohnar-O-tight-512.png, 453×453) has no padding,
+     so 0.78em matches the "HNAR" cap height without the gap the padded asset
+     introduced. translateY nudges the ring onto the cap-height baseline. */
+  height: 0.78em;
   width: auto;
-  /* Tuck the ring close to the "HNAR" text so it reads as one word */
-  margin-right: -0.06em;
+  margin-right: -0.01em;
+  transform: translateY(-0.04em);
   flex-shrink: 0;
   display: block;
 }

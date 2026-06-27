@@ -20,7 +20,7 @@ describe('OhnarWordmark', () => {
     const { container } = render(<OhnarWordmark />);
     const img = container.querySelector('img.ohnar-wm__o');
     expect(img).toBeTruthy();
-    expect(img.getAttribute('src')).toBe('/ohnar-O-transparent-512.png');
+    expect(img.getAttribute('src')).toBe('/ohnar-O-tight-512.png');
   });
 
   it('img is aria-hidden (decorative — root span carries the accessible name)', () => {
