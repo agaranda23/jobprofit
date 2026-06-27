@@ -255,7 +255,7 @@ async function drawFooter(doc, biz, extra = '', hidePoweredBy = false) {
   doc.setFontSize(7.5);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(...LIGHT);
-  const text = extra || `${biz?.name || 'JobProfit'}  •  Generated ${new Date().toLocaleDateString('en-GB')}`;
+  const text = extra || `${biz?.name || 'OHNAR'}  •  Generated ${new Date().toLocaleDateString('en-GB')}`;
   doc.text(text, w / 2, footerY, { align: 'center' });
 
   if (!hidePoweredBy) {
@@ -496,7 +496,7 @@ export async function generateReceiptPDF({ job, biz, profile = null, hidePowered
   doc.text('Thank you for your business.', MARGIN, y);
 
   // ── Footer ───────────────────────────────────────────────────────────────
-  await drawFooter(doc, effectiveBiz, `${effectiveBiz.name || 'JobProfit'}  •  Receipt generated ${new Date().toLocaleDateString('en-GB')}`, hidePoweredBy);
+  await drawFooter(doc, effectiveBiz, `${effectiveBiz.name || 'OHNAR'}  •  Receipt generated ${new Date().toLocaleDateString('en-GB')}`, hidePoweredBy);
 
   return doc;
 }

@@ -1091,7 +1091,7 @@ export default function AppShell() {
     try {
       if (format === 'csv') {
         const csv = buildJobsCsv(safeJobs, safeReceipts);
-        await downloadOrShareCsv(csv, `jobprofit-export-${stamp}.csv`);
+        await downloadOrShareCsv(csv, `ohnar-export-${stamp}.csv`);
       } else if (format === 'pdf') {
         const businessName = profile?.business_name || profile?.businessName || '';
         const blob = await buildJobsPdf(safeJobs, safeReceipts, {
@@ -1099,9 +1099,9 @@ export default function AppShell() {
           businessName,
           isPro: isPro(profile),
         });
-        await downloadOrShare(blob, `jobprofit-export-${stamp}.pdf`, 'application/pdf');
+        await downloadOrShare(blob, `ohnar-export-${stamp}.pdf`, 'application/pdf');
       } else if (format === 'xlsx') {
-        await buildJobsXlsx(safeJobs, safeReceipts, `jobprofit-export-${stamp}.xlsx`);
+        await buildJobsXlsx(safeJobs, safeReceipts, `ohnar-export-${stamp}.xlsx`);
       }
     } catch {
       // Non-critical: the user can try again — no visible toast wired here

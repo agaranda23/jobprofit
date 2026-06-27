@@ -2195,7 +2195,7 @@ export default function SettingsScreen({
         const csv = isEverything
           ? buildEverythingCsv(safeJobs, safeReceipts, profile, session)
           : buildJobsCsv(safeJobs, safeReceipts);
-        await downloadOrShareCsv(csv, `jobprofit-export-${stamp}.csv`);
+        await downloadOrShareCsv(csv, `ohnar-export-${stamp}.csv`);
       } else if (format === 'pdf') {
         const exportTitle = isEverything ? 'Everything export' : 'Records export';
         const businessName = profile?.business_name || profile?.businessName || '';
@@ -2208,12 +2208,12 @@ export default function SettingsScreen({
           profile,
           session,
         });
-        await downloadOrShare(blob, `jobprofit-export-${stamp}.pdf`, 'application/pdf');
+        await downloadOrShare(blob, `ohnar-export-${stamp}.pdf`, 'application/pdf');
       } else if (format === 'xlsx') {
         // xlsx export is jobs ledger only (same as CSV "records").
         // The "Export everything" section includes account profile fields in CSV/PDF
         // but not in xlsx — the jobs sheet is the accountant-useful part.
-        await buildJobsXlsx(safeJobs, safeReceipts, `jobprofit-export-${stamp}.xlsx`);
+        await buildJobsXlsx(safeJobs, safeReceipts, `ohnar-export-${stamp}.xlsx`);
       }
     } catch {
       showSavedToast('Export failed — try again');
