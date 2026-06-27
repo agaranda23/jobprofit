@@ -17,7 +17,7 @@ const JP_LOGO_B64 = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAfQAAAH0CAYAA
 
 // ── Brand tokens ────────────────────────────────────────────────────────────
 const BRAND_GREEN   = [37, 99, 235];   // #2563eb — OHNAR brand blue
-const DARK          = [11, 19, 32];    // Deep Navy #0B1320 — headings and body text
+const DARK          = [30, 58, 95];    // #1E3A5F visible-navy — headings and body text
 const MID           = [80, 80, 80];    // secondary labels, address lines
 const LIGHT         = [150, 150, 150]; // muted labels (BILL TO, INVOICE etc.)
 const RULE          = [220, 220, 220]; // hairline separator
