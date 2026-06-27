@@ -38,9 +38,10 @@ export default function Splash() {
         xmlns="http://www.w3.org/2000/svg"
       >
         <defs>
+          {/* Blue-only gradient matches the logo O — no green. */}
           <linearGradient id="splash-ring-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#2563EB" />
-            <stop offset="100%" stopColor="#5FD9A6" />
+            <stop offset="0%" stopColor="#3B82F6" />
+            <stop offset="100%" stopColor="#1D4ED8" />
           </linearGradient>
         </defs>
         {/* Track ring — subtle navy tint */}
