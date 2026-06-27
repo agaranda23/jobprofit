@@ -141,18 +141,18 @@ const DEFAULT_PROPS = {
 import WorkScreen from '../WorkScreen';
 import TodayScreen from '../TodayScreen';
 
-describe('WorkScreen — Records entry point (fix/discoverability-polish)', () => {
+describe('WorkScreen — Documents entry point (feat/documents-findability-v1)', () => {
   afterEach(() => vi.clearAllMocks());
 
-  it('renders the Records pill in the controls row', () => {
+  it('renders the Documents pill in the controls row', () => {
     render(<WorkScreen {...DEFAULT_PROPS} />);
     // Button is always visible alongside the List/Calendar/All controls
-    expect(screen.getByRole('button', { name: /find a quote, invoice or job/i })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /find a quote, invoice, receipt or job/i })).toBeTruthy();
   });
 
-  it('opens DocumentSearchOverlay in quotes mode (default) when Records pill is tapped', () => {
+  it('opens DocumentSearchOverlay in quotes mode (default) when Documents pill is tapped', () => {
     render(<WorkScreen {...DEFAULT_PROPS} jobs={[makeJob()]} />);
-    const pill = screen.getByRole('button', { name: /find a quote, invoice or job/i });
+    const pill = screen.getByRole('button', { name: /find a quote, invoice, receipt or job/i });
     fireEvent.click(pill);
     // Default mode is now 'quotes' — the overlay dialog heading (h2) should be "Quotes"
     expect(screen.getByRole('heading', { name: 'Quotes' })).toBeTruthy();
@@ -160,25 +160,26 @@ describe('WorkScreen — Records entry point (fix/discoverability-polish)', () =
 
   it('closes the overlay when the close button is tapped', () => {
     render(<WorkScreen {...DEFAULT_PROPS} jobs={[makeJob()]} />);
-    fireEvent.click(screen.getByRole('button', { name: /find a quote, invoice or job/i }));
+    fireEvent.click(screen.getByRole('button', { name: /find a quote, invoice, receipt or job/i }));
     expect(screen.getByRole('heading', { name: 'Quotes' })).toBeTruthy();
     const closeBtn = screen.getByRole('button', { name: /close/i });
     fireEvent.click(closeBtn);
     expect(screen.queryByRole('heading', { name: 'Quotes' })).toBeNull();
   });
 
-  it('overlay renders all three mode-switcher tabs', () => {
+  it('overlay renders all four mode-switcher tabs including Receipts', () => {
     render(<WorkScreen {...DEFAULT_PROPS} jobs={[makeJob()]} />);
-    fireEvent.click(screen.getByRole('button', { name: /find a quote, invoice or job/i }));
-    // All three tabs must be present regardless of which mode is active
+    fireEvent.click(screen.getByRole('button', { name: /find a quote, invoice, receipt or job/i }));
+    // All four tabs (feat/documents-findability-v1 added Receipts)
     expect(screen.getByRole('tab', { name: /all jobs/i })).toBeTruthy();
     expect(screen.getByRole('tab', { name: /quotes/i })).toBeTruthy();
     expect(screen.getByRole('tab', { name: /invoices/i })).toBeTruthy();
+    expect(screen.getByRole('tab', { name: /receipts/i })).toBeTruthy();
   });
 
   it('mode switcher changes the active mode when a tab is clicked', () => {
     render(<WorkScreen {...DEFAULT_PROPS} jobs={[makeJob()]} />);
-    fireEvent.click(screen.getByRole('button', { name: /find a quote, invoice or job/i }));
+    fireEvent.click(screen.getByRole('button', { name: /find a quote, invoice, receipt or job/i }));
     // Start in quotes — heading is "Quotes"
     expect(screen.getByRole('heading', { name: 'Quotes' })).toBeTruthy();
     // Switch to "All jobs"
@@ -189,7 +190,7 @@ describe('WorkScreen — Records entry point (fix/discoverability-polish)', () =
 
   it('active mode tab has aria-selected=true', () => {
     render(<WorkScreen {...DEFAULT_PROPS} jobs={[makeJob()]} />);
-    fireEvent.click(screen.getByRole('button', { name: /find a quote, invoice or job/i }));
+    fireEvent.click(screen.getByRole('button', { name: /find a quote, invoice, receipt or job/i }));
     const quotesTab = screen.getByRole('tab', { name: /quotes/i });
     expect(quotesTab.getAttribute('aria-selected')).toBe('true');
     const allJobsTab = screen.getByRole('tab', { name: /all jobs/i });
