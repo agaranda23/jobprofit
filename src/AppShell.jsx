@@ -89,6 +89,13 @@ import AppErrorBoundary from './components/AppErrorBoundary.jsx';
 
 const SLICE_3_VIEWS  = ['today', 'work', 'finance', 'settings'];
 
+// SW auto-update loop guard — module-level so it survives React re-renders but
+// resets on a full page load (exactly the right lifetime). Set to true BEFORE
+// calling window.location.reload() in the controllerchange handler so a second
+// controllerchange event (e.g. from a race between near-simultaneous deploys)
+// cannot trigger a second reload.
+let swReloaded = false;
+
 function wipeLegacyDemoData() {
   try {
     if (localStorage.getItem('jp.demoCleared.v1')) return;
@@ -512,12 +519,35 @@ export default function AppShell() {
 
   // Register service worker for PWA (required for push and offline caching).
   // Safe to call multiple times — the browser deduplicates registrations to the same script URL.
+  //
+  // Auto-update: when a new SW takes over (skipWaiting + clients.claim in sw.js),
+  // the browser fires 'controllerchange' on navigator.serviceWorker. We reload once
+  // so the page immediately picks up the new JS/CSS/asset URLs from the new cache.
+  //
+  // Loop-guard: the module-level `swReloaded` flag is set BEFORE window.location.reload()
+  // is called. If the page somehow triggers another controllerchange after the reload
+  // (e.g. a race between two near-simultaneous deploys), the flag check prevents a
+  // second reload. The flag lives in module scope so it survives React re-renders
+  // but resets on a full page load — exactly the right lifetime.
   useEffect(() => {
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/sw.js').catch((err) => {
-        console.warn('SW registration failed', err?.message);
-      });
+    if (!('serviceWorker' in navigator)) return;
+
+    navigator.serviceWorker.register('/sw.js').catch((err) => {
+      console.warn('SW registration failed', err?.message);
+    });
+
+    // Reload once when a new SW takes control of this page.
+    // swReloaded is declared at module level (below) — guards against reload loops.
+    function onControllerChange() {
+      if (swReloaded) return;
+      swReloaded = true;
+      window.location.reload();
     }
+
+    navigator.serviceWorker.addEventListener('controllerchange', onControllerChange);
+    return () => {
+      navigator.serviceWorker.removeEventListener('controllerchange', onControllerChange);
+    };
   }, []);
 
   // Push permission prompt: show once per device, 5 seconds after sign-in.
