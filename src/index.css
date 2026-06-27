@@ -2611,20 +2611,6 @@ body {
   font-size: var(--fs-label);
   letter-spacing: -0.02em;
 }
-.app-brand-name {
-  font-size: var(--fs-body);
-  font-weight: 700;
-  color: var(--text);
-  letter-spacing: -0.01em;
-}
-.app-brand-name--ohnar {
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--accent);
-}
-
-
 /* ── OhnarWordmark component ─────────────────────────────────────────────────
    O-ring image used as the letter "O", immediately followed by "HNAR" text,
    so the combined visual reads as the single word "OHNAR".
@@ -2642,11 +2628,13 @@ body {
   line-height: 1;
 }
 .ohnar-wm__o {
-  /* Scale the ring to roughly match cap height: 0.92em ≈ cap height at fw 800 */
-  height: 0.92em;
+  /* Tight-cropped asset (ohnar-O-tight-512.png, 453×453) has no padding,
+     so 0.78em matches the "HNAR" cap height without the gap the padded asset
+     introduced. translateY nudges the ring onto the cap-height baseline. */
+  height: 0.78em;
   width: auto;
-  /* Tuck the ring close to the "HNAR" text so it reads as one word */
-  margin-right: -0.06em;
+  margin-right: -0.01em;
+  transform: translateY(-0.04em);
   flex-shrink: 0;
   display: block;
 }
@@ -3459,21 +3447,6 @@ input[type=number] { -moz-appearance: textfield; }
   gap: 6px;
   pointer-events: none;
   white-space: nowrap;
-}
-.screen-header-logo-o {
-  height: 22px;
-  width: auto;
-  vertical-align: middle;
-  flex-shrink: 0;
-}
-.screen-header-wordmark {
-  font-family: var(--font-sans);
-  font-size: var(--fs-label);
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--accent);
-  line-height: 1;
 }
 
 .screen-empty {

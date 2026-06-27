@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { gbp } from '../lib/today';
 import Icon from '../components/Icon';
+import OhnarWordmark from '../components/OhnarWordmark';
 
 export default function HistoryScreen({ jobs = [], receipts = [], onMarkPaid }) {
   const now = new Date();
@@ -52,8 +53,7 @@ export default function HistoryScreen({ jobs = [], receipts = [], onMarkPaid }) 
   return (
     <div className="today-screen history-screen">
       <div className="app-brand">
-        <img src="/ohnar-O-transparent-512.png" className="screen-header-logo-o" alt="" aria-hidden="true" />
-        <span className="app-brand-name app-brand-name--ohnar">HNAR</span>
+        <OhnarWordmark size="var(--fs-body)" />
       </div>
       <header className="today-header">
         <h1>Insights</h1>

@@ -59,6 +59,7 @@ import { OVERHEAD_CATEGORIES } from '../lib/overheads.js';
 import { getOverheadTotal } from '../lib/cashflow.js';
 import { isPro, isTrialActive, trialDaysLeft, UNLOCK_PRO_FOR_ALL } from '../lib/plan.js';
 import { openBillingPortal } from '../lib/billing.js';
+import OhnarWordmark from '../components/OhnarWordmark.jsx';
 import { isValidStripePaymentLink } from '../lib/bizValidation.js';
 import { addJobToCloud } from '../lib/store.js';
 import { buildJobsCsv, buildEverythingCsv, downloadOrShareCsv } from '../lib/exportCsv.js';
@@ -3173,9 +3174,8 @@ export default function SettingsScreen({
     <div className="screen settings-screen" ref={screenRef}>
       <div className="screen-header">
         <h1 className="screen-title">Settings</h1>
-        <span className="screen-header-lockup" aria-hidden="true">
-          <img src="/ohnar-O-transparent-512.png" className="screen-header-logo-o" alt="" aria-hidden="true" />
-          <span className="screen-header-wordmark">HNAR</span>
+        <span className="screen-header-lockup">
+          <OhnarWordmark size="var(--fs-label)" />
         </span>
       </div>
 

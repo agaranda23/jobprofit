@@ -27,7 +27,7 @@ export default function OhnarWordmark({ size, className = '' }) {
       style={size ? { fontSize: size } : undefined}
     >
       <img
-        src="/ohnar-O-transparent-512.png"
+        src="/ohnar-O-tight-512.png"
         className="ohnar-wm__o"
         alt=""
         aria-hidden="true"
