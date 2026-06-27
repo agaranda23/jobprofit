@@ -2612,31 +2612,37 @@ body {
   letter-spacing: -0.02em;
 }
 /* ── OhnarWordmark component ─────────────────────────────────────────────────
-   O-ring image used as the letter "O", immediately followed by "HNAR" text,
-   so the combined visual reads as the single word "OHNAR".
-   All sizing is in em — scales automatically with whatever font-size the parent
-   sets, or with the `size` prop passed inline.
-   The "HNAR" text inherits currentColor so it works on both the navy header
-   (white) and light surfaces (dark ink / accent).
+   Full logo lockup (blue O + "OHNAR" wordmark in a single transparent PNG).
+   Two variants: light (navy text) and dark (white text).
+   Theme-swap is CSS-only — both imgs are in the DOM; the correct one is shown
+   via [data-theme="dark"] rules below.
+   Height is 0.78em so the lockup matches the previous wordmark cap height.
+   Width is auto and follows the ~2:1 asset aspect ratio (~1.56em at 0.78em height).
    ─────────────────────────────────────────────────────────────────────────── */
 .ohnar-wm {
   display: inline-flex;
   align-items: center;
-  font-weight: 800;
-  font-family: var(--font-sans);
-  letter-spacing: 0.005em;
   line-height: 1;
 }
-.ohnar-wm__o {
-  /* Tight-cropped asset (ohnar-O-tight-512.png, 453×453) has no padding,
-     so 0.78em matches the "HNAR" cap height without the gap the padded asset
-     introduced. translateY nudges the ring onto the cap-height baseline. */
+/* Full lockup image — both variants share sizing */
+.ohnar-wm__lockup {
   height: 0.78em;
   width: auto;
-  margin-right: -0.01em;
-  transform: translateY(-0.04em);
   flex-shrink: 0;
   display: block;
+}
+/* Light theme: show navy-text lockup, hide white-text lockup */
+.ohnar-wm__lockup--light { display: block; }
+.ohnar-wm__lockup--dark  { display: none; }
+/* Dark theme: swap */
+[data-theme="dark"] .ohnar-wm__lockup--light { display: none; }
+[data-theme="dark"] .ohnar-wm__lockup--dark  { display: block; }
+
+/* Legacy rules kept so any lingering .ohnar-wm__o / .ohnar-wm__hnar references
+   in CSS elsewhere are harmless — these elements no longer exist in the DOM. */
+.ohnar-wm__o {
+  height: 0.78em;
+  width: auto;
 }
 .ohnar-wm__hnar {
   color: currentColor;
