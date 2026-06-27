@@ -6083,7 +6083,7 @@ input[type=number] { -moz-appearance: textfield; }
 [data-theme="light"] .stage-tile--paid:not(.stage-tile--selected) .stage-tile-name,
 [data-theme="light"] .stage-tile--paid:not(.stage-tile--selected) .stage-tile-count,
 [data-theme="light"] .stage-tile--paid:not(.stage-tile--selected) .stage-tile-amount {
-  color: #0B1220;
+  color: #1E3A5F;
 }
 
 /* Active segment gets a solid colour fill + concentric 8px radius (inset from 10px container)
@@ -6118,7 +6118,7 @@ input[type=number] { -moz-appearance: textfield; }
 .stage-tile--overdue:not(.stage-tile--selected) .stage-tile-amount { color: #FFB8B8; }
 /* name/count/amount dark ink — LIGHT THEME ONLY (#FFB8B8 is unreadable on white) */
 [data-theme="light"] .stage-tile--overdue:not(.stage-tile--selected) .stage-tile-name,
-[data-theme="light"] .stage-tile--overdue:not(.stage-tile--selected) .stage-tile-count { color: #0B1220; }
+[data-theme="light"] .stage-tile--overdue:not(.stage-tile--selected) .stage-tile-count { color: #1E3A5F; }
 [data-theme="light"] .stage-tile--overdue:not(.stage-tile--selected) .stage-tile-amount { color: var(--jp-rose); }
 
 
@@ -15998,7 +15998,7 @@ button.jd-money-chip:active { opacity: 0.75; }
 }
 .logo-modal__tabs .work-segment--active {
   background: var(--accent);
-  color: #0a0a0a;
+  color: var(--on-accent);
   border-color: var(--accent);
 }
 .logo-modal__tabs .work-segment:disabled {
@@ -17656,7 +17656,7 @@ button.jd-money-chip:active { opacity: 0.75; }
    .work-segment--active isn't affected elsewhere). */
 .docs-hub-tabs .work-segment--active {
   background: var(--accent);
-  color: #0a0a0a;
+  color: var(--on-accent);
   border-color: var(--accent);
 }
 
@@ -17745,12 +17745,12 @@ button.jd-money-chip:active { opacity: 0.75; }
 .docs-hub-view-pdf-btn--green {
   background: var(--accent);
   border-color: var(--accent);
-  color: #0a0a0a;
+  color: var(--on-accent);
 }
 [data-theme="light"] .docs-hub-view-pdf-btn--green {
   background: var(--accent);
   border-color: var(--accent);
-  color: #0a0a0a;
+  color: var(--on-accent);
 }
 
 /* Timeline */
