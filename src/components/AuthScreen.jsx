@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
 import { logTelemetry } from '../lib/telemetry';
 import Icon from './Icon';
+import OhnarWordmark from './OhnarWordmark';
 
 /**
  * Reads OAuth error params from the URL hash or query string and strips them.
@@ -119,11 +120,9 @@ export default function AuthScreen() {
   return (
     <div className="auth-screen">
       <div className="auth-brand">
-        <span className="auth-wordmark-lockup" aria-hidden="true">
-          <img src="/ohnar-O-transparent-512.png" className="auth-logo-o" alt="" aria-hidden="true" />
-          <span className="auth-wordmark">OHNAR</span>
-        </span>
-        <h1 className="auth-title">OHNAR</h1>
+        <h1 className="auth-title">
+          <OhnarWordmark size="clamp(2rem, 10vw, 2.75rem)" />
+        </h1>
         <p className="auth-hero">Quote it, send it, get paid. From the van.</p>
 
         <div className="auth-loop" aria-label="Quote, Signed, Invoiced, Paid">

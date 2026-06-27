@@ -2625,6 +2625,35 @@ body {
 }
 
 
+/* ── OhnarWordmark component ─────────────────────────────────────────────────
+   O-ring image used as the letter "O", immediately followed by "HNAR" text,
+   so the combined visual reads as the single word "OHNAR".
+   All sizing is in em — scales automatically with whatever font-size the parent
+   sets, or with the `size` prop passed inline.
+   The "HNAR" text inherits currentColor so it works on both the navy header
+   (white) and light surfaces (dark ink / accent).
+   ─────────────────────────────────────────────────────────────────────────── */
+.ohnar-wm {
+  display: inline-flex;
+  align-items: center;
+  font-weight: 800;
+  font-family: var(--font-sans);
+  letter-spacing: 0.005em;
+  line-height: 1;
+}
+.ohnar-wm__o {
+  /* Scale the ring to roughly match cap height: 0.92em ≈ cap height at fw 800 */
+  height: 0.92em;
+  width: auto;
+  /* Tuck the ring close to the "HNAR" text so it reads as one word */
+  margin-right: -0.06em;
+  flex-shrink: 0;
+  display: block;
+}
+.ohnar-wm__hnar {
+  color: currentColor;
+}
+
 /* Real logo replaces the JP placeholder */
 .app-brand-mark { display: none !important; }
 .app-brand-logo {
@@ -2731,33 +2760,16 @@ body {
   text-align: center;
   margin-bottom: 24px;
 }
-/* OHNAR auth lockup: O mark + wordmark stacked above the h1 */
-.auth-wordmark-lockup {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  margin-bottom: 16px;
-}
-.auth-logo-o {
-  height: 36px;
-  width: auto;
-  flex-shrink: 0;
-}
-.auth-wordmark {
-  font-family: var(--font-sans);
-  font-size: 36px;
-  font-weight: 800;
-  letter-spacing: -0.04em;
-  color: var(--accent);
-  line-height: 1;
-}
+/* Auth title h1 wraps <OhnarWordmark> — size is set inline via the `size` prop.
+   Keep margin/weight here for layout; colour flows from ohnar-wm__hnar currentColor. */
 .auth-title {
   font-size: var(--fs-money-hero);
   font-weight: 800;
   margin: 0 0 10px;
-  color: var(--text);
+  color: var(--accent);
   letter-spacing: -0.02em;
+  display: flex;
+  justify-content: center;
 }
 /* Hero line — replaces the old .auth-tagline */
 .auth-hero {
@@ -10153,7 +10165,8 @@ button.jd-money-chip:active { opacity: 0.75; }
 
 /* ── PoweredByJobProfit attribution footer ──────────────────────────────────
    Subtle, muted, bottom-of-card — must not compete with the trader's branding.
-   Text wordmark now; swap .pbjp-wordmark for .pbjp-logo-img when logo is ready.
+   Uses <OhnarWordmark className="pbjp-wordmark"> — the .pbjp-wordmark overrides
+   override ohnar-wm base weight/colour to the muted grey appropriate for a footer.
    All colours pin to light-mode values so they work inside .pqv-card forced-light. */
 .pbjp-root {
   display: flex;

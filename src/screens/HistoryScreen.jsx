@@ -53,7 +53,7 @@ export default function HistoryScreen({ jobs = [], receipts = [], onMarkPaid }) 
     <div className="today-screen history-screen">
       <div className="app-brand">
         <img src="/ohnar-O-transparent-512.png" className="screen-header-logo-o" alt="" aria-hidden="true" />
-        <span className="app-brand-name app-brand-name--ohnar">OHNAR</span>
+        <span className="app-brand-name app-brand-name--ohnar">HNAR</span>
       </div>
       <header className="today-header">
         <h1>Insights</h1>

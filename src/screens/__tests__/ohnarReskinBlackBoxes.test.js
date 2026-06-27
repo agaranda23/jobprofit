@@ -176,24 +176,27 @@ describe('auth landing — Paid chip uses success green animation', () => {
 // ── Auth landing — already re-skinned (source fix, not cache) ────────────────
 
 describe('AuthScreen JSX — OHNAR branding already in source', () => {
-  it('AuthScreen.jsx renders "OHNAR" wordmark text (not a logo image)', async () => {
+  it('AuthScreen.jsx uses OhnarWordmark component (lockup, not plain text)', async () => {
     const src = readFileSync(
       resolve(__dirname, '../../components/AuthScreen.jsx'),
       'utf8'
     );
-    // Should contain the text wordmark
-    expect(src).toContain('>OHNAR<');
+    // Now uses the <OhnarWordmark> component instead of a plain text span
+    expect(src).toContain('OhnarWordmark');
     // Should NOT contain the old img tag pointing to jobprofit-logo.png
     expect(src).not.toContain('jobprofit-logo.png');
   });
 
-  it('AuthScreen.jsx h1 reads "OHNAR", not "JobProfit"', async () => {
+  it('AuthScreen.jsx h1 wraps OhnarWordmark (O-ring + HNAR), not bare "OHNAR" text', async () => {
     const src = readFileSync(
       resolve(__dirname, '../../components/AuthScreen.jsx'),
       'utf8'
     );
-    expect(src).toContain('<h1 className="auth-title">OHNAR</h1>');
+    expect(src).toContain('auth-title');
+    expect(src).toContain('<OhnarWordmark');
     expect(src).not.toContain('>JobProfit<');
+    // The old plain-text pattern is gone — no bare OHNAR inside a closing tag
+    expect(src).not.toContain('<h1 className="auth-title">OHNAR</h1>');
   });
 
   it('auth-submit button uses var(--accent) — Brand Blue via CSS token', () => {
@@ -227,8 +230,12 @@ describe('OHNAR O mark header lockup — screen headers', () => {
         expect(src).toContain('screen-header-lockup');
       });
 
-      it('wordmark span still contains OHNAR text', () => {
-        expect(src).toContain('>OHNAR<');
+      it('wordmark span contains HNAR text (O-ring image is the "O")', () => {
+        // The O-ring PNG is the letter "O"; the text span only needs "HNAR"
+        expect(src).toContain('>HNAR<');
+        // The full word "OHNAR" must NOT appear as bare text next to the img
+        // (that would double-render the O)
+        expect(src).not.toMatch(/screen-header-wordmark[^>]*>OHNAR</);
       });
 
       it('O img has empty alt (decorative — wordmark carries the name)', () => {
@@ -244,11 +251,15 @@ describe('OHNAR O mark header lockup — screen headers', () => {
     expect(src).toContain('app-brand-name--ohnar');
   });
 
-  it('AuthScreen lockup includes O mark img with auth-logo-o class', () => {
+  it('AuthScreen uses OhnarWordmark which renders the O-ring + HNAR lockup', () => {
     const src = readFileSync(resolve(__dirname, '../../components/AuthScreen.jsx'), 'utf8');
-    expect(src).toContain('auth-logo-o');
-    expect(src).toContain('ohnar-O-transparent-512.png');
-    expect(src).toContain('auth-wordmark-lockup');
+    // The auth screen now uses <OhnarWordmark> inside the h1 — the
+    // OhnarWordmark component itself renders the ohnar-O-transparent-512.png img.
+    expect(src).toContain('OhnarWordmark');
+    expect(src).toContain('auth-title');
+    // The old bespoke lockup HTML is gone
+    expect(src).not.toContain('auth-wordmark-lockup');
+    expect(src).not.toContain('auth-logo-o');
   });
 });
 
@@ -270,11 +281,13 @@ describe('OHNAR O mark CSS — screen-header-lockup token', () => {
     expect(block).toMatch(/height:\s*2[2-6]px/);
   });
 
-  it('defines .auth-logo-o with 36px height (larger, auth hero context)', () => {
-    const idx = css.indexOf('.auth-logo-o {');
-    expect(idx).toBeGreaterThan(-1);
-    const block = css.slice(idx, idx + 150);
-    expect(block).toContain('36px');
+  it('defines .ohnar-wm__o — the O-ring image class used inside OhnarWordmark', () => {
+    // .auth-logo-o is removed; OhnarWordmark uses .ohnar-wm__o instead.
+    // The auth context sets size via the `size` prop; the img scales via em.
+    expect(css).toContain('.ohnar-wm__o {');
+    const idx = css.indexOf('.ohnar-wm__o {');
+    const block = css.slice(idx, idx + 200);
+    expect(block).toContain('height: 0.92em');
   });
 });
 

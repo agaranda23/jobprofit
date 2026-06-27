@@ -32,6 +32,7 @@ import { useEffect, useRef } from 'react';
 import { startCheckout, startCheckoutWithCoupon } from '../lib/billing';
 import { logTelemetry, setLastUpgradeTrigger, UPGRADE_TRIGGERS } from '../lib/telemetry';
 import { deriveProofLine, formatChargeDate } from '../lib/trialConversion';
+import OhnarWordmark from './OhnarWordmark';
 
 // ── Moment-1 benefit bullets ──────────────────────────────────────────────────
 
@@ -269,7 +270,7 @@ export default function ProUpgradeSheet({
           <>
             {/* 1. Header */}
             <div className="pro-upgrade-sheet__header">
-              <div className="pro-upgrade-sheet__title">OHNAR Pro</div>
+              <div className="pro-upgrade-sheet__title"><OhnarWordmark /> Pro</div>
               <div className="pro-upgrade-sheet__price">£12<span className="pro-upgrade-sheet__price-period">/month</span></div>
               <div className="pro-upgrade-sheet__trust">14-day free trial &middot; no card needed &middot; cancel anytime</div>
             </div>
