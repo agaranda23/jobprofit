@@ -366,7 +366,7 @@ export default function TodayScreen({
       <header className="foreman-header screen-header">
         <h1 className="screen-title">{formatToday()}</h1>
         <span className="screen-header-lockup">
-          <OhnarWordmark size="24px" />
+          <OhnarWordmark size="30px" />
         </span>
       </header>
 

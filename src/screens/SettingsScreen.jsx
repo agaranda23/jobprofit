@@ -3175,7 +3175,7 @@ export default function SettingsScreen({
       <div className="screen-header">
         <h1 className="screen-title">Settings</h1>
         <span className="screen-header-lockup">
-          <OhnarWordmark size="24px" />
+          <OhnarWordmark size="30px" />
         </span>
       </div>
 
