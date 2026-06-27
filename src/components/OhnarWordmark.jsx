@@ -1,17 +1,23 @@
 /**
- * OhnarWordmark — reusable OHNAR brand lockup.
+ * OhnarWordmark — OHNAR full logo lockup (blue O + wordmark in one image).
  *
- * Renders the O-ring logo image as the letter "O", immediately followed by
- * "HNAR" text, so the combined visual reads as the single word "OHNAR".
+ * Assets (707×353, ~2:1, transparent PNG):
+ *   Light theme → /ohnar-logo.png      (blue O + navy "OHNAR" text)
+ *   Dark  theme → /ohnar-logo-dark.png (blue O + white "OHNAR" text)
+ *
+ * Theme-swap is CSS-only: both imgs are always in the DOM; the dark variant
+ * is hidden by default and revealed under [data-theme="dark"]. This avoids
+ * any JS theme-detection and works regardless of when the theme attribute
+ * is set on <html>.
  *
  * Accessibility: the outer span carries role="img" aria-label="OHNAR" so
- * screen readers announce the brand name exactly once. Both the img and the
- * text span are aria-hidden so they don't double-announce.
+ * screen readers announce the brand name exactly once. The two img elements
+ * carry alt="" and aria-hidden so they are treated as decorative.
  *
  * Sizing: font-size is set via the `size` prop (any CSS length) or inherits
- * from the parent. The O-ring image is scaled via em units so it always matches
- * the cap height of the surrounding text. Pass `className` to override colour
- * or other presentational concerns.
+ * from the parent. The lockup height is controlled by the .ohnar-lk__img
+ * CSS rule (height: 0.78em matches the previous wordmark cap height). The
+ * width follows automatically from the ~2:1 aspect ratio.
  *
  * Props:
  *   size      {string} CSS font-size to apply (e.g. "36px", "1.5rem").
@@ -26,13 +32,20 @@ export default function OhnarWordmark({ size, className = '' }) {
       aria-label="OHNAR"
       style={size ? { fontSize: size } : undefined}
     >
+      {/* Light-theme lockup — hidden under [data-theme="dark"] via CSS */}
       <img
-        src="/ohnar-O-tight-512.png"
-        className="ohnar-wm__o"
+        src="/ohnar-logo.png"
+        className="ohnar-wm__lockup ohnar-wm__lockup--light"
         alt=""
         aria-hidden="true"
       />
-      <span className="ohnar-wm__hnar" aria-hidden="true">HNAR</span>
+      {/* Dark-theme lockup — shown only under [data-theme="dark"] via CSS */}
+      <img
+        src="/ohnar-logo-dark.png"
+        className="ohnar-wm__lockup ohnar-wm__lockup--dark"
+        alt=""
+        aria-hidden="true"
+      />
     </span>
   );
 }
