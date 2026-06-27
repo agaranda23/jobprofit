@@ -235,8 +235,8 @@ describe('OHNAR O mark header lockup — screen headers', () => {
         expect(src).toContain('screen-header-lockup');
       });
 
-      it('passes size="24px" so the header lockup renders at a legible ~24px height', () => {
-        expect(src).toContain('size="24px"');
+      it('passes size="30px" so the header lockup renders at a legible ~23px visible height (tight-cropped asset)', () => {
+        expect(src).toContain('size="30px"');
       });
 
       it('does not contain a standalone "HNAR" text node (OhnarWordmark renders it internally)', () => {

@@ -591,7 +591,7 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
       <div className="screen-header">
         <h1 className="screen-title">Money</h1>
         <span className="screen-header-lockup">
-          <OhnarWordmark size="24px" />
+          <OhnarWordmark size="30px" />
         </span>
         {onAvatarClick && (
           <div className="screen-header-right">
