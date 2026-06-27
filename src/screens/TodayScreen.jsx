@@ -44,6 +44,7 @@ import {
 import { isPro, isTrialActive, trialDaysLeft } from '../lib/plan';
 import OhnarWordmark from '../components/OhnarWordmark';
 import { UPGRADE_TRIGGERS } from '../lib/telemetry';
+import { supabase } from '../lib/supabase';
 
 // ── Snooze helpers (delegate to nextBestAction.js store, keep SNOOZE_MS local) ──
 const SNOOZE_MS = 24 * 60 * 60 * 1000;
