@@ -7239,12 +7239,29 @@ input[type=number] { -moz-appearance: textfield; }
 .settings-hub-row-left {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
   min-width: 0;
 }
 .settings-hub-row-left .settings-row-label {
   white-space: nowrap;
   text-align: left;
+}
+
+/* Icon container: square background pill gives hub rows a premium grid feel */
+.settings-hub-row-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-md, 8px);
+  background: var(--surface-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--accent);
+}
+
+[data-theme="dark"] .settings-hub-row-icon {
+  background: rgba(255,255,255,0.07);
 }
 
 /* ── Settings — FAQ expandable rows ─────────────────────────────────────── */
@@ -19746,4 +19763,67 @@ button.jd-money-chip:active { opacity: 0.75; }
   width: 140px;
   height: auto;
   display: block;
+}
+
+/* ── Premium micro-polish ──────────────────────────────────────────────────── */
+/*
+ * Active (press) states for interactive rows and primary CTAs.
+ * Consistent scale/opacity treatment matches the existing pattern in
+ * .action-btn:active, .foreman-cta-primary:active, etc.
+ * All transitions and entrance animations are gated behind
+ * prefers-reduced-motion: no-preference so motion-sensitive users are unaffected.
+ */
+
+/* Settings rows — tap feedback (not passive rows) */
+.settings-row:not(.settings-row--passive):active {
+  opacity: 0.75;
+  transform: scale(0.99);
+}
+
+/* Extend transition to cover transform as well as background */
+.settings-row {
+  transition: background 0.1s, opacity 0.1s, transform 0.1s;
+}
+
+/* Foreman prompt card entrance — fades + rises 8px when Today mounts */
+@media (prefers-reduced-motion: no-preference) {
+  .foreman-prompt-card {
+    animation: card-enter 0.18s ease-out both;
+  }
+  .money-hero {
+    animation: card-enter 0.18s ease-out both;
+  }
+  .money-card {
+    animation: card-enter 0.2s ease-out both;
+  }
+}
+
+@keyframes card-enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* JobDetailDrawer entrance — slides up smoothly */
+@media (prefers-reduced-motion: no-preference) {
+  .jdd-sheet {
+    transition: transform 0.28s cubic-bezier(0.32, 0.72, 0, 1), opacity 0.2s ease-out;
+  }
+}
+
+/* Settings hub row — active press state */
+.settings-hub-row:active {
+  opacity: 0.75;
+  background: var(--surface-2);
+}
+
+/* Action-primary button — consistent press state across the app */
+.action-primary:active {
+  transform: scale(0.98);
+  opacity: 0.9;
 }
