@@ -82,11 +82,12 @@ function UpgradeBanner({ onUpgrade }) {
   );
 }
 
-// Margin colour tokens matching JobDetailDrawer ProfitBarSection thresholds exactly.
+// Margin colour — reads from the same CSS tokens used everywhere else in the app
+// so the same threshold renders the same colour on every card/screen.
 function marginColor(margin) {
   if (margin >= 30) return 'var(--accent)';
-  if (margin >= 15) return '#f59e0b'; // amber — same warn token used throughout the app
-  return '#ef4444'; // danger
+  if (margin >= 15) return 'var(--jp-amber)';  // #d97706 — unified warn token
+  return 'var(--danger)';                       // #dc2626 — unified danger token
 }
 
 /**

@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import posthog from 'posthog-js';
 import AppShell from './AppShell.jsx';
+import Splash from './components/Splash.jsx';
 import { activateThemeController } from './lib/theme.js';
 import { getConsent } from './lib/consent.js';
 
@@ -153,7 +154,7 @@ const publicQuoteToken   = parsePublicQuoteRoute();
 const publicInvoiceToken = parsePublicInvoiceRoute();
 const publicReceiptToken = parsePublicReceiptRoute();
 
-const SUSPENSE_FALLBACK = <div className="auth-loading"><div className="ocr-spinner" /></div>;
+const SUSPENSE_FALLBACK = <Splash />;
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
