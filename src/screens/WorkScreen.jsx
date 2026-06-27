@@ -1382,7 +1382,7 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
       <div className="screen-header">
         <h1 className="screen-title">Jobs</h1>
         <span className="screen-header-lockup">
-          <OhnarWordmark size="var(--fs-label)" />
+          <OhnarWordmark size="24px" />
         </span>
         <div className="screen-header-right">
           <button className="new-btn" onClick={openAddJob}>
