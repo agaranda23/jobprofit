@@ -16,10 +16,11 @@ import { render } from '@testing-library/react';
 import OhnarWordmark from '../OhnarWordmark';
 
 describe('OhnarWordmark', () => {
-  it('renders the O-ring img with src pointing to the brand asset', () => {
+  it('renders the O-ring img with src pointing to the tight-cropped brand asset', () => {
     const { container } = render(<OhnarWordmark />);
     const img = container.querySelector('img.ohnar-wm__o');
     expect(img).toBeTruthy();
+    // Tight-cropped asset — no padding, so the ring sits flush against "HNAR".
     expect(img.getAttribute('src')).toBe('/ohnar-O-tight-512.png');
   });
 

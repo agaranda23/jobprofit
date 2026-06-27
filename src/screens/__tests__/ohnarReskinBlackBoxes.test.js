@@ -221,43 +221,48 @@ describe('OHNAR O mark header lockup — screen headers', () => {
     describe(name, () => {
       const src = readFileSync(path, 'utf8');
 
-      it('renders the O mark img with class screen-header-logo-o', () => {
-        expect(src).toContain('screen-header-logo-o');
-        expect(src).toContain('ohnar-O-transparent-512.png');
+      it('uses OhnarWordmark component (not a bespoke img+span lockup)', () => {
+        // Unified: all screen headers now use the <OhnarWordmark> component.
+        expect(src).toContain('OhnarWordmark');
+        // The old padded asset must be gone from this file.
+        expect(src).not.toContain('ohnar-O-transparent-512.png');
+        // The old bespoke span class must be gone.
+        expect(src).not.toContain('screen-header-logo-o');
+        expect(src).not.toContain('screen-header-wordmark');
       });
 
-      it('wraps O mark and wordmark in screen-header-lockup', () => {
+      it('wraps OhnarWordmark in screen-header-lockup', () => {
         expect(src).toContain('screen-header-lockup');
       });
 
-      it('wordmark span contains HNAR text (O-ring image is the "O")', () => {
-        // The O-ring PNG is the letter "O"; the text span only needs "HNAR"
-        expect(src).toContain('>HNAR<');
-        // The full word "OHNAR" must NOT appear as bare text next to the img
-        // (that would double-render the O)
-        expect(src).not.toMatch(/screen-header-wordmark[^>]*>OHNAR</);
+      it('passes size="var(--fs-label)" to match previous wordmark font size', () => {
+        expect(src).toContain('size="var(--fs-label)"');
       });
 
-      it('O img has empty alt (decorative — wordmark carries the name)', () => {
-        expect(src).toContain('alt=""');
+      it('does not contain a standalone "HNAR" text node (OhnarWordmark renders it internally)', () => {
+        // The bespoke ">HNAR<" span is gone; HNAR is now inside OhnarWordmark.
+        expect(src).not.toMatch(/<span[^>]+screen-header-wordmark[^>]*>HNAR</);
       });
     });
   });
 
-  it('HistoryScreen app-brand includes O mark img', () => {
+  it('HistoryScreen app-brand uses OhnarWordmark (not bespoke img+span)', () => {
     const src = readFileSync(resolve(__dirname, '../HistoryScreen.jsx'), 'utf8');
-    expect(src).toContain('screen-header-logo-o');
-    expect(src).toContain('ohnar-O-transparent-512.png');
-    expect(src).toContain('app-brand-name--ohnar');
+    expect(src).toContain('OhnarWordmark');
+    expect(src).toContain('app-brand');
+    // Bespoke lockup elements must be gone.
+    expect(src).not.toContain('screen-header-logo-o');
+    expect(src).not.toContain('ohnar-O-transparent-512.png');
+    expect(src).not.toContain('app-brand-name--ohnar');
   });
 
   it('AuthScreen uses OhnarWordmark which renders the O-ring + HNAR lockup', () => {
     const src = readFileSync(resolve(__dirname, '../../components/AuthScreen.jsx'), 'utf8');
     // The auth screen now uses <OhnarWordmark> inside the h1 — the
-    // OhnarWordmark component itself renders the ohnar-O-transparent-512.png img.
+    // OhnarWordmark component itself renders the ohnar-O-tight-512.png img.
     expect(src).toContain('OhnarWordmark');
     expect(src).toContain('auth-title');
-    // The old bespoke lockup HTML is gone
+    // The old bespoke lockup HTML is gone.
     expect(src).not.toContain('auth-wordmark-lockup');
     expect(src).not.toContain('auth-logo-o');
   });
@@ -274,16 +279,17 @@ describe('OHNAR O mark CSS — screen-header-lockup token', () => {
     expect(block).toContain('inline-flex');
   });
 
-  it('defines .screen-header-logo-o with a height (22px–26px range)', () => {
-    const idx = css.indexOf('.screen-header-logo-o {');
-    expect(idx).toBeGreaterThan(-1);
-    const block = css.slice(idx, idx + 150);
-    expect(block).toMatch(/height:\s*2[2-6]px/);
+  it('does NOT define .screen-header-logo-o (removed — replaced by OhnarWordmark)', () => {
+    // The bespoke fixed-pixel img class is gone; the tight-ring asset scales in em via .ohnar-wm__o.
+    expect(css).not.toContain('.screen-header-logo-o {');
   });
 
-  it('defines .ohnar-wm__o — the O-ring image class used inside OhnarWordmark', () => {
-    // .auth-logo-o is removed; OhnarWordmark uses .ohnar-wm__o instead.
-    // The auth context sets size via the `size` prop; the img scales via em.
+  it('does NOT define .screen-header-wordmark (removed — replaced by OhnarWordmark)', () => {
+    expect(css).not.toContain('.screen-header-wordmark {');
+  });
+
+  it('defines .ohnar-wm__o — the tight-cropped O-ring image class used inside OhnarWordmark', () => {
+    // OhnarWordmark uses .ohnar-wm__o; height is 0.78em to match HNAR cap height.
     expect(css).toContain('.ohnar-wm__o {');
     const idx = css.indexOf('.ohnar-wm__o {');
     const block = css.slice(idx, idx + 350);

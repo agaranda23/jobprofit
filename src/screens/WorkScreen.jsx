@@ -45,6 +45,7 @@ import { shouldShowPartPaidChip, formatPartPaidLabel } from '../lib/partPaidChip
 import { jobMatchesQuery, sortJobsByStage, firstLineOfAddress } from '../lib/jobSort';
 // JobProgressDots replaced by WorkflowCircles (feat/ohnar-six-stage-workflow)
 import WorkflowCircles from '../components/WorkflowCircles';
+import OhnarWordmark from '../components/OhnarWordmark';
 // JP-LU5 PR1: ProGate and isPro imports removed — only used in JobsTable (deleted).
 import ReceiptModal from '../components/ReceiptModal';
 import {
@@ -1380,9 +1381,8 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
       {/* Header */}
       <div className="screen-header">
         <h1 className="screen-title">Jobs</h1>
-        <span className="screen-header-lockup" aria-hidden="true">
-          <img src="/ohnar-O-transparent-512.png" className="screen-header-logo-o" alt="" aria-hidden="true" />
-          <span className="screen-header-wordmark">HNAR</span>
+        <span className="screen-header-lockup">
+          <OhnarWordmark size="var(--fs-label)" />
         </span>
         <div className="screen-header-right">
           <button className="new-btn" onClick={openAddJob}>
@@ -1604,18 +1604,18 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
         >
           All
         </button>
-        {/* Records pill — opens the global DocumentSearchOverlay in 'quotes' mode. */}
+        {/* Documents pill (feat/documents-findability-v1) — renamed from "Records". */}
         <button
           type="button"
           className="show-all-pill work-records-pill"
           onClick={() => {
-            logTelemetry('work_records_open', { source: 'controls_row' });
+            logTelemetry('work_documents_open', { source: 'controls_row' });
             setDocOverlay('quotes');
           }}
-          aria-label="Find a quote, invoice or job"
+          aria-label="Find a quote, invoice, receipt or job"
         >
           <Icon name="search" size={13} aria-hidden="true" />
-          Records
+          Documents
         </button>
       </div>
 
@@ -1759,13 +1759,16 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
         />
       )}
 
-      {/* Global document search overlay — opened by Records pill in controls row.
-          Same component and wiring as TodayScreen (docOverlay state). Per-job document
-          history lives in DocumentsHub inside JobDetailDrawer — these coexist cleanly. */}
+      {/* Global document search overlay — opened by Documents pill in controls row.
+          feat/documents-findability-v1: receipts + profile now passed for Receipts
+          mode and the Pro-gated export. Per-job document history still lives in
+          DocumentsHub inside JobDetailDrawer. */}
       {docOverlay && (
         <DocumentSearchOverlay
           mode={docOverlay}
-          jobs={visibleJobs}
+          jobs={jobs}
+          receipts={receipts}
+          profile={profile}
           onClose={() => setDocOverlay(null)}
           onJobSelect={(job) => {
             setDocOverlay(null);
@@ -1774,6 +1777,7 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
           onCreateJob={() => { setDocOverlay(null); setAddJobOpen(true); }}
           onCreateQuote={() => { setDocOverlay(null); setAddJobOpen(true); }}
           onSendInvoice={(job) => { setDocOverlay(null); setReviewJob(job); }}
+          onOpenUpgradeSheet={() => { setDocOverlay(null); }}
         />
       )}
 
