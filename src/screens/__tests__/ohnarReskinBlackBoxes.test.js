@@ -414,20 +414,20 @@ describe('Deep Navy ink — SignaturePad canvas stroke is Deep Navy', () => {
   });
 });
 
-describe('Deep Navy ink — jsPDF DARK constant is Deep Navy [11,19,32]', () => {
-  it('invoicePDF.js DARK constant is [11, 19, 32]', () => {
+describe('Primary text ink — jsPDF DARK constant is visible navy [30,58,95] (#1E3A5F)', () => {
+  it('invoicePDF.js DARK constant is [30, 58, 95] (visible navy #1E3A5F)', () => {
     const src = readFileSync(
       resolve(__dirname, '../../lib/invoicePDF.js'),
       'utf8'
     );
-    expect(src).toContain('DARK          = [11, 19, 32]');
+    expect(src).toContain('DARK          = [30, 58, 95]');
   });
 
-  it('receiptPDF.js DARK constant is [11, 19, 32]', () => {
+  it('receiptPDF.js DARK constant is [30, 58, 95] (visible navy #1E3A5F)', () => {
     const src = readFileSync(
       resolve(__dirname, '../../lib/receiptPDF.js'),
       'utf8'
     );
-    expect(src).toContain('DARK          = [11, 19, 32]');
+    expect(src).toContain('DARK          = [30, 58, 95]');
   });
 });
