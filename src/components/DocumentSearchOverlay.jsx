@@ -1,16 +1,25 @@
 /**
- * DocumentSearchOverlay — full-screen search overlay for jobs, quotes, and invoices.
+ * DocumentSearchOverlay — full-screen search overlay for jobs, quotes, invoices,
+ * and receipts (feat/documents-findability-v1).
  *
- * Opened from the "Look at your work" view-buttons row on TodayScreen and the
- * "Records" pill in WorkScreen. The overlay starts in the `initialMode` prop and
- * exposes a compact 3-segment switcher (All jobs / Quotes / Invoices) so users
- * can switch without closing and re-opening.
+ * Opened from the "Documents" pill in WorkScreen. The overlay starts in the
+ * `initialMode` prop and exposes a mode switcher so users can change type without
+ * closing and re-opening.
  *
  * Props:
- *   mode        'jobs' | 'quotes' | 'invoices'  — initial mode (internal state takes over)
+ *   mode        'jobs' | 'quotes' | 'invoices' | 'receipts' — initial mode
  *   jobs        full jobs array passed from parent
+ *   receipts    full receipts array passed from parent (for Receipts mode)
+ *   profile     Supabase profiles row (for Pro-gate on export)
  *   onClose     () => void
- *   onJobSelect (job) => void  — called when a row is tapped; wires to onJobTap
+ *   onJobSelect (job) => void — called when a job row is tapped
+ *   onOpenUpgradeSheet (trigger) => void — called when a free user taps export
+ *
+ * v1 additions (feat/documents-findability-v1):
+ *   - Receipts mode: searchable by merchant / amount / date; status pill; sort date-desc.
+ *   - Filter row: tax-period chips + status chips (receipts + invoices).
+ *   - Tax subtitle in Receipts mode: "N receipts · £X · £Y VAT · YYYY/YY"
+ *   - "Send to accountant" export: CSV of filtered receipts, Pro-gated.
  *
  * Reused helpers (do NOT re-implement):
  *   jobMatchesQuery, sortJobsByStage  — src/lib/jobSort.js
@@ -18,19 +27,26 @@
  *   buildQuoteRecordMeta,
  *   buildInvoiceRecordMeta            — src/lib/documentRecord.js
  *   gbp                               — src/lib/today.js
+ *   taxYearFor, receiptInPeriod       — src/lib/taxYear.js
+ *   buildReceiptsCsv                  — src/lib/receiptsCsv.js
+ *   downloadOrShare                   — src/lib/exportCsv.js
+ *   isPro                             — src/lib/plan.js
  *
  * BINDING RULE: all React hooks must sit above any early return.
  */
 
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import Icon from './Icon';
 import { jobMatchesQuery, sortJobsByStage } from '../lib/jobSort';
 import { deriveDisplayStatus } from '../lib/jobStatus';
 import { buildQuoteRecordMeta, buildInvoiceRecordMeta } from '../lib/documentRecord';
 import { gbp } from '../lib/today';
+import { taxYearFor, receiptInPeriod } from '../lib/taxYear';
+import { buildReceiptsCsv } from '../lib/receiptsCsv';
+import { downloadOrShare } from '../lib/exportCsv';
+import { isPro } from '../lib/plan';
 
-// ── Per-mode config ────────────────────────────────────────────────────────────
-// emptyIconName uses the Icon component name (Lucide) — no emoji.
+// Mode config
 
 function getModeConfig(mode) {
   switch (mode) {
@@ -54,6 +70,16 @@ function getModeConfig(mode) {
         emptyCta: 'Send your first invoice',
         noResultsHint: 'Check the spelling, or try a job name instead of a customer.',
       };
+    case 'receipts':
+      return {
+        title: 'Receipts',
+        searchPlaceholder: 'Search merchant, amount or date',
+        emptyIconName: 'receipt',
+        emptyTitle: 'No receipts yet',
+        emptyBody: "Snap one when you pay for materials — it'll show up here and on the job.",
+        emptyCta: 'Add a receipt',
+        noResultsHint: 'Nothing matches. Try the merchant name or a rough amount.',
+      };
     default: // 'jobs'
       return {
         title: 'All jobs',
@@ -67,7 +93,7 @@ function getModeConfig(mode) {
   }
 }
 
-// ── Quote-vocabulary pill (Quoted overlay only) ───────────────────────────────
+// Quote pill
 
 function quoteChipLabel(job) {
   if (job.acceptedAt || job.quoteStatus === 'accepted') return 'Accepted';
@@ -81,7 +107,7 @@ function quoteChipClass(job) {
   return 'dso-chip dso-chip--neutral';
 }
 
-// ── Invoice-vocabulary pill (Invoices overlay only) ───────────────────────────
+// Invoice pill
 
 function invoiceChipLabel(job) {
   const stage = deriveDisplayStatus(job);
@@ -97,7 +123,21 @@ function invoiceChipClass(job) {
   return 'dso-chip dso-chip--neutral';
 }
 
-// ── Jobs-mode pill (pipeline stage) ──────────────────────────────────────────
+// Receipt status pill
+
+export function receiptStatus(receipt, job) {
+  if (!job) return 'Unpaid';
+  if (job.paid === true) return 'Paid';
+  if ((job.paymentStatus || '').toLowerCase() === 'paid') return 'Paid';
+  if ((job.status || '').toLowerCase() === 'paid') return 'Paid';
+  return 'Unpaid';
+}
+
+function receiptChipClass(status) {
+  return status === 'Paid' ? 'dso-chip dso-chip--green' : 'dso-chip dso-chip--neutral';
+}
+
+// Jobs mode pill
 
 function stageChipClass(stage) {
   switch (stage) {
@@ -109,18 +149,35 @@ function stageChipClass(stage) {
   }
 }
 
-// ── Invoice-mode ordered list: Overdue → Invoiced → Paid ─────────────────────
+// Invoice ordering: Overdue then Invoiced then Paid
 
 function orderInvoices(jobs) {
-  const overdue   = sortJobsByStage(jobs.filter(j => deriveDisplayStatus(j) === 'Overdue'),   'Overdue');
-  const invoiced  = sortJobsByStage(jobs.filter(j => deriveDisplayStatus(j) === 'Invoiced'),  'Invoiced');
-  const paid      = sortJobsByStage(jobs.filter(j => deriveDisplayStatus(j) === 'Paid'),      'Paid');
-  // All others (edge cases) go after paid
-  const other     = jobs.filter(j => !['Overdue', 'Invoiced', 'Paid'].includes(deriveDisplayStatus(j)));
+  const overdue  = sortJobsByStage(jobs.filter(j => deriveDisplayStatus(j) === 'Overdue'),  'Overdue');
+  const invoiced = sortJobsByStage(jobs.filter(j => deriveDisplayStatus(j) === 'Invoiced'), 'Invoiced');
+  const paid     = sortJobsByStage(jobs.filter(j => deriveDisplayStatus(j) === 'Paid'),     'Paid');
+  const other    = jobs.filter(j => !['Overdue', 'Invoiced', 'Paid'].includes(deriveDisplayStatus(j)));
   return [...overdue, ...invoiced, ...paid, ...other];
 }
 
-// ── Subtitle helpers ──────────────────────────────────────────────────────────
+// Receipt search matcher
+
+function receiptMatchesQuery(receipt, query) {
+  if (!query) return true;
+  const q = query.toLowerCase().trim();
+  if (!q) return true;
+  const merchant    = (receipt.label || receipt.merchant || '').toLowerCase();
+  const amount      = String(Number(receipt.amount || 0).toFixed(2));
+  const amountRound = String(Math.round(Number(receipt.amount || 0)));
+  const date        = (receipt.date || '').toLowerCase();
+  return (
+    merchant.includes(q) ||
+    amount.includes(q)   ||
+    amountRound.includes(q) ||
+    date.includes(q)
+  );
+}
+
+// Subtitle helpers
 
 function buildSubtitle(mode, filteredJobs, query) {
   if (query) {
@@ -144,10 +201,7 @@ function buildSubtitle(mode, filteredJobs, query) {
       return s === 'Invoiced' || s === 'Overdue';
     }).length;
     const owed = filteredJobs
-      .filter(j => {
-        const s = deriveDisplayStatus(j);
-        return s === 'Invoiced' || s === 'Overdue';
-      })
+      .filter(j => { const s = deriveDisplayStatus(j); return s === 'Invoiced' || s === 'Overdue'; })
       .reduce((s, j) => s + Number(j.total ?? j.amount ?? 0), 0);
     const kStr = owed >= 1000 ? `£${(owed / 1000).toFixed(1).replace(/\.0$/, '')}k` : gbp(owed);
     return `${n} sent · ${unpaid} unpaid · ${kStr} out`;
@@ -155,14 +209,116 @@ function buildSubtitle(mode, filteredJobs, query) {
   return '';
 }
 
-// ── Row component ─────────────────────────────────────────────────────────────
+export function buildReceiptSubtitle(filteredReceipts, taxPeriod, query) {
+  const n = filteredReceipts.length;
+  if (query) {
+    return n === 0 ? 'no matches' : n === 1 ? '1 match' : `${n} matches`;
+  }
+  if (n === 0) return '';
+
+  const total = filteredReceipts.reduce((s, r) => s + Number(r.amount || 0), 0);
+  const vat   = filteredReceipts.reduce((s, r) => s + Number(r.vat   || 0), 0);
+
+  const totalStr = total >= 1000 ? `£${(total / 1000).toFixed(1).replace(/\.0$/, '')}k` : gbp(total);
+  const vatStr   = gbp(vat);
+  const label    = n === 1 ? 'receipt' : 'receipts';
+
+  if (taxPeriod === 'all') {
+    return `${n} ${label} · ${totalStr}`;
+  }
+
+  const year = taxYearFor(new Date());
+  return `${n} ${label} · ${totalStr} · ${vatStr} VAT · ${year}`;
+}
+
+// Filter row
+
+const TAX_PERIOD_OPTIONS = [
+  { key: 'all',     label: 'All'          },
+  { key: 'month',   label: 'This month'   },
+  { key: 'quarter', label: 'This quarter' },
+  { key: 'taxyear', label: 'Tax year'     },
+];
+
+const STATUS_OPTIONS = [
+  { key: 'unpaid', label: 'Unpaid' },
+  { key: 'paid',   label: 'Paid'   },
+];
+
+function FilterRow({ mode, taxPeriod, onTaxPeriod, statusFilter, onStatusFilter }) {
+  const showFilters = mode === 'receipts' || mode === 'invoices';
+  if (!showFilters) return null;
+
+  return (
+    <div className="dso-filter-row" role="group" aria-label="Filter documents">
+      {TAX_PERIOD_OPTIONS.map(opt => {
+        const active = taxPeriod === opt.key;
+        return (
+          <button
+            key={opt.key}
+            type="button"
+            className={`dso-filter-chip${active ? ' dso-filter-chip--active' : ''}`}
+            aria-pressed={active}
+            onClick={() => onTaxPeriod(active ? 'all' : opt.key)}
+          >
+            {opt.label}
+          </button>
+        );
+      })}
+      {STATUS_OPTIONS.map(opt => {
+        const active = statusFilter === opt.key;
+        return (
+          <button
+            key={opt.key}
+            type="button"
+            className={`dso-filter-chip${active ? ' dso-filter-chip--active' : ''}`}
+            aria-pressed={active}
+            onClick={() => onStatusFilter(active ? null : opt.key)}
+          >
+            {opt.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// Receipt row
+
+function ReceiptRow({ receipt, parentJob }) {
+  const merchant = receipt.label || receipt.merchant || 'Receipt';
+  const amtStr   = Number(receipt.amount || 0) > 0 ? gbp(Number(receipt.amount)) : '';
+  const status   = receiptStatus(receipt, parentJob);
+  const chipCls  = receiptChipClass(status);
+
+  const jobLabel  = parentJob ? (parentJob.customer || parentJob.name || '') : 'Not on a job';
+  const dateLabel = receipt.date
+    ? new Date(receipt.date).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+    : '';
+  const subLine   = [jobLabel, dateLabel].filter(Boolean).join(' · ');
+
+  return (
+    <div className="dso-row dso-row--receipt" aria-label={`${merchant}${amtStr ? ` · ${amtStr}` : ''} · ${status}`}>
+      <div className="dso-row__body">
+        <span className="dso-row__name">{merchant}</span>
+        {subLine && <span className="dso-row__sub">{subLine}</span>}
+      </div>
+      <div className="dso-row__right">
+        {amtStr && <span className="dso-row__amount">{amtStr}</span>}
+        <span className={chipCls}>{status}</span>
+      </div>
+    </div>
+  );
+}
+
+// Job row
 
 function DocRow({ job, mode, onSelect }) {
-  const name    = job.customer || job.name || 'Job';
-  const amount  = job.total ?? job.amount;
-  const amtStr  = amount != null && Number(amount) > 0 ? gbp(amount) : '';
+  const name   = job.customer || job.name || 'Job';
+  const amount = job.total ?? job.amount;
+  const amtStr = amount != null && Number(amount) > 0 ? gbp(amount) : '';
 
-  let subLine = '';
+  let subLine   = '';
   let chipLabel = '';
   let chipCls   = '';
 
@@ -203,37 +359,44 @@ function DocRow({ job, mode, onSelect }) {
   );
 }
 
-// ── Main component ─────────────────────────────────────────────────────────────
+// Mode switcher tabs
 
-// ── Mode switcher segments ────────────────────────────────────────────────────
 const MODE_TABS = [
-  { key: 'jobs',     label: 'All jobs' },
-  { key: 'quotes',   label: 'Quotes'   },
-  { key: 'invoices', label: 'Invoices' },
+  { key: 'jobs',     label: 'All jobs'  },
+  { key: 'quotes',   label: 'Quotes'    },
+  { key: 'invoices', label: 'Invoices'  },
+  { key: 'receipts', label: 'Receipts'  },
 ];
+
+// Main component
 
 export default function DocumentSearchOverlay({
   mode: initialMode = 'jobs',
   jobs = [],
+  receipts = [],
+  profile = null,
   onClose,
   onJobSelect,
-  // Zero-item CTA callbacks — passed through from TodayScreen
   onCreateJob,
   onCreateQuote,
   onSendInvoice,
+  onOpenUpgradeSheet,
 }) {
-  // ALL hooks above any early return (binding project rule).
-  // `activeMode` is internal so the switcher can change it without the parent re-rendering.
-  const [activeMode, setActiveMode] = useState(initialMode);
-  const [query, setQuery] = useState('');
+  // All hooks above any early return (project rule).
+  const [activeMode, setActiveMode]     = useState(initialMode);
+  const [query, setQuery]               = useState('');
+  const [taxPeriod, setTaxPeriod]       = useState('all');
+  const [statusFilter, setStatusFilter] = useState(null);
+  const [exporting, setExporting]       = useState(false);
+  const exportingRef                    = useRef(false);
 
-  // Reset search when mode changes so stale results never show in the new view.
   const handleModeSwitch = useCallback((newMode) => {
     setActiveMode(newMode);
     setQuery('');
+    setTaxPeriod('all');
+    setStatusFilter(null);
   }, []);
 
-  // Close on Escape key
   useEffect(() => {
     function onKey(e) {
       if (e.key === 'Escape') onClose?.();
@@ -244,29 +407,94 @@ export default function DocumentSearchOverlay({
 
   const config = getModeConfig(activeMode);
 
-  // Mode-filtered base set
+  // Job-based modes
+
   const baseJobs = useMemo(() => {
     if (activeMode === 'quotes')   return jobs.filter(j => !!j.quoteSentAt);
     if (activeMode === 'invoices') return jobs.filter(j => !!j.invoiceSentAt);
-    return jobs;
+    if (activeMode === 'jobs')     return jobs;
+    return [];
   }, [jobs, activeMode]);
 
-  // Sorted (when no search active)
   const sortedJobs = useMemo(() => {
     if (activeMode === 'invoices') return orderInvoices(baseJobs);
     if (activeMode === 'quotes')   return sortJobsByStage(baseJobs, 'Quoted');
     return sortJobsByStage(baseJobs, null);
   }, [baseJobs, activeMode]);
 
-  // Live-filtered (when search active — run over base set, ignore sort order per spec)
-  const displayJobs = useMemo(() => {
-    if (!query) return sortedJobs;
-    return baseJobs.filter(j => jobMatchesQuery(j, query));
-  }, [query, sortedJobs, baseJobs]);
+  const statusFilteredJobs = useMemo(() => {
+    if (activeMode !== 'invoices' || !statusFilter) return sortedJobs;
+    return sortedJobs.filter(j => {
+      const stage = deriveDisplayStatus(j);
+      if (statusFilter === 'paid')   return stage === 'Paid';
+      if (statusFilter === 'unpaid') return stage === 'Invoiced' || stage === 'Overdue';
+      return true;
+    });
+  }, [sortedJobs, activeMode, statusFilter]);
 
-  const subtitle  = buildSubtitle(activeMode, displayJobs, query);
-  const isEmpty   = baseJobs.length === 0; // zero-item first-use state
-  const noResults = query && displayJobs.length === 0;
+  const periodFilteredJobs = useMemo(() => {
+    if (activeMode !== 'invoices' || taxPeriod === 'all') return statusFilteredJobs;
+    return statusFilteredJobs.filter(j => {
+      const dateStr = j.invoiceSentAt || j.date || '';
+      return receiptInPeriod(dateStr, taxPeriod);
+    });
+  }, [statusFilteredJobs, activeMode, taxPeriod]);
+
+  const displayJobs = useMemo(() => {
+    if (!query) return periodFilteredJobs;
+    return baseJobs.filter(j => jobMatchesQuery(j, query));
+  }, [query, periodFilteredJobs, baseJobs]);
+
+  // Receipts mode
+
+  const jobByIdMap = useMemo(() => {
+    const m = {};
+    for (const j of jobs) {
+      if (j && j.id      != null) m[String(j.id)]      = j;
+      if (j && j.cloudId != null) m[String(j.cloudId)] = j;
+    }
+    return m;
+  }, [jobs]);
+
+  const periodFilteredReceipts = useMemo(() => {
+    return receipts.filter(r => receiptInPeriod(r.date, taxPeriod));
+  }, [receipts, taxPeriod]);
+
+  const statusFilteredReceipts = useMemo(() => {
+    if (!statusFilter) return periodFilteredReceipts;
+    return periodFilteredReceipts.filter(r => {
+      const job = r.jobId ? (jobByIdMap[String(r.jobId)] ?? null) : null;
+      const st  = receiptStatus(r, job);
+      if (statusFilter === 'paid')   return st === 'Paid';
+      if (statusFilter === 'unpaid') return st === 'Unpaid';
+      return true;
+    });
+  }, [periodFilteredReceipts, statusFilter, jobByIdMap]);
+
+  const displayReceipts = useMemo(() => {
+    if (!query) return statusFilteredReceipts;
+    return statusFilteredReceipts.filter(r => receiptMatchesQuery(r, query));
+  }, [query, statusFilteredReceipts]);
+
+  // Subtitle + empty state
+
+  const subtitle = useMemo(() => {
+    if (activeMode === 'receipts') {
+      return buildReceiptSubtitle(displayReceipts, taxPeriod, query);
+    }
+    return buildSubtitle(activeMode, displayJobs, query);
+  }, [activeMode, displayJobs, displayReceipts, taxPeriod, query]);
+
+  const isEmpty = activeMode === 'receipts'
+    ? receipts.length === 0
+    : baseJobs.length === 0;
+
+  const noResults = useMemo(() => {
+    if (activeMode === 'receipts') return displayReceipts.length === 0 && receipts.length > 0;
+    return !!(query && displayJobs.length === 0);
+  }, [activeMode, displayReceipts, receipts, displayJobs, query]);
+
+  // Callbacks
 
   const handleSelect = useCallback((job) => {
     onJobSelect?.(job);
@@ -280,6 +508,32 @@ export default function DocumentSearchOverlay({
     else onCreateJob?.();
   }, [activeMode, onClose, onSendInvoice, onCreateQuote, onCreateJob]);
 
+  const handleExport = useCallback(async () => {
+    if (exportingRef.current) return;
+    if (!isPro(profile)) {
+      onOpenUpgradeSheet?.('accountant_export');
+      return;
+    }
+    exportingRef.current = true;
+    setExporting(true);
+    try {
+      const year   = taxYearFor(new Date());
+      const csvStr = buildReceiptsCsv(displayReceipts, jobs, year);
+      const blob   = new Blob(['﻿' + csvStr], { type: 'text/csv;charset=utf-8;' });
+      const safe   = year.replace('/', '-');
+      await downloadOrShare(blob, `receipts-${safe}.csv`, 'text/csv');
+    } catch (err) {
+      console.warn('Receipt export failed', err);
+    } finally {
+      exportingRef.current = false;
+      setExporting(false);
+    }
+  }, [profile, displayReceipts, jobs]);
+
+  const showExportCta = activeMode === 'receipts' && taxPeriod !== 'all' && receipts.length > 0;
+
+  // Render
+
   return (
     <div
       className="dso-backdrop"
@@ -289,7 +543,6 @@ export default function DocumentSearchOverlay({
       onClick={(e) => { if (e.target === e.currentTarget) onClose?.(); }}
     >
       <div className="dso-sheet">
-        {/* Header — title/subtitle on the left, close on the right */}
         <div className="dso-header">
           <div className="dso-header__titles">
             <h2 className="dso-header__title">{config.title}</h2>
@@ -305,10 +558,7 @@ export default function DocumentSearchOverlay({
           </button>
         </div>
 
-        {/* Mode switcher — All jobs / Quotes / Invoices.
-            Reuses the .work-segments / .work-segment idiom so it reads as a
-            sibling of the Pipeline/Records controls in WorkScreen. */}
-        <div className="dso-mode-switcher" role="tablist" aria-label="Record type">
+        <div className="dso-mode-switcher" role="tablist" aria-label="Document type">
           {MODE_TABS.map(tab => (
             <button
               key={tab.key}
@@ -323,7 +573,16 @@ export default function DocumentSearchOverlay({
           ))}
         </div>
 
-        {/* Search bar — hidden when zero items */}
+        {!isEmpty && (
+          <FilterRow
+            mode={activeMode}
+            taxPeriod={taxPeriod}
+            onTaxPeriod={setTaxPeriod}
+            statusFilter={statusFilter}
+            onStatusFilter={setStatusFilter}
+          />
+        )}
+
         {!isEmpty && (
           <div className="dso-search-wrap">
             <Icon name="search" size={16} className="dso-search-icon" />
@@ -350,10 +609,8 @@ export default function DocumentSearchOverlay({
           </div>
         )}
 
-        {/* Content area */}
         <div className="dso-list">
           {isEmpty ? (
-            /* Zero-item first-use state — Icon component, no emoji */
             <div className="dso-empty">
               {config.emptyIconName && (
                 <Icon
@@ -366,29 +623,52 @@ export default function DocumentSearchOverlay({
               )}
               <p className="dso-empty__title">{config.emptyTitle}</p>
               <p className="dso-empty__body">{config.emptyBody}</p>
-              <button
-                type="button"
-                className="dso-empty__cta"
-                onClick={handleEmptyCta}
-              >
-                {config.emptyCta}
-              </button>
+              {activeMode !== 'receipts' && (
+                <button
+                  type="button"
+                  className="dso-empty__cta"
+                  onClick={handleEmptyCta}
+                >
+                  {config.emptyCta}
+                </button>
+              )}
             </div>
           ) : noResults ? (
-            /* No-results state */
             <div className="dso-no-results">
-              <p className="dso-no-results__title">Nothing for &ldquo;{query}&rdquo;</p>
-              <p className="dso-no-results__hint">{config.noResultsHint}</p>
-              <button
-                type="button"
-                className="dso-no-results__clear"
-                onClick={() => setQuery('')}
-              >
-                Clear search
-              </button>
+              {taxPeriod !== 'all' && !query ? (
+                <>
+                  <p className="dso-no-results__title">Nothing logged for this tax year yet.</p>
+                  <button
+                    type="button"
+                    className="dso-no-results__clear"
+                    onClick={() => setTaxPeriod('all')}
+                  >
+                    Show all
+                  </button>
+                </>
+              ) : (
+                <>
+                  <p className="dso-no-results__title">Nothing for &ldquo;{query}&rdquo;</p>
+                  <p className="dso-no-results__hint">{config.noResultsHint}</p>
+                  <button
+                    type="button"
+                    className="dso-no-results__clear"
+                    onClick={() => setQuery('')}
+                  >
+                    Clear search
+                  </button>
+                </>
+              )}
             </div>
+          ) : activeMode === 'receipts' ? (
+            displayReceipts.map(r => (
+              <ReceiptRow
+                key={r.id}
+                receipt={r}
+                parentJob={r.jobId ? (jobByIdMap[String(r.jobId)] ?? null) : null}
+              />
+            ))
           ) : (
-            /* Row list */
             displayJobs.map(job => (
               <DocRow
                 key={job.id}
@@ -399,6 +679,24 @@ export default function DocumentSearchOverlay({
             ))
           )}
         </div>
+
+        {showExportCta && (
+          <div className="dso-export-bar">
+            <button
+              type="button"
+              className="dso-export-btn"
+              onClick={handleExport}
+              disabled={exporting}
+              aria-label="Send receipts to accountant as CSV"
+            >
+              <Icon name="download" size={15} aria-hidden="true" />
+              {exporting ? 'Preparing…' : 'Send to accountant'}
+            </button>
+            <p className="dso-export-sub">
+              Every receipt for {taxYearFor(new Date())}, ready to hand over.
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
