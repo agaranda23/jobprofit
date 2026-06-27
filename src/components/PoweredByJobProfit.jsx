@@ -26,6 +26,8 @@
  * }} props
  */
 
+import OhnarWordmark from './OhnarWordmark';
+
 const LABEL_TEXT = 'Sent with OHNAR — the app tradespeople use to quote, invoice and get paid';
 const CTA_TEXT   = 'Try it free';
 const BASE_URL   = 'https://jobprofit.co.uk';
@@ -42,7 +44,7 @@ export default function PoweredByJobProfit({ source, hidden = false }) {
 
   return (
     <div className="pbjp-root" aria-label="Powered by OHNAR">
-      <span className="pbjp-wordmark">OHNAR</span>
+      <OhnarWordmark className="pbjp-wordmark" />
       <span className="pbjp-separator" aria-hidden="true">·</span>
       <span className="pbjp-label">{LABEL_TEXT}</span>
       <a
