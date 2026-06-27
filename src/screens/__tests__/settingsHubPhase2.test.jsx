@@ -429,3 +429,145 @@ describe('SettingsScreen Phase 2 — inline interim sections removed from hub', 
     expect(document.getElementById('settings-section-app')).toBeNull();
   });
 });
+
+// ── Settings tab re-tap → hub reset (fix/settings-tab-retap-to-hub) ──────────
+// settingsResetKey: AppShell increments this counter when the user taps the
+// Settings bottom-nav tab while already on the Settings tab. SettingsScreen
+// reacts by calling navigateToHub(), regardless of which sub-screen is active.
+// Note: these suites are blocked on main by the pre-existing jsdom
+// ERR_REQUIRE_ESM crash (html-encoding-sniffer / Node 20). They are committed
+// here so they run automatically once that underlying issue is resolved.
+
+import { render as rtr, fireEvent as fe, act as a, screen as sc } from '@testing-library/react';
+
+function renderWithResetKey(profileOverride = PROFILE_FREE, settingsResetKey = 0, extraProps = {}) {
+  return render(
+    <SettingsScreen
+      session={SESSION}
+      profile={profileOverride}
+      jobs={[]}
+      receipts={[]}
+      onSignOut={NOOP}
+      onOpenWizard={NOOP}
+      onProfileUpdate={NOOP}
+      onOpenJob={NOOP}
+      settingsResetKey={settingsResetKey}
+      {...extraProps}
+    />
+  );
+}
+
+describe('SettingsScreen — Settings tab re-tap resets to hub (settingsResetKey)', () => {
+  it('navigating to Get Paid then bumping settingsResetKey returns to hub', () => {
+    const { rerender } = render(
+      <SettingsScreen
+        session={SESSION}
+        profile={PROFILE_FREE}
+        jobs={[]}
+        receipts={[]}
+        onSignOut={NOOP}
+        onOpenWizard={NOOP}
+        onProfileUpdate={NOOP}
+        onOpenJob={NOOP}
+        settingsResetKey={0}
+      />
+    );
+
+    // Navigate to Get Paid sub-screen
+    fireEvent.click(screen.getByText('Get Paid'));
+    expect(screen.getByRole('heading', { name: 'Get Paid' })).toBeTruthy();
+
+    // Simulate AppShell bumping settingsResetKey (tab re-tap)
+    rerender(
+      <SettingsScreen
+        session={SESSION}
+        profile={PROFILE_FREE}
+        jobs={[]}
+        receipts={[]}
+        onSignOut={NOOP}
+        onOpenWizard={NOOP}
+        onProfileUpdate={NOOP}
+        onOpenJob={NOOP}
+        settingsResetKey={1}
+      />
+    );
+
+    // Should be back on the hub — hub rows visible
+    expect(screen.getByText('Invoices & Quotes')).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: 'Get Paid' })).toBeFalsy();
+  });
+
+  it('bumping settingsResetKey from voice sub-view goes straight to hub (not account)', () => {
+    const { rerender } = render(
+      <SettingsScreen
+        session={SESSION}
+        profile={PROFILE_FREE}
+        jobs={[]}
+        receipts={[]}
+        onSignOut={NOOP}
+        onOpenWizard={NOOP}
+        onProfileUpdate={NOOP}
+        onOpenJob={NOOP}
+        settingsResetKey={0}
+      />
+    );
+
+    // Navigate Account → Voice
+    fireEvent.click(screen.getByText('Account & Business'));
+    const voiceRow = screen.getByText('Voice input language').closest('button');
+    fireEvent.click(voiceRow);
+    expect(screen.getByRole('heading', { name: 'Voice input language' })).toBeTruthy();
+
+    // Simulate tab re-tap
+    rerender(
+      <SettingsScreen
+        session={SESSION}
+        profile={PROFILE_FREE}
+        jobs={[]}
+        receipts={[]}
+        onSignOut={NOOP}
+        onOpenWizard={NOOP}
+        onProfileUpdate={NOOP}
+        onOpenJob={NOOP}
+        settingsResetKey={1}
+      />
+    );
+
+    // Must land on hub, NOT on Account sub-screen
+    expect(screen.getByText('Invoices & Quotes')).toBeTruthy();
+    expect(screen.queryByRole('heading', { name: 'Account & Business' })).toBeFalsy();
+    expect(screen.queryByRole('heading', { name: 'Voice input language' })).toBeFalsy();
+  });
+
+  it('settingsResetKey=0 on initial mount does NOT reset (hub remains active)', () => {
+    renderWithResetKey(PROFILE_FREE, 0);
+    // Should start on hub with no unintended navigation
+    expect(screen.getByText('Invoices & Quotes')).toBeTruthy();
+    expect(screen.queryByRole('heading', { level: 1 })).toBeFalsy();
+  });
+
+  it('back-arrow voice→account behaviour unchanged after a reset', () => {
+    const { rerender } = render(
+      <SettingsScreen
+        session={SESSION}
+        profile={PROFILE_FREE}
+        jobs={[]}
+        receipts={[]}
+        onSignOut={NOOP}
+        onOpenWizard={NOOP}
+        onProfileUpdate={NOOP}
+        onOpenJob={NOOP}
+        settingsResetKey={0}
+      />
+    );
+
+    // Hub → Account → Voice → back arrow (must land on Account, not hub)
+    fireEvent.click(screen.getByText('Account & Business'));
+    const voiceRow = screen.getByText('Voice input language').closest('button');
+    fireEvent.click(voiceRow);
+    expect(screen.getByRole('heading', { name: 'Voice input language' })).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Back to Settings' }));
+    // Header back from voice goes to account — unchanged
+    expect(screen.getByRole('heading', { name: 'Account & Business' })).toBeTruthy();
+  });
+});

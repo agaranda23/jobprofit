@@ -1992,6 +1992,11 @@ export default function SettingsScreen({
   // it still passes 'overheads'; we handle it here by routing to 'costs'.
   scrollTarget = null,
   onScrollTargetConsumed,
+  // settingsResetKey: counter incremented by AppShell when the user taps the
+  // Settings bottom-nav tab while already on the Settings tab. Fires navigateToHub()
+  // so any sub-screen pops straight back to the hub — identical to the header back
+  // arrow. Starts at 0; the `> 0` guard prevents a reset on initial mount.
+  settingsResetKey = 0,
 }) {
   // ── Hub / sub-screen routing ───────────────────────────────────────────────
   // 'hub' | 'invoices' | 'getpaid' | 'costs'
@@ -2021,6 +2026,27 @@ export default function SettingsScreen({
       if (screenRef.current) screenRef.current.scrollTop = hubScrollRef.current;
     });
   }, []);
+
+  // Tab re-tap reset: fires when the user taps the Settings bottom-nav tab while
+  // already on Settings. AppShell bumps settingsResetKey, which signals us to pop
+  // back to the hub regardless of which sub-screen is active (including 'voice',
+  // which the header back arrow would return to 'account' instead — tab tap always
+  // goes straight to hub). The `> 0` guard prevents a reset on initial mount.
+  useEffect(() => {
+    if (settingsResetKey <= 0) return;
+    if (settingsView === 'hub') {
+      // Already on hub: scroll to top (smooth where supported).
+      requestAnimationFrame(() => {
+        if (screenRef.current) {
+          screenRef.current.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+      });
+    } else {
+      navigateToHub();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settingsResetKey]); // intentionally excludes settingsView/navigateToHub: we
+  // only want to fire on an explicit tap, not whenever the view changes naturally.
 
   // Handle hardware/browser back button while on a sub-screen.
   // 'voice' is nested under 'account' — back goes to 'account', not hub.

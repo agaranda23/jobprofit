@@ -185,6 +185,12 @@ export default function AppShell() {
   // from Today (onJobTap) does NOT bump this key — the drawer-open path must
   // survive. Only the BottomNav onChange handler bumps it.
   const [workResetKey, setWorkResetKey] = useState(0);
+  // settingsResetKey: bumped when the user taps the Settings tab while already
+  // on the Settings tab. SettingsScreen watches this prop in a useEffect and
+  // calls navigateToHub() to pop back from any sub-screen. Counter starts at 0;
+  // the effect guard `> 0` prevents a spurious hub-reset on initial mount.
+  // Programmatic navigate('settings') from other tabs does NOT bump this key.
+  const [settingsResetKey, setSettingsResetKey] = useState(0);
 
   // ── Trial-end conversion state ─────────────────────────────────────────────
   // trialEndSheetOpen: show the Moment-1 "keep Pro free another month" sheet
@@ -1111,11 +1117,19 @@ export default function AppShell() {
    *  Defined before conditional early returns to keep hook order stable (Rules of Hooks). */
   const handleTabChange = useCallback((nextView) => {
     resetTransientUI(nextView);
+    // Settings same-tab re-tap: pop any sub-screen back to the Settings hub.
+    // navigate() would no-op here (hash is already #/settings), so we signal
+    // SettingsScreen via settingsResetKey instead of relying on a navigation event.
+    if (nextView === 'settings' && view === 'settings') {
+      setSettingsSubView(null);
+      setSettingsResetKey(k => k + 1);
+      return;
+    }
     // Reset settings sub-view when navigating away from the settings tab so
     // CardPaymentsScreen doesn't persist on the next visit to Settings.
     if (nextView !== 'settings') setSettingsSubView(null);
     navigate(nextView);
-  }, [resetTransientUI, navigate]);
+  }, [resetTransientUI, navigate, view]);
 
   /**
    * "See the week" — navigates to the Jobs tab (card view only since JP-LU5 PR1).
@@ -1244,6 +1258,7 @@ export default function AppShell() {
           }}
           scrollTarget={settingsScrollTarget}
           onScrollTargetConsumed={() => setSettingsScrollTarget(null)}
+          settingsResetKey={settingsResetKey}
         />
       )}
 
