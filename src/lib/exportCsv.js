@@ -296,7 +296,7 @@ export async function downloadOrShare(blob, filename, mime) {
  * @param {string} csvString — output of buildJobsCsv()
  * @param {string} [filename]
  */
-export async function downloadOrShareCsv(csvString, filename = 'jobprofit-export.csv') {
+export async function downloadOrShareCsv(csvString, filename = 'ohnar-export.csv') {
   const blob = new Blob(['﻿' + csvString], { type: 'text/csv;charset=utf-8;' });
   await downloadOrShare(blob, filename, 'text/csv');
 }

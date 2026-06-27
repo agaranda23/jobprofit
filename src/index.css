@@ -19677,12 +19677,82 @@ button.jd-money-chip:active { opacity: 0.75; }
  * Full-viewport Deep Navy (#0B1320) background, OHNAR O-ring SVG centred,
  * wordmark fades + rises after the ring animates.
  *
- * Reduced-motion: all animations are wrapped in prefers-reduced-motion:
- * no-preference — users with reduced-motion get the static centred lockup.
+ * SINGLE COMPOSITION — the same SVG O-ring + DM Sans "OHNAR" wordmark is
+ * used in two contexts:
  *
- * The #splash-static inline markup in index.html shows an identical static
- * lockup before JS loads; React replaces it on mount with this component.
+ *   1. #splash-static (index.html, pre-JS): inline SVG + <span> — animated
+ *      via .splash-static-arc / .splash-static-wordmark classes so motion
+ *      starts on FIRST PAINT, before any JS parses.
+ *
+ *   2. .splash (Splash.jsx, React): same SVG markup + same wordmark text,
+ *      animated via .splash__ring-arc / .splash__wordmark. Pixel-identical
+ *      position so the #splash-static → React handoff is invisible.
+ *
+ * Reduced-motion: all animations are inside @media (prefers-reduced-motion:
+ * no-preference) — users with the setting see the finished static lockup
+ * immediately with no motion.
  */
+
+/* ── Shared keyframes (used by both pre-JS and React contexts) ── */
+
+@keyframes splash-draw-ring {
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes splash-wordmark-in {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ── Pre-JS static splash (#splash-static in index.html) ── */
+
+#splash-static {
+  position: fixed;
+  inset: 0;
+  background: #0B1320;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  z-index: 9999;
+}
+
+/* Animated draw-on arc for the pre-JS O-ring */
+.splash-static-arc {
+  stroke-dasharray: 251.3;
+  stroke-dashoffset: 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .splash-static-arc {
+    stroke-dashoffset: 251.3;
+    animation: splash-draw-ring 0.7s cubic-bezier(0.4, 0, 0.2, 1) 0.05s forwards;
+  }
+}
+
+/* Pre-JS wordmark — fades + rises after ring */
+.splash-static-wordmark {
+  font-family: 'DM Sans', sans-serif;
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  color: #ffffff;
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .splash-static-wordmark {
+    opacity: 0;
+    transform: translateY(8px);
+    animation: splash-wordmark-in 0.35s ease-out 0.85s forwards;
+  }
+}
+
+/* ── React Splash component (.splash in Splash.jsx) ── */
+
 .splash {
   position: fixed;
   inset: 0;
@@ -19692,7 +19762,7 @@ button.jd-money-chip:active { opacity: 0.75; }
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 24px;
+  gap: 16px;
 }
 
 /* O-ring SVG */
@@ -19714,21 +19784,14 @@ button.jd-money-chip:active { opacity: 0.75; }
   }
 }
 
-@keyframes splash-draw-ring {
-  to { stroke-dashoffset: 0; }
-}
-
-/* Wordmark — fades + rises after ring animation */
+/* Wordmark — DM Sans live text, fades + rises after ring */
 .splash__wordmark {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.splash__wordmark-img {
-  width: 140px;
-  height: auto;
-  display: block;
+  font-family: 'DM Sans', sans-serif;
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+  color: #ffffff;
+  opacity: 1;
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -19737,32 +19800,6 @@ button.jd-money-chip:active { opacity: 0.75; }
     transform: translateY(8px);
     animation: splash-wordmark-in 0.35s ease-out 0.85s forwards;
   }
-}
-
-@keyframes splash-wordmark-in {
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-/* Pre-JS static splash (injected in index.html #root) */
-#splash-static {
-  position: fixed;
-  inset: 0;
-  background: #0B1320;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 24px;
-  z-index: 9999;
-}
-
-#splash-static img {
-  width: 140px;
-  height: auto;
-  display: block;
 }
 
 /* ── Premium micro-polish ──────────────────────────────────────────────────── */

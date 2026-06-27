@@ -92,7 +92,7 @@ export async function buildXlsxFromRows(rows) {
  * @param {string}   [filename]
  * @returns {Promise<void>}
  */
-export async function buildJobsXlsx(jobs, receipts, filename = 'jobprofit-export.xlsx') {
+export async function buildJobsXlsx(jobs, receipts, filename = 'ohnar-export.xlsx') {
   const rows = deriveJobRows(jobs, receipts);
   const blob = await buildXlsxFromRows(rows);
   const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';

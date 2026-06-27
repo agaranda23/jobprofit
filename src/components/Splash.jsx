@@ -6,19 +6,28 @@
  *   2. main.jsx Suspense fallback for public quote/invoice/receipt routes.
  *
  * Visual: Deep Navy (#0B1320) full viewport, OHNAR O-ring SVG centred,
- * animating from stroke-dashoffset 0→full over ~700ms, then "OHNAR" wordmark
- * fades + rises 8px after ~850ms.
+ * animating from stroke-dashoffset 251.3→0 over ~700ms, then "OHNAR"
+ * wordmark fades + rises 8px after ~850ms.
+ *
+ * The composition here is pixel-identical to #splash-static in index.html
+ * (same SVG, same wordmark, same dimensions) so React mounting causes no
+ * visible double-O or layout jump — the handoff is invisible.
  *
  * Reduced-motion: @media (prefers-reduced-motion: reduce) skips all
  * animations — users see the static centred lockup immediately.
  *
  * A 700ms minimum dwell is enforced via the CSS animation duration so even
  * instant loads don't flash the screen.
+ *
+ * NOTE: A designer-provided SVG wordmark would improve crispness at all DPRs.
+ * Until then "OHNAR" is rendered as live DM Sans text (already loaded by the
+ * page) — correct colour, weight, and spacing without any raster softness.
  */
 export default function Splash() {
   return (
     <div className="splash" aria-label="Loading OHNAR" role="status">
-      {/* O-ring: inline SVG so it's crisp at any DPR and animatable */}
+      {/* O-ring: inline SVG — crisp at any DPR, animatable via CSS.
+          Circumference of r=40 circle ≈ 251.3 (used for stroke-dasharray). */}
       <svg
         className="splash__ring"
         viewBox="0 0 100 100"
@@ -55,18 +64,10 @@ export default function Splash() {
         />
       </svg>
 
-      {/* Wordmark — fades + rises after the ring settles */}
+      {/* Wordmark — live DM Sans text, fades + rises after the ring settles.
+          Pixel-identical position and size to #splash-static in index.html. */}
       <span className="splash__wordmark" aria-label="OHNAR">
-        {/* Use the raster lockup; a designer-provided SVG wordmark is the
-            remaining step for perfect crispness at all DPRs. */}
-        <img
-          src="/ohnar-logo-dark.png"
-          alt=""
-          aria-hidden="true"
-          className="splash__wordmark-img"
-          width="160"
-          height="80"
-        />
+        OHNAR
       </span>
     </div>
   );
