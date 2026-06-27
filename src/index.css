@@ -19654,3 +19654,96 @@ button.jd-money-chip:active { opacity: 0.75; }
   background: #ffffff;
   border-color: #d1d5db;
 }
+
+/* ── Branded splash screen ─────────────────────────────────────────────────── */
+/*
+ * Full-viewport Deep Navy (#0B1320) background, OHNAR O-ring SVG centred,
+ * wordmark fades + rises after the ring animates.
+ *
+ * Reduced-motion: all animations are wrapped in prefers-reduced-motion:
+ * no-preference — users with reduced-motion get the static centred lockup.
+ *
+ * The #splash-static inline markup in index.html shows an identical static
+ * lockup before JS loads; React replaces it on mount with this component.
+ */
+.splash {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: #0B1320;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+}
+
+/* O-ring SVG */
+.splash__ring {
+  display: block;
+  flex-shrink: 0;
+}
+
+/* The animated draw-on arc — circumference of r=40 circle ≈ 251.3 */
+.splash__ring-arc {
+  stroke-dasharray: 251.3;
+  stroke-dashoffset: 0;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .splash__ring-arc {
+    stroke-dashoffset: 251.3;
+    animation: splash-draw-ring 0.7s cubic-bezier(0.4, 0, 0.2, 1) 0.05s forwards;
+  }
+}
+
+@keyframes splash-draw-ring {
+  to { stroke-dashoffset: 0; }
+}
+
+/* Wordmark — fades + rises after ring animation */
+.splash__wordmark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.splash__wordmark-img {
+  width: 140px;
+  height: auto;
+  display: block;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .splash__wordmark {
+    opacity: 0;
+    transform: translateY(8px);
+    animation: splash-wordmark-in 0.35s ease-out 0.85s forwards;
+  }
+}
+
+@keyframes splash-wordmark-in {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Pre-JS static splash (injected in index.html #root) */
+#splash-static {
+  position: fixed;
+  inset: 0;
+  background: #0B1320;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 24px;
+  z-index: 9999;
+}
+
+#splash-static img {
+  width: 140px;
+  height: auto;
+  display: block;
+}

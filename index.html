@@ -22,13 +22,16 @@
       <!-- Social / OG -->
       <meta property="og:title" content="OHNAR — Build wealth, not just jobs" />
       <meta property="og:description" content="Quote, invoice and track profit from your phone. Built for UK tradespeople." />
-      <meta property="og:image" content="/ohnar-logo.jpeg" />
+      <meta property="og:image" content="/ohnar-logo.png" />
       <meta property="og:type" content="website" />
       <meta name="twitter:card" content="summary_large_image" />
-      <meta name="twitter:image" content="/ohnar-logo.jpeg" />
+      <meta name="twitter:image" content="/ohnar-logo.png" />
 
       <!-- Manifest -->
       <link rel="manifest" href="/manifest.json" />
+
+      <!-- Preload logo so the splash renders without a network round-trip -->
+      <link rel="preload" as="image" href="/ohnar-logo-dark.png" />
 
       <!-- Fonts -->
       <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -58,7 +61,13 @@
           }
         })();
       </script>
-      <div id="root"></div>
+      <!-- Static branded splash — visible BEFORE the JS bundle loads.
+           React removes this when it mounts and replaces with the animated
+           <Splash> component. The inline style is intentionally minimal so
+           it loads in the first TCP packet; full styles are in index.css.
+           Background matches manifest background_color (#0B1320) and
+           theme-color meta so the OS launch animation is seamless. -->
+      <div id="root"><div id="splash-static" style="position:fixed;inset:0;background:#0B1320;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:24px;z-index:9999"><img src="/ohnar-logo-dark.png" alt="OHNAR" width="140" style="height:auto;display:block"></div></div>
       <script type="module" src="/src/main.jsx"></script>
     </body>
 </html>

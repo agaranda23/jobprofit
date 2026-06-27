@@ -79,6 +79,7 @@ import { buildJobsPdf } from './lib/exportPdf.js';
 import { buildJobsXlsx } from './lib/exportXlsx.js';
 import ExportFormatSheet from './components/ExportFormatSheet.jsx';
 import AppErrorBoundary from './components/AppErrorBoundary.jsx';
+import Splash from './components/Splash.jsx';
 
 // ─── App-boot cleanup ─────────────────────────────────────────────────────────
 // Remove localStorage keys that were used by the now-deleted newNav and
@@ -1171,7 +1172,7 @@ export default function AppShell() {
   }, [navigate]);
 
   if (!authReady) {
-    return <div className="auth-loading"><div className="ocr-spinner" /></div>;
+    return <Splash />;
   }
   if (!session) {
     return <AuthScreen />;
