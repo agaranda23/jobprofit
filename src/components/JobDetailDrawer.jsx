@@ -509,9 +509,9 @@ function BottomActionBar({ content, handlers, isPaid = false }) {
     const fn = handlers?.[action];
     if (typeof fn === 'function') fn();
   };
-  const isPrimaryDisabled =
-    primaryCta.action === 'noop' ||
-    primaryCta.label === 'Chased recently';
+  // Drive disabled state off the action token ONLY — never off the label string.
+  // 'noop' is the canonical signal for "cooldown / no-op" from nextStepContent.js.
+  const isPrimaryDisabled = primaryCta.action === 'noop';
   return (
     <div className="jd-bottom-bar">
       <button
@@ -3212,18 +3212,6 @@ export default function JobDetailDrawer({
                   </button>
                   {kebabOpen && (
                     <div className="jd-kebab-menu" role="menu">
-                      {/* Record payment — only after invoice has been sent (Invoiced / Overdue).
-                          Showing it on Lead/Quoted stages is misleading: nothing to pay yet. */}
-                      {!isPaid && isInvoiced && (
-                        <button
-                          type="button"
-                          className="jd-kebab-item"
-                          role="menuitem"
-                          onClick={() => { setKebabOpen(false); setPaymentModalOpen(true); }}
-                        >
-                          Record payment
-                        </button>
-                      )}
                       {/* Edit price — reachable from kebab when chip is read-only (invoiced/paid states).
                           When chip is tappable (pre-invoice), this item is omitted to avoid duplication. */}
                       {onUpdateJob && (isPaid || isInvoiced) && (
@@ -3239,21 +3227,7 @@ export default function JobDetailDrawer({
                           Edit price
                         </button>
                       )}
-                      {/* Send invoice / Resend invoice */}
-                      {showSendInvoice && (
-                        <button
-                          type="button"
-                          className="jd-kebab-item"
-                          role="menuitem"
-                          onClick={() => {
-                            setKebabOpen(false);
-                            if (needsPrice(job)) { setEditingField('amount'); return; }
-                            setReviewSheetMode('invoice');
-                          }}
-                        >
-                          Send invoice
-                        </button>
-                      )}
+                      {/* Resend invoice — secondary action once invoice is already out */}
                       {showResendInvoice && (
                         <button
                           type="button"
@@ -3295,17 +3269,6 @@ export default function JobDetailDrawer({
                         >
                           Link revoked
                         </div>
-                      )}
-                      {/* Chase via WhatsApp */}
-                      {showChase && (
-                        <button
-                          type="button"
-                          className="jd-kebab-item"
-                          role="menuitem"
-                          onClick={() => { setKebabOpen(false); handleChase(); }}
-                        >
-                          Chase via WhatsApp
-                        </button>
                       )}
                       {/* Mark Sent (draft quote) */}
                       {showMarkSent && (

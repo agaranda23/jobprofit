@@ -15650,8 +15650,10 @@ button.jd-money-chip:active { opacity: 0.75; }
   background: var(--surface);
   border-top: 1px solid var(--border);
   padding: 12px 16px;
-  padding-bottom: calc(12px + env(safe-area-inset-bottom));
-  /* z-index not needed — already inside the sheet's stacking context (z-index 201) */
+  /* env(safe-area-inset-bottom) clears the iOS home indicator.
+     --nav-clearance must NOT be used here — body.overlay-open already hides the
+     global bottom nav, so only the safe-area inset is needed. */
+  padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
 }
 .jd-bottom-bar-btn {
   display: block;
@@ -15660,7 +15662,12 @@ button.jd-money-chip:active { opacity: 0.75; }
   padding: 14px 16px;
   border: none;
   border-radius: var(--radius-lg);
-  background: var(--accent);
+  /* Hardcoded #2563EB (brand blue, WCAG-AA 4.87:1 on #fff).
+     NOT var(--jp-blue) — that token is defined twice in index.css and the
+     lighter #3B82F6 definition wins (3.9:1 on white, fails AA-normal).
+     NOT var(--accent) — avoids silent breakage if --accent is ever re-mapped.
+     Separate ticket tracks the --jp-blue deduplication. */
+  background: #2563EB;
   color: #ffffff;
   font-size: var(--fs-body);
   font-weight: 700;
@@ -15671,7 +15678,7 @@ button.jd-money-chip:active { opacity: 0.75; }
 .jd-bottom-bar-btn:active {
   opacity: 0.85;
 }
-/* Paid stage: secondary/quieter style — loop is closed */
+/* Paid stage: secondary/quieter style — loop is closed, no nag */
 .jd-bottom-bar-btn--secondary {
   background: var(--surface-raised, var(--surface-2));
   color: var(--text);
@@ -15682,9 +15689,11 @@ button.jd-money-chip:active { opacity: 0.75; }
   cursor: not-allowed;
 }
 
-/* Spacer so last card doesn't hide under the bottom bar when scrolled down */
+/* Spacer so the last card scrolls fully clear of the sticky bar (52px button
+   + 12px top padding + 12px bottom padding + safe-area = ~80px minimum).
+   96px gives comfortable clearance on all devices including notched iPhones. */
 .jd-bottom-bar-spacer {
-  height: 8px;
+  height: 96px;
 }
 
 /* ── B2B settings row (no card chrome) ───────────────────────────────────── */
