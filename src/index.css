@@ -19948,3 +19948,128 @@ button.jd-money-chip:active { opacity: 0.75; }
   transform: scale(0.98);
   opacity: 0.9;
 }
+
+/* ── Money in 5 seconds — scannable 3-number strip ──────────────────────────
+   Three key numbers at the very top of the Money tab so the trader knows their
+   position without scrolling. Kept / For tax / Still owed.
+   JetBrains Mono + tabular-nums for instant visual alignment. */
+.money-five-sec {
+  display: flex;
+  align-items: stretch;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-xs);
+  margin: 0 0 14px;
+  overflow: hidden;
+}
+
+.money-five-sec__cell {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 14px 8px 12px;
+  gap: 4px;
+  min-width: 0;
+}
+
+.money-five-sec__divider {
+  width: 1px;
+  background: var(--border);
+  align-self: stretch;
+  margin: 10px 0;
+  flex-shrink: 0;
+}
+
+.money-five-sec__value {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: var(--fs-subhead);
+  font-weight: 700;
+  color: var(--text);
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+
+/* Tax amount = amber to hint "set it aside" without being alarming */
+.money-five-sec__value--tax {
+  color: var(--jp-amber, #d97706);
+}
+
+/* Still owed — amber when there's a non-zero balance, default otherwise */
+.money-five-sec__value--owed {
+  color: var(--jp-amber, #d97706);
+}
+
+.money-five-sec__label {
+  font-size: var(--fs-metadata);
+  font-weight: 500;
+  color: var(--text-dim);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  line-height: 1;
+  text-align: center;
+}
+
+/* ── money-hero__qualifier-label — sub-label replacing inline (gross)/(NET) ──
+   Sits below the profit figure, small and muted, so touch users can read it
+   without tapping a tooltip. */
+.money-hero__qualifier-label {
+  font-size: var(--fs-metadata);
+  color: var(--text-dim);
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  margin: 0 0 8px;
+  line-height: var(--lh-metadata);
+}
+
+/* Locked variant — when rendered below the blurred true-profit row the label
+   needs a slightly tighter top gap to sit under the row naturally. */
+.money-hero__qualifier-label--locked {
+  margin-top: 4px;
+}
+
+/* ── "More insights" expander toggle button ───────────────────────────────────
+   Sits between the at-a-glance cards and the secondary analytics so users
+   can choose to dig in. Chevron rotates on open. */
+.money-more-insights-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 11px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: none;
+  font-family: inherit;
+  font-size: var(--fs-label);
+  font-weight: 600;
+  color: var(--accent);
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  margin: 0 0 14px;
+  transition: background 0.12s;
+  min-height: 44px;
+}
+
+.money-more-insights-toggle:active {
+  background: var(--surface-2, rgba(255,255,255,0.06));
+  opacity: 0.85;
+}
+
+.money-more-insights-toggle__chevron {
+  transition: transform 0.2s ease;
+  flex-shrink: 0;
+}
+
+.money-more-insights-toggle__chevron--open {
+  transform: rotate(180deg);
+}
