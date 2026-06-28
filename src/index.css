@@ -4681,7 +4681,8 @@ input[type=number] { -moz-appearance: textfield; }
   margin-bottom: 8px;
 }
 .money-twoUp__value {
-  font-size: var(--fs-money-hero);
+  font-size: clamp(1.5rem, 5vw, 1.875rem); /* secondary metric — smaller than hero so £100k fits half-width at 375px */
+  white-space: nowrap;
   font-weight: var(--fw-money);
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
