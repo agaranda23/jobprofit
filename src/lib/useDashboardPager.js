@@ -127,14 +127,24 @@ export function useDashboardPager({ pageCount, pageIndex, onPageChange, locked }
   // Mutable ref of current settled index — avoids stale closures in handlers.
   const settledIdx    = useRef(pageIndex);
   settledIdx.current  = pageIndex;
+  // Tracks the index a swipe-initiated animation is flying to, so jumpTo can
+  // detect "already animating to this target" and avoid fighting the animation.
+  // -1 means no animation in flight.
+  const animatingToIdx = useRef(-1);
 
   // ─── jumpTo: called from DashboardPager when pageIndex prop changes ──────────
   const jumpTo = useCallback((nextIdx) => {
     const track = trackRef.current;
     if (!track) return;
+
+    // A swipe-initiated animation is already flying to this exact target.
+    // The onTouchEnd rAF will settleAt(nextIdx) on transitionend — don't fight it.
+    if (animatingToIdx.current === nextIdx) return;
+
     const from = settledIdx.current;
     if (from === nextIdx) {
-      // Already at target — ensure settled state is correct (handles SSR/hydration)
+      // Already settled at target — ensure settled state is correct (handles
+      // SSR/hydration and the initial mount before first paint).
       settleAt(track, nextIdx);
       return;
     }
@@ -160,6 +170,10 @@ export function useDashboardPager({ pageCount, pageIndex, onPageChange, locked }
         track.removeEventListener('transitionend', track._pagerOnEnd);
         track._pagerOnEnd = null;
       }
+      // Interrupting an in-flight swipe animation: clear the animation guard too,
+      // otherwise a later jumpTo (nav tap) to that same index would bail forever
+      // and the track would stop responding to taps for that page (B1).
+      animatingToIdx.current = -1;
       // Capture the current visual translateX. CRITICAL: when the pager is
       // SETTLED it is positioned via `left: -idx*100%` with NO inline transform,
       // so the transform matrix reads 0. Trusting it then would clear `left` and
@@ -290,7 +304,12 @@ export function useDashboardPager({ pageCount, pageIndex, onPageChange, locked }
     if (prefersReducedMotion() || next === settledIdx.current) {
       settleAt(track, next);
     } else {
-      // Animate from currentPct directly to target
+      // Animate from currentPct directly to target.
+      // Mark animatingToIdx BEFORE queuing the rAF so that the React re-render
+      // triggered by onPageChange(next) below calls jumpTo(next), which sees
+      // animatingToIdx===next and bails — preventing it from fighting this animation.
+      animatingToIdx.current = next;
+
       if (track._pagerOnEnd) {
         track.removeEventListener('transitionend', track._pagerOnEnd);
         track._pagerOnEnd = null;
@@ -319,6 +338,7 @@ export function useDashboardPager({ pageCount, pageIndex, onPageChange, locked }
           if (ev.propertyName !== 'transform') return;
           track.removeEventListener('transitionend', onEnd);
           track._pagerOnEnd = null;
+          animatingToIdx.current = -1;   // animation complete — jumpTo may proceed again
           settleAt(track, next);
         }
         track._pagerOnEnd = onEnd;

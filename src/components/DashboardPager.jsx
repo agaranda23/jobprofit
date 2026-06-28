@@ -18,7 +18,7 @@
  *   children    {array}    exactly 3 React elements (one per page)
  */
 
-import { useEffect, useCallback } from 'react';
+import { useLayoutEffect, useCallback } from 'react';
 import { useDashboardPager } from '../lib/useDashboardPager';
 import { haptic } from '../lib/haptics.js';
 
@@ -38,9 +38,11 @@ export default function DashboardPager({ pageIndex, onSwipe, overlayOpen, childr
     locked: !!overlayOpen,
   });
 
-  // Sync the track position whenever pageIndex changes from outside
-  // (nav tap, navigate() call, popstate). jumpTo handles animation vs instant.
-  useEffect(() => {
+  // useLayoutEffect runs before the browser paints, so the track is positioned
+  // at the correct page before the user ever sees it (no first-paint flash).
+  // On mount it writes the settled left directly; on prop-change it calls jumpTo
+  // which is idempotent-guarded against re-running mid swipe-animation.
+  useLayoutEffect(() => {
     jumpTo(pageIndex);
   }, [pageIndex, jumpTo]);
 
@@ -51,11 +53,15 @@ export default function DashboardPager({ pageIndex, onSwipe, overlayOpen, childr
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
     >
-      {/* Initial left is set to match pageIndex; JS takes over from here. */}
+      {/*
+        NO inline left here. Track position is 100% JS-owned via jumpTo/settleAt.
+        A React-controlled `left` would re-apply on every pageIndex re-render and
+        compose with an in-flight swipe transform → double-offset flash (the bug).
+        The track starts unstyled; useLayoutEffect above writes left before paint.
+      */}
       <div
         ref={trackRef}
         className="dp-track"
-        style={{ left: `${pageIndex * -100}%` }}
       >
         {pages.map((child, i) => (
           <div
