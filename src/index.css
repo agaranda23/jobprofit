@@ -19970,14 +19970,12 @@ button.jd-money-chip:active { opacity: 0.75; }
   }
 }
 
-/* Wordmark — DM Sans live text, fades + rises after ring */
+/* Wordmark — real OHNAR logo letterforms (custom A/R) as SVG, white.
+   Height set to the logo's O:HNAR proportion next to the 44px ring. */
 .splash__wordmark {
-  font-family: 'DM Sans', sans-serif;
-  font-size: 44px;
-  font-weight: 800;
-  letter-spacing: -1px;
-  line-height: 1;
-  color: #ffffff;
+  height: 26px;
+  width: auto;
+  display: block;
   opacity: 1;
 }
 
@@ -19986,6 +19984,44 @@ button.jd-money-chip:active { opacity: 0.75; }
     opacity: 0;
     transform: translateY(8px);
     animation: splash-wordmark-in 0.35s ease-out 0.85s forwards;
+  }
+}
+
+/* ── Splash EXIT — "fly to header" magic move ───────────────────────────────
+   After the entrance settles, the lockup flies straight up and shrinks toward
+   the (horizontally-centred) header logo while the navy backdrop fades to
+   reveal the app underneath. The header lockup is centred (left:50%), so X
+   stays 0 — only the vertical travel + scale need tuning. Nudge these three
+   vars if the landing is slightly off:
+     --splash-fly-y      how far up it travels (toward the top header)
+     --splash-fly-scale  shrink factor (to ~header logo size)
+     --splash-fly-x      horizontal nudge (0 = stay centred under the header) */
+.splash--exiting {
+  --splash-fly-x: 0px;
+  --splash-fly-y: -44vh;
+  --splash-fly-scale: 0.5;
+  pointer-events: none;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .splash--exiting {
+    animation: splash-bg-out 0.45s ease forwards;
+  }
+  /* Exit starts from the SETTLED lockup — cancel the entrance animations so the
+     overlay instance doesn't replay the draw/fade before flying. */
+  .splash--exiting .splash__lockup {
+    animation: splash-fly 0.7s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+  }
+  .splash--exiting .splash__ring-arc { animation: none; stroke-dashoffset: 0; }
+  .splash--exiting .splash__wordmark { animation: none; opacity: 1; transform: none; }
+  .splash--exiting .splash__lockup::after { animation: none; opacity: 0; }
+}
+@keyframes splash-bg-out {
+  to { background-color: transparent; }
+}
+@keyframes splash-fly {
+  to {
+    transform: translate(var(--splash-fly-x), var(--splash-fly-y)) scale(var(--splash-fly-scale));
+    opacity: 0;
   }
 }
 
