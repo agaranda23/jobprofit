@@ -28,6 +28,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { sendPushToUser } from './_lib/sendPushToUser.js';
+import { sendTraderAcceptEmail } from './_lib/sendTraderAcceptEmail.js';
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -181,6 +182,48 @@ export const handler = async function (event) {
     }).catch((err) => {
       console.warn('accept-quote: push failed (non-blocking)', err?.message);
     });
+  }
+
+  // ── 11. Notify the trader via email (fire-and-forget) ───────────────────────
+  // Looks up trader email via auth.admin and business name via profiles.
+  // Both lookups are quick reads against indexed PKs. If either fails, log and
+  // continue — email is advisory and must never block the 200 response.
+  // Requires RESEND_API_KEY env var; gracefully skips if absent.
+  if (jobRow.user_id) {
+    (async () => {
+      try {
+        const [userResult, profileResult] = await Promise.all([
+          adminClient.auth.admin.getUserById(jobRow.user_id),
+          adminClient
+            .from('profiles')
+            .select('business_name')
+            .eq('id', jobRow.user_id)
+            .maybeSingle(),
+        ]);
+
+        const traderEmail = userResult?.data?.user?.email;
+        const traderBusinessName = profileResult?.data?.business_name ?? null;
+
+        if (!traderEmail) {
+          console.warn('[email] Could not resolve trader email for user_id:', jobRow.user_id);
+          return;
+        }
+
+        const jobDescription = updatedMeta.jobTitle || updatedMeta.description || updatedMeta.title || null;
+        const amount = updatedMeta.totalAmount ?? updatedMeta.quoteAmount ?? updatedMeta.total ?? null;
+
+        await sendTraderAcceptEmail({
+          traderEmail,
+          traderBusinessName,
+          customerName: cleanName,
+          jobDescription,
+          amount,
+          acceptedAt,
+        });
+      } catch (err) {
+        console.error('[email] Notification lookup/send threw unexpectedly:', err?.message);
+      }
+    })();
   }
 
   return json(200, { acceptedAt });

@@ -14,6 +14,8 @@
  *   E. Success path — new acceptance writes meta and returns 200 { acceptedAt }
  *   F. acceptedSource field — must be written as 'remote'
  *   G. Status promotion — quoted → active; no regression for active/invoiced/paid
+ *   H. Push notification — sendPushToUser fires on success, silent on failure, skipped on re-submit
+ *   I. Email notification — sendTraderAcceptEmail fires on success, fire-and-forget, skipped on re-submit
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -22,6 +24,27 @@ const FAKE_URL = 'https://abc.supabase.co';
 const FAKE_SERVICE_KEY = 'service-role-key-fake';
 
 let mockSelectResult = null;
+
+// ── sendPushToUser mock ───────────────────────────────────────────────────────
+// accept-quote.js imports sendPushToUser at the top level (static import).
+// Mock the module so tests can assert call behaviour without real web-push calls.
+const mockSendPush = vi.fn().mockResolvedValue({ sent: 1, failed: 0 });
+vi.mock('../_lib/sendPushToUser.js', () => ({
+  sendPushToUser: (...args) => mockSendPush(...args),
+}));
+
+// ── sendTraderAcceptEmail mock ────────────────────────────────────────────────
+// Mock the helper module so tests for accept-quote.js can assert call behaviour
+// without hitting Resend's API. The helper's own internals are covered in
+// sendTraderAcceptEmail.test.js.
+let mockEmailResult = { ok: true, id: 'resend-fake-id' };
+vi.mock('../_lib/sendTraderAcceptEmail.js', () => ({
+  sendTraderAcceptEmail: vi.fn(async () => mockEmailResult),
+}));
+
+// ── Mutable auth/profile state for H/I tests ─────────────────────────────────
+let mockGetUserResult = { data: { user: { email: 'trader@example.com' } }, error: null };
+let mockProfileResult = { data: { business_name: 'Ace Plumbing' }, error: null };
 
 vi.mock('@supabase/supabase-js', () => {
   return {
@@ -32,6 +55,11 @@ vi.mock('@supabase/supabase-js', () => {
         single: vi.fn(async () => mockSelectResult),
         update: vi.fn().mockReturnThis(),
       })),
+      auth: {
+        admin: {
+          getUserById: vi.fn(async () => mockGetUserResult),
+        },
+      },
     })),
   };
 });
@@ -50,16 +78,26 @@ async function getHandler() {
   return mod.handler;
 }
 
+async function getEmailMock() {
+  const mod = await import('../_lib/sendTraderAcceptEmail.js');
+  return mod.sendTraderAcceptEmail;
+}
+
 beforeEach(() => {
   process.env.VITE_SUPABASE_URL = FAKE_URL;
   process.env.SUPABASE_SERVICE_ROLE_KEY = FAKE_SERVICE_KEY;
+  process.env.RESEND_API_KEY = 'test-resend-key';
   mockSelectResult = null;
+  mockGetUserResult = { data: { user: { email: 'trader@example.com' } }, error: null };
+  mockProfileResult = { data: { business_name: 'Ace Plumbing' }, error: null };
+  mockEmailResult = { ok: true, id: 'resend-fake-id' };
   vi.clearAllMocks();
 });
 
 afterEach(() => {
   delete process.env.VITE_SUPABASE_URL;
   delete process.env.SUPABASE_SERVICE_ROLE_KEY;
+  delete process.env.RESEND_API_KEY;
   vi.resetModules();
 });
 
@@ -365,15 +403,29 @@ describe('F. acceptedSource field in written meta', () => {
 
 function makeMockClient(writtenMetaRef) {
   return {
-    from: vi.fn(() => ({
-      select: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockReturnThis(),
-      single: vi.fn(async () => mockSelectResult),
-      update: vi.fn((payload) => {
-        if (writtenMetaRef) writtenMetaRef.value = payload?.meta;
-        return { eq: vi.fn(async () => ({ error: null })) };
-      }),
-    })),
+    from: vi.fn((table) => {
+      if (table === 'profiles') {
+        return {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          maybeSingle: vi.fn(async () => ({ data: null, error: null })),
+        };
+      }
+      return {
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        single: vi.fn(async () => mockSelectResult),
+        update: vi.fn((payload) => {
+          if (writtenMetaRef) writtenMetaRef.value = payload?.meta;
+          return { eq: vi.fn(async () => ({ error: null })) };
+        }),
+      };
+    }),
+    auth: {
+      admin: {
+        getUserById: vi.fn(async () => ({ data: { user: null }, error: null })),
+      },
+    },
   };
 }
 
@@ -499,5 +551,243 @@ describe('G. Status promotion on acceptance', () => {
       expect(ref.value.consentGiven).toBe(true);
       expect(ref.value.consentAt).toBeDefined();
     }
+  });
+});
+
+// ─── H. Push notification fired on successful acceptance ──────────────────────
+
+describe('H. Push notification on acceptance', () => {
+  it('calls sendPushToUser with correct title and body after a new acceptance', async () => {
+    const jobRow = {
+      id: 'job-push-test',
+      user_id: 'trader-uuid-abc',
+      customer_name: 'Gemma Thornton',
+      meta: {},
+    };
+    mockSelectResult = { data: jobRow, error: null };
+    mockSendPush.mockResolvedValueOnce({ sent: 1, failed: 0 });
+
+    const { createClient } = await import('@supabase/supabase-js');
+    createClient.mockImplementationOnce(() => ({
+      from: vi.fn(() => ({
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        single: vi.fn(async () => mockSelectResult),
+        update: vi.fn(() => ({ eq: vi.fn(async () => ({ error: null })) })),
+        maybeSingle: vi.fn(async () => mockProfileResult),
+      })),
+      auth: { admin: { getUserById: vi.fn(async () => mockGetUserResult) } },
+    }));
+
+    const handler = await getHandler();
+    const res = await handler(makeEvent({
+      token: VALID_TOKEN,
+      acceptedName: 'Gemma Thornton',
+      consentGiven: true,
+    }));
+
+    expect(res.statusCode).toBe(200);
+    // Allow the fire-and-forget push a tick to resolve
+    await new Promise((r) => setTimeout(r, 10));
+
+    expect(mockSendPush).toHaveBeenCalledTimes(1);
+    const [calledUserId, calledPayload] = mockSendPush.mock.calls[0];
+    expect(calledUserId).toBe('trader-uuid-abc');
+    expect(calledPayload.title).toBe('Quote accepted');
+    expect(calledPayload.body).toContain('Gemma Thornton');
+    expect(calledPayload.tag).toMatch(/^quote-accepted-/);
+  });
+
+  it('still returns 200 even when sendPushToUser rejects (push is fire-and-forget)', async () => {
+    const jobRow = {
+      id: 'job-push-fail',
+      user_id: 'trader-uuid-xyz',
+      customer_name: null,
+      meta: {},
+    };
+    mockSelectResult = { data: jobRow, error: null };
+    mockSendPush.mockRejectedValueOnce(new Error('VAPID misconfigured'));
+
+    const { createClient } = await import('@supabase/supabase-js');
+    createClient.mockImplementationOnce(() => ({
+      from: vi.fn(() => ({
+        select: vi.fn().mockReturnThis(),
+        eq: vi.fn().mockReturnThis(),
+        single: vi.fn(async () => mockSelectResult),
+        update: vi.fn(() => ({ eq: vi.fn(async () => ({ error: null })) })),
+        maybeSingle: vi.fn(async () => mockProfileResult),
+      })),
+      auth: { admin: { getUserById: vi.fn(async () => mockGetUserResult) } },
+    }));
+
+    const handler = await getHandler();
+    const res = await handler(makeEvent({
+      token: VALID_TOKEN,
+      consentGiven: true,
+    }));
+
+    expect(res.statusCode).toBe(200);
+  });
+
+  it('does NOT call sendPushToUser on an already-accepted (idempotent) submission', async () => {
+    mockSelectResult = {
+      data: {
+        id: 'job-already-done',
+        user_id: 'trader-uuid-idem',
+        customer_name: 'Bob',
+        meta: {
+          quoteStatus: 'accepted',
+          acceptedAt: '2026-05-30T10:00:00Z',
+          acceptedSource: 'remote',
+        },
+      },
+      error: null,
+    };
+
+    const handler = await getHandler();
+    const res = await handler(makeEvent({
+      token: VALID_TOKEN,
+      consentGiven: true,
+    }));
+
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(res.body).alreadyAccepted).toBe(true);
+    expect(mockSendPush).not.toHaveBeenCalled();
+  });
+});
+
+// ─── I. Email notification — fire-and-forget to trader ───────────────────────
+
+describe('I. Email notification on acceptance', () => {
+  /** Builds a createClient mock for a fully successful accept flow with email support */
+  function makeEmailClient({ selectResult } = {}) {
+    const resolved = selectResult ?? mockSelectResult;
+    return {
+      from: vi.fn((table) => {
+        if (table === 'profiles') {
+          return {
+            select: vi.fn().mockReturnThis(),
+            eq: vi.fn().mockReturnThis(),
+            maybeSingle: vi.fn(async () => mockProfileResult),
+          };
+        }
+        return {
+          select: vi.fn().mockReturnThis(),
+          eq: vi.fn().mockReturnThis(),
+          single: vi.fn(async () => resolved),
+          update: vi.fn(() => ({ eq: vi.fn(async () => ({ error: null })) })),
+        };
+      }),
+      auth: {
+        admin: {
+          getUserById: vi.fn(async () => mockGetUserResult),
+        },
+      },
+    };
+  }
+
+  it('calls sendTraderAcceptEmail on a successful first accept', async () => {
+    const selectResult = {
+      data: { id: 'job-email-1', user_id: 'trader-uid', customer_name: 'Dave Customer', meta: {} },
+      error: null,
+    };
+    const { createClient } = await import('@supabase/supabase-js');
+    createClient.mockImplementationOnce(() => makeEmailClient({ selectResult }));
+
+    const handler = await getHandler();
+    const res = await handler(makeEvent({
+      token: VALID_TOKEN,
+      acceptedName: 'Dave Customer',
+      consentGiven: true,
+    }));
+
+    expect(res.statusCode).toBe(200);
+    // Allow async fire-and-forget to settle
+    await new Promise((r) => setTimeout(r, 10));
+
+    const emailFn = await getEmailMock();
+    expect(emailFn).toHaveBeenCalledOnce();
+    const callArg = emailFn.mock.calls[0][0];
+    expect(callArg.traderEmail).toBe('trader@example.com');
+    expect(callArg.traderBusinessName).toBe('Ace Plumbing');
+    expect(callArg.customerName).toBe('Dave Customer');
+  });
+
+  it('returns 200 even when sendTraderAcceptEmail returns { ok: false }', async () => {
+    mockEmailResult = { ok: false, reason: 'resend_error', status: 422 };
+    const selectResult = {
+      data: { id: 'job-email-2', user_id: 'trader-uid', customer_name: null, meta: {} },
+      error: null,
+    };
+    const { createClient } = await import('@supabase/supabase-js');
+    createClient.mockImplementationOnce(() => makeEmailClient({ selectResult }));
+
+    const handler = await getHandler();
+    const res = await handler(makeEvent({ token: VALID_TOKEN, consentGiven: true }));
+
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(body.acceptedAt).toBeDefined();
+  });
+
+  it('returns 200 even when sendTraderAcceptEmail throws', async () => {
+    const selectResult = {
+      data: { id: 'job-email-3', user_id: 'trader-uid', customer_name: null, meta: {} },
+      error: null,
+    };
+    const { createClient } = await import('@supabase/supabase-js');
+    createClient.mockImplementationOnce(() => makeEmailClient({ selectResult }));
+
+    // Override the email mock to throw after module is loaded
+    const emailMod = await import('../_lib/sendTraderAcceptEmail.js');
+    emailMod.sendTraderAcceptEmail.mockRejectedValueOnce(new Error('Network timeout'));
+
+    const handler = await getHandler();
+    const res = await handler(makeEvent({ token: VALID_TOKEN, consentGiven: true }));
+
+    expect(res.statusCode).toBe(200);
+  });
+
+  it('does not call sendTraderAcceptEmail when trader email cannot be resolved', async () => {
+    mockGetUserResult = { data: { user: null }, error: null };
+    const selectResult = {
+      data: { id: 'job-email-4', user_id: 'trader-uid', customer_name: null, meta: {} },
+      error: null,
+    };
+    const { createClient } = await import('@supabase/supabase-js');
+    createClient.mockImplementationOnce(() => makeEmailClient({ selectResult }));
+
+    const handler = await getHandler();
+    const res = await handler(makeEvent({ token: VALID_TOKEN, consentGiven: true }));
+
+    expect(res.statusCode).toBe(200);
+    await new Promise((r) => setTimeout(r, 10));
+
+    const emailFn = await getEmailMock();
+    expect(emailFn).not.toHaveBeenCalled();
+  });
+
+  it('does not call sendTraderAcceptEmail on idempotent re-submission', async () => {
+    mockSelectResult = {
+      data: {
+        id: 'job-email-5',
+        user_id: 'trader-uid',
+        customer_name: null,
+        meta: {
+          quoteStatus: 'accepted',
+          acceptedAt: '2026-05-01T10:00:00.000Z',
+          acceptedSource: 'remote',
+        },
+      },
+      error: null,
+    };
+    const handler = await getHandler();
+    const res = await handler(makeEvent({ token: VALID_TOKEN, consentGiven: true }));
+
+    expect(res.statusCode).toBe(200);
+    await new Promise((r) => setTimeout(r, 10));
+
+    const emailFn = await getEmailMock();
+    expect(emailFn).not.toHaveBeenCalled();
   });
 });
