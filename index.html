@@ -38,6 +38,11 @@
       <link rel="preconnect" href="https://fonts.googleapis.com">
       <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
       <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap">
+      <!-- Preload DM Sans latin woff2 (weights 700+800 share the same file).
+           Prevents FOUT on the "OHNAR" splash wordmark — font is available
+           before React mounts and the animated wordmark fades in. -->
+      <link rel="preload" as="font" type="font/woff2" crossorigin
+        href="https://fonts.gstatic.com/s/dmsans/v17/rP2Yp2ywxg089UriI5-g4vlH9VoD8Cmcqbu0-K6z9mXg.woff2">
     </head>
     <body>
       <!-- No-flash theme init: reads jp.theme from localStorage and sets
@@ -68,7 +73,7 @@
            it loads in the first TCP packet; full styles are in index.css.
            Background matches manifest background_color (#0B1320) and
            theme-color meta so the OS launch animation is seamless. -->
-      <div id="root"><div id="splash-static" style="position:fixed;inset:0;background:#0B1320;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;z-index:9999"><svg viewBox="0 0 100 100" width="80" height="80" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style="display:block;flex-shrink:0"><defs><linearGradient id="ssg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#3B82F6"/><stop offset="100%" stop-color="#1D4ED8"/></linearGradient></defs><circle cx="50" cy="50" r="40" stroke="rgba(255,255,255,0.08)" stroke-width="7"/><circle cx="50" cy="50" r="40" stroke="url(#ssg)" stroke-width="7" stroke-linecap="round" transform="rotate(-90 50 50)" style="stroke-dasharray:251.3;stroke-dashoffset:0" class="splash-static-arc"/></svg><span style="font-family:'DM Sans',sans-serif;font-size:28px;font-weight:800;letter-spacing:-0.5px;color:#ffffff" class="splash-static-wordmark">OHNAR</span></div></div>
+      <div id="root"><div id="splash-static" style="position:fixed;inset:0;background:#0B1320;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;z-index:9999"><svg viewBox="0 0 100 100" width="80" height="80" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" style="display:block;flex-shrink:0"><defs><linearGradient id="ssg" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#60A5FA"/><stop offset="100%" stop-color="#2563EB"/></linearGradient></defs><circle cx="50" cy="50" r="40" stroke="rgba(255,255,255,0.08)" stroke-width="7"/><circle cx="50" cy="50" r="40" stroke="url(#ssg)" stroke-width="7" stroke-linecap="round" transform="rotate(-90 50 50)" style="stroke-dasharray:251.3;stroke-dashoffset:0" class="splash-static-arc"/></svg><span style="font-family:'DM Sans',sans-serif;font-size:28px;font-weight:800;letter-spacing:-0.5px;color:#ffffff" class="splash-static-wordmark">OHNAR</span></div></div>
       <script type="module" src="/src/main.jsx"></script>
     </body>
 </html>
