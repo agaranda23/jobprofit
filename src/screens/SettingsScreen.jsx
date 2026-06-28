@@ -3121,8 +3121,26 @@ export default function SettingsScreen({
           <FaqItem question="How do I send an invoice?">
             <p>Log a job, set the amount, then tap the job to open it and hit "Send invoice". Your customer gets a link they can open in any browser — no app needed. They can also pay by card if you&rsquo;ve connected Stripe in Settings &rarr; Card payments.</p>
           </FaqItem>
+          <FaqItem question="How do I bring my existing jobs into OHNAR?">
+            <p>Go to Settings &rarr; Data &amp; Privacy &rarr; Import jobs. Pick a CSV or Excel file from your phone and OHNAR will match the columns and import your jobs in one go — no re-entering by hand.</p>
+          </FaqItem>
+          <FaqItem question="Can I put only my own branding on quotes and invoices?">
+            <p>Yes — that&rsquo;s the white-label perk on Pro. On the free tier, documents carry a small &ldquo;Sent with OHNAR&rdquo; footer. Upgrade to Pro for £12/mo and the footer is removed so your customers only see your business name and logo.</p>
+          </FaqItem>
+          <FaqItem question="Can I see my real profit after costs?">
+            <p>Yes, on Pro. The Money tab shows your True Profit — income minus job costs and monthly bills (van, insurance, phone, etc.). You add your monthly bills once in Settings &rarr; Costs; after that every paid job updates the number automatically. Available on Pro for £12/mo.</p>
+          </FaqItem>
+          <FaqItem question="How much should I set aside for tax?">
+            <p>The Tax Pot on the Money tab does this for you — it rings off a percentage of your monthly profit (20% by default, adjustable in Settings &rarr; Invoices &amp; Quotes &rarr; Tax set-aside %). Pro feature, included at £12/mo.</p>
+          </FaqItem>
+          <FaqItem question="Can customers pay me by card?">
+            <p>Yes. Go to Settings &rarr; Card payments to connect Stripe. Once connected, every invoice includes a card payment button — customers tap and pay without you chasing bank transfers. Stripe&rsquo;s standard processing fee applies; OHNAR doesn&rsquo;t add anything on top.</p>
+          </FaqItem>
+          <FaqItem question="Does OHNAR help me chase late payers?">
+            <p>Yes. When a job goes overdue, OHNAR shows a chase prompt. Tap it and a tiered WhatsApp message opens — pre-written for the number of days overdue — ready for you to review and send. The message gets firmer as the debt ages (light nudge at 1–6 days, firm at 7–13 days, final at 14+ days). Nothing is sent automatically; you stay in control of every message.</p>
+          </FaqItem>
           <FaqItem question="How does the free trial work? What happens after 14 days?">
-            <p>You get 14 days of Pro free — no card required to start. After that, you drop to the free tier: the full Get Paid loop (quotes, invoices, receipts) stays unlimited forever, and your documents carry a &ldquo;Sent with OHNAR&rdquo; footer. Upgrade to Pro for £12/mo at any time from Settings &rarr; Subscription to remove the footer, unlock the Insight Layer, and get the automatic chase ladder.</p>
+            <p>You get 14 days of Pro free — no card required to start. After that, you drop to the free tier: the full Get Paid loop (quotes, invoices, receipts) stays unlimited forever, and your documents carry a &ldquo;Sent with OHNAR&rdquo; footer. Upgrade to Pro for £12/mo at any time from Settings &rarr; Subscription to remove the footer and unlock the Insight Layer.</p>
           </FaqItem>
           <FaqItem question="How do I cancel or change my plan?">
             <p>Go to Settings &rarr; Subscription &rarr; Manage billing. That opens the Stripe billing portal where you can cancel or update your card. Cancellation takes effect at the end of your current billing period — no pro-rata charge.</p>
@@ -3134,7 +3152,7 @@ export default function SettingsScreen({
             <p>Send them the quote link. They open it in their browser, review the breakdown, sign with their finger, tick the T&amp;Cs checkbox, and tap Confirm. If you&rsquo;ve set a deposit, they can pay it via Stripe right there. You get a push notification the moment they accept.</p>
           </FaqItem>
           <FaqItem question="How do I import, export, or delete my data?">
-            <p>Settings &rarr; Data &amp; privacy &rarr; Import jobs lets you bring existing jobs across from a CSV or Excel spreadsheet. Export everything downloads all your jobs as a spreadsheet (CSV) or a PDF summary. Delete account wipes everything immediately — no email to support, no waiting.</p>
+            <p>Settings &rarr; Data &amp; Privacy &rarr; Import jobs lets you bring existing jobs across from a CSV or Excel spreadsheet. Export everything downloads all your jobs as a spreadsheet (CSV) or a PDF summary. Delete account wipes everything immediately — no email to support, no waiting.</p>
           </FaqItem>
         </SectionCard>
 

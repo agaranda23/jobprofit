@@ -11,6 +11,42 @@
 
 export const WHATS_NEW = [
   {
+    date: '2026-06-25',
+    title: 'OHNAR — new name, same app',
+    emoji: '🔵',
+    blurb: 'We\'ve renamed to OHNAR. Everything works the same — your jobs, invoices, and data are all still here.',
+  },
+  {
+    date: '2026-06-20',
+    title: 'Swipe between tabs',
+    emoji: '👆',
+    blurb: 'Swipe left and right to move between Jobs, Money, and Settings — no need to tap the bottom bar.',
+  },
+  {
+    date: '2026-06-15',
+    title: 'Six-stage job tracker',
+    emoji: '📋',
+    blurb: 'Jobs now move through six clear stages — Lead, Quoted, On, Invoiced, Overdue, Paid — so you always know exactly where each job stands.',
+  },
+  {
+    date: '2026-06-10',
+    title: 'True profit & Tax Pot',
+    emoji: '💷',
+    blurb: 'The Money tab now shows your real profit after job costs and monthly bills, plus a Tax Pot that tells you how much to set aside — Pro feature.',
+  },
+  {
+    date: '2026-06-05',
+    title: 'Import your existing jobs',
+    emoji: '📥',
+    blurb: 'Bring your jobs across from a CSV or Excel spreadsheet in Settings → Data & Privacy → Import jobs — no re-entering by hand.',
+  },
+  {
+    date: '2026-06-02',
+    title: 'Paid celebration',
+    emoji: '🎉',
+    blurb: 'Mark a job paid and get a satisfying buzz — a small reminder that the work was worth it.',
+  },
+  {
     date: '2026-05-30',
     title: 'Photo gallery picker',
     emoji: '📷',
