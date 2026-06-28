@@ -20709,6 +20709,7 @@ button.jd-money-chip:active { opacity: 0.75; }
   .paid-celebration {
     background: rgba(11, 19, 32, 0.55);
   }
+}
 
 /* ── feat/premium-money-countup — count-up tabular-nums guard ───────────────
    The hero figures already have font-variant-numeric: tabular-nums from their
