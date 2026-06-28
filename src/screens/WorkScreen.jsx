@@ -420,12 +420,20 @@ function StageChipDropdown({ job, currentStage, onUpdateJob, _onSendInvoice, onS
 
       {/* Wrapper holds the read-only label + ⋯ trigger; gives the dropdown its anchor */}
       <div ref={chipRef} className="jt-chip-wrapper">
-        {/* Read-only stage label — coloured pill, no interaction */}
+        {/* Read-only stage name — plain low-emphasis text, no coloured pill.
+            WorkflowCircles circles carry the stage colour; the label just names it.
+            Invoiced and Overdue get a shape glyph so colour-blind users and
+            people in bright sun can tell them apart without relying on hue alone. */}
         <span
-          className={`jt-stage-label jt-stage-label--${currentStage.toLowerCase()}`}
-          style={{ '--chip-hue': meta.hue, '--chip-fill': meta.fill, '--chip-ink': ink }}
+          className={`jt-stage-name jt-stage-name--${currentStage.toLowerCase()}`}
           aria-label={`Stage: ${currentStage}`}
         >
+          {currentStage === 'Invoiced' && (
+            <Icon name="receipt" size={11} variant="inherit" aria-hidden="true" />
+          )}
+          {currentStage === 'Overdue' && (
+            <Icon name="warning" size={11} variant="inherit" aria-hidden="true" />
+          )}
           {currentStage}
         </span>
 
