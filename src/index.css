@@ -19911,12 +19911,12 @@ button.jd-money-chip:active { opacity: 0.75; }
 .splash__lockup {
   position: relative;
   display: flex;
-  flex-direction: column;
+  flex-direction: row;            /* [ring]HNAR — ring is the O, matches the logo */
   align-items: center;
-  gap: 16px;
+  gap: 4px;
   overflow: hidden;
   border-radius: 16px;
-  padding: 8px 16px 4px;
+  padding: 8px 14px;
 }
 
 /* Paid-echo sheen: ::after pseudo-element sweeps a Success-Green bloom
@@ -19973,9 +19973,10 @@ button.jd-money-chip:active { opacity: 0.75; }
 /* Wordmark — DM Sans live text, fades + rises after ring */
 .splash__wordmark {
   font-family: 'DM Sans', sans-serif;
-  font-size: 28px;
+  font-size: 44px;
   font-weight: 800;
-  letter-spacing: -0.5px;
+  letter-spacing: -1px;
+  line-height: 1;
   color: #ffffff;
   opacity: 1;
 }

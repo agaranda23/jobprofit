@@ -5,9 +5,12 @@
  *   1. AppShell auth-gate (replaces the bare spinner while session resolves).
  *   2. main.jsx Suspense fallback for public quote/invoice/receipt routes.
  *
- * Visual: Deep Navy (#0B1320) full viewport, OHNAR O-ring SVG centred,
- * animating from stroke-dashoffset 251.3→0 over ~700ms, then "OHNAR"
- * wordmark fades + rises 8px after ~850ms.
+ * Visual: Deep Navy (#0B1320) full viewport. The OHNAR lockup is the O-ring
+ * (which IS the brand "O") followed by the "HNAR" wordmark — together reading
+ * "OHNAR" — laid out HORIZONTALLY to match the real logo (ohnar-logo.png).
+ * The ring draws from stroke-dashoffset 251.3→0 over ~700ms, then "HNAR"
+ * fades + rises 8px after ~850ms. (Earlier this rendered the full word
+ * "OHNAR" beside the ring, which showed the O twice — fixed.)
  *
  * Premium motion sequence (all gated behind prefers-reduced-motion: no-preference):
  *   0.05s  — ring begins drawing (dashoffset 251.3→0, cubic-bezier(.4,0,.2,1))
@@ -38,8 +41,8 @@ export default function Splash() {
         <svg
           className="splash__ring"
           viewBox="0 0 100 100"
-          width="80"
-          height="80"
+          width="44"
+          height="44"
           aria-hidden="true"
           fill="none"
           xmlns="http://www.w3.org/2000/svg"
@@ -58,7 +61,7 @@ export default function Splash() {
             cy="50"
             r="40"
             stroke="rgba(255,255,255,0.08)"
-            strokeWidth="7"
+            strokeWidth="11"
           />
           {/* Animated draw-on ring */}
           <circle
@@ -67,16 +70,18 @@ export default function Splash() {
             cy="50"
             r="40"
             stroke="url(#splash-ring-grad)"
-            strokeWidth="7"
+            strokeWidth="11"
             strokeLinecap="round"
             transform="rotate(-90 50 50)"
           />
         </svg>
 
-        {/* Wordmark — live DM Sans text, fades + rises after the ring settles.
+        {/* Wordmark — "HNAR" (the ring above is the O), live DM Sans text,
+            fades + rises after the ring settles. The lockup carries aria-label
+            "OHNAR" so screen readers announce the full brand, not "HNAR".
             Pixel-identical position and size to #splash-static in index.html. */}
-        <span className="splash__wordmark" aria-label="OHNAR">
-          OHNAR
+        <span className="splash__wordmark" aria-hidden="true">
+          HNAR
         </span>
       </div>
     </div>
