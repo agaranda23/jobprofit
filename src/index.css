@@ -558,6 +558,56 @@ button:focus-visible {
   color: var(--text);
 }
 
+/* 11a. RecordPaymentModal profit-reveal box — dark fills visible as black boxes in light mode */
+[data-theme="light"] .rpm-profit-reveal--healthy {
+  background: #dcfce7; /* pale green tint */
+}
+[data-theme="light"] .rpm-profit-reveal--healthy .rpm-profit-reveal-headline {
+  color: #15803d; /* green-700, WCAG-AA on pale green */
+}
+[data-theme="light"] .rpm-profit-reveal--healthy .rpm-profit-reveal-sub {
+  color: #166534; /* green-800 */
+}
+[data-theme="light"] .rpm-profit-reveal--thin {
+  background: #fef9c3; /* pale amber tint */
+}
+[data-theme="light"] .rpm-profit-reveal--thin .rpm-profit-reveal-headline {
+  color: #92400e; /* amber-800, WCAG-AA on pale amber */
+}
+[data-theme="light"] .rpm-profit-reveal--thin .rpm-profit-reveal-sub {
+  color: #78350f; /* amber-900 */
+}
+[data-theme="light"] .rpm-profit-reveal--underwater {
+  background: #fee2e2; /* pale rose tint */
+}
+[data-theme="light"] .rpm-profit-reveal--underwater .rpm-profit-reveal-headline {
+  color: #991b1b; /* red-800, WCAG-AA on pale rose */
+}
+[data-theme="light"] .rpm-profit-reveal--underwater .rpm-profit-reveal-sub {
+  color: #7f1d1d; /* red-900 */
+  opacity: 1; /* remove opacity reduction — dark text on light bg needs no fade */
+}
+
+/* 11b. jd-csr--attention — #1a1700 near-black bg visible as dark box in light mode */
+[data-theme="light"] .jd-csr--attention {
+  background: #fffbeb; /* amber-50 pale tint */
+  border-left-color: #d97706; /* amber-600, slightly darker for light bg contrast */
+}
+
+/* 11c. jd-profit-ribbon — #0F1B2D dark-navy bg visible as black bar in light mode */
+[data-theme="light"] .jd-profit-ribbon {
+  background: #1e3a5f; /* navy-800, dark enough for white text to stay WCAG-AA */
+}
+[data-theme="light"] .jd-profit-ribbon--healthy {
+  background: #1e3a5f;
+}
+[data-theme="light"] .jd-profit-ribbon--thin {
+  background: #78350f; /* amber-900 — distinct from healthy, legible with cream text */
+}
+[data-theme="light"] .jd-profit-ribbon--underwater {
+  background: #7f1d1d; /* red-900 — legible with rose text */
+}
+
 /* 12. Quote builder dark surfaces — #131C2D / #1F2B44 hardcoded dark navy */
 [data-theme="light"] .aj-quote-line-items {
   background: var(--surface-2);
