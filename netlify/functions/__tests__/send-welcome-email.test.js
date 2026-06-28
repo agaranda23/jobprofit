@@ -418,10 +418,10 @@ describe('I. buildEmailHtml and buildEmailText shape', () => {
     expect(html).toContain('OHNAR tells you what you made');
   });
 
-  it('buildEmailHtml contains the CTA linking to jobprofit.co.uk', async () => {
+  it('buildEmailHtml contains the CTA linking to ohnar.co.uk', async () => {
     const { buildEmailHtml } = await import('../send-welcome-email.js');
     const html = buildEmailHtml(null);
-    expect(html).toContain('jobprofit.co.uk');
+    expect(html).toContain('ohnar.co.uk');
   });
 
   it('buildEmailHtml contains on-brand green colour', async () => {
@@ -440,7 +440,7 @@ describe('I. buildEmailHtml and buildEmailText shape', () => {
   it('buildEmailText contains the app URL', async () => {
     const { buildEmailText } = await import('../send-welcome-email.js');
     const text = buildEmailText(null);
-    expect(text).toContain('jobprofit.co.uk');
+    expect(text).toContain('ohnar.co.uk');
   });
 
   it('buildEmailText contains the Founding Member offer', async () => {

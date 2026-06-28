@@ -21,8 +21,12 @@ import {
 // ── A. buildReferralLink ──────────────────────────────────────────────────────
 
 describe('A. buildReferralLink', () => {
-  it('uses jobprofit.co.uk as the base domain', () => {
-    expect(buildReferralLink('ABC123')).toMatch(/^https:\/\/jobprofit\.co\.uk\//);
+  it('uses ohnar.co.uk as fallback in Node env (domain-agnostic in browser)', () => {
+    // In Node/test env window is undefined so buildReferralLink falls back to
+    // 'https://ohnar.co.uk'. In the browser it uses window.location.origin.
+    const link = buildReferralLink('ABC123');
+    expect(link).toContain('ohnar.co.uk');
+    expect(link).toContain('?ref=ABC123');
   });
 
   it('includes the ?ref= parameter', () => {
@@ -174,7 +178,7 @@ describe('D. copyReferralLink', () => {
 
     expect(shareMock).toHaveBeenCalledOnce();
     const arg = shareMock.mock.calls[0][0];
-    expect(arg.url).toContain('jobprofit.co.uk');
+    expect(arg.url).toContain('ohnar.co.uk'); // fallback in Node env; window.location.hostname in browser
     expect(arg.url).toContain('ref=ABC123');
   });
 

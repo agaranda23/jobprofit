@@ -28,7 +28,7 @@ export function generatePublicAccessToken() {
  *
  * @param {string} token - The job's publicAccessToken (UUID).
  * @param {string} [origin] - Override the origin (defaults to window.location.origin). Used in tests.
- * @returns {string} The full URL the customer taps (e.g. https://app.jobprofit.co.uk/q/<token>).
+ * @returns {string} The full URL the customer taps (e.g. https://app.ohnar.co.uk/q/<token>).
  */
 export function buildPublicQuoteUrl(token, origin) {
   const base = origin ?? (typeof window !== 'undefined' ? window.location.origin : '');

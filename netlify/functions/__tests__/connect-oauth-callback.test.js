@@ -27,7 +27,7 @@ const FAKE_CLIENT_ID  = 'ca_test_fake123';
 const FAKE_STRIPE_SK  = 'sk_test_fake';
 const FAKE_USER_ID    = 'user-uuid-abc';
 const FAKE_STRIPE_UID = 'acct_testfake456';
-const FAKE_APP_URL    = 'https://app.jobprofit.co.uk';
+const FAKE_APP_URL    = 'https://app.ohnar.co.uk';
 
 // ── Build a valid state token (mirrors connect-oauth-start.js buildStateToken) ─
 

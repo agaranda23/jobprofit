@@ -3,7 +3,7 @@
  *
  * Creates a Stripe Checkout Session on the trader's connected Stripe account
  * (Standard Connect — decision #2, locked 2026-05-31) and returns a short
- * Pay-now URL: https://app.jobprofit.co.uk/p/<token>
+ * Pay-now URL: https://app.ohnar.co.uk/p/<token>
  *
  * POST body: { invoiceId }   — the job UUID (jobs table doubles as invoices)
  *
@@ -194,7 +194,7 @@ export const handler = async function (event) {
       .single();
 
     if (existing?.token) {
-      const appBase = (process.env.APP_URL || '').replace(/\/$/, '') || 'https://app.jobprofit.co.uk';
+      const appBase = (process.env.APP_URL || '').replace(/\/$/, '') || 'https://app.ohnar.co.uk';
       return json(200, {
         token: existing.token,
         payUrl: `${appBase}/p/${existing.token}`,
@@ -225,7 +225,7 @@ export const handler = async function (event) {
     [profile.first_name, profile.last_name].filter(Boolean).join(' ') ||
     'Your trader';
 
-  const appBase = (process.env.APP_URL || '').replace(/\/$/, '') || 'https://app.jobprofit.co.uk';
+  const appBase = (process.env.APP_URL || '').replace(/\/$/, '') || 'https://app.ohnar.co.uk';
   const successUrl = `${appBase}/p/success?ref=${invoiceNumber}`;
   const cancelUrl  = `${appBase}/p/cancelled?ref=${invoiceNumber}`;
 

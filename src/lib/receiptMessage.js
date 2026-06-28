@@ -66,7 +66,7 @@ export function formatReceiptDate(raw) {
  * Example output (with hostedReceiptUrl):
  *   Hi Sarah,
  *
- *   View your receipt: https://app.jobprofit.co.uk/r/<token>
+ *   View your receipt: https://app.ohnar.co.uk/r/<token>
  *
  *   Here's your receipt for: Replace kitchen taps
  *   Amount paid: £380.00

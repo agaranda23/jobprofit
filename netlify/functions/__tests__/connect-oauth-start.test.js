@@ -36,7 +36,7 @@ vi.mock('@supabase/supabase-js', () => ({
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function makeEvent({ token = 'Bearer tok', origin = 'https://jobprofit.co.uk' } = {}) {
+function makeEvent({ token = 'Bearer tok', origin = 'https://ohnar.co.uk' } = {}) {
   return {
     httpMethod: 'POST',
     body: '{}',

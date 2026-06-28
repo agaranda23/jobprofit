@@ -1061,7 +1061,7 @@ describe('white-label footer — hidePoweredBy flag', () => {
     expect(drawnTexts.some(t => String(t).includes('Sent with OHNAR'))).toBe(false);
   });
 
-  it('PDF footer includes jobprofit.co.uk URL for free traders', async () => {
+  it('PDF footer includes ohnar.co.uk URL for free traders', async () => {
     await generateInvoicePDF({
       job: baseJob({ total: 300 }),
       biz: baseBiz(),
@@ -1069,10 +1069,10 @@ describe('white-label footer — hidePoweredBy flag', () => {
       dueDate: '2026-07-31',
       hidePoweredBy: false,
     });
-    expect(drawnTexts.some(t => String(t).includes('jobprofit.co.uk'))).toBe(true);
+    expect(drawnTexts.some(t => String(t).includes('ohnar.co.uk'))).toBe(true);
   });
 
-  it('PDF footer does NOT include jobprofit.co.uk URL for Pro traders', async () => {
+  it('PDF footer does NOT include ohnar.co.uk URL for Pro traders', async () => {
     await generateInvoicePDF({
       job: baseJob({ total: 300 }),
       biz: baseBiz(),
@@ -1080,7 +1080,7 @@ describe('white-label footer — hidePoweredBy flag', () => {
       dueDate: '2026-07-31',
       hidePoweredBy: true,
     });
-    expect(drawnTexts.some(t => String(t).includes('jobprofit.co.uk'))).toBe(false);
+    expect(drawnTexts.some(t => String(t).includes('ohnar.co.uk'))).toBe(false);
   });
 });
 
