@@ -4,6 +4,7 @@ import './index.css'
 import posthog from 'posthog-js';
 import AppShell from './AppShell.jsx';
 import Splash from './components/Splash.jsx';
+import ErrorBoundary from './components/ErrorBoundary.jsx';
 import { activateThemeController } from './lib/theme.js';
 import { getConsent } from './lib/consent.js';
 
@@ -158,23 +159,25 @@ const SUSPENSE_FALLBACK = <Splash />;
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
-    {publicInvoiceToken ? (
-      // Hosted invoice page — no auth gate, no AppShell, code-split
-      <Suspense fallback={SUSPENSE_FALLBACK}>
-        <PublicInvoiceView token={publicInvoiceToken} />
-      </Suspense>
-    ) : publicReceiptToken ? (
-      // Hosted receipt page — no auth gate, no AppShell, code-split
-      <Suspense fallback={SUSPENSE_FALLBACK}>
-        <PublicReceiptView token={publicReceiptToken} />
-      </Suspense>
-    ) : publicQuoteToken ? (
-      // Public quote view — no auth gate, no AppShell, code-split
-      <Suspense fallback={SUSPENSE_FALLBACK}>
-        <PublicQuoteView token={publicQuoteToken} />
-      </Suspense>
-    ) : (
-      <AppShell />
-    )}
+    <ErrorBoundary>
+      {publicInvoiceToken ? (
+        // Hosted invoice page — no auth gate, no AppShell, code-split
+        <Suspense fallback={SUSPENSE_FALLBACK}>
+          <PublicInvoiceView token={publicInvoiceToken} />
+        </Suspense>
+      ) : publicReceiptToken ? (
+        // Hosted receipt page — no auth gate, no AppShell, code-split
+        <Suspense fallback={SUSPENSE_FALLBACK}>
+          <PublicReceiptView token={publicReceiptToken} />
+        </Suspense>
+      ) : publicQuoteToken ? (
+        // Public quote view — no auth gate, no AppShell, code-split
+        <Suspense fallback={SUSPENSE_FALLBACK}>
+          <PublicQuoteView token={publicQuoteToken} />
+        </Suspense>
+      ) : (
+        <AppShell />
+      )}
+    </ErrorBoundary>
   </StrictMode>,
 )
