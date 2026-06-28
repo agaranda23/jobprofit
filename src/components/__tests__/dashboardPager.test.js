@@ -260,4 +260,28 @@ describe('useDashboardPager', () => {
     // We just assert the transform was set (pre-settle).
     expect(track.style.transform).toContain('-200%');
   });
+
+  it('jumpTo does not fight an in-flight swipe animation (pager-flash fix)', () => {
+    // Reproduce the race: a swipe from page 0→1 queues a rAF animation and then
+    // calls onPageChange(1). The React re-render calls jumpTo(1) via useLayoutEffect
+    // while the animation is still running. jumpTo must bail and not re-apply left.
+    const hook = setupHook({ pageIndex: 0 });
+    const { jumpTo } = hook.result.current;
+
+    // Perform a full left swipe (0→1)
+    swipe(hook, { startX: 300, startY: 200, endX: 100, endY: 200 });
+
+    // At this point the swipe animation is in flight (animatingToIdx===1).
+    // Simulate the React re-render calling jumpTo(1) — must be a no-op:
+    // track.style.left must NOT be overwritten by jumpTo while animation runs.
+    const leftBefore = track.style.left;
+
+    act(() => {
+      jumpTo(1);
+    });
+
+    // jumpTo(1) should have bailed — left is still '' (cleared by the animation)
+    // and not re-set to '-100%' which would fight the transform.
+    expect(track.style.left).toBe(leftBefore);
+  });
 });
