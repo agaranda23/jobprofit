@@ -1017,6 +1017,50 @@ body { background: var(--bg); color: var(--text); -webkit-font-smoothing: antial
    aligns with the content column. On mobile (viewport < --app-max-width) the
    bar fills the viewport naturally — no regression.
 ── */
+
+/* ── Dashboard Pager (feat/swipe-dashboards) ─────────────────────────────────
+   GPU-accelerated horizontal pager for Today / Jobs / Money.
+
+   .dp-viewport — fixed full-viewport frame; clips the sliding track.
+   .dp-track    — 300%-wide row; repositioned by JS.
+   .dp-page     — one page slot; viewport-width; lets the screen inside scroll.
+
+   Fixed-position child safety:
+   CSS `transform` on an ancestor creates a new containing block for
+   position:fixed descendants, which breaks modals/drawers inside the screens.
+   To avoid this, JS only sets transform during an active drag or transition;
+   once settled it clears transform and uses `left` (negative %) instead.
+   `left` does NOT create a containing block, so drawers remain viewport-anchored
+   whenever the pager is at rest.
+
+   DO NOT add transform, filter, or perspective to .dp-track or .dp-page here — */
+
+.dp-viewport {
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  padding-bottom: var(--nav-clearance);
+  z-index: 0;
+  /* Tell the browser we only pan vertically so horizontal swipes don't fight us */
+  touch-action: pan-y;
+}
+
+.dp-track {
+  position: relative;  /* anchor for left-based settled positioning */
+  display: flex;
+  width: 300%;
+  height: 100%;
+  /* transform and left are controlled exclusively by JS — no CSS default here */
+}
+
+.dp-page {
+  width: calc(100% / 3);
+  height: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+}
+
 .bottom-nav {
   position: fixed;
   left: 0;
