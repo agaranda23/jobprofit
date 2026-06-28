@@ -20278,3 +20278,296 @@ button.jd-money-chip:active { opacity: 0.75; }
 .money-more-insights-toggle__chevron--open {
   transform: rotate(180deg);
 }
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   GLOBAL TACTILE PRESS STATES  feat/premium-press-states
+   ─────────────────────────────────────────────────────────────────────────────
+   One press-feel language across the app:
+     • Buttons / CTAs / pills  →  scale(0.96) + slight brightness dip
+     • Cards / list rows       →  scale(0.985) + shadow fade (subtler)
+     • Nav tabs                →  scale(0.94)
+     • Stage-filter tiles      →  scale(0.96) (tighter than cards)
+
+   All transform-based feedback is gated behind @media (prefers-reduced-motion:
+   no-preference). Under reduced-motion the existing opacity-only fallback takes
+   over — no scale, no layout jitter.
+
+   Exclusions (transform already owned by another system — DO NOT add scale):
+     .wfc__circle--current / --overdue  — scale(1.12) controlled by WFC
+     .wfc__circle--paid-anim            — keyframe animation
+     .dp-track / .dp-page               — translateX pager (see comment ~line 1038)
+     .splash                            — app launch animation
+     .money-more-insights-toggle__chevron — rotate(180deg) open/close
+   These selectors are never targeted below.
+
+   Transition strategy:
+     We add `transition` on the RESTING selector (not just :active) so the
+     release eases back naturally. Where a transition is already declared on a
+     selector we extend it inline rather than overriding, to avoid wiping out
+     existing bg/opacity/border transitions.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+/* ── 1. Buttons / CTAs / pills — primary press feel ─────────────────────────
+   Covers: .btn-primary, .btn-secondary, .btn-ghost, .btn-danger-filled,
+           .link-btn (tiny text, skipped — no scale on pure text links),
+           .jt-cta, .jt-cta--markpaid, .jd-breakdown-btn, .jd-add-dashed,
+           .visit-mark-done, .jt-action-chip, .jt-swatch, .job-card-cta,
+           .job-card-send-invoice-btn, .chase-btn / .chase-btn--again,
+           .awaiting-job-paid-btn, .awaiting-job-method-btn,
+           .jd-card-payment-btn, .filter-chip, .modal-sheet-close
+   ─────────────────────────────────────────────────────────────────────────── */
+
+/* Resting transitions — ensures the release eases back */
+.btn-primary,
+.btn-secondary,
+.btn-ghost,
+.btn-danger-filled,
+.jt-cta,
+.jt-cta--markpaid,
+.jt-action-chip,
+.jt-swatch,
+.jd-breakdown-btn,
+.jd-add-dashed,
+.visit-mark-done,
+.job-card-cta,
+.job-card-send-invoice-btn,
+.chase-btn,
+.chase-btn--again,
+.awaiting-job-paid-btn,
+.awaiting-job-method-btn,
+.jd-card-payment-btn,
+.filter-chip,
+.modal-sheet-close,
+.jd-csr-row {
+  transition:
+    transform 0.08s ease,
+    filter 0.08s ease,
+    opacity 0.08s ease,
+    background 0.15s ease,
+    border-color 0.15s ease;
+}
+
+/* Press state — motion-enabled devices only */
+@media (prefers-reduced-motion: no-preference) {
+  .btn-primary:active,
+  .btn-secondary:active,
+  .btn-ghost:active,
+  .btn-danger-filled:active,
+  .jt-cta:active,
+  .jt-cta--markpaid:active,
+  .jt-action-chip:active,
+  .jt-swatch:active,
+  .jd-breakdown-btn:active,
+  .jd-add-dashed:active,
+  .visit-mark-done:active,
+  .job-card-cta:active,
+  .job-card-send-invoice-btn:active,
+  .chase-btn:not(:disabled):active,
+  .chase-btn--again:not(:disabled):active,
+  .awaiting-job-paid-btn:active,
+  .awaiting-job-method-btn:active,
+  .jd-card-payment-btn:active,
+  .filter-chip:active,
+  .modal-sheet-close:active,
+  .jd-csr-row:active {
+    transform: scale(0.96);
+    filter: brightness(0.92);
+    /* Cancel any opacity-only :active rules set higher in the file so
+       brightness+scale carries the full press signal */
+    opacity: 1;
+  }
+}
+
+/* Reduced-motion fallback — opacity dim only, no scale */
+@media (prefers-reduced-motion: reduce) {
+  .btn-primary:active,
+  .btn-secondary:active,
+  .btn-ghost:active,
+  .btn-danger-filled:active,
+  .jt-cta:active,
+  .jt-cta--markpaid:active,
+  .jt-action-chip:active,
+  .jt-swatch:active,
+  .jd-breakdown-btn:active,
+  .jd-add-dashed:active,
+  .visit-mark-done:active,
+  .job-card-cta:active,
+  .job-card-send-invoice-btn:active,
+  .chase-btn:not(:disabled):active,
+  .chase-btn--again:not(:disabled):active,
+  .awaiting-job-paid-btn:active,
+  .awaiting-job-method-btn:active,
+  .jd-card-payment-btn:active,
+  .filter-chip:active,
+  .modal-sheet-close:active,
+  .jd-csr-row:active {
+    opacity: 0.7;
+  }
+}
+
+/* ── 2. Cards / tappable list rows — subtler press feel ─────────────────────
+   Cards shrink less (0.985) and shadow dims, so a large surface doesn't feel
+   like it's collapsing. scale() on a card that contains position:fixed children
+   (drawers, modals) would break their viewport positioning — safe here because
+   these cards never host fixed children directly.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+/* Resting transitions */
+.job-card--tappable,
+.jd-card--money,
+.jd-card-row--add,
+.jd-card-row--link,
+.jd-card-row--tappable,
+.money-more-insights-toggle,
+.settings-row:not(.settings-row--passive),
+.photo-source-row:not(.photo-source-row--cancel),
+.jt-action-btn,
+.jt-icon-btn {
+  transition:
+    transform 0.08s ease,
+    box-shadow 0.08s ease,
+    opacity 0.08s ease,
+    background 0.12s ease;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .job-card--tappable:active {
+    transform: scale(0.985);
+    box-shadow: none;
+    opacity: 1;
+  }
+
+  .jd-card--money:active {
+    transform: scale(0.985);
+    opacity: 1;
+  }
+
+  .jd-card-row--add:active,
+  .jd-card-row--link:active,
+  .jd-card-row--tappable:active {
+    transform: scale(0.985);
+    opacity: 1;
+    background: var(--surface-2);
+  }
+
+  .money-more-insights-toggle:active {
+    transform: scale(0.985);
+    opacity: 1;
+  }
+
+  .settings-row:not(.settings-row--passive):active {
+    transform: scale(0.985);
+    opacity: 1;
+  }
+
+  .photo-source-row:not(.photo-source-row--cancel):active {
+    transform: scale(0.985);
+    opacity: 1;
+  }
+
+  /* Icon-only action buttons — slightly more press since they're small */
+  .jt-action-btn:active,
+  .jt-icon-btn:active {
+    transform: scale(0.94);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .job-card--tappable:active,
+  .jd-card--money:active,
+  .jd-card-row--add:active,
+  .jd-card-row--link:active,
+  .jd-card-row--tappable:active,
+  .money-more-insights-toggle:active,
+  .settings-row:not(.settings-row--passive):active,
+  .photo-source-row:not(.photo-source-row--cancel):active,
+  .jt-action-btn:active,
+  .jt-icon-btn:active {
+    opacity: 0.75;
+  }
+}
+
+/* ── 3. Nav tabs — tightest press (small target, quick flick) ───────────────
+   scale(0.94) on :active; release eases via transition on resting state.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+.nav-tab {
+  transition:
+    transform 0.08s ease,
+    background 0.15s ease,
+    color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .nav-tab:active {
+    transform: scale(0.94);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav-tab:active {
+    opacity: 0.65;
+  }
+}
+
+/* ── 4. Stage-filter tiles — quick tap to filter ───────────────────────────
+   scale(0.96) like a button (not 0.985 like a big card).
+   Existing `transition: background 0.15s` on .stage-tile is extended below.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+.stage-tile {
+  /* Extend the existing `transition: background 0.15s` */
+  transition:
+    background 0.15s ease,
+    transform 0.08s ease,
+    opacity 0.08s ease;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .stage-tile:active {
+    transform: scale(0.96);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stage-tile:active {
+    opacity: 0.7;
+  }
+}
+
+/* ── 5. Existing scale-on-:active elements — add resting transitions ────────
+   These already apply transform:scale on :active (see earlier rules) but
+   have no resting transition so the release is instant/jarring.
+   We add the ease-back here without changing the scale value.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+.action-btn {
+  /* Was: transition: transform 0.05s ease, background 0.15s ease
+     Extend to include filter + opacity for consistency; keep 0.08s timing */
+  transition:
+    transform 0.08s ease,
+    filter 0.08s ease,
+    background 0.15s ease;
+}
+
+.mic-button,
+.mark-paid-btn,
+.aj-chip,
+.aj-mic-shortcut,
+.awaiting-job-paid-btn,
+.awaiting-job-method-btn,
+.chase-btn,
+.chase-btn--again,
+.money-hero__chase-cta,
+.payment-method-btn {
+  transition:
+    transform 0.08s ease,
+    filter 0.08s ease,
+    opacity 0.08s ease,
+    background 0.15s ease;
+}
+
+/* End of press-states block */
