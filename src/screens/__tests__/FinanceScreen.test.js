@@ -975,6 +975,76 @@ describe('Tax pot "to keep" derivation', () => {
   });
 });
 
+// ─── "Money in 5 seconds" strip — three derived values ───────────────────────
+// The strip at the top of the Money tab shows:
+//   keptAmount   = Math.max(0, ytd.profit) - ytdTaxPot   (profit in pocket after tax pot)
+//   ytdTaxPot    = Math.max(0, ytdSetAsideBase) * pct / 100
+//   stillOwed    = getOutstandingSummary(jobs).totalOwed
+//
+// keptAmount intentionally uses the same formula as the "Leaves you £X to keep"
+// line in the Tax Set-Aside card — one source of truth for the number traders
+// use to decide if they can spend.
+
+describe('"Money in 5 seconds" strip derivations', () => {
+  // Mirrors FinanceScreen:
+  //   ytdTaxPot   = Math.max(0, ytd.profit) * pct / 100
+  //   keptAmount  = Math.max(0, ytd.profit) - ytdTaxPot
+  function keptAmount(ytdProfit, pct) {
+    const pot = Math.max(0, ytdProfit) * pct / 100;
+    return Math.max(0, ytdProfit) - pot;
+  }
+
+  it('keptAmount = ytd profit after 20% tax pot', () => {
+    // 1000 profit; 200 pot; kept = 800
+    expect(keptAmount(1000, 20)).toBe(800);
+  });
+
+  it('keptAmount is 0 when ytd profit is zero', () => {
+    expect(keptAmount(0, 20)).toBe(0);
+  });
+
+  it('keptAmount is 0 when ytd profit is negative (no negative pocket money)', () => {
+    expect(keptAmount(-300, 20)).toBe(0);
+  });
+
+  it('keptAmount equals full profit when pct is 0', () => {
+    expect(keptAmount(500, 0)).toBe(500);
+  });
+
+  it('keptAmount + ytdTaxPot === ytd.profit (the profit splits cleanly)', () => {
+    const ytdProfit = 800;
+    const pct = 25;
+    const pot = Math.max(0, ytdProfit) * pct / 100;
+    const kept = keptAmount(ytdProfit, pct);
+    // 200 + 600 = 800
+    expect(pot + kept).toBe(ytdProfit);
+  });
+
+  it('stillOwed = getOutstandingSummary(jobs).totalOwed for unpaid jobs', () => {
+    const jobs = [
+      { id: 'u1', amount: 400, paid: false, date: '2026-05-05', customer: 'Alice' },
+      { id: 'u2', amount: 150, paid: false, date: '2026-05-10', customer: 'Bob' },
+    ];
+    const { totalOwed } = getOutstandingSummary(jobs);
+    expect(totalOwed).toBe(550);
+  });
+
+  it('stillOwed = 0 when all jobs are paid (clean books)', () => {
+    const jobs = [paidJob({ amount: 1000 }), paidJob({ id: 'j2', amount: 500 })];
+    const { totalOwed } = getOutstandingSummary(jobs);
+    expect(totalOwed).toBe(0);
+  });
+
+  it('round-trip: keptAmount via real getTaxYearSummary matches inline formula', () => {
+    const NOW  = new Date('2026-05-20T10:00:00');
+    const jobs = [paidJob({ amount: 1200, date: '2026-05-10' })];
+    const recs = [receipt({ amount: 200, date: '2026-05-12' })];
+    const { profit } = getTaxYearSummary(jobs, recs, NOW);
+    // profit = 1000; 20% pot = 200; kept = 800
+    expect(keptAmount(profit, 20)).toBe(800);
+  });
+});
+
 // ─── Editable tax pot: clamp logic (TaxPotSheet) ─────────────────────────────
 // TaxPotSheet clamps the custom % to 0–60. These tests verify the clamp
 // formula used by the UI before calling onProfileUpdate.

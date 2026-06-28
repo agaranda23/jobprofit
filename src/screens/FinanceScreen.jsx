@@ -53,6 +53,7 @@ import {
   getVatSummary,
   vatQuarterRange,
   getDataTrustHint,
+  getOutstandingSummary,
 } from '../lib/cashflow';
 
 // Margin nudge fires only when the absolute delta meets or exceeds this threshold.
@@ -321,6 +322,8 @@ function FoundingMemberCard({ onUpgrade }) {
 export default function FinanceScreen({ jobs = [], receipts = [], session, profile, biz, onAvatarClick, onUpgrade, onGoToJobs, onGoToSettings, onNavigateToCardPayments, onProfileUpdate, onExport, entryPoint = 'nav' }) {
   const [timelineOpen, setTimelineOpen] = useState(false);
   const [trustHintDismissed, setTrustHintDismissed] = useState(false);
+  // "More insights" expander — hides secondary analytics behind a single tap
+  const [moreInsightsOpen, setMoreInsightsOpen] = useState(false);
   // chartRange drives which window of data getCashflowByMonth uses.
   // '6m' is the default matching the chart's defaultRange prop.
   const [chartRange, setChartRange] = useState('6m');
@@ -433,6 +436,7 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
     vatSummary,
     vatQuarter,
     dataTrustHint,
+    outstandingSummary,
   } = useMemo(() => {
     // ── Cashflow chart data ────────────────────────────────────────────────
     const rangeMap = { '1m': '1M', '3m': '3M', '6m': '6M', '1y': '1Y' };
@@ -494,6 +498,9 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
     // ── Data-trust nudge ──────────────────────────────────────────────────
     const dataTrustHint = getDataTrustHint(jobs, receipts, profile, now);
 
+    // ── Outstanding / still owed (all unpaid jobs) ────────────────────────
+    const outstandingSummary = getOutstandingSummary(jobs);
+
     return {
       cashflowData,
       monthSummary,
@@ -506,6 +513,7 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
       vatSummary,
       vatQuarter,
       dataTrustHint,
+      outstandingSummary,
     };
   }, [jobs, receipts, chartRange, currentMonth, hourlyRate, profile]);
 
@@ -583,6 +591,12 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
 
   const totalTimelineEntries = timelineGroups.reduce((s, g) => s + g.entries.length, 0);
 
+  // ── "Money in 5 seconds" header numbers ─────────────────────────────────────
+  // Kept = YTD profit minus the tax pot (what's actually yours to spend).
+  // For free users we show the gross YTD profit so the number is always real —
+  // the tax-pot deduction is a Pro insight but the top-line figure belongs to all.
+  const keptAmount = Math.max(0, ytd.profit) - ytdTaxPot;
+
   // ── Hero profit copy ─────────────────────────────────────────────────────────
   const isEmptyMonth = monthSummary.paid === 0 && monthSummary.jobCount === 0;
   const isProfitNegative = monthSummary.profit < 0;
@@ -601,7 +615,32 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
         )}
       </div>
 
-      {/* ── 0. Today — Earned / Spent / Profit (relocated from Today tab) ── */}
+      {/* ── 0a. "Money in 5 seconds" — 3-number scannable strip ─────────── */}
+      {/* Always shown once there is any activity. Three numbers: what you kept
+          (YTD profit after tax pot), what you've set aside for tax (YTD tax pot),
+          and what you're still owed (all outstanding unpaid jobs). */}
+      {hasActivity && (
+        <div className="money-five-sec" role="region" aria-label="Your money at a glance">
+          <div className="money-five-sec__cell">
+            <span className="money-five-sec__value">{gbp(Math.round(keptAmount))}</span>
+            <span className="money-five-sec__label">Kept</span>
+          </div>
+          <div className="money-five-sec__divider" aria-hidden="true" />
+          <div className="money-five-sec__cell">
+            <span className="money-five-sec__value money-five-sec__value--tax">{gbp(Math.round(ytdTaxPot))}</span>
+            <span className="money-five-sec__label">For tax</span>
+          </div>
+          <div className="money-five-sec__divider" aria-hidden="true" />
+          <div className="money-five-sec__cell">
+            <span className={`money-five-sec__value${outstandingSummary.totalOwed > 0 ? ' money-five-sec__value--owed' : ''}`}>
+              {gbp(Math.round(outstandingSummary.totalOwed))}
+            </span>
+            <span className="money-five-sec__label">Still owed</span>
+          </div>
+        </div>
+      )}
+
+      {/* ── 0b. Today — Earned / Spent / Profit (relocated from Today tab) ─ */}
       {/* Shown whenever there is at least one job or receipt today. */}
       {todayEarnedSpentProfit.hasToday && (
         <div className="foreman-esp-card">
@@ -646,12 +685,9 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
           <div className="money-hero__label">Profit this month</div>
           <div className={`money-hero__figure${isProfitNegative ? ' money-twoUp__value--negative' : ''}`}>
             {gbp(monthSummary.profit)}
-            <span
-              className="money-hero__label-gross"
-              title="Before monthly bills, before tax."
-            >
-              (gross)
-            </span>
+          </div>
+          <div className="money-hero__qualifier-label">
+            Before monthly bills and tax
           </div>
           <div className="money-hero__meta">
             {isProfitNegative
@@ -697,12 +733,9 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
                   <div className="money-hero__true-profit-label">After your monthly bills</div>
                   <div className={`money-hero__true-profit-figure${isTrueProfitNegative ? ' money-hero__true-profit-figure--negative' : ''}`}>
                     {gbp(trueProfit)}
-                    <span
-                      className="money-hero__label-net"
-                      title="After materials, monthly bills, and tax pot."
-                    >
-                      (NET)
-                    </span>
+                  </div>
+                  <div className="money-hero__qualifier-label">
+                    After monthly bills
                   </div>
                   <div className="money-hero__true-profit-sub">
                     {gbp(overheadTotal)}/mo monthly bills deducted
@@ -722,18 +755,15 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
             >
               <div className="money-hero__true-profit-locked-label">After your monthly bills</div>
               <div className="money-hero__true-profit-locked-row">
-                {/* amount is blurred; (NET) label sits outside and stays visible */}
+                {/* amount is blurred; Pro badge sits outside and stays visible */}
                 <span className="money-hero__true-profit-locked-amount">{gbp(monthSummary.profit - overheadTotal)}</span>
-                <span
-                  className="money-hero__label-net"
-                  title="After materials, monthly bills, and tax pot."
-                >
-                  (NET)
-                </span>
                 <span className="money-hero__true-profit-locked-badge">
                   <Icon name="lock" size={16} />
                   <span>Pro</span>
                 </span>
+              </div>
+              <div className="money-hero__qualifier-label money-hero__qualifier-label--locked">
+                After monthly bills
               </div>
             </button>
           )}
@@ -823,7 +853,96 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
         </div>
       )}
 
-      {/* ── 3. Tax Pot card (Pro-gated) ────────────────────────────────── */}
+      {/* ── 4. True Profit — relocated into the hero card above.
+              All three states (Pro/free/no-overheads) handled inside the hero. */}
+
+      {/* ── Pay-now Money banner — shown when 2+ unpaid invoices ──────────── */}
+      {(() => {
+        const isConnected = profile?.stripe_connect_status === 'connected' && !!profile?.stripe_user_id;
+        if (isConnected || payNowBannerDismissed || !onNavigateToCardPayments) return null;
+        const unpaidCount = jobs.filter(j => {
+          const s = j.status || '';
+          return s === 'invoice_sent' || s === 'awaiting';
+        }).length;
+        if (unpaidCount < 2) return null;
+        return (
+          <div className="pay-now-money-banner" role="note">
+            <span className="pay-now-money-banner__copy">
+              {unpaidCount} {unpaidCount === 1 ? 'invoice' : 'invoices'} waiting. Add a Pay-now button to chase faster.
+            </span>
+            <button
+              type="button"
+              className="pay-now-money-banner__setup"
+              onClick={onNavigateToCardPayments}
+            >
+              Set up
+            </button>
+            <button
+              type="button"
+              className="pay-now-money-banner__dismiss"
+              aria-label="Dismiss"
+              onClick={handlePayNowBannerDismiss}
+            >
+              &times;
+            </button>
+          </div>
+        );
+      })()}
+
+      {/* ── Month pace two-up — Paid in + Jobs done (this month) ──────────── */}
+      <div className="money-twoUp">
+        <div className="money-twoUp__card">
+          <div className="money-twoUp__label">Paid in</div>
+          <div className="money-twoUp__value">{gbp(monthSummary.paid)}</div>
+        </div>
+        <div className="money-twoUp__card">
+          <div className="money-twoUp__label">Jobs done</div>
+          <div className="money-twoUp__value">{monthSummary.jobCount}</div>
+        </div>
+      </div>
+
+      {/* ── "More insights" expander — collapsible analytics layer ────────── */}
+      {/* Keeps the screen scannable at a glance. All accountant-grade and
+          week-on-week detail cards live behind this single tap. */}
+      {hasActivity && (
+        <button
+          type="button"
+          className={`money-more-insights-toggle${moreInsightsOpen ? ' money-more-insights-toggle--open' : ''}`}
+          aria-expanded={moreInsightsOpen}
+          onClick={() => setMoreInsightsOpen(o => !o)}
+        >
+          <span className="money-more-insights-toggle__label">
+            {moreInsightsOpen ? 'Fewer insights' : 'More insights'}
+          </span>
+          <Icon
+            name="chevron-down"
+            size={16}
+            variant="muted"
+            className={`money-more-insights-toggle__chevron${moreInsightsOpen ? ' money-more-insights-toggle__chevron--open' : ''}`}
+          />
+        </button>
+      )}
+
+      {moreInsightsOpen && (
+        <>
+
+      {/* ── Cashflow chart ────────────────────────────────────────────── */}
+      <div className="money-card money-card--chart">
+        <CashflowChart
+          data={cashflowData}
+          defaultRange="6m"
+          defaultMode="profitVsCost"
+          onRangeChange={(newRange) => setChartRange(newRange)}
+        />
+        <p className="money-chart-caption">
+          <span className="money-chart-caption__swatch" style={{ background: 'var(--cf-navy, #1e3a5f)' }} aria-hidden="true" />
+          What you kept&nbsp;&nbsp;
+          <span className="money-chart-caption__swatch" style={{ background: 'var(--cf-amber, #f59e0b)' }} aria-hidden="true" />
+          What it cost you
+        </p>
+      </div>
+
+      {/* ── 3. Tax Pot card (Pro-gated) ─────────────────────────────── */}
       {/* hasValue logic:
           - Pro users: always false (they see real content, not the blur chrome).
           - Free users with data: true → ProGate blurs the real figures.
@@ -979,77 +1098,12 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
         </ProGate>
       )}
 
-      {/* ── 4. True Profit — relocated into the hero card above.
-              The standalone card has been removed to avoid duplication.
-              All three states (Pro/free/no-overheads) are handled inside the hero. */}
-
-      {/* ── Pay-now Money banner (Section 1.3 b) ─────────────────────────── */}
-      {/* Shown when: not connected to Stripe AND 2+ unpaid invoices AND not dismissed in last 14 days. */}
-      {(() => {
-        const isConnected = profile?.stripe_connect_status === 'connected' && !!profile?.stripe_user_id;
-        if (isConnected || payNowBannerDismissed || !onNavigateToCardPayments) return null;
-        const unpaidCount = jobs.filter(j => {
-          const s = j.status || '';
-          return s === 'invoice_sent' || s === 'awaiting';
-        }).length;
-        if (unpaidCount < 2) return null;
-        return (
-          <div className="pay-now-money-banner" role="note">
-            <span className="pay-now-money-banner__copy">
-              {unpaidCount} {unpaidCount === 1 ? 'invoice' : 'invoices'} waiting. Add a Pay-now button to chase faster.
-            </span>
-            <button
-              type="button"
-              className="pay-now-money-banner__setup"
-              onClick={onNavigateToCardPayments}
-            >
-              Set up
-            </button>
-            <button
-              type="button"
-              className="pay-now-money-banner__dismiss"
-              aria-label="Dismiss"
-              onClick={handlePayNowBannerDismiss}
-            >
-              &times;
-            </button>
-          </div>
-        );
-      })()}
-
-      {/* ── 5. Cashflow chart ─────────────────────────────────────────────── */}
-      <div className="money-card money-card--chart">
-        <CashflowChart
-          data={cashflowData}
-          defaultRange="6m"
-          defaultMode="profitVsCost"
-          onRangeChange={(newRange) => setChartRange(newRange)}
-        />
-        {/* Plain-English caption under the mode switch */}
-        <p className="money-chart-caption">
-          <span className="money-chart-caption__swatch" style={{ background: 'var(--cf-navy, #1e3a5f)' }} aria-hidden="true" />
-          What you kept&nbsp;&nbsp;
-          <span className="money-chart-caption__swatch" style={{ background: 'var(--cf-amber, #f59e0b)' }} aria-hidden="true" />
-          What it cost you
-        </p>
-      </div>
-
-      {/* ── 6. Month pace two-up — Paid in + Jobs done ───────────────────── */}
-      <div className="money-twoUp">
-        <div className="money-twoUp__card">
-          <div className="money-twoUp__label">Paid in</div>
-          <div className="money-twoUp__value">{gbp(monthSummary.paid)}</div>
-        </div>
-        <div className="money-twoUp__card">
-          <div className="money-twoUp__label">Jobs done</div>
-          <div className="money-twoUp__value">{monthSummary.jobCount}</div>
-        </div>
-      </div>
-
       {/* ── 7. Est. Profit/Hour (Pro-gated) ──────────────────────────────── */}
-      {/* hasValue: always true for free users (show example teaser day one).
-          For Pro users the gate is unlocked so hasValue has no effect. */}
-      <ProGate locked={!userIsPro} hasValue={!userIsPro || profitPerHour.value !== null} onUpgrade={() => handleUpgrade(UPGRADE_TRIGGERS.INSIGHT_LOCKED)}>
+      {/* Only rendered when Pro (show all states) OR there is real data to blur.
+          Free users with no computed profit/hour see nothing here — the two Pro
+          teasers (Tax Set-Aside + Best/Worst) are visible above the expander. */}
+      {(userIsPro || profitPerHour.value !== null) && (
+      <ProGate locked={!userIsPro} hasValue={profitPerHour.value !== null} onUpgrade={() => handleUpgrade(UPGRADE_TRIGGERS.INSIGHT_LOCKED)}>
         {profitPerHour.value !== null ? (
           <div className="money-card money-insight money-insight--pph">
             <div className="money-insight__row">
@@ -1062,7 +1116,8 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
               {gbp(Math.round(profitPerHour.value))}
               {profitPerHour.comparisonValue !== null && (
                 <span className={`money-insight__delta money-insight__delta--${profitPerHour.deltaSign}`}>
-                  {profitPerHour.deltaSign === 'up' ? ' ▲' : profitPerHour.deltaSign === 'down' ? ' ▼' : ' –'}
+                  {profitPerHour.deltaSign === 'up' && <Icon name="trend-up" size={13} />}
+                  {profitPerHour.deltaSign === 'down' && <Icon name="trend-down" size={13} />}
                   {' '}{gbp(Math.round(Math.abs(profitPerHour.value - profitPerHour.comparisonValue)))} vs last wk
                 </span>
               )}
@@ -1095,6 +1150,7 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
           </div>
         )}
       </ProGate>
+      )} {/* end (userIsPro || profitPerHour.value !== null) */}
 
       {/* ── 8. Best & worst jobs (Pro-gated) ─────────────────────────────── */}
       {/* hasValue: always true for free users (show example teaser day one).
@@ -1137,6 +1193,9 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
           </div>
         </ProGate>
       )}
+
+        </> /* end moreInsightsOpen fragment */
+      )} {/* end moreInsightsOpen */}
 
       {/* ── 10. Recent transactions (demoted — collapsed by default) ─────── */}
       {totalTimelineEntries > 0 && (
