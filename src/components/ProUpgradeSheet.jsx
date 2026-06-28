@@ -44,16 +44,16 @@ const TRIAL_END_BENEFITS = [
 ];
 
 // ── Feature list (default variant) ───────────────────────────────────────────
+// Order: loop + automation first (lead-with-loop strategy), then insight layer.
 
 const FEATURES = [
-  { label: 'White-label documents', sub: 'remove "Sent with OHNAR" — your brand only on every quote, invoice & receipt' },
-  { label: 'Auto-chase ladder', sub: 'polite nudge → firm reminder → final notice — Pro automates the escalation' },
-  { label: 'True profit after your monthly bills', sub: 'see what you actually make, not just what came in' },
-  { label: 'Tax pot (year-to-date)', sub: 'keep enough back for the taxman, all year' },
+  { label: 'Auto-chase late payers', sub: 'polite nudge → firm reminder → final notice — Pro handles the escalation so you don\'t have to' },
+  { label: 'Remove OHNAR branding', sub: 'your name only on every quote, invoice & receipt — white-label from day one' },
+  { label: 'True profit after your monthly bills', sub: 'see what you actually made, not just what came in' },
+  { label: 'Tax pot (month + year-to-date)', sub: 'keep enough back for the taxman, all year — shown right on Today' },
   { label: 'Est. Profit/Hour', sub: 'know if your time is actually worth it' },
   { label: 'Best & worst jobs', sub: 'stop taking work that loses you money' },
   { label: 'Margin nudges', sub: 'get told when your margin slipped this week' },
-  { label: 'Tax pot reminder on Today', sub: 'every day you open the app' },
   { label: 'VAT this quarter', sub: 'what to set aside for HMRC if VAT-registered' },
   { label: 'AI quote builder', sub: 'describe the job, get a costed quote in seconds' },
 ];
@@ -266,12 +266,15 @@ export default function ProUpgradeSheet({
             </p>
           </>
         ) : (
-          /* ── Default variant (existing content, unchanged) ───────────── */
+          /* ── Default variant ─────────────────────────────────────────── */
           <>
-            {/* 1. Header */}
+            {/* 1. Header — lead with loop + automation, insight as second line */}
             <div className="pro-upgrade-sheet__header">
               <div className="pro-upgrade-sheet__title"><OhnarWordmark /> Pro</div>
               <div className="pro-upgrade-sheet__price">£12<span className="pro-upgrade-sheet__price-period">/month</span></div>
+              <div className="pro-upgrade-sheet__loop-pitch">
+                Auto-chase late payers &middot; remove OHNAR branding &middot; see your true profit
+              </div>
               <div className="pro-upgrade-sheet__trust">14-day free trial &middot; no card needed &middot; cancel anytime</div>
             </div>
 

@@ -111,7 +111,7 @@ export default function GetProPill({ profile, onOpen, onError }) {
       break;
     case 'free':
     default:
-      copy = 'Get Pro — see your true profit, tax pot & auto-chasing';
+      copy = 'Get Pro — auto-chase late payers, remove OHNAR branding & see your true profit';
       iconName = 'sparkles';
       pillModifier = '';
       isDirectCheckout = false;
