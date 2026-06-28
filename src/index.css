@@ -1043,8 +1043,10 @@ body { background: var(--bg); color: var(--text); -webkit-font-smoothing: antial
   overflow: hidden;
   padding-bottom: var(--nav-clearance);
   z-index: 0;
-  /* Tell the browser we only pan vertically so horizontal swipes don't fight us */
-  touch-action: pan-y;
+  /* Vertical scroll AND pinch-zoom stay with the browser; only horizontal pans
+     go to JS (which preventDefaults only on a confirmed 1-finger H drag).
+     'pinch-zoom' is explicit so the pager doesn't disable zoom on the dashboards. */
+  touch-action: pan-y pinch-zoom;
 }
 
 .dp-track {
