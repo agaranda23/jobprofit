@@ -35,6 +35,8 @@ vi.mock('jspdf', () => {
     this.setLineWidth   = vi.fn();
     this.text           = vi.fn((str) => { drawnTexts.push(str); });
     this.line           = vi.fn();
+    this.circle      = vi.fn();
+    this.ellipse     = vi.fn();
     this.link           = vi.fn();
     this.roundedRect    = vi.fn();
     this.getTextWidth   = vi.fn(() => 20);
