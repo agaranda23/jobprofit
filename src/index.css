@@ -5070,6 +5070,8 @@ input[type=number] { -moz-appearance: textfield; }
   letter-spacing: -0.03em;
   line-height: 1;
   margin-bottom: 6px;
+  font-family: var(--font-mono);          /* mono + tabular so the count-up doesn't jitter width */
+  font-variant-numeric: tabular-nums;
 }
 .money-tax-setaside__sub {
   font-size: var(--fs-label);

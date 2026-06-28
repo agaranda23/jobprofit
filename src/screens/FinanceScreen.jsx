@@ -626,9 +626,9 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
   const animatedKept       = useCountUp(Math.round(keptAmount));
   const animatedTaxPot     = useCountUp(Math.round(ytdTaxPot));
   const animatedOwed       = useCountUp(Math.round(outstandingSummary.totalOwed));
-  const animatedProfit     = useCountUp(monthSummary.profit);
+  const animatedProfit     = useCountUp(Math.round(monthSummary.profit));
   const trueProfit         = monthSummary.profit - overheadTotal;
-  const animatedTrueProfit = useCountUp(trueProfit);
+  const animatedTrueProfit = useCountUp(Math.round(trueProfit));
 
   return (
     <div className="screen finance-screen">
