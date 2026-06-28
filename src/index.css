@@ -315,9 +315,10 @@ button:focus-visible {
      overrides for the --jp-* brand palette"). They must come after that :root
      block to win the cascade — declared here they lost to it by source order. */
 
-  /* Stage strip gradient — already light-readable; keep same values */
+  /* Stage strip gradient — already light-readable; keep same values.
+     On = indigo (#6366F1) so it's distinct from Paid green (both were green). */
   --grn-quoted:   #B3F0D5;
-  --grn-on:       #5FD9A6;
+  --grn-on:       #6366F1;
   --grn-invoiced: #28B581;
   --grn-paid:     #18865A;
 
@@ -3360,14 +3361,14 @@ input[type=number] { -moz-appearance: textfield; }
 
   /* Stage Strip green-family gradient — Quoted → Paid */
   --grn-quoted:   #B3F0D5;  /* Pale mint     — lightness ~78% */
-  --grn-on:       #5FD9A6;  /* Mid green     — lightness ~62% */
+  --grn-on:       #6366F1;  /* indigo — distinct from Paid green (On & Paid were both green) */
   --grn-invoiced: #28B581;  /* Brand-adjacent — lightness ~45% */
   --grn-paid:     #18865A;  /* Deep emerald  — lightness ~30% (brightened) */
 
   /* Stage chip dark-surface fill tints — exact values from WorkScreen STAGE_META.
      Quoted fill (#7FDFB4) is a light tint, not a dark surface; no token added for it. */
   --stage-fill-lead:     #1a2a4a;
-  --stage-fill-on:       #1a3a2e;
+  --stage-fill-on:       #1e1b4b;  /* dark indigo tint — matches On's indigo hue */
   --stage-fill-invoiced: #1a3028;
   --stage-fill-overdue:  #3a1a1a;
   --stage-fill-paid:     #0a2a1e;
@@ -17435,14 +17436,14 @@ button.jd-money-chip:active { opacity: 0.75; }
 
        --stage-lead      blue   — new enquiry, not yet priced
        --stage-quoted    teal   — quote sent, awaiting decision
-       --stage-on        green  — work in progress
+       --stage-on        indigo — work in progress (distinct from Paid green)
        --stage-invoiced  amber  — invoice sent, awaiting payment
        --stage-overdue   orange — invoice past due
        --stage-paid      green  — complete, money received
      ──────────────────────────────────────────────────────────────────────── */
   --stage-lead:     #2563EB;  /* blue        — new enquiry */
   --stage-quoted:   #0EA5B7;  /* teal/cyan   — distinct hue (not green) */
-  --stage-on:       #22C55E;  /* bright green — L≈46%; active / in progress */
+  --stage-on:       #6366F1;  /* indigo — active/in progress; distinct from Paid green (was #22C55E) */
   --stage-invoiced: #F59E0B;  /* amber/gold  — invoice out */
   --stage-overdue:  #F97316;  /* orange      — past due */
   --stage-paid:     #15803D;  /* deep forest-green — L≈29%; +17pt vs On; clearly "done" */

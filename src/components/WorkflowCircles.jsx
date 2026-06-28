@@ -17,7 +17,7 @@
  * Per-stage colours (canonical --stage-* tokens from index.css):
  *   Lead      → --stage-lead     (#2563EB, blue)
  *   Quoted    → --stage-quoted   (#0EA5B7, teal)
- *   On        → --stage-on       (#22C55E, green)
+ *   On        → --stage-on       (#6366F1, indigo — distinct from Paid green)
  *   Invoiced  → --stage-invoiced (#F59E0B, amber)
  *   Overdue   → --stage-overdue  (#F97316, orange)
  *   Paid      → --stage-paid     (#16A34A, deep green)
