@@ -37,6 +37,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import { sendPushToUser } from './_lib/sendPushToUser.js';
+import { sendChaseEmail } from './_lib/sendChaseEmail.js';
 import { daysPastDueShared, computeTierShared, shouldSendChaseReminder } from './_lib/chaseTierHelpers.js';
 
 // Netlify Scheduled Function config — wires the cron without netlify.toml edits.
@@ -248,12 +249,25 @@ export const handler = async function () {
 
           const body = tierLabel(currentTier);
 
-          await sendPushToUser(userId, {
+          const pushResult = await sendPushToUser(userId, {
             title,
             body,
             url: `/?job=${encodeURIComponent(jobId)}#/work`,
             tag: `chase-${jobId}`,
           });
+
+          // Email fallback for traders who haven't granted push permission or
+          // whose VAPID keys are not yet configured. sendChaseEmail goes to the
+          // TRADER (their own registered email), not the customer.
+          if (pushResult.sent === 0) {
+            await sendChaseEmail({
+              userId,
+              adminClient,
+              job,
+              dpd,
+              currentTier,
+            });
+          }
 
           // Write cadence state back to jobs.meta (service-role bypasses RLS)
           const updatedMeta = {
