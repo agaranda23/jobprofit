@@ -1023,8 +1023,9 @@ body { background: var(--bg); color: var(--text); -webkit-font-smoothing: antial
    GPU-accelerated horizontal pager for Today / Jobs / Money.
 
    .dp-viewport — fixed full-viewport frame; clips the sliding track.
-   .dp-track    — 300%-wide row; repositioned by JS.
-   .dp-page     — one page slot; viewport-width; lets the screen inside scroll.
+   .dp-track    — VIEWPORT-width flex row (pages overflow right); repositioned by JS.
+                  Must be 100% (not 300%) so translateX(%) == left(%) reference.
+   .dp-page     — one page slot; one viewport wide (flex:0 0 100%); lets it scroll.
 
    Fixed-position child safety:
    CSS `transform` on an ancestor creates a new containing block for
@@ -1049,13 +1050,20 @@ body { background: var(--bg); color: var(--text); -webkit-font-smoothing: antial
 .dp-track {
   position: relative;  /* anchor for left-based settled positioning */
   display: flex;
-  width: 300%;
+  /* CRITICAL: the track is VIEWPORT-width (not 300%) so that translateX(%) and
+     left(%) use the SAME reference. The track is position:relative, so left:-idx*100%
+     is % of the viewport (one screen per step). transform:translateX(%) is % of the
+     element's OWN width — so the track MUST be 100% (one screen) for translateX(-100%)
+     to also equal one screen. With width:300% they diverged 3x and the track flew off
+     screen (blank) on any page past Today. The 3 pages overflow this box to the right
+     (clipped by .dp-viewport's overflow:hidden). */
+  width: 100%;
   height: 100%;
   /* transform and left are controlled exclusively by JS — no CSS default here */
 }
 
 .dp-page {
-  width: calc(100% / 3);
+  flex: 0 0 100%;   /* each page is exactly one viewport wide; never shrinks */
   height: 100%;
   overflow-y: auto;
   overflow-x: hidden;
