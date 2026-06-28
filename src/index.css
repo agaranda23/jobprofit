@@ -21,15 +21,15 @@
      html has NO explicit font-size — keeping browser/OS default is intentional.
      Only --fs-money-hero uses clamp() to guard tile overflow at extreme scales.
 
-     Size tokens                    rem       ≈px    use
-     --fs-label     section labels  0.8125rem  13    TAX POT, PAID IN, CUSTOMER …
-     --fs-metadata  dates, age "39d"0.8125rem  13    receipt lines, chart months
-     --fs-body      job sub-lines   0.9375rem  15    "20% of profit · £0 this month"
-     --fs-emphasis  scan targets    0.9375rem  15    job name, customer name in row
-     --fs-subhead   drawer titles   1.0625rem  17    "kitchen jobs", "Sarah"
-     --fs-stage     badge text      0.8125rem  13    stage badge inside StatusBadge
-     --fs-money-sm  per-row amounts 1.0625rem  17    £300 row, chart £ values
-     --fs-money-hero big tile figs  clamp(…)   28-36 TAX POT, PAID IN hero, £780 title
+     Size tokens                    rem         ≈px    use
+     --fs-label     section labels  0.8125rem   13    TAX POT, PAID IN, CUSTOMER …
+     --fs-metadata  dates, age "39d"0.8125rem   13    receipt lines, chart months
+     --fs-body      job sub-lines   1rem         16    "20% of profit · £0 this month"
+     --fs-emphasis  scan targets    1.0625rem   17    job name, customer name in row
+     --fs-subhead   drawer titles   1.1875rem   19    "kitchen jobs", "Sarah"
+     --fs-stage     badge text      0.8125rem   13    stage badge inside StatusBadge
+     --fs-money-sm  per-row amounts 1.125rem    18    £300 row, chart £ values
+     --fs-money-hero big tile figs  clamp(…)    34-46 TAX POT, PAID IN hero, £780 title
 
      Weight tokens (only 4 things shout — everything else stays non-bold)
      --fw-label     600 (+ uppercase + tracked)
@@ -49,12 +49,12 @@
   ── */
   --fs-label:       0.8125rem;
   --fs-metadata:    0.8125rem;
-  --fs-body:        0.9375rem;
-  --fs-emphasis:    0.9375rem;
-  --fs-subhead:     1.0625rem;
+  --fs-body:        1rem;
+  --fs-emphasis:    1.0625rem;
+  --fs-subhead:     1.1875rem;
   --fs-stage:       0.8125rem;
-  --fs-money-sm:    1.0625rem;
-  --fs-money-hero:  clamp(1.75rem, 6vw, 2.25rem);
+  --fs-money-sm:    1.125rem;
+  --fs-money-hero:  clamp(2.125rem, 7.5vw, 2.875rem);
 
   --fw-label:   600;
   --fw-money:   700;
@@ -3785,7 +3785,7 @@ input[type=number] { -moz-appearance: textfield; }
   align-items: center;
 }
 .job-card-amount {
-  font-size: var(--fs-body);
+  font-size: var(--fs-money-sm);
   font-weight: 700;
   color: var(--jp-green);
   font-variant-numeric: tabular-nums;
@@ -5321,6 +5321,7 @@ input[type=number] { -moz-appearance: textfield; }
 .today-overdue-push__amount {
   font-family: 'JetBrains Mono', monospace;
   font-variant-numeric: tabular-nums;
+  font-size: var(--fs-money-sm);
   font-weight: 700;
 }
 .today-overdue-push__text {
