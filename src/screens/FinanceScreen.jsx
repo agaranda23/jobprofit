@@ -170,6 +170,17 @@ function TaxPotSheet({ open, onClose, currentPct, monthProfit, onSave }) {
     return () => document.removeEventListener('keydown', onKey);
   }, [open, onClose]);
 
+  // Gate the pager while this sheet is open.
+  // 'overlay-open' is the shared signal checked by useDashboardPager.
+  useEffect(() => {
+    if (open) {
+      document.body.classList.add('overlay-open');
+    } else {
+      document.body.classList.remove('overlay-open');
+    }
+    return () => { document.body.classList.remove('overlay-open'); };
+  }, [open]);
+
   if (!open) return null;
 
   const effectivePct = customMode

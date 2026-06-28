@@ -128,14 +128,21 @@ export default function ProUpgradeSheet({
     };
   }, [open, onClose]);
 
-  // Prevent body scroll while sheet is open
+  // Prevent body scroll while sheet is open, and gate the pager.
+  // 'overlay-open' is the shared signal checked by useDashboardPager so it
+  // disables horizontal swipe when any sheet/drawer/modal is in front.
   useEffect(() => {
     if (open) {
       document.body.style.overflow = 'hidden';
+      document.body.classList.add('overlay-open');
     } else {
       document.body.style.overflow = '';
+      document.body.classList.remove('overlay-open');
     }
-    return () => { document.body.style.overflow = ''; };
+    return () => {
+      document.body.style.overflow = '';
+      document.body.classList.remove('overlay-open');
+    };
   }, [open]);
 
   if (!open) return null;

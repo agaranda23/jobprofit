@@ -30,7 +30,7 @@
  *   transform = '' (cleared); left = '-{idx * 100}%'
  */
 
-import { useRef, useCallback } from 'react';
+import { useRef, useCallback, useEffect } from 'react';
 
 const LOCK_THRESHOLD  = 10;    // px — before we commit to a direction
 const SNAP_THRESHOLD  = 0.35;  // fraction of page width needed to advance
@@ -300,6 +300,36 @@ export function useDashboardPager({ pageCount, pageIndex, onPageChange, locked }
       onPageChange(next);
     }
   }, [pageCount, onPageChange]);
+
+  // ── Non-passive native touchmove listener ────────────────────────────────
+  // React 19 attaches synthetic onTouchMove as passive, so e.preventDefault()
+  // inside the React handler is a no-op and the browser ignores it. We attach a
+  // native listener with { passive: false } on the track's parent (viewport) so
+  // we can call preventDefault() and stop native scroll/overscroll during a
+  // confirmed horizontal drag. The listener only calls preventDefault when:
+  //   1. A touch sequence is active (t0 is set)
+  //   2. The direction lock is confirmed horizontal (dirLock === true)
+  // This ensures vertical-scroll gestures are never blocked.
+  useEffect(() => {
+    const track = trackRef.current;
+    if (!track) return;
+    const viewport = track.parentElement;
+    if (!viewport) return;
+
+    function handleNativeTouchMove(e) {
+      // Only block native scroll when we have confirmed a horizontal drag.
+      if (!t0.current) return;
+      if (dirLock.current !== true) return;
+      e.preventDefault();
+    }
+
+    viewport.addEventListener('touchmove', handleNativeTouchMove, { passive: false });
+    return () => {
+      viewport.removeEventListener('touchmove', handleNativeTouchMove, { passive: false });
+    };
+  // trackRef is a stable ref — effect only needs to run once on mount.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return {
     trackRef,
