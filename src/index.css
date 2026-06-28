@@ -20719,3 +20719,129 @@ button.jd-money-chip:active { opacity: 0.75; }
 .today-tax-pot-line strong {
   font-variant-numeric: tabular-nums;
 }
+
+/* ── Skeleton loaders (feat/premium-skeletons) ──────────────────────────────
+   Single base class; shimmer sweep gated behind prefers-reduced-motion.
+   Static fallback: muted surface block, no animation.
+   ──────────────────────────────────────────────────────────────────────────── */
+
+.skeleton {
+  background: var(--surface-2, #1d242b);
+  display: block;
+  position: relative;
+  overflow: hidden;
+  /* border-radius supplied inline from the Skeleton component prop */
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .skeleton::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(255,255,255,0.06) 40%,
+      rgba(255,255,255,0.12) 50%,
+      rgba(255,255,255,0.06) 60%,
+      transparent 100%
+    );
+    background-size: 200% 100%;
+    animation: skeleton-sweep 1.6s ease-in-out infinite;
+  }
+
+  [data-theme="light"] .skeleton::after {
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(255,255,255,0.7) 40%,
+      rgba(255,255,255,0.9) 50%,
+      rgba(255,255,255,0.7) 60%,
+      transparent 100%
+    );
+    background-size: 200% 100%;
+  }
+
+  @keyframes skeleton-sweep {
+    0%   { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+}
+
+/* Light-mode base: slightly darker to stand out against white --surface-2 */
+[data-theme="light"] .skeleton {
+  background: var(--surface-2, #f3f4f6);
+}
+
+/* ── MoneyScreenSkeleton: mirrors the money-five-sec strip + hero card ──── */
+
+.money-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* Five-second strip skeleton — matches .money-five-sec layout */
+.money-skeleton__strip {
+  display: flex;
+  align-items: stretch;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-xs);
+  overflow: hidden;
+  height: 76px;
+}
+
+.money-skeleton__strip-cell {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 14px 8px 12px;
+  gap: 6px;
+}
+
+.money-skeleton__strip-divider {
+  width: 1px;
+  background: var(--border);
+  align-self: stretch;
+  margin: 10px 0;
+  flex-shrink: 0;
+}
+
+/* Hero card skeleton — matches .money-hero layout */
+.money-skeleton__hero {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-xs);
+  padding: 20px 20px 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Two-up stat cards skeleton row */
+.money-skeleton__twoup {
+  display: flex;
+  gap: 12px;
+}
+
+.money-skeleton__twoup-card {
+  flex: 1;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-xs);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 80px;
+  justify-content: center;
+}
+
+/* End of skeleton block */

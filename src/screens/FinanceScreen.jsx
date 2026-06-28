@@ -40,6 +40,7 @@ import CashflowChart from '../components/CashflowChart';
 import ProGate from '../components/ProGate';
 import ProUpgradeSheet from '../components/ProUpgradeSheet';
 import OhnarWordmark from '../components/OhnarWordmark';
+import MoneyScreenSkeleton from '../components/MoneyScreenSkeleton';
 import { logTelemetry, UPGRADE_TRIGGERS } from '../lib/telemetry';
 import {
   getCashflowByMonth,
@@ -644,11 +645,16 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
         )}
       </div>
 
+      {/* ── Skeleton — shown while profile is null (brief post-Splash window).
+          Replaces the strip + hero so numbers never flash as £0 while loading.
+          Profile always resolves within 200–600ms; no minimum delay is added. */}
+      {profile === null && <MoneyScreenSkeleton />}
+
       {/* ── 0a. "Money in 5 seconds" — 3-number scannable strip ─────────── */}
       {/* Always shown once there is any activity. Three numbers: what you kept
           (YTD profit after tax pot), what you've set aside for tax (YTD tax pot),
           and what you're still owed (all outstanding unpaid jobs). */}
-      {hasActivity && (
+      {profile !== null && hasActivity && (
         <div className="money-five-sec" role="region" aria-label="Your money at a glance">
           <div className="money-five-sec__cell">
             <span className="money-five-sec__value">{gbp(Math.round(animatedKept))}</span>
@@ -671,7 +677,7 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
 
       {/* ── 0b. Today — Earned / Spent / Profit (relocated from Today tab) ─ */}
       {/* Shown whenever there is at least one job or receipt today. */}
-      {todayEarnedSpentProfit.hasToday && (
+      {profile !== null && todayEarnedSpentProfit.hasToday && (
         <div className="foreman-esp-card">
           <div className="foreman-esp-row">
             <span className="foreman-esp-label">Earned today</span>
@@ -692,7 +698,7 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
       )}
 
       {/* ── 1. Hero — Profit this month ──────────────────────────────────── */}
-      {isEmptyMonth ? (
+      {profile !== null && (isEmptyMonth ? (
         <div className="money-hero money-hero--clear">
           <div className="money-hero__label">Profit this month</div>
           <span className="money-hero__caught-up">Nothing paid in yet this month</span>
@@ -796,7 +802,7 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
             </button>
           )}
         </div>
-      )}
+      ) )}
 
       {/* ── 1b. Data trust nudge — shown when data is incomplete, below hero ── */}
       {dataTrustHint && !trustHintDismissed && (
@@ -918,16 +924,18 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
       })()}
 
       {/* ── Month pace two-up — Paid in + Jobs done (this month) ──────────── */}
-      <div className="money-twoUp">
-        <div className="money-twoUp__card">
-          <div className="money-twoUp__label">Paid in</div>
-          <div className="money-twoUp__value">{gbp(monthSummary.paid)}</div>
+      {profile !== null && (
+        <div className="money-twoUp">
+          <div className="money-twoUp__card">
+            <div className="money-twoUp__label">Paid in</div>
+            <div className="money-twoUp__value">{gbp(monthSummary.paid)}</div>
+          </div>
+          <div className="money-twoUp__card">
+            <div className="money-twoUp__label">Jobs done</div>
+            <div className="money-twoUp__value">{monthSummary.jobCount}</div>
+          </div>
         </div>
-        <div className="money-twoUp__card">
-          <div className="money-twoUp__label">Jobs done</div>
-          <div className="money-twoUp__value">{monthSummary.jobCount}</div>
-        </div>
-      </div>
+      )}
 
       {/* ── "More insights" expander — collapsible analytics layer ────────── */}
       {/* Keeps the screen scannable at a glance. All accountant-grade and
