@@ -10773,7 +10773,8 @@ button.jd-money-chip:active { opacity: 0.75; }
   position: relative;
 }
 
-/* Read-only stage label — same pill look as before, no interactive states */
+/* Read-only stage label — same pill look as before, no interactive states.
+   Kept in the stylesheet for any legacy reference; the tile now uses .jt-stage-name. */
 .jt-stage-label {
   display: inline-flex;
   align-items: center;
@@ -10792,6 +10793,34 @@ button.jd-money-chip:active { opacity: 0.75; }
   pointer-events: none; /* purely decorative — tap goes to ⋯ or the tile */
   line-height: var(--lh-stage);
 }
+
+/* Plain stage name — replaces the coloured pill on job tiles.
+   The six WorkflowCircles carry all the stage colour/progress signal;
+   this text just names the stage at low visual emphasis so the card
+   carries at most two accent colours (left-rail hue + CTA button).
+
+   Invoiced/Overdue variants get their signature hue so the name still
+   pops on money-critical states — but shape (receipt vs warning icon
+   rendered in JSX) is the primary differentiator, not hue alone. */
+.jt-stage-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: var(--fs-label);
+  font-weight: 600;
+  color: var(--text-dim);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  user-select: none;
+  pointer-events: none;
+  line-height: 1;
+}
+/* Invoiced — amber to match the left-rail and circle ring; distinct from Overdue's rose */
+.jt-stage-name--invoiced { color: var(--jp-amber); }
+/* Overdue — rose/red; distinct from Invoiced's amber. Icon shape (warning triangle)
+   reinforces the distinction beyond hue for colour-blind and bright-sun conditions. */
+.jt-stage-name--overdue  { color: var(--jp-rose); }
 
 /* ⋯ overflow button — sole menu trigger */
 .jt-dots {
@@ -17338,12 +17367,12 @@ button.jd-money-chip:active { opacity: 0.75; }
        --stage-overdue   orange — invoice past due
        --stage-paid      green  — complete, money received
      ──────────────────────────────────────────────────────────────────────── */
-  --stage-lead:     #2563EB;  /* blue  */
-  --stage-quoted:   #0EA5B7;  /* teal/cyan */
-  --stage-on:       #22C55E;  /* green */
-  --stage-invoiced: #F59E0B;  /* amber/gold */
-  --stage-overdue:  #F97316;  /* orange */
-  --stage-paid:     #16A34A;  /* deep green */
+  --stage-lead:     #2563EB;  /* blue        — new enquiry */
+  --stage-quoted:   #0EA5B7;  /* teal/cyan   — distinct hue (not green) */
+  --stage-on:       #22C55E;  /* bright green — L≈46%; active / in progress */
+  --stage-invoiced: #F59E0B;  /* amber/gold  — invoice out */
+  --stage-overdue:  #F97316;  /* orange      — past due */
+  --stage-paid:     #15803D;  /* deep forest-green — L≈29%; +17pt vs On; clearly "done" */
 
   /* ── Semantic workflow tokens ─────────────────────────────────────────────
      Component references ONLY these tokens — never the ohnar-* primitives
