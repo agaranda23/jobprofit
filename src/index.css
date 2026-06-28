@@ -3844,6 +3844,93 @@ input[type=number] { -moz-appearance: textfield; }
   font-size: var(--fs-label);
 }
 
+/* ── All-view list pagination (reship/all-view-sort-pagination) ───────────────
+   Pager renders below the job list when there are > 25 jobs.
+   Min tap targets 44px (WCAG 2.5.5) — mobile-first.                           */
+.job-list-wrap {
+  display: flex;
+  flex-direction: column;
+}
+
+.pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px 0 20px;
+}
+
+.pager-count {
+  font-size: 13px;
+  color: var(--text-secondary, rgba(255,255,255,0.5));
+  white-space: nowrap;
+}
+
+.pager-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.pager-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0 10px;
+  border: 1px solid var(--border, rgba(255,255,255,0.12));
+  border-radius: 8px;
+  background: var(--surface, #1e2533);
+  color: var(--text, rgba(255,255,255,0.87));
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  line-height: 1;
+  -webkit-tap-highlight-color: transparent;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.pager-btn:disabled,
+.pager-btn[aria-disabled="true"] {
+  opacity: 0.35;
+  cursor: default;
+}
+
+.pager-btn:not(:disabled):not([aria-disabled="true"]):hover,
+.pager-btn:not(:disabled):not([aria-disabled="true"]):focus-visible {
+  background: var(--surface-raised, #2a3347);
+  border-color: var(--border-active, rgba(255,255,255,0.25));
+  outline: none;
+}
+
+.pager-btn--current {
+  background: #2BC48A;
+  border-color: #2BC48A;
+  color: #063A24;
+  font-weight: 700;
+}
+
+.pager-btn--prev,
+.pager-btn--next {
+  font-size: 18px;
+  font-weight: 400;
+}
+
+.pager-ellipsis {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  min-height: 44px;
+  font-size: 14px;
+  color: var(--text-secondary, rgba(255,255,255,0.4));
+  pointer-events: none;
+  user-select: none;
+}
+
 .job-list {
   list-style: none;
   padding: 0;
