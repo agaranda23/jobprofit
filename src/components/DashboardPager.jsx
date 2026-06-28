@@ -18,7 +18,7 @@
  *   children    {array}    exactly 3 React elements (one per page)
  */
 
-import { useEffect, useLayoutEffect, useCallback } from 'react';
+import { useLayoutEffect, useCallback } from 'react';
 import { useDashboardPager } from '../lib/useDashboardPager';
 import { haptic } from '../lib/haptics.js';
 

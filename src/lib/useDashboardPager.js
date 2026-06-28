@@ -170,6 +170,10 @@ export function useDashboardPager({ pageCount, pageIndex, onPageChange, locked }
         track.removeEventListener('transitionend', track._pagerOnEnd);
         track._pagerOnEnd = null;
       }
+      // Interrupting an in-flight swipe animation: clear the animation guard too,
+      // otherwise a later jumpTo (nav tap) to that same index would bail forever
+      // and the track would stop responding to taps for that page (B1).
+      animatingToIdx.current = -1;
       // Capture the current visual translateX. CRITICAL: when the pager is
       // SETTLED it is positioned via `left: -idx*100%` with NO inline transform,
       // so the transform matrix reads 0. Trusting it then would clear `left` and
