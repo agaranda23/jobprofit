@@ -20573,3 +20573,13 @@ button.jd-money-chip:active { opacity: 0.75; }
 }
 
 /* End of press-states block */
+
+/* ── feat/premium-money-countup — count-up tabular-nums guard ───────────────
+   The hero figures already have font-variant-numeric: tabular-nums from their
+   own CSS rules. The today-tax-pot-line's <strong> is the one exception — it
+   inherits a proportional font, so we pin tabular-nums here to stop the line
+   from jumping width as the number counts up.
+   Motion is handled entirely in JS (useCountUp) so no CSS animation here. */
+.today-tax-pot-line strong {
+  font-variant-numeric: tabular-nums;
+}

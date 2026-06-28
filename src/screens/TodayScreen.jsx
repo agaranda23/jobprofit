@@ -21,6 +21,7 @@
  */
 
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import { useCountUp } from '../lib/useCountUp';
 import AddJobModal from '../components/AddJobModal';
 import Icon from '../components/Icon';
 import ReviewSheet from '../components/ReviewSheet';
@@ -223,6 +224,10 @@ export default function TodayScreen({
     const monthTaxPot = Math.max(0, monthSummary.profit - overheadTotal) * taxSetAsidePct / 100;
     return { monthTaxPot: Math.round(monthTaxPot), taxSetAsidePct, hasProfit: monthSummary.profit > 0 };
   }, [jobs, receipts, profile]);
+
+  // Count-up for the Today tax-pot hero line (Pro users only).
+  // useCountUp is always called (Rules of Hooks) — isPro check guards rendering.
+  const animatedTodayTaxPot = useCountUp(taxPotData.monthTaxPot);
 
   // ── Overdue-money push (item 2) ──────────────────────────────────────────────
   // All Tier-1 jobs (overdue + awaiting payment, not snoozed) — used for the
@@ -686,7 +691,7 @@ export default function TodayScreen({
           >
             <Icon name="tip" size={14} />
             {' '}Set aside{' '}
-            <strong>{gbp(taxPotData.monthTaxPot)}</strong>{' '}
+            <strong>{gbp(Math.round(animatedTodayTaxPot))}</strong>{' '}
             for tax this month
           </button>
         ) : (
