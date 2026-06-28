@@ -280,6 +280,20 @@ export default function AppShell() {
     return () => clearTimeout(t);
   }, []);
 
+  // Splash exit — the "fly to header" magic move. Once the splash has shown its
+  // full dwell AND we're entering the app (session exists), keep the splash
+  // mounted briefly as an overlay so its lockup can fly up + shrink toward the
+  // header while the app fades in underneath, then remove it. Skipped (instant)
+  // under prefers-reduced-motion. See .splash--exiting in index.css.
+  const [splashGone, setSplashGone] = useState(false);
+  useEffect(() => {
+    if (!(authReady && splashMinElapsed && session) || splashGone) return;
+    const reduce = typeof window !== 'undefined' && window.matchMedia
+      && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const t = setTimeout(() => setSplashGone(true), reduce ? 0 : 700);
+    return () => clearTimeout(t);
+  }, [authReady, splashMinElapsed, session, splashGone]);
+
   // Hash-routed navigation: pushes history before switching view so browser
   // Back returns to the previous in-app screen instead of exiting the SPA.
   const navigate = useCallback((nextView) => {
@@ -1203,6 +1217,8 @@ export default function AppShell() {
 
   return (
     <AppErrorBoundary variant="app">
+      {/* Splash exit overlay — flies the lockup into the header, then unmounts. */}
+      {!splashGone && <Splash exiting />}
       <ConsentBanner />
       {view === 'today' && (
         <TodayScreen

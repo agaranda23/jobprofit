@@ -26,13 +26,17 @@
  * Reduced-motion: @media (prefers-reduced-motion: reduce) skips all
  * animations — users see the static centred lockup immediately.
  *
- * NOTE: A designer-provided SVG wordmark would improve crispness at all DPRs.
- * Until then "OHNAR" is rendered as live DM Sans text (already loaded by the
- * page) — correct colour, weight, and spacing without any raster softness.
+ * The "HNAR" wordmark uses the REAL OHNAR logo letterforms (custom A & R) as
+ * an inline SVG (public/ohnar-hnar-white.svg) — razor-sharp at any DPR and an
+ * exact match for the header logo, not a DM Sans approximation.
  */
-export default function Splash() {
+export default function Splash({ exiting = false }) {
   return (
-    <div className="splash" aria-label="Loading OHNAR" role="status">
+    <div
+      className={`splash${exiting ? ' splash--exiting' : ''}`}
+      aria-label="Loading OHNAR"
+      role="status"
+    >
       {/* Lockup wrapper — receives the lock-in beat (scale micro-overshoot)
           and the Success-Green sheen sweep after the ring finishes drawing. */}
       <div className="splash__lockup">
@@ -76,13 +80,17 @@ export default function Splash() {
           />
         </svg>
 
-        {/* Wordmark — "HNAR" (the ring above is the O), live DM Sans text,
-            fades + rises after the ring settles. The lockup carries aria-label
-            "OHNAR" so screen readers announce the full brand, not "HNAR".
-            Pixel-identical position and size to #splash-static in index.html. */}
-        <span className="splash__wordmark" aria-hidden="true">
-          HNAR
-        </span>
+        {/* Wordmark — "HNAR" from the REAL OHNAR logo letterforms (custom A & R),
+            white for the dark splash. The ring to its left is the brand "O";
+            together they read "OHNAR". Fades + rises after the ring settles.
+            The .splash wrapper carries aria-label "Loading OHNAR" for screen
+            readers. Matches #splash-static in index.html. */}
+        <img
+          className="splash__wordmark"
+          src="/ohnar-hnar-white.svg"
+          alt=""
+          aria-hidden="true"
+        />
       </div>
     </div>
   );
