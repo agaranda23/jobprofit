@@ -310,12 +310,10 @@ button:focus-visible {
   /* Pivot tile icons — white on Brand Blue (#2563EB) passes WCAG AA in both themes */
   --tile-icon-color: #ffffff;
 
-  /* Brand palette — light-legible variants */
-  --jp-green:    #2563eb;
-  --jp-amber:    #d97706;
-  --jp-rose:     #e03535;
-  --jp-blue:     #2563eb;
-  --jp-navy:     #e8f0fe;  /* used as a surface tint on the finance card */
+  /* Brand palette — light-legible variants now live in the [data-theme="light"]
+     block placed AFTER the new-nav :root token cluster (search "Light-theme
+     overrides for the --jp-* brand palette"). They must come after that :root
+     block to win the cascade — declared here they lost to it by source order. */
 
   /* Stage strip gradient — already light-readable; keep same values */
   --grn-quoted:   #B3F0D5;
@@ -3383,6 +3381,20 @@ input[type=number] { -moz-appearance: textfield; }
   --stage-accent-invoiced: #f4a024;
   --stage-accent-overdue:  #f04550;
   --stage-accent-paid:     #22c55e;
+}
+
+/* Light-theme overrides for the --jp-* brand palette. MUST sit after the :root
+   block above: [data-theme="light"] and :root have equal specificity, so source
+   order decides the winner. The original light declarations near the top of the
+   file came BEFORE this :root block and lost, leaving light mode stuck on the
+   dark values. These restore the designed light-legible variants in light mode;
+   dark mode (the :root default) is unchanged. */
+[data-theme="light"] {
+  --jp-green: #2563eb;
+  --jp-amber: #d97706;
+  --jp-rose:  #e03535;
+  --jp-blue:  #2563eb;
+  --jp-navy:  #e8f0fe;  /* light surface tint on the finance card */
 }
 
 /* Nav badge */
