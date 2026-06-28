@@ -42,7 +42,7 @@ import { deleteJobFromCloud } from '../lib/store';
 import { shouldShowPartPaidChip, formatPartPaidLabel } from '../lib/partPaidChip';
 // JP-LU5 PR1: sortJobsByColumn, daysInStage removed from WorkScreen import —
 // call sites in JobsTable deleted. Both are still exported from lib/jobSort.js.
-import { jobMatchesQuery, sortJobsByStage, firstLineOfAddress } from '../lib/jobSort';
+import { jobMatchesQuery, sortJobsByStage, sortJobsForAllView, firstLineOfAddress } from '../lib/jobSort';
 // JobProgressDots replaced by WorkflowCircles (feat/ohnar-six-stage-workflow)
 import WorkflowCircles from '../components/WorkflowCircles';
 import OhnarWordmark from '../components/OhnarWordmark';
@@ -963,23 +963,129 @@ function EmptyState({ stage, onAddJob }) {
 
 // JP-LU5 PR1: JobsTable function removed — see tombstone comment above.
 
+// ── Pagination constants ──────────────────────────────────────────────────────
+
+const PAGE_SIZE = 25;
+
+/**
+ * Pager — numbered prev/next controls for a paginated list.
+ *
+ * Only renders when totalItems > PAGE_SIZE.
+ * Mobile-first: tap targets ≥ 44px, wraps to two rows on narrow viewports.
+ * Page-window algorithm: current ± 2 with ellipses, always shows first and last.
+ */
+function Pager({ page, totalPages, onPage, totalItems, pageSize }) {
+  if (totalItems <= pageSize) return null;
+
+  const startItem = (page - 1) * pageSize + 1;
+  const endItem = Math.min(page * pageSize, totalItems);
+
+  // Build the window of page numbers to show.
+  // Always include 1 and totalPages; show current ± 2 with ellipsis gaps.
+  function buildPageWindow(current, total) {
+    if (total <= 7) {
+      return Array.from({ length: total }, (_, i) => i + 1);
+    }
+    const items = [];
+    const WINDOW = 2;
+    let prev = null;
+    for (let p = 1; p <= total; p++) {
+      if (p === 1 || p === total || (p >= current - WINDOW && p <= current + WINDOW)) {
+        if (prev !== null && p - prev > 1) items.push('…');
+        items.push(p);
+        prev = p;
+      }
+    }
+    return items;
+  }
+
+  const pageWindow = buildPageWindow(page, totalPages);
+
+  return (
+    <div className="pager" aria-label="Page navigation">
+      <span className="pager-count" aria-live="polite" aria-atomic="true">
+        Showing {startItem}–{endItem} of {totalItems}
+      </span>
+      <div className="pager-controls" role="group" aria-label="Page controls">
+        <button
+          type="button"
+          className="pager-btn pager-btn--prev"
+          onClick={() => onPage(page - 1)}
+          disabled={page === 1}
+          aria-label="Previous page"
+          aria-disabled={page === 1}
+        >
+          ‹
+        </button>
+        {pageWindow.map((item, idx) =>
+          item === '…' ? (
+            <span key={`ellipsis-${idx}`} className="pager-ellipsis" aria-hidden="true">…</span>
+          ) : (
+            <button
+              key={item}
+              type="button"
+              className={`pager-btn pager-btn--num${item === page ? ' pager-btn--current' : ''}`}
+              onClick={() => onPage(item)}
+              aria-label={`Page ${item}`}
+              aria-current={item === page ? 'page' : undefined}
+            >
+              {item}
+            </button>
+          )
+        )}
+        <button
+          type="button"
+          className="pager-btn pager-btn--next"
+          onClick={() => onPage(page + 1)}
+          disabled={page === totalPages}
+          aria-label="Next page"
+          aria-disabled={page === totalPages}
+        >
+          ›
+        </button>
+      </div>
+    </div>
+  );
+}
+
 // ── JobsList subview ──────────────────────────────────────────────────────────
 
 // JP-LU5 PR1: layout, colSort, onColSort, onUpgrade props removed — card view only.
 function JobsList({ jobs, receipts, selectedStage, showAll, searchQuery, profile, onJobSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJob, onCopyJob, onArchiveJob, onDeleteJob, biz, onShowToast, onViewReceipt, onAddJob, onActionRedirect }) {
   const q = (searchQuery || '').trim();
+  const listTopRef = useRef(null);
+
+  // Pagination: always reset to page 1 when filter, search, or showAll changes.
+  const [page, setPage] = useState(1);
+  useEffect(() => {
+    setPage(1);
+  }, [selectedStage, showAll, searchQuery]);
 
   // When searching: ignore the stage filter — show everything that matches (1B spec).
-  // When not searching: filter to the selected stage then sort by urgency (1C).
-  let stageFiltered;
+  // When not searching and in All view: apply urgency-tier sort.
+  // When not searching and in a stage view: filter to stage then sort by urgency (1C).
+  let visible;
   if (q) {
-    stageFiltered = jobs.filter(j => jobMatchesQuery(j, q));
+    visible = jobs.filter(j => jobMatchesQuery(j, q));
+  } else if (showAll) {
+    visible = sortJobsForAllView(jobs, deriveDisplayStatus);
   } else {
-    const stageJobs = showAll ? jobs : jobs.filter(j => deriveDisplayStatus(j) === selectedStage);
-    stageFiltered = sortJobsByStage(stageJobs, showAll ? null : selectedStage);
+    const stageJobs = jobs.filter(j => deriveDisplayStatus(j) === selectedStage);
+    visible = sortJobsByStage(stageJobs, selectedStage);
   }
 
-  const visible = stageFiltered;
+  const totalItems = visible.length;
+  const totalPages = Math.max(1, Math.ceil(totalItems / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const pageStart = (safePage - 1) * PAGE_SIZE;
+  const pageEnd = pageStart + PAGE_SIZE;
+  const pageItems = visible.slice(pageStart, pageEnd);
+
+  function handlePage(p) {
+    setPage(p);
+    // Scroll list back to top on page change
+    listTopRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+  }
 
   // Card view (always — table layout removed in JP-LU5 PR1)
   if (visible.length === 0) {
@@ -995,26 +1101,37 @@ function JobsList({ jobs, receipts, selectedStage, showAll, searchQuery, profile
   }
 
   return (
-    <ul className="job-list">
-      {visible.map(j => (
-        <JobTile
-          key={j.id || j.cloudId}
-          job={j}
-          onSelect={onJobSelect}
-          onSendInvoice={onSendInvoice}
-          onUpdateJob={onUpdateJob}
-          onNewJob={onNewJob}
-          onOpenJob={onOpenJob}
-          onCopyJob={onCopyJob}
-          onArchiveJob={onArchiveJob}
-          onDeleteJob={onDeleteJob}
-          biz={biz}
-          onShowToast={onShowToast}
-          onViewReceipt={onViewReceipt}
-          onActionRedirect={onActionRedirect}
-        />
-      ))}
-    </ul>
+    <div className="job-list-wrap">
+      {/* Invisible scroll anchor — scrollIntoView targets this on page change */}
+      <div ref={listTopRef} aria-hidden="true" style={{ height: 0 }} />
+      <ul className="job-list">
+        {pageItems.map(j => (
+          <JobTile
+            key={j.id || j.cloudId}
+            job={j}
+            onSelect={onJobSelect}
+            onSendInvoice={onSendInvoice}
+            onUpdateJob={onUpdateJob}
+            onNewJob={onNewJob}
+            onOpenJob={onOpenJob}
+            onCopyJob={onCopyJob}
+            onArchiveJob={onArchiveJob}
+            onDeleteJob={onDeleteJob}
+            biz={biz}
+            onShowToast={onShowToast}
+            onViewReceipt={onViewReceipt}
+            onActionRedirect={onActionRedirect}
+          />
+        ))}
+      </ul>
+      <Pager
+        page={safePage}
+        totalPages={totalPages}
+        onPage={handlePage}
+        totalItems={totalItems}
+        pageSize={PAGE_SIZE}
+      />
+    </div>
   );
 }
 
