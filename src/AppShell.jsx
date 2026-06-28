@@ -265,6 +265,18 @@ export default function AppShell() {
   const [addMaterialOpen, setAddMaterialOpen] = useState(false);   // AddMaterialModal
   const [editingMaterial, setEditingMaterial] = useState(null);    // material row being edited
 
+  // Minimum splash dwell so the ring draw-on animation always completes before
+  // auth unmounts the Splash screen. Skipped when prefers-reduced-motion is set
+  // (no draw animation runs, so no artificial delay needed).
+  const [splashMinElapsed, setSplashMinElapsed] = useState(false);
+  useEffect(() => {
+    const reduce = typeof window !== 'undefined' && window.matchMedia
+      && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if (reduce) { setSplashMinElapsed(true); return; }
+    const t = setTimeout(() => setSplashMinElapsed(true), 900);
+    return () => clearTimeout(t);
+  }, []);
+
   // Hash-routed navigation: pushes history before switching view so browser
   // Back returns to the previous in-app screen instead of exiting the SPA.
   const navigate = useCallback((nextView) => {
@@ -1171,7 +1183,7 @@ export default function AppShell() {
     navigate('work');
   }, [navigate]);
 
-  if (!authReady) {
+  if (!authReady || !splashMinElapsed) {
     return <Splash />;
   }
   if (!session) {

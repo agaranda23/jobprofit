@@ -1,7 +1,7 @@
 /**
  * OhnarWordmark — OHNAR full logo lockup (blue O + wordmark in one image).
  *
- * Assets (707×353, ~2:1, transparent PNG):
+ * Assets (573×127, ~4.5:1, transparent PNG):
  *   Light theme → /ohnar-logo.png      (blue O + navy "OHNAR" text)
  *   Dark  theme → /ohnar-logo-dark.png (blue O + white "OHNAR" text)
  *
@@ -38,6 +38,9 @@ export default function OhnarWordmark({ size, className = '' }) {
         className="ohnar-wm__lockup ohnar-wm__lockup--light"
         alt=""
         aria-hidden="true"
+        width={573}
+        height={127}
+        decoding="async"
       />
       {/* Dark-theme lockup — shown only under [data-theme="dark"] via CSS */}
       <img
@@ -45,6 +48,9 @@ export default function OhnarWordmark({ size, className = '' }) {
         className="ohnar-wm__lockup ohnar-wm__lockup--dark"
         alt=""
         aria-hidden="true"
+        width={573}
+        height={127}
+        decoding="async"
       />
     </span>
   );
