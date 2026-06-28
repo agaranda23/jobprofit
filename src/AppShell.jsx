@@ -81,6 +81,8 @@ import ExportFormatSheet from './components/ExportFormatSheet.jsx';
 import AppErrorBoundary from './components/AppErrorBoundary.jsx';
 import Splash from './components/Splash.jsx';
 import DashboardPager from './components/DashboardPager.jsx';
+import PaidCelebration from './components/PaidCelebration.jsx';
+import { haptic } from './lib/haptics.js';
 
 // ─── App-boot cleanup ─────────────────────────────────────────────────────────
 // Remove localStorage keys that were used by the now-deleted newNav and
@@ -175,6 +177,9 @@ export default function AppShell() {
   // costSnackbar: used only for the expanded modal path (+ Add cost tapped).
   // The collapsed snackbar itself is rendered via Snackbar.jsx.
   const [costSnackbarJob, setCostSnackbarJob] = useState(null);
+  // paidCelebration: amount to show in the shared PaidCelebration overlay.
+  // null = hidden; a number = overlay is active with that paid amount.
+  const [paidCelebrationAmount, setPaidCelebrationAmount] = useState(null);
   // Debounce timer for the realtime onChange → refreshFromCloud path.
   // A burst of postgres_changes events (e.g. bulk offline sync flushes) would
   // otherwise fire one full refetch per event.  2-second trailing debounce
@@ -928,6 +933,10 @@ export default function AppShell() {
     syncMetaToCloud(updated.id, merged);
     setJobs(prev => prev.map(j => j.id === updated.id ? updated : j));
 
+    // Fire the shared paid celebration + haptic on every mark-paid gesture.
+    haptic('success');
+    setPaidCelebrationAmount(job.total ?? job.amount ?? null);
+
     // Payment recorded first (state update above). Now decide whether to show
     // the lightweight cost-capture snackbar. Auto-dismisses after 6 s if the
     // user does nothing — payment is never affected either way.
@@ -965,6 +974,13 @@ export default function AppShell() {
     const merged = writeJobMeta(updated.id, extractJobMeta(updated));
     syncMetaToCloud(updated.id, merged);
     setJobs(prev => prev.map(j => j.id === updated.id ? updated : j));
+
+    // Fire the shared paid celebration when this payment clears the balance.
+    // applyAutoFlip (inside addPayment) sets status='paid' on a full clearance.
+    if (updated.status === 'paid') {
+      haptic('success');
+      setPaidCelebrationAmount(updated.total ?? updated.amount ?? null);
+    }
   };
 
   // Generic job field update used by JobDetailDrawer and SendInvoiceModal.
@@ -1575,6 +1591,15 @@ export default function AppShell() {
         ]}
         onPick={handleMoneyExportFormatPick}
         onClose={() => setMoneyExportSheetOpen(false)}
+      />
+
+      {/* ── Paid celebration overlay (shared across all mark-paid entry points) ── */}
+      {/* Triggered by onMarkPaidFromToday and onAddPayment when balance clears.   */}
+      {/* Haptic('success') fires alongside it in each trigger site.               */}
+      <PaidCelebration
+        active={paidCelebrationAmount !== null}
+        amount={paidCelebrationAmount}
+        onDone={() => setPaidCelebrationAmount(null)}
       />
     </AppErrorBoundary>
   );
