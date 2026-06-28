@@ -594,19 +594,22 @@ button:focus-visible {
   border-left-color: #d97706; /* amber-600, slightly darker for light bg contrast */
 }
 
-/* 11c. jd-profit-ribbon — #0F1B2D dark-navy bg visible as black bar in light mode */
-[data-theme="light"] .jd-profit-ribbon {
-  background: #1e3a5f; /* navy-800, dark enough for white text to stay WCAG-AA */
-}
-[data-theme="light"] .jd-profit-ribbon--healthy {
-  background: #1e3a5f;
-}
-[data-theme="light"] .jd-profit-ribbon--thin {
-  background: #78350f; /* amber-900 — distinct from healthy, legible with cream text */
-}
-[data-theme="light"] .jd-profit-ribbon--underwater {
-  background: #7f1d1d; /* red-900 — legible with rose text */
-}
+/* 11c. jd-profit-ribbon — was #0F1B2D dark-navy (read as a black bar in light
+   mode). In light mode use a LIGHT tinted bar with DARK text, consistent with the
+   profit-reveal box; dark mode keeps the dark fills + light text. All pairs WCAG-AA. */
+[data-theme="light"] .jd-profit-ribbon            { background: #f3f4f6; color: #1e3a5f; }
+[data-theme="light"] .jd-profit-ribbon--healthy   { background: #dcfce7; }
+[data-theme="light"] .jd-profit-ribbon--thin      { background: #fef9c3; }
+[data-theme="light"] .jd-profit-ribbon--underwater{ background: #fee2e2; }
+/* light-mode text: dark on the pale bar */
+[data-theme="light"] .jd-profit-ribbon-value      { color: #1e3a5f; }
+[data-theme="light"] .jd-profit-ribbon-label,
+[data-theme="light"] .jd-profit-ribbon-label--short,
+[data-theme="light"] .jd-profit-ribbon-chev       { color: #4b5563; }
+[data-theme="light"] .jd-profit-ribbon-divider    { color: #6b7280; }
+[data-theme="light"] .jd-profit-ribbon--healthy    .jd-profit-ribbon-value--profit { color: #15803d; }
+[data-theme="light"] .jd-profit-ribbon--thin       .jd-profit-ribbon-value--profit { color: #92400e; }
+[data-theme="light"] .jd-profit-ribbon--underwater .jd-profit-ribbon-value--profit { color: #991b1b; }
 
 /* 12. Quote builder dark surfaces — #131C2D / #1F2B44 hardcoded dark navy */
 [data-theme="light"] .aj-quote-line-items {
