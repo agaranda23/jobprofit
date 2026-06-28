@@ -20712,13 +20712,16 @@ button.jd-money-chip:active { opacity: 0.75; }
   }
 }
 
-/* ── 7. job-detail-sheet centred variant override (≥481px) ──────────────── */
+/* ── 7. job-detail-sheet centred variant override (≥600px) ──────────────── */
 /*
-   On ≥481px .job-detail-sheet shifts to a centred position via translateX(-50%).
-   The standard sheet-spring-up keyframe doesn't include the translateX, so we
-   need the -centered variant that preserves the horizontal offset.
+   The sheet only shifts to a centred position via translateX(-50%) at ≥600px
+   (see the min-width:600px layout block above). The centred spring keyframe
+   bakes in that translateX, so it MUST match the SAME 600px breakpoint —
+   firing it at 481px animated the still-full-width sheet from an off-centre
+   position. Below 600px the full-width sheet keeps the base slide-up
+   (translateY only), which has no min-width and so already covers 481–599px.
 */
-@media (min-width: 481px) and (prefers-reduced-motion: no-preference) {
+@media (min-width: 600px) and (prefers-reduced-motion: no-preference) {
   .job-detail-sheet {
     animation: sheet-spring-up-centered 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
   }
