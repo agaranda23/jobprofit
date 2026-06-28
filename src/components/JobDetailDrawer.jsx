@@ -235,7 +235,7 @@ function CustomerCard({ job, onEditName, onEditPhone, onEditAddress, onEditEmail
           >
             <span className="jd-card-row-icon"><Icon name="customer" size={16} variant="muted" /></span>
             <span className="jd-card-row-val">{customer}</span>
-            <span className="jd-card-row-edit" aria-hidden="true">›</span>
+            <span className="jd-card-row-edit" aria-hidden="true"><Icon name="chevron-right" size={16} /></span>
           </button>
         ) : (
           <div className="jd-card-row">
@@ -270,7 +270,7 @@ function CustomerCard({ job, onEditName, onEditPhone, onEditAddress, onEditEmail
             >
               <span className="jd-card-row-icon"><Icon name="phone" size={16} variant="muted" /></span>
               <span className="jd-card-row-val">{phone}</span>
-              <span className="jd-card-row-edit" aria-hidden="true">›</span>
+              <span className="jd-card-row-edit" aria-hidden="true"><Icon name="chevron-right" size={16} /></span>
             </button>
           ) : (
             <div className="jd-card-row">
@@ -316,7 +316,7 @@ function CustomerCard({ job, onEditName, onEditPhone, onEditAddress, onEditEmail
                 onClick={onEditAddress}
                 aria-label="Edit customer address"
               >
-                <span aria-hidden="true">›</span>
+                <span aria-hidden="true"><Icon name="chevron-right" size={16} /></span>
               </button>
             </div>
           </>
@@ -357,7 +357,7 @@ function CustomerCard({ job, onEditName, onEditPhone, onEditAddress, onEditEmail
           >
             <span className="jd-card-row-icon"><Icon name="email" size={16} variant="muted" /></span>
             <span className="jd-card-row-val">{email}</span>
-            <span className="jd-card-row-edit" aria-hidden="true">›</span>
+            <span className="jd-card-row-edit" aria-hidden="true"><Icon name="chevron-right" size={16} /></span>
           </button>
         ) : (
           <a href={`mailto:${email}`} className="jd-card-row jd-card-row--link">
@@ -390,7 +390,7 @@ function CustomerCard({ job, onEditName, onEditPhone, onEditAddress, onEditEmail
           >
             <span className="jd-card-row-icon"><Icon name="note" size={16} variant="muted" /></span>
             <span className="jd-card-row-val">{description}</span>
-            <span className="jd-card-row-edit" aria-hidden="true">›</span>
+            <span className="jd-card-row-edit" aria-hidden="true"><Icon name="chevron-right" size={16} /></span>
           </button>
         ) : (
           <div className="jd-card-row">
@@ -634,7 +634,7 @@ function DetailsSection({
                   onClick={onEditPhone}
                   aria-label="Edit customer phone"
                 >
-                  ›
+                  <Icon name="chevron-right" size={16} />
                 </button>
               )}
             </div>
@@ -650,7 +650,7 @@ function DetailsSection({
                   <span className="jd-detail-icon"><Icon name="phone" size={16} variant="muted" /></span>
                   <span className="jd-detail-edit-row-add--dim">+ Add phone</span>
                 </span>
-                <span className="jd-detail-edit-chevron" aria-hidden="true">›</span>
+                <span className="jd-detail-edit-chevron" aria-hidden="true"><Icon name="chevron-right" size={16} /></span>
               </button>
             )
           )
@@ -672,7 +672,7 @@ function DetailsSection({
                   : <span className="jd-detail-edit-row-add--dim">+ Add email</span>
                 }
               </span>
-              <span className="jd-detail-edit-chevron" aria-hidden="true">›</span>
+              <span className="jd-detail-edit-chevron" aria-hidden="true"><Icon name="chevron-right" size={16} /></span>
             </button>
           ) : (
             <a href={`mailto:${email}`} className="jd-detail-row jd-detail-link">
@@ -1333,7 +1333,7 @@ function QuoteBreakdownSection({ job, onSaveLine, onDeleteLine }) {
                         </span>
                         <span className="jd-line-item-cost">{gbp(lineTotal)}</span>
                       </span>
-                      <span className="jd-card-row-chevron" aria-hidden="true">›</span>
+                      <span className="jd-card-row-chevron" aria-hidden="true"><Icon name="chevron-right" size={16} /></span>
                     </button>
                   );
                 }
@@ -1486,7 +1486,7 @@ function ReceiptRow({ r, isRowTappable, onRowTap, onDeleteReceipt, onReceiptRowT
         {r.date && <div className="jd-receipt-date">{fmtDate(r.date)}</div>}
       </div>
       <div className="jd-receipt-right">
-        {isRowTappable && <span className="jd-receipt-chevron" aria-hidden="true">›</span>}
+        {isRowTappable && <span className="jd-receipt-chevron" aria-hidden="true"><Icon name="chevron-right" size={16} /></span>}
         <div className="jd-receipt-amount">{gbp(r.amount || 0)}</div>
         {onDeleteReceipt && (
           <button
@@ -1674,7 +1674,7 @@ function PhotoThumb({ entry, index, total, onViewPhoto, onDeletePhoto, onSetCapt
             disabled={index === total - 1}
             aria-label="Move photo later"
           >
-            ›
+            <Icon name="arrow-right" size={16} />
           </button>
         </div>
       )}
@@ -2004,8 +2004,8 @@ function CollapsibleRow({ id, icon, title, summary, expanded, onToggle, children
         {!expanded && summary && (
           <span className="jd-collapsible-summary">{summary}</span>
         )}
-        <span className="jd-collapsible-chev" aria-hidden="true">
-          {expanded ? '▴' : '›'}
+        <span className="jd-collapsible-chev" aria-hidden="true" style={{ transition: 'transform 0.2s', transform: expanded ? 'rotate(-90deg)' : 'none' }}>
+          <Icon name="chevron-right" size={16} />
         </span>
       </button>
       {expanded && (
@@ -3208,7 +3208,7 @@ export default function JobDetailDrawer({
                     aria-expanded={kebabOpen}
                     aria-haspopup="menu"
                   >
-                    ⋯
+                    <Icon name="more-h" size={20} />
                   </button>
                   {kebabOpen && (
                     <div className="jd-kebab-menu" role="menu">
