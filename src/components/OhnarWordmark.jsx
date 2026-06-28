@@ -1,9 +1,9 @@
 /**
  * OhnarWordmark — OHNAR full logo lockup (blue O + wordmark in one image).
  *
- * Assets (573×127, ~4.5:1, transparent PNG):
- *   Light theme → /ohnar-logo.png      (blue O + navy "OHNAR" text)
- *   Dark  theme → /ohnar-logo-dark.png (blue O + white "OHNAR" text)
+ * Assets (crisp vector SVG, ~4.5:1 tight viewBox — sharp at every DPR):
+ *   Light theme → /ohnar-logo.svg      (blue O + navy "OHNAR" text)
+ *   Dark  theme → /ohnar-logo-dark.svg (blue O + white "OHNAR" text)
  *
  * Theme-swap is CSS-only: both imgs are always in the DOM; the dark variant
  * is hidden by default and revealed under [data-theme="dark"]. This avoids
@@ -34,7 +34,7 @@ export default function OhnarWordmark({ size, className = '' }) {
     >
       {/* Light-theme lockup — hidden under [data-theme="dark"] via CSS */}
       <img
-        src="/ohnar-logo.png"
+        src="/ohnar-logo.svg"
         className="ohnar-wm__lockup ohnar-wm__lockup--light"
         alt=""
         aria-hidden="true"
@@ -44,7 +44,7 @@ export default function OhnarWordmark({ size, className = '' }) {
       />
       {/* Dark-theme lockup — shown only under [data-theme="dark"] via CSS */}
       <img
-        src="/ohnar-logo-dark.png"
+        src="/ohnar-logo-dark.svg"
         className="ohnar-wm__lockup ohnar-wm__lockup--dark"
         alt=""
         aria-hidden="true"
