@@ -38,6 +38,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import pkg from '../../package.json';
 import { supabase } from '../lib/supabase.js';
+import { haptic } from '../lib/haptics.js';
 import {
   buildReferralLink,
   copyReferralLink,
@@ -173,6 +174,29 @@ function Row({ label, value, action, onTap, danger = false, chevron = true, high
         {chevron && <span className="settings-row-chevron"><Icon name="chevron-right" size={16} /></span>}
       </span>
     </button>
+  );
+}
+
+// Diagnostic: confirm the device actually vibrates — rules out PWA-cache vs
+// hardware/OS settings in one tap. Fires the same success buzz as mark-paid.
+function TestVibrationRow() {
+  const [msg, setMsg] = useState(null);
+  const timerRef = useRef(null);
+  useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
+  const supported = typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function';
+  const handleTap = () => {
+    if (supported) { haptic('success'); setMsg('Buzzed — feel it?'); }
+    else { setMsg('Not supported here'); }
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => setMsg(null), 2500);
+  };
+  return (
+    <Row
+      label="Test vibration"
+      value={msg || (supported ? 'Tap to buzz' : 'Unsupported')}
+      onTap={handleTap}
+      chevron={false}
+    />
   );
 }
 
@@ -3072,6 +3096,7 @@ export default function SettingsScreen({
           <Row label="Chat with us" value="WhatsApp" onTap={handleWhatsApp} />
           <Row label="Send feedback" value="Email" onTap={handleSendFeedback} />
           <Row label="Report a bug" value="Email" onTap={handleSendBugReport} />
+          <TestVibrationRow />
           <ReferralRow
             session={session}
             profile={profile}
