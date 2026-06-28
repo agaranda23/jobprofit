@@ -7,8 +7,13 @@
  * - Target change: re-animates from the current displayed value to the new target.
  * - prefers-reduced-motion: skips animation entirely, returns target immediately.
  * - Cleans up the pending rAF on unmount so no setState fires after unmount.
+ * - enabled (default true): while false, holds displayed at 0 and resets all
+ *   refs so that when enabled flips true a fresh 0→target animation runs.
+ *   Use this to gate the animation behind async data (e.g. profile load) so
+ *   the count-up is always visible rather than firing behind a skeleton.
  *
  * @param {number} target — the number to count up to
+ * @param {{ enabled?: boolean }} options
  * @returns {number} — the current animated value (use this in render)
  */
 import { useState, useEffect, useRef } from 'react';
@@ -28,9 +33,11 @@ function prefersReducedMotion() {
   }
 }
 
-export function useCountUp(target) {
+export function useCountUp(target, { enabled = true } = {}) {
   const numericTarget = Number(target) || 0;
-  const [displayed, setDisplayed] = useState(numericTarget);
+  // Start at 0 — the startValueRef===null guard makes the first animation run
+  // from 0, so seeding to the target would cause a reverse flash on first mount.
+  const [displayed, setDisplayed] = useState(0);
 
   // Track the start value and start time for each animation run.
   // Using refs avoids stale closure issues inside the rAF loop.
@@ -40,6 +47,19 @@ export function useCountUp(target) {
   const prevTargetRef = useRef(numericTarget);
 
   useEffect(() => {
+    // While disabled: cancel any in-flight animation, reset state + refs to
+    // zero so the next enable always kicks off a clean 0→target run.
+    if (!enabled) {
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+      startValueRef.current = null;
+      prevTargetRef.current = numericTarget;
+      setDisplayed(0);
+      return;
+    }
+
     // Skip animation for users who prefer reduced motion
     if (prefersReducedMotion()) {
       setDisplayed(numericTarget);
@@ -97,7 +117,7 @@ export function useCountUp(target) {
   // at effect start time. Including displayed would restart the animation on
   // every frame, creating an infinite loop.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [numericTarget]);
+  }, [numericTarget, enabled]);
 
   return displayed;
 }
