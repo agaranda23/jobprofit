@@ -5297,6 +5297,74 @@ input[type=number] { -moz-appearance: textfield; }
   margin-left: 2px;
 }
 
+/* ── Today screen — overdue-money push banner (item 2) ──────────────────────── */
+.today-overdue-push {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  background: rgba(220, 38, 38, 0.08);
+  border: 1px solid rgba(220, 38, 38, 0.2);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-2);
+  font-family: inherit;
+  font-size: var(--fs-body);
+  font-weight: 500;
+  color: var(--danger);
+  cursor: pointer;
+  text-align: left;
+  min-height: 44px;
+  -webkit-tap-highlight-color: transparent;
+}
+.today-overdue-push:active { opacity: 0.8; }
+.today-overdue-push__amount {
+  font-family: 'JetBrains Mono', monospace;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+.today-overdue-push__text {
+  flex: 1;
+}
+.today-overdue-push__chevron {
+  flex-shrink: 0;
+  color: var(--danger);
+  opacity: 0.5;
+}
+.today-overdue-push__icon {
+  flex-shrink: 0;
+}
+[data-theme="light"] .today-overdue-push {
+  background: rgba(220, 38, 38, 0.06);
+  border-color: rgba(220, 38, 38, 0.25);
+}
+
+/* ── Today screen — paid-flash animation (item 4) ────────────────────────────── */
+@keyframes foreman-paid-flash {
+  0%   { box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.5); }
+  50%  { box-shadow: 0 0 0 8px rgba(22, 163, 74, 0.1); }
+  100% { box-shadow: 0 0 0 0 rgba(22, 163, 74, 0); }
+}
+.foreman-prompt-card--paid-flash {
+  animation: foreman-paid-flash 0.6s ease-out forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .foreman-prompt-card--paid-flash { animation: none; }
+}
+
+/* ── Today screen — secondary action tap target bump (item 5) ────────────────── */
+/* Raised from padding:4px 2px → min-height + padding to hit ≥44px vertical       */
+
+/* ── Pro upgrade sheet — loop-pitch sub-headline ─────────────────────────────── */
+.pro-upgrade-sheet__loop-pitch {
+  font-size: var(--fs-body);
+  color: var(--text-dim);
+  margin-top: 2px;
+  margin-bottom: 4px;
+  text-align: center;
+  font-weight: 400;
+}
+
 /* ── Trial countdown banner ───────────────────── */
 .trial-banner {
   display: flex;
@@ -11373,7 +11441,12 @@ button.jd-money-chip:active { opacity: 0.75; }
 .foreman-secondary-btn {
   background: none;
   border: none;
-  padding: 4px 2px;
+  /* Item 5: bump tap target to ≥44px (was 4px 2px — well below WCAG 2.5.5). */
+  /* min-height ensures at least 44px even when text is single-line.           */
+  padding: 12px 8px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
   font-size: var(--fs-label);
   font-weight: 500;
   color: var(--text-dim);

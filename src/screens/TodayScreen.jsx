@@ -45,6 +45,7 @@ import { isPro, isTrialActive, trialDaysLeft } from '../lib/plan';
 import OhnarWordmark from '../components/OhnarWordmark';
 import { UPGRADE_TRIGGERS } from '../lib/telemetry';
 import { supabase } from '../lib/supabase';
+import { getMonthSummary, getOverheadTotal, monthKey } from '../lib/cashflow';
 
 // ── Snooze helpers (delegate to nextBestAction.js store, keep SNOOZE_MS local) ──
 const SNOOZE_MS = 24 * 60 * 60 * 1000;
@@ -105,7 +106,16 @@ export default function TodayScreen({
   // upgradeSheetOpen: controls ProUpgradeSheet visibility on Today.
   const [upgradeSheetOpen, setUpgradeSheetOpen] = useState(false);
 
+  // paidFlash (item 4): true for ~600ms after a mark-paid gesture on Today.
+  // Drives off the GESTURE (mark-paid tap), not job.paid at mount, so it never
+  // silently no-ops when the job was already paid before the component rendered.
+  const [paidFlash, setPaidFlash] = useState(false);
+  const paidFlashTimerRef = useRef(null);
+
   // gotPaidDeferTimers removed (JP-LU2): snackbar manager handles dwell/sequencing.
+
+  // Cleanup paidFlash timer on unmount to prevent setState-after-unmount.
+  useEffect(() => () => clearTimeout(paidFlashTimerRef.current), []);
 
   const now = new Date();
 
@@ -201,6 +211,39 @@ export default function TodayScreen({
     return { weekProfit: weekEarned - weekSpent, weekCount: weekJobs.length };
   }, [jobs, receipts]);
 
+  // ── Tax-pot tease (item 1) ───────────────────────────────────────────────────
+  // Reuses the same formula as FinanceScreen: month profit × tax_set_aside_pct.
+  // overheadTotal is deducted from month profit before applying the percentage
+  // (mirrors the FinanceScreen monthTaxPot calculation exactly).
+  const taxPotData = useMemo(() => {
+    const taxSetAsidePct = Number(profile?.tax_set_aside_pct ?? 20);
+    const overheads = Array.isArray(profile?.overheads) ? profile.overheads : [];
+    const overheadTotal = getOverheadTotal(overheads);
+    const monthSummary = getMonthSummary(jobs, receipts, { month: monthKey(now) });
+    const monthTaxPot = Math.max(0, monthSummary.profit - overheadTotal) * taxSetAsidePct / 100;
+    return { monthTaxPot: Math.round(monthTaxPot), taxSetAsidePct, hasProfit: monthSummary.profit > 0 };
+  }, [jobs, receipts, profile]);
+
+  // ── Overdue-money push (item 2) ──────────────────────────────────────────────
+  // All Tier-1 jobs (overdue + awaiting payment, not snoozed) — used for the
+  // "£X overdue across N jobs" banner shown in addition to the hero prompt card.
+  // We compute this independently of rankNextBestAction so we can show the total
+  // across ALL overdue jobs, not just the highest-ranked one.
+  const overduePool = useMemo(() => {
+    const snoozeStore = readSnoozeStore();
+    return jobs.filter(j =>
+      j?.id &&
+      isAwaitingPayment(j) &&
+      !snoozeStore[j.id] &&
+      daysPastDue(j, now) >= 0
+    );
+  }, [jobs, rankVersion]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const overdueTotal = useMemo(
+    () => overduePool.reduce((s, j) => s + jobAmount(j), 0),
+    [overduePool]
+  );
+
   // ── Newly accepted quotes — unseen on this device (persistent banner) ──────────
   // Filtered to exclude any jobs the trader has already dismissed this session
   // (dismissedAcceptedIds is the in-memory fast-path; acceptedSeenAt is the durable path).
@@ -294,6 +337,11 @@ export default function TodayScreen({
     setMarkPaidPickerJob(null);
     onMarkPaid?.(job, method);
     showToast(`${gbp(jobAmount(job))} marked paid`);
+    // Item 4: fire paidFlash on the GESTURE (this callback), not at mount.
+    // Clear any previous timer so rapid double-taps extend the window cleanly.
+    clearTimeout(paidFlashTimerRef.current);
+    setPaidFlash(true);
+    paidFlashTimerRef.current = setTimeout(() => setPaidFlash(false), 700);
     setRankVersion(v => v + 1);
   }, [onMarkPaid]);
 
@@ -416,7 +464,7 @@ export default function TodayScreen({
       {/* ── One Prompt card (or all-clear) ────────────────────────────────── */}
       {tier < 5 && promptJob ? (
         <section
-          className="foreman-prompt-card"
+          className={`foreman-prompt-card${paidFlash ? ' foreman-prompt-card--paid-flash' : ''}`}
           role="button"
           tabIndex={0}
           aria-label={`${headline} — tap to open job`}
@@ -592,6 +640,25 @@ export default function TodayScreen({
         </button>
       </div>
 
+      {/* ── Overdue-money push (item 2) — shown when ≥2 overdue jobs exist ─── */}
+      {/* The hero prompt card already features the top-ranked one; this banner  */}
+      {/* surfaces the full pool so the trader knows the total at stake.          */}
+      {overduePool.length >= 2 && (
+        <button
+          type="button"
+          className="today-overdue-push"
+          onClick={() => onSeeTheWeek?.()}
+          aria-label={`${gbp(overdueTotal)} overdue across ${overduePool.length} jobs — tap to see all`}
+        >
+          <Icon name="alert" size={16} className="today-overdue-push__icon" />
+          <span className="today-overdue-push__text">
+            <span className="today-overdue-push__amount">{gbp(overdueTotal)}</span>
+            {' '}overdue across {overduePool.length} jobs
+          </span>
+          <Icon name="chevron-right" size={16} className="today-overdue-push__chevron" />
+        </button>
+      )}
+
       {/* ── Weekly check-in line (shown when there's activity) ───────────── */}
       {weekCount > 0 && (
         <button
@@ -604,6 +671,36 @@ export default function TodayScreen({
             : <>This week: <span className="foreman-week-profit">{gbp(weekProfit)}</span> &middot; {weekCount} jobs</>
           }
         </button>
+      )}
+
+      {/* ── Tax-pot tease (item 1) ────────────────────────────────────────── */}
+      {/* Pro users with profit see their real set-aside figure. Free users    */}
+      {/* with profit see a locked tease that opens the upgrade sheet.         */}
+      {taxPotData.hasProfit && (
+        isPro(profile) ? (
+          <button
+            type="button"
+            className="today-tax-pot-line"
+            onClick={() => onNavigateToMoney?.()}
+            aria-label={`Tax pot: set aside £${taxPotData.monthTaxPot} this month — tap to open Money`}
+          >
+            <Icon name="tip" size={14} />
+            {' '}Set aside{' '}
+            <strong>{gbp(taxPotData.monthTaxPot)}</strong>{' '}
+            for tax this month
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="today-tax-pot-line today-tax-pot-line--locked"
+            onClick={() => setUpgradeSheetOpen(true)}
+            aria-label="Tax pot locked — get Pro to see your monthly set-aside"
+          >
+            <Icon name="lock" size={14} />
+            {' '}Tax pot this month{' '}
+            <span className="today-tax-pot-line__pro-badge">Pro</span>
+          </button>
+        )
       )}
 
       {/* ── Send Invoice job picker (pivot fallback) ───────────────────────── */}

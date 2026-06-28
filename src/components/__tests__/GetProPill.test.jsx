@@ -119,7 +119,8 @@ describe('GetProPill — copy per state', () => {
 
   it('free state: shows free copy', () => {
     render(<GetProPill profile={freeProfile()} onOpen={vi.fn()} />);
-    expect(screen.getByText(/Get Pro — see your true profit, tax pot & auto-chasing/i)).toBeTruthy();
+    // Copy updated (feat/today-taxpot-and-pro-copy): leads with loop + automation.
+    expect(screen.getByText(/Get Pro — auto-chase late payers, remove OHNAR branding/i)).toBeTruthy();
   });
 
   it('plural days: "8 days" not "8 day"', () => {
