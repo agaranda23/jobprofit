@@ -31,7 +31,7 @@ const FAKE_USER_ID     = 'user-uuid-abc';
 const FAKE_STRIPE_UID  = 'acct_testfake456';
 const FAKE_QUOTE_ID    = 'quote-uuid-123';
 const FAKE_SESSION_ID  = 'cs_test_deposit_fake';
-const FAKE_APP_URL     = 'https://app.jobprofit.co.uk';
+const FAKE_APP_URL     = 'https://app.ohnar.co.uk';
 const FAKE_PUBLIC_TOK  = 'a1b2c3d4-e5f6-4a7b-8c9d-e0f1a2b3c4d5';
 
 // ── Stripe mock ───────────────────────────────────────────────────────────────
@@ -323,7 +323,7 @@ describe('create-deposit-payment-link', () => {
     expect(res.statusCode).toBe(200);
     const body = JSON.parse(res.body);
     expect(body.token).toBeTruthy();
-    expect(body.payUrl).toMatch(/^https:\/\/app\.jobprofit\.co\.uk\/p\//);
+    expect(body.payUrl).toMatch(/^https:\/\/app\.ohnar\.co\.uk\/p\//);
     expect(mockSessionCreate).toHaveBeenCalledOnce();
   });
 

@@ -263,7 +263,7 @@ export const handler = async function (event) {
       .single();
 
     if (existing?.token) {
-      const appBase = (process.env.APP_URL || '').replace(/\/$/, '') || 'https://app.jobprofit.co.uk';
+      const appBase = (process.env.APP_URL || '').replace(/\/$/, '') || 'https://app.ohnar.co.uk';
       return json(200, {
         token: existing.token,
         payUrl: `${appBase}/p/${existing.token}`,
@@ -306,7 +306,7 @@ export const handler = async function (event) {
   // "Dep" suffix signals deposit vs full payment on the customer's bank statement.
   const rawDescriptor = sanitiseDescriptor(businessName + ' Dep');
 
-  const appBase = (process.env.APP_URL || '').replace(/\/$/, '') || 'https://app.jobprofit.co.uk';
+  const appBase = (process.env.APP_URL || '').replace(/\/$/, '') || 'https://app.ohnar.co.uk';
   // Success URL: the public quote page with a query param so it can show a
   // confirmation state (the frontend reads ?deposit_success=true on load).
   const successUrl = `${appBase}/q/${job.meta?.publicAccessToken || quoteId}?deposit_success=true`;

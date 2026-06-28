@@ -80,10 +80,12 @@ const APP_VERSION = pkg.version;
 // ── Share / contact helpers ───────────────────────────────────────────────────
 
 export function buildShareData() {
+  const url =
+    typeof window !== 'undefined' ? window.location.origin : 'https://ohnar.co.uk';
   return {
     title: 'OHNAR',
     text: "I use OHNAR to quote, invoice and get paid from my phone — give it a go.",
-    url: 'https://jobprofit.co.uk',
+    url,
   };
 }
 
@@ -1981,7 +1983,7 @@ function ReferralRow({ session, profile, onGenericShare }) {
         >
           <Icon name="copy" size={14} />
           <span className="referral-row__pill-text">
-            {copied ? 'Copied!' : `jobprofit.co.uk/?ref=${code}`}
+            {copied ? 'Copied!' : `${window.location.hostname}/?ref=${code}`}
           </span>
         </button>
         <button

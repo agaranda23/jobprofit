@@ -64,7 +64,7 @@ function makeEvent({ token = `Bearer tok` } = {}) {
     body: '{}',
     headers: {
       authorization: token,
-      origin: 'https://jobprofit.co.uk',
+      origin: 'https://ohnar.co.uk',
     },
   };
 }

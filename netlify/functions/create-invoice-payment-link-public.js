@@ -160,7 +160,7 @@ export const handler = async function (event) {
       .single();
 
     if (existing?.token) {
-      const appBase = (process.env.APP_URL || '').replace(/\/$/, '') || 'https://app.jobprofit.co.uk';
+      const appBase = (process.env.APP_URL || '').replace(/\/$/, '') || 'https://app.ohnar.co.uk';
       return json(200, {
         token: existing.token,
         payUrl: `${appBase}/p/${existing.token}`,
@@ -187,7 +187,7 @@ export const handler = async function (event) {
     [profile.first_name, profile.last_name].filter(Boolean).join(' ') ||
     'Your trader';
 
-  const appBase = (process.env.APP_URL || '').replace(/\/$/, '') || 'https://app.jobprofit.co.uk';
+  const appBase = (process.env.APP_URL || '').replace(/\/$/, '') || 'https://app.ohnar.co.uk';
   const successUrl = `${appBase}/p/success?ref=${invoiceNumber}`;
   const cancelUrl  = `${appBase}/p/cancelled?ref=${invoiceNumber}`;
 

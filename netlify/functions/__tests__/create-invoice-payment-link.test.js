@@ -28,7 +28,7 @@ const FAKE_STRIPE_UID   = 'acct_testfake456';
 const FAKE_INVOICE_ID   = 'invoice-uuid-123';
 const FAKE_SESSION_ID   = 'cs_test_sessionfake';
 const FAKE_SESSION_URL  = 'https://checkout.stripe.com/pay/cs_test_sessionfake';
-const FAKE_APP_URL      = 'https://app.jobprofit.co.uk';
+const FAKE_APP_URL      = 'https://app.ohnar.co.uk';
 
 // ── Stripe mock ───────────────────────────────────────────────────────────────
 let mockSessionCreate = vi.fn(async () => ({

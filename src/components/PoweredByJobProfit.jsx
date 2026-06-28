@@ -30,13 +30,16 @@ import OhnarWordmark from './OhnarWordmark';
 
 const LABEL_TEXT = 'Sent with OHNAR — the app tradespeople use to quote, invoice and get paid';
 const CTA_TEXT   = 'Try it free';
-const BASE_URL   = 'https://jobprofit.co.uk';
 
 export default function PoweredByJobProfit({ source, hidden = false }) {
   if (hidden) return null;
 
+  // Use the current origin so the link resolves to whatever domain is primary
+  // (ohnar.co.uk once Netlify flips it). Falls back to ohnar.co.uk for SSR/tests.
+  const base =
+    typeof window !== 'undefined' ? window.location.origin : 'https://ohnar.co.uk';
   const href =
-    `${BASE_URL}` +
+    `${base}` +
     `?ref=${encodeURIComponent(source)}` +
     `&utm_source=public_doc` +
     `&utm_medium=footer` +

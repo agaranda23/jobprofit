@@ -43,8 +43,10 @@ const CORS_HEADERS = {
   'Content-Type': 'application/json',
 };
 
-const APP_URL = 'https://jobprofit.co.uk';
-const FROM_ADDRESS = 'Alan at OHNAR <alan@jobprofit.co.uk>';
+// Netlify sets process.env.URL to the PRIMARY custom domain at runtime.
+// Falls back to ohnar.co.uk so the welcome email CTA is always brand-correct.
+const APP_URL = (process.env.URL || 'https://ohnar.co.uk').replace(/\/$/, '');
+const FROM_ADDRESS = 'Alan at OHNAR <alan@jobprofit.co.uk>'; // FLAG: flip to alan@ohnar.co.uk after Resend verifies ohnar.co.uk SPF/DKIM
 const RESEND_API_URL = 'https://api.resend.com/emails';
 
 function json(statusCode, body) {
@@ -144,7 +146,7 @@ export function buildEmailHtml(firstName) {
           <tr>
             <td style="background:#f9fafb;padding:16px 32px;border-top:1px solid #e5e7eb;">
               <p style="margin:0;font-size:12px;color:#9ca3af;line-height:1.5;">
-                OHNAR &middot; <a href="${APP_URL}" style="color:#6b7280;text-decoration:none;">jobprofit.co.uk</a>
+                OHNAR &middot; <a href="${APP_URL}" style="color:#6b7280;text-decoration:none;">ohnar.co.uk</a>
               </p>
             </td>
           </tr>

@@ -12,11 +12,10 @@
  * ─────────────────
  * - NEVER throws to callers. Every async function catches and either returns
  *   null or no-ops so that missing-column (42703) errors don't crash the UI.
- * - buildReferralLink uses jobprofit.co.uk — the live production domain.
+ * - buildReferralLink uses window.location.origin so the shared link uses
+ *   whichever domain the user is currently on (ohnar.co.uk once it is primary).
  * - generateReferralCode uses crypto.getRandomValues for unguessable codes.
  */
-
-const BASE_URL = 'https://jobprofit.co.uk';
 
 /** Supabase/PostgREST error code for "column does not exist" */
 const PG_UNDEFINED_COLUMN = '42703';
@@ -29,7 +28,9 @@ const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
  * @returns {string}
  */
 export function buildReferralLink(code) {
-  return `${BASE_URL}/?ref=${encodeURIComponent(code)}`;
+  const base =
+    typeof window !== 'undefined' ? window.location.origin : 'https://ohnar.co.uk';
+  return `${base}/?ref=${encodeURIComponent(code)}`;
 }
 
 /**
