@@ -3486,6 +3486,17 @@ input[type=number] { -moz-appearance: textfield; }
   margin: 0;
   letter-spacing: -0.02em;
 }
+/* Today's header title is the long date ("Sun 28 Jun"); the brand lockup is
+   absolute-centred in the same bar. Keep the date at a normal title size and
+   bound it to the left of the centred logo so the two never overlap (the
+   --fs-money-hero size above is far too wide for a date next to the logo). */
+.foreman-header .screen-title {
+  font-size: var(--fs-subhead);
+  max-width: calc(50% - 64px);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .screen-header-right {
   display: flex;
   align-items: center;

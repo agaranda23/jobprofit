@@ -158,14 +158,23 @@ export function useDashboardPager({ pageCount, pageIndex, onPageChange, locked }
         track.removeEventListener('transitionend', track._pagerOnEnd);
         track._pagerOnEnd = null;
       }
-      // Capture current visual translateX (may be mid-animation).
-      // getComputedStyle gives us the current matrix.
+      // Capture the current visual translateX. CRITICAL: when the pager is
+      // SETTLED it is positioned via `left: -idx*100%` with NO inline transform,
+      // so the transform matrix reads 0. Trusting it then would clear `left` and
+      // set translateX(0%) — snapping the track to page 0 (Today) at the start of
+      // every drag (the "Today flashes before the target page" bug). Only read
+      // the matrix when an inline transform is actually set (mid snap-animation);
+      // otherwise derive the position from the settled index.
       let currentPct;
-      try {
-        const matrix = new DOMMatrix(getComputedStyle(track).transform);
-        const w = track.parentElement?.clientWidth || window.innerWidth;
-        currentPct = w > 0 ? (matrix.m41 / w) * 100 : settledIdx.current * -100;
-      } catch {
+      if (track.style.transform) {
+        try {
+          const matrix = new DOMMatrix(getComputedStyle(track).transform);
+          const w = track.parentElement?.clientWidth || window.innerWidth;
+          currentPct = w > 0 ? (matrix.m41 / w) * 100 : settledIdx.current * -100;
+        } catch {
+          currentPct = settledIdx.current * -100;
+        }
+      } else {
         currentPct = settledIdx.current * -100;
       }
       track.style.transition = 'none';
