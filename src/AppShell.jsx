@@ -265,15 +265,18 @@ export default function AppShell() {
   const [addMaterialOpen, setAddMaterialOpen] = useState(false);   // AddMaterialModal
   const [editingMaterial, setEditingMaterial] = useState(null);    // material row being edited
 
-  // Minimum splash dwell so the ring draw-on animation always completes before
-  // auth unmounts the Splash screen. Skipped when prefers-reduced-motion is set
-  // (no draw animation runs, so no artificial delay needed).
+  // Minimum splash dwell so the full branded load sequence always completes
+  // before auth unmounts the Splash screen. The choreography (see src/index.css
+  // .splash__lockup): ring draw 50–750ms → lock-in beat + Success-Green sheen
+  // 750–1150ms → wordmark fade/rise 850–1200ms. The floor must cover the last
+  // beat (1200ms) or fast/returning users (cached session) get the wordmark cut
+  // off mid-animation. Skipped under prefers-reduced-motion (no animation runs).
   const [splashMinElapsed, setSplashMinElapsed] = useState(false);
   useEffect(() => {
     const reduce = typeof window !== 'undefined' && window.matchMedia
       && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     if (reduce) { setSplashMinElapsed(true); return; }
-    const t = setTimeout(() => setSplashMinElapsed(true), 900);
+    const t = setTimeout(() => setSplashMinElapsed(true), 1200);
     return () => clearTimeout(t);
   }, []);
 
