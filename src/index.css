@@ -19707,6 +19707,23 @@ button.jd-money-chip:active { opacity: 0.75; }
   }
 }
 
+/* Lock-in beat: micro-overshoot scale when the ring finishes drawing (~700ms).
+   Makes the mark "snap" into place — a subtle premium feel. */
+@keyframes splash-lockup-beat {
+  0%   { transform: scale(0.96); }
+  60%  { transform: scale(1.01); }
+  100% { transform: scale(1); }
+}
+
+/* Paid-echo sheen: a single Success-Green bloom sweeps across the lockup
+   on completion — low opacity, previews the "Paid" reward moment. */
+@keyframes splash-sheen {
+  0%   { background-position: -200% center; opacity: 0; }
+  15%  { opacity: 1; }
+  85%  { opacity: 1; }
+  100% { background-position: 200% center; opacity: 0; }
+}
+
 /* ── Pre-JS static splash (#splash-static in index.html) ── */
 
 #splash-static {
@@ -19764,6 +19781,51 @@ button.jd-money-chip:active { opacity: 0.75; }
   align-items: center;
   justify-content: center;
   gap: 16px;
+}
+
+/* Lockup wrapper — receives the lock-in beat and paid-echo sheen.
+   overflow:hidden is required so the sheen pseudo-element clips correctly. */
+.splash__lockup {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  overflow: hidden;
+  border-radius: 16px;
+  padding: 8px 16px 4px;
+}
+
+/* Paid-echo sheen: ::after pseudo-element sweeps a Success-Green bloom
+   across the lockup once the ring finishes (~700ms). ~10 lines of CSS. */
+.splash__lockup::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 30%,
+    rgba(22, 163, 74, 0.18) 50%,
+    transparent 70%
+  );
+  background-size: 200% 100%;
+  background-position: -200% center;
+  opacity: 0;
+  pointer-events: none;
+  border-radius: inherit;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  /* Lock-in beat — triggers at the ring's finish point (~750ms).
+     scale(.96→1.01→1) over 300ms gives a subtle premium snap. */
+  .splash__lockup {
+    animation: splash-lockup-beat 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) 0.75s both;
+  }
+
+  /* Sheen sweep — starts simultaneously with the beat, runs ~400ms. */
+  .splash__lockup::after {
+    animation: splash-sheen 0.4s ease-in-out 0.75s forwards;
+  }
 }
 
 /* O-ring SVG */
