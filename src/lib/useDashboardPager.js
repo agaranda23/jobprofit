@@ -33,7 +33,7 @@
 import { useRef, useCallback, useEffect } from 'react';
 
 const LOCK_THRESHOLD  = 10;    // px — before we commit to a direction
-const SNAP_THRESHOLD  = 0.35;  // fraction of page width needed to advance
+const SNAP_THRESHOLD  = 0.25;  // fraction of page width needed to advance (responsive)
 const FLICK_VX        = 0.4;   // px/ms velocity threshold for a flick
 const LEFT_EDGE_GUARD = 20;    // px reserved for iOS system back gesture
 const RUBBER_BAND     = 0.25;  // resistance factor past first/last page
@@ -123,6 +123,7 @@ export function useDashboardPager({ pageCount, pageIndex, onPageChange, locked }
   const dirLock       = useRef(null);   // null=undecided, true=H, false=V
   const dragging      = useRef(false);
   const baseOffsetPct = useRef(0);      // pageIndex * -100 at drag start
+  const lockDx        = useRef(0);      // dx at the moment we lock horizontal — anchors the drag
   // Mutable ref of current settled index — avoids stale closures in handlers.
   const settledIdx    = useRef(pageIndex);
   settledIdx.current  = pageIndex;
@@ -144,6 +145,7 @@ export function useDashboardPager({ pageCount, pageIndex, onPageChange, locked }
 
   const onTouchStart = useCallback((e) => {
     if (locked) return;
+    if (e.touches.length > 1) return;   // pinch/multi-touch — leave it to the browser (zoom)
     if (document.body.classList.contains('overlay-open')) return;
     if (insideHorizontalScroller(e.target)) return;
 
@@ -193,6 +195,12 @@ export function useDashboardPager({ pageCount, pageIndex, onPageChange, locked }
 
   const onTouchMove = useCallback((e) => {
     if (!t0.current) return;
+    if (e.touches.length > 1) {   // 2nd finger landed — abort the swipe so the browser can pinch-zoom
+      t0.current = null;
+      dirLock.current = null;
+      settleAt(trackRef.current, settledIdx.current);
+      return;
+    }
     if (document.body.classList.contains('overlay-open')) {
       t0.current = null;
       return;
@@ -207,6 +215,9 @@ export function useDashboardPager({ pageCount, pageIndex, onPageChange, locked }
     if (dirLock.current === null) {
       if (absDx < LOCK_THRESHOLD && absDy < LOCK_THRESHOLD) return;
       dirLock.current = absDx > absDy;
+      // Anchor the drag at the lock point so the page starts following from 0
+      // rather than jumping by the ~10px threshold (premium 1:1 finger feel).
+      if (dirLock.current) lockDx.current = dx;
     }
 
     if (!dirLock.current) return;
@@ -218,7 +229,7 @@ export function useDashboardPager({ pageCount, pageIndex, onPageChange, locked }
     if (!track) return;
 
     const w   = track.parentElement?.clientWidth || window.innerWidth;
-    const pct = (dx / w) * 100;
+    const pct = ((dx - lockDx.current) / w) * 100;
     let offset = baseOffsetPct.current + pct;
 
     const minOffset = (pageCount - 1) * -100;
@@ -288,10 +299,20 @@ export function useDashboardPager({ pageCount, pageIndex, onPageChange, locked }
       track.style.left       = '';
       track.style.transform  = `translateX(${currentPct}%)`;
 
+      // Velocity-matched settle: the snap continues at roughly the speed the
+      // finger left at, then eases — so a fast flick lands quickly and a gentle
+      // drag settles softly. This momentum feel (not a fixed mechanical 0.3s) is
+      // what separates a premium pager from a basic one. easeOutQuint decel curve.
+      const targetPct    = next * -100;
+      const remainingPct = Math.abs(targetPct - currentPct);
+      const vxPct        = (vx / w) * 100;            // release speed, %/ms
+      let durMs = vxPct > 0.02 ? remainingPct / vxPct : 320;
+      durMs = Math.max(200, Math.min(durMs, 460));    // clamp for taste
+
       requestAnimationFrame(() => {
         if (!track.isConnected) return;
         track.style.willChange = 'transform';
-        track.style.transition = 'transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
+        track.style.transition = `transform ${durMs}ms cubic-bezier(0.22, 1, 0.36, 1)`;
         track.style.transform  = `translateX(${next * -100}%)`;
 
         function onEnd(ev) {
@@ -323,11 +344,13 @@ export function useDashboardPager({ pageCount, pageIndex, onPageChange, locked }
     const track = trackRef.current;
     if (!track) return;
     const viewport = track.parentElement;
-    if (!viewport) return;
+    if (!viewport || typeof viewport.addEventListener !== 'function') return;
 
     function handleNativeTouchMove(e) {
-      // Only block native scroll when we have confirmed a horizontal drag.
+      // Only block native scroll on a confirmed 1-finger horizontal drag.
+      // Never on multi-touch — that's a pinch-zoom and must reach the browser.
       if (!t0.current) return;
+      if (e.touches.length > 1) return;
       if (dirLock.current !== true) return;
       e.preventDefault();
     }
