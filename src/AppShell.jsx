@@ -23,7 +23,8 @@ import OnboardingWizard from './screens/OnboardingWizard';
 import BottomNav from './components/BottomNav';
 import LinkReceiptModal from './components/LinkReceiptModal';
 import { supabase } from './lib/supabase';
-import { hydrateChaseState } from './lib/chaseLadder';
+import { hydrateChaseState, isDoubleSendBlocked } from './lib/chaseLadder';
+import { buildChaseList } from './lib/chaseList.js';
 import AuthScreen from './components/AuthScreen';
 import { parseHash, replaceHistory } from './lib/navigation';
 import { writeJobMeta, readJobMeta, extractJobMeta, applyJobMetaToJobs } from './lib/jobMeta';
@@ -1395,6 +1396,7 @@ export default function AppShell() {
       <BottomNav
         view={view}
         onChange={handleTabChange}
+        workBadge={buildChaseList(Array.isArray(jobs) ? jobs : []).filter(row => !isDoubleSendBlocked(row.id)).length}
       />
 
 
