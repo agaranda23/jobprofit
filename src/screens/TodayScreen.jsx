@@ -349,8 +349,12 @@ export default function TodayScreen({
     // Clear any previous timer so rapid double-taps extend the window cleanly.
     clearTimeout(paidFlashTimerRef.current);
     setPaidFlash(true);
-    paidFlashTimerRef.current = setTimeout(() => setPaidFlash(false), 700);
-    setRankVersion(v => v + 1);
+    // setRankVersion deferred until the flash clears (700ms) so the paid card
+    // doesn't jump to a new rank position while the green flash is still visible.
+    paidFlashTimerRef.current = setTimeout(() => {
+      setPaidFlash(false);
+      setRankVersion(v => v + 1);
+    }, 700);
   }, [onMarkPaid]);
 
   // Got Paid chip handlers (JP-LU2: chip tap wired via Snackbar.onGotPaidChip in AppShell).

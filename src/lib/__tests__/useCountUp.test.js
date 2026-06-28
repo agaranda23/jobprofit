@@ -8,6 +8,7 @@
  *  2. It honours prefers-reduced-motion by returning the target immediately.
  *  3. On target change, it re-animates from the current value.
  *  4. It cleans up the rAF on unmount (no setState after unmount).
+ *  5. enabled:false holds at 0; flipping to true runs a clean 0→target animation.
  */
 
 import { renderHook, act } from '@testing-library/react';
@@ -158,5 +159,34 @@ describe('useCountUp', () => {
       // Flush any remaining callbacks — they should have been cancelled
       flushRafsAt(650);
     }).not.toThrow();
+  });
+
+  it('holds at 0 while enabled:false, then animates 0→target when flipped true', () => {
+    const { result, rerender } = renderHook(
+      ({ target, enabled }) => useCountUp(target, { enabled }),
+      { initialProps: { target: 600, enabled: false } },
+    );
+
+    // While disabled: no rAF should fire, value stays 0
+    act(() => { flushRafsAt(0); });
+    expect(result.current).toBe(0);
+    act(() => { flushRafsAt(325); });
+    expect(result.current).toBe(0);
+
+    // Flip enabled true — animation should start from 0
+    act(() => { rerender({ target: 600, enabled: true }); });
+
+    // First rAF tick at t=0 → progress=0 → displayed=0
+    act(() => { flushRafsAt(0); });
+    expect(result.current).toBeCloseTo(0, 0);
+
+    // Mid animation
+    act(() => { flushRafsAt(325); });
+    expect(result.current).toBeGreaterThan(0);
+    expect(result.current).toBeLessThan(600);
+
+    // Completion
+    act(() => { flushRafsAt(650); });
+    expect(result.current).toBe(600);
   });
 });

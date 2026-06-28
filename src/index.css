@@ -20719,6 +20719,7 @@ button.jd-money-chip:active { opacity: 0.75; }
    Motion is handled entirely in JS (useCountUp) so no CSS animation here. */
 .today-tax-pot-line strong {
   font-variant-numeric: tabular-nums;
+  font-family: var(--font-mono);
 }
 
 /* ── Skeleton loaders (feat/premium-skeletons) ──────────────────────────────
@@ -20878,11 +20879,13 @@ button.jd-money-chip:active { opacity: 0.75; }
   .photo-source-backdrop,
   .jd-delete-confirm-backdrop,
   .jt-backdrop,
-  .dso-backdrop,
-  .pro-upgrade-overlay {
+  .dso-backdrop {
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
   }
+  /* .pro-upgrade-overlay intentionally excluded: its solid rgba(0,0,0,0.70)
+     tint makes the 8px blur invisible while still paying the GPU compositing
+     cost. The solid fallback is sufficient. */
 }
 
 /* ── 2. Canonical keyframes ──────────────────────────────────────────────── */

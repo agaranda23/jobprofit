@@ -624,12 +624,17 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
   // ── Count-up animations for the focal hero figures ───────────────────────────
   // Only the big headline numbers get the count-up treatment.
   // useCountUp returns the target immediately when prefers-reduced-motion is set.
-  const animatedKept       = useCountUp(Math.round(keptAmount));
-  const animatedTaxPot     = useCountUp(Math.round(ytdTaxPot));
-  const animatedOwed       = useCountUp(Math.round(outstandingSummary.totalOwed));
-  const animatedProfit     = useCountUp(Math.round(monthSummary.profit));
+  // enabled:false while profile===null keeps the animation held at 0 behind the
+  // skeleton; flipping true once profile resolves runs a single clean 0→target
+  // animation that the user actually sees. Without this, the count-up fires
+  // before the skeleton drops and is invisible.
+  const countUpEnabled = profile !== null;
+  const animatedKept       = useCountUp(Math.round(keptAmount),                      { enabled: countUpEnabled });
+  const animatedTaxPot     = useCountUp(Math.round(ytdTaxPot),                       { enabled: countUpEnabled });
+  const animatedOwed       = useCountUp(Math.round(outstandingSummary.totalOwed),    { enabled: countUpEnabled });
+  const animatedProfit     = useCountUp(Math.round(monthSummary.profit),             { enabled: countUpEnabled });
   const trueProfit         = monthSummary.profit - overheadTotal;
-  const animatedTrueProfit = useCountUp(Math.round(trueProfit));
+  const animatedTrueProfit = useCountUp(Math.round(trueProfit),                      { enabled: countUpEnabled });
 
   return (
     <div className="screen finance-screen">
@@ -719,7 +724,7 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
         <div className={`money-hero money-hero--profit${isProfitNegative ? ' money-hero--negative' : ''}`}>
           <div className="money-hero__label">Profit this month</div>
           <div className={`money-hero__figure${isProfitNegative ? ' money-twoUp__value--negative' : ''}`}>
-            {gbp(animatedProfit)}
+            {gbp(Math.round(animatedProfit))}
           </div>
           <div className="money-hero__qualifier-label">
             Before monthly bills and tax
@@ -766,7 +771,7 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
                   <hr className="money-hero__true-profit-divider" />
                   <div className="money-hero__true-profit-label">After your monthly bills</div>
                   <div className={`money-hero__true-profit-figure${isTrueProfitNegative ? ' money-hero__true-profit-figure--negative' : ''}`}>
-                    {gbp(animatedTrueProfit)}
+                    {gbp(Math.round(animatedTrueProfit))}
                   </div>
                   <div className="money-hero__qualifier-label">
                     After monthly bills
@@ -1086,7 +1091,7 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
             ) : (
               <>
                 <div className="money-tax-setaside__figure pro-gate__figure">
-                  {gbp(animatedTaxPot)}
+                  {gbp(Math.round(animatedTaxPot))}
                 </div>
                 <p className="money-tax-setaside__sub">
                   Put by for the taxman &middot; {taxSetAsidePct}% of profit &middot; {gbp(monthTaxPot)} this month

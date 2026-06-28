@@ -187,7 +187,10 @@ describe('TodayScreen — tax-pot tease (item 1)', () => {
     const line = document.querySelector('.today-tax-pot-line');
     expect(line).not.toBeNull();
     expect(line.textContent).toMatch(/Set aside/i);
-    expect(line.textContent).toMatch(/£200/);
+    // The animated figure starts at 0 and counts up to the target via rAF.
+    // In the test environment no rAF fires, so we verify the correct value via
+    // the aria-label (which uses taxPotData.monthTaxPot directly, not animated).
+    expect(line.getAttribute('aria-label')).toMatch(/£200/);
   });
 
   it('Pro tax-pot line navigates to Money on tap', () => {

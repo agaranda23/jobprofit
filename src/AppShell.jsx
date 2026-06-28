@@ -986,10 +986,22 @@ export default function AppShell() {
   // Generic job field update used by JobDetailDrawer and SendInvoiceModal.
   // Writes all meta fields (photos, notes, lineItems, invoice state, etc.)
   // to localStorage then fires a cloud write async.
+  // Detects a not-paid→paid transition so every mark-paid path (tile, stage-
+  // advance in drawer) gets the same celebration haptic + overlay without each
+  // call-site having to remember to fire it separately.
+  // onMarkPaidFromToday and onAddPayment do NOT route through here (verified:
+  // both call setJobs directly), so there is no double-fire risk.
   const onUpdateJob = (updated) => {
+    const wasPaid = jobs.find(j => j.id === updated.id)?.paid === true ||
+                    jobs.find(j => j.id === updated.id)?.status === 'paid';
+    const nowPaid = updated.paid === true || updated.status === 'paid';
     const merged = writeJobMeta(updated.id, extractJobMeta(updated));
     syncMetaToCloud(updated.id, merged);
     setJobs(prev => prev.map(j => j.id === updated.id ? updated : j));
+    if (!wasPaid && nowPaid) {
+      haptic('success');
+      setPaidCelebrationAmount(updated.total ?? updated.amount ?? null);
+    }
   };
 
   // Removes a hard-deleted job from local state. The cloud row is already gone
@@ -1253,7 +1265,8 @@ export default function AppShell() {
     trialEndSheetOpen ||
     dropToFreeOpen ||
     moneyExportSheetOpen ||
-    pushPromptVisible
+    pushPromptVisible ||
+    paidCelebrationAmount !== null
   );
 
   // Page index for the pager. -1 when view is 'settings' (pager not rendered).
