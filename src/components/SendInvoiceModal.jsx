@@ -52,6 +52,7 @@ import { extractJobMeta, writeJobMeta } from '../lib/jobMeta';
 import InvoiceDocumentPreview from './InvoiceDocumentPreview';
 import ProUpgradeSheet from './ProUpgradeSheet';
 import Icon from './Icon';
+import { haptic } from '../lib/haptics.js';
 
 // Returns true when this browser supports navigator.share() with a files array.
 // Stored as a module-level constant so we don't recalculate on every render.
@@ -361,6 +362,7 @@ export default function SendInvoiceModal({
     const _iwa = getJobProfit(job, receipts);
     logTelemetry('invoice_sent', { headline_price: _iwa.quote, job_costs: _iwa.materials, true_profit: _iwa.profit, channel: 'whatsapp' });
     if (!await attemptSend()) return;
+    haptic('medium');
     const link = buildWhatsAppLink({
       phone: job.customerPhone || job.phone || '',
       message,
@@ -382,6 +384,7 @@ export default function SendInvoiceModal({
     const _ish = getJobProfit(job, receipts);
     logTelemetry('invoice_sent', { headline_price: _ish.quote, job_costs: _ish.materials, true_profit: _ish.profit, channel: 'share' });
     if (!await attemptSend()) return;
+    haptic('medium');
     setBusy(true);
     try {
       // getInvoicePDFBlob is now async (generates QR code if payNowUrl is set).
@@ -426,6 +429,7 @@ export default function SendInvoiceModal({
     const _idl = getJobProfit(job, receipts);
     logTelemetry('invoice_sent', { headline_price: _idl.quote, job_costs: _idl.materials, true_profit: _idl.profit, channel: 'download' });
     if (!await attemptSend()) return;
+    haptic('medium');
     try {
       // downloadInvoicePDF is now async (QR code generation).
       await downloadInvoicePDF({ job, biz: bizWithStripe, profile, invoiceNumber, dueDate, payNowUrl, hidePoweredBy: isPro(profile) });
