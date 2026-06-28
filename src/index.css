@@ -20845,3 +20845,203 @@ button.jd-money-chip:active { opacity: 0.75; }
 }
 
 /* End of skeleton block */
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PREMIUM SHEETS — unified spring motion language                feat/premium-sheets-spring
+   ─────────────────────────────────────────────────────────────────────────
+   One motion system for every overlay in the app:
+     • Backdrops  — backdrop-filter: blur(8px) tint. @supports fallback = solid.
+     • Bottom sheets — spring slide-up: cubic-bezier(0.22, 1, 0.36, 1) 300ms.
+     • Side drawers — spring slide-in-right: same curve, 280ms.
+     • Centred modals — scale(0.95)+fade: same spring, 260ms.
+     • Scrim fade — 180ms ease-out on every backdrop.
+   All motion gated behind prefers-reduced-motion: no-preference.
+   Under prefers-reduced-motion: reduce the sheets appear instantly (no slide/scale).
+   Blur is purely visual — no motion sensitivity concern, not gated.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+/* ── 1. Shared backdrop blur (applied to EVERY scrim class) ─────────────── */
+/*
+   Target every backdrop/overlay class so they all gain the blur in one rule.
+   rgba() background values on each class stay in place and provide the solid
+   colour fallback when backdrop-filter is unsupported (iOS <15, some Android).
+   We only *add* backdrop-filter here; the solid rgba() on each class already
+   gives a legible fallback for browsers that can't blur.
+*/
+@supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+  .drawer-backdrop,
+  .modal-backdrop,
+  .modal-overlay,
+  .tax-pot-sheet-backdrop,
+  .visit-editor-backdrop,
+  .photo-source-backdrop,
+  .jd-delete-confirm-backdrop,
+  .jt-backdrop,
+  .dso-backdrop,
+  .pro-upgrade-overlay {
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+}
+
+/* ── 2. Canonical keyframes ──────────────────────────────────────────────── */
+
+/* Bottom-sheet: full slide from below the viewport */
+@keyframes sheet-spring-up {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+
+/* Bottom-sheet on ≥481px when the sheet is centred (translateX stays locked) */
+@keyframes sheet-spring-up-centered {
+  from { transform: translateX(-50%) translateY(100%); }
+  to   { transform: translateX(-50%) translateY(0); }
+}
+
+/* Centred modal: scale + fade */
+@keyframes modal-spring-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+/* Scrim / backdrop fade */
+@keyframes scrim-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* Side drawer: slide in from right */
+@keyframes drawer-spring-right {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+
+/* ── 3. Scrim fade — all backdrops ──────────────────────────────────────── */
+@media (prefers-reduced-motion: no-preference) {
+  .drawer-backdrop,
+  .modal-backdrop,
+  .modal-overlay,
+  .tax-pot-sheet-backdrop,
+  .visit-editor-backdrop,
+  .photo-source-backdrop,
+  .jd-delete-confirm-backdrop,
+  .dso-backdrop {
+    animation: scrim-fade-in 0.18s ease-out both;
+  }
+  /* jt-backdrop uses a conditional display:block toggle — use animation too */
+  .jt-backdrop {
+    animation: scrim-fade-in 0.18s ease-out both;
+  }
+  /* pro-upgrade-overlay is a flex container wrapping the sheet, not purely a scrim.
+     Fade it separately from the sheet so the two can compose. */
+  .pro-upgrade-overlay {
+    animation: scrim-fade-in 0.18s ease-out both;
+  }
+}
+
+/* ── 4. Bottom-sheet spring entrance ────────────────────────────────────── */
+/*
+   Unified spring curve: cubic-bezier(0.22, 1, 0.36, 1)
+   Fast initial velocity, slight overshoot character, settles crisply.
+   Duration 300ms — long enough to feel deliberate, short enough for one-handed use.
+*/
+@media (prefers-reduced-motion: no-preference) {
+  /* Core bottom sheets */
+  .job-detail-sheet,
+  .modal-sheet,
+  .job-overflow-sheet,
+  .pro-upgrade-sheet,
+  .dso-sheet,
+  .jt-menu--sheet,
+  .tax-pot-sheet,
+  .visit-editor-sheet,
+  .photo-source-sheet,
+  .jd-delete-confirm-sheet {
+    animation: sheet-spring-up 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+}
+
+/* ── 5. Account drawer (slides from right, not bottom) ───────────────────── */
+@media (prefers-reduced-motion: no-preference) {
+  .account-drawer {
+    animation: drawer-spring-right 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+}
+
+/* ── 6. Centred modal spring (desktop ≥481px) ────────────────────────────── */
+/*
+   On mobile .modal sits at the bottom edge as a sheet (covered by rule 4 via
+   .modal-sheet). On desktop (≥481px) .modal is centred — give it a scale+fade.
+   We scope to min-width:481px to avoid double-animating the mobile bottom-sheet.
+*/
+@media (min-width: 481px) and (prefers-reduced-motion: no-preference) {
+  .modal {
+    animation: modal-spring-in 0.26s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  /* modal-overlay contents (SyncBadge confirm, etc.) also get scale entrance */
+  .modal-overlay > * {
+    animation: modal-spring-in 0.26s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+}
+
+/* ── 7. job-detail-sheet centred variant override (≥600px) ──────────────── */
+/*
+   The sheet only shifts to a centred position via translateX(-50%) at ≥600px
+   (see the min-width:600px layout block above). The centred spring keyframe
+   bakes in that translateX, so it MUST match the SAME 600px breakpoint —
+   firing it at 481px animated the still-full-width sheet from an off-centre
+   position. Below 600px the full-width sheet keeps the base slide-up
+   (translateY only), which has no min-width and so already covers 481–599px.
+*/
+@media (min-width: 600px) and (prefers-reduced-motion: no-preference) {
+  .job-detail-sheet {
+    animation: sheet-spring-up-centered 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+}
+
+/* ── 8. jdd-sheet transition — keep in sync with the spring curve ────────── */
+/*
+   jdd-sheet uses a JS-driven transition (translate toggle), not a keyframe.
+   Upgrade its easing curve to match the unified spring.
+*/
+@media (prefers-reduced-motion: no-preference) {
+  .jdd-sheet {
+    transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.18s ease-out;
+  }
+}
+
+/* ── 9. Reduced-motion: instant appearance, no slide/scale ──────────────── */
+/*
+   Explicitly reset any animation that might have leaked through. Under
+   prefers-reduced-motion:reduce we want instant show — no easing at all.
+*/
+@media (prefers-reduced-motion: reduce) {
+  .job-detail-sheet,
+  .modal-sheet,
+  .job-overflow-sheet,
+  .pro-upgrade-sheet,
+  .dso-sheet,
+  .jt-menu--sheet,
+  .tax-pot-sheet,
+  .visit-editor-sheet,
+  .photo-source-sheet,
+  .jd-delete-confirm-sheet,
+  .account-drawer,
+  .drawer-backdrop,
+  .modal-backdrop,
+  .modal-overlay,
+  .tax-pot-sheet-backdrop,
+  .visit-editor-backdrop,
+  .photo-source-backdrop,
+  .jd-delete-confirm-backdrop,
+  .jt-backdrop,
+  .dso-backdrop,
+  .pro-upgrade-overlay {
+    animation: none !important;
+    transition: none !important;
+  }
+  .jdd-sheet {
+    transition: none !important;
+  }
+}
+/* End of premium-sheets-spring block */
