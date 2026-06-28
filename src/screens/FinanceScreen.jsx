@@ -170,6 +170,17 @@ function TaxPotSheet({ open, onClose, currentPct, monthProfit, onSave }) {
     return () => document.removeEventListener('keydown', onKey);
   }, [open, onClose]);
 
+  // Gate the pager while this sheet is open.
+  // 'overlay-open' is the shared signal checked by useDashboardPager.
+  useEffect(() => {
+    if (open) {
+      document.body.classList.add('overlay-open');
+    } else {
+      document.body.classList.remove('overlay-open');
+    }
+    return () => { document.body.classList.remove('overlay-open'); };
+  }, [open]);
+
   if (!open) return null;
 
   const effectivePct = customMode
@@ -319,7 +330,7 @@ function FoundingMemberCard({ onUpgrade }) {
   );
 }
 
-export default function FinanceScreen({ jobs = [], receipts = [], session, profile, biz, onAvatarClick, onUpgrade, onGoToJobs, onGoToSettings, onNavigateToCardPayments, onProfileUpdate, onExport, entryPoint = 'nav' }) {
+export default function FinanceScreen({ jobs = [], receipts = [], session, profile, biz, onAvatarClick, onUpgrade, onGoToJobs, onGoToSettings, onNavigateToCardPayments, onProfileUpdate, onExport, entryPoint = 'nav', isActive = true }) {
   const [timelineOpen, setTimelineOpen] = useState(false);
   const [trustHintDismissed, setTrustHintDismissed] = useState(false);
   // "More insights" expander — hides secondary analytics behind a single tap
@@ -338,16 +349,23 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
   }, []);
 
   // ── Insight tab open event ───────────────────────────────────────────────────
-  // Fires once per mount (the component is conditionally rendered, so each mount
-  // = a new tab visit). 'unprompted' is true only when the user navigated here
-  // via the nav bar (entry_point='nav'), not from a push/deeplink/notification.
+  // Previously: fired once on mount (component was conditionally rendered, so
+  // each mount = a new tab visit). Now the pager always mounts all 3 screens, so
+  // we gate on `isActive` becoming true for the first time instead. The ref
+  // guard ensures we still fire exactly once per "visit" (isActive true→false→true
+  // would re-fire, matching the old unmount/remount behaviour).
+  const hasLoggedOpen = useRef(false);
   useEffect(() => {
+    if (!isActive) return;
+    if (hasLoggedOpen.current) return;
+    hasLoggedOpen.current = true;
     logTelemetry('insight_tab_opened', {
       entry_point: entryPoint,
       unprompted: entryPoint === 'nav',
     });
+  // entryPoint is stable (passed from AppShell with a fixed string)
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // intentionally empty — fires once on mount only
+  }, [isActive]);
 
   // ── Accountant export state ───────────────────────────────────────────────────
   const [exporting, setExporting] = useState(false);

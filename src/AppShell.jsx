@@ -80,6 +80,7 @@ import { buildJobsXlsx } from './lib/exportXlsx.js';
 import ExportFormatSheet from './components/ExportFormatSheet.jsx';
 import AppErrorBoundary from './components/AppErrorBoundary.jsx';
 import Splash from './components/Splash.jsx';
+import DashboardPager from './components/DashboardPager.jsx';
 
 // ─── App-boot cleanup ─────────────────────────────────────────────────────────
 // Remove localStorage keys that were used by the now-deleted newNav and
@@ -89,6 +90,14 @@ import Splash from './components/Splash.jsx';
 ['jp.newNav', 'jp.navSlice3'].forEach(k => { try { localStorage.removeItem(k); } catch { /* ignore */ } });
 
 const SLICE_3_VIEWS  = ['today', 'work', 'finance', 'settings'];
+
+// The 3 views reachable via horizontal swipe. Order matches the pager page order.
+const DASHBOARD_VIEWS = ['today', 'work', 'finance'];
+
+/** Map a view name to the pager's 0-based page index. Returns -1 for non-dashboard views. */
+function dashboardPageIndex(view) {
+  return DASHBOARD_VIEWS.indexOf(view);
+}
 
 // SW auto-update loop guard — module-level so it survives React re-renders but
 // resets on a full page load (exactly the right lifetime). Set to true BEFORE
@@ -1215,80 +1224,110 @@ export default function AppShell() {
     setWizardOpen(true);
   };
 
+  // Any AppShell-level overlay being open should disable the swipe pager so a
+  // mis-swipe on a modal backdrop never navigates away mid-interaction.
+  // body.overlay-open (JobDetailDrawer, AddJobModal) is checked at gesture-start
+  // time inside useDashboardPager, so we only need to cover AppShell's own flags here.
+  const anyOverlayOpen = !!(
+    wizardOpen ||
+    materialsOpen ||
+    addMaterialOpen ||
+    pendingLink ||
+    costSnackbarJob ||
+    trialEndSheetOpen ||
+    dropToFreeOpen ||
+    moneyExportSheetOpen ||
+    pushPromptVisible
+  );
+
+  // Page index for the pager. -1 when view is 'settings' (pager not rendered).
+  const pageIdx = dashboardPageIndex(view);
+
   return (
     <AppErrorBoundary variant="app">
       {/* Splash exit overlay — flies the lockup into the header, then unmounts. */}
       {!splashGone && <Splash exiting />}
       <ConsentBanner />
-      {view === 'today' && (
-        <TodayScreen
-          onOpenDetailed={openDetailed}
-          onChase={() => navigate('finance')}
-          onMarkPaid={onMarkPaidFromToday}
-          onJobTap={(job) => { if (job?.id) setPendingJobId(job.id); navigate('work'); }}
-          jobs={jobs}
-          receipts={receipts}
-          onAddJob={handleAddJob}
-          onUpdateJob={onUpdateJob}
-          onAddReceipt={handleAddReceipt}
-          avatarProps={avatarProps}
-          profile={profile}
-          onNavigateToMoney={() => navigate('finance')}
-          onSeeTheWeek={handleSeeTheWeek}
-          onNavigateToCardPayments={() => setSettingsSubView('card-payments')}
-          materials={materials}
-          defaultMarkup={profile?.default_markup ?? 20}
-          onBrowseMaterials={() => setMaterialsOpen(true)}
-          onMaterialSaved={handleMaterialSaved}
-          onSnackbar={snackbarEnqueue}
-          onSnackbarDismiss={snackbarDismiss}
-        />
-      )}
 
-      {view === 'work' && (
-        <WorkScreen
-          key={workResetKey}
-          jobs={jobs}
-          receipts={receipts}
-          onNewJob={openDetailed}
-          onAddJob={handleAddJob}
-          onAddPayment={onAddPayment}
-          onUpdateJob={onUpdateJob}
-          onDeleteJob={onDeleteJob}
-          onAddReceipt={handleAddReceipt}
-          onDeleteReceipt={handleDeleteReceipt}
-          onUpdateReceipt={handleUpdateReceipt}
-          biz={null}
-          profile={profile}
-          initialJobId={pendingJobId}
-          onNavigateToCardPayments={() => setSettingsSubView('card-payments')}
-          onProfileUpdate={handleProfileUpdate}
-          materials={materials}
-          defaultMarkup={profile?.default_markup ?? 20}
-          onBrowseMaterials={() => setMaterialsOpen(true)}
-          onMaterialSaved={handleMaterialSaved}
-        />
-      )}
-
-      {view === 'finance' && (
-        <AppErrorBoundary variant="screen">
-          <FinanceScreen
+      {/* ── 3-page horizontal swipe pager (Today / Jobs / Money) ──────────── */}
+      {/* Rendered whenever we are on a dashboard view (pageIdx >= 0).         */}
+      {/* Settings unmounts the pager entirely — no layering complexity.       */}
+      {pageIdx >= 0 && (
+        <DashboardPager
+          pageIndex={pageIdx}
+          onSwipe={(nextIdx) => navigate(DASHBOARD_VIEWS[nextIdx])}
+          overlayOpen={anyOverlayOpen}
+        >
+          {/* Page 0 — Today */}
+          <TodayScreen
+            onOpenDetailed={openDetailed}
+            onChase={() => navigate('finance')}
+            onMarkPaid={onMarkPaidFromToday}
+            onJobTap={(job) => { if (job?.id) setPendingJobId(job.id); navigate('work'); }}
             jobs={jobs}
             receipts={receipts}
-            session={session}
+            onAddJob={handleAddJob}
+            onUpdateJob={onUpdateJob}
+            onAddReceipt={handleAddReceipt}
+            avatarProps={avatarProps}
             profile={profile}
-            onGoToJobs={() => navigate('work')}
-            onGoToSettings={(target) => {
-              navigate('settings');
-              if (target === 'overheads') setSettingsScrollTarget('overheads');
-            }}
-            onNavigateToCardPayments={() => { navigate('settings'); setSettingsSubView('card-payments'); }}
-            onProfileUpdate={handleProfileUpdate}
-            onExport={handleExportFromMoney}
+            onNavigateToMoney={() => navigate('finance')}
+            onSeeTheWeek={handleSeeTheWeek}
+            onNavigateToCardPayments={() => setSettingsSubView('card-payments')}
+            materials={materials}
+            defaultMarkup={profile?.default_markup ?? 20}
+            onBrowseMaterials={() => setMaterialsOpen(true)}
+            onMaterialSaved={handleMaterialSaved}
+            onSnackbar={snackbarEnqueue}
+            onSnackbarDismiss={snackbarDismiss}
           />
-        </AppErrorBoundary>
+
+          {/* Page 1 — Jobs/Work */}
+          <WorkScreen
+            key={workResetKey}
+            jobs={jobs}
+            receipts={receipts}
+            onNewJob={openDetailed}
+            onAddJob={handleAddJob}
+            onAddPayment={onAddPayment}
+            onUpdateJob={onUpdateJob}
+            onDeleteJob={onDeleteJob}
+            onAddReceipt={handleAddReceipt}
+            onDeleteReceipt={handleDeleteReceipt}
+            onUpdateReceipt={handleUpdateReceipt}
+            biz={null}
+            profile={profile}
+            initialJobId={pendingJobId}
+            onNavigateToCardPayments={() => setSettingsSubView('card-payments')}
+            onProfileUpdate={handleProfileUpdate}
+            materials={materials}
+            defaultMarkup={profile?.default_markup ?? 20}
+            onBrowseMaterials={() => setMaterialsOpen(true)}
+            onMaterialSaved={handleMaterialSaved}
+          />
+
+          {/* Page 2 — Money/Finance */}
+          <AppErrorBoundary variant="screen">
+            <FinanceScreen
+              jobs={jobs}
+              receipts={receipts}
+              session={session}
+              profile={profile}
+              onGoToJobs={() => navigate('work')}
+              onGoToSettings={(target) => {
+                navigate('settings');
+                if (target === 'overheads') setSettingsScrollTarget('overheads');
+              }}
+              onNavigateToCardPayments={() => { navigate('settings'); setSettingsSubView('card-payments'); }}
+              onProfileUpdate={handleProfileUpdate}
+              onExport={handleExportFromMoney}
+              isActive={view === 'finance'}
+            />
+          </AppErrorBoundary>
+        </DashboardPager>
       )}
 
+      {/* ── Settings (outside the pager — no swipe navigation within Settings) */}
       {view === 'settings' && settingsSubView === 'card-payments' && (
         <CardPaymentsScreen
           profile={profile}
