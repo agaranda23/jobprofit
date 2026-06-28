@@ -18,16 +18,23 @@
  *   children    {array}    exactly 3 React elements (one per page)
  */
 
-import { useEffect } from 'react';
+import { useEffect, useCallback } from 'react';
 import { useDashboardPager } from '../lib/useDashboardPager';
+import { haptic } from '../lib/haptics.js';
 
 export default function DashboardPager({ pageIndex, onSwipe, overlayOpen, children }) {
   const pages = Array.isArray(children) ? children : [children];
 
+  // Wrap onSwipe so a light haptic fires on every confirmed page-settle.
+  const handlePageChange = useCallback((nextIdx) => {
+    haptic('light');
+    onSwipe?.(nextIdx);
+  }, [onSwipe]);
+
   const { trackRef, onTouchStart, onTouchMove, onTouchEnd, jumpTo } = useDashboardPager({
     pageCount: pages.length,
     pageIndex,
-    onPageChange: onSwipe,
+    onPageChange: handlePageChange,
     locked: !!overlayOpen,
   });
 

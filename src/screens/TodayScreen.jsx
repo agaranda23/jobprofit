@@ -21,6 +21,7 @@
  */
 
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import { useCountUp } from '../lib/useCountUp';
 import AddJobModal from '../components/AddJobModal';
 import Icon from '../components/Icon';
 import ReviewSheet from '../components/ReviewSheet';
@@ -46,6 +47,7 @@ import OhnarWordmark from '../components/OhnarWordmark';
 import { UPGRADE_TRIGGERS } from '../lib/telemetry';
 import { supabase } from '../lib/supabase';
 import { getMonthSummary, getOverheadTotal, monthKey } from '../lib/cashflow';
+import { haptic } from '../lib/haptics.js';
 
 // ── Snooze helpers (delegate to nextBestAction.js store, keep SNOOZE_MS local) ──
 const SNOOZE_MS = 24 * 60 * 60 * 1000;
@@ -224,6 +226,10 @@ export default function TodayScreen({
     return { monthTaxPot: Math.round(monthTaxPot), taxSetAsidePct, hasProfit: monthSummary.profit > 0 };
   }, [jobs, receipts, profile]);
 
+  // Count-up for the Today tax-pot hero line (Pro users only).
+  // useCountUp is always called (Rules of Hooks) — isPro check guards rendering.
+  const animatedTodayTaxPot = useCountUp(taxPotData.monthTaxPot);
+
   // ── Overdue-money push (item 2) ──────────────────────────────────────────────
   // All Tier-1 jobs (overdue + awaiting payment, not snoozed) — used for the
   // "£X overdue across N jobs" banner shown in addition to the hero prompt card.
@@ -288,6 +294,7 @@ export default function TodayScreen({
       });
       const clean = phone.replace(/\s/g, '').replace(/^0/, '44').replace(/^\+/, '');
       window.open(`https://wa.me/${clean}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener');
+      haptic('light');
       recordChase(promptJob.id);
       // Cloud sync is fire-and-forget — localStorage tap is already recorded above.
       recordChaseCloud(promptJob.id, supabase).catch(console.warn);
@@ -310,6 +317,7 @@ export default function TodayScreen({
         tier: chaseTier,
       });
       window.open(`mailto:${email}?subject=Invoice reminder&body=${encodeURIComponent(msg)}`, '_blank', 'noopener');
+      haptic('light');
       recordChase(promptJob.id);
       // Cloud sync is fire-and-forget — localStorage tap is already recorded above.
       recordChaseCloud(promptJob.id, supabase).catch(console.warn);
@@ -686,7 +694,7 @@ export default function TodayScreen({
           >
             <Icon name="tip" size={14} />
             {' '}Set aside{' '}
-            <strong>{gbp(taxPotData.monthTaxPot)}</strong>{' '}
+            <strong>{gbp(Math.round(animatedTodayTaxPot))}</strong>{' '}
             for tax this month
           </button>
         ) : (

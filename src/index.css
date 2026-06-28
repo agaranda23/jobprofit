@@ -5070,6 +5070,8 @@ input[type=number] { -moz-appearance: textfield; }
   letter-spacing: -0.03em;
   line-height: 1;
   margin-bottom: 6px;
+  font-family: var(--font-mono);          /* mono + tabular so the count-up doesn't jitter width */
+  font-variant-numeric: tabular-nums;
 }
 .money-tax-setaside__sub {
   font-size: var(--fs-label);
@@ -20573,3 +20575,474 @@ button.jd-money-chip:active { opacity: 0.75; }
 }
 
 /* End of press-states block */
+/* ─── PaidCelebration — shared full-screen overlay (feat/premium-haptics-paid) ───
+   Fired from every mark-paid entry point (Today, Jobs drawer, Record Payment modal).
+   Appears on top of everything via z-index:9999, auto-dismisses after ~1.2s.
+   Motion is gated behind @media (prefers-reduced-motion: no-preference).
+   ─────────────────────────────────────────────────────────────────────────────── */
+
+.paid-celebration {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  background: rgba(11, 19, 32, 0.45);
+}
+
+.paid-celebration__card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3, 12px);
+  padding: var(--space-8, 32px) var(--space-8, 32px) var(--space-6, 24px);
+  border-radius: var(--radius-2xl, 20px);
+  background: var(--surface, #ffffff);
+  box-shadow: var(--shadow-lg, 0 8px 24px rgba(0,0,0,0.4));
+  min-width: 200px;
+  text-align: center;
+}
+
+/* Ring burst — animated expanding circle behind the check icon */
+.paid-celebration__ring {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: rgba(22, 163, 74, 0.12);
+}
+
+.paid-celebration__ring::before {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  border: 2px solid rgba(22, 163, 74, 0.35);
+}
+
+.paid-celebration__check {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.paid-celebration__amount {
+  margin: 0;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: var(--fs-money-hero, clamp(2.125rem, 7.5vw, 2.875rem));
+  font-weight: 700;
+  color: #16A34A;
+  line-height: 1.1;
+}
+
+.paid-celebration__label {
+  margin: 0;
+  font-size: var(--fs-label, 0.8125rem);
+  font-weight: 600;
+  color: var(--text-dim, #6b7280);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* ── Motion: card + ring animate in, then fade out ──────────────────────────── */
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes paid-celebration-in {
+    0%   { opacity: 0; transform: scale(0.82); }
+    60%  { opacity: 1; transform: scale(1.04); }
+    100% { opacity: 1; transform: scale(1); }
+  }
+
+  @keyframes paid-celebration-out {
+    0%   { opacity: 1; transform: scale(1); }
+    100% { opacity: 0; transform: scale(0.96); }
+  }
+
+  @keyframes paid-ring-burst {
+    0%   { transform: scale(0.7); opacity: 0; }
+    50%  { transform: scale(1.15); opacity: 1; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+
+  .paid-celebration {
+    animation: paid-celebration-out 0.35s ease-in 0.95s forwards;
+  }
+
+  .paid-celebration__card {
+    animation: paid-celebration-in 0.38s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  }
+
+  .paid-celebration__ring {
+    animation: paid-ring-burst 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) 0.05s both;
+  }
+
+  /* Soft green sheen sweep across the card surface */
+  .paid-celebration__card::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(
+      135deg,
+      rgba(22, 163, 74, 0) 0%,
+      rgba(22, 163, 74, 0.08) 50%,
+      rgba(22, 163, 74, 0) 100%
+    );
+    pointer-events: none;
+    animation: paid-sheen 0.6s ease-out 0.1s forwards;
+    opacity: 0;
+  }
+
+  @keyframes paid-sheen {
+    0%   { opacity: 0; transform: translateX(-100%); }
+    40%  { opacity: 1; }
+    100% { opacity: 0; transform: translateX(100%); }
+  }
+}
+
+/* Static state for prefers-reduced-motion: visible for the full dwell, no animation */
+@media (prefers-reduced-motion: reduce) {
+  .paid-celebration {
+    background: rgba(11, 19, 32, 0.55);
+  }
+}
+
+/* ── feat/premium-money-countup — count-up tabular-nums guard ───────────────
+   The hero figures already have font-variant-numeric: tabular-nums from their
+   own CSS rules. The today-tax-pot-line's <strong> is the one exception — it
+   inherits a proportional font, so we pin tabular-nums here to stop the line
+   from jumping width as the number counts up.
+   Motion is handled entirely in JS (useCountUp) so no CSS animation here. */
+.today-tax-pot-line strong {
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Skeleton loaders (feat/premium-skeletons) ──────────────────────────────
+   Single base class; shimmer sweep gated behind prefers-reduced-motion.
+   Static fallback: muted surface block, no animation.
+   ──────────────────────────────────────────────────────────────────────────── */
+
+.skeleton {
+  background: var(--surface-2, #1d242b);
+  display: block;
+  position: relative;
+  overflow: hidden;
+  /* border-radius supplied inline from the Skeleton component prop */
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .skeleton::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(255,255,255,0.06) 40%,
+      rgba(255,255,255,0.12) 50%,
+      rgba(255,255,255,0.06) 60%,
+      transparent 100%
+    );
+    background-size: 200% 100%;
+    animation: skeleton-sweep 1.6s ease-in-out infinite;
+  }
+
+  [data-theme="light"] .skeleton::after {
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(255,255,255,0.7) 40%,
+      rgba(255,255,255,0.9) 50%,
+      rgba(255,255,255,0.7) 60%,
+      transparent 100%
+    );
+    background-size: 200% 100%;
+  }
+
+  @keyframes skeleton-sweep {
+    0%   { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+}
+
+/* Light-mode base: slightly darker to stand out against white --surface-2 */
+[data-theme="light"] .skeleton {
+  background: var(--surface-2, #f3f4f6);
+}
+
+/* ── MoneyScreenSkeleton: mirrors the money-five-sec strip + hero card ──── */
+
+.money-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* Five-second strip skeleton — matches .money-five-sec layout */
+.money-skeleton__strip {
+  display: flex;
+  align-items: stretch;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-xs);
+  overflow: hidden;
+  height: 76px;
+}
+
+.money-skeleton__strip-cell {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 14px 8px 12px;
+  gap: 6px;
+}
+
+.money-skeleton__strip-divider {
+  width: 1px;
+  background: var(--border);
+  align-self: stretch;
+  margin: 10px 0;
+  flex-shrink: 0;
+}
+
+/* Hero card skeleton — matches .money-hero layout */
+.money-skeleton__hero {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-xs);
+  padding: 20px 20px 18px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Two-up stat cards skeleton row */
+.money-skeleton__twoup {
+  display: flex;
+  gap: 12px;
+}
+
+.money-skeleton__twoup-card {
+  flex: 1;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-xs);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 80px;
+  justify-content: center;
+}
+
+/* End of skeleton block */
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PREMIUM SHEETS — unified spring motion language                feat/premium-sheets-spring
+   ─────────────────────────────────────────────────────────────────────────
+   One motion system for every overlay in the app:
+     • Backdrops  — backdrop-filter: blur(8px) tint. @supports fallback = solid.
+     • Bottom sheets — spring slide-up: cubic-bezier(0.22, 1, 0.36, 1) 300ms.
+     • Side drawers — spring slide-in-right: same curve, 280ms.
+     • Centred modals — scale(0.95)+fade: same spring, 260ms.
+     • Scrim fade — 180ms ease-out on every backdrop.
+   All motion gated behind prefers-reduced-motion: no-preference.
+   Under prefers-reduced-motion: reduce the sheets appear instantly (no slide/scale).
+   Blur is purely visual — no motion sensitivity concern, not gated.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+/* ── 1. Shared backdrop blur (applied to EVERY scrim class) ─────────────── */
+/*
+   Target every backdrop/overlay class so they all gain the blur in one rule.
+   rgba() background values on each class stay in place and provide the solid
+   colour fallback when backdrop-filter is unsupported (iOS <15, some Android).
+   We only *add* backdrop-filter here; the solid rgba() on each class already
+   gives a legible fallback for browsers that can't blur.
+*/
+@supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+  .drawer-backdrop,
+  .modal-backdrop,
+  .modal-overlay,
+  .tax-pot-sheet-backdrop,
+  .visit-editor-backdrop,
+  .photo-source-backdrop,
+  .jd-delete-confirm-backdrop,
+  .jt-backdrop,
+  .dso-backdrop,
+  .pro-upgrade-overlay {
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+  }
+}
+
+/* ── 2. Canonical keyframes ──────────────────────────────────────────────── */
+
+/* Bottom-sheet: full slide from below the viewport */
+@keyframes sheet-spring-up {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+
+/* Bottom-sheet on ≥481px when the sheet is centred (translateX stays locked) */
+@keyframes sheet-spring-up-centered {
+  from { transform: translateX(-50%) translateY(100%); }
+  to   { transform: translateX(-50%) translateY(0); }
+}
+
+/* Centred modal: scale + fade */
+@keyframes modal-spring-in {
+  from { opacity: 0; transform: scale(0.95); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+/* Scrim / backdrop fade */
+@keyframes scrim-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* Side drawer: slide in from right */
+@keyframes drawer-spring-right {
+  from { transform: translateX(100%); }
+  to   { transform: translateX(0); }
+}
+
+/* ── 3. Scrim fade — all backdrops ──────────────────────────────────────── */
+@media (prefers-reduced-motion: no-preference) {
+  .drawer-backdrop,
+  .modal-backdrop,
+  .modal-overlay,
+  .tax-pot-sheet-backdrop,
+  .visit-editor-backdrop,
+  .photo-source-backdrop,
+  .jd-delete-confirm-backdrop,
+  .dso-backdrop {
+    animation: scrim-fade-in 0.18s ease-out both;
+  }
+  /* jt-backdrop uses a conditional display:block toggle — use animation too */
+  .jt-backdrop {
+    animation: scrim-fade-in 0.18s ease-out both;
+  }
+  /* pro-upgrade-overlay is a flex container wrapping the sheet, not purely a scrim.
+     Fade it separately from the sheet so the two can compose. */
+  .pro-upgrade-overlay {
+    animation: scrim-fade-in 0.18s ease-out both;
+  }
+}
+
+/* ── 4. Bottom-sheet spring entrance ────────────────────────────────────── */
+/*
+   Unified spring curve: cubic-bezier(0.22, 1, 0.36, 1)
+   Fast initial velocity, slight overshoot character, settles crisply.
+   Duration 300ms — long enough to feel deliberate, short enough for one-handed use.
+*/
+@media (prefers-reduced-motion: no-preference) {
+  /* Core bottom sheets */
+  .job-detail-sheet,
+  .modal-sheet,
+  .job-overflow-sheet,
+  .pro-upgrade-sheet,
+  .dso-sheet,
+  .jt-menu--sheet,
+  .tax-pot-sheet,
+  .visit-editor-sheet,
+  .photo-source-sheet,
+  .jd-delete-confirm-sheet {
+    animation: sheet-spring-up 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+}
+
+/* ── 5. Account drawer (slides from right, not bottom) ───────────────────── */
+@media (prefers-reduced-motion: no-preference) {
+  .account-drawer {
+    animation: drawer-spring-right 0.28s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+}
+
+/* ── 6. Centred modal spring (desktop ≥481px) ────────────────────────────── */
+/*
+   On mobile .modal sits at the bottom edge as a sheet (covered by rule 4 via
+   .modal-sheet). On desktop (≥481px) .modal is centred — give it a scale+fade.
+   We scope to min-width:481px to avoid double-animating the mobile bottom-sheet.
+*/
+@media (min-width: 481px) and (prefers-reduced-motion: no-preference) {
+  .modal {
+    animation: modal-spring-in 0.26s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+  /* modal-overlay contents (SyncBadge confirm, etc.) also get scale entrance */
+  .modal-overlay > * {
+    animation: modal-spring-in 0.26s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+}
+
+/* ── 7. job-detail-sheet centred variant override (≥600px) ──────────────── */
+/*
+   The sheet only shifts to a centred position via translateX(-50%) at ≥600px
+   (see the min-width:600px layout block above). The centred spring keyframe
+   bakes in that translateX, so it MUST match the SAME 600px breakpoint —
+   firing it at 481px animated the still-full-width sheet from an off-centre
+   position. Below 600px the full-width sheet keeps the base slide-up
+   (translateY only), which has no min-width and so already covers 481–599px.
+*/
+@media (min-width: 600px) and (prefers-reduced-motion: no-preference) {
+  .job-detail-sheet {
+    animation: sheet-spring-up-centered 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+}
+
+/* ── 8. jdd-sheet transition — keep in sync with the spring curve ────────── */
+/*
+   jdd-sheet uses a JS-driven transition (translate toggle), not a keyframe.
+   Upgrade its easing curve to match the unified spring.
+*/
+@media (prefers-reduced-motion: no-preference) {
+  .jdd-sheet {
+    transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.18s ease-out;
+  }
+}
+
+/* ── 9. Reduced-motion: instant appearance, no slide/scale ──────────────── */
+/*
+   Explicitly reset any animation that might have leaked through. Under
+   prefers-reduced-motion:reduce we want instant show — no easing at all.
+*/
+@media (prefers-reduced-motion: reduce) {
+  .job-detail-sheet,
+  .modal-sheet,
+  .job-overflow-sheet,
+  .pro-upgrade-sheet,
+  .dso-sheet,
+  .jt-menu--sheet,
+  .tax-pot-sheet,
+  .visit-editor-sheet,
+  .photo-source-sheet,
+  .jd-delete-confirm-sheet,
+  .account-drawer,
+  .drawer-backdrop,
+  .modal-backdrop,
+  .modal-overlay,
+  .tax-pot-sheet-backdrop,
+  .visit-editor-backdrop,
+  .photo-source-backdrop,
+  .jd-delete-confirm-backdrop,
+  .jt-backdrop,
+  .dso-backdrop,
+  .pro-upgrade-overlay {
+    animation: none !important;
+    transition: none !important;
+  }
+  .jdd-sheet {
+    transition: none !important;
+  }
+}
+/* End of premium-sheets-spring block */
