@@ -1267,22 +1267,27 @@ function JobTaxMeta({ job, profile, quote, materials, onUpdateJob }) {
  *   onSaveLine(idx, { desc, cost }) – persist edited item (idx = -1 for new)
  *   onDeleteLine(idx)               – remove item at idx
  */
-function QuoteBreakdownSection({ job, onSaveLine, onDeleteLine, forceLineSheetTick, forceLineSheetIdx }) {
+function QuoteBreakdownSection({ job, onSaveLine, onDeleteLine, pendingLineSheetIdx, onConsumeLineSheet }) {
   const items = Array.isArray(job.lineItems) ? job.lineItems.filter(i => i.desc || i.cost) : [];
 
   // sheetIdx: null = closed, -1 = new item, 0+ = editing existing item
   const [sheetIdx, setSheetIdx] = React.useState(null);
 
-  // Force-open the line editor from a parent signal (e.g. header "Add price" chip).
-  // Tick-based so repeated taps re-open even when the index is unchanged.
-  const isFirstRender = React.useRef(true);
+  // Force-open the line editor from a parent signal (e.g. the header "Add price"
+  // chip on a 1-line job). The signal is a "pending index" the parent sets and we
+  // consume once. This survives the mount-after-expand race: the Price accordion
+  // only mounts this component when it expands, so a one-shot tick set *before*
+  // that mount would be missed. A pending value on the parent is still present when
+  // we first mount, so we open then and clear it. Re-taps re-set it; a manual
+  // collapse/expand leaves it null (already consumed), so the sheet never re-opens
+  // spuriously.
   React.useEffect(() => {
-    if (isFirstRender.current) { isFirstRender.current = false; return; }
-    if (forceLineSheetTick) {
-      setSheetIdx(forceLineSheetIdx ?? 0);
+    if (pendingLineSheetIdx != null) {
+      setSheetIdx(pendingLineSheetIdx);
+      onConsumeLineSheet?.();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [forceLineSheetTick]);
+  }, [pendingLineSheetIdx]);
 
   const sheetOpen = sheetIdx !== null;
   const sheetItem = sheetIdx != null && sheetIdx >= 0 ? items[sheetIdx] : null;
@@ -2343,8 +2348,12 @@ export default function JobDetailDrawer({
   // Force-open the QuoteLineEditorSheet for a specific index from outside
   // QuoteBreakdownSection (e.g. header "Add price" chip on a 1-line job).
   // Tick-based so repeated taps re-open even when the index is unchanged.
-  const [lineSheetTick, setLineSheetTick] = useState(0);
-  const [lineSheetIdx, setLineSheetIdx] = useState(0);
+  // pendingLineSheetIdx: when non-null, QuoteBreakdownSection opens its Edit-line
+  // sheet for that index on (re)mount, then clears it via onConsumeLineSheet. Set by
+  // openPriceEditor for the 1-line "Add price" case. A pending value (not a tick)
+  // survives the Price accordion's mount-on-expand — a tick set before the child
+  // mounts would be missed. null = nothing pending.
+  const [pendingLineSheetIdx, setPendingLineSheetIdx] = useState(null);
 
   // Visit editor sheet — multi-visit path
   // editingVisit: null (closed) | { ...Visit } (existing) | { _isNew: true } (add)
@@ -2633,8 +2642,7 @@ export default function JobDetailDrawer({
       requestAnimationFrame(() => {
         priceAccordionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
       });
-      setLineSheetIdx(0);
-      setLineSheetTick(t => t + 1);
+      setPendingLineSheetIdx(0);
     } else {
       setPriceAccordionExpandTick(t => t + 1);
       requestAnimationFrame(() => {
@@ -3013,9 +3021,15 @@ export default function JobDetailDrawer({
     } else {
       next = base.map((item, i) => i === idx ? { ...item, desc, cost: Number(cost) } : item);
     }
+    const prevTotal = base.reduce((s, i) => s + Number(i.cost || 0), 0);
     const newTotal = next.reduce((s, i) => s + Number(i.cost || 0), 0);
     onUpdateJob({ ...job, lineItems: next, total: newTotal, amount: newTotal });
-    showFlash(idx === -1 ? 'Line added' : 'Line updated');
+    // "Price added" when this save takes a previously-unpriced job to a real total
+    // (the "+ Add price" → Edit-line flow); otherwise it reads as a line edit.
+    const flashMsg = idx === -1
+      ? 'Line added'
+      : (prevTotal === 0 && newTotal > 0 ? 'Price added' : 'Line updated');
+    showFlash(flashMsg);
     maybeReopenReview();
   };
 
@@ -3752,8 +3766,8 @@ export default function JobDetailDrawer({
                 job={job}
                 onSaveLine={onUpdateJob ? handleSaveLiLine : undefined}
                 onDeleteLine={onUpdateJob ? handleDeleteLiLine : undefined}
-                forceLineSheetTick={lineSheetTick}
-                forceLineSheetIdx={lineSheetIdx}
+                pendingLineSheetIdx={pendingLineSheetIdx}
+                onConsumeLineSheet={() => setPendingLineSheetIdx(null)}
               />
             );
 
