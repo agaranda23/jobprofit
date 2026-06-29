@@ -63,6 +63,43 @@ function insideHorizontalScroller(el) {
   return false;
 }
 
+/**
+ * Returns true when the touch originates on (or inside) an interactive element
+ * — button, anchor, input, select, textarea, or an element with role=button/link
+ * or a non-negative tabindex.
+ *
+ * Why: the pager must not intercept taps on actionable elements.  Without this
+ * guard, a slight horizontal wobble (≥ LOCK_THRESHOLD = 10 px) during a tap
+ * sets dirLock=true, which causes the native touchmove listener to call
+ * e.preventDefault().  iOS Safari then suppresses the synthesised click event,
+ * so onClick handlers on buttons inside the pager never fire — even though the
+ * gesture was clearly a tap, not a swipe.
+ *
+ * Trade-off: a swipe gesture that starts on a button no longer changes pages.
+ * This is the correct UX: interactive elements take priority over swipe.
+ */
+function insideInteractiveElement(el) {
+  let node = el;
+  while (node && node !== document.body) {
+    const tag = node.tagName?.toLowerCase();
+    if (
+      tag === 'button' ||
+      tag === 'a'      ||
+      tag === 'input'  ||
+      tag === 'select' ||
+      tag === 'textarea'
+    ) return true;
+    const role = node.getAttribute?.('role');
+    if (role === 'button' || role === 'link' || role === 'checkbox' || role === 'radio') {
+      return true;
+    }
+    const tabindex = node.getAttribute?.('tabindex');
+    if (tabindex !== null && tabindex !== undefined && tabindex !== '-1') return true;
+    node = node.parentElement;
+  }
+  return false;
+}
+
 /** Set track to settled position: no transform (safe for position:fixed children). */
 function settleAt(track, idx) {
   if (!track) return;
@@ -158,6 +195,7 @@ export function useDashboardPager({ pageCount, pageIndex, onPageChange, locked }
     if (e.touches.length > 1) return;   // pinch/multi-touch — leave it to the browser (zoom)
     if (document.body.classList.contains('overlay-open')) return;
     if (insideHorizontalScroller(e.target)) return;
+    if (insideInteractiveElement(e.target)) return;  // let buttons/links handle their own tap
 
     const touch = e.touches[0];
     if (touch.clientX < LEFT_EDGE_GUARD) return;
