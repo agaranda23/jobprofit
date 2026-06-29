@@ -24,24 +24,9 @@
  */
 
 import { daysPastDue, computeTier } from './chaseLadder.js';
+import { isPaidJob, isExcludedJob as isExcluded } from './jobPredicates.js';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
-
-function isPaidJob(job) {
-  if (!job) return false;
-  if (job.paid === true) return true;
-  if (job.paymentStatus === 'paid') return true;
-  if (job.status === 'paid') return true;
-  return false;
-}
-
-function isExcluded(job) {
-  if (!job) return true;
-  const s = (job.status || job.jobStatus || '').toLowerCase();
-  const ps = (job.paymentStatus || '').toLowerCase();
-  return s === 'cancelled' || s === 'canceled' || s === 'draft' ||
-    ps === 'cancelled' || ps === 'canceled';
-}
 
 /**
  * Returns true if the job has had an invoice sent, regardless of which shape

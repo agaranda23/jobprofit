@@ -57,33 +57,7 @@ function parseLocalDate(str) {
   return d;
 }
 
-/**
- * Determines whether a job is paid, normalising across cloud and legacy shapes.
- *
- * Cloud: job.paid === true
- * Legacy: job.paymentStatus === 'paid'
- * applyAutoFlip also sets status='paid' — treat that as paid too.
- */
-function isPaidJob(job) {
-  if (!job) return false;
-  if (job.paid === true) return true;
-  if (job.paymentStatus === 'paid') return true;
-  if (job.status === 'paid') return true;
-  return false;
-}
-
-/**
- * Determines whether a job should be excluded from all aggregations.
- * Cancelled or draft jobs have no financial meaning.
- */
-function isExcludedJob(job) {
-  if (!job) return true;
-  const s = (job.status || job.jobStatus || '').toLowerCase();
-  const ps = (job.paymentStatus || '').toLowerCase();
-  if (s === 'cancelled' || s === 'canceled' || s === 'draft') return true;
-  if (ps === 'cancelled' || ps === 'canceled') return true;
-  return false;
-}
+import { isPaidJob, isExcludedJob } from './jobPredicates.js';
 
 /**
  * Returns the effective "earned" date for a paid job: payment_date → date.

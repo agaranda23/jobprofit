@@ -79,7 +79,7 @@ const APP_VERSION = pkg.version;
 
 // ── Share / contact helpers ───────────────────────────────────────────────────
 
-export function buildShareData() {
+function buildShareData() {
   const url =
     typeof window !== 'undefined' ? window.location.origin : 'https://ohnar.co.uk';
   return {
@@ -89,7 +89,7 @@ export function buildShareData() {
   };
 }
 
-export function buildWhatsAppSupportUrl() {
+function buildWhatsAppSupportUrl() {
   return 'https://wa.me/447411353356?text=Hi%2C%20I\'ve%20got%20a%20question%20about%20OHNAR';
 }
 
@@ -589,7 +589,7 @@ function CisSetupSheet({ profile, onProfileUpdate, onClose }) {
 // "Other" chip reveals a free-text input stored in trade_other.
 // Saves three profile fields: trade_types, trade_primary, trade_other.
 
-export const TRADE_CHIPS = [
+const TRADE_CHIPS = [
   { key: 'plumber',              label: 'Plumber' },
   { key: 'gas_engineer',         label: 'Gas engineer' },
   { key: 'heating_engineer',     label: 'Heating engineer' },
@@ -607,7 +607,7 @@ export const TRADE_CHIPS = [
 const TRADE_MAX = 3;
 
 /** Derive the Settings row value string from profile fields. */
-export function deriveTradeRowValue(profile) {
+function deriveTradeRowValue(profile) {
   const types   = Array.isArray(profile?.trade_types) ? profile.trade_types : [];
   const primary = profile?.trade_primary || null;
   if (types.length === 0) return null; // caller renders "Not set"
