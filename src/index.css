@@ -2231,6 +2231,62 @@ body {
 }
 .snackbar__nudge-setup:active { opacity: 0.7; }
 
+/* ── call-pay prompt (feat/call-then-mark-paid) ─────────────────────────────
+   Sits above the standard snackbar (higher z-index, higher bottom offset)
+   so it doesn't collide with cost/got-paid chips.
+   Flex layout: label | [Mark paid] [Not yet] | × close */
+.snackbar--call-pay {
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  border-left: 3px solid var(--jp-green, #00A86B);
+}
+.snackbar__call-pay-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--fs-label);
+  font-weight: 500;
+}
+.snackbar__call-pay-btns {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+.snackbar__call-pay-confirm {
+  background: var(--jp-green, #00A86B);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-sm, 6px);
+  font-size: var(--fs-label);
+  font-weight: 700;
+  cursor: pointer;
+  padding: 6px 14px;
+  min-height: 44px;
+  font-family: inherit;
+  -webkit-tap-highlight-color: transparent;
+}
+.snackbar__call-pay-confirm:active {
+  opacity: 0.85;
+}
+.snackbar__call-pay-dismiss {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 6px);
+  font-size: var(--fs-label);
+  font-weight: 500;
+  color: var(--text-dim);
+  cursor: pointer;
+  padding: 6px 14px;
+  min-height: 44px;
+  font-family: inherit;
+  -webkit-tap-highlight-color: transparent;
+}
+.snackbar__call-pay-dismiss:active {
+  opacity: 0.7;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .snackbar--call-pay { animation: toast-in 0.25s ease-out; }
+}
+
 /* DEPRECATED — remove after JP-LU2 ships (separate zero-risk CSS PR) */
 /* Got Paid chip toast — Speed-mode post-save prompt (Part B).
    Uses --z-toast like .toast so both float above all sheets and drawers. */
