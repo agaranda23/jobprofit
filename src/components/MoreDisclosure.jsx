@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 
 /**
  * MoreDisclosure — tappable row that reveals Photos and Notes.

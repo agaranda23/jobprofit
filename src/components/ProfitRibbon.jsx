@@ -1,4 +1,3 @@
-import React from 'react';
 import { marginState } from '../lib/profitThresholds';
 
 /**

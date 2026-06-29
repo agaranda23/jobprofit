@@ -12,7 +12,7 @@
  *    and unit-testable without DOM imports).
  */
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { buildQuoteRecordMeta, buildInvoiceRecordMeta } from '../lib/documentRecord';
 import { downloadQuotePDF, downloadInvoicePDF } from '../lib/invoicePDF';
 import { isPro } from '../lib/plan';

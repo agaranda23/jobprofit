@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { marginState } from '../lib/profitThresholds';
 import { gbp } from '../lib/today';
 import { getOverheadTotal } from '../lib/cashflow';
