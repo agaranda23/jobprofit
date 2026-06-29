@@ -953,8 +953,15 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
           aria-expanded={moreInsightsOpen}
           onClick={() => setMoreInsightsOpen(o => !o)}
         >
-          <span className="money-more-insights-toggle__label">
-            {moreInsightsOpen ? 'Fewer insights' : 'More insights'}
+          <span className="money-more-insights-toggle__body">
+            <span className="money-more-insights-toggle__label">
+              {moreInsightsOpen ? 'Hide insights' : 'More insights'}
+            </span>
+            {!moreInsightsOpen && (
+              <span className="money-more-insights-toggle__teaser">
+                True profit &middot; Tax pot &middot; Profit/hour
+              </span>
+            )}
           </span>
           <Icon
             name="chevron-down"
