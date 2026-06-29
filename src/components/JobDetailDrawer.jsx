@@ -998,7 +998,9 @@ function QuoteLineEditorSheet({ open, item, onSave, onDelete, onCancel }) {
   React.useEffect(() => {
     if (open) {
       setDesc(item?.desc || '');
-      setCost(item != null ? String(item.cost ?? '') : '');
+      // Present empty (not '0') when cost is 0 so the user does not have to
+      // clear the field — matches the EditFieldModal pattern for needsPrice jobs.
+      setCost(item != null && Number(item.cost) !== 0 ? String(item.cost ?? '') : '');
     }
   }, [open, item]);
 
@@ -1265,11 +1267,22 @@ function JobTaxMeta({ job, profile, quote, materials, onUpdateJob }) {
  *   onSaveLine(idx, { desc, cost }) – persist edited item (idx = -1 for new)
  *   onDeleteLine(idx)               – remove item at idx
  */
-function QuoteBreakdownSection({ job, onSaveLine, onDeleteLine }) {
+function QuoteBreakdownSection({ job, onSaveLine, onDeleteLine, forceLineSheetTick, forceLineSheetIdx }) {
   const items = Array.isArray(job.lineItems) ? job.lineItems.filter(i => i.desc || i.cost) : [];
 
   // sheetIdx: null = closed, -1 = new item, 0+ = editing existing item
   const [sheetIdx, setSheetIdx] = React.useState(null);
+
+  // Force-open the line editor from a parent signal (e.g. header "Add price" chip).
+  // Tick-based so repeated taps re-open even when the index is unchanged.
+  const isFirstRender = React.useRef(true);
+  React.useEffect(() => {
+    if (isFirstRender.current) { isFirstRender.current = false; return; }
+    if (forceLineSheetTick) {
+      setSheetIdx(forceLineSheetIdx ?? 0);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [forceLineSheetTick]);
 
   const sheetOpen = sheetIdx !== null;
   const sheetItem = sheetIdx != null && sheetIdx >= 0 ? items[sheetIdx] : null;
@@ -2327,6 +2340,12 @@ export default function JobDetailDrawer({
   // Ref on the Price accordion wrapper so we can scroll it into view on tap.
   const priceAccordionRef = useRef(null);
 
+  // Force-open the QuoteLineEditorSheet for a specific index from outside
+  // QuoteBreakdownSection (e.g. header "Add price" chip on a 1-line job).
+  // Tick-based so repeated taps re-open even when the index is unchanged.
+  const [lineSheetTick, setLineSheetTick] = useState(0);
+  const [lineSheetIdx, setLineSheetIdx] = useState(0);
+
   // Visit editor sheet — multi-visit path
   // editingVisit: null (closed) | { ...Visit } (existing) | { _isNew: true } (add)
   const [editingVisit, setEditingVisit] = useState(null);
@@ -2593,6 +2612,37 @@ export default function JobDetailDrawer({
   };
 
   // ── Price add / edit ─────────────────────────────────────────────────────
+
+  // Shared routing helper — used by the header chip, intent auto-trigger, and
+  // any other entry point that needs to open the price editor.
+  //
+  // Routing by existingItems.length (Option A, price-reconciliation PRD 2026-06-13):
+  //   0 items  → free-number modal (seeds a line); the only correct entry to that modal.
+  //   1 item   → expand Price accordion AND force-open the Edit-line sheet for that line.
+  //   2+ items → expand + scroll the Price accordion; let the user pick which line.
+  //
+  // INVARIANT: total must always equal sum(lineItems). This helper never writes
+  // total directly — it routes the user to a UI that writes via handleSaveLiLine
+  // (line save) or the zero-line seed branch in handleAmountSave.
+  const openPriceEditor = () => {
+    const existingItems = (Array.isArray(job.lineItems) ? job.lineItems : []).filter(i => i.desc || i.cost > 0);
+    if (existingItems.length === 0) {
+      setEditingField('amount');
+    } else if (existingItems.length === 1) {
+      setPriceAccordionExpandTick(t => t + 1);
+      requestAnimationFrame(() => {
+        priceAccordionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+      setLineSheetIdx(0);
+      setLineSheetTick(t => t + 1);
+    } else {
+      setPriceAccordionExpandTick(t => t + 1);
+      requestAnimationFrame(() => {
+        priceAccordionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    }
+  };
+
   // Called when the user taps "Edit quote/invoice" inside ReviewSheet.
   // Closes ReviewSheet without saving a draft (the user explicitly chose to edit),
   // records the mode so line-item save handlers can re-open ReviewSheet after
@@ -2672,11 +2722,23 @@ export default function JobDetailDrawer({
     }
   };
 
-  // Auto-open the price entry field when the drawer opens with an intent and
-  // the job still has no price. Clears itself on save or dismiss.
+  // Auto-open the price editor when the drawer opens with an intent and the job
+  // still needs a price.  Routes by existingItems.length so a £0-seed-line job
+  // is not sent to the dead-end free-number modal.
+  //
+  // FAST-FOLLOW NOTE (fix/add-price-route-to-line-editor, 2026-06-29):
+  //   For intent==='price'+targetStage and intent==='quote', handleAmountSave
+  //   carries post-save continuations (stage advance, re-open ReviewSheet).
+  //   Moving those to handleSaveLiLine is deferred to a follow-up PR so that
+  //   this fix ships without touching the quote funnel continuation.
+  //   Until then, if a seed-line job arrives via these intents and the user
+  //   enters a price in the line sheet, the stage/quote continuation will NOT
+  //   fire — they will need to proceed manually.  The header chip bug (the
+  //   founder's reported issue) is fully fixed for all paths that call
+  //   chipPriceHandler / openPriceEditor.
   useEffect(() => {
     if (intent && needsPrice(job) && editingField !== 'amount') {
-      setEditingField('amount');
+      openPriceEditor();
     }
     // Only react to intent changes — not every render
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -3003,7 +3065,7 @@ export default function JobDetailDrawer({
 
   // -- Finish-line handlers
   const handleEndJob = () => {
-    if (needsPrice(job)) { setEditingField('amount'); return; }
+    if (needsPrice(job)) { openPriceEditor(); return; }
     const cv = readVisits(job);
     const allDone = cv.map(v => v.status !== 'done' && v.status !== 'cancelled' ? { ...v, status: 'done' } : v);
     onUpdateJob({ ...job, ...writeVisits(job, allDone), completedAt: new Date().toISOString(), jobStatus: 'complete' });
@@ -3063,7 +3125,7 @@ export default function JobDetailDrawer({
   // Price guard still blocks as before — no point reviewing an unpriced quote.
   const handleSendLink = () => {
     if (needsPrice(job)) {
-      setEditingField('amount');
+      openPriceEditor();
       return;
     }
     setReviewSheetMode('quote');
@@ -3175,8 +3237,8 @@ export default function JobDetailDrawer({
     openReceiptModal:    () => setReceiptModalOpen(true),
     openPhotoInput:      () => photoInputRef.current?.click(),
     openSigPad:          () => setSigPadOpen(true),
-    editPrice:           () => setEditingField('amount'),
-    editLineItems:       () => {},
+    editPrice:           openPriceEditor,
+    editLineItems:       openPriceEditor,
     viewProfitBreakdown: () => setProfitSheetOpen(true),
     noop:                () => {},
   };
@@ -3232,7 +3294,7 @@ export default function JobDetailDrawer({
                           role="menuitem"
                           onClick={() => {
                             setKebabOpen(false);
-                            setEditingField('amount');
+                            openPriceEditor();
                           }}
                         >
                           Edit price
@@ -3421,16 +3483,10 @@ export default function JobDetailDrawer({
                     4. Un-priced → tappable "+ Add price" chip (editable mode only)
                     5. Priced    → hero price figure */}
               {(() => {
-                const chipPriceHandler = () => {
-                  if (needsPrice(job)) {
-                    setEditingField('amount');
-                  } else {
-                    setPriceAccordionExpandTick(t => t + 1);
-                    requestAnimationFrame(() => {
-                      priceAccordionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                    });
-                  }
-                };
+                // Route by existingItems.length, not needsPrice — so a job with a
+                // £0 seed line opens the Edit-line sheet rather than the dead-end
+                // free-number modal (routing fix, 2026-06-29).
+                const chipPriceHandler = openPriceEditor;
                 const overdurePlural = daysOverdue === 1 ? 'day' : 'days';
 
                 if (isPaid) {
@@ -3696,6 +3752,8 @@ export default function JobDetailDrawer({
                 job={job}
                 onSaveLine={onUpdateJob ? handleSaveLiLine : undefined}
                 onDeleteLine={onUpdateJob ? handleDeleteLiLine : undefined}
+                forceLineSheetTick={lineSheetTick}
+                forceLineSheetIdx={lineSheetIdx}
               />
             );
 
@@ -3899,7 +3957,7 @@ export default function JobDetailDrawer({
                         className="visit-invoice-prompt-btn"
                         onClick={() => {
                           setShowInvoicePrompt(false);
-                          if (needsPrice(job)) { setEditingField('amount'); return; }
+                          if (needsPrice(job)) { openPriceEditor(); return; }
                           setReviewSheetMode('invoice');
                         }}
                       >
@@ -4303,12 +4361,12 @@ export default function JobDetailDrawer({
           onClose={() => setDocsHubOpen(false)}
           onBuildQuote={() => {
             setDocsHubOpen(false);
-            if (needsPrice(job)) setEditingField('amount');
+            if (needsPrice(job)) openPriceEditor();
             else setReviewSheetMode('quote');
           }}
           onSendInvoice={() => {
             setDocsHubOpen(false);
-            if (needsPrice(job)) setEditingField('amount');
+            if (needsPrice(job)) openPriceEditor();
             else setReviewSheetMode('invoice');
           }}
         />
@@ -4325,7 +4383,7 @@ export default function JobDetailDrawer({
           onUpdate={onUpdateJob ?? (() => {})}
           onClose={() => setInvoiceModalOpen(false)}
           flash={showFlash}
-          onNeedsPrice={() => { setInvoiceModalOpen(false); setEditingField('amount'); }}
+          onNeedsPrice={() => { setInvoiceModalOpen(false); openPriceEditor(); }}
           onNavigateToCardPayments={onNavigateToCardPayments}
           onProfileUpdate={onProfileUpdate}
         />
