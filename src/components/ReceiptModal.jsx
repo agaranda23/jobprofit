@@ -29,21 +29,7 @@ import { buildPublicReceiptUrl } from '../lib/publicReceiptToken.js';
 import { reissuePublicToken } from '../lib/store.js';
 import { resolveBusinessIdentity } from '../lib/resolveBusinessIdentity.js';
 import { isPro } from '../lib/plan.js';
-
-// Module-level capability check — same pattern as SendInvoiceModal.
-const SUPPORTS_FILE_SHARE =
-  typeof navigator !== 'undefined' &&
-  typeof navigator.share === 'function' &&
-  typeof navigator.canShare === 'function';
-
-function canShareFile(file) {
-  if (!SUPPORTS_FILE_SHARE) return false;
-  try {
-    return navigator.canShare({ files: [file] });
-  } catch {
-    return false;
-  }
-}
+import { canShareFile } from '../lib/webShare.js';
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
