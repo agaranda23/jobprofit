@@ -1593,6 +1593,10 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
     setPendingEditField(null);
     // Notify AppShell to filter the job from React state
     onDeleteJob?.(job.id);
+    // Confirm the deletion (parity with the tile path). Reached only after the
+    // await resolves — a failed delete throws back to the drawer, which surfaces
+    // its own error toast and keeps the drawer open.
+    showToast('Job deleted');
   };
 
   return (
