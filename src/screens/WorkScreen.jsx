@@ -26,9 +26,15 @@
  * Note: WorkScreen is the single canonical "Jobs" tab. The legacy JobsScreen stub was
  * deleted in the stage-consolidation PR; stage derivation now lives solely in lib/jobStatus.js.
  */
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import Icon from '../components/Icon';
+import {
+  recordCall,
+  consumeCallRecord,
+  clearCallRecord,
+  shouldShowCallPayPrompt,
+} from '../lib/callPayPrompt';
 // WorkCalendar import removed (JP-LU5 PR1) — file kept on disk for future Plan-Mode feature.
 import AddJobModal from '../components/AddJobModal';
 import JobDetailDrawer from '../components/JobDetailDrawer';
@@ -650,7 +656,7 @@ function deriveMoneySub(job, stage) {
  * Customer demoted to secondary line; falls back: if summary empty, customer
  * becomes the primary label so the tile is never a bare "Untitled job".
  */
-function JobTile({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJob, onCopyJob, onArchiveJob, onDeleteJob, biz, onShowToast, onViewReceipt, onActionRedirect }) {
+function JobTile({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJob, onCopyJob, onArchiveJob, onDeleteJob, biz, onShowToast, onViewReceipt, onActionRedirect, onCallJob }) {
   const stage = deriveDisplayStatus(job);
   const isPaid = stage === 'Paid';
 
@@ -847,6 +853,7 @@ function JobTile({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJo
               const phone = resolvePhone(job);
               logTelemetry('tile_action_call', { hasData: !!phone, source: 'tile' });
               if (phone) {
+                onCallJob?.(job);
                 window.open(`tel:${phone}`, '_self');
               } else {
                 onActionRedirect?.(job, 'phone');
@@ -1051,7 +1058,7 @@ function Pager({ page, totalPages, onPage, totalItems, pageSize }) {
 // ── JobsList subview ──────────────────────────────────────────────────────────
 
 // JP-LU5 PR1: layout, colSort, onColSort, onUpgrade props removed — card view only.
-function JobsList({ jobs, receipts, selectedStage, showAll, searchQuery, profile, onJobSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJob, onCopyJob, onArchiveJob, onDeleteJob, biz, onShowToast, onViewReceipt, onAddJob, onActionRedirect }) {
+function JobsList({ jobs, receipts, selectedStage, showAll, searchQuery, profile, onJobSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJob, onCopyJob, onArchiveJob, onDeleteJob, biz, onShowToast, onViewReceipt, onAddJob, onActionRedirect, onCallJob }) {
   const q = (searchQuery || '').trim();
   const listTopRef = useRef(null);
 
@@ -1121,6 +1128,7 @@ function JobsList({ jobs, receipts, selectedStage, showAll, searchQuery, profile
             onShowToast={onShowToast}
             onViewReceipt={onViewReceipt}
             onActionRedirect={onActionRedirect}
+            onCallJob={onCallJob}
           />
         ))}
       </ul>
@@ -1177,6 +1185,13 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
   // Reuses DocumentSearchOverlay exactly as TodayScreen does — not a new overlay, same component.
   const [docOverlay, setDocOverlay] = useState(null);
 
+  // callPayPrompt — job to show the "Did [customer] pay?" prompt for after a tel: dial.
+  // Set when the app regains focus/visibility after a Call tap on an unpaid job.
+  // Cleared on dismiss, on "Mark paid", or when the job is already paid.
+  const [callPayPrompt, setCallPayPrompt] = useState(null);
+  // Track when the page hid so we can calculate away time on return.
+  const hiddenAtRef = useRef(null);
+
   // JP-LU5 PR1: layout, colSort, upgradeSheetOpen, showCoachmark state removed.
 
   // If AppShell navigated here with a specific job to open (e.g. from TodayScreen
@@ -1201,6 +1216,64 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
       // silently swallow — private mode or storage full
     }
   }, [selectedStage, showAll]);
+
+  // ── Call-pay prompt ────────────────────────────────────────────────────────
+  // When the founder taps Call and then returns to the app, offer a one-tap
+  // "Did [customer] pay? → Mark paid / Not yet" prompt.
+  //
+  // Uses both visibilitychange and window focus because:
+  //   - visibilitychange covers the phone dialler returning on mobile
+  //   - focus covers desktop / PWA window re-activation
+  // hiddenAtRef captures the moment the page hid so we know how long they
+  // were away; the minimum threshold (800ms) skips accidental tab swipes.
+  const handleCallJob = useCallback((job) => {
+    recordCall(job.id);
+    hiddenAtRef.current = null; // will be set by visibilitychange 'hidden'
+  }, []);
+
+  useEffect(() => {
+    function handleHide() {
+      if (document.visibilityState === 'hidden') {
+        hiddenAtRef.current = Date.now();
+      }
+    }
+
+    function handleReturn() {
+      if (document.visibilityState !== 'hidden') {
+        const returnedAt = Date.now();
+        const record = consumeCallRecord();
+        if (!record) return;
+        const liveJob = jobs.find(j => String(j.id) === String(record.jobId)) ?? null;
+        if (!shouldShowCallPayPrompt({ record, job: liveJob, returnedAt })) {
+          // Guard failed (already paid, too long away, wrong stage, etc.) — discard.
+          return;
+        }
+        setCallPayPrompt(liveJob);
+      }
+    }
+
+    function handleFocus() {
+      // Mirrors handleReturn — fires when the PWA window regains focus
+      // without a visibilitychange event (e.g. alt-tab on desktop).
+      const returnedAt = Date.now();
+      const record = consumeCallRecord();
+      if (!record) return;
+      const liveJob = jobs.find(j => String(j.id) === String(record.jobId)) ?? null;
+      if (!shouldShowCallPayPrompt({ record, job: liveJob, returnedAt })) return;
+      setCallPayPrompt(liveJob);
+    }
+
+    document.addEventListener('visibilitychange', handleHide);
+    document.addEventListener('visibilitychange', handleReturn);
+    window.addEventListener('focus', handleFocus);
+    return () => {
+      document.removeEventListener('visibilitychange', handleHide);
+      document.removeEventListener('visibilitychange', handleReturn);
+      window.removeEventListener('focus', handleFocus);
+    };
+  // jobs is the dependency — re-register when the jobs list updates so the
+  // closure captures the latest array (prevents stale-job lookups).
+  }, [jobs]);
 
   // Pre-fetch Pay-now URLs for chase-eligible jobs when the trader is connected.
   // Fires on mount (and whenever jobs or connect status changes). By the time
@@ -1765,6 +1838,7 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
         onViewReceipt={setReceiptJob}
         onAddJob={openAddJob}
         onActionRedirect={handleActionRedirect}
+        onCallJob={handleCallJob}
       />
 
       {/* Job detail drawer — wrapped in an error boundary so a render crash
@@ -1909,6 +1983,69 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
       {/* JP-LU5 PR1: ProUpgradeSheet removed — was only wired to table-view profit lock. */}
 
       {toast && <div className="toast">{toast}</div>}
+
+      {/* Call-pay prompt — appears after returning from a tel: dial on an unpaid job.
+          Rendered in a portal so z-index sits above tiles and open drawers.
+          Fires once per call (consumeCallRecord removes the sessionStorage entry);
+          dismissed by tapping either button or the × close. */}
+      {callPayPrompt && createPortal(
+        <div
+          className="snackbar snackbar--call-pay"
+          role="alertdialog"
+          aria-modal="false"
+          aria-label={`Did ${callPayPrompt.customer || callPayPrompt.name || 'the customer'} pay?`}
+          aria-live="polite"
+        >
+          <span className="snackbar__msg snackbar__call-pay-label">
+            Did {callPayPrompt.customer || callPayPrompt.name || 'they'} pay
+            {callPayPrompt.summary ? ` for ${callPayPrompt.summary}` : ''}?
+          </span>
+          <div className="snackbar__call-pay-btns">
+            <button
+              type="button"
+              className="snackbar__call-pay-confirm"
+              aria-label="Mark paid"
+              onClick={() => {
+                const job = callPayPrompt;
+                setCallPayPrompt(null);
+                clearCallRecord();
+                handleUpdateJob({
+                  ...job,
+                  paid: true,
+                  status: 'paid',
+                  paidAt: new Date().toISOString(),
+                  paymentStatus: 'paid',
+                });
+              }}
+            >
+              Mark paid
+            </button>
+            <button
+              type="button"
+              className="snackbar__call-pay-dismiss"
+              aria-label="Not yet — dismiss"
+              onClick={() => {
+                clearCallRecord();
+                setCallPayPrompt(null);
+              }}
+            >
+              Not yet
+            </button>
+          </div>
+          <button
+            type="button"
+            className="snackbar__close"
+            aria-label="Dismiss"
+            onClick={() => {
+              clearCallRecord();
+              setCallPayPrompt(null);
+            }}
+          >
+            <Icon name="close" size={16} />
+          </button>
+        </div>,
+        document.body,
+      )}
     </div>
   );
 }
