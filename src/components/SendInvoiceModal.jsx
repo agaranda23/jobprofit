@@ -53,13 +53,7 @@ import InvoiceDocumentPreview from './InvoiceDocumentPreview';
 import ProUpgradeSheet from './ProUpgradeSheet';
 import Icon from './Icon';
 import { haptic } from '../lib/haptics.js';
-
-// Returns true when this browser supports navigator.share() with a files array.
-// Stored as a module-level constant so we don't recalculate on every render.
-const SUPPORTS_FILE_SHARE =
-  typeof navigator !== 'undefined' &&
-  typeof navigator.share === 'function' &&
-  typeof navigator.canShare === 'function';
+import { canShareFile } from '../lib/webShare.js';
 
 // Returns true when the profile has bank details (sort code + account number).
 // Used by the just-in-time bank gate — if either is missing, prompt on invoice send.
@@ -73,15 +67,6 @@ function formatSortCode(raw) {
   if (digits.length <= 2) return digits;
   if (digits.length <= 4) return digits.slice(0, 2) + '-' + digits.slice(2);
   return digits.slice(0, 2) + '-' + digits.slice(2, 4) + '-' + digits.slice(4);
-}
-
-function canShareFile(file) {
-  if (!SUPPORTS_FILE_SHARE) return false;
-  try {
-    return navigator.canShare({ files: [file] });
-  } catch {
-    return false;
-  }
 }
 
 // ── Component ─────────────────────────────────────────────────────────────────
