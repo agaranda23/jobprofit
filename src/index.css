@@ -5439,22 +5439,33 @@ input[type=number] { -moz-appearance: textfield; }
 /* ── Founding Member card ──────────────────────── */
 /* Shown to founding-eligible free users in place of the standard upgrade banner. */
 /* Uses brand blue (#2563EB) accent + JetBrains Mono for the price figure. */
+/* ── Founding Member card — gold premium treatment ─────────────────────────────
+   Design intent: early-access scarcity. The card reads as visibly different from
+   the standard blue UpgradeBanner — warmer, richer, one-of-a-kind.
+   Contrast: badge uses --on-gold (#0b1320) on var(--gold) = 7.84:1 AAA.
+             CTA uses --on-gold on gold-gradient = 7.84:1 AAA (dark text on amber).
+             Lock / body copy use var(--text) and var(--text-dim) — pass AA at all sizes.
+   Both dark and light themes are covered via the --gold / --gold-gradient tokens
+   which are re-tuned in [data-theme="light"] (see ~line 308-309).               */
 .founding-member-card {
   padding: 18px 16px 14px;
   background: var(--surface);
-  border: 1.5px solid #2563EB;
+  border: 1.5px solid var(--gold, #d4a017);
   border-radius: var(--radius-xl);
-  box-shadow: 0 1px 0 rgba(0,0,0,0.25), 0 0 0 4px rgba(37, 99, 235, 0.08);
+  box-shadow: 0 1px 0 rgba(0,0,0,0.25), 0 0 0 4px color-mix(in srgb, var(--gold, #d4a017) 15%, transparent);
   margin-bottom: 16px;
+  position: relative;
+  /* Subtle warm inner tint to distinguish from standard cards */
+  background: color-mix(in srgb, var(--gold, #d4a017) 4%, var(--surface));
 }
 .founding-member-card__badge {
   display: inline-block;
-  padding: 2px 8px;
-  background: #2563EB;
-  color: #fff;
+  padding: 2px 10px;
+  background: var(--gold-gradient, linear-gradient(135deg, #f5c75a 0%, #d4a017 50%, #b8861a 100%));
+  color: var(--on-gold, #0b1320);
   font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.04em;
+  font-weight: 800;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
   border-radius: var(--radius-xs);
   margin-bottom: 10px;
@@ -5469,14 +5480,14 @@ input[type=number] { -moz-appearance: textfield; }
   font-family: 'JetBrains Mono', monospace;
   font-size: 28px;
   font-weight: 700;
-  color: #2563EB;
+  color: var(--gold, #d4a017);
   line-height: 1;
 }
 .founding-member-card__period {
   font-family: 'JetBrains Mono', monospace;
   font-size: 16px;
   font-weight: 600;
-  color: #2563EB;
+  color: var(--gold, #d4a017);
 }
 .founding-member-card__lock {
   font-size: 14px;
@@ -5493,8 +5504,8 @@ input[type=number] { -moz-appearance: textfield; }
   display: block;
   width: 100%;
   padding: 12px 16px;
-  background: #2563EB;
-  color: #fff;
+  background: var(--gold-gradient, linear-gradient(135deg, #f5c75a 0%, #d4a017 50%, #b8861a 100%));
+  color: var(--on-gold, #0b1320);
   border: none;
   border-radius: var(--radius-md);
   font-family: inherit;
@@ -5505,8 +5516,8 @@ input[type=number] { -moz-appearance: textfield; }
   transition: opacity 0.15s;
   margin-bottom: 8px;
 }
-.founding-member-card__cta:hover { opacity: 0.9; }
-.founding-member-card__cta:active { opacity: 0.75; }
+.founding-member-card__cta:hover { opacity: 0.88; }
+.founding-member-card__cta:active { opacity: 0.72; }
 .founding-member-card__small-print {
   font-size: 11px;
   color: var(--text-dim);
@@ -20465,40 +20476,78 @@ button.jd-money-chip:active { opacity: 0.75; }
 /* ── "More insights" expander toggle button ───────────────────────────────────
    Sits between the at-a-glance cards and the secondary analytics so users
    can choose to dig in. Chevron rotates on open. */
+/* ── "More insights" expander — prominent tinted card feel ────────────────────
+   Old: thin ghost-outline button, easy to miss.
+   New: filled surface with accent tint, teaser sub-label, clear chevron.
+   The tint uses the accent colour at low opacity so it adapts to both themes.
+   Reduced-motion: chevron rotate is gated via prefers-reduced-motion below.     */
 .money-more-insights-toggle {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 6px;
+  justify-content: space-between;
+  gap: 8px;
   width: 100%;
-  padding: 11px 16px;
-  background: var(--surface);
-  border: 1px solid var(--border);
+  padding: 12px 16px;
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
   border-radius: var(--radius-md);
   box-shadow: none;
   font-family: inherit;
   font-size: var(--fs-label);
   font-weight: 600;
   color: var(--accent);
-  letter-spacing: 0.02em;
   cursor: pointer;
   margin: 0 0 14px;
-  transition: background 0.12s;
-  min-height: 44px;
+  transition: background 0.12s, border-color 0.12s;
+  min-height: 48px;
+  text-align: left;
+}
+
+.money-more-insights-toggle--open {
+  background: var(--surface);
+  border-color: var(--border);
+  color: var(--text-dim);
 }
 
 .money-more-insights-toggle:active {
-  background: var(--surface-2, rgba(255,255,255,0.06));
-  opacity: 0.85;
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface));
+  opacity: 0.9;
+}
+
+/* Flex column so the label + teaser stack vertically */
+.money-more-insights-toggle__body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.money-more-insights-toggle__label {
+  font-size: var(--fs-label);
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+/* Teaser — visible only when closed; hints at what's inside */
+.money-more-insights-toggle__teaser {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-dim);
+  letter-spacing: 0.01em;
 }
 
 .money-more-insights-toggle__chevron {
-  transition: transform 0.2s ease;
   flex-shrink: 0;
+  transition: transform 0.2s ease;
 }
 
 .money-more-insights-toggle__chevron--open {
   transform: rotate(180deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .money-more-insights-toggle__chevron {
+    transition: none;
+  }
 }
 
 /* ══════════════════════════════════════════════════════════════════════════════
