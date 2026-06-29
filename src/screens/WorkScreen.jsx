@@ -44,7 +44,8 @@ import StageStrip from '../components/StageStrip';
 import DocumentSearchOverlay from '../components/DocumentSearchOverlay';
 import { logTelemetry } from '../lib/telemetry';
 import { deriveDisplayStatus, requiresPriceForStage, stagePatch } from '../lib/jobStatus';
-import { deleteJobFromCloud } from '../lib/store';
+import { deleteJobWithData } from '../lib/store';
+import { buildDeleteJobCopy } from '../lib/deleteJobCopy';
 import { shouldShowPartPaidChip, formatPartPaidLabel } from '../lib/partPaidChip';
 // JP-LU5 PR1: sortJobsByColumn, daysInStage removed from WorkScreen import —
 // call sites in JobsTable deleted. Both are still exported from lib/jobSort.js.
@@ -1558,20 +1559,40 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
     setConfirmDeleteJob(job);
   };
 
-  // Confirmed hard-delete — removes the row from Supabase and local state.
-  // Storage objects in meta.photos[] are left for a follow-up cleanup task.
+  // Confirmed hard-delete — cascade-removes photos, linked receipts, and the jobs row.
   const handleConfirmDeleteJob = async () => {
     const job = confirmDeleteJob;
     setConfirmDeleteJob(null);
     if (!job) return;
     try {
-      await deleteJobFromCloud(job.id);
+      await deleteJobWithData(job, receipts.filter(r => r.jobId === job.id || r.jobId === job.cloudId).map(r => r.id));
       onDeleteJob?.(job.id);
       showToast('Job deleted');
     } catch (err) {
       console.error('handleConfirmDeleteJob failed', err);
       showToast('Delete failed — try again');
     }
+  };
+
+  /**
+   * Passed to JobDetailDrawer as onDeleteJob.
+   * The drawer handles the confirm prompt itself (pendingDeleteAction pattern);
+   * it calls this AFTER the user confirms, awaits the result, then closes itself.
+   * On success this handler just removes the job from AppShell state.
+   * The cascade delete (photos + receipts + row) is done inside deleteJobWithData.
+   */
+  const handleDrawerDeleteJob = async (job) => {
+    const linkedReceiptIds = receipts
+      .filter(r => r.jobId === job.id || r.jobId === job.cloudId)
+      .map(r => r.id);
+    await deleteJobWithData(job, linkedReceiptIds);
+    // Close the drawer so the user lands back on the Jobs list
+    setSelectedJob(null);
+    setDrawerIntent(null);
+    setDrawerTargetStage(null);
+    setPendingEditField(null);
+    // Notify AppShell to filter the job from React state
+    onDeleteJob?.(job.id);
   };
 
   return (
@@ -1860,6 +1881,7 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
             onDeleteReceipt={onDeleteReceipt}
             onUpdateReceipt={onUpdateReceipt}
             onAddPayment={handleAddPayment}
+            onDeleteJob={handleDrawerDeleteJob}
             onClose={() => { setSelectedJob(null); setDrawerIntent(null); setDrawerTargetStage(null); setPendingEditField(null); }}
             intent={drawerIntent}
             targetStage={drawerTargetStage}
@@ -1914,37 +1936,40 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
       )}
 
       {/* Confirm-delete modal — minimal inline implementation (no reusable ConfirmModal exists yet) */}
-      {confirmDeleteJob && (
-        <div className="modal-backdrop" onClick={() => setConfirmDeleteJob(null)}>
-          <div
-            className="modal-card"
-            role="alertdialog"
-            aria-modal="true"
-            aria-labelledby="delete-modal-title"
-            aria-describedby="delete-modal-body"
-            onClick={e => e.stopPropagation()}
-          >
-            <h2 id="delete-modal-title" className="modal-card-title">Delete this job?</h2>
-            <p id="delete-modal-body" className="modal-card-body">This can&apos;t be undone.</p>
-            <div className="modal-card-actions">
-              <button
-                type="button"
-                className="modal-btn modal-btn--secondary"
-                onClick={() => setConfirmDeleteJob(null)}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="modal-btn modal-btn--danger"
-                onClick={handleConfirmDeleteJob}
-              >
-                Delete
-              </button>
+      {confirmDeleteJob && (() => {
+        const deleteCopy = buildDeleteJobCopy(confirmDeleteJob.customer || confirmDeleteJob.name || '');
+        return (
+          <div className="modal-backdrop" onClick={() => setConfirmDeleteJob(null)}>
+            <div
+              className="modal-card"
+              role="alertdialog"
+              aria-modal="true"
+              aria-labelledby="delete-modal-title"
+              aria-describedby="delete-modal-body"
+              onClick={e => e.stopPropagation()}
+            >
+              <h2 id="delete-modal-title" className="modal-card-title">{deleteCopy.title}</h2>
+              <p id="delete-modal-body" className="modal-card-body">{deleteCopy.body}</p>
+              <div className="modal-card-actions">
+                <button
+                  type="button"
+                  className="modal-btn modal-btn--secondary"
+                  onClick={() => setConfirmDeleteJob(null)}
+                >
+                  {deleteCopy.cancelLabel}
+                </button>
+                <button
+                  type="button"
+                  className="modal-btn modal-btn--danger"
+                  onClick={handleConfirmDeleteJob}
+                >
+                  {deleteCopy.confirmLabel}
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Receipt modal — opened by "View receipt" CTA on Paid job tiles */}
       {receiptJob && (

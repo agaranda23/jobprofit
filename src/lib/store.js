@@ -930,6 +930,68 @@ export async function deleteJobFromCloud(jobId) {
 }
 
 /**
+ * Cascade-deletes a job and ALL data attached to it:
+ *   1. Storage objects for each photo in job.meta.photos[] (best-effort; a
+ *      missing file does not abort the whole delete).
+ *   2. Every receipt linked to this job (Supabase row + storage image),
+ *      identified by matching jobId / cloudId in the localStorage mirror.
+ *   3. The jobs row itself via deleteJobFromCloud (throws on failure so the
+ *      caller can surface an error toast without removing locally).
+ *   4. The localStorage meta side-channel entry (jp.jobMeta.<id>).
+ *
+ * Payments stored in the meta JSONB (payments[]) are removed automatically
+ * when the jobs row is deleted — they live on the row, not in a separate table.
+ *
+ * This is the SINGLE orchestrator that both WorkScreen and JobDetailDrawer
+ * must call so the behaviour is identical across surfaces.
+ *
+ * @param {object} job – the full job object (must have id; meta.photos optional)
+ * @param {string[]} [linkedReceiptIds] – explicit receipt IDs linked to this job;
+ *   when omitted the function derives them from the localStorage mirror.
+ * @returns {Promise<void>} — throws only if the jobs-row delete fails.
+ */
+export async function deleteJobWithData(job, linkedReceiptIds) {
+  if (!job?.id) return;
+  const jobId = job.id;
+
+  // 1. Remove photo storage objects (best-effort, never throws)
+  const photos = job.meta?.photos ?? job.photos ?? [];
+  await Promise.all(
+    photos.map(p => {
+      const path = typeof p === 'string' ? null : p?.path;
+      return path ? deleteJobPhoto(path) : Promise.resolve();
+    })
+  );
+
+  // 2. Delete linked receipts (Supabase row + storage image, best-effort per receipt)
+  let receiptIds = linkedReceiptIds;
+  if (!receiptIds) {
+    // Derive from localStorage mirror — receipts carry jobId matching job.id or job.cloudId
+    const mirrorData = read();
+    const matchIds = new Set([jobId, job.cloudId].filter(Boolean));
+    receiptIds = (mirrorData.expenses || [])
+      .filter(e => matchIds.has(e.jobId) || matchIds.has(e.cloudJobId))
+      .map(e => e.cloudId || e.id)
+      .filter(Boolean);
+  }
+  await Promise.all(
+    receiptIds.map(rid =>
+      deleteReceiptFromCloud(rid).catch(err =>
+        console.warn('deleteJobWithData: receipt delete best-effort failed', rid, err?.message)
+      )
+    )
+  );
+
+  // 3. Delete the jobs row (throws on failure — caller must surface the error)
+  await deleteJobFromCloud(jobId);
+
+  // 4. Remove the localStorage meta side-channel entry
+  try {
+    localStorage.removeItem('jp.jobMeta.' + jobId);
+  } catch { /* localStorage may be blocked */ }
+}
+
+/**
  * Deletes a receipt by its cloud UUID (or legacy localStorage ID).
  *
  * Flow:

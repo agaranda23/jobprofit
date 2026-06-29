@@ -47,6 +47,7 @@ import {
   reorderPhotos,
 } from '../lib/jobPhotos';
 import { uploadJobPhoto, getSignedPhotoUrl, deleteJobPhoto, getReceiptSignedUrl, revokePublicLink } from '../lib/store';
+import { buildDeleteJobCopy } from '../lib/deleteJobCopy';
 import { extractJobMeta } from '../lib/jobMeta';
 import { buildWhatsAppLink } from '../lib/invoiceMessage';
 import { logTelemetry } from '../lib/telemetry';
@@ -2261,6 +2262,12 @@ export default function JobDetailDrawer({
   // avoid shadowing the local `materials` variable (per-job cost total, line ~1079).
   materialsLibrary,
   onMaterialSaved,
+  // Optional: cascade-deletes this job (photos, receipts, row) then closes the drawer.
+  // When provided, a "Delete job" danger item appears in the ⋯ kebab.
+  // The drawer handles the confirm prompt internally (pendingDeleteAction pattern) and
+  // calls this handler only after the user confirms. The handler should throw on failure
+  // so the drawer can surface an error toast without closing.
+  onDeleteJob,
 }) {
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
@@ -2331,6 +2338,10 @@ export default function JobDetailDrawer({
   // null = no confirm pending; otherwise { title, message, onConfirm }
   const [pendingDeleteAction, setPendingDeleteAction] = useState(null);
 
+  // Double-tap guard for the job-delete confirm button.
+  // true = async delete is in flight; disables the confirm button + shows "Deleting…".
+  const [deleting, setDeleting] = useState(false);
+
   // Customer field editing — single EditFieldModal controlled by this key.
   // null = closed; 'name' | 'phone' | 'email' | 'summary' = which field is open.
   const [editingField, setEditingField] = useState(null);
@@ -2342,7 +2353,7 @@ export default function JobDetailDrawer({
         if (lightboxSrc) { setLightboxSrc(null); setLightboxReceipt(null); return; }
         if (photoSheetOpen) { setPhotoSheetOpen(false); return; }
         if (kebabOpen) { setKebabOpen(false); return; }
-        if (pendingDeleteAction) { setPendingDeleteAction(null); return; }
+        if (pendingDeleteAction) { if (!deleting) setPendingDeleteAction(null); return; }
         if (editingField) { setEditingField(null); return; }
         if (editingNote) { setEditingNote(null); return; }
         if (editingPayment) { setEditingPayment(null); return; }
@@ -2351,7 +2362,7 @@ export default function JobDetailDrawer({
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [onClose, lightboxSrc, photoSheetOpen, kebabOpen, pendingDeleteAction, editingField, editingNote, editingPayment]);
+  }, [onClose, lightboxSrc, photoSheetOpen, kebabOpen, pendingDeleteAction, deleting, editingField, editingNote, editingPayment]);
 
   // Scroll-chain bug fix: lock body scroll while the drawer is open.
   // Saves and restores the prior scroll position so the user lands back
@@ -3307,6 +3318,46 @@ export default function JobDetailDrawer({
                         <div className="jd-kebab-item jd-kebab-item--meta" role="menuitem" aria-disabled="true">
                           Created {fmtDate(job.date || job.createdAt)}
                         </div>
+                      )}
+                      {/* Delete job — danger action, only shown when the handler is wired.
+                          Visually separated from admin meta items by the danger colour + separator. */}
+                      {onDeleteJob && (
+                        <>
+                          <div className="jd-kebab-divider" aria-hidden="true" />
+                          <button
+                            type="button"
+                            className="jd-kebab-item jd-kebab-item--danger"
+                            role="menuitem"
+                            onClick={() => {
+                              setKebabOpen(false);
+                              const copy = buildDeleteJobCopy(
+                                job.customer || job.name || ''
+                              );
+                              setPendingDeleteAction({
+                                title: copy.title,
+                                message: copy.body,
+                                confirmLabel: copy.confirmLabel,
+                                isJobDelete: true,
+                                onConfirm: async () => {
+                                  if (deleting) return;
+                                  setDeleting(true);
+                                  try {
+                                    await onDeleteJob(job);
+                                    // drawer closure + toast are handled by WorkScreen's
+                                    // handleDrawerDeleteJob after the await resolves
+                                  } catch (err) {
+                                    console.error('drawer deleteJob failed', err);
+                                    setToast('Couldn\'t delete that job — try again');
+                                  } finally {
+                                    setDeleting(false);
+                                  }
+                                },
+                              });
+                            }}
+                          >
+                            Delete job
+                          </button>
+                        </>
                       )}
                     </div>
                   )}
@@ -4453,11 +4504,13 @@ export default function JobDetailDrawer({
       )}
 
       {/* Delete confirmation overlay — replaces window.confirm for photo/receipt/note/payment deletes.
-          Rendered on top of all other modals (z-index via .jd-delete-confirm-backdrop). */}
+          Rendered on top of all other modals (z-index via .jd-delete-confirm-backdrop).
+          For isJobDelete actions: the backdrop tap and Escape dismiss (via the useEffect above);
+          the confirm button calls the async onConfirm which manages its own deleting guard. */}
       {pendingDeleteAction && (
         <div
           className="jd-delete-confirm-backdrop"
-          onClick={() => setPendingDeleteAction(null)}
+          onClick={() => !deleting && setPendingDeleteAction(null)}
           role="alertdialog"
           aria-modal="true"
           aria-labelledby="jd-delete-confirm-title"
@@ -4476,21 +4529,41 @@ export default function JobDetailDrawer({
               <button
                 type="button"
                 className="jd-delete-confirm__cancel"
-                onClick={() => setPendingDeleteAction(null)}
+                onClick={() => !deleting && setPendingDeleteAction(null)}
+                disabled={deleting}
+                autoFocus={!!pendingDeleteAction.isJobDelete}
               >
                 Cancel
               </button>
-              <button
-                type="button"
-                className="jd-delete-confirm__ok"
-                onClick={() => {
-                  const action = pendingDeleteAction;
-                  setPendingDeleteAction(null);
-                  action.onConfirm();
-                }}
-              >
-                {pendingDeleteAction.confirmLabel || 'Delete'}
-              </button>
+              {pendingDeleteAction.isJobDelete ? (
+                /* Job-delete path: async, disables while in-flight, does NOT clear
+                   pendingDeleteAction first (we keep the sheet open on error). */
+                <button
+                  type="button"
+                  className="jd-delete-confirm__ok"
+                  onClick={() => {
+                    if (deleting) return;
+                    pendingDeleteAction.onConfirm();
+                  }}
+                  disabled={deleting}
+                  aria-busy={deleting}
+                >
+                  {deleting ? 'Deleting…' : (pendingDeleteAction.confirmLabel || 'Delete job')}
+                </button>
+              ) : (
+                /* Standard path: sync, clears pendingDeleteAction before calling onConfirm */
+                <button
+                  type="button"
+                  className="jd-delete-confirm__ok"
+                  onClick={() => {
+                    const action = pendingDeleteAction;
+                    setPendingDeleteAction(null);
+                    action.onConfirm();
+                  }}
+                >
+                  {pendingDeleteAction.confirmLabel || 'Delete'}
+                </button>
+              )}
             </div>
           </div>
         </div>
