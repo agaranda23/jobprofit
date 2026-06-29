@@ -170,7 +170,7 @@ export default function OnboardingWizard({ session, profile, onComplete, onImpor
     const isLastDataStep = stepIndex === lastNonImportStep;
 
     if (isLastDataStep) {
-      await saveAll({ skipBank: step.type === 'bank' ? false : false });
+      await saveAll({ skipBank: false });
     } else {
       setStepIndex(i => i + 1);
     }

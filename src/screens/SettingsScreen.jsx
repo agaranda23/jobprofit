@@ -155,7 +155,7 @@ function SectionCard({ title, subline, children }) {
 }
 
 function Row({ label, value, action, onTap, danger = false, chevron = true, highlight = false }) {
-  const handleClick = onTap || undefined;
+  const handleClick = onTap;
   const classes = [
     'settings-row',
     danger && 'settings-row--danger',
@@ -903,7 +903,7 @@ function MonthlyOverheadsSection({ overheads, onSave }) {
 
   const handleToggleActive = (id) => {
     const next = items.map(i =>
-      i.id === id ? { ...i, is_active: i.is_active === false ? true : false } : i
+      i.id === id ? { ...i, is_active: i.is_active === false } : i
     );
     persist(next);
   };

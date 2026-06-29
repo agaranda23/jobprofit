@@ -1,5 +1,3 @@
-import React from 'react';
-
 /**
  * NextStepCard — "Next step" hero card for the Job Detail Drawer.
  *
