@@ -405,6 +405,24 @@ export default function DocumentSearchOverlay({
     return () => document.removeEventListener('keydown', onKey);
   }, [onClose]);
 
+  // Hide the bottom nav and lock body scroll while this overlay is open.
+  // Mirrors JobDetailDrawer/AddJobModal — the existing CSS rule
+  // `body.overlay-open .bottom-nav { display:none }` removes the nav from the
+  // render tree, which sidesteps the ancestor stacking-context trap that was
+  // causing the sheet's lower content to paint behind the nav.
+  // Component is conditionally mounted, so unmount fires cleanup on every close
+  // path (X button, backdrop tap, Escape).
+  useEffect(() => {
+    const scrollY = window.scrollY;
+    document.body.style.overflow = 'hidden';
+    document.body.classList.add('overlay-open');
+    return () => {
+      document.body.style.overflow = '';
+      document.body.classList.remove('overlay-open');
+      window.scrollTo(0, scrollY);
+    };
+  }, []);
+
   const config = getModeConfig(activeMode);
 
   // Job-based modes
