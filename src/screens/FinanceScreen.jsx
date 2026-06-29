@@ -33,7 +33,7 @@
 
 import { useMemo, useState, useCallback, useRef, useEffect } from 'react';
 import { gbp, todayKey } from '../lib/today';
-import { isPro, isFoundingEligible, isFoundingMember } from '../lib/plan';
+import { isPro, isFoundingEligible, isFoundingMember, isTrialActive, trialDaysLeft } from '../lib/plan';
 import { useCountUp } from '../lib/useCountUp';
 import Icon from '../components/Icon';
 import HeaderAvatar from '../components/HeaderAvatar';
@@ -306,8 +306,15 @@ function TaxPotSheet({ open, onClose, currentPct, monthProfit, onSave }) {
  *
  * Copy is confirmed by PRD + FIN — use verbatim. No emoji (mid-migration to
  * Lucide icons). No crossed-out price comparison (no £6 tier exists).
+ *
+ * Props:
+ *   onCta     — called when the no-card CTA is tapped. MUST NEVER open a card
+ *               form or Stripe checkout — see handleFoundingMemberCta in parent.
+ *   confirmed — true once the user tapped the CTA this session; swaps the button
+ *               for an inline confirmation so they know the trial is running.
+ *   daysLeft  — days remaining in their active trial (0 when not yet started).
  */
-function FoundingMemberCard({ onUpgrade }) {
+function FoundingMemberCard({ onCta, confirmed = false, daysLeft = 0 }) {
   return (
     <div className="founding-member-card" role="region" aria-label="Founding Member offer">
       <div className="founding-member-card__badge">Founding Member</div>
@@ -319,13 +326,23 @@ function FoundingMemberCard({ onUpgrade }) {
       <p className="founding-member-card__body">
         You&rsquo;re one of our first. This price never goes up for you. Plus a direct line to us and a say in what we build.
       </p>
-      <button
-        type="button"
-        className="founding-member-card__cta"
-        onClick={() => onUpgrade?.()}
-      >
-        Start 14-day free trial — no card
-      </button>
+      {confirmed ? (
+        /* Post-CTA confirmation — no card, no Stripe, just clarity */
+        <div className="founding-member-card__confirmed-trial" role="status">
+          <Icon name="check-circle" size={16} variant="success" aria-hidden="true" />
+          {daysLeft > 0
+            ? <>You&rsquo;re on your 14-day Pro trial &mdash; no card needed &middot; {daysLeft} day{daysLeft === 1 ? '' : 's'} left</>
+            : <>Your Pro trial is active &mdash; no card needed</>}
+        </div>
+      ) : (
+        <button
+          type="button"
+          className="founding-member-card__cta"
+          onClick={() => onCta?.()}
+        >
+          Start 14-day free trial — no card
+        </button>
+      )}
       <p className="founding-member-card__small-print">
         For our earliest users, while you&rsquo;re subscribed.
       </p>
@@ -345,6 +362,10 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
   // upgradeSheetSource: telemetry source field passed to the sheet.
   const [upgradeSheetOpen, setUpgradeSheetOpen] = useState(false);
   const [upgradeSheetSource, setUpgradeSheetSource] = useState('upgrade_banner');
+  // foundingCtaDone: true once the user taps the "Start 14-day free trial — no card"
+  // button on FoundingMemberCard. Swaps the button for an inline confirmation. Resets
+  // on remount (per-session) — the card is hidden entirely once they're Pro/founding_member.
+  const [foundingCtaDone, setFoundingCtaDone] = useState(false);
 
   const openUpgradeSheet = useCallback((trigger = UPGRADE_TRIGGERS.INSIGHT_LOCKED) => {
     setUpgradeSheetSource(trigger);
@@ -551,10 +572,41 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
   // backward-compatibility with any parent that may wire it, but the primary
   // path is always the sheet (which then calls startCheckout internally).
   // All callers pass an UPGRADE_TRIGGERS value as the trigger argument.
+  // IMPORTANT: this MUST NOT be used for the FoundingMemberCard CTA — that
+  // button has a "no card" promise. Use handleFoundingMemberCta instead.
   const handleUpgrade = useCallback((trigger = UPGRADE_TRIGGERS.INSIGHT_LOCKED) => {
     openUpgradeSheet(trigger);
     onUpgrade?.();
   }, [openUpgradeSheet, onUpgrade]);
+
+  // handleFoundingMemberCta — handles the "Start 14-day free trial — no card" button
+  // on FoundingMemberCard. This function MUST NEVER open a card form, Stripe checkout,
+  // or ProUpgradeSheet. The trial auto-starts at first use (AppShell / initTrialOnFirstUse),
+  // so the CTA just records founding intent and shows inline confirmation.
+  //
+  // Correct behaviour by profile state:
+  //   plan=trial, trial_ends_at set  → trial already running; show confirmation + days left
+  //   plan=trial, trial_ends_at null → trial will start on next profile refresh (auto);
+  //                                    show "starting" confirmation (no card)
+  //   any other state                → should not reach here (card is hidden for Pro users)
+  const handleFoundingMemberCta = useCallback(() => {
+    // Record intent in localStorage so we can reward the founding price at checkout
+    // without requiring a DB column. A full server-side mark happens at Stripe webhook.
+    try {
+      const userId = session?.user?.id;
+      if (userId) {
+        localStorage.setItem(`jp.foundingIntent.${userId}`, new Date().toISOString());
+      }
+    } catch {
+      // Private browsing — intent is still tracked via telemetry
+    }
+    logTelemetry('founding_member_cta_tapped', {
+      trial_active: isTrialActive(profile),
+      days_left: trialDaysLeft(profile),
+    });
+    // Show inline confirmation — no card form, no sheet, no redirect
+    setFoundingCtaDone(true);
+  }, [session, profile]);
 
   // ── Insight card view events (Pro users only — free users see blurred teasers) ─
   // Fired once per mount, only when the user is Pro and the card has real data.
@@ -842,7 +894,11 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
       {/* The standard banner is suppressed when the Founding Member card is shown */}
       {/* so we never stack two upgrade surfaces. */}
       {!userIsPro && userIsFoundingEligible && (
-        <FoundingMemberCard onUpgrade={() => handleUpgrade(UPGRADE_TRIGGERS.UPGRADE_BANNER)} />
+        <FoundingMemberCard
+          onCta={handleFoundingMemberCta}
+          confirmed={foundingCtaDone || isTrialActive(profile)}
+          daysLeft={trialDaysLeft(profile)}
+        />
       )}
       {!userIsPro && !userIsFoundingEligible && (
         <UpgradeBanner onUpgrade={() => handleUpgrade(UPGRADE_TRIGGERS.UPGRADE_BANNER)} />
