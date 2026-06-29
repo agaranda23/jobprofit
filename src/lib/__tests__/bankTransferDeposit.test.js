@@ -58,9 +58,7 @@ describe('A. DepositPickerRow — un-gating logic', () => {
 //   - trader is NOT Pro+Stripe-connected (online deposit path)
 //   - profile has no sort_code + account_number
 
-function profileHasBank(profile) {
-  return !!(profile?.sort_code && profile?.account_number);
-}
+import { profileHasBank } from '../bankDetails.js';
 
 function isOnlineDepositPath(profile) {
   return (

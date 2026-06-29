@@ -55,11 +55,7 @@ import Icon from './Icon';
 import { haptic } from '../lib/haptics.js';
 import { canShareFile } from '../lib/webShare.js';
 
-// Returns true when the profile has bank details (sort code + account number).
-// Used by the just-in-time bank gate — if either is missing, prompt on invoice send.
-function profileHasBank(profile) {
-  return !!(profile?.sort_code && profile?.account_number);
-}
+import { profileHasBank } from '../lib/bankDetails.js';
 
 // Formats raw sort code digits as NN-NN-NN. Mirrors the wizard's formatSortCode.
 function formatSortCode(raw) {

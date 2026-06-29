@@ -200,12 +200,7 @@ function DepositPickerRow({ profile, jobTotal, depositPercent, onDepositChange }
   );
 }
 
-// Returns true when the profile has sort_code + account_number.
-// Mirrors profileHasBank in SendInvoiceModal — the JIT bank-gate fires whenever
-// either field is absent (not just when both are null).
-function profileHasBank(profile) {
-  return !!(profile?.sort_code && profile?.account_number);
-}
+import { profileHasBank } from '../lib/bankDetails.js';
 
 // Formats raw sort code digits as NN-NN-NN.
 function formatSortCode(raw) {
