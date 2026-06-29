@@ -31,13 +31,7 @@
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
-function isPaidJob(job) {
-  if (!job) return false;
-  if (job.paid === true) return true;
-  if (job.paymentStatus === 'paid') return true;
-  if (job.status === 'paid') return true;
-  return false;
-}
+import { isPaidJob } from './jobPredicates.js';
 
 /**
  * Lightweight status label for the CSV/PDF. Doesn't need to be pixel-perfect

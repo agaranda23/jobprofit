@@ -20,7 +20,7 @@
  */
 
 export const STORAGE_KEY = 'jp.theme';
-export const VALID_PREFS = ['light', 'dark', 'system'];
+const VALID_PREFS = ['light', 'dark', 'system'];
 
 /** Read the stored preference; fall back to 'light' for new users. */
 export function getStoredPref() {
