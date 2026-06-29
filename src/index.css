@@ -5513,6 +5513,21 @@ input[type=number] { -moz-appearance: textfield; }
   margin: 0;
   text-align: center;
 }
+/* Inline trial-active confirmation — replaces the CTA after tap, no card form */
+.founding-member-card__confirmed-trial {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--surface-2, rgba(0,168,107,0.08));
+  border: 1px solid rgba(0,168,107,0.25);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 8px;
+}
+
 /* Confirmation state — shown to existing Founding Members on Pro plan */
 .founding-member-card--confirmed {
   border-width: 1px;
