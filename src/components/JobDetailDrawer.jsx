@@ -871,8 +871,15 @@ function ScheduleFinishFooter({ job, jobVisits, canEdit, onEndJob, onSetTarget, 
  * The old .visit-editor-* / .jd-schedule-edit-* CSS is kept in index.css for
  * now — PhotoSourceSheet and the light-theme override reference those selectors.
  * Clean-up of the unused selectors is a separate follow-up ticket.
+ *
+ * Props:
+ *   open       – boolean
+ *   visit      – Visit object (has id) when editing, or { _isNew: true } when adding
+ *   onSave(fields) – called with { date, start, end, status, note } on Save
+ *   onDelete() – called when user taps Delete (only shown when editing an existing visit)
+ *   onCancel() – called on Cancel / backdrop tap
  */
-function VisitEditorSheet({ open, visit, onSave, onCancel }) {
+function VisitEditorSheet({ open, visit, onSave, onDelete, onCancel }) {
   const [date, setDate] = React.useState('');
   const [start, setStart] = React.useState('');
   const [end, setEnd] = React.useState('');
@@ -972,6 +979,9 @@ function VisitEditorSheet({ open, visit, onSave, onCancel }) {
           )}
         </div>
         <div className="edit-field-actions">
+          {visit?.id && onDelete && (
+            <button type="button" className="btn-ghost btn-ghost--danger" onClick={onDelete} style={{ marginRight: 'auto' }}>Delete</button>
+          )}
           <button type="button" className="btn-ghost edit-field-cancel" onClick={onCancel}>Cancel</button>
           <button type="button" className="btn-primary edit-field-save" onClick={handleSave} disabled={!date}>Save visit</button>
         </div>
@@ -3063,6 +3073,15 @@ export default function JobDetailDrawer({
     showFlash(editingVisit?._isNew ? 'Visit added' : 'Visit updated');
   };
 
+  const handleVisitDelete = () => {
+    if (!editingVisit?.id) return;
+    const currentVisits = readVisits(job);
+    const updatedVisits = currentVisits.filter(v => v.id !== editingVisit.id);
+    onUpdateJob({ ...job, ...writeVisits(job, updatedVisits) });
+    setEditingVisit(null);
+    showFlash('Visit deleted');
+  };
+
   const handleMarkVisitDone = (visitId) => {
     const currentVisits = readVisits(job);
     const updatedVisits = currentVisits.map(v =>
@@ -4051,6 +4070,7 @@ export default function JobDetailDrawer({
                     open={!!editingVisit}
                     visit={editingVisit}
                     onSave={handleVisitSave}
+                    onDelete={handleVisitDelete}
                     onCancel={() => setEditingVisit(null)}
                   />
                 </CollapsedSectionRow>
