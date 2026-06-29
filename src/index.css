@@ -12735,6 +12735,14 @@ button.jd-money-chip:active { opacity: 0.75; }
   color: #c0392b;
 }
 
+/* Thin rule that visually separates the danger zone (Delete job) from the
+   admin meta items above it in the ⋯ kebab menu. */
+.jd-kebab-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 4px 0;
+}
+
 /* ── Bug #2 fix: replace overflow:hidden with a deterministic bottom boundary
    overflow:hidden was clipping the ⋯ kebab dropdown (position:absolute, opens
    downward out of the header box).  The right fix is to ensure the header's
@@ -17580,6 +17588,8 @@ button.jd-money-chip:active { opacity: 0.75; }
 .jd-delete-confirm__ok:hover { opacity: 0.9; }
 .jd-delete-confirm__cancel:active { opacity: 0.7; }
 .jd-delete-confirm__ok:active { opacity: 0.8; }
+.jd-delete-confirm__cancel:disabled,
+.jd-delete-confirm__ok:disabled { opacity: 0.45; cursor: not-allowed; }
 
 /* ── Pipeline Phase 2 — Workflow Visibility (feat/pipeline-phase-2-workflow-visibility) ──
    JobProgressDots, StageTimeline, FunnelStrip
