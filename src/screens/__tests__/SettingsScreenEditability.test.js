@@ -26,18 +26,15 @@
 
 import { describe, it, expect, vi } from 'vitest';
 
-// ── Inline the helpers under test (extracted from SettingsScreen.jsx) ─────────
-// We inline rather than import from the screen file because the screen file
-// has side-effect imports (package.json, pushSubscribe, supabase) that would
-// require extra mocking. Keeping these helpers in sync with the source is
-// enforced by the fact that the screen file defines them identically.
+// ── Helpers under test ────────────────────────────────────────────────────────
+// formatSortCode now lives in the shared src/lib/bankDetails.js (a pure module
+// with no side-effect imports) — import it directly so this test exercises the
+// real function. The validators below stay inlined rather than imported from
+// SettingsScreen.jsx because that screen file has side-effect imports
+// (package.json, pushSubscribe, supabase) that would require extra mocking;
+// they're kept in sync by matching the screen's definitions.
 
-function formatSortCode(raw) {
-  const digits = raw.replace(/\D/g, '').slice(0, 6);
-  if (digits.length <= 2) return digits;
-  if (digits.length <= 4) return `${digits.slice(0, 2)}-${digits.slice(2)}`;
-  return `${digits.slice(0, 2)}-${digits.slice(2, 4)}-${digits.slice(4)}`;
-}
+import { formatSortCode } from '../../lib/bankDetails.js';
 
 function validateNonEmpty(v) {
   return v.trim() ? null : 'This field is required';

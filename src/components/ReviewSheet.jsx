@@ -200,15 +200,8 @@ function DepositPickerRow({ profile, jobTotal, depositPercent, onDepositChange }
   );
 }
 
-import { profileHasBank } from '../lib/bankDetails.js';
+import { formatSortCode, profileHasBank } from '../lib/bankDetails.js';
 
-// Formats raw sort code digits as NN-NN-NN.
-function formatSortCode(raw) {
-  const digits = raw.replace(/\D/g, '').slice(0, 6);
-  if (digits.length <= 2) return digits;
-  if (digits.length <= 4) return digits.slice(0, 2) + '-' + digits.slice(2);
-  return digits.slice(0, 2) + '-' + digits.slice(2, 4) + '-' + digits.slice(4);
-}
 
 export default function ReviewSheet({
   mode,
