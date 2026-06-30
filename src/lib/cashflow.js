@@ -58,6 +58,7 @@ function parseLocalDate(str) {
 }
 
 import { isPaidJob, isExcludedJob } from './jobPredicates.js';
+import { taxYearStart } from './taxYear.js';
 
 /**
  * Returns the effective "earned" date for a paid job: payment_date → date.
@@ -148,30 +149,11 @@ function jobOutstandingAmount(job) {
 
 // ─── Exported date helpers ───────────────────────────────────────────────────
 
-/**
- * Returns the start of the UK tax year containing `now`.
- * Rule: on/after 6 April → 6 April of the current calendar year;
- *       before 6 April   → 6 April of the previous calendar year.
- * Time is set to 00:00:00 local.
- *
- * Examples:
- *   2026-05-28 → 2026-04-06
- *   2026-02-10 → 2025-04-06
- *   2026-04-06 → 2026-04-06  (on the day — counts as new year)
- *   2026-04-05 → 2025-04-06  (one day before — still last year)
- *
- * @param {Date} [now]
- * @returns {Date}
- */
-export function taxYearStart(now = new Date()) {
-  const year = now.getFullYear();
-  const month = now.getMonth(); // 0-based
-  const day = now.getDate();
-  // On or after 6 April (month >= 3, i.e. April=3, and if month === 3 day >= 6)
-  const isOnOrAfterApr6 = month > 3 || (month === 3 && day >= 6);
-  const startYear = isOnOrAfterApr6 ? year : year - 1;
-  return new Date(startYear, 3, 6); // April = month index 3, day 6
-}
+// taxYearStart is re-exported from the canonical taxYear.js (identical boundary
+// logic: on/after 6 April → 6 April this year, else the previous year). Keeping
+// the UK-tax-year rule in one place; cashflow's aggregations and cashflow.test.js
+// import it from here.
+export { taxYearStart };
 
 /**
  * Returns a human-readable UK tax year label, e.g. "2026/27".
