@@ -33,9 +33,7 @@ function isProfileComplete(profile, session) {
   return hasName && hasFirst && hasLast && hasEmail;
 }
 
-function profileHasBank(profile) {
-  return !!(profile?.sort_code && profile?.account_number);
-}
+import { profileHasBank } from '../../lib/bankDetails.js';
 
 // ── Inline the firstMissingStep logic from OnboardingWizard.jsx ──────────────
 function firstMissingStep(profile) {
