@@ -759,7 +759,7 @@ function VisitRow({ visit, onTap, onMarkDone, canEdit }) {
         type="button"
         className="jd-card-row jd-card-row--tappable visit-row-inner"
         onClick={onTap}
-        aria-label={`Edit visit on ${dateStr}`}
+        aria-label={visitName ? `Edit ${visitName} on ${dateStr}` : `Edit visit on ${dateStr}`}
       >
         <span className="jd-card-row-icon"><Icon name="date" size={16} variant="muted" /></span>
         {visitName ? (
