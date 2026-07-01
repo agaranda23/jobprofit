@@ -338,11 +338,18 @@ async function runMetaSync() {
   let synced = 0;
   let failed = 0;
 
+  // Dynamic import avoids circular dep: jobMeta doesn't import offlineQueue
+  const { clearPending } = await import('./jobMeta.js');
+
   for (const row of pending) {
     try {
       const result = await updateJobMetaInCloud(row.jobId, row.meta);
       if (result.ok) {
         await markMetaSynced(row.jobId);
+        // Fix A: clear pending-set so the next applyJobMeta call lets cloud win
+        // for these fields. The offline queue had the latest write; cloud now
+        // agrees — fields are no longer locally ahead of the cloud.
+        clearPending(row.jobId, Object.keys(row.meta));
         synced++;
       } else if (result.error === 'offline') {
         // Still offline — leave the row, will retry on next runSync
@@ -350,6 +357,8 @@ async function runMetaSync() {
       } else {
         // Supabase returned a non-network error (e.g. RLS violation).
         // Log it and drain the entry to avoid permanent stuck badge.
+        // Fields stay pending — they were written locally but the cloud rejected
+        // them. The trader sees their own edits; a founder can investigate.
         console.warn('Offline meta sync: non-retryable error for', row.jobId, result.error);
         await markMetaSynced(row.jobId).catch(() => {});
         synced++;
