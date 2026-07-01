@@ -53,6 +53,8 @@ vi.mock('jspdf', () => {
     this.lastAutoTable  = { finalY: 120 };
     this.output         = vi.fn(fmt => fmt === 'arraybuffer' ? new ArrayBuffer(2000) : new Blob(['%PDF-1.4 fake']));
     this.save           = vi.fn();
+    this.addFileToVFS   = vi.fn(); // needed for HankenGrotesk font registration
+    this.addFont        = vi.fn(); // needed for HankenGrotesk font registration
   }
   return { jsPDF: MockJsPDF };
 });

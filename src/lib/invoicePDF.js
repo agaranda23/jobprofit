@@ -10,6 +10,24 @@ import { downscaleDataUrl } from './photoCompress.js';
 // the old `invoices` collection). This one reads everything from the job
 // itself plus the structured biz fields added in PRD #2.
 
+// ── Hanken Grotesk font registration ─────────────────────────────────────────
+// Dynamic-import keeps the base64 font blob (~37 KB) out of the main app bundle.
+// The promise is cached after the first call so subsequent PDF generations pay
+// zero additional load cost. jsPDF requires static TTF (not woff2/variable).
+// Source: @fontsource/hanken-grotesk latin subset via fonttools TTF conversion.
+let _hankenFontPromise = null;
+
+async function registerHankenFont(doc) {
+  if (!_hankenFontPromise) {
+    _hankenFontPromise = import('./hankenGroteskFont.js');
+  }
+  const { hankenGroteskRegularB64, hankenGroteskBoldB64 } = await _hankenFontPromise;
+  doc.addFileToVFS('HankenGrotesk-Regular.ttf', hankenGroteskRegularB64);
+  doc.addFont('HankenGrotesk-Regular.ttf', 'HankenGrotesk', 'normal');
+  doc.addFileToVFS('HankenGrotesk-Bold.ttf', hankenGroteskBoldB64);
+  doc.addFont('HankenGrotesk-Bold.ttf', 'HankenGrotesk', 'bold');
+}
+
 
 // ── Brand tokens ────────────────────────────────────────────────────────────
 const BRAND_GREEN   = [37, 99, 235];   // #2563eb — OHNAR brand blue
@@ -117,7 +135,7 @@ async function drawHeader(doc, biz) {
 
   // Business name — right-aligned, prominent
   doc.setFontSize(18);
-  doc.setFont('helvetica', 'bold');
+  doc.setFont('HankenGrotesk', 'bold');
   doc.setTextColor(...DARK);
   doc.text(biz?.name || 'Your Business', w - MARGIN, y + 7, { align: 'right' });
 
@@ -127,7 +145,7 @@ async function drawHeader(doc, biz) {
   const address = biz?.address || '';
   if (address) {
     doc.setFontSize(9);
-    doc.setFont('helvetica', 'normal');
+    doc.setFont('HankenGrotesk', 'normal');
     doc.setTextColor(...MID);
     const lines = address.split(/\n|,\s*/).slice(0, 3); // max 3 address fragments
     for (const line of lines) {
@@ -143,7 +161,7 @@ async function drawHeader(doc, biz) {
   const contact = [biz?.phone, biz?.email, biz?.website].filter(Boolean).join('  •  ');
   if (contact) {
     doc.setFontSize(9);
-    doc.setFont('helvetica', 'normal');
+    doc.setFont('HankenGrotesk', 'normal');
     doc.setTextColor(...MID);
     doc.text(contact, w - MARGIN, rightY, { align: 'right' });
     rightY += 4.5;
@@ -153,7 +171,7 @@ async function drawHeader(doc, biz) {
   const utr = biz?.utr || biz?.utr_number || '';
   if (utr) {
     doc.setFontSize(8.5);
-    doc.setFont('helvetica', 'normal');
+    doc.setFont('HankenGrotesk', 'normal');
     doc.setTextColor(...LIGHT);
     doc.text(`UTR: ${utr}`, w - MARGIN, rightY, { align: 'right' });
     rightY += 4.5;
@@ -164,7 +182,7 @@ async function drawHeader(doc, biz) {
   const vatRegistered = biz?.vatRegistered || biz?.vat_registered || false;
   if (vatRegistered && vatNumber) {
     doc.setFontSize(8.5);
-    doc.setFont('helvetica', 'normal');
+    doc.setFont('HankenGrotesk', 'normal');
     doc.setTextColor(...LIGHT);
     doc.text(`VAT Reg: ${vatNumber}`, w - MARGIN, rightY, { align: 'right' });
     rightY += 4.5;
@@ -186,22 +204,22 @@ async function drawHeader(doc, biz) {
 function drawDocTitle(doc, title, fields, startY) {
   // Large document title
   doc.setFontSize(26);
-  doc.setFont('helvetica', 'bold');
+  doc.setFont('HankenGrotesk', 'bold');
   doc.setTextColor(...BRAND_GREEN);
   doc.text(title, MARGIN, startY);
 
   // Meta fields directly below title
   let y = startY + 9;
   doc.setFontSize(9);
-  doc.setFont('helvetica', 'normal');
+  doc.setFont('HankenGrotesk', 'normal');
   doc.setTextColor(...MID);
   for (const [label, value] of fields) {
     if (value) {
-      doc.setFont('helvetica', 'bold');
+      doc.setFont('HankenGrotesk', 'bold');
       doc.setTextColor(...DARK);
       doc.text(`${label}: `, MARGIN, y);
       const labelW = doc.getTextWidth(`${label}: `);
-      doc.setFont('helvetica', 'normal');
+      doc.setFont('HankenGrotesk', 'normal');
       doc.setTextColor(...MID);
       doc.text(value, MARGIN + labelW, y);
       y += 5.5;
@@ -231,13 +249,13 @@ function drawRecipientBlock(doc, label, job, startY) {
 
   // Label
   doc.setFontSize(7.5);
-  doc.setFont('helvetica', 'bold');
+  doc.setFont('HankenGrotesk', 'bold');
   doc.setTextColor(...LIGHT);
   doc.text(label.toUpperCase(), MARGIN + 4, startY + 3);
 
   // Customer name
   doc.setFontSize(12);
-  doc.setFont('helvetica', 'bold');
+  doc.setFont('HankenGrotesk', 'bold');
   doc.setTextColor(...DARK);
   doc.text(job?.customer || job?.customerName || 'Customer', MARGIN + 4, startY + 10);
 
@@ -245,7 +263,7 @@ function drawRecipientBlock(doc, label, job, startY) {
 
   if (hasPhone) {
     doc.setFontSize(9);
-    doc.setFont('helvetica', 'normal');
+    doc.setFont('HankenGrotesk', 'normal');
     doc.setTextColor(...MID);
     doc.text(job.customerPhone || job.phone, MARGIN + 4, lineY);
     lineY += 5.5;
@@ -253,7 +271,7 @@ function drawRecipientBlock(doc, label, job, startY) {
 
   if (hasAddress) {
     doc.setFontSize(9);
-    doc.setFont('helvetica', 'normal');
+    doc.setFont('HankenGrotesk', 'normal');
     doc.setTextColor(...MID);
     doc.text(job.address, MARGIN + 4, lineY);
     lineY += 5.5;
@@ -314,12 +332,14 @@ function drawLineItems(doc, job, startY) {
       fillColor: BRAND_GREEN,
       textColor: [255, 255, 255],
       fontStyle: 'bold',
+      font: 'HankenGrotesk',
       fontSize: 9,
       cellPadding: { top: 4, bottom: 4, left: 4, right: 4 },
     },
     bodyStyles: {
       fontSize: 10,
       textColor: DARK,
+      font: 'HankenGrotesk',
       cellPadding: { top: 3.5, bottom: 3.5, left: 4, right: 4 },
     },
     alternateRowStyles: { fillColor: [250, 250, 250] },
@@ -415,7 +435,7 @@ function drawSummaryBlock(doc, {
   // Helper — draws one summary row
   const summaryRow = (lbl, val, opts = {}) => {
     doc.setFontSize(9.5);
-    doc.setFont('helvetica', opts.bold ? 'bold' : 'normal');
+    doc.setFont('HankenGrotesk', opts.bold ? 'bold' : 'normal');
     doc.setTextColor(...(opts.color ?? MID));
     doc.text(lbl, labelX, y);
     doc.text(val, valX, y, { align: 'right' });
@@ -441,7 +461,7 @@ function drawSummaryBlock(doc, {
   // Always shown when it applies — it is a legal deduction the customer needs to see.
   if (showCisRow) {
     doc.setFontSize(9.5);
-    doc.setFont('helvetica', 'normal');
+    doc.setFont('HankenGrotesk', 'normal');
     doc.setTextColor(180, 60, 60); // muted red to signal deduction
     doc.text(`CIS Deduction (${cisRate}%)`, labelX, y);
     doc.text(`−£${cisDeduction.toFixed(2)}`, valX, y, { align: 'right' });
@@ -458,7 +478,7 @@ function drawSummaryBlock(doc, {
   // Total Payable (bold, dark)
   const totalLabel = hasDeposit ? 'Subtotal' : 'Total Payable';
   doc.setFontSize(12);
-  doc.setFont('helvetica', 'bold');
+  doc.setFont('HankenGrotesk', 'bold');
   doc.setTextColor(...DARK);
   doc.text(totalLabel, labelX, y);
   doc.text(`£${totalPayable.toFixed(2)}`, valX, y, { align: 'right' });
@@ -467,7 +487,7 @@ function drawSummaryBlock(doc, {
   // VAT number footnote beneath panel (when VAT-registered)
   if (showVat && vatNumber) {
     doc.setFontSize(8.5);
-    doc.setFont('helvetica', 'normal');
+    doc.setFont('HankenGrotesk', 'normal');
     doc.setTextColor(...LIGHT);
     doc.text(`VAT Reg: ${vatNumber}`, MARGIN, y);
   }
@@ -493,7 +513,7 @@ function drawDepositRow(doc, depositPence, startY) {
   let y = startY + 2;
 
   doc.setFontSize(9.5);
-  doc.setFont('helvetica', 'normal');
+  doc.setFont('HankenGrotesk', 'normal');
   doc.setTextColor(...BRAND_GREEN);
   doc.text('Deposit paid', labelX, y);
   doc.text(`−£${depositGbp}`, valX, y, { align: 'right' });
@@ -514,7 +534,7 @@ function drawTermsBlock(doc, termsText, footerRuleY) {
   const maxWidth = w - MARGIN * 2;
 
   doc.setFontSize(7);
-  doc.setFont('helvetica', 'italic');
+  doc.setFont('HankenGrotesk', 'normal');
   doc.setTextColor(...LIGHT);
 
   // Split into wrapped lines. jsPDF splitTextToSize handles long paragraphs.
@@ -526,11 +546,11 @@ function drawTermsBlock(doc, termsText, footerRuleY) {
   const blockY = footerRuleY - blockH;
 
   doc.setFontSize(6.5);
-  doc.setFont('helvetica', 'bold');
+  doc.setFont('HankenGrotesk', 'bold');
   doc.setTextColor(...LIGHT);
   doc.text('Terms & conditions', MARGIN, blockY);
 
-  doc.setFont('helvetica', 'italic');
+  doc.setFont('HankenGrotesk', 'normal');
   let ty = blockY + lineH;
   for (const line of lines) {
     doc.text(line, MARGIN, ty);
@@ -558,7 +578,7 @@ async function drawFooter(doc, biz, label = '', termsText = '', hidePoweredBy = 
 
   rule(doc, footerRuleY);
   doc.setFontSize(7.5);
-  doc.setFont('helvetica', 'normal');
+  doc.setFont('HankenGrotesk', 'normal');
   doc.setTextColor(...LIGHT);
   const text = label
     || `${biz?.name || 'OHNAR'}  •  Generated ${new Date().toLocaleDateString('en-GB')}`;
@@ -577,7 +597,7 @@ async function drawFooter(doc, biz, label = '', termsText = '', hidePoweredBy = 
     doc.setLineWidth(0.8);
     doc.circle(cx, cy, r, 'S');
     doc.setFontSize(6.5);
-    doc.setFont('helvetica', 'normal');
+    doc.setFont('HankenGrotesk', 'normal');
     doc.setTextColor(...LIGHT);
     doc.text('Sent with OHNAR — ohnar.co.uk', logoX + LOGO_SIZE + 1.5, footerRuleY + 11.5, { align: 'left' });
   }
@@ -602,14 +622,14 @@ function drawPayNowRow(doc, { amount, payNowUrl, qrDataUrl }, startY) {
 
   // Button label
   doc.setFontSize(11);
-  doc.setFont('helvetica', 'bold');
+  doc.setFont('HankenGrotesk', 'bold');
   doc.setTextColor(255, 255, 255);
   const btnLabel = `Pay £${amount.toFixed(2)} by card`;
   doc.text(btnLabel, MARGIN + BTN_W / 2, rowY + 7.5, { align: 'center' });
 
   // "Powered by Stripe · Secure" subtitle
   doc.setFontSize(7.5);
-  doc.setFont('helvetica', 'normal');
+  doc.setFont('HankenGrotesk', 'normal');
   doc.setTextColor(...LIGHT);
   doc.text('Powered by Stripe  ·  Secure card payment', MARGIN + BTN_W / 2, rowY + BTN_H + 5, { align: 'center' });
 
@@ -650,13 +670,13 @@ function drawSignQuoteRow(doc, { quoteUrl, qrDataUrl }, startY) {
 
   // Button label
   doc.setFontSize(11);
-  doc.setFont('helvetica', 'bold');
+  doc.setFont('HankenGrotesk', 'bold');
   doc.setTextColor(255, 255, 255);
   doc.text('Tap to view and accept this quote', MARGIN + BTN_W / 2, rowY + 7.5, { align: 'center' });
 
   // Subtitle (mirrors pay-now styling)
   doc.setFontSize(7.5);
-  doc.setFont('helvetica', 'normal');
+  doc.setFont('HankenGrotesk', 'normal');
   doc.setTextColor(...LIGHT);
   doc.text('Accept or decline on your phone — no app, no login', MARGIN + BTN_W / 2, rowY + BTN_H + 5, { align: 'center' });
 
@@ -715,6 +735,7 @@ export async function generateInvoicePDF({
   hidePoweredBy = false,
 }) {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  await registerHankenFont(doc);
   const w = doc.internal.pageSize.getWidth();
 
   // Pre-generate QR code data URL while other work proceeds.
@@ -815,7 +836,7 @@ export async function generateInvoicePDF({
   // ── Job description line (context when line items present)
   if (job?.summary && (job?.lineItems || []).length > 0) {
     doc.setFontSize(10);
-    doc.setFont('helvetica', 'italic');
+    doc.setFont('HankenGrotesk', 'normal');
     doc.setTextColor(...MID);
     doc.text(job.summary, MARGIN, y);
     y += 7;
@@ -883,7 +904,7 @@ export async function generateInvoicePDF({
     y += 7;
 
     doc.setFontSize(12);
-    doc.setFont('helvetica', 'bold');
+    doc.setFont('HankenGrotesk', 'bold');
     doc.setTextColor(...DARK);
     doc.text('BALANCE DUE', labelX2, y);
     doc.text(`£${balanceGbp.toFixed(2)}`, valX2, y, { align: 'right' });
@@ -905,7 +926,7 @@ export async function generateInvoicePDF({
   y += 8;
 
   doc.setFontSize(8);
-  doc.setFont('helvetica', 'bold');
+  doc.setFont('HankenGrotesk', 'bold');
   doc.setTextColor(...LIGHT);
   doc.text('PAYMENT DETAILS', MARGIN, y);
   y += 7;
@@ -915,11 +936,11 @@ export async function generateInvoicePDF({
   const stripeLink = !payNowUrl ? (effectiveBiz.stripePaymentLink || '') : '';
   if (stripeLink) {
     doc.setFontSize(9.5);
-    doc.setFont('helvetica', 'bold');
+    doc.setFont('HankenGrotesk', 'bold');
     doc.setTextColor(...DARK);
     doc.text('Pay by card:', MARGIN, y);
     y += 5;
-    doc.setFont('helvetica', 'normal');
+    doc.setFont('HankenGrotesk', 'normal');
     doc.setTextColor(0, 91, 204);
     doc.textWithLink(stripeLink, MARGIN, y, { url: stripeLink });
     doc.setTextColor(...MID);
@@ -932,11 +953,11 @@ export async function generateInvoicePDF({
 
   if (hasBankFields || effectiveBiz.bankDetails) {
     doc.setFontSize(9.5);
-    doc.setFont('helvetica', 'bold');
+    doc.setFont('HankenGrotesk', 'bold');
     doc.setTextColor(...DARK);
     doc.text(bankHeader, MARGIN, y);
     y += 5;
-    doc.setFont('helvetica', 'normal');
+    doc.setFont('HankenGrotesk', 'normal');
     doc.setTextColor(...MID);
 
     if (hasBankFields) {
@@ -950,14 +971,14 @@ export async function generateInvoicePDF({
 
   y += 2;
   doc.setFontSize(9.5);
-  doc.setFont('helvetica', 'bold');
+  doc.setFont('HankenGrotesk', 'bold');
   doc.setTextColor(...DARK);
   doc.text(`Reference: ${invoiceNumber}`, MARGIN, y);
 
   // ── Thank you line ────────────────────────────────────────────────────
   y += 10;
   doc.setFontSize(9);
-  doc.setFont('helvetica', 'italic');
+  doc.setFont('HankenGrotesk', 'normal');
   doc.setTextColor(...MID);
   doc.text('Thank you for your business.', MARGIN, y);
 
@@ -993,6 +1014,7 @@ export async function getInvoicePDFBlob(args) {
 
 export async function generateQuotePDF({ job, biz, profile = null, quoteUrl = '', qrDataUrl = '', hidePoweredBy = false }) {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  await registerHankenFont(doc);
 
   const effectiveBiz = {
     name:          biz?.name          || profile?.business_name || '',
@@ -1053,7 +1075,7 @@ export async function generateQuotePDF({ job, biz, profile = null, quoteUrl = ''
   // ── Job description line
   if (job?.summary && (job?.lineItems || []).length > 0) {
     doc.setFontSize(10);
-    doc.setFont('helvetica', 'italic');
+    doc.setFont('HankenGrotesk', 'normal');
     doc.setTextColor(...MID);
     doc.text(job.summary, MARGIN, y);
     y += 7;
@@ -1092,7 +1114,7 @@ export async function generateQuotePDF({ job, biz, profile = null, quoteUrl = ''
     doc.roundedRect(panelX, y + 2, panelW, 16, 2, 2, 'F');
 
     doc.setFontSize(10);
-    doc.setFont('helvetica', 'bold');
+    doc.setFont('HankenGrotesk', 'bold');
     doc.setTextColor(8, 107, 69); // #086B45
     doc.text(`Deposit (${depositPercent}%) · £${depositAmount.toFixed(2)} · Locks in your slot`, panelX + 6, y + 12);
     y += 22;
@@ -1117,7 +1139,7 @@ export async function generateQuotePDF({ job, biz, profile = null, quoteUrl = ''
       y += 8;
 
       doc.setFontSize(8);
-      doc.setFont('helvetica', 'bold');
+      doc.setFont('HankenGrotesk', 'bold');
       doc.setTextColor(...LIGHT);
       doc.text('ACCEPTED BY CUSTOMER', MARGIN, y);
       y += 5;
@@ -1130,7 +1152,7 @@ export async function generateQuotePDF({ job, biz, profile = null, quoteUrl = ''
 
       if (job.acceptedAt) {
         doc.setFontSize(8.5);
-        doc.setFont('helvetica', 'normal');
+        doc.setFont('HankenGrotesk', 'normal');
         doc.setTextColor(...MID);
         doc.text(
           `Signed: ${new Date(job.acceptedAt).toLocaleString('en-GB')}`,
