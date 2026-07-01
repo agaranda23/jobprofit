@@ -729,6 +729,9 @@ function VisitStatusPill({ status }) {
 function VisitRow({ visit, onTap, onMarkDone, canEdit }) {
   const computedStatus = computeVisitStatus(visit);
   const isDone = computedStatus === 'done';
+  // Done + cancelled visits render dimmed (no strikethrough); active visits
+  // (upcoming / today / missed) render at full white — name and date both.
+  const isMuted = isDone || computedStatus === 'cancelled';
 
   const handleMarkDone = (e) => {
     e.stopPropagation();
@@ -764,12 +767,12 @@ function VisitRow({ visit, onTap, onMarkDone, canEdit }) {
         <span className="jd-card-row-icon"><Icon name="date" size={16} variant="muted" /></span>
         {visitName ? (
           <div className="visit-row-val">
-            <div className={`visit-row-title${isDone ? ' visit-row-val--done' : ''}`}>{visitName}</div>
-            <div className="visit-row-sub">{dateStr}{timeStr}<VisitStatusPill status={computedStatus} /></div>
+            <div className={`visit-row-title${isMuted ? ' visit-row-muted' : ''}`}>{visitName}</div>
+            <div className="visit-row-sub"><span className={isMuted ? 'visit-row-muted' : undefined}>{dateStr}{timeStr}</span><VisitStatusPill status={computedStatus} /></div>
           </div>
         ) : (
           <span className="jd-card-row-val">
-            <span className={isDone ? 'visit-row-val--done' : undefined}>{dateStr}{timeStr}</span>
+            <span className={isMuted ? 'visit-row-muted' : undefined}>{dateStr}{timeStr}</span>
             <VisitStatusPill status={computedStatus} />
           </span>
         )}

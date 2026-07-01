@@ -16259,12 +16259,10 @@ button.jd-money-chip:active { opacity: 0.75; }
 .visit-status-pill--cancelled {
   background: rgba(100, 116, 139, 0.15);
   color: var(--text-dim, #94A3B8);
-  text-decoration: line-through;
 }
 
-/* Strikethrough date text for done visits */
-.visit-row-val--done {
-  text-decoration: line-through;
+/* Done/cancelled visits render dimmed — no strikethrough. */
+.visit-row-muted {
   opacity: 0.65;
 }
 
@@ -16288,7 +16286,7 @@ button.jd-money-chip:active { opacity: 0.75; }
 }
 .visit-row-sub {
   font-size: var(--fs-metadata);
-  color: var(--text-dim);
+  color: var(--text);
   font-weight: 400;
   display: flex;
   align-items: center;
