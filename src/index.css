@@ -6638,6 +6638,31 @@ input[type=number] { -moz-appearance: textfield; }
   opacity: 0.7;
 }
 
+/* ── SELECTED-tile text — LIGHT THEME legibility fix (ship-blocker) ────────────
+   The selected fills above render WHITE text (dark-theme pairing). In LIGHT
+   theme the bright cyan/indigo/amber/orange fills push white text below WCAG AA
+   (Quoted #0EA5B7, On #6366F1, Invoiced #F59E0B, Overdue #F97316). Flip those
+   four to the same dark ink token used by the unselected light-theme rows
+   (#1E3A5F). This changes TEXT ONLY — fills stay locked to the canonical
+   --stage-* palette (no recolour, no hue shift). Lead (#2563EB) and Paid
+   (#15803D) stay white — dark enough to keep AA on light backgrounds.
+   Specificity ([data-theme=light] + double stage class + selected) beats both
+   the base .stage-tile--selected white/dark rules and the per-stage white rules. */
+[data-theme="light"] .stage-tile--quoted.stage-tile--selected .stage-tile-name,
+[data-theme="light"] .stage-tile--quoted.stage-tile--selected .stage-tile-count,
+[data-theme="light"] .stage-tile--quoted.stage-tile--selected .stage-tile-amount,
+[data-theme="light"] .stage-tile--on.stage-tile--selected .stage-tile-name,
+[data-theme="light"] .stage-tile--on.stage-tile--selected .stage-tile-count,
+[data-theme="light"] .stage-tile--on.stage-tile--selected .stage-tile-amount,
+[data-theme="light"] .stage-tile--invoiced.stage-tile--selected .stage-tile-name,
+[data-theme="light"] .stage-tile--invoiced.stage-tile--selected .stage-tile-count,
+[data-theme="light"] .stage-tile--invoiced.stage-tile--selected .stage-tile-amount,
+[data-theme="light"] .stage-tile--overdue.stage-tile--selected .stage-tile-name,
+[data-theme="light"] .stage-tile--overdue.stage-tile--selected .stage-tile-count,
+[data-theme="light"] .stage-tile--overdue.stage-tile--selected .stage-tile-amount {
+  color: #1E3A5F;
+}
+
 /* Tile typography — 6 equal segments at 360px: each cell is ~59px wide, ~55px text area.
    Name: --fs-stage (13px) at -0.05em letter-spacing.
    "INVOICED"/"OVERDUE"/"AWAITING" — longest labels flagged below.

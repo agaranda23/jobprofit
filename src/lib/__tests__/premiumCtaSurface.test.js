@@ -133,6 +133,23 @@ describe('pipeline depth — Concept A "Lit Accent" (static)', () => {
     );
   });
 
+  it('fixes light-theme selected-tile legibility with a dark-ink override (text only, palette locked)', () => {
+    // The four bright fills (Quoted/On/Invoiced/Overdue) flip to dark ink #1E3A5F
+    // in light theme so white-on-fill text stops failing WCAG AA. Fills untouched.
+    for (const stage of ['quoted', 'on', 'invoiced', 'overdue']) {
+      expect(css).toContain(
+        `[data-theme="light"] .stage-tile--${stage}.stage-tile--selected .stage-tile-name`
+      );
+    }
+    expect(css).toMatch(
+      /\[data-theme="light"\] \.stage-tile--overdue\.stage-tile--selected \.stage-tile-amount \{\s*\n\s*color: #1E3A5F;/
+    );
+    // The override must NOT touch the fill (palette stays locked to --stage-*).
+    expect(css).not.toMatch(
+      /\[data-theme="light"\] \.stage-tile--\w+\.stage-tile--selected \{\s*\n\s*background/
+    );
+  });
+
   it('adds NO light-sweep pseudo, NO keyframes and NO looping animation to the strip/tiles', () => {
     // No ::after glare pseudo on the pipeline surfaces.
     expect(css).not.toMatch(/\.stage-tile[^{]*::after\s*\{/);
