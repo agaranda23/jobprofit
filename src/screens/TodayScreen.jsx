@@ -30,7 +30,7 @@ import ProUpgradeSheet from '../components/ProUpgradeSheet';
 import { gbp, formatToday } from '../lib/today';
 import { isAwaitingPayment, deriveStatus } from '../lib/jobStatus';
 import { daysPastDue, recordChase, recordChaseCloud, buildChaseMessage, computeTier, buildPaymentDetails } from '../lib/chaseLadder';
-import { writeJobMeta, extractJobMeta } from '../lib/jobMeta';
+import { writeJobMeta } from '../lib/jobMeta';
 import { getNewlyAcceptedJobs, buildAcceptedLabel, formatAcceptedDate } from '../lib/acceptedNotification';
 import {
   rankNextBestAction,
@@ -369,11 +369,13 @@ export default function TodayScreen({
 
   const handleSnooze = useCallback((job) => {
     snoozeJob(job.id);
-    // Record the snooze in the jobMeta side-channel (localStorage).
-    // Cloud sync is fire-and-forget — snooze is local-first UX.
-    try {
-      writeJobMeta(job.id, extractJobMeta({ ...job, snoozedUntil: new Date(Date.now() + SNOOZE_MS).toISOString() }));
-    } catch {}
+    // Snooze state is persisted in the snooze store (readSnoozeStore/writeSnoozeStore),
+    // not in the jobMeta side-channel. `snoozedUntil` is intentionally absent from
+    // META_FIELDS so it never reaches Supabase. The previous writeJobMeta call here
+    // was passing extractJobMeta({ ...job, snoozedUntil }) which silently spread the
+    // ENTIRE job snapshot into the pending set (marking status/customer/total/etc.
+    // pending with no cloud-clear path) — a regression of the cross-device bug.
+    // Removed: snooze is local-only UX; no meta write needed.
     showToast('Snoozed for 24 hours');
     setRankVersion(v => v + 1);
   }, []);
@@ -385,7 +387,13 @@ export default function TodayScreen({
   // ── Accepted-quote banner handlers ────────────────────────────────────────────
   const handleAcceptedDismiss = useCallback((job) => {
     const seenAt = new Date().toISOString();
-    writeJobMeta(job.id, extractJobMeta({ ...job, acceptedSeenAt: seenAt }));
+    // Write ONLY acceptedSeenAt — a device-local UI flag that is intentionally
+    // never synced to the cloud. The previous extractJobMeta({ ...job, acceptedSeenAt })
+    // spread the entire job snapshot into the pending set, marking status/customer/total
+    // etc. pending with no cloud-clear path — a regression of the cross-device bug.
+    // acceptedSeenAt IS in META_FIELDS so it survives reload; it just doesn't travel
+    // between devices (acceptable: each device tracks its own "seen" state).
+    writeJobMeta(job.id, { acceptedSeenAt: seenAt });
     setDismissedAcceptedIds(prev => {
       const next = new Set(prev);
       next.add(job.id);

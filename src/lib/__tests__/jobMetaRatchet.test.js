@@ -64,7 +64,9 @@ describe('applyJobMeta — cloud quoteStatus:accepted ratchet', () => {
     expect(result.status).toBe('active');
   });
 
-  it('ratchet writes both quoteStatus AND status so display resolves correctly', () => {
+  it('ratchet writes quoteStatus:accepted; status resolves correctly via cloud overlay (Gap 2 fix)', () => {
+    // Gap 2 fix: ratchet no longer writes status/jobStatus into the pending set.
+    // Cloud status wins via the overlay — quoteStatus is the only monotonic field.
     const id = 'ratchet-002';
     writeJobMeta(id, { quoteStatus: 'sent', status: 'quoted' });
 
@@ -79,12 +81,19 @@ describe('applyJobMeta — cloud quoteStatus:accepted ratchet', () => {
       total:          300,
     };
 
-    applyJobMeta(cloudJob);
+    const result = applyJobMeta(cloudJob);
 
-    // Verify localStorage was updated so subsequent reads also return correct values
+    // applyJobMeta result must have both correct (cloud overlay for status):
+    expect(result.quoteStatus).toBe('accepted');
+    expect(result.status).toBe('active');
+
+    // localStorage meta: ratchet updated quoteStatus, but NOT status.
+    // status pending was cleared by the ratchet — cloud wins via overlay.
     const stored = readJobMeta(id);
     expect(stored.quoteStatus).toBe('accepted');
-    expect(stored.status).toBe('active');
+    // status in local meta is still 'quoted' (not updated) — that is correct:
+    // applyJobMeta reads cloud 'active' because status pending was cleared.
+    expect(stored.status).toBe('quoted');
   });
 
   it('ratchet is one-way: local accepted is never downgraded', () => {

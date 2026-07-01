@@ -10,8 +10,29 @@
 // On app load, mapCloudJobToToday spreads r.meta onto the job object before
 // applyJobMetaToJobs overlays localStorage on top — so cloud is the baseline
 // and any unsynced offline edits win until the next successful online write.
+//
+// CROSS-DEVICE SYNC (Fix A — fix/cross-device-job-sync-overlay):
+// Problem: the old `return { ...job, ...meta }` overlay gave LOCAL unconditional
+// precedence over CLOUD for ALL META_FIELDS. When Device A edited a job and the
+// cloud confirmed the write, Device B's stale localStorage snapshot still masked
+// the fresh cloud value on every reload — including after a full hard refresh.
+//
+// Fix: a PENDING-SET per job (`jp.jobMetaPending.<id>`) tracks which fields have
+// been written locally but not yet confirmed synced to the cloud. Only pending
+// fields override cloud. Non-pending fields (i.e. fields not edited on THIS
+// device, or already confirmed synced) let the fresh cloud value win.
+//
+// clearPending(id, keys) is called by AppShell's syncMetaToCloud on success and
+// by offlineQueue.js markMetaSynced path, so the pending set shrinks after each
+// confirmed cloud write.
+//
+// The quoteStatus:'accepted' monotonic ratchet is intentionally preserved: once
+// a quote is accepted, no stale event can silently un-accept it. That special-
+// case writes directly into both meta and pending (via writeJobMeta) so it wins
+// on the next overlay just like any locally-written field would.
 
-const META_KEY_PREFIX = 'jp.jobMeta.';
+const META_KEY_PREFIX         = 'jp.jobMeta.';
+const META_PENDING_KEY_PREFIX = 'jp.jobMetaPending.';
 
 const META_FIELDS = [
   'status', 'invoiceSentAt', 'invoiceNumber', 'invoiceDueDate',
@@ -118,15 +139,25 @@ export function readJobMeta(id) {
 // Returns the full merged meta object so callers that also need to fire the
 // cloud write (e.g. onUpdateJob in AppShell) can pass it directly to
 // updateJobMetaInCloud without a second readJobMeta call.
+//
+// Side-effect: marks all META_FIELDS present in `partial` as pending. They
+// stay pending until clearPending() is called after a confirmed cloud write.
 export function writeJobMeta(id, partial) {
   if (!id || !partial) return null;
   try {
     const existing = readJobMeta(id);
     const next = { ...existing };
+    const written = [];
     for (const key of META_FIELDS) {
-      if (key in partial) next[key] = partial[key];
+      if (key in partial) {
+        next[key] = partial[key];
+        written.push(key);
+      }
     }
     localStorage.setItem(META_KEY_PREFIX + id, JSON.stringify(next));
+    // Mark fields as pending-sync so applyJobMeta knows to overlay them even
+    // after a cloud refetch (until clearPending() confirms the write landed).
+    if (written.length > 0) markPending(id, written);
     return next;
   } catch { /* localStorage may be blocked or full */ }
   return null;
@@ -135,6 +166,67 @@ export function writeJobMeta(id, partial) {
 export function clearJobMeta(id) {
   if (!id) return;
   try { localStorage.removeItem(META_KEY_PREFIX + id); } catch { /* ignore */ }
+  try { localStorage.removeItem(META_PENDING_KEY_PREFIX + id); } catch { /* ignore */ }
+}
+
+// ── Pending-set helpers ───────────────────────────────────────────────────────
+// The pending set is a plain object whose keys are META_FIELDS that have been
+// written locally but NOT yet confirmed synced to the cloud.
+//
+// readPending / writePending are internal; the public surface is markPending,
+// clearPending, and readPendingKeys.
+
+function readPending(id) {
+  if (!id) return {};
+  try {
+    const raw = localStorage.getItem(META_PENDING_KEY_PREFIX + id);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function writePending(id, pending) {
+  if (!id) return;
+  try {
+    if (Object.keys(pending).length === 0) {
+      localStorage.removeItem(META_PENDING_KEY_PREFIX + id);
+    } else {
+      localStorage.setItem(META_PENDING_KEY_PREFIX + id, JSON.stringify(pending));
+    }
+  } catch { /* ignore */ }
+}
+
+// Mark a set of keys as pending-sync for `id`. Adds to the existing pending set.
+function markPending(id, keys) {
+  if (!id || !keys?.length) return;
+  const pending = readPending(id);
+  for (const key of keys) { pending[key] = true; }
+  writePending(id, pending);
+}
+
+/**
+ * clearPending(id, keys)
+ * Called by AppShell.syncMetaToCloud(..).then() on a successful cloud write and
+ * by the offlineQueue runMetaSync markMetaSynced path. Removes the listed keys
+ * from the pending set so subsequent applyJobMeta calls let cloud win for those
+ * fields.
+ *
+ * Exported so AppShell and offlineQueue can call it without importing internal helpers.
+ */
+export function clearPending(id, keys) {
+  if (!id || !keys?.length) return;
+  const pending = readPending(id);
+  for (const key of keys) { delete pending[key]; }
+  writePending(id, pending);
+}
+
+/**
+ * readPendingKeys(id) — returns array of currently-pending field names.
+ * Used by tests; not needed at runtime.
+ */
+export function readPendingKeys(id) {
+  return Object.keys(readPending(id));
 }
 
 // Pulls the 10 meta fields off a job object so they can be written to the
@@ -150,42 +242,66 @@ export function extractJobMeta(job) {
   return meta;
 }
 
-// STATUS RATCHET — cloud wins for authoritative status columns.
+// MERGE STRATEGY — pending-set arbitrated overlay.
 //
-// Problem: applyJobMeta spreads ALL localStorage META_FIELDS on top of the cloud
-// object, so a stale local quoteStatus:'sent' / status:'quoted' would overwrite a
-// cloud quoteStatus:'accepted' set while the app was closed.
+// Previously: `return { ...job, ...meta }` — local always wins for ALL
+// META_FIELDS. This caused cross-device staleness: Device B's stale snapshot
+// masked Device A's fresh cloud edits on every reload.
 //
-// Fix: before spreading local meta, if the cloud job is already 'accepted', write
-// both quoteStatus and status into localStorage so the overlay is consistent with
-// the cloud truth. This fires on EVERY merge path (initial load, storage-event, and
-// the realtime debounced refreshFromCloud path) because all paths call applyJobMeta.
+// Now: LOCAL wins ONLY for fields that are currently in the pending set (written
+// locally but not yet confirmed synced). For all other fields, the fresh CLOUD
+// value wins. This means a reload that brings in Device A's edit will correctly
+// surface it on Device B once Device B has no pending write for that field.
 //
-// Only the authoritative status columns ('quoteStatus', 'status') get the ratchet.
-// All other fields — photos, lineItems, notes, etc. — still follow the normal local-
-// wins rule so offline edits are never discarded.
+// quoteStatus:'accepted' RATCHET (intentional monotonic business rule):
+// Once a customer accepts a quote, a stale event must never silently un-accept it.
+// The ratchet is preserved as-is: when cloud carries 'accepted', we write it into
+// BOTH meta AND the pending set (via writeJobMeta), so it wins on the next overlay
+// the same way any local edit would — and it is one-way only.
 export function applyJobMeta(job) {
   if (!job?.id) return job;
 
   // Ratchet: if the cloud object carries quoteStatus:'accepted', ensure localStorage
   // agrees before the overlay runs. One-way only — never downgrades local 'accepted'.
+  //
+  // Gap 2 fix: only write quoteStatus + acceptance metadata into the pending set.
+  // Do NOT write status/jobStatus as pending — those are pipeline stage fields that
+  // must remain free to sync cross-device (e.g. Device B moves the job to Invoiced
+  // after acceptance; Device A must see that stage move). Instead, clearPending for
+  // status/jobStatus so the fresh CLOUD values always win for those fields.
+  // The cloud object already carries the correct current status alongside accepted.
   if (job.quoteStatus === 'accepted') {
     const local = readJobMeta(job.id);
-    if (local.quoteStatus !== 'accepted' || local.status !== (job.status ?? 'active')) {
+    if (local.quoteStatus !== 'accepted') {
       writeJobMeta(job.id, {
         quoteStatus:    'accepted',
-        status:         job.status         ?? 'active',
-        jobStatus:      job.jobStatus      ?? 'active',
         acceptedAt:     job.acceptedAt     ?? null,
         acceptedName:   job.acceptedName   ?? null,
         acceptedSource: job.acceptedSource ?? null,
         ...(job.acceptedSignature ? { acceptedSignature: job.acceptedSignature } : {}),
       });
     }
+    // Always clear status/jobStatus pending so they don't freeze the pipeline stage.
+    // Cloud is authoritative for pipeline position; only quoteStatus needs the
+    // monotonic ratchet to guard against stale 'sent' overwriting 'accepted'.
+    clearPending(job.id, ['status', 'jobStatus']);
   }
 
-  const meta = readJobMeta(job.id);
-  return { ...job, ...meta };
+  const meta    = readJobMeta(job.id);
+  const pending = readPending(job.id);
+
+  // Pending-aware merge: build the result starting from the fresh cloud job,
+  // then overlay ONLY the fields that are currently pending (locally written,
+  // not yet confirmed synced). Non-pending local fields are discarded so the
+  // cloud value wins — this is the cross-device fix.
+  const result = { ...job };
+  for (const key of META_FIELDS) {
+    if (pending[key] && key in meta) {
+      result[key] = meta[key];
+    }
+    // Non-pending: cloud value already present in result (from { ...job }).
+  }
+  return result;
 }
 
 export function applyJobMetaToJobs(jobs) {

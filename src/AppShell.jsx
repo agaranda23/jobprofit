@@ -27,7 +27,7 @@ import { hydrateChaseState, isDoubleSendBlocked } from './lib/chaseLadder';
 import { buildChaseList } from './lib/chaseList.js';
 import AuthScreen from './components/AuthScreen';
 import { parseHash, replaceHistory } from './lib/navigation';
-import { writeJobMeta, readJobMeta, extractJobMeta, applyJobMetaToJobs } from './lib/jobMeta';
+import { writeJobMeta, readJobMeta, extractJobMeta, applyJobMetaToJobs, clearPending } from './lib/jobMeta';
 import { subscribeToJobs } from './lib/realtime';
 import { addPayment } from './lib/payments';
 import {
@@ -202,6 +202,10 @@ export default function AppShell() {
   // Ref holding the most recent jobs array so the Realtime handler can compare
   // previous acceptedSignature state without a stale closure.
   const jobsRef = useRef([]);
+  // Timestamp of the last refreshFromCloud call — used by the visibility backstop
+  // (Fix B) to throttle double-fetches when a realtime onReconnect fires at the
+  // same moment the page becomes visible. Set inside refreshFromCloud.
+  const lastRefetchAtRef = useRef(0);
   // Wizard state (new nav only).
   // wizardOpen — should the wizard overlay be showing right now?
   // postWizardNav — view to navigate to after the wizard completes (e.g. 'jobs').
@@ -378,6 +382,7 @@ export default function AppShell() {
   }, []);
 
   const refreshFromCloud = useCallback(async () => {
+    lastRefetchAtRef.current = Date.now();
     try {
       const [cloudJobs, cloudReceipts, cloudMaterials] = await Promise.all([
         getJobsFromCloud(),
@@ -685,14 +690,18 @@ export default function AppShell() {
               // without this a stale quoteStatus:'sent' in localStorage would win
               // over the cloud's quoteStatus:'accepted', leaving the view stuck on
               // "Awaiting go-ahead". No acceptedSignature — G-2 does not write it.
+              //
+              // Gap 2 fix: write ONLY quoteStatus + acceptance fields — NOT
+              // status/jobStatus. Those pipeline stage fields must stay free to
+              // sync cross-device (e.g. a later Invoiced move from another device
+              // must not be masked). clearPending ensures the cloud values win.
               writeJobMeta(incoming.id, {
                 quoteStatus:    'accepted',
-                status:         incomingMeta.status ?? 'active',
-                jobStatus:      'active',
                 acceptedAt:     incomingMeta.acceptedAt,
                 acceptedName:   incomingMeta.acceptedName ?? null,
                 acceptedSource: 'remote',
               });
+              clearPending(incoming.id, ['status', 'jobStatus']);
 
               const customerName = incomingMeta.acceptedName || incoming.customer_name || prev?.customer || prev?.name || 'Customer';
               const amount = Number(prev?.total ?? prev?.amount ?? incomingMeta.total ?? 0) || 0;
@@ -764,6 +773,63 @@ export default function AppShell() {
     window.addEventListener('storage', onStorage);
     return () => window.removeEventListener('storage', onStorage);
   }, [cloudLoaded]);
+
+  // Fix B — visibility / focus / pageshow backstop refetch.
+  //
+  // When the trader picks up the READING device (the one that hasn't made any
+  // edits recently), this fires refreshFromCloud so Device B immediately gets
+  // the latest cloud state — regardless of whether realtime delivered the event.
+  //
+  // Only fires when a session exists (unauthenticated tabs skip the refetch).
+  // Throttled: skip if a refetch already ran in the last 5 seconds, which
+  // prevents a double-fetch when a realtime onReconnect and a visibility event
+  // fire simultaneously (e.g. phone coming back online + screen unlock).
+  //
+  // CRITICAL: this effect is placed ABOVE the early return at line ~1260 because
+  // React hooks must never be conditional. All refs (lastRefetchAtRef) used here
+  // are declared above this point.
+  //
+  // This is intentionally SEPARATE from the WorkScreen call-pay visibilitychange
+  // listener. That listener drives the call-pay prompt using in-memory jobs and
+  // must not be disturbed. This listener refreshes the cloud state.
+  useEffect(() => {
+    if (!session?.user?.id) return;
+
+    const THROTTLE_MS = 5000;
+
+    function maybeRefresh() {
+      const now = Date.now();
+      if (now - lastRefetchAtRef.current < THROTTLE_MS) return;
+      refreshFromCloud();
+    }
+
+    function onVisibilityChange() {
+      if (document.visibilityState === 'visible') maybeRefresh();
+    }
+
+    function onFocus() {
+      maybeRefresh();
+    }
+
+    function onPageShow(e) {
+      // e.persisted === true means the page was restored from the bfcache
+      // (back-forward cache). Always refetch in that case as the data may
+      // be seconds or minutes stale. Also fires on normal page load — the
+      // throttle prevents a redundant fetch on top of the session effect.
+      if (e.persisted) refreshFromCloud();
+      else maybeRefresh();
+    }
+
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    window.addEventListener('focus', onFocus);
+    window.addEventListener('pageshow', onPageShow);
+
+    return () => {
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener('focus', onFocus);
+      window.removeEventListener('pageshow', onPageShow);
+    };
+  }, [session, refreshFromCloud]);
 
   // Nav orientation toast removed: slice-3 has been live for weeks and all
   // existing users already have jp.slice3NavToast.v2 set. New users land
@@ -914,13 +980,30 @@ export default function AppShell() {
 
   // Fires the cloud write after every writeJobMeta call. Fire-and-forget —
   // the UI does not await this. localStorage write already succeeded by the
-  // time this runs. Errors are logged; they do not surface to the user because
-  // the local state is already correct.
+  // time this runs.
+  //
+  // Fix A (cross-device sync): on a confirmed cloud write, clearPending removes
+  // the synced fields from the per-job pending set. After that, the next call
+  // to applyJobMeta lets the fresh CLOUD value win for those fields rather than
+  // re-applying the now-stale local snapshot. Fields that fail to sync stay
+  // pending so they continue to overlay the cloud value correctly on reload.
   const syncMetaToCloud = (jobId, mergedMeta) => {
     if (!jobId || !mergedMeta) return;
-    updateJobMetaInCloud(jobId, mergedMeta).catch((err) => {
-      console.warn('syncMetaToCloud failed', jobId, err?.message);
-    });
+    updateJobMetaInCloud(jobId, mergedMeta)
+      .then((result) => {
+        // result is { ok: true } on success or { ok: false, error: '...' } on failure.
+        if (result?.ok) {
+          // Cloud confirmed the write — the fields in mergedMeta are now in sync.
+          // Clear them from the pending set so Device B's fresh cloud read wins.
+          clearPending(jobId, Object.keys(mergedMeta));
+        }
+        // Non-ok result (offline, RLS, etc.): fields stay pending. The offline
+        // queue will retry; clearPending is called from runMetaSync on success.
+      })
+      .catch((err) => {
+        console.warn('syncMetaToCloud failed', jobId, err?.message);
+        // Fields stay pending on exception — same retry behaviour as non-ok.
+      });
   };
 
   // Mark-paid from the new Today awaiting section. Writes the new payment fields
