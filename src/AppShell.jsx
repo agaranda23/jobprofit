@@ -690,14 +690,18 @@ export default function AppShell() {
               // without this a stale quoteStatus:'sent' in localStorage would win
               // over the cloud's quoteStatus:'accepted', leaving the view stuck on
               // "Awaiting go-ahead". No acceptedSignature — G-2 does not write it.
+              //
+              // Gap 2 fix: write ONLY quoteStatus + acceptance fields — NOT
+              // status/jobStatus. Those pipeline stage fields must stay free to
+              // sync cross-device (e.g. a later Invoiced move from another device
+              // must not be masked). clearPending ensures the cloud values win.
               writeJobMeta(incoming.id, {
                 quoteStatus:    'accepted',
-                status:         incomingMeta.status ?? 'active',
-                jobStatus:      'active',
                 acceptedAt:     incomingMeta.acceptedAt,
                 acceptedName:   incomingMeta.acceptedName ?? null,
                 acceptedSource: 'remote',
               });
+              clearPending(incoming.id, ['status', 'jobStatus']);
 
               const customerName = incomingMeta.acceptedName || incoming.customer_name || prev?.customer || prev?.name || 'Customer';
               const amount = Number(prev?.total ?? prev?.amount ?? incomingMeta.total ?? 0) || 0;

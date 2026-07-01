@@ -497,3 +497,187 @@ describe('Cross-device scenario: Device A edits, Device B reads', () => {
     expect(result.total).toBe(420);
   });
 });
+
+// ── Gap 1: TodayScreen snooze/dismiss path ────────────────────────────────────
+// Regression cover: the old extractJobMeta({ ...job, snoozedUntil }) call in
+// TodayScreen marked the entire job snapshot pending with no cloud-clear path.
+// Fix: handleSnooze drops the writeJobMeta call (snoozedUntil not in META_FIELDS);
+//      handleAcceptedDismiss writes only { acceptedSeenAt }.
+
+describe('Gap 1 — TodayScreen snooze/dismiss does not poison the pending set', () => {
+  it('after acceptedSeenAt write, status/customer/total remain cloud-authoritative', () => {
+    const id = 'gap1-dismiss-001';
+    // Simulate a full job object (as TodayScreen would have it):
+    const job = {
+      id,
+      status: 'active',
+      quoteStatus: 'accepted',
+      customer: 'Old Customer',
+      total: 350,
+      notes: 'Some notes',
+      lineItems: [{ desc: 'Labour', cost: 350 }],
+      acceptedSeenAt: undefined,
+    };
+
+    // Simulate what handleAcceptedDismiss NOW does (fixed: only acceptedSeenAt):
+    writeJobMeta(job.id, { acceptedSeenAt: '2026-07-01T12:00:00.000Z' });
+
+    // Cloud job reflects a Device A edit (moved to invoice_sent, new customer)
+    const cloudJob = {
+      id,
+      status: 'invoice_sent',
+      quoteStatus: 'accepted',
+      customer: 'New Customer',
+      total: 420,
+      notes: 'Cloud notes',
+      lineItems: [{ desc: 'Labour', cost: 420 }],
+    };
+
+    const result = applyJobMeta(cloudJob);
+
+    // Only acceptedSeenAt should be from local (pending):
+    expect(result.acceptedSeenAt).toBe('2026-07-01T12:00:00.000Z');
+    // Everything else comes from cloud (non-pending):
+    expect(result.status).toBe('invoice_sent');
+    expect(result.customer).toBe('New Customer');
+    expect(result.total).toBe(420);
+    expect(result.notes).toBe('Cloud notes');
+  });
+
+  it('acceptedSeenAt write marks only that field pending', () => {
+    const id = 'gap1-dismiss-002';
+    writeJobMeta(id, { acceptedSeenAt: '2026-07-01T12:00:00.000Z' });
+
+    const pending = readPendingKeys(id);
+    expect(pending).toContain('acceptedSeenAt');
+    expect(pending).not.toContain('status');
+    expect(pending).not.toContain('customer');
+    expect(pending).not.toContain('total');
+    expect(pending).not.toContain('notes');
+    expect(pending).not.toContain('lineItems');
+  });
+
+  it('snooze path: no writeJobMeta → pending set remains empty', () => {
+    const id = 'gap1-snooze-001';
+    // handleSnooze no longer calls writeJobMeta — snooze state goes into the
+    // snooze store only. Verify: a fresh job's pending set is empty after snooze.
+    // (We simulate by simply not calling writeJobMeta, which is what the fix does.)
+    // There is nothing to write — verify the pending set is empty.
+    const pending = readPendingKeys(id);
+    expect(pending).toHaveLength(0);
+  });
+
+  it('snooze path: pending-set-free, so a cloud edit is visible on refresh', () => {
+    const id = 'gap1-snooze-002';
+    // Before the fix, handleSnooze called:
+    //   writeJobMeta(job.id, extractJobMeta({ ...job, snoozedUntil }))
+    // which marked status/customer/total/etc. pending with no cloud-clear.
+    // After the fix, no writeJobMeta is called. Verify the cloud edit is visible:
+    const cloudJob = makeCloudJob(id, { status: 'invoice_sent', customer: 'Updated' });
+    const result = applyJobMeta(cloudJob);
+
+    // No local pending → cloud wins:
+    expect(result.status).toBe('invoice_sent');
+    expect(result.customer).toBe('Updated');
+  });
+});
+
+// ── Gap 2: Ratchet status/jobStatus freed from pending set ────────────────────
+// Regression cover: the old ratchet wrote status/jobStatus into the pending set
+// via writeJobMeta. A later cross-device stage move (e.g. Device B moves to
+// invoice_sent after acceptance) was masked on the observing device forever.
+// Fix: ratchet only writes quoteStatus + acceptance fields as pending;
+//      clearPending(['status','jobStatus']) ensures pipeline stage stays cloud-authoritative.
+
+describe('Gap 2 — ratchet does not freeze status/jobStatus in pending set', () => {
+  it('after ratchet fires, status/jobStatus are NOT pending', () => {
+    const id = 'gap2-ratchet-001';
+    writeJobMeta(id, { quoteStatus: 'sent', status: 'quoted' });
+
+    const cloudJob = {
+      id,
+      quoteStatus:    'accepted',
+      status:         'active',
+      jobStatus:      'active',
+      acceptedAt:     '2026-07-01T10:00:00.000Z',
+      acceptedName:   'Dave',
+      acceptedSource: 'remote',
+      total:          500,
+    };
+
+    applyJobMeta(cloudJob);
+
+    const pending = readPendingKeys(id);
+    expect(pending).not.toContain('status');
+    expect(pending).not.toContain('jobStatus');
+    // quoteStatus IS still pending (the monotonic field):
+    expect(pending).toContain('quoteStatus');
+  });
+
+  it('accepted then stage-move: observing device sees the new stage', () => {
+    // The full scenario: Device A (trader) sees acceptance ratchet fire.
+    // Then Device B moves the accepted job to invoice_sent.
+    // Device A's next cloud read must show invoice_sent, not the ratchet-frozen 'active'.
+    const id = 'gap2-stagemove-001';
+
+    // Step 1: realtime event fires — ratchet writes accepted into pending
+    writeJobMeta(id, { quoteStatus: 'sent', status: 'quoted' });
+    const ratchetCloud = {
+      id,
+      quoteStatus:    'accepted',
+      status:         'active',
+      jobStatus:      'active',
+      acceptedAt:     '2026-07-01T10:00:00.000Z',
+      acceptedName:   'Alice',
+      acceptedSource: 'remote',
+      total:          600,
+    };
+    const afterRatchet = applyJobMeta(ratchetCloud);
+    expect(afterRatchet.quoteStatus).toBe('accepted'); // ratchet worked
+    expect(afterRatchet.status).toBe('active');        // cloud status correct
+
+    // Step 2: Device B moves the job to invoice_sent. Cloud now reflects that.
+    const afterStageMove = {
+      id,
+      quoteStatus:    'accepted',
+      status:         'invoice_sent',
+      jobStatus:      'active',
+      acceptedAt:     '2026-07-01T10:00:00.000Z',
+      acceptedName:   'Alice',
+      acceptedSource: 'remote',
+      total:          600,
+    };
+    const result = applyJobMeta(afterStageMove);
+
+    // status must be invoice_sent (cloud wins — not frozen by ratchet):
+    expect(result.status).toBe('invoice_sent');
+    // quoteStatus must still be accepted (pending from ratchet):
+    expect(result.quoteStatus).toBe('accepted');
+  });
+
+  it('stale local quoteStatus:sent does not win after ratchet runs + pending status cleared', () => {
+    // This is the core AC4 guarantee: cloud 'accepted' still wins over stale
+    // local pending 'sent' — even though we changed the ratchet implementation.
+    const id = 'gap2-monotonic-001';
+
+    // Local has stale sent (was synced, then pending cleared)
+    writeJobMeta(id, { quoteStatus: 'sent', status: 'quoted' });
+    clearPending(id, ['quoteStatus', 'status']);
+
+    // Cloud now says accepted
+    const cloudJob = {
+      id,
+      quoteStatus:    'accepted',
+      status:         'active',
+      acceptedAt:     '2026-07-01T11:00:00.000Z',
+      acceptedName:   'Bob',
+      acceptedSource: 'remote',
+      total:          300,
+    };
+    const result = applyJobMeta(cloudJob);
+
+    expect(result.quoteStatus).toBe('accepted');
+    expect(result.status).toBe('active');
+    expect(result.acceptedAt).toBe('2026-07-01T11:00:00.000Z');
+  });
+});

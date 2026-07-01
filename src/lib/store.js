@@ -5,7 +5,7 @@
 // Today screen uses cloud-backed functions with localStorage dual-write.
 
 import { supabase } from './supabase';
-import { writeJobMeta } from './jobMeta';
+import { writeJobMeta, clearPending } from './jobMeta';
 import { generatePublicAccessToken } from './publicQuoteToken';
 
 // Returns YYYY-MM-DD in the user's local timezone (not UTC).
@@ -409,6 +409,14 @@ export async function addJobToCloud(payload) {
   // time there is no meta to preserve — a direct writeJobMeta is safe and avoids
   // an extra round-trip. The cloud meta column gets synced on the next
   // user action that triggers syncMetaToCloud (e.g. mark paid, edit a field).
+  //
+  // Gap 3 fix: `notes` is a dedicated DB column written at INSERT, so it is
+  // already durably synced to the cloud. writeJobMeta would mark it pending,
+  // briefly masking a cross-device notes edit until the next syncMetaToCloud.
+  // clearPending(['notes']) immediately after the write corrects this.
+  // materialsCost/labourHours/deposit are NOT dedicated columns — they live
+  // only in the meta JSONB and are correctly left pending until the next
+  // syncMetaToCloud confirms the JSONB write.
   const metaPatch = {};
   if (payload.materialsCost != null) metaPatch.materialsCost = payload.materialsCost;
   if (payload.labourHours   != null) metaPatch.labourHours   = payload.labourHours;
@@ -416,6 +424,9 @@ export async function addJobToCloud(payload) {
   if (payload.notes         != null) metaPatch.notes         = payload.notes;
   if (Object.keys(metaPatch).length > 0) {
     writeJobMeta(data.id, metaPatch);
+    // notes is a DB column durably written at INSERT — clear its pending flag
+    // so a cross-device notes edit is not masked on the creating device.
+    if (payload.notes != null) clearPending(data.id, ['notes']);
   }
 
   // Dual-write to localStorage for legacy Manage compatibility.

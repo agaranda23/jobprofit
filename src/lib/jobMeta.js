@@ -263,20 +263,28 @@ export function applyJobMeta(job) {
 
   // Ratchet: if the cloud object carries quoteStatus:'accepted', ensure localStorage
   // agrees before the overlay runs. One-way only — never downgrades local 'accepted'.
-  // writeJobMeta marks these fields pending so they survive in the overlay below.
+  //
+  // Gap 2 fix: only write quoteStatus + acceptance metadata into the pending set.
+  // Do NOT write status/jobStatus as pending — those are pipeline stage fields that
+  // must remain free to sync cross-device (e.g. Device B moves the job to Invoiced
+  // after acceptance; Device A must see that stage move). Instead, clearPending for
+  // status/jobStatus so the fresh CLOUD values always win for those fields.
+  // The cloud object already carries the correct current status alongside accepted.
   if (job.quoteStatus === 'accepted') {
     const local = readJobMeta(job.id);
-    if (local.quoteStatus !== 'accepted' || local.status !== (job.status ?? 'active')) {
+    if (local.quoteStatus !== 'accepted') {
       writeJobMeta(job.id, {
         quoteStatus:    'accepted',
-        status:         job.status         ?? 'active',
-        jobStatus:      job.jobStatus      ?? 'active',
         acceptedAt:     job.acceptedAt     ?? null,
         acceptedName:   job.acceptedName   ?? null,
         acceptedSource: job.acceptedSource ?? null,
         ...(job.acceptedSignature ? { acceptedSignature: job.acceptedSignature } : {}),
       });
     }
+    // Always clear status/jobStatus pending so they don't freeze the pipeline stage.
+    // Cloud is authoritative for pipeline position; only quoteStatus needs the
+    // monotonic ratchet to guard against stale 'sent' overwriting 'accepted'.
+    clearPending(job.id, ['status', 'jobStatus']);
   }
 
   const meta    = readJobMeta(job.id);
