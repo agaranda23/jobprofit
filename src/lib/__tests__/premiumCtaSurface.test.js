@@ -81,4 +81,66 @@ describe('premium CTA surface — "Live Steel Blue"', () => {
       /@media \(prefers-reduced-motion: reduce\)[\s\S]*\.btn-premium::after[\s\S]*display: none/
     );
   });
+
+  // ── Extension: the "Log a job" header button joins the premium group ────────
+  it('promotes the Log-a-job header button (.new-btn) into the premium group', () => {
+    // Present in the base grouped selector (just before the shared hue stops).
+    expect(css).toMatch(/\.new-btn,\s*\n\.btn-premium \{\s*\n\s*\/\* hue stops/);
+    // And in the one-shot sheen pseudo group.
+    expect(css).toMatch(/\.new-btn::after,\s*\n\.btn-premium::after \{/);
+    // And in the reduced-motion group (so it inherits the opt-out automatically).
+    expect(css).toMatch(
+      /@media \(prefers-reduced-motion: reduce\)[\s\S]*\.new-btn,[\s\S]*\.btn-premium \{/
+    );
+  });
+});
+
+// ── Pipeline "Lit Accent" (Concept A) STATIC depth — no sweep, no loop ────────
+describe('pipeline depth — Concept A "Lit Accent" (static)', () => {
+  it('lifts the whole .stage-strip container with a hue-neutral elevation shadow', () => {
+    // Container drop-shadow escapes overflow:hidden; grey (not accent-tinted).
+    expect(css).toMatch(
+      /\.stage-strip \{[\s\S]*box-shadow:[\s\S]*0 4px 12px -4px rgba\(0, 0, 0, 0\.28\)/
+    );
+    // Light-theme softened lift.
+    expect(css).toMatch(
+      /\[data-theme="light"\] \.stage-strip \{[\s\S]*0 3px 8px -4px rgba\(9, 12, 20, 0\.10\)/
+    );
+  });
+
+  it('gives the selected tile an inset specular top hairline + bottom shade (survives overflow:hidden)', () => {
+    expect(css).toMatch(
+      /\.stage-tile--selected \{[\s\S]*inset 0 1px 0 rgba\(255, 255, 255, 0\.22\)[\s\S]*inset 0 -1px 0 rgba\(0, 0, 0, 0\.16\)/
+    );
+  });
+
+  it('uses a TOP-ANCHORED per-stage gradient (top stop = canonical token, so text contrast never regresses)', () => {
+    // Top stops stay at the canonical --stage-* token through 42%; only the foot darkens.
+    expect(css).toContain(
+      'linear-gradient(180deg, var(--stage-lead) 0%, var(--stage-lead) 42%, #2157CF 100%)'
+    );
+    expect(css).toContain(
+      'linear-gradient(180deg, var(--stage-quoted) 0%, var(--stage-quoted) 42%, #0C91A1 100%)'
+    );
+    expect(css).toContain(
+      'linear-gradient(180deg, var(--stage-paid) 0%, var(--stage-paid) 42%, #127136 100%)'
+    );
+  });
+
+  it('adds a barely-there lit top edge to unselected tiles WITHOUT dropping the divider', () => {
+    expect(css).toContain(
+      'inset -1px 0 0 var(--border), inset 0 1px 0 rgba(255,255,255,0.04)'
+    );
+  });
+
+  it('adds NO light-sweep pseudo, NO keyframes and NO looping animation to the strip/tiles', () => {
+    // No ::after glare pseudo on the pipeline surfaces.
+    expect(css).not.toMatch(/\.stage-tile[^{]*::after\s*\{/);
+    expect(css).not.toMatch(/\.stage-strip[^{]*::after\s*\{/);
+    // No stage-specific keyframes / infinite animation anywhere.
+    expect(css).not.toMatch(/@keyframes\s+stage-/);
+    expect(css).not.toMatch(/\.stage-(strip|tile)[\s\S]{0,400}animation:[^;]*infinite/);
+    // The only motion on a tile is the pre-existing one-shot 150ms background fade.
+    expect(css).toMatch(/\.stage-tile \{[\s\S]*transition: background 0\.15s/);
+  });
 });
