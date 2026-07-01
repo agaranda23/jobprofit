@@ -134,13 +134,18 @@ describe('pipeline depth — Concept A "Lit Accent" (static)', () => {
   });
 
   it('fixes light-theme selected-tile legibility with a dark-ink override (text only, palette locked)', () => {
-    // The four bright fills (Quoted/On/Invoiced/Overdue) flip to dark ink #1E3A5F
-    // in light theme so white-on-fill text stops failing WCAG AA. Fills untouched.
-    for (const stage of ['quoted', 'on', 'invoiced', 'overdue']) {
+    // The LIGHTER fills (Quoted/Invoiced/Overdue) flip to dark ink #1E3A5F in
+    // light theme so white-on-fill text stops failing WCAG AA. Fills untouched.
+    // On (indigo) is EXCLUDED — its fill is dark enough that white beats dark ink.
+    for (const stage of ['quoted', 'invoiced', 'overdue']) {
       expect(css).toContain(
         `[data-theme="light"] .stage-tile--${stage}.stage-tile--selected .stage-tile-name`
       );
     }
+    // On keeps white — no dark-ink override (verified by render: white wins on indigo).
+    expect(css).not.toContain(
+      '[data-theme="light"] .stage-tile--on.stage-tile--selected .stage-tile-name'
+    );
     expect(css).toMatch(
       /\[data-theme="light"\] \.stage-tile--overdue\.stage-tile--selected \.stage-tile-amount \{\s*\n\s*color: #1E3A5F;/
     );
