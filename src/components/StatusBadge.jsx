@@ -31,8 +31,8 @@ const STAGE_ICON = {
 export default function StatusBadge({ job, size = 'sm' }) {
   const stage = deriveDisplayStatus(job);
   const { bg, fg } = STAGE_COLORS[stage] || STAGE_COLORS.Lead;
-  // Stage-label token: both sm and default now resolve to --fs-stage (13px / 0.8125rem).
-  // Previously 11px (sm) / 13px (lg) — the floor rule collapses these to the same token.
+  // Stage-label token: both sm and default use --fs-label (13px / 0.8125rem).
+  // Previously --fs-stage (same value, now merged into --fs-label to remove the duplicate).
   // CSS custom properties are picked up automatically because fontSize is expressed as a
   // CSS var() string; the browser resolves it against the element's computed style.
   const padding = size === 'sm' ? '3px 10px' : '5px 12px';
@@ -47,7 +47,7 @@ export default function StatusBadge({ job, size = 'sm' }) {
       borderRadius: 'var(--radius-pill)',
       background: bg,
       color: fg,
-      fontSize: 'var(--fs-stage)',
+      fontSize: 'var(--fs-label)',
       fontWeight: 'var(--fw-stage)',
       lineHeight: 'var(--lh-stage)',
       whiteSpace: 'nowrap',
