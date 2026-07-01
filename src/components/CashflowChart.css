@@ -168,7 +168,7 @@
 .cashflow-chart__total-label {
   font-size: var(--fs-money-sm, 1.0625rem);
   font-weight: var(--fw-money, 700);
-  font-family: var(--font-mono, 'JetBrains Mono', monospace);
+  font-family: var(--font-mono);
   font-variant-numeric: tabular-nums;
   line-height: var(--lh-money-sm, 1.2);
   text-align: right;
