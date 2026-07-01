@@ -1007,7 +1007,7 @@ body { background: var(--bg); color: var(--text); -webkit-font-smoothing: antial
 .total-label { color: var(--text-dim); font-size: var(--fs-body); }
 .total-value { font-size: var(--fs-money-sm); font-weight: 600; font-family: var(--font-sans); font-variant-numeric: tabular-nums; }
 .profit-row .total-label { color: var(--text); font-weight: 600; }
-.profit-value { font-size: var(--fs-money-hero); font-weight: 700; color: var(--accent); letter-spacing: -0.01em; }
+.profit-value { font-size: var(--fs-money-hero); font-weight: 700; color: var(--accent); letter-spacing: -0.01em; font-family: var(--font-sans); font-variant-numeric: tabular-nums; }
 .total-awaiting-row { padding: 4px 0 14px; border: none !important; justify-content: flex-end; }
 .total-awaiting-label { font-size: var(--fs-label); font-weight: 600; color: var(--jp-amber); letter-spacing: -0.005em; }
 
@@ -1057,7 +1057,7 @@ body { background: var(--bg); color: var(--text); -webkit-font-smoothing: antial
   font-size: var(--fs-body);
 }
 .recent-item > :first-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.recent-amount { flex-shrink: 0; }
+.recent-amount { flex-shrink: 0; font-family: var(--font-sans); font-variant-numeric: tabular-nums; }
 .recent-item:last-child { border-bottom: none; }
 .recent-amount.pos { color: var(--accent); font-family: var(--font-sans); font-variant-numeric: tabular-nums; }
 .recent-amount.neg { color: var(--danger); font-family: var(--font-sans); font-variant-numeric: tabular-nums; }
@@ -1413,6 +1413,8 @@ body { background: var(--bg); color: var(--text); -webkit-font-smoothing: antial
   color: var(--accent) !important;
   font-weight: 700;
   letter-spacing: -0.02em;
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
 }
 .profit-row { padding: 18px 0 !important; }
 .total-value { font-size: var(--fs-money-sm); }
@@ -1871,6 +1873,8 @@ body {
   font-size: var(--fs-money-sm);
   font-weight: 700;
   color: var(--text);
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
 }
 /* Pencil edit icon button — ghost/transparent; only the icon should be visible */
 .aj-amount-chip-edit {
@@ -3500,7 +3504,7 @@ input[type=number] { -moz-appearance: textfield; }
   margin: 14px 0 0;
 }
 .avg-card-label { font-size: var(--fs-label); font-weight: 600; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 8px; }
-.avg-card-amount { font-size: var(--fs-money-hero); font-weight: 700; color: var(--text); letter-spacing: -0.01em; line-height: 1.1; }
+.avg-card-amount { font-size: var(--fs-money-hero); font-weight: 700; color: var(--text); letter-spacing: -0.01em; line-height: 1.1; font-family: var(--font-sans); font-variant-numeric: tabular-nums; }
 .avg-card-meta { font-size: var(--fs-label); color: var(--text-dim); margin-top: 2px; font-weight: 600; }
 .avg-card-compare { font-size: var(--fs-label); color: var(--text-dim); margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border); display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .avg-card-compare-soft { font-style: italic; opacity: 0.85; }
@@ -4544,6 +4548,8 @@ input[type=number] { -moz-appearance: textfield; }
   letter-spacing: -0.03em;
   line-height: 1;
   margin-bottom: 6px;
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
 }
 .outstanding-hero-sub {
   font-size: var(--fs-label);
@@ -5014,6 +5020,8 @@ input[type=number] { -moz-appearance: textfield; }
   align-items: baseline;
   flex-wrap: wrap;
   gap: 4px;
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
 }
 .money-insight__delta {
   font-size: var(--fs-label);
@@ -5334,6 +5342,8 @@ input[type=number] { -moz-appearance: textfield; }
   letter-spacing: -0.02em;
   line-height: 1.1;
   margin-bottom: 6px;
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
 }
 .money-vat__figure--reclaim {
   color: var(--accent);
@@ -7998,6 +8008,8 @@ input[type=number] { -moz-appearance: textfield; }
   letter-spacing: -0.03em;
   line-height: 1;
   margin-bottom: 6px;
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
 }
 .money-true-profit--negative .money-true-profit__figure {
   color: #ef4444;
@@ -9697,6 +9709,8 @@ button.jd-money-chip:active { opacity: 0.75; }
   font-size: var(--fs-body);
   font-weight: 700;
   line-height: 1.1;
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
 }
 
 .jd-profit-value--quote   { color: var(--primary); }
@@ -9935,6 +9949,8 @@ button.jd-money-chip:active { opacity: 0.75; }
   font-size: var(--fs-money-hero);
   font-weight: 700;
   color: var(--text);
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
 }
 .modal-price-period {
   font-size: var(--fs-body);
@@ -9967,6 +9983,8 @@ button.jd-money-chip:active { opacity: 0.75; }
   font-weight: 700;
   color: var(--accent);
   margin-top: 4px;
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
 }
 
 /* Invoice number + due date inline fields */
@@ -10580,6 +10598,8 @@ button.jd-money-chip:active { opacity: 0.75; }
   font-size: var(--fs-subhead);
   font-weight: 700;
   color: var(--accent, #00b386);
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
 }
 
 /* Flat total (no line items) */
@@ -10602,6 +10622,8 @@ button.jd-money-chip:active { opacity: 0.75; }
   font-size: var(--fs-subhead);
   font-weight: 700;
   color: var(--accent, #00b386);
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
 }
 
 /* Footer */
@@ -13961,7 +13983,8 @@ button.jd-money-chip:active { opacity: 0.75; }
   border: none;
   border-bottom: 2px solid #1F2B44;
   padding: 4px 0;
-  font-family: inherit;
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
   outline: none;
   -moz-appearance: textfield;
 }
@@ -14025,7 +14048,8 @@ button.jd-money-chip:active { opacity: 0.75; }
   border-bottom: 1px solid #1F2B44;
   color: #E5E7EB;
   font-size: var(--fs-label);
-  font-family: inherit;
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
   padding: 6px 0;
   outline: none;
   text-align: right;
@@ -14563,6 +14587,8 @@ button.jd-money-chip:active { opacity: 0.75; }
   font-size: var(--fs-subhead);
   font-weight: 700;
   color: #b3f0d5;
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
 }
 
 /* PAID IN FULL green stamp */
@@ -14980,6 +15006,8 @@ button.jd-money-chip:active { opacity: 0.75; }
   letter-spacing: -0.02em;
   line-height: 1;
   margin-bottom: 5px;
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
 }
 
 .money-tax-cis-block__sub {
@@ -17184,6 +17212,8 @@ button.jd-money-chip:active { opacity: 0.75; }
   font-weight: 700;
   color: var(--gold, #d4a017);
   line-height: 1.1;
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
 }
 
 .pro-upgrade-sheet__price-period {
