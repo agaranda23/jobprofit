@@ -768,8 +768,8 @@ function VisitRow({ visit, onTap, onMarkDone, canEdit }) {
             <div className="visit-row-sub">{dateStr}{timeStr}<VisitStatusPill status={computedStatus} /></div>
           </div>
         ) : (
-          <span className={`jd-card-row-val${isDone ? ' visit-row-val--done' : ''}`}>
-            {dateStr}{timeStr}
+          <span className="jd-card-row-val">
+            <span className={isDone ? 'visit-row-val--done' : undefined}>{dateStr}{timeStr}</span>
             <VisitStatusPill status={computedStatus} />
           </span>
         )}
