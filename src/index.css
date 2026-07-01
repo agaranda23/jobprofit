@@ -6638,25 +6638,19 @@ input[type=number] { -moz-appearance: textfield; }
   opacity: 0.7;
 }
 
-/* ── SELECTED-tile text — LIGHT THEME legibility fix (ship-blocker) ────────────
-   The selected fills above render WHITE text (dark-theme pairing). In LIGHT
-   theme the bright cyan/indigo/amber/orange fills push white text below WCAG AA
-   (Quoted #0EA5B7, On #6366F1, Invoiced #F59E0B, Overdue #F97316). Flip those
-   four to the same dark ink token used by the unselected light-theme rows
-   (#1E3A5F). This changes TEXT ONLY — fills stay locked to the canonical
-   --stage-* palette (no recolour, no hue shift). Lead (#2563EB) and Paid
-   (#15803D) stay white — dark enough to keep AA on light backgrounds.
-   Specificity ([data-theme=light] + double stage class + selected) beats both
-   the base .stage-tile--selected white/dark rules and the per-stage white rules. */
+/* ── SELECTED-tile text — LIGHT THEME legibility fix ───────────────────────────
+   Only Quoted (#0EA5B7) and Overdue (#F97316) selected tiles use WHITE text
+   (dark-theme pairing), which drops below AA on their bright fills in LIGHT theme.
+   Flip THOSE TWO to the dark ink token (#1E3A5F), matching the existing unselected
+   light-theme rows. TEXT ONLY — fills stay locked to the canonical --stage-*
+   palette (no recolour, no hue shift).
+   Deliberately EXCLUDED: On (#6366F1) and Invoiced (#F59E0B) already use near-black
+   #0B1220 text (see the per-stage rules above), which holds HIGHER contrast than
+   navy on those two fills — overriding them to #1E3A5F would REDUCE On to ~2.6:1.
+   Lead (#2563EB) and Paid (#15803D) stay white — dark enough to keep AA on light. */
 [data-theme="light"] .stage-tile--quoted.stage-tile--selected .stage-tile-name,
 [data-theme="light"] .stage-tile--quoted.stage-tile--selected .stage-tile-count,
 [data-theme="light"] .stage-tile--quoted.stage-tile--selected .stage-tile-amount,
-[data-theme="light"] .stage-tile--on.stage-tile--selected .stage-tile-name,
-[data-theme="light"] .stage-tile--on.stage-tile--selected .stage-tile-count,
-[data-theme="light"] .stage-tile--on.stage-tile--selected .stage-tile-amount,
-[data-theme="light"] .stage-tile--invoiced.stage-tile--selected .stage-tile-name,
-[data-theme="light"] .stage-tile--invoiced.stage-tile--selected .stage-tile-count,
-[data-theme="light"] .stage-tile--invoiced.stage-tile--selected .stage-tile-amount,
 [data-theme="light"] .stage-tile--overdue.stage-tile--selected .stage-tile-name,
 [data-theme="light"] .stage-tile--overdue.stage-tile--selected .stage-tile-count,
 [data-theme="light"] .stage-tile--overdue.stage-tile--selected .stage-tile-amount {
