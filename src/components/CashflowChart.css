@@ -163,12 +163,12 @@
   transition: width 0.25s ease-out;
 }
 
-/* Total label (right side) — Money-small: JetBrains Mono, 17px, weight 700 */
+/* Total label (right side) — Money-small: Hanken Grotesk, 17px, weight 700, tabular figures */
 
 .cashflow-chart__total-label {
   font-size: var(--fs-money-sm, 1.0625rem);
   font-weight: var(--fw-money, 700);
-  font-family: var(--font-mono);
+  font-family: var(--font-sans);
   font-variant-numeric: tabular-nums;
   line-height: var(--lh-money-sm, 1.2);
   text-align: right;
@@ -246,7 +246,7 @@
 }
 
 .cashflow-chart__detail-label {
-  font-weight: 500;
+  font-weight: 600;
   color: inherit;
 }
 
@@ -260,7 +260,7 @@
 @media (max-width: 360px) {
   .cashflow-chart__row,
   .cashflow-chart__row--tappable {
-    /* 64px right column: JetBrains Mono 17px "£1,234" (6 chars) measures ~64px */
+    /* 64px right column: Hanken Grotesk 17px "£1,234" (6 chars) measures ~64px */
     grid-template-columns: 56px 1fr 64px;
     gap: 5px;
   }
