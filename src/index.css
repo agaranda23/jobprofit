@@ -21572,3 +21572,342 @@ details[open].error-boundary__details summary::before {
     min-width: 200px;
   }
 }
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   PREMIUM PRIMARY BUTTON SYSTEM — "Live Steel Blue" (Concept C, founder-chosen)
+   Appended last so the depth+sheen surface cleanly supersedes the older flat
+   `background: var(--accent)` fills AND the opacity-only :active states on the
+   blue primaries defined earlier in this file.
+
+   Coverage — app-wide via a GROUPED selector on the existing classes (zero JSX
+   churn), plus a reusable `.btn-premium` alias so future buttons can opt in:
+     .jt-cta · .btn-primary · .foreman-cta-primary · .foreman-pivot-btn ·
+     .chase-row-btn-paid · .btn-premium   → the #2563EB "Live Steel Blue" recipe.
+
+   Variants keep their own hue with the SAME depth+sheen recipe (rules placed
+   AFTER the base block so they win by source order + specificity):
+     .jt-cta--urgent (rose) · .jt-cta--markpaid (success green) ·
+     .btn-danger-filled (red).
+
+   Deliberately LEFT FLAT (depth is reserved for primary intent so hierarchy
+   still reads): .btn-secondary · .jt-cta--ghost / --muted / --blocked ·
+   .chase-row-btn-chase (WhatsApp amber). The --ghost/--muted/--blocked mods
+   render as `jt-cta jt-cta--x`, so they'd inherit the base blue surface above —
+   they are explicitly reset back to flat further down.
+
+   Motion: the diagonal sheen is a ONE-SHOT pass (a `transition:
+   background-position` fired on :hover / :active) — never an infinite keyframe.
+   Only transform + background-position animate (GPU-composited); will-change is
+   scoped to transform and dropped under reduced-motion.
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+.jt-cta,
+.btn-primary,
+.foreman-cta-primary,
+.foreman-pivot-btn,
+.chase-row-btn-paid,
+.btn-premium {
+  /* hue stops — swapped per-variant below, everything else stays shared */
+  --btn-top: #2f6ef2;   /* lit top edge  */
+  --btn-bot: #1d4fd0;   /* shaded bottom */
+
+  position: relative;
+  isolation: isolate;                 /* contain the sheen pseudo */
+  overflow: hidden;                   /* clip the glare strip     */
+  color: #ffffff;
+  border: 1px solid rgba(37, 99, 235, 0.9);
+  background:
+    linear-gradient(180deg, var(--btn-top) 0%, var(--btn-bot) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),   /* top highlight */
+    inset 0 -1px 0 rgba(0, 0, 0, 0.22),        /* bottom shade  */
+    0 6px 16px -6px rgba(37, 99, 235, 0.55),   /* ambient glow  */
+    0 2px 4px -2px rgba(0, 0, 0, 0.45);        /* grounding     */
+  min-height: 44px;                   /* tap-target guarantee (AAA 44×44) */
+  transition:
+    transform 90ms ease,
+    box-shadow 140ms ease,
+    filter 140ms ease;
+  will-change: transform;             /* only the cheap prop */
+}
+
+/* diagonal light-sweep — parked off-screen until hover/press, one-shot pass */
+.jt-cta::after,
+.btn-primary::after,
+.foreman-cta-primary::after,
+.foreman-pivot-btn::after,
+.chase-row-btn-paid::after,
+.btn-premium::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;                        /* behind the label */
+  background: linear-gradient(
+    115deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.18) 46%,
+    rgba(255, 255, 255, 0.30) 50%,
+    rgba(255, 255, 255, 0.18) 54%,
+    transparent 70%
+  );
+  background-size: 250% 100%;
+  background-position: 150% 0;        /* parked off to the right */
+  transition: background-position 620ms ease;
+  pointer-events: none;
+}
+
+/* HOVER (pointer devices only) — brighten + fire the sweep once */
+@media (hover: hover) {
+  .jt-cta:hover,
+  .btn-primary:hover,
+  .foreman-cta-primary:hover,
+  .foreman-pivot-btn:hover,
+  .chase-row-btn-paid:hover,
+  .btn-premium:hover {
+    --btn-top: #3a78f6;
+    --btn-bot: #2456d9;
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.34),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.22),
+      0 8px 22px -6px rgba(37, 99, 235, 0.66),
+      0 2px 4px -2px rgba(0, 0, 0, 0.45);
+  }
+  .jt-cta:hover::after,
+  .btn-primary:hover::after,
+  .foreman-cta-primary:hover::after,
+  .foreman-pivot-btn:hover::after,
+  .chase-row-btn-paid:hover::after,
+  .btn-premium:hover::after {
+    background-position: -120% 0;      /* sweep travels across */
+  }
+}
+
+/* ACTIVE / PRESSED — the tactile depress (works on touch, not hover-only).
+   Supersedes the old `opacity: .8/.85` :active rules on these blue primaries. */
+.jt-cta:active,
+.btn-primary:active,
+.foreman-cta-primary:active,
+.foreman-pivot-btn:active,
+.chase-row-btn-paid:active,
+.btn-premium:active {
+  transform: translateY(1px) scale(0.995);
+  --btn-top: #2456d9;
+  --btn-bot: #1a46bd;
+  opacity: 1;                          /* cancel any inherited opacity-dim press */
+  filter: none;                        /* cancel the global brightness() press   */
+  box-shadow:
+    inset 0 1px 2px rgba(0, 0, 0, 0.35),          /* pushed-in look */
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 2px 6px -4px rgba(37, 99, 235, 0.40);       /* shadow collapses */
+}
+/* touch fires the sweep on press too — mobile parity */
+.jt-cta:active::after,
+.btn-primary:active::after,
+.foreman-cta-primary:active::after,
+.foreman-pivot-btn:active::after,
+.chase-row-btn-paid:active::after,
+.btn-premium:active::after {
+  background-position: -120% 0;
+}
+
+/* KEYBOARD FOCUS — 2px gap + 4px ring that clears the ambient glow */
+.jt-cta:focus-visible,
+.btn-primary:focus-visible,
+.foreman-cta-primary:focus-visible,
+.foreman-pivot-btn:focus-visible,
+.chase-row-btn-paid:focus-visible,
+.btn-premium:focus-visible {
+  outline: none;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.22),
+    0 0 0 2px #0b0d10,                 /* gap vs dark bg */
+    0 0 0 4px #7aa8ff,                 /* ≥3:1 focus ring */
+    0 6px 16px -6px rgba(37, 99, 235, 0.55);
+}
+
+/* ── VARIANT HUE-SWAPS — same depth+sheen recipe, only the two stops change.
+      Placed AFTER the base block: `.jt-cta.jt-cta--urgent` (0,2,0) beats the
+      base `.jt-cta` (0,1,0), and `.jt-cta--markpaid` renders standalone so it
+      is added to the group here directly. ─────────────────────────────────── */
+
+/* urgent / chase — rose */
+.jt-cta--urgent {
+  --btn-top: #f2556a;
+  --btn-bot: #d33350;
+  border-color: rgba(225, 57, 84, 0.9);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.30),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.22),
+    0 6px 16px -6px rgba(225, 57, 84, 0.55),
+    0 2px 4px -2px rgba(0, 0, 0, 0.45);
+}
+
+/* mark-paid + danger share the premium shell — give the standalone classes the
+   base surface machinery (gradient/sheen/press) then swap the hue. */
+.jt-cta--markpaid,
+.btn-danger-filled {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background: linear-gradient(180deg, var(--btn-top) 0%, var(--btn-bot) 100%);
+  min-height: 44px;
+  transition:
+    transform 90ms ease,
+    box-shadow 140ms ease,
+    filter 140ms ease;
+  will-change: transform;
+}
+.jt-cta--markpaid::after,
+.btn-danger-filled::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(
+    115deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.18) 46%,
+    rgba(255, 255, 255, 0.30) 50%,
+    rgba(255, 255, 255, 0.18) 54%,
+    transparent 70%
+  );
+  background-size: 250% 100%;
+  background-position: 150% 0;
+  transition: background-position 620ms ease;
+  pointer-events: none;
+}
+.jt-cta--markpaid:active,
+.btn-danger-filled:active {
+  transform: translateY(1px) scale(0.995);
+  opacity: 1;
+  filter: none;
+}
+.jt-cta--markpaid:active::after,
+.btn-danger-filled:active::after {
+  background-position: -120% 0;
+}
+@media (hover: hover) {
+  .jt-cta--markpaid:hover::after,
+  .btn-danger-filled:hover::after {
+    background-position: -120% 0;
+  }
+}
+
+/* success green — "Mark paid" */
+.jt-cta--markpaid {
+  --btn-top: #1f9d55;
+  --btn-bot: #157a3c;
+  color: #ffffff;
+  border: 1px solid rgba(21, 128, 61, 0.9);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.22),
+    0 6px 16px -6px rgba(21, 128, 61, 0.5),
+    0 2px 4px -2px rgba(0, 0, 0, 0.45);
+}
+.jt-cta--markpaid:active {
+  --btn-top: #157a3c;
+  --btn-bot: #0f6330;
+  box-shadow:
+    inset 0 1px 2px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 2px 6px -4px rgba(21, 128, 61, 0.4);
+}
+
+/* destructive — red */
+.btn-danger-filled {
+  --btn-top: #f2564e;
+  --btn-bot: #d33a33;
+  color: #ffffff;                      /* white on the deeper red gradient */
+  border: 1px solid rgba(220, 60, 50, 0.9);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.22),
+    0 6px 16px -6px rgba(220, 60, 50, 0.5),
+    0 2px 4px -2px rgba(0, 0, 0, 0.45);
+}
+.btn-danger-filled:active {
+  --btn-top: #d33a33;
+  --btn-bot: #b52f29;
+  background: linear-gradient(180deg, var(--btn-top) 0%, var(--btn-bot) 100%);
+  box-shadow:
+    inset 0 1px 2px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 2px 6px -4px rgba(220, 60, 50, 0.4);
+}
+
+/* ── RESET the flat-by-design .jt-cta modifiers back to flat. They render as
+      `jt-cta jt-cta--ghost|--muted|--blocked` so they'd otherwise inherit the
+      base blue premium surface above. Depth is reserved for primary intent. ── */
+.jt-cta--ghost,
+.jt-cta--muted,
+.jt-cta--blocked {
+  position: static;
+  isolation: auto;
+  overflow: visible;
+  box-shadow: none;
+  will-change: auto;
+}
+.jt-cta--ghost::after,
+.jt-cta--muted::after,
+.jt-cta--blocked::after {
+  content: none;
+}
+.jt-cta--ghost {
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+.jt-cta--muted {
+  background: transparent;
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+}
+.jt-cta--blocked {
+  background: var(--jp-rose-deep);
+  color: #fff;
+  border: none;
+}
+/* keep their original opacity-only press — no depth */
+.jt-cta--ghost:active,
+.jt-cta--muted:active,
+.jt-cta--blocked:active {
+  transform: none;
+}
+
+/* ── REDUCED MOTION — kill the sweep + press-travel, keep the static depth.
+      Applies across every premium surface (blue base + variants). ─────────── */
+@media (prefers-reduced-motion: reduce) {
+  .jt-cta,
+  .btn-primary,
+  .foreman-cta-primary,
+  .foreman-pivot-btn,
+  .chase-row-btn-paid,
+  .jt-cta--markpaid,
+  .btn-danger-filled,
+  .btn-premium {
+    transition: box-shadow 120ms ease;
+    will-change: auto;
+  }
+  .jt-cta::after,
+  .btn-primary::after,
+  .foreman-cta-primary::after,
+  .foreman-pivot-btn::after,
+  .chase-row-btn-paid::after,
+  .jt-cta--markpaid::after,
+  .btn-danger-filled::after,
+  .btn-premium::after {
+    display: none;
+  }
+  .jt-cta:active,
+  .btn-primary:active,
+  .foreman-cta-primary:active,
+  .foreman-pivot-btn:active,
+  .chase-row-btn-paid:active,
+  .jt-cta--markpaid:active,
+  .btn-danger-filled:active,
+  .btn-premium:active {
+    transform: none;
+  }
+}
