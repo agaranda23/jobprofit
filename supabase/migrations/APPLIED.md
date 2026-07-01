@@ -54,6 +54,7 @@ the audit script, and the long-term `supabase db push` path.
 | 31 | `20260622000000_add_welcome_email_sent_at.sql` | deferred | Adds profiles.welcome_email_sent_at (timestamptz) — idempotency guard for send-welcome-email function. Run in Supabase Studio after merging feat/welcome-email and before provisioning RESEND_API_KEY. |
 | 32 | `20260623000000_create_job_chase_states.sql` | deferred | Creates job_chase_states table for cloud-synced chase tracking (JP-LU8 PR A). **RUN THIS IN THE SUPABASE SQL EDITOR BEFORE OR AFTER MERGE** — the cloud path degrades gracefully to localStorage if the table is missing, so merging first is safe. See migration file for full SQL. |
 | 33 | `20260623010000_add_referrals.sql` | deferred | Adds profiles.referral_code + profiles.referred_by, creates referrals table with RLS (JP-LU7 Phase 1). **RUN IN SUPABASE SQL EDITOR after merging feat/referral-link-attribution** — all code degrades gracefully if the columns/table don't exist yet (42703 → no-op). Phase 2 (Stripe reward grant) is a separate PR blocked on creating the Stripe coupon. |
+| 34 | `20260701000000_add_google_review_link_to_profiles.sql` | deferred | Adds profiles.google_review_link (nullable text) for the post-paid "Leave a Google review" CTA. **RUN IN SUPABASE SQL EDITOR after merging feat/post-paid-review-nudge** — if the column is missing, the review CTA is silently replaced by the settings nudge (graceful degradation). |
 
 ---
 

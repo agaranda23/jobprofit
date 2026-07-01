@@ -83,6 +83,8 @@ import AppErrorBoundary from './components/AppErrorBoundary.jsx';
 import Splash from './components/Splash.jsx';
 import DashboardPager from './components/DashboardPager.jsx';
 import PaidCelebration from './components/PaidCelebration.jsx';
+import PostPaidSheet from './components/PostPaidSheet.jsx';
+import AddJobModal from './components/AddJobModal.jsx';
 import { haptic } from './lib/haptics.js';
 
 // ─── App-boot cleanup ─────────────────────────────────────────────────────────
@@ -181,6 +183,15 @@ export default function AppShell() {
   // paidCelebration: amount to show in the shared PaidCelebration overlay.
   // null = hidden; a number = overlay is active with that paid amount.
   const [paidCelebrationAmount, setPaidCelebrationAmount] = useState(null);
+  // postPaidJob: the job that was just marked paid; drives PostPaidSheet.
+  // null = sheet hidden; a job object = sheet is pending (shows after PaidCelebration dismisses).
+  const [postPaidJob, setPostPaidJob] = useState(null);
+  // addJobPrefill: pre-filled fields for the re-book AddJobModal opened from PostPaidSheet.
+  // null = modal closed; { customer, phone, address } = modal open with those defaults.
+  const [addJobPrefill, setAddJobPrefill] = useState(null);
+  // workOverlayOpen: true while WorkScreen's JobDetailDrawer or RecordPaymentModal is on-screen.
+  // Used by PostPaidSheet's active condition (Option A) so the sheet doesn't stack on the drawer.
+  const [workOverlayOpen, setWorkOverlayOpen] = useState(false);
   // Debounce timer for the realtime onChange → refreshFromCloud path.
   // A burst of postgres_changes events (e.g. bulk offline sync flushes) would
   // otherwise fire one full refetch per event.  2-second trailing debounce
@@ -265,11 +276,12 @@ export default function AppShell() {
   );
 
   // settingsScrollTarget: when FinanceScreen's "Add your costs" nudge fires,
-  // navigate to Settings AND tell SettingsScreen to scroll to the overheads
-  // section. Cleared by SettingsScreen via onScrollTargetConsumed once it has
-  // scrolled. Null = no pending scroll.
-  // NOTE: the section naming/structure is pending PRD's overheads redesign —
-  // do not rename 'overheads' here until that spec lands.
+  // navigate to Settings AND tell SettingsScreen to navigate to the target sub-screen.
+  // Cleared by SettingsScreen via onScrollTargetConsumed once consumed.
+  // Null = no pending target.
+  // Valid values: 'overheads' | 'invoices' | null
+  //   'overheads' → navigates to Settings > Costs sub-screen (legacy: used by FinanceScreen nudge).
+  //   'invoices'  → navigates to Settings > Invoices & Quotes sub-screen (used by PostPaidSheet review nudge).
   const [settingsScrollTarget, setSettingsScrollTarget] = useState(null);
 
   // ── Materials library state ───────────────────────────────────────────────────
@@ -937,6 +949,9 @@ export default function AppShell() {
     // Fire the shared paid celebration + haptic on every mark-paid gesture.
     haptic('success');
     setPaidCelebrationAmount(job.total ?? job.amount ?? null);
+    // PostPaidSheet will show after PaidCelebration auto-dismisses (~1.3s).
+    // We pass the original job here — customer/phone/address are read-only props.
+    setPostPaidJob(updated);
 
     // Payment recorded first (state update above). Now decide whether to show
     // the lightweight cost-capture snackbar. Auto-dismisses after 6 s if the
@@ -981,6 +996,8 @@ export default function AppShell() {
     if (updated.status === 'paid') {
       haptic('success');
       setPaidCelebrationAmount(updated.total ?? updated.amount ?? null);
+      // PostPaidSheet will show after PaidCelebration auto-dismisses.
+      setPostPaidJob(updated);
     }
   };
 
@@ -1002,6 +1019,8 @@ export default function AppShell() {
     if (!wasPaid && nowPaid) {
       haptic('success');
       setPaidCelebrationAmount(updated.total ?? updated.amount ?? null);
+      // PostPaidSheet will show after PaidCelebration auto-dismisses.
+      setPostPaidJob(updated);
     }
   };
 
@@ -1267,7 +1286,12 @@ export default function AppShell() {
     dropToFreeOpen ||
     moneyExportSheetOpen ||
     pushPromptVisible ||
-    paidCelebrationAmount !== null
+    paidCelebrationAmount !== null ||
+    // QA must-fix #1: postPaidJob is tracked unconditionally (not ANDed with
+    // paidCelebrationAmount === null) so the pager stays locked during the full
+    // PaidCelebration → PostPaidSheet sequence.
+    postPaidJob !== null ||
+    addJobPrefill !== null
   );
 
   // Page index for the pager. -1 when view is 'settings' (pager not rendered).
@@ -1334,6 +1358,7 @@ export default function AppShell() {
             defaultMarkup={profile?.default_markup ?? 20}
             onBrowseMaterials={() => setMaterialsOpen(true)}
             onMaterialSaved={handleMaterialSaved}
+            onOverlayChange={setWorkOverlayOpen}
           />
 
           {/* Page 2 — Money/Finance */}
@@ -1616,6 +1641,49 @@ export default function AppShell() {
         amount={paidCelebrationAmount}
         onDone={() => setPaidCelebrationAmount(null)}
       />
+
+      {/* ── Post-paid "What's next?" sheet ────────────────────────────────────── */}
+      {/* Shows after PaidCelebration auto-dismisses (~1.3s). Suppressed while the */}
+      {/* JobDetailDrawer / RecordPaymentModal is still on-screen (Option A).      */}
+      <PostPaidSheet
+        active={postPaidJob !== null && paidCelebrationAmount === null && !workOverlayOpen}
+        job={postPaidJob}
+        profile={profile}
+        onClose={() => setPostPaidJob(null)}
+        onBookAgain={(p) => { setPostPaidJob(null); setAddJobPrefill(p); }}
+        onGoToReviewSettings={() => {
+          setPostPaidJob(null);
+          navigate('settings');
+          setSettingsScrollTarget('invoices');
+        }}
+      />
+
+      {/* ── Re-book AddJobModal (opened from PostPaidSheet "Book again" CTA) ───── */}
+      {/* Pre-fills customer/phone/address from the just-paid job.                  */}
+      {/* Date and amount are intentionally blank — re-books start fresh.           */}
+      {addJobPrefill && (
+        <AddJobModal
+          onClose={() => setAddJobPrefill(null)}
+          onSave={async (j) => { await handleAddJob(j); setAddJobPrefill(null); }}
+          onSaveAndSend={async (payload) => {
+            // Save the job, close this modal, then let the caller handle send.
+            // WorkScreen/TodayScreen each have their own handleSaveAndSend that
+            // opens ReviewSheet. From AppShell we just save — the invoice flow
+            // must be initiated from the job tile after the modal closes.
+            await handleAddJob(payload);
+            setAddJobPrefill(null);
+          }}
+          defaultMode="details-manual"
+          initialCustomer={addJobPrefill.customer || ''}
+          initialPhone={addJobPrefill.phone || ''}
+          initialAddress={addJobPrefill.address || ''}
+          tradePrimary={profile?.trade_primary ?? null}
+          materials={materials}
+          defaultMarkup={profile?.default_markup ?? 20}
+          onBrowseMaterials={() => setMaterialsOpen(true)}
+          onMaterialSaved={handleMaterialSaved}
+        />
+      )}
     </AppErrorBoundary>
   );
 }

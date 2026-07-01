@@ -93,6 +93,29 @@ export function buildInvoiceWhatsAppMessage({ job, biz, invoiceNumber, dueDate, 
   return lines.join('\n');
 }
 
+/**
+ * Builds a post-paid WhatsApp review-request message.
+ * Sent via the PostPaidSheet "Leave a Google review" CTA after a job is marked paid.
+ *
+ * @param {object} args
+ * @param {object} args.job  — the paid job (customer, customerName)
+ * @param {object} args.biz  — the trader's profile (google_review_link, name, business_name, trading_name)
+ */
+export function buildReviewRequestWhatsAppMessage({ job, biz }) {
+  const firstName = (job?.customer || job?.customerName || '').split(' ')[0] || '';
+  const reviewLink = biz?.google_review_link || '';
+  const bizName = biz?.name || biz?.business_name || biz?.trading_name || '';
+  const lines = [];
+  lines.push(firstName ? `Hi ${firstName},` : 'Hi,');
+  lines.push('');
+  lines.push("Really appreciate the work — if you have 30 seconds, a Google review would mean a lot.");
+  if (reviewLink) { lines.push(''); lines.push(reviewLink); }
+  lines.push('');
+  lines.push('Thanks,');
+  if (bizName) lines.push(bizName); // omit blank sign-off line when business name unset
+  return lines.join('\n');
+}
+
 // Normalises a UK phone number for wa.me. Strips spaces, replaces a leading
 // 0 with the UK country code 44, and drops a leading +. Returns '' if no
 // usable digits — wa.me will then open with no recipient (acceptable

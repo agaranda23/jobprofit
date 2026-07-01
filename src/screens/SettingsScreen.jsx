@@ -2006,11 +2006,10 @@ export default function SettingsScreen({
   onOpenJob,
   onNavigateToCardPayments,
   onBrowseMaterials,
-  // scrollTarget: 'overheads' | null — from AppShell when the user taps
-  // "Add your costs" on the Money tab.
-  // Phase 1: receiving 'overheads' now navigates to the Costs sub-screen
-  // instead of scrolling (overheadsRef removed). AppShell is unchanged —
-  // it still passes 'overheads'; we handle it here by routing to 'costs'.
+  // scrollTarget: 'overheads' | 'invoices' | null — from AppShell.
+  //   'overheads' → navigates to Settings > Costs sub-screen (from FinanceScreen nudge).
+  //   'invoices'  → navigates to Settings > Invoices & Quotes sub-screen (from PostPaidSheet review nudge).
+  // Cleared by onScrollTargetConsumed once consumed. Null = no pending target.
   scrollTarget = null,
   onScrollTargetConsumed,
   // settingsResetKey: counter incremented by AppShell when the user taps the
@@ -2090,6 +2089,14 @@ export default function SettingsScreen({
   useEffect(() => {
     if (scrollTarget !== 'overheads') return;
     navigateToSubScreen('costs');
+    onScrollTargetConsumed?.();
+  }, [scrollTarget, navigateToSubScreen, onScrollTargetConsumed]);
+
+  // invoices deep-link: navigate to Invoices & Quotes sub-screen.
+  // Triggered by PostPaidSheet's "Set your review link →" nudge tap.
+  useEffect(() => {
+    if (scrollTarget !== 'invoices') return;
+    navigateToSubScreen('invoices');
     onScrollTargetConsumed?.();
   }, [scrollTarget, navigateToSubScreen, onScrollTargetConsumed]);
 
@@ -2528,6 +2535,17 @@ export default function SettingsScreen({
     validate: null,
   });
 
+  const openEditGoogleReviewLink = () => setActiveEdit({
+    modal: 'google_review_link',
+    fieldKey: 'google_review_link',
+    fieldLabel: 'Google review link',
+    currentValue: profile?.google_review_link || '',
+    inputType: 'url',
+    placeholder: 'https://g.page/r/...',
+    helpText: 'Paste your Google review shortlink. After a job is paid, we offer to send it to the customer via WhatsApp.',
+    validate: null,
+  });
+
   const openEditTermsText = () => setActiveEdit({
     modal: 'terms_text',
     fieldKey: 'terms_text',
@@ -2791,6 +2809,11 @@ export default function SettingsScreen({
             label="Website"
             value={profile?.website || '—'}
             onTap={openEditWebsite}
+          />
+          <Row
+            label="Google review link"
+            value={profile?.google_review_link?.trim() ? 'Set' : 'Not set'}
+            onTap={openEditGoogleReviewLink}
           />
           <Row
             label="Bank details"
