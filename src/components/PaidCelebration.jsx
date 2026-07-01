@@ -13,7 +13,7 @@
  * Design tokens used:
  *   --on-success (#fff on #16A34A)
  *   --fs-money-hero for the amount
- *   JetBrains Mono for the £ amount (data-font="mono")
+ *   Hanken Grotesk + tabular-nums for the £ amount
  */
 
 import { useEffect, useRef } from 'react';
