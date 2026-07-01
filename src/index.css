@@ -6384,6 +6384,22 @@ input[type=number] { -moz-appearance: textfield; }
   border-radius: var(--radius-md);
   padding: 3px;
   overflow: hidden; /* clip concentric corners; no scroll */
+  /* ── Concept A "Lit Accent" depth (static — NO sweep, NO keyframes) ──────────
+     Per-tile OUTER shadows are clipped by overflow:hidden, so the strip is
+     lifted as ONE physical object here: the container's own drop-shadow escapes
+     its box (the container IS the clipping context, not a clipped child).
+     Hue-NEUTRAL grey (the strip holds six stage hues — a tinted glow would fight
+     the amber/orange/green tiles). Additive only — bg/border/radius/padding kept. */
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.03),   /* faint lit top edge */
+    0 1px 2px rgba(0, 0, 0, 0.30),             /* contact shadow     */
+    0 4px 12px -4px rgba(0, 0, 0, 0.28);       /* soft elevation     */
+}
+/* Light theme: gentle card lift on white, no smudge; drop the dark inset. */
+[data-theme="light"] .stage-strip {
+  box-shadow:
+    0 1px 2px rgba(9, 12, 20, 0.06),
+    0 3px 8px -4px rgba(9, 12, 20, 0.10);
 }
 
 /* Each segment: equal share of the strip width, no minimum that would force scroll */
@@ -6449,27 +6465,32 @@ input[type=number] { -moz-appearance: textfield; }
    replaced by the per-chip .stage-marker dot (feat/stage-chip-rings) — one
    circular stage indicator per chip, echoing the workflow-cycle circles.
    The right-edge divider stays as a separate inset shadow on the right edge. */
+/* Concept-A tactility: a barely-there (0.04 white) lit top edge on each resting
+   tile, COMBINED with the existing divider shadow in one declaration (a second
+   box-shadow property would overwrite the divider). 0.04 is below the selected
+   tile's 0.22 sheen so it never competes. Light theme relies on the ramp (no
+   highlight added) to avoid any wash on #f9fafb. */
 .stage-tile--lead:not(.stage-tile--selected) {
   background: rgba(37,99,235,0.07);
-  box-shadow: inset -1px 0 0 var(--border);
+  box-shadow: inset -1px 0 0 var(--border), inset 0 1px 0 rgba(255,255,255,0.04);
 }
 .stage-tile--quoted:not(.stage-tile--selected) {
   background: rgba(40,181,129,0.06);
-  box-shadow: inset -1px 0 0 var(--border);
+  box-shadow: inset -1px 0 0 var(--border), inset 0 1px 0 rgba(255,255,255,0.04);
 }
 .stage-tile--on:not(.stage-tile--selected) {
   background: rgba(40,181,129,0.12);
-  box-shadow: inset -1px 0 0 var(--border);
+  box-shadow: inset -1px 0 0 var(--border), inset 0 1px 0 rgba(255,255,255,0.04);
 }
 .stage-tile--invoiced:not(.stage-tile--selected) {
   background: rgba(40,181,129,0.20);
-  box-shadow: inset -1px 0 0 var(--border);
+  box-shadow: inset -1px 0 0 var(--border), inset 0 1px 0 rgba(255,255,255,0.04);
 }
 .stage-tile--paid:not(.stage-tile--selected) {
   background: rgba(24,134,90,0.16);
-  /* Paid is :last-child — no right-edge divider needed, but box-shadow: none is
-     explicit so the rule is consistent and a future sibling addition is safe. */
-  box-shadow: none;
+  /* Paid is :last-child — no right-edge divider needed. Takes only the 0.04 top
+     highlight (no divider) to keep its no-divider behaviour. */
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
 }
 
 /* Resting ink override — LIGHT THEME ONLY.
@@ -6494,7 +6515,17 @@ input[type=number] { -moz-appearance: textfield; }
    Default selected fill uses the brand green (On/Invoiced); stage-specific overrides below. */
 .stage-tile--selected {
   background: var(--jp-green);
-  box-shadow: none; /* override the inset divider — active tile has no right-border */
+  /* Concept-A depth on the selected tile: a 1px inset specular top HAIRLINE
+     (lit-from-above) + a 1px inset bottom shade (deeper foot). These survive
+     overflow:hidden (outer shadows would be clipped). This REPLACES the old
+     box-shadow:none — it also drops the right divider (selected has none), which
+     is the intended behaviour. Hairlines are NOT text backgrounds, so they do
+     NOT regress white-on-fill text contrast. 0.22 stays below the CTA's 0.28
+     (restraint on small dense tiles). Shared across all stages; per-stage rules
+     only set the gradient background. */
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.16);
 }
 /* No divider after the segment immediately before an active one either —
    achieved by selecting the preceding sibling via JS class would be complex,
@@ -6544,7 +6575,9 @@ input[type=number] { -moz-appearance: textfield; }
 
 /* Lead selected: brand-cycle blue fill with white text */
 .stage-tile--lead.stage-tile--selected {
-  background: var(--stage-lead);
+  /* Top-anchored vertical gradient: top 42% stays at the canonical token so the
+     text region NEVER regresses contrast vs main; only the foot darkens ~11%. */
+  background: linear-gradient(180deg, var(--stage-lead) 0%, var(--stage-lead) 42%, #2157CF 100%);
 }
 .stage-tile--lead.stage-tile--selected .stage-tile-name,
 .stage-tile--lead.stage-tile--selected .stage-tile-count,
@@ -6558,7 +6591,7 @@ input[type=number] { -moz-appearance: textfield; }
 
 /* Overdue selected: brand-cycle orange fill */
 .stage-tile--overdue.stage-tile--selected {
-  background: var(--stage-overdue);
+  background: linear-gradient(180deg, var(--stage-overdue) 0%, var(--stage-overdue) 42%, #DB6513 100%);
 }
 .stage-tile--overdue.stage-tile--selected .stage-tile-name,
 .stage-tile--overdue.stage-tile--selected .stage-tile-count,
@@ -6572,21 +6605,21 @@ input[type=number] { -moz-appearance: textfield; }
 
 /* Per-stage selected fills — canonical --stage-* tokens (feat/workflow-circles-brand-cycle)
    Chips and circles now share the same palette so stage colours agree across the UI. */
-.stage-tile--quoted.stage-tile--selected { background: var(--stage-quoted); }
+.stage-tile--quoted.stage-tile--selected { background: linear-gradient(180deg, var(--stage-quoted) 0%, var(--stage-quoted) 42%, #0C91A1 100%); }
 .stage-tile--quoted.stage-tile--selected .stage-tile-name,
 .stage-tile--quoted.stage-tile--selected .stage-tile-count,
 .stage-tile--quoted.stage-tile--selected .stage-tile-amount {
   color: #ffffff;
 }
 
-.stage-tile--on.stage-tile--selected { background: var(--stage-on); }
+.stage-tile--on.stage-tile--selected { background: linear-gradient(180deg, var(--stage-on) 0%, var(--stage-on) 42%, #575AD4 100%); }
 .stage-tile--on.stage-tile--selected .stage-tile-name,
 .stage-tile--on.stage-tile--selected .stage-tile-count,
 .stage-tile--on.stage-tile--selected .stage-tile-amount {
   color: #0B1220;
 }
 
-.stage-tile--invoiced.stage-tile--selected { background: var(--stage-invoiced); }
+.stage-tile--invoiced.stage-tile--selected { background: linear-gradient(180deg, var(--stage-invoiced) 0%, var(--stage-invoiced) 42%, #D88B0A 100%); }
 .stage-tile--invoiced.stage-tile--selected .stage-tile-name,
 .stage-tile--invoiced.stage-tile--selected .stage-tile-count,
 .stage-tile--invoiced.stage-tile--selected .stage-tile-amount {
@@ -6594,7 +6627,7 @@ input[type=number] { -moz-appearance: textfield; }
 }
 
 /* Paid — deep green, white text for contrast */
-.stage-tile--paid.stage-tile--selected { background: var(--stage-paid); }
+.stage-tile--paid.stage-tile--selected { background: linear-gradient(180deg, var(--stage-paid) 0%, var(--stage-paid) 42%, #127136 100%); }
 .stage-tile--paid.stage-tile--selected .stage-tile-name,
 .stage-tile--paid.stage-tile--selected .stage-tile-count,
 .stage-tile--paid.stage-tile--selected .stage-tile-amount {
@@ -6603,6 +6636,25 @@ input[type=number] { -moz-appearance: textfield; }
 .stage-tile--paid.stage-tile--selected .stage-tile-amount--empty {
   color: #FFFFFF;
   opacity: 0.7;
+}
+
+/* ── SELECTED-tile text — LIGHT THEME legibility fix ───────────────────────────
+   Only Quoted (#0EA5B7) and Overdue (#F97316) selected tiles use WHITE text
+   (dark-theme pairing), which drops below AA on their bright fills in LIGHT theme.
+   Flip THOSE TWO to the dark ink token (#1E3A5F), matching the existing unselected
+   light-theme rows. TEXT ONLY — fills stay locked to the canonical --stage-*
+   palette (no recolour, no hue shift).
+   Deliberately EXCLUDED: On (#6366F1) and Invoiced (#F59E0B) already use near-black
+   #0B1220 text (see the per-stage rules above), which holds HIGHER contrast than
+   navy on those two fills — overriding them to #1E3A5F would REDUCE On to ~2.6:1.
+   Lead (#2563EB) and Paid (#15803D) stay white — dark enough to keep AA on light. */
+[data-theme="light"] .stage-tile--quoted.stage-tile--selected .stage-tile-name,
+[data-theme="light"] .stage-tile--quoted.stage-tile--selected .stage-tile-count,
+[data-theme="light"] .stage-tile--quoted.stage-tile--selected .stage-tile-amount,
+[data-theme="light"] .stage-tile--overdue.stage-tile--selected .stage-tile-name,
+[data-theme="light"] .stage-tile--overdue.stage-tile--selected .stage-tile-count,
+[data-theme="light"] .stage-tile--overdue.stage-tile--selected .stage-tile-amount {
+  color: #1E3A5F;
 }
 
 /* Tile typography — 6 equal segments at 360px: each cell is ~59px wide, ~55px text area.
@@ -21606,6 +21658,7 @@ details[open].error-boundary__details summary::before {
 .foreman-cta-primary,
 .foreman-pivot-btn,
 .chase-row-btn-paid,
+.new-btn,
 .btn-premium {
   /* hue stops — swapped per-variant below, everything else stays shared */
   --btn-top: #2f6ef2;   /* lit top edge  */
@@ -21637,6 +21690,7 @@ details[open].error-boundary__details summary::before {
 .foreman-cta-primary::after,
 .foreman-pivot-btn::after,
 .chase-row-btn-paid::after,
+.new-btn::after,
 .btn-premium::after {
   content: "";
   position: absolute;
@@ -21663,6 +21717,7 @@ details[open].error-boundary__details summary::before {
   .foreman-cta-primary:hover,
   .foreman-pivot-btn:hover,
   .chase-row-btn-paid:hover,
+  .new-btn:hover,
   .btn-premium:hover {
     --btn-top: #3a78f6;
     --btn-bot: #2456d9;
@@ -21677,6 +21732,7 @@ details[open].error-boundary__details summary::before {
   .foreman-cta-primary:hover::after,
   .foreman-pivot-btn:hover::after,
   .chase-row-btn-paid:hover::after,
+  .new-btn:hover::after,
   .btn-premium:hover::after {
     background-position: -120% 0;      /* sweep travels across */
   }
@@ -21689,6 +21745,7 @@ details[open].error-boundary__details summary::before {
 .foreman-cta-primary:active,
 .foreman-pivot-btn:active,
 .chase-row-btn-paid:active,
+.new-btn:active,
 .btn-premium:active {
   transform: translateY(1px) scale(0.995);
   --btn-top: #2456d9;
@@ -21706,6 +21763,7 @@ details[open].error-boundary__details summary::before {
 .foreman-cta-primary:active::after,
 .foreman-pivot-btn:active::after,
 .chase-row-btn-paid:active::after,
+.new-btn:active::after,
 .btn-premium:active::after {
   background-position: -120% 0;
 }
@@ -21716,6 +21774,7 @@ details[open].error-boundary__details summary::before {
 .foreman-cta-primary:focus-visible,
 .foreman-pivot-btn:focus-visible,
 .chase-row-btn-paid:focus-visible,
+.new-btn:focus-visible,
 .btn-premium:focus-visible {
   outline: none;
   box-shadow:
@@ -21884,6 +21943,7 @@ details[open].error-boundary__details summary::before {
   .foreman-cta-primary,
   .foreman-pivot-btn,
   .chase-row-btn-paid,
+  .new-btn,
   .jt-cta--markpaid,
   .btn-danger-filled,
   .btn-premium {
@@ -21895,6 +21955,7 @@ details[open].error-boundary__details summary::before {
   .foreman-cta-primary::after,
   .foreman-pivot-btn::after,
   .chase-row-btn-paid::after,
+  .new-btn::after,
   .jt-cta--markpaid::after,
   .btn-danger-filled::after,
   .btn-premium::after {
@@ -21905,6 +21966,7 @@ details[open].error-boundary__details summary::before {
   .foreman-cta-primary:active,
   .foreman-pivot-btn:active,
   .chase-row-btn-paid:active,
+  .new-btn:active,
   .jt-cta--markpaid:active,
   .btn-danger-filled:active,
   .btn-premium:active {
