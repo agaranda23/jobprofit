@@ -52,7 +52,7 @@
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 8px 28px 8px 12px;
-  font-size: 13px;
+  font-size: var(--fs-label);
   font-weight: 600;
   font-family: inherit;
   color: var(--text);
@@ -88,7 +88,7 @@
   color: var(--text-dim);
   padding: 8px 0;
   border-radius: 8px;
-  font-size: 13px;
+  font-size: var(--fs-label);
   font-weight: 600;
   font-family: inherit;
   cursor: pointer;
@@ -132,7 +132,7 @@
 /* Month label */
 
 .cashflow-chart__month-label {
-  font-size: var(--fs-metadata, 0.8125rem);
+  font-size: var(--fs-label);
   line-height: var(--lh-metadata, 1.4);
   color: var(--cf-empty-color);
   white-space: nowrap;
@@ -144,7 +144,7 @@
 
 .cashflow-chart__empty-dash {
   color: var(--cf-empty-color);
-  font-size: 1rem;
+  font-size: var(--fs-body);
   line-height: 1;
 }
 
@@ -266,8 +266,8 @@
   }
 
   .cashflow-chart__month-label {
-    /* Floor rule: nothing readable below 0.8125rem (13px). Keep Metadata token. */
-    font-size: var(--fs-metadata, 0.8125rem);
+    /* Floor rule: nothing readable below 0.8125rem (13px). Use label token. */
+    font-size: var(--fs-label);
   }
 
   .cashflow-chart__total-label {
@@ -277,6 +277,6 @@
 
   .cashflow-chart__detail {
     padding-left: 65px;
-    font-size: var(--fs-metadata, 0.8125rem);
+    font-size: var(--fs-label);
   }
 }

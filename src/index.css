@@ -24,12 +24,12 @@
      Only --fs-money-hero uses clamp() to guard tile overflow at extreme scales.
 
      Size tokens                    rem         ≈px    use
-     --fs-label     section labels  0.8125rem   13    TAX POT, PAID IN, CUSTOMER …
-     --fs-metadata  dates, age "39d"0.8125rem   13    receipt lines, chart months
+     --fs-meta      fine print      0.75rem     12    hints, teasers, fine-print
+     --fs-label     section labels  0.8125rem   13    labels, metadata, stage badges
      --fs-body      job sub-lines   1rem         16    "20% of profit · £0 this month"
      --fs-emphasis  scan targets    1.0625rem   17    job name, customer name in row
      --fs-subhead   drawer titles   1.1875rem   19    "kitchen jobs", "Sarah"
-     --fs-stage     badge text      0.8125rem   13    stage badge inside StatusBadge
+     --fs-heading   detail headers  1.375rem    22    .job-detail-customer / -summary
      --fs-money-sm  per-row amounts 1.125rem    18    £300 row, chart £ values
      --fs-money-hero big tile figs  clamp(…)    34-46 TAX POT, PAID IN hero, £780 title
 
@@ -48,14 +48,14 @@
      --lh-money-sm  1.2
      --lh-money-hero 1.1
   ── */
-  --fs-label:       0.8125rem;
-  --fs-metadata:    0.8125rem;
-  --fs-body:        1rem;
-  --fs-emphasis:    1.0625rem;
-  --fs-subhead:     1.1875rem;
-  --fs-stage:       0.8125rem;
-  --fs-money-sm:    1.125rem;
-  --fs-money-hero:  clamp(2.125rem, 7.5vw, 2.875rem);
+  --fs-meta:        0.75rem;    /* 12px — fine print, hints, teaser text */
+  --fs-label:       0.8125rem;  /* 13px — section labels, metadata, stage badges */
+  --fs-body:        1rem;       /* 16px — job sub-lines, body copy */
+  --fs-emphasis:    1.0625rem;  /* 17px — job name, customer name in row */
+  --fs-subhead:     1.1875rem;  /* 19px — drawer titles */
+  --fs-heading:     1.375rem;   /* 22px — job-detail header names */
+  --fs-money-sm:    1.125rem;   /* 18px — per-row amounts */
+  --fs-money-hero:  clamp(2.125rem, 7.5vw, 2.875rem); /* 34-46px — hero tiles */
 
   --fw-label:   600;
   --fw-money:   700;
@@ -3918,7 +3918,7 @@ input[type=number] { -moz-appearance: textfield; }
 }
 
 .pager-count {
-  font-size: var(--fs-metadata);
+  font-size: var(--fs-label);
   color: var(--text-secondary, rgba(255,255,255,0.5));
   white-space: nowrap;
 }
@@ -4447,7 +4447,7 @@ input[type=number] { -moz-appearance: textfield; }
   align-items: baseline;
   padding: 4px 0;
 }
-.schedule-slot-time { font-size: 12px; font-weight: 700; color: var(--jp-green); min-width: 36px; }
+.schedule-slot-time { font-size: var(--fs-meta); font-weight: 700; color: var(--jp-green); min-width: 36px; }
 .schedule-slot-title { font-size: 14px; color: var(--text); }
 .schedule-slot-empty {
   background: none;
@@ -4462,7 +4462,7 @@ input[type=number] { -moz-appearance: textfield; }
   width: 100%;
   text-align: left;
 }
-.schedule-add { color: var(--jp-green); font-weight: 700; font-size: 12px; }
+.schedule-add { color: var(--jp-green); font-weight: 700; font-size: var(--fs-meta); }
 
 /* ── FinanceScreen ──────────────────────────────── */
 .finance-screen .screen-title { color: var(--text); }
@@ -4580,7 +4580,7 @@ input[type=number] { -moz-appearance: textfield; }
 
 /* "Last chased Nd ago" pill — sits inline in .unpaid-main */
 .chase-row-pill {
-  font-size: var(--fs-metadata);
+  font-size: var(--fs-label);
   font-weight: 400;
   line-height: var(--lh-metadata);
   color: var(--text-dim);
@@ -4706,7 +4706,7 @@ input[type=number] { -moz-appearance: textfield; }
   margin-bottom: 6px;
 }
 .money-hero__ytd-line {
-  font-size: var(--fs-metadata);
+  font-size: var(--fs-label);
   color: var(--text-dim);
   font-weight: 400;
   line-height: var(--lh-metadata);
@@ -4791,7 +4791,7 @@ input[type=number] { -moz-appearance: textfield; }
   background: rgba(255,255,255,0.08);
   border: 1px solid rgba(255,255,255,0.12);
   border-radius: 20px;
-  font-size: var(--fs-metadata);
+  font-size: var(--fs-label);
   font-weight: 600;
   color: var(--text-dim);
 }
@@ -4802,7 +4802,7 @@ input[type=number] { -moz-appearance: textfield; }
   padding-top: 10px;
 }
 .money-hero__true-profit-prompt p {
-  font-size: var(--fs-metadata);
+  font-size: var(--fs-label);
   color: var(--text-dim);
   margin: 0;
   line-height: var(--lh-metadata);
@@ -4814,7 +4814,7 @@ input[type=number] { -moz-appearance: textfield; }
   margin: 0 0 4px;
 }
 .money-hero__true-profit-prompt-body {
-  font-size: var(--fs-metadata);
+  font-size: var(--fs-label);
   color: var(--text-dim);
   margin: 0 0 10px;
   line-height: var(--lh-metadata);
@@ -5223,7 +5223,7 @@ input[type=number] { -moz-appearance: textfield; }
 }
 .money-accountant-tools__hint {
   margin: 8px 0 0;
-  font-size: var(--fs-metadata);
+  font-size: var(--fs-label);
   color: var(--text-muted, #6b7280);
   line-height: var(--lh-metadata);
 }
@@ -6023,7 +6023,7 @@ input[type=number] { -moz-appearance: textfield; }
 /* Live % readout below the amount field in RecordPaymentModal */
 .payment-pct-hint {
   display: block;
-  font-size: 12px;
+  font-size: var(--fs-meta);
   color: var(--text-dim);
   margin-top: 4px;
 }
@@ -6593,7 +6593,7 @@ input[type=number] { -moz-appearance: textfield; }
    "OVERDUE" ≈ 48px. "AWAITING" is NOT used here (StatusBadge only). Safe at 360px.
    If a label is later added that exceeds 8 chars, flag to PRD for copy-shortening. */
 .stage-tile-name {
-  font-size: var(--fs-stage);
+  font-size: var(--fs-label);
   font-weight: var(--fw-stage);
   letter-spacing: -0.05em;
   color: var(--text-dim);
@@ -6604,7 +6604,7 @@ input[type=number] { -moz-appearance: textfield; }
   max-width: 100%;
 }
 .stage-tile-count {
-  font-size: var(--fs-stage);
+  font-size: var(--fs-label);
   font-weight: var(--fw-money);
   color: var(--text);
   line-height: var(--lh-stage);
@@ -6614,7 +6614,7 @@ input[type=number] { -moz-appearance: textfield; }
   max-width: 100%;
 }
 .stage-tile-amount {
-  font-size: var(--fs-stage);
+  font-size: var(--fs-label);
   font-weight: 600;
   color: var(--text-dim);
   line-height: var(--lh-stage);
@@ -7692,7 +7692,7 @@ input[type=number] { -moz-appearance: textfield; }
   border-radius: var(--radius-pill);
   color: var(--text-dim);
   font-family: var(--font-mono); /* referral code string — keep system monospace */
-  font-size: 0.75rem;
+  font-size: var(--fs-meta);
   padding: 5px 10px;
   cursor: pointer;
   max-width: 180px;
@@ -8275,7 +8275,7 @@ input[type=number] { -moz-appearance: textfield; }
   min-width: 0;
 }
 .job-detail-customer {
-  font-size: 1.375rem;  /* 22px — explicit heading step above the 17px subhead token (no larger token in the scale) */
+  font-size: var(--fs-heading);  /* 22px — heading step; see --fs-heading token */
   font-weight: 700;
   line-height: 1.3;  /* tightened for the larger 22px name; matches the customer line for a unified block */
   font-variant-numeric: tabular-nums;
@@ -8290,7 +8290,7 @@ input[type=number] { -moz-appearance: textfield; }
 .job-detail-summary {
   /* Customer line — matches the job name exactly per founder ask:
      22px / 700 / var(--text) / line-height 1.3 (no longer muted --text-dim). */
-  font-size: 1.375rem;  /* 22px — identical to .job-detail-customer (job name) */
+  font-size: var(--fs-heading);  /* 22px — identical to .job-detail-customer (job name) */
   font-weight: 700;
   line-height: 1.3;  /* single canonical customer line-height; the 1.2 duplicate below is removed */
   color: var(--text);
@@ -8450,7 +8450,7 @@ button.jd-money-chip:active { opacity: 0.75; }
 }
 .jd-chip-sub {
   display: block;
-  font-size: var(--fs-metadata);
+  font-size: var(--fs-label);
   font-weight: 400;
   white-space: nowrap;
   opacity: 0.75;
@@ -8763,7 +8763,7 @@ button.jd-money-chip:active { opacity: 0.75; }
   display: flex;
   align-items: flex-start;
   gap: 8px;
-  font-size: var(--fs-metadata);
+  font-size: var(--fs-label);
   line-height: var(--lh-metadata);
   color: var(--text-dim);
 }
@@ -8954,7 +8954,7 @@ button.jd-money-chip:active { opacity: 0.75; }
 }
 
 .jd-receipt-label {
-  font-size: var(--fs-metadata);
+  font-size: var(--fs-label);
   font-weight: 600;
   line-height: var(--lh-metadata);
   color: var(--text);
@@ -8964,7 +8964,7 @@ button.jd-money-chip:active { opacity: 0.75; }
 }
 
 .jd-receipt-date {
-  font-size: var(--fs-metadata);
+  font-size: var(--fs-label);
   font-weight: 400;
   line-height: var(--lh-metadata);
   color: var(--text-dim);
@@ -11155,7 +11155,7 @@ button.jd-money-chip:active { opacity: 0.75; }
   background: var(--chip-fill, var(--jt-fill));
   border: 1px solid var(--chip-ink, var(--jt-ink));
   color: var(--chip-ink, var(--jt-ink));
-  font-size: var(--fs-stage);
+  font-size: var(--fs-label);
   font-weight: var(--fw-stage);
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -11246,7 +11246,7 @@ button.jd-money-chip:active { opacity: 0.75; }
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  font-size: var(--fs-metadata);
+  font-size: var(--fs-label);
   line-height: var(--lh-metadata);
 }
 /* Inside the price row, the row owns the vertical rhythm — zero the price's own
@@ -11275,7 +11275,7 @@ button.jd-money-chip:active { opacity: 0.75; }
   flex-wrap: wrap;
   gap: 0 4px;
   margin-bottom: 8px;
-  font-size: var(--fs-metadata);
+  font-size: var(--fs-label);
   color: var(--text-dim);
   line-height: var(--lh-metadata);
   min-height: 14px;
@@ -16289,7 +16289,7 @@ button.jd-money-chip:active { opacity: 0.75; }
   max-width: 100%;
 }
 .visit-row-sub {
-  font-size: var(--fs-metadata);
+  font-size: var(--fs-label);
   color: var(--text);
   font-weight: 400;
   display: flex;
@@ -18942,7 +18942,7 @@ button.jd-money-chip:active { opacity: 0.75; }
 
 /* Job title/summary — secondary line under customer name */
 .jt-compact-summary {
-  font-size: var(--fs-metadata);
+  font-size: var(--fs-label);
   color: var(--text-dim);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -18969,14 +18969,14 @@ button.jd-money-chip:active { opacity: 0.75; }
 /* Re-uses existing .jt-stage-label styles for the stage chip */
 
 .jt-compact-date {
-  font-size: var(--fs-metadata);
+  font-size: var(--fs-label);
   color: var(--text-dim);
 }
 
 /* Profit sub-line — pinned to right edge of line 2, same column as amount above */
 .jt-compact-profit {
   font-family: var(--font-sans);
-  font-size: var(--fs-metadata);
+  font-size: var(--fs-label);
   font-weight: 600;
   color: var(--accent);
   font-variant-numeric: tabular-nums;
@@ -19001,7 +19001,7 @@ button.jd-money-chip:active { opacity: 0.75; }
   border: none;
   padding: 0;
   font: inherit;
-  font-size: var(--fs-metadata);
+  font-size: var(--fs-label);
   color: var(--text-dim);
   cursor: pointer;
   text-decoration: underline;
@@ -19021,7 +19021,7 @@ button.jd-money-chip:active { opacity: 0.75; }
   border: none;
   padding: 0;
   font: inherit;
-  font-size: var(--fs-metadata);
+  font-size: var(--fs-label);
   cursor: pointer;
   min-height: 0;
   /* Inherit colour from the parent profit span (green/red per profit sign) */
@@ -20492,7 +20492,7 @@ button.jd-money-chip:active { opacity: 0.75; }
 }
 
 .money-five-sec__label {
-  font-size: var(--fs-metadata);
+  font-size: var(--fs-label);
   font-weight: 600;
   color: var(--text-dim);
   letter-spacing: 0.04em;
@@ -20505,7 +20505,7 @@ button.jd-money-chip:active { opacity: 0.75; }
    Sits below the profit figure, small and muted, so touch users can read it
    without tapping a tooltip. */
 .money-hero__qualifier-label {
-  font-size: var(--fs-metadata);
+  font-size: var(--fs-label);
   color: var(--text-dim);
   font-weight: 400;
   letter-spacing: 0.01em;
@@ -20575,7 +20575,7 @@ button.jd-money-chip:active { opacity: 0.75; }
 
 /* Teaser — visible only when closed; hints at what's inside */
 .money-more-insights-toggle__teaser {
-  font-size: 12px;
+  font-size: var(--fs-meta);
   font-weight: 600;
   color: var(--text-dim);
   letter-spacing: 0.01em;
@@ -21504,7 +21504,7 @@ button.jd-money-chip:active { opacity: 0.75; }
 }
 
 .error-boundary__details summary {
-  font-size: var(--fs-metadata);
+  font-size: var(--fs-label);
   color: var(--text-dim);
   cursor: pointer;
   padding: 4px 0;
@@ -21528,7 +21528,7 @@ details[open].error-boundary__details summary::before {
   color: var(--text);
   padding: 12px;
   border-radius: 8px;
-  font-size: var(--fs-metadata);
+  font-size: var(--fs-label);
   overflow-x: auto;
   margin: 8px 0 0;
   white-space: pre-wrap;
@@ -21536,7 +21536,7 @@ details[open].error-boundary__details summary::before {
 }
 
 .error-boundary__footnote {
-  font-size: var(--fs-metadata);
+  font-size: var(--fs-label);
   color: var(--text-dim);
   margin: 0;
   max-width: 320px;
