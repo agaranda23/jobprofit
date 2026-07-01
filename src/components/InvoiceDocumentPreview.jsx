@@ -98,7 +98,7 @@ function PreviewMeta({ invoiceNumber, dueDate, paymentTermsDays = 14 }) {
 
   return (
     <div style={{ marginBottom: 14 }}>
-      <div style={{ fontSize: 22, fontWeight: 900, color: GREEN, letterSpacing: '-0.5px', marginBottom: 6 }}>
+      <div style={{ fontSize: 22, fontWeight: 700, color: GREEN, letterSpacing: '-0.5px', marginBottom: 6 }}>
         INVOICE
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
@@ -406,7 +406,7 @@ export default function InvoiceDocumentPreview({
         border: '1px solid #e0e0e0',
         padding: 16,
         boxShadow: '0 1px 6px rgba(0,0,0,0.08)',
-        fontFamily: "'DM Sans', system-ui, -apple-system, sans-serif",
+        fontFamily: 'var(--font-sans)',
         color: DARK,
       }}
     >
