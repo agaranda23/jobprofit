@@ -6,6 +6,7 @@ import {
   computeFinishStatus,
   getScheduleMeta,
   isLastPlannedVisit,
+  hasVisitDate,
 } from '../visits.js';
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -74,6 +75,53 @@ describe('readVisits', () => {
     const result = readVisits(job);
     expect(result).toHaveLength(1);
     expect(result[0].id).toBe('legacy-0');
+  });
+});
+
+// ── hasVisitDate ─────────────────────────────────────────────────────────────
+// Drives the "Mark booked" nudge: true = book instantly, false = show the guard.
+
+describe('hasVisitDate', () => {
+  it('returns false for null/undefined/empty job', () => {
+    expect(hasVisitDate(null)).toBe(false);
+    expect(hasVisitDate(undefined)).toBe(false);
+    expect(hasVisitDate({})).toBe(false);
+  });
+
+  it('returns false for an empty visits[] array', () => {
+    expect(hasVisitDate({ visits: [] })).toBe(false);
+  });
+
+  it('returns false when a visit row exists but its date is empty/null/undefined', () => {
+    expect(hasVisitDate({ visits: [{ id: 'v-1', date: '', status: 'planned' }] })).toBe(false);
+    expect(hasVisitDate({ visits: [{ id: 'v-1', date: null, status: 'planned' }] })).toBe(false);
+    expect(hasVisitDate({ visits: [{ id: 'v-1', status: 'planned' }] })).toBe(false);
+  });
+
+  it('returns true when at least one visit carries a real date', () => {
+    expect(hasVisitDate({ visits: [{ id: 'v-1', date: '2026-07-10', status: 'planned' }] })).toBe(true);
+  });
+
+  it('returns true when any visit has a date even if others do not', () => {
+    const job = {
+      visits: [
+        { id: 'v-1', date: '', status: 'planned' },
+        { id: 'v-2', date: '2026-07-10', status: 'planned' },
+      ],
+    };
+    expect(hasVisitDate(job)).toBe(true);
+  });
+
+  it('returns true for a legacy scheduledDate-only job', () => {
+    expect(hasVisitDate({ scheduledDate: '2026-07-10' })).toBe(true);
+  });
+
+  it('returns false for a legacy job whose scheduledDate is null', () => {
+    expect(hasVisitDate({ scheduledDate: null })).toBe(false);
+  });
+
+  it('still returns true for a cancelled visit that carries a date (v1 behaviour)', () => {
+    expect(hasVisitDate({ visits: [{ id: 'v-1', date: '2026-07-10', status: 'cancelled' }] })).toBe(true);
   });
 });
 

@@ -44,6 +44,7 @@ import StageStrip from '../components/StageStrip';
 import DocumentSearchOverlay from '../components/DocumentSearchOverlay';
 import { logTelemetry } from '../lib/telemetry';
 import { deriveDisplayStatus, requiresPriceForStage, stagePatch } from '../lib/jobStatus';
+import { hasVisitDate } from '../lib/visits';
 import { deleteJobWithData } from '../lib/store';
 import { buildDeleteJobCopy } from '../lib/deleteJobCopy';
 import { shouldShowPartPaidChip, formatPartPaidLabel } from '../lib/partPaidChip';
@@ -526,7 +527,7 @@ function StageChipDropdown({ job, currentStage, onUpdateJob, _onSendInvoice, onS
  * Invoiced + Overdue use chaseLadder for tiered WhatsApp messages.
  * Paid stage opens ReceiptModal via onViewReceipt.
  */
-function getStageCTA(stage, job, { onSendInvoice, onUpdateJob, _onNewJob, onOpenJob, biz, onViewReceipt }) {
+function getStageCTA(stage, job, { onSendInvoice, onUpdateJob, _onNewJob, onOpenJob, biz, onViewReceipt, onRequestBook }) {
   switch (stage) {
     case 'Lead':
       return {
@@ -543,7 +544,16 @@ function getStageCTA(stage, job, { onSendInvoice, onUpdateJob, _onNewJob, onOpen
         label: 'Mark booked',
         mod: null,
         // Flips status to active — same behaviour as the old "Move to On →" button.
-        action: () => onUpdateJob?.({ ...job, status: 'active' }),
+        // Soft-confirm guard: if the job already has a visit date, book instantly
+        // (zero friction, identical to before). If it has NO date, don't book yet —
+        // open the book-guard sheet so the trade can add a date or book anyway.
+        action: () => {
+          if (hasVisitDate(job)) {
+            onUpdateJob?.({ ...job, status: 'active' });
+          } else {
+            onRequestBook?.(job);
+          }
+        },
       };
 
     case 'On':
@@ -654,7 +664,7 @@ function deriveMoneySub(job, stage) {
  * Customer demoted to secondary line; falls back: if summary empty, customer
  * becomes the primary label so the tile is never a bare "Untitled job".
  */
-function JobTile({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJob, onCopyJob, onArchiveJob, onDeleteJob, biz, onShowToast, onViewReceipt, onActionRedirect, onCallJob }) {
+function JobTile({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJob, onCopyJob, onArchiveJob, onDeleteJob, biz, onShowToast, onViewReceipt, onActionRedirect, onCallJob, onRequestBook }) {
   const stage = deriveDisplayStatus(job);
   const isPaid = stage === 'Paid';
 
@@ -683,7 +693,7 @@ function JobTile({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJo
   // 1E: First line of address appended to the secondary identity line.
   const addrLine = firstLineOfAddress(job.address);
 
-  const cta = getStageCTA(stage, job, { onSendInvoice, onUpdateJob, onNewJob, onOpenJob, biz, onViewReceipt });
+  const cta = getStageCTA(stage, job, { onSendInvoice, onUpdateJob, onNewJob, onOpenJob, biz, onViewReceipt, onRequestBook });
   const stageMeta = STAGE_META[stage] || STAGE_META.Lead;
 
   // Draft flag — shown before other signals when a draft exists
@@ -1056,7 +1066,7 @@ function Pager({ page, totalPages, onPage, totalItems, pageSize }) {
 // ── JobsList subview ──────────────────────────────────────────────────────────
 
 // JP-LU5 PR1: layout, colSort, onColSort, onUpgrade props removed — card view only.
-function JobsList({ jobs, _receipts, selectedStage, showAll, searchQuery, _profile, onJobSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJob, onCopyJob, onArchiveJob, onDeleteJob, biz, onShowToast, onViewReceipt, onAddJob, onActionRedirect, onCallJob }) {
+function JobsList({ jobs, _receipts, selectedStage, showAll, searchQuery, _profile, onJobSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJob, onCopyJob, onArchiveJob, onDeleteJob, biz, onShowToast, onViewReceipt, onAddJob, onActionRedirect, onCallJob, onRequestBook }) {
   const q = (searchQuery || '').trim();
   const listTopRef = useRef(null);
 
@@ -1127,6 +1137,7 @@ function JobsList({ jobs, _receipts, selectedStage, showAll, searchQuery, _profi
             onViewReceipt={onViewReceipt}
             onActionRedirect={onActionRedirect}
             onCallJob={onCallJob}
+            onRequestBook={onRequestBook}
           />
         ))}
       </ul>
@@ -1177,6 +1188,10 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
   const [chaseBarJustChased, setChaseBarJustChased] = useState(null);
   // confirmDeleteJob — job pending hard-delete confirmation; null = modal closed.
   const [confirmDeleteJob, setConfirmDeleteJob] = useState(null);
+  // confirmBookJob — job pending the "Mark booked" soft-confirm nudge; null = sheet closed.
+  // Only set for a Quoted job with NO visit date (hasVisitDate false). The job stays
+  // on Quoted until the trade picks an action in the sheet — nothing is ever blocked.
+  const [confirmBookJob, setConfirmBookJob] = useState(null);
   // receiptJob — job whose receipt modal is open; null = closed.
   const [receiptJob, setReceiptJob] = useState(null);
   // docOverlay — which global document search overlay is open ('jobs'|'quotes'|'invoices'|null).
@@ -1220,6 +1235,15 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
       // silently swallow — private mode or storage full
     }
   }, [selectedStage, showAll]);
+
+  // ESC dismisses the "Mark booked" soft-confirm sheet with no state change
+  // (job stays Quoted). It's a nudge, never a trap.
+  useEffect(() => {
+    if (!confirmBookJob) return;
+    const onKey = (e) => { if (e.key === 'Escape') setConfirmBookJob(null); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [confirmBookJob]);
 
   // ── Call-pay prompt ────────────────────────────────────────────────────────
   // When the founder taps Call and then returns to the app, offer a one-tap
@@ -1562,6 +1586,12 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
     setConfirmDeleteJob(job);
   };
 
+  // Opens the "Mark booked" soft-confirm sheet. Only called for a Quoted job with
+  // no visit date — the booking guard lets the trade add a date or book anyway.
+  const handleRequestBook = (job) => {
+    setConfirmBookJob(job);
+  };
+
   // Confirmed hard-delete — cascade-removes photos, linked receipts, and the jobs row.
   const handleConfirmDeleteJob = async () => {
     const job = confirmDeleteJob;
@@ -1844,6 +1874,7 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
         onAddJob={openAddJob}
         onActionRedirect={handleActionRedirect}
         onCallJob={handleCallJob}
+        onRequestBook={handleRequestBook}
       />
 
       {/* Job detail drawer — wrapped in an error boundary so a render crash
@@ -1954,6 +1985,57 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
           </div>
         );
       })()}
+
+      {/* Book-guard sheet — soft-confirm shown when a Quoted job with NO visit date
+          is marked booked. Reuses the .modal-backdrop + .modal-card primitive (bottom
+          sheet on mobile via align-items:flex-end, centred card on desktop ≥481px, and
+          it clears the on-screen keyboard via --kb-inset) — the same pattern the
+          confirm-delete modal above uses. We deliberately do NOT use .jt-menu--sheet
+          here: that primitive is display:none on desktop, so it would render invisible
+          on wide screens. Nothing is ever blocked — booking is one tap away in the sheet. */}
+      {confirmBookJob && createPortal(
+        <div className="modal-backdrop" onClick={() => setConfirmBookJob(null)}>
+          <div
+            className="modal-card book-guard-card"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="book-guard-title"
+            aria-describedby="book-guard-body"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="book-guard-grab" aria-hidden="true" />
+            <h2 id="book-guard-title" className="modal-card-title">No visit date yet</h2>
+            <p id="book-guard-body" className="modal-card-body">
+              This job isn&rsquo;t scheduled. You can still mark it booked, or add a
+              visit date first so it shows up in your diary.
+            </p>
+            <div className="book-guard-actions">
+              <button
+                type="button"
+                className="modal-btn modal-btn--primary"
+                onClick={() => {
+                  onUpdateJob?.({ ...confirmBookJob, status: 'active' });
+                  setConfirmBookJob(null);
+                }}
+              >
+                Mark booked
+              </button>
+              <button
+                type="button"
+                className="modal-btn modal-btn--secondary"
+                onClick={() => {
+                  const j = confirmBookJob;
+                  setConfirmBookJob(null);
+                  handleOpenJob(j, { intent: 'schedule' });
+                }}
+              >
+                Add a date
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
 
       {/* Receipt modal — opened by "View receipt" CTA on Paid job tiles */}
       {receiptJob && (
