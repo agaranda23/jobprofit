@@ -1315,6 +1315,30 @@ body { background: var(--bg); color: var(--text); -webkit-font-smoothing: antial
   background: #E5484D;
   color: #fff;
 }
+/* Primary variant — reuses the accent CTA colour (blue + white), no forked hue.
+   Used by the book-guard sheet's default "Mark booked" action. */
+.modal-btn--primary {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* Book-guard sheet — mobile-first: grab handle + full-width stacked buttons.
+   The card itself reuses .modal-card (bottom sheet on mobile, centred on desktop). */
+.book-guard-grab {
+  width: 36px;
+  height: 4px;
+  border-radius: var(--radius-pill);
+  background: #4B5563;
+  margin: -8px auto 14px;
+}
+.book-guard-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.book-guard-actions .modal-btn {
+  width: 100%;
+}
 
 .btn-primary {
   background: var(--accent);

@@ -2277,8 +2277,10 @@ export default function JobDetailDrawer({
   onAddPayment,
   onClose,
   // Optional intent passed by WorkScreen when the drawer is opened with a
-  // specific goal: 'quote' (user tapped "Send quote →" tile CTA) or
-  // 'price' (user tried to advance stage without a price).
+  // specific goal: 'quote' (user tapped "Send quote →" tile CTA),
+  // 'price' (user tried to advance stage without a price), or
+  // 'schedule' (the "Mark booked" nudge's "Add a date" — opens the Schedule
+  // accordion + Add-visit editor for a date-less job).
   intent = null,
   targetStage = null,
   onClearIntent,
@@ -2376,6 +2378,13 @@ export default function JobDetailDrawer({
   // survives the Price accordion's mount-on-expand — a tick set before the child
   // mounts would be missed. null = nothing pending.
   const [pendingLineSheetIdx, setPendingLineSheetIdx] = useState(null);
+
+  // Schedule accordion expansion — incremented to programmatically expand the
+  // Schedule CollapsedSectionRow (e.g. the WorkScreen "Add a date" nudge deep-links
+  // in via intent='schedule'). Mirrors priceAccordionExpandTick. Needed because the
+  // VisitEditorSheet is a child of the (default-collapsed) Schedule accordion, so the
+  // sheet only mounts once the accordion is expanded.
+  const [scheduleAccordionExpandTick, setScheduleAccordionExpandTick] = useState(0);
 
   // Visit editor sheet — multi-visit path
   // editingVisit: null (closed) | { ...Visit } (existing) | { _isNew: true } (add)
@@ -2780,6 +2789,20 @@ export default function JobDetailDrawer({
   useEffect(() => {
     if (intent === 'quote' && !needsPrice(job) && reviewSheetMode === null) {
       setReviewSheetMode('quote');
+      onClearIntent?.();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [intent]);
+
+  // When the WorkScreen "Mark booked" nudge deep-links in via intent='schedule'
+  // (the trade chose "Add a date" instead of booking a date-less job), expand the
+  // Schedule accordion and open the Add-visit editor pre-seeded to tomorrow — the
+  // exact same setEditingVisit call the "+ Add visit" pill uses. Clears intent so it
+  // doesn't re-fire. Placed with the other intent effects, above any early return.
+  useEffect(() => {
+    if (intent === 'schedule') {
+      setScheduleAccordionExpandTick(t => t + 1);
+      setEditingVisit({ _isNew: true, date: tomorrowDateString(), status: 'planned' });
       onClearIntent?.();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -3992,6 +4015,7 @@ export default function JobDetailDrawer({
                   title="Schedule"
                   meta={scheduledDisplay}
                   defaultExpanded={false}
+                  forceExpandTick={scheduleAccordionExpandTick}
                 >
                   {/* Send Invoice prompt — shown when last visit marked done */}
                   {showInvoicePrompt && (

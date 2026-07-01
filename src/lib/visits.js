@@ -58,6 +58,19 @@ export function readVisits(job) {
 }
 
 /**
+ * hasVisitDate(job) → boolean
+ *
+ * True when the job has at least one visit carrying a real date. Uses readVisits
+ * (which folds in the legacy scheduledDate) but checks `.some(v => !!v.date)` —
+ * NOT `.length > 0` — because a visit row can exist with an empty date string
+ * (computeVisitStatus explicitly allows date-less visits, returning 'planned').
+ * `!!v.date` treats '', null and undefined as no-date.
+ */
+export function hasVisitDate(job) {
+  return readVisits(job).some(v => !!v.date);
+}
+
+/**
  * writeVisits(job, visits) → Partial<Job>
  *
  * Returns the patch object to spread onto the job update call.
