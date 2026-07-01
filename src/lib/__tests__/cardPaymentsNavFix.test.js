@@ -68,20 +68,6 @@ function makeNode(tag, attrs = {}, parentNode = null) {
   };
 }
 
-// Build a chain of nodes: innermost tag first, outermost last. Returns the
-// innermost node (the "touch target").
-function chain(...tags) {
-  let parent = null;
-  const nodes = tags.map(tag => {
-    const n = makeNode(tag, {}, parent);
-    parent = n;
-    return n;
-  });
-  // Return the first element (innermost); we want the deepest node as target
-  // but the chain is built outermost-first here, so reverse for clarity:
-  return makeNode('span', {}, nodes[nodes.length - 1]);
-}
-
 // ── Tests for insideInteractiveElement ────────────────────────────────────────
 
 describe('insideInteractiveElement — direct interactive tags', () => {

@@ -54,45 +54,6 @@ function compressDataUrl(dataUrl, maxWidth = 800, quality = 0.7) {
 }
 
 /**
- * Returns true when a PNG data-URL contains meaningful (non-trivial) alpha.
- *
- * Draws the image into an offscreen canvas and samples the alpha channel.
- * "Meaningful" means at least one pixel has alpha < 250 (i.e. not fully opaque).
- * Non-PNG inputs are treated as opaque (return false).
- *
- * @param {string} dataUrl
- * @returns {Promise<boolean>}
- */
-function hasMeaningfulAlpha(dataUrl) {
-  return new Promise((resolve) => {
-    if (!dataUrl.startsWith('data:image/png')) {
-      resolve(false);
-      return;
-    }
-    const img = new Image();
-    img.onload = () => {
-      // Sample at a capped resolution to keep this fast
-      const MAX = 256;
-      const scale = Math.min(1, MAX / Math.max(img.width, img.height));
-      const w = Math.round(img.width * scale);
-      const h = Math.round(img.height * scale);
-      const canvas = document.createElement('canvas');
-      canvas.width = w;
-      canvas.height = h;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(img, 0, 0, w, h);
-      const data = ctx.getImageData(0, 0, w, h).data;
-      for (let i = 3; i < data.length; i += 4) {
-        if (data[i] < 250) { resolve(true); return; }
-      }
-      resolve(false);
-    };
-    img.onerror = () => resolve(false);
-    img.src = dataUrl;
-  });
-}
-
-/**
  * Downscales a logo data-URL so its longest edge is ≤ maxEdge pixels,
  * then re-encodes as JPEG (quality q) on a white background.
  *

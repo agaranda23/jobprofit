@@ -94,19 +94,6 @@ export async function logoUrlToBase64(url) {
 }
 
 /**
- * Infers jsPDF image type from a data-URL or a URL pathname.
- * Returns 'JPEG' for .jpg/.jpeg/data:image/jpeg, 'PNG' for everything else
- * (PNG is the safe default; jsPDF handles it without needing EXIF data).
- */
-function inferImageType(src) {
-  if (!src) return 'PNG';
-  const lower = src.toLowerCase();
-  if (lower.startsWith('data:image/jpeg') || lower.startsWith('data:image/jpg')) return 'JPEG';
-  if (lower.includes('.jpg') || lower.includes('.jpeg')) return 'JPEG';
-  return 'PNG';
-}
-
-/**
  * Draws the shared business header block (logo + name + address + contact + UTR/VAT IDs).
  * Returns the y position just below the header rule.
  *

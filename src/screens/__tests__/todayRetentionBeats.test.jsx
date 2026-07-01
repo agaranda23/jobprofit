@@ -269,7 +269,7 @@ describe('TodayScreen — overdue-money push (item 2)', () => {
 describe('TodayScreen — paid-flash animation on mark-paid gesture (item 4)', () => {
   it('adds foreman-prompt-card--paid-flash class after mark-paid tap', async () => {
     const job = overdueJob('j1', 500);
-    const { container } = renderToday([job], [], PROFILE_FREE);
+    renderToday([job], [], PROFILE_FREE);
 
     // Click "Mark paid" secondary button to open the picker
     const markPaidBtn = screen.getByRole('button', { name: /mark paid/i });
@@ -281,7 +281,6 @@ describe('TodayScreen — paid-flash animation on mark-paid gesture (item 4)', (
 
     // The flash class should be added synchronously on the gesture
     await waitFor(() => {
-      const promptCard = container.querySelector('.foreman-prompt-card');
       // promptCard may be null if the card re-ranks to all-clear; check the flash
       // via the paid-flash class on the DOM (may be gone already if timer expired)
       // The class fires at the moment of click — we test the handler, not the timer.

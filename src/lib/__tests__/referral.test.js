@@ -10,7 +10,7 @@
  *   D. copyReferralLink — navigator.share and clipboard fallback (mocked)
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   buildReferralLink,
   generateReferralCode,
@@ -159,12 +159,6 @@ describe('C. ensureReferralCode', () => {
 // ── D. copyReferralLink ───────────────────────────────────────────────────────
 
 describe('D. copyReferralLink', () => {
-  let originalNavigator;
-
-  beforeEach(() => {
-    originalNavigator = { ...navigator };
-  });
-
   afterEach(() => {
     vi.restoreAllMocks();
   });

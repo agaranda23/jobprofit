@@ -76,16 +76,6 @@ function legacyCloudAcceptedJob(id = 'job-uuid-legacy') {
   };
 }
 
-/** Simulate what mapCloudJobToToday returns for a still-quoted job. */
-function cloudQuotedJob(id = 'job-uuid-002') {
-  return {
-    id,
-    quoteStatus: 'sent',
-    total:       200,
-    amount:      200,
-  };
-}
-
 // ── THE FIX IS NOW IN applyJobMeta ───────────────────────────────────────────
 // JP-LU6: healAcceptedMeta() was deleted. The ratchet now lives inside
 // applyJobMeta() itself, so it fires on every merge path automatically.

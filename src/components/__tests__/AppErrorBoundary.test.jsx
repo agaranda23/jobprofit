@@ -96,7 +96,7 @@ describe('AppErrorBoundary variant="screen"', () => {
       return <span>Recovered</span>;
     }
 
-    const { rerender } = render(
+    render(
       <AppErrorBoundary variant="screen">
         <ConditionalBomb />
       </AppErrorBoundary>

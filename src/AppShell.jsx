@@ -27,7 +27,7 @@ import { hydrateChaseState, isDoubleSendBlocked } from './lib/chaseLadder';
 import { buildChaseList } from './lib/chaseList.js';
 import AuthScreen from './components/AuthScreen';
 import { parseHash, replaceHistory } from './lib/navigation';
-import { writeJobMeta, readJobMeta, extractJobMeta, applyJobMetaToJobs, clearPending } from './lib/jobMeta';
+import { writeJobMeta, extractJobMeta, applyJobMetaToJobs, clearPending } from './lib/jobMeta';
 import { subscribeToJobs } from './lib/realtime';
 import { addPayment } from './lib/payments';
 import {
@@ -172,7 +172,7 @@ export default function AppShell() {
   const [authReady, setAuthReady] = useState(false);
   const [cloudLoaded, setCloudLoaded] = useState(false);
   const [pendingLink, setPendingLink] = useState(null); // receipt awaiting job link
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [_drawerOpen, setDrawerOpen] = useState(false);
   // ── Snackbar manager (JP-LU2) ────────────────────────────────────────────────
   // Single priority-queue surface replacing the old navToast / realtimeToast /
   // costSnackbar state + their individual setTimeout calls.

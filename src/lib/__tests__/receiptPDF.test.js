@@ -62,7 +62,7 @@ vi.mock('jspdf-autotable', () => ({
 // Returns a predictable JPEG data URL so addImage call-site assertions stay
 // deterministic. drawHeader and drawFooter are both async now (PR fix/pdf-logo-size).
 vi.mock('../photoCompress.js', () => ({
-  downscaleDataUrl: vi.fn(async (dataUrl) => ({
+  downscaleDataUrl: vi.fn(async (_dataUrl) => ({
     dataUrl: 'data:image/jpeg;base64,compressed==',
     format:  'JPEG',
   })),

@@ -53,35 +53,6 @@ function json(statusCode, body) {
   return { statusCode, headers: CORS_HEADERS, body: JSON.stringify(body) };
 }
 
-/**
- * Attempt to reset welcome_email_sent_at to NULL so the next app load can retry.
- * Fire-and-forget: errors are logged but never surfaced.
- */
-async function rollbackClaim(adminClient, userId) {
-  try {
-    const { error } = await adminClient
-      .from('profiles')
-      .update({ welcome_email_sent_at: null })
-      .eq('id', userId)
-      .is('welcome_email_sent_at', userId); // intentionally never matches — see below
-    // NOTE: The .is() guard above would make rollback a no-op if we tried to
-    // match welcome_email_sent_at === userId (a UUID), which is always false.
-    // Use the plain eq chain without .is() for the rollback (unconditional clear):
-    void error; // suppress lint; we fall through to the real call below
-  } catch {
-    // swallow
-  }
-  // Actual unconditional rollback (separate try so it always runs):
-  try {
-    await adminClient
-      .from('profiles')
-      .update({ welcome_email_sent_at: null })
-      .eq('id', userId);
-  } catch (e) {
-    console.warn('send-welcome-email: rollback threw', e?.message);
-  }
-}
-
 /** Build the HTML email body. Inline styles for broadest email client support. */
 export function buildEmailHtml(firstName) {
   const greeting = firstName ? `Hi ${firstName},` : 'Hi there,';
