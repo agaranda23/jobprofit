@@ -235,16 +235,22 @@ function resolveAddress(job) {
 // Canonical stage list — matches StageStrip.jsx STAGES export
 const STAGES = ['Lead', 'Quoted', 'On', 'Invoiced', 'Overdue', 'Paid'];
 
-// Stage palette tokens — explicit hex to avoid color-mix() (no confirmed Safari 16.4+ baseline)
-// Token mapping: values marked ✓ are byte-identical to their token in all themes.
-// Values marked ✗ have no exact token match and are intentionally left as hex.
+// Stage palette tokens.
+// .hue is the single visible colour source for this map: it paints BOTH the
+// move-picker swatch (--sw-hue) and the job-card left accent rail (--jt-hue).
+// It now derives from the CANONICAL --stage-* pipeline palette (StageStrip.jsx
+// STAGE_TOKEN / index.css :root), so the swatch and card rail always match the
+// pipeline header dots. Do NOT reintroduce the old --jp-*/--grn-*/--danger
+// tokens here — they are pre-rebrand leftovers.
+// .fill / .ink feed only the decorative (pointer-events:none) stage pill and are
+// intentionally left on their existing values (Quoted keeps its hardcoded hex).
 const STAGE_META = {
-  Lead:     { hue: 'var(--jp-blue)',       fill: 'var(--stage-fill-lead)',     ink: null },
-  Quoted:   { hue: 'var(--grn-quoted)',    fill: '#7FDFB4',                    ink: '#1E8A5C' },               // fill + ink: no CSS token exists; kept as-is
-  On:       { hue: 'var(--grn-on)',        fill: 'var(--stage-fill-on)',       ink: null },
-  Invoiced: { hue: 'var(--grn-invoiced)', fill: 'var(--stage-fill-invoiced)', ink: null },
-  Overdue:  { hue: 'var(--danger)',        fill: 'var(--stage-fill-overdue)',  ink: null },
-  Paid:     { hue: 'var(--grn-paid)',      fill: 'var(--stage-fill-paid)',     ink: 'var(--grn-quoted)' },
+  Lead:     { hue: 'var(--stage-lead)',     fill: 'var(--stage-fill-lead)',     ink: null },
+  Quoted:   { hue: 'var(--stage-quoted)',   fill: '#7FDFB4',                    ink: '#1E8A5C' },               // fill + ink: no CSS token exists; kept as-is
+  On:       { hue: 'var(--stage-on)',       fill: 'var(--stage-fill-on)',       ink: null },
+  Invoiced: { hue: 'var(--stage-invoiced)', fill: 'var(--stage-fill-invoiced)', ink: null },
+  Overdue:  { hue: 'var(--stage-overdue)',  fill: 'var(--stage-fill-overdue)',  ink: null },
+  Paid:     { hue: 'var(--stage-paid)',     fill: 'var(--stage-fill-paid)',     ink: 'var(--grn-quoted)' },
 };
 
 /**
