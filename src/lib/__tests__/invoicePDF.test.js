@@ -83,7 +83,7 @@ vi.mock('qrcode', () => ({
 // Returns a predictable JPEG data URL so addImage call-site assertions stay
 // deterministic. The shape { dataUrl, format } mirrors the real implementation.
 vi.mock('../photoCompress.js', () => ({
-  downscaleDataUrl: vi.fn(async (dataUrl) => ({
+  downscaleDataUrl: vi.fn(async (_dataUrl) => ({
     dataUrl: 'data:image/jpeg;base64,compressed==',
     format:  'JPEG',
   })),

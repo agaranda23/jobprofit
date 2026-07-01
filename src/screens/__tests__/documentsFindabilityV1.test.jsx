@@ -18,7 +18,7 @@
  *  13. receiptInPeriod: month / quarter / taxyear / all bucketing.
  */
 
-import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 
 // ── Network / browser API mocks ───────────────────────────────────────────────

@@ -90,7 +90,6 @@ export default function TodayScreen({
   const [reviewQuoteJob, setReviewQuoteJob] = useState(null);
   // toast/gotPaidToastQueue/payNowNudge removed (JP-LU2) — managed by snackbar in AppShell.
   // showToast shim: keeps all existing call-sites unchanged; delegates to onSnackbar.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   const showToast = useCallback((msg, action = null) => {
     onSnackbar?.({ type: 'toast', message: msg, action, dwell: 2400, priority: 8 });
   }, [onSnackbar]);

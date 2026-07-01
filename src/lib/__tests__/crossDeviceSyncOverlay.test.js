@@ -21,12 +21,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   writeJobMeta,
-  readJobMeta,
   applyJobMeta,
   applyJobMetaToJobs,
   clearPending,
   readPendingKeys,
-  extractJobMeta,
 } from '../jobMeta';
 
 // ── localStorage mock ─────────────────────────────────────────────────────────

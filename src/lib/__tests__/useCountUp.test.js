@@ -18,10 +18,8 @@ import { useCountUp } from '../useCountUp';
 // This replaces the real browser rAF for deterministic tests.
 let rafCallbacks = [];
 let rafId = 0;
-let fakeNow = 0;
 
 function installFakeRaf() {
-  fakeNow = 0;
   rafCallbacks = [];
   rafId = 0;
 
@@ -36,7 +34,6 @@ function installFakeRaf() {
 }
 
 function flushRafsAt(timestampMs) {
-  fakeNow = timestampMs;
   const toRun = [...rafCallbacks];
   rafCallbacks = [];
   toRun.forEach(({ cb }) => cb(timestampMs));
@@ -149,7 +146,7 @@ describe('useCountUp', () => {
   });
 
   it('cancels the rAF on unmount without throwing', () => {
-    const { result, unmount } = renderHook(() => useCountUp(800));
+    const { result: _result, unmount } = renderHook(() => useCountUp(800));
     // Start animation
     act(() => { flushRafsAt(0); });
     act(() => { flushRafsAt(200); });

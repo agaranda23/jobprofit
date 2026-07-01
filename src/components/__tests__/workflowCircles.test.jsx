@@ -17,7 +17,7 @@
  *  12. Chips and circles share one stage palette (--stage-* tokens drive both)
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { render } from '@testing-library/react';
 import WorkflowCircles from '../WorkflowCircles';
 

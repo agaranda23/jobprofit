@@ -332,7 +332,7 @@ describe('job-delete pendingDeleteAction guard', () => {
         setDeleting(true);
         try {
           await onDeleteJob({ id: 'job-uuid', customer: 'Bob Smith' });
-        } catch (err) {
+        } catch (_err) {
           setToast('Couldn\'t delete that job — try again');
         } finally {
           deleting = false;

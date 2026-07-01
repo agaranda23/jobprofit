@@ -8,7 +8,7 @@
  * that decides whether the "Did [customer] pay?" snackbar appears.
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import {
   shouldShowCallPayPrompt,
   isMarkableUnpaid,

@@ -297,9 +297,6 @@ function StageChipDropdown({ job, currentStage, onUpdateJob, _onSendInvoice, onS
     };
   }, [open]);
 
-  const meta = STAGE_META[currentStage] || STAGE_META.Lead;
-  const ink = meta.ink || meta.hue;
-
   function moveToStage(stage) {
     setOpen(false);
     if (!onUpdateJob) return;
@@ -1059,7 +1056,7 @@ function Pager({ page, totalPages, onPage, totalItems, pageSize }) {
 // ── JobsList subview ──────────────────────────────────────────────────────────
 
 // JP-LU5 PR1: layout, colSort, onColSort, onUpgrade props removed — card view only.
-function JobsList({ jobs, receipts, selectedStage, showAll, searchQuery, profile, onJobSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJob, onCopyJob, onArchiveJob, onDeleteJob, biz, onShowToast, onViewReceipt, onAddJob, onActionRedirect, onCallJob }) {
+function JobsList({ jobs, _receipts, selectedStage, showAll, searchQuery, _profile, onJobSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJob, onCopyJob, onArchiveJob, onDeleteJob, biz, onShowToast, onViewReceipt, onAddJob, onActionRedirect, onCallJob }) {
   const q = (searchQuery || '').trim();
   const listTopRef = useRef(null);
 

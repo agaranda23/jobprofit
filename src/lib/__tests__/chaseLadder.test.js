@@ -396,23 +396,6 @@ describe('lastChasedLabel', () => {
 // These tests mock the Supabase client; they verify merge logic and
 // graceful-degrade on error. They do NOT hit the real database.
 
-function makeSupabaseMock({ rows = [], error = null, user = { id: 'user-abc' } } = {}) {
-  return {
-    auth: {
-      getUser: vi.fn().mockResolvedValue({ data: { user } }),
-    },
-    from: vi.fn(() => ({
-      select: vi.fn().mockReturnThis(),
-      eq: vi.fn().mockReturnThis(),
-      upsert: vi.fn().mockResolvedValue({ error }),
-      delete: vi.fn().mockReturnThis(),
-      single: vi.fn().mockResolvedValue({ data: rows[0] ?? null, error }),
-      // chain: select().eq().eq() returns a thenable with { data, error }
-      then: undefined, // handled by making eq() return a promise-like below
-    })),
-  };
-}
-
 // More granular mock for hydrateChaseState which calls .select().eq() and expects
 // the final result directly (not .single()).
 function makeHydrateMock({ rows = [], error = null, user = { id: 'user-abc' } } = {}) {

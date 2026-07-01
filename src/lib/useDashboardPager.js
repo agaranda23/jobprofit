@@ -329,7 +329,6 @@ export function useDashboardPager({ pageCount, pageIndex, onPageChange, locked }
 
     // Snap from current dragged position to target page.
     // We use the current visual offset as the from position.
-    const currentTransform = track.style.transform;
     let currentPct;
     try {
       const matrix = new DOMMatrix(getComputedStyle(track).transform);
@@ -418,7 +417,6 @@ export function useDashboardPager({ pageCount, pageIndex, onPageChange, locked }
       viewport.removeEventListener('touchmove', handleNativeTouchMove, { passive: false });
     };
   // trackRef is a stable ref — effect only needs to run once on mount.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return {

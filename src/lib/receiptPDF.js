@@ -57,14 +57,6 @@ function bizLogoUrl(biz) {
   return biz?.logoUrl || biz?.logo_url || null;
 }
 
-function inferImageType(src) {
-  if (!src) return 'PNG';
-  const lower = src.toLowerCase();
-  if (lower.startsWith('data:image/jpeg') || lower.startsWith('data:image/jpg')) return 'JPEG';
-  if (lower.includes('.jpg') || lower.includes('.jpeg')) return 'JPEG';
-  return 'PNG';
-}
-
 /**
  * Full header parity with invoicePDF.js drawHeader:
  *   logo (left) | name, address, phone•email•website, UTR, VAT reg (right)

@@ -51,7 +51,7 @@ function touchEvent(touches = [], changedTouches = []) {
 
 // ─── Helper to run a full swipe gesture ──────────────────────────────────────
 
-function swipe(hook, { startX, startY, endX, endY, dt = 200 }) {
+function swipe(hook, { startX, startY, endX, endY, _dt = 200 }) {
   const { onTouchStart, onTouchMove, onTouchEnd } = hook.result.current;
 
   act(() => {

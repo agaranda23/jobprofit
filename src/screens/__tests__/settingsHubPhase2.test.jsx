@@ -438,7 +438,6 @@ describe('SettingsScreen Phase 2 — inline interim sections removed from hub', 
 // ERR_REQUIRE_ESM crash (html-encoding-sniffer / Node 20). They are committed
 // here so they run automatically once that underlying issue is resolved.
 
-import { render as rtr, fireEvent as fe, act as a, screen as sc } from '@testing-library/react';
 
 function renderWithResetKey(profileOverride = PROFILE_FREE, settingsResetKey = 0, extraProps = {}) {
   return render(
@@ -547,7 +546,7 @@ describe('SettingsScreen — Settings tab re-tap resets to hub (settingsResetKey
   });
 
   it('back-arrow voice→account behaviour unchanged after a reset', () => {
-    const { rerender } = render(
+    render(
       <SettingsScreen
         session={SESSION}
         profile={PROFILE_FREE}
