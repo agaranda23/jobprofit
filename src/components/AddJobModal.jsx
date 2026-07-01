@@ -72,7 +72,7 @@ export function getTradeVoiceHint(tradePrimary) {
   return map[key] || 'Kitchen job Sarah three eighty cash';
 }
 
-export default function AddJobModal({ onClose, onSave, _onOpenDetailed, defaultMode, onSaveAndSend, tradePrimary, initialDate, materials, defaultMarkup, onBrowseMaterials, onMaterialSaved }) {
+export default function AddJobModal({ onClose, onSave, _onOpenDetailed, defaultMode, onSaveAndSend, tradePrimary, initialDate, materials, defaultMarkup, onBrowseMaterials, onMaterialSaved, initialCustomer = '', initialPhone = '', initialAddress = '' }) {
   // 'micro'          — Stage 1: fast capture (amount + paid-by + Save it)
   // 'details'        — Stage 2: full form (name, customer, date, more options)
   // 'quote'          — Create-quote surface: voice OR type, summary + total + optional line items
@@ -99,14 +99,17 @@ export default function AddJobModal({ onClose, onSave, _onOpenDetailed, defaultM
   const [amount, setAmount]           = useState('');
   const [paymentChip, setPaymentChip] = useState('awaiting');
   const [name, setName]               = useState('');
-  const [customer, setCustomer]       = useState('');
-  const [phone, setPhone]             = useState('');
+  // initialCustomer/initialPhone/initialAddress: seeded from the re-book prefill
+  // when PostPaidSheet's "Book again" CTA opens this modal. Date and amount are
+  // intentionally NOT pre-filled — re-books always start fresh (today + empty amount).
+  const [customer, setCustomer]       = useState(initialCustomer || '');
+  const [phone, setPhone]             = useState(initialPhone    || '');
   const [jobDate, setJobDate]         = useState(initialDate || todayISODate());
   const [materialsCostInput, setMaterialsCostInput] = useState('');
   const [labourHours, setLabourHours] = useState('');
   const [notes, setNotes]             = useState('');
   const [deposit, setDeposit]         = useState('');
-  const [address, setAddress]         = useState('');
+  const [address, setAddress]         = useState(initialAddress  || '');
   const [error, setError]             = useState('');
   const [moreOpen, setMoreOpen]       = useState(false);
   // amountEditOpen: Stage 2 inline amount/chip editor (✎ edit affordance on the summary chip)

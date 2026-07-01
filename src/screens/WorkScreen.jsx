@@ -1148,7 +1148,7 @@ function JobsList({ jobs, receipts, selectedStage, showAll, searchQuery, profile
 
 // JP-LU5 PR1: pendingWorkView and onPendingWorkViewConsumed removed from props —
 // calendar subview gone. AppShell's handleSeeTheWeek now plain navigate('work').
-export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJob, onAddPayment, onUpdateJob, onDeleteJob, onAddReceipt, onDeleteReceipt, onUpdateReceipt, biz, profile, initialJobId, onNavigateToCardPayments, onProfileUpdate, materials, defaultMarkup, onBrowseMaterials, onMaterialSaved }) {
+export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJob, onAddPayment, onUpdateJob, onDeleteJob, onAddReceipt, onDeleteReceipt, onUpdateReceipt, biz, profile, initialJobId, onNavigateToCardPayments, onProfileUpdate, materials, defaultMarkup, onBrowseMaterials, onMaterialSaved, onOverlayChange }) {
   const [selectedStage, setSelectedStage] = useState(() => getPersistedFilter().selectedStage);
   const [showAll, setShowAll] = useState(() => getPersistedFilter().showAll);
   // 1B: client-side search — pure JS filter, works offline
@@ -1207,6 +1207,12 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
     if (target) setSelectedJob(target);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Notify AppShell when the JobDetailDrawer opens or closes so PostPaidSheet
+  // can suppress itself while the drawer is still on-screen (Option A).
+  useEffect(() => {
+    onOverlayChange?.(selectedJob !== null);
+  }, [selectedJob, onOverlayChange]);
 
   // Persist stage filter state whenever either value changes.
   // Wrapped in try/catch — Safari private mode throws on setItem.
