@@ -1752,31 +1752,8 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
       ) : null}
 
 
-      {/* Funnel summary strip — compact text count of active (non-Paid) stages.
-           Paid is excluded from the summary to keep the line short: the Paid
-           tile in the StageStrip already gives the full count + £. Only shown
-           when there are any jobs to summarise. Visual only — tapping does nothing. */}
-      {/* JP-LU5 PR1: subview === 'list' guard removed — always in list mode. */}
-      {(() => {
-        const SUMMARY_STAGES = ['Lead', 'Quoted', 'On', 'Invoiced', 'Overdue'];
-        const counts = SUMMARY_STAGES.reduce((acc, s) => {
-          acc[s] = visibleJobs.filter(j => deriveDisplayStatus(j) === s).length;
-          return acc;
-        }, {});
-        const paidCount = visibleJobs.filter(j => deriveDisplayStatus(j) === 'Paid').length;
-        const parts = SUMMARY_STAGES
-          .filter(s => counts[s] > 0)
-          .map(s => `${counts[s]} ${s.toLowerCase()}`);
-        if (paidCount > 0) parts.push(`${paidCount} paid`);
-        if (parts.length === 0) return null;
-        return (
-          <div className="funnel-strip" aria-label="Pipeline summary" role="status" aria-live="polite">
-            {parts.join(' · ')}
-          </div>
-        );
-      })()}
-
-      {/* Stage Strip — 6 equal segments, no "All" tile. */}
+      {/* Stage Strip — 6 equal segments, no "All" tile.
+           (Text funnel summary removed — the strip already shows count + £ per stage.) */}
       <StageStrip
         jobs={visibleJobs}
         selectedStage={selectedStage}

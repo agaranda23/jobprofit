@@ -46,8 +46,9 @@ const STAGE_TOKEN = {
 function StageTile({ stage, count, total, selected, onSelect, tileRef, formatAmount }) {
   const accentClass = `stage-tile--${stage.toLowerCase()}`;
 
-  // Lead has no £ value; £0 reads as a failure state — both render a faint em-dash instead
-  const isEmpty = stage === 'Lead' || total === 0;
+  // £0 reads as a failure state, so render a faint em-dash instead of "£0".
+  // Lead shows its potential value (sum of lead job prices) whenever it's > 0.
+  const isEmpty = total === 0;
   const amountText = isEmpty ? '—' : '£' + formatAmount(total);
   const amountClass = isEmpty ? 'stage-tile-amount stage-tile-amount--empty' : 'stage-tile-amount';
 
