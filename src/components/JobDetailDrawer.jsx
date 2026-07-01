@@ -747,9 +747,11 @@ function VisitRow({ visit, onTap, onMarkDone, canEdit }) {
   if (visit.date) {
     try {
       const d = new Date(visit.date + 'T00:00:00');
-      dateStr = d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });
+      dateStr = d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
     } catch { /* keep raw */ }
   }
+
+  const visitName = (visit.note || '').trim();
 
   return (
     <div className="visit-row-wrap">
@@ -757,13 +759,20 @@ function VisitRow({ visit, onTap, onMarkDone, canEdit }) {
         type="button"
         className="jd-card-row jd-card-row--tappable visit-row-inner"
         onClick={onTap}
-        aria-label={`Edit visit on ${dateStr}`}
+        aria-label={visitName ? `Edit ${visitName} on ${dateStr}` : `Edit visit on ${dateStr}`}
       >
         <span className="jd-card-row-icon"><Icon name="date" size={16} variant="muted" /></span>
-        <span className={`jd-card-row-val${isDone ? ' visit-row-val--done' : ''}`}>
-          {dateStr}{timeStr}
-          <VisitStatusPill status={computedStatus} />
-        </span>
+        {visitName ? (
+          <div className="visit-row-val">
+            <div className={`visit-row-title${isDone ? ' visit-row-val--done' : ''}`}>{visitName}</div>
+            <div className="visit-row-sub">{dateStr}{timeStr}<VisitStatusPill status={computedStatus} /></div>
+          </div>
+        ) : (
+          <span className={`jd-card-row-val${isDone ? ' visit-row-val--done' : ''}`}>
+            {dateStr}{timeStr}
+            <VisitStatusPill status={computedStatus} />
+          </span>
+        )}
       </button>
 
       {/* Always-visible "Mark done" pill — hidden once visit is done */}
@@ -774,7 +783,7 @@ function VisitRow({ visit, onTap, onMarkDone, canEdit }) {
           onClick={handleMarkDone}
           aria-label="Mark visit done"
         >
-          Mark done
+          Done
         </button>
       )}
     </div>

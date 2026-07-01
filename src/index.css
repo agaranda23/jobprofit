@@ -16268,6 +16268,32 @@ button.jd-money-chip:active { opacity: 0.75; }
   opacity: 0.65;
 }
 
+/* Two-line visit row — name-present path */
+.visit-row-val {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  gap: 1px;
+}
+.visit-row-title {
+  font-weight: 600;
+  color: var(--text);
+  font-size: var(--fs-label);
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.visit-row-sub {
+  font-size: var(--fs-metadata);
+  color: var(--text-dim);
+  font-weight: 400;
+  display: flex;
+  align-items: center;
+}
+
 /* Visit editor sheet — modal sheet */
 .visit-editor-backdrop {
   position: fixed;
