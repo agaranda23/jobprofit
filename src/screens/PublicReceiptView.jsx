@@ -130,7 +130,7 @@ function ReceiptCard({ job, profile }) {
         border: '1px solid #e0e0e0',
         padding: 16,
         boxShadow: '0 1px 6px rgba(0,0,0,0.08)',
-        fontFamily: "'DM Sans', system-ui, -apple-system, sans-serif",
+        fontFamily: 'var(--font-sans)',
         color: DARK,
       }}
       aria-label="Receipt"
@@ -162,7 +162,7 @@ function ReceiptCard({ job, profile }) {
 
       {/* RECEIPT heading + receipt number + date */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
-        <div style={{ fontSize: 22, fontWeight: 900, color: GREEN, letterSpacing: '-0.5px' }}>RECEIPT</div>
+        <div style={{ fontSize: 22, fontWeight: 700, color: GREEN, letterSpacing: '-0.5px' }}>RECEIPT</div>
         <div style={{ textAlign: 'right' }}>
           {receiptNumber && (
             <div style={{ fontSize: 11, fontWeight: 700, color: DARK }}>{receiptNumber}</div>
@@ -251,7 +251,7 @@ function ReceiptCard({ job, profile }) {
         }}
         aria-label="Paid in full"
       >
-        <div style={{ color: PAID_FG, fontWeight: 900, fontSize: 15, letterSpacing: '0.04em' }}>PAID IN FULL</div>
+        <div style={{ color: PAID_FG, fontWeight: 700, fontSize: 15, letterSpacing: '0.04em' }}>PAID IN FULL</div>
         {paidDateLabel && (
           <div style={{ color: 'rgba(220,255,238,0.75)', fontSize: 11, marginTop: 3 }}>
             Payment received: {paidDateLabel}

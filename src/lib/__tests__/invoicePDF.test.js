@@ -61,6 +61,8 @@ vi.mock('jspdf', () => {
     this.output          = vi.fn(() => new Blob([]));
     this.save            = vi.fn();
     this.rect            = vi.fn(); // needed for white-bg behind JP monogram in drawFooter
+    this.addFileToVFS    = vi.fn(); // needed for custom font registration (HankenGrotesk embed)
+    this.addFont         = vi.fn(); // needed for custom font registration (HankenGrotesk embed)
   }
   return { jsPDF: MockJsPDF };
 });
