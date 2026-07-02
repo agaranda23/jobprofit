@@ -14,7 +14,7 @@
  */
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { parseJobFromSpeech } from '../voiceParse.js';
+import { parseJobFromSpeech, resolveNextWeekday } from '../voiceParse.js';
 
 // ── Mock Supabase module ──────────────────────────────────────────────────────
 // voiceParse.js now imports { supabase } from './supabase' and calls
@@ -95,7 +95,10 @@ describe('parseJobFromSpeech — AI path', () => {
   it('returns empty-ish object for an empty transcript without calling fetch', async () => {
     global.fetch = vi.fn();
     const result = await parseJobFromSpeech('');
-    expect(result).toEqual({ name: '', customer: null, amount: null, paymentType: null });
+    expect(result).toEqual({
+      name: '', customer: null, amount: null, paymentType: null,
+      vat: null, depositPercent: null, depositDue: null,
+    });
     expect(global.fetch).not.toHaveBeenCalled();
   });
 });
@@ -287,6 +290,148 @@ describe('parseJobFromSpeech — regex fallback: £ prefix wins over bare count 
     // "2 rooms 450" — 450 is the price, 2 is a count
     const result = await parseJobFromSpeech('2 rooms 450');
     expect(result.amount).toBe(450);
+  });
+});
+
+// ── resolveNextWeekday — pure date-resolution helper ───────────────────────────
+
+describe('resolveNextWeekday', () => {
+  it('resolves "friday" from a Wednesday to the coming Friday (2 days away)', () => {
+    const wednesday = new Date('2026-07-01T09:00:00Z'); // 2026-07-01 is a Wednesday
+    expect(resolveNextWeekday('friday', wednesday)).toBe('2026-07-03');
+  });
+
+  it('resolves to TODAY when the named weekday matches the current day', () => {
+    const friday = new Date('2026-07-03T09:00:00Z'); // 2026-07-03 is a Friday
+    expect(resolveNextWeekday('friday', friday)).toBe('2026-07-03');
+  });
+
+  it('wraps to next week when the named day already passed this week', () => {
+    const friday = new Date('2026-07-03T09:00:00Z');
+    // "Monday" from a Friday is 3 days away (the FOLLOWING Monday)
+    expect(resolveNextWeekday('monday', friday)).toBe('2026-07-06');
+  });
+
+  it('is case-insensitive', () => {
+    const wednesday = new Date('2026-07-01T09:00:00Z');
+    expect(resolveNextWeekday('FRIDAY', wednesday)).toBe('2026-07-03');
+  });
+
+  it('returns null for an unrecognised day name', () => {
+    expect(resolveNextWeekday('someday', new Date('2026-07-01T09:00:00Z'))).toBeNull();
+  });
+});
+
+// ── VAT / deposit fields — AI path ──────────────────────────────────────────────
+
+describe('parseJobFromSpeech — AI path: vat / depositPercent / depositDue', () => {
+  afterEach(() => { vi.restoreAllMocks(); });
+
+  it('extracts vat:true, depositPercent, and passes depositDue through from the model', async () => {
+    global.fetch = mockFetchSuccess({
+      name: 'Kitchen', customer: 'John', amount: 4800, paymentType: null,
+      vat: true, depositPercent: 25, depositDue: null,
+    });
+    const result = await parseJobFromSpeech('Kitchen for John, £4,800 plus VAT, 25% deposit');
+    expect(result.amount).toBe(4800);
+    expect(result.vat).toBe(true);
+    expect(result.depositPercent).toBe(25);
+    expect(result.depositDue).toBeNull();
+  });
+
+  it('passes through a depositDue ISO date supplied by the model', async () => {
+    global.fetch = mockFetchSuccess({
+      name: 'Bathroom refit', customer: 'Mrs Mitchell', amount: 2950, paymentType: 'bank transfer',
+      vat: null, depositPercent: 50, depositDue: '2026-07-03',
+    });
+    const result = await parseJobFromSpeech('Bathroom refit for Mrs Mitchell £2950 bank transfer, 50% deposit due Friday', new Date('2026-07-01T09:00:00Z'));
+    expect(result.depositPercent).toBe(50);
+    expect(result.depositDue).toBe('2026-07-03');
+  });
+
+  it('defaults vat/depositPercent/depositDue to null when the model omits them', async () => {
+    global.fetch = mockFetchSuccess({ name: 'Plastering', customer: null, amount: 250, paymentType: null });
+    const result = await parseJobFromSpeech('Plastering 250');
+    expect(result.vat).toBeNull();
+    expect(result.depositPercent).toBeNull();
+    expect(result.depositDue).toBeNull();
+  });
+});
+
+// ── VAT / deposit fields — regex fallback (offline path) ────────────────────────
+
+describe('parseJobFromSpeech — regex fallback: vat / depositPercent / depositDue', () => {
+  afterEach(() => { vi.restoreAllMocks(); });
+
+  it('"plus VAT" sets vat:true', async () => {
+    global.fetch = mockFetchFailure();
+    const result = await parseJobFromSpeech('Kitchen job £380 plus VAT');
+    expect(result.vat).toBe(true);
+  });
+
+  it('"+ VAT" sets vat:true', async () => {
+    global.fetch = mockFetchFailure();
+    const result = await parseJobFromSpeech('Kitchen job £380 + VAT');
+    expect(result.vat).toBe(true);
+  });
+
+  it('"including VAT" sets vat:true', async () => {
+    global.fetch = mockFetchFailure();
+    const result = await parseJobFromSpeech('Kitchen job £380 including VAT');
+    expect(result.vat).toBe(true);
+  });
+
+  it('no VAT mention leaves vat:null', async () => {
+    global.fetch = mockFetchFailure();
+    const result = await parseJobFromSpeech('Kitchen job £380 cash');
+    expect(result.vat).toBeNull();
+  });
+
+  it('"25% deposit" extracts depositPercent:25', async () => {
+    global.fetch = mockFetchFailure();
+    const result = await parseJobFromSpeech('Kitchen for John £4800, 25% deposit');
+    expect(result.depositPercent).toBe(25);
+  });
+
+  it('"50 deposit" (no % sign) extracts depositPercent:50', async () => {
+    global.fetch = mockFetchFailure();
+    const result = await parseJobFromSpeech('Bathroom refit £2950, 50 deposit');
+    expect(result.depositPercent).toBe(50);
+  });
+
+  it('no deposit mention leaves depositPercent:null', async () => {
+    global.fetch = mockFetchFailure();
+    const result = await parseJobFromSpeech('Kitchen job £380 cash');
+    expect(result.depositPercent).toBeNull();
+  });
+
+  it('"due Friday" resolves depositDue to the next Friday from the supplied `now`', async () => {
+    global.fetch = mockFetchFailure();
+    const wednesday = new Date('2026-07-01T09:00:00Z');
+    const result = await parseJobFromSpeech('Bathroom refit £2950, 50% deposit due Friday', wednesday);
+    expect(result.depositDue).toBe('2026-07-03');
+  });
+
+  it('"by Monday" resolves depositDue via the "by" phrasing too', async () => {
+    global.fetch = mockFetchFailure();
+    const wednesday = new Date('2026-07-01T09:00:00Z');
+    const result = await parseJobFromSpeech('Fence repair £200, deposit by Monday', wednesday);
+    expect(result.depositDue).toBe('2026-07-06');
+  });
+
+  it('no due-day phrase leaves depositDue:null', async () => {
+    global.fetch = mockFetchFailure();
+    const result = await parseJobFromSpeech('Kitchen job £380 cash');
+    expect(result.depositDue).toBeNull();
+  });
+
+  it('strips "plus VAT", "25% deposit", and "due Friday" out of the job name', async () => {
+    global.fetch = mockFetchFailure();
+    const result = await parseJobFromSpeech('Kitchen for John, £4,800 plus VAT, 25% deposit due Friday');
+    expect(result.name.toLowerCase()).not.toContain('vat');
+    expect(result.name.toLowerCase()).not.toContain('deposit');
+    expect(result.name.toLowerCase()).not.toContain('friday');
+    expect(result.name).toContain('Kitchen');
   });
 });
 

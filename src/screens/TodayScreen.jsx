@@ -176,7 +176,8 @@ export default function TodayScreen({
   };
 
   // "Save & send quote" — saves the job then opens ReviewSheet in quote mode.
-  // Covers both the voice-confirm path (from details view) and the create-quote path.
+  // Covers the details-view voice-confirm path and the manual/typed create-quote
+  // path — both still get a ReviewSheet review step before sending.
   // onUpdateJob is used by ReviewSheet to persist quoteSentAt/quoteStatus/publicAccessToken
   // patches back to the cloud after the WhatsApp send.
   const handleSaveAndSend = async (payload) => {
@@ -184,6 +185,17 @@ export default function TodayScreen({
     setJobOpenMode('normal');
     try { await onAddJob?.(payload); } catch {}
     setReviewQuoteJob(payload);
+  };
+
+  // Voice-quote confirm card (AddJobModal 'quote' view, quoteVoiceStatus
+  // 'confirm'): persists the job the same way handleSaveAndSend does, but does
+  // NOT open ReviewSheet — the confirm card's own Send button calls
+  // sendQuote() directly once the row exists, collapsing the double-review
+  // surface for the voice path only (see src/lib/sendQuote.js).
+  const handleVoiceQuoteSave = async (payload) => {
+    setJobOpen(false);
+    setJobOpenMode('normal');
+    try { await onAddJob?.(payload); } catch {}
   };
 
   // ── Ranking (re-runs on jobs or rankVersion change) ──────────────────────────
@@ -772,6 +784,10 @@ export default function TodayScreen({
           onOpenDetailed={onOpenDetailed}
           defaultMode={jobOpenMode === 'quote' ? 'quote' : undefined}
           onSaveAndSend={handleSaveAndSend}
+          onVoiceQuoteSave={handleVoiceQuoteSave}
+          profile={profile}
+          onUpdateJob={onUpdateJob}
+          flash={showToast}
           tradePrimary={profile?.trade_primary ?? null}
           materials={materials}
           defaultMarkup={defaultMarkup ?? profile?.default_markup ?? 20}

@@ -4,11 +4,17 @@ import { generateQuote } from '../lib/generateQuote';
 import { logTelemetry } from '../lib/telemetry';
 import { calcMarginForecast, marginForecastState, markupTeachCopy } from '../lib/marginForecast';
 import { saveLineItemToLibrary, resolveMarkup } from '../lib/materials';
+import { sendQuote, needsBankGate } from '../lib/sendQuote';
 import Icon from './Icon';
 import MaterialTypeAhead from './MaterialTypeAhead';
 import MarkupChip from './MarkupChip';
 import EstimatorSheet from './EstimatorSheet';
+import BankGateSheet from './BankGateSheet';
 import { checkEstimatorQuota } from '../lib/estimatorQuota';
+
+// Deposit percent presets for the voice-quote confirm card — mirrors
+// ReviewSheet's DEPOSIT_PRESETS so the two surfaces feel identical.
+const CONFIRM_DEPOSIT_PRESETS = [0, 25, 50];
 
 const SR = typeof window !== 'undefined'
   ? (window.SpeechRecognition || window.webkitSpeechRecognition)
@@ -69,10 +75,10 @@ export function getTradeVoiceHint(tradePrimary) {
     landscaper_groundworker:  'Turf garden Mr Green eight hundred',
   };
   const key = (tradePrimary || '').toLowerCase();
-  return map[key] || 'Kitchen job Sarah three eighty cash';
+  return map[key] || 'Kitchen for John, £4,800 plus VAT, 25% deposit';
 }
 
-export default function AddJobModal({ onClose, onSave, _onOpenDetailed, defaultMode, onSaveAndSend, tradePrimary, initialDate, materials, defaultMarkup, onBrowseMaterials, onMaterialSaved, initialCustomer = '', initialPhone = '', initialAddress = '' }) {
+export default function AddJobModal({ onClose, onSave, _onOpenDetailed, defaultMode, onSaveAndSend, onVoiceQuoteSave, profile, onUpdateJob, flash, tradePrimary, initialDate, materials, defaultMarkup, onBrowseMaterials, onMaterialSaved, initialCustomer = '', initialPhone = '', initialAddress = '' }) {
   // 'micro'          — Stage 1: fast capture (amount + paid-by + Save it)
   // 'details'        — Stage 2: full form (name, customer, date, more options)
   // 'quote'          — Create-quote surface: voice OR type, summary + total + optional line items
@@ -129,6 +135,30 @@ export default function AddJobModal({ onClose, onSave, _onOpenDetailed, defaultM
   const [quoteVoiceStatus, setQuoteVoiceStatus] = useState('listening');
   const [quoteTranscript, setQuoteTranscript]   = useState('');
   const hasAutoStartedQuote = useRef(false);
+
+  // ── Voice-quote confirm-card state (10-second-signature) ────────────────────
+  // Parsed straight from voiceParse's enriched shape (vat/depositPercent/depositDue).
+  // quoteVat: true/false/null — drives the "+VAT" chip on the total line.
+  // quoteDepositPercent: 0/25/50/custom, pre-filled from the parsed transcript.
+  // quoteDepositDue: ISO date | null — informational, threaded into sendQuote().
+  // confirmEditField: which single line of the glanceable card is being edited
+  //   ('job' | 'customer' | 'total' | 'depositCustom' | null) — mirrors the
+  //   single-toggle amountEditOpen pattern used in the Stage 2 'details' view.
+  // showConfirmAddDetail: collapsed phone / itemise / margin panel.
+  // showBankGate / confirmSendBusy: voice-confirm's own send-flow state.
+  const [quoteVat, setQuoteVat]                 = useState(null);
+  const [quoteDepositPercent, setQuoteDepositPercent] = useState(0);
+  const [quoteDepositDue, setQuoteDepositDue]   = useState(null);
+  const [confirmEditField, setConfirmEditField] = useState(null);
+  const [showConfirmAddDetail, setShowConfirmAddDetail] = useState(false);
+  const [showBankGate, setShowBankGate]         = useState(false);
+  const [confirmSendBusy, setConfirmSendBusy]   = useState(false);
+  // bankPatchOverride: optimistic local copy of sort_code/account_number saved
+  // via the bank-gate this session — merged over the `profile` prop so a
+  // just-saved bank detail is reflected immediately without waiting for the
+  // parent's profile state to refresh. Mirrors ReviewSheet's localProfile.
+  const [bankPatchOverride, setBankPatchOverride] = useState(null);
+  const effectiveProfile = bankPatchOverride ? { ...(profile || {}), ...bankPatchOverride } : profile;
 
   // ── Margin-aware quote state (TRADER-ONLY — never passed to customer surfaces) ──
   // estCost: optional trader spend in pounds (materials, parts, hire).
@@ -431,8 +461,22 @@ export default function AddJobModal({ onClose, onSave, _onOpenDetailed, defaultM
     try {
       const r = new SR();
       const lang = localStorage.getItem('jp.voiceLang') || 'en-GB';
-      r.lang = lang; r.interimResults = true; r.continuous = false; r.maxAlternatives = 1;
+      // Mic grace: the voice-quote grammar is longer now (job + name + price +
+      // optional VAT/deposit/due-day), so a non-continuous recognizer's own
+      // short built-in pause-detection was truncating utterances mid-sentence.
+      // continuous:true + our own 2s-silence auto-stop gives the trader room to
+      // pause for breath without losing the end of the sentence. The big
+      // "Done" button below remains the manual-stop affordance.
+      r.lang = lang; r.interimResults = true; r.continuous = true; r.maxAlternatives = 1;
       let finalText = '';
+      let silenceTimer = null;
+      const SILENCE_MS = 2000;
+      const resetSilenceTimer = () => {
+        clearTimeout(silenceTimer);
+        silenceTimer = setTimeout(() => {
+          try { r.stop(); } catch {}
+        }, SILENCE_MS);
+      };
       r.onresult = (e) => {
         let interim = '';
         for (let i = e.resultIndex; i < e.results.length; i++) {
@@ -441,8 +485,10 @@ export default function AddJobModal({ onClose, onSave, _onOpenDetailed, defaultM
           else interim += res[0].transcript;
         }
         setQuoteTranscript((finalText + interim).trim());
+        resetSilenceTimer();
       };
       r.onerror = (e) => {
+        clearTimeout(silenceTimer);
         if (e.error === 'not-allowed') {
           setError('Microphone blocked. Allow it in the address bar then try again.');
           setQuoteVoiceStatus('manual');
@@ -458,6 +504,7 @@ export default function AddJobModal({ onClose, onSave, _onOpenDetailed, defaultM
         }
       };
       r.onend = () => {
+        clearTimeout(silenceTimer);
         if (manualOverride.current) { manualOverride.current = false; return; }
         setQuoteVoiceStatus(s => {
           if (s === 'listening') {
@@ -471,6 +518,7 @@ export default function AddJobModal({ onClose, onSave, _onOpenDetailed, defaultM
       };
       recogRef.current = r;
       r.start();
+      resetSilenceTimer(); // grace period even if the trader hasn't spoken yet
       setQuoteVoiceStatus('listening');
     } catch (err) {
       setError(`Couldn't start mic: ${err.message}`);
@@ -496,13 +544,29 @@ export default function AddJobModal({ onClose, onSave, _onOpenDetailed, defaultM
       if (parsed.paymentType) applyPaymentType(parsed.paymentType);
       else setPaymentChip('awaiting');
 
+      // VAT / deposit — new voice-quote fields (Change 2). Threaded straight
+      // into the glanceable confirm card's chips below.
+      setQuoteVat(parsed.vat ?? null);
+      const parsedDepositPercent = typeof parsed.depositPercent === 'number' && parsed.depositPercent >= 0
+        ? Math.min(100, parsed.depositPercent)
+        : 0;
+      setQuoteDepositPercent(parsedDepositPercent);
+      setQuoteDepositDue(parsed.depositDue ?? null);
+
       if (cleanAmt != null && !isNaN(cleanAmt) && cleanAmt > 0) {
         setQTotal(String(cleanAmt));
-        setQuoteVoiceStatus('confirm');
+        setConfirmEditField(null);
       } else {
         setQTotal('');
-        setQuoteVoiceStatus('manual');
+        // No amount heard — open the Total field straight into edit mode
+        // (empty + focused) rather than a static "Add a price" row the
+        // trader has to tap first.
+        setConfirmEditField('total');
       }
+      // Always land on the glanceable confirm card after a voice parse — even
+      // with no amount, so the trader can tap straight into the Total field
+      // (empty + focused) rather than being dropped into the full manual form.
+      setQuoteVoiceStatus('confirm');
 
       // Store the parsed description for the "Itemise it for me" CTA
       // but do NOT auto-trigger the AI build — the user must tap the button.
@@ -761,6 +825,68 @@ export default function AddJobModal({ onClose, onSave, _onOpenDetailed, defaultM
     if (!payload) return;
     logTelemetry('quote_send', { source: 'create_quote', hasLineItems: payload.lineItems.length > 1 });
     onSaveAndSend?.(payload);
+  };
+
+  /**
+   * "Itemise it for me" — triggers the AI quote build from whatever description
+   * is currently available (typed summary, or the raw voice transcript).
+   * Shared by the full manual-form button and the glanceable confirm card's
+   * collapsed "Add detail" link so the logic lives in exactly one place.
+   */
+  const handleItemiseClick = () => {
+    const desc = summary.trim() || quoteTranscript.trim();
+    if (!desc) {
+      setError('Add a job description first');
+      return;
+    }
+    setError('');
+    // profileHourlyRate: undefined = not yet fetched, null = confirmed unset
+    // We check at the server and let it prompt if needed — pass undefined as
+    // sentinel, resolved in runAiQuoteBuild via the rate prompt.
+    // We optimistically run; if server returns no hourly_rate the AI uses
+    // placeholder costs, which is acceptable per spec.
+    runAiQuoteBuild(desc, profileHourlyRate === null ? null : 0);
+  };
+
+  // ── Voice-quote confirm card: Send button ────────────────────────────────────
+  // Collapses the old double-review-surface (this card, then ReviewSheet) into
+  // one: builds the payload, pre-flights the bank-gate (so the modal never
+  // closes out from under a gate that needs showing), persists the job via
+  // onVoiceQuoteSave (create-only — does NOT open ReviewSheet), then calls the
+  // shared sendQuote() helper directly — the exact same function ReviewSheet
+  // uses for the Jobs-tab / non-voice path.
+  const sendVoiceConfirmQuote = async () => {
+    if (confirmSendBusy) return;
+    const payload = buildQuotePayload();
+    if (!payload) return;
+
+    if (needsBankGate({ profile: effectiveProfile, depositPercent: quoteDepositPercent })) {
+      setShowBankGate(true);
+      return;
+    }
+
+    setConfirmSendBusy(true);
+    flash?.('Sending your quote…');
+    logTelemetry('quote_send', { source: 'voice_confirm', hasLineItems: payload.lineItems.length > 1 });
+
+    // Persist (INSERT) the job row first — sendQuote()'s token persist is an
+    // UPDATE and needs the row to already exist. This also closes the modal
+    // (onVoiceQuoteSave mirrors handleSaveAndSend's persist step in TodayScreen).
+    await onVoiceQuoteSave?.(payload);
+
+    const result = await sendQuote(payload, {
+      biz: { name: effectiveProfile?.business_name || '' },
+      profile: effectiveProfile,
+      depositPercent: quoteDepositPercent,
+      depositDue: quoteDepositDue,
+      onUpdate: onUpdateJob,
+      flash,
+      onClose: () => {},
+      setBusy: setConfirmSendBusy,
+    });
+    // Defensive only — the pre-flight check above already covers this path,
+    // so in practice this never fires (the modal has already closed by now).
+    if (result?.reason === 'bank-gate') setShowBankGate(true);
   };
 
   const chipClass = (id) =>
@@ -1162,7 +1288,7 @@ export default function AddJobModal({ onClose, onSave, _onOpenDetailed, defaultM
                 <div className="aj-mic-box">
                   <div className="aj-mic-icon"><Icon name="voice" size={32} /></div>
                   <div className="aj-mic-label">Listening…</div>
-                  <div className="aj-mic-sub">Say the job, customer, and price</div>
+                  <div className="aj-mic-sub">Say the job, the name, the price.</div>
                 </div>
                 {quoteTranscript && (
                   <div className="aj-transcript" dir="auto">&ldquo;{quoteTranscript}&rdquo;</div>
@@ -1308,13 +1434,265 @@ export default function AddJobModal({ onClose, onSave, _onOpenDetailed, defaultM
               </div>
             )}
 
-            {/* ── Quote form: confirm (post-voice) and manual (typed) ── */}
-            {(quoteVoiceStatus === 'confirm' || quoteVoiceStatus === 'manual') && aiStatus !== 'building' && !showRatePrompt && (
+            {/* ── Bank-gate — deposit requested, no bank details, not Pro+Stripe ── */}
+            {quoteVoiceStatus === 'confirm' && showBankGate && (
+              <BankGateSheet
+                onClose={() => setShowBankGate(false)}
+                onSaved={(patch) => {
+                  setBankPatchOverride(patch);
+                  setShowBankGate(false);
+                }}
+                onSkip={() => {
+                  setQuoteDepositPercent(0);
+                  setShowBankGate(false);
+                }}
+              />
+            )}
+
+            {/* ── Voice-quote confirm card — the "10-second signature" ──────────
+                Glanceable 4-line card (Job · Customer · Total · Deposit), each
+                line inline-editable. Send goes straight through sendQuote() —
+                no ReviewSheet hop (see AddJobModal/TodayScreen wiring). The
+                full manual form (line items, AI itemise banner, margin, etc.)
+                stays one tap away via "Edit all fields". */}
+            {quoteVoiceStatus === 'confirm' && aiStatus !== 'building' && !showRatePrompt && !showBankGate && (
               <>
-                {quoteVoiceStatus === 'confirm' && quoteTranscript && (
+                {quoteTranscript && (
                   <div className="aj-transcript" dir="auto">&ldquo;{quoteTranscript}&rdquo;</div>
                 )}
 
+                {aiStatus === 'draft' && (
+                  <div className="aj-ai-draft-banner" role="status">
+                    Draft — built from your prices. Check it before you send.
+                  </div>
+                )}
+
+                <div className="aj-confirm-card" role="group" aria-label="Confirm your quote">
+                  {/* Job */}
+                  <div className="aj-confirm-row">
+                    <span className="aj-confirm-row-label">Job</span>
+                    {confirmEditField === 'job' ? (
+                      <input
+                        type="text"
+                        className="aj-confirm-row-input"
+                        value={summary}
+                        onChange={e => setSummary(e.target.value)}
+                        onBlur={() => setConfirmEditField(null)}
+                        autoFocus
+                        placeholder="Job description"
+                        aria-label="Job description"
+                      />
+                    ) : (
+                      <button
+                        type="button"
+                        className="aj-confirm-row-value"
+                        onClick={() => setConfirmEditField('job')}
+                        aria-label="Edit job description"
+                      >
+                        {summary || <span className="aj-confirm-row-placeholder">Add a job description</span>}
+                        <Icon name="edit" size={14} />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Customer */}
+                  <div className="aj-confirm-row">
+                    <span className="aj-confirm-row-label">Customer</span>
+                    {confirmEditField === 'customer' ? (
+                      <input
+                        type="text"
+                        className="aj-confirm-row-input"
+                        value={customer}
+                        onChange={e => setCustomer(e.target.value)}
+                        onBlur={() => setConfirmEditField(null)}
+                        autoFocus
+                        placeholder="Customer name"
+                        aria-label="Customer name"
+                      />
+                    ) : (
+                      <button
+                        type="button"
+                        className="aj-confirm-row-value"
+                        onClick={() => setConfirmEditField('customer')}
+                        aria-label="Edit customer name"
+                      >
+                        {customer ? customer : <span className="aj-confirm-row-placeholder">+ Add customer</span>}
+                        <Icon name="edit" size={14} />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Total (+VAT chip) */}
+                  <div className="aj-confirm-row">
+                    <span className="aj-confirm-row-label">Total</span>
+                    <div className="aj-confirm-row-total-wrap">
+                      {confirmEditField === 'total' ? (
+                        <div className="aj-micro-amount-wrap aj-micro-amount-wrap--inline">
+                          <span className="aj-micro-currency">£</span>
+                          <input
+                            type="number"
+                            inputMode="decimal"
+                            className="aj-micro-amount aj-micro-amount--inline"
+                            value={qTotal}
+                            onChange={e => { setQTotal(e.target.value); setError(''); }}
+                            onBlur={() => setConfirmEditField(null)}
+                            autoFocus
+                            placeholder="0"
+                            aria-label="Quote total in pounds"
+                          />
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          className="aj-confirm-row-value aj-confirm-row-value--total"
+                          onClick={() => setConfirmEditField('total')}
+                          aria-label="Edit total"
+                        >
+                          {qTotal.trim() ? `£${qTotal}` : <span className="aj-confirm-row-placeholder">Add a price</span>}
+                          <Icon name="edit" size={14} />
+                        </button>
+                      )}
+                      {quoteVat && (
+                        <span className="aj-confirm-vat-chip" aria-label="Plus VAT">+VAT</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Deposit — inline chips, pre-filled from the parsed transcript */}
+                  <div className="aj-confirm-row aj-confirm-row--deposit">
+                    <span className="aj-confirm-row-label">Deposit</span>
+                    <div className="aj-confirm-deposit-chips" role="group" aria-label="Deposit percentage">
+                      {CONFIRM_DEPOSIT_PRESETS.map(v => (
+                        <button
+                          key={v}
+                          type="button"
+                          className={`aj-chip${quoteDepositPercent === v && confirmEditField !== 'depositCustom' ? ' aj-chip--on' : ''}`}
+                          onClick={() => { setQuoteDepositPercent(v); setConfirmEditField(null); }}
+                        >
+                          {v}%
+                        </button>
+                      ))}
+                      <button
+                        type="button"
+                        className={`aj-chip${!CONFIRM_DEPOSIT_PRESETS.includes(quoteDepositPercent) || confirmEditField === 'depositCustom' ? ' aj-chip--on' : ''}`}
+                        onClick={() => setConfirmEditField('depositCustom')}
+                      >
+                        Custom
+                      </button>
+                    </div>
+                    {confirmEditField === 'depositCustom' && (
+                      <div className="aj-confirm-deposit-custom-row">
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="1"
+                          className="aj-deposit-custom-input"
+                          value={quoteDepositPercent || ''}
+                          onChange={e => setQuoteDepositPercent(Math.max(0, Math.min(100, parseInt(e.target.value, 10) || 0)))}
+                          onBlur={() => setConfirmEditField(null)}
+                          autoFocus
+                          aria-label="Custom deposit percentage"
+                          placeholder="e.g. 30"
+                        />
+                        <span className="aj-confirm-deposit-custom-suffix">%</span>
+                      </div>
+                    )}
+                    {quoteDepositPercent > 0 && qTotal.trim() && !isNaN(parseFloat(qTotal)) && (
+                      <div className="aj-confirm-deposit-preview">
+                        {quoteDepositPercent}% &middot; £{(parseFloat(qTotal) * quoteDepositPercent / 100).toFixed(2)}
+                        {quoteDepositDue && <> &middot; due {formatDateLabel(quoteDepositDue)}</>}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {error && <p className="modal-error">{error}</p>}
+
+                <button
+                  type="button"
+                  className="btn-primary btn-large aj-save-btn"
+                  onClick={sendVoiceConfirmQuote}
+                  disabled={!qTotal.trim() || isNaN(parseFloat(qTotal)) || parseFloat(qTotal) <= 0 || confirmSendBusy}
+                >
+                  {confirmSendBusy
+                    ? 'Preparing…'
+                    : (customer.trim() ? `Send to ${customer.trim().split(' ')[0]} on WhatsApp` : 'Send quote on WhatsApp')}
+                </button>
+
+                {/* Demoted "Save quote" — a quiet text link, not a competing button */}
+                <div className="aj-footer-links">
+                  <button type="button" className="link-btn" onClick={saveQuote}>
+                    Save quote
+                  </button>
+                </div>
+
+                {/* Collapsed detail: phone / itemise / margin / edit-all-fields escape hatch */}
+                <div className="aj-footer-links">
+                  <button
+                    type="button"
+                    className="link-btn"
+                    aria-expanded={showConfirmAddDetail}
+                    onClick={() => setShowConfirmAddDetail(v => !v)}
+                  >
+                    {showConfirmAddDetail ? 'Hide detail' : 'Add detail'}
+                  </button>
+                </div>
+
+                {showConfirmAddDetail && (
+                  <div className="aj-confirm-add-detail">
+                    <label>
+                      <span>Customer phone</span>
+                      <input
+                        type="tel"
+                        inputMode="tel"
+                        value={phone}
+                        onChange={e => setPhone(e.target.value)}
+                        placeholder="07700 900123 (for WhatsApp)"
+                        aria-label="Customer phone"
+                      />
+                    </label>
+
+                    {aiStatus === 'idle' && (
+                      <button type="button" className="aj-ai-itemise-btn" onClick={handleItemiseClick}>
+                        Itemise it for me
+                      </button>
+                    )}
+                    {aiStatus === 'error' && aiError && (
+                      <p className={`modal-error${aiError.includes('quota_exceeded') || aiError.includes("free AI quotes") ? ' aj-quota-error' : ''}`}>
+                        {aiError}
+                      </p>
+                    )}
+
+                    <MarginSection
+                      estCost={estCost}
+                      setEstCost={setEstCost}
+                      price={qTotal.trim() ? parseFloat(qTotal) : 0}
+                      showMarginSection={showMarginSection}
+                      setShowMarginSection={setShowMarginSection}
+                      showMarkupReveal={showMarkupReveal}
+                      setShowMarkupReveal={setShowMarkupReveal}
+                      seenReassurance={seenMarginReassurance}
+                    />
+
+                    <button
+                      type="button"
+                      className="link-btn"
+                      onClick={() => {
+                        manualOverride.current = true;
+                        setQuoteVoiceStatus('manual');
+                      }}
+                    >
+                      Edit all fields
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+
+            {/* ── Quote form: confirm (post-voice) and manual (typed) ── */}
+            {quoteVoiceStatus === 'manual' && aiStatus !== 'building' && !showRatePrompt && (
+              <>
                 {/* When voice is not available or user chose type-first, show a mic button */}
                 {quoteVoiceStatus === 'manual' && !quoteTranscript && SR && isOnline() && (
                   <button
@@ -1369,20 +1747,7 @@ export default function AddJobModal({ onClose, onSave, _onOpenDetailed, defaultM
                   <button
                     type="button"
                     className="aj-ai-itemise-btn"
-                    onClick={() => {
-                      const desc = summary.trim() || quoteTranscript.trim();
-                      if (!desc) {
-                        setError('Add a job description first');
-                        return;
-                      }
-                      setError('');
-                      // profileHourlyRate: undefined = not yet fetched, null = confirmed unset
-                      // We check at the server and let it prompt if needed — pass undefined as
-                      // sentinel, resolved in runAiQuoteBuild via the rate prompt.
-                      // We optimistically run; if server returns no hourly_rate the AI uses
-                      // placeholder costs, which is acceptable per spec.
-                      runAiQuoteBuild(desc, profileHourlyRate === null ? null : 0);
-                    }}
+                    onClick={handleItemiseClick}
                   >
                     Itemise it for me
                   </button>
@@ -1636,20 +2001,6 @@ export default function AddJobModal({ onClose, onSave, _onOpenDetailed, defaultM
                   >
                     Send to customer
                   </button>
-                )}
-
-                {quoteVoiceStatus === 'confirm' && (
-                  <div className="aj-footer-links">
-                    <button
-                      className="link-btn"
-                      onClick={() => {
-                        manualOverride.current = true;
-                        setQuoteVoiceStatus('manual');
-                      }}
-                    >
-                      Edit all fields
-                    </button>
-                  </div>
                 )}
               </>
             )}

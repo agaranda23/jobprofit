@@ -14035,6 +14035,119 @@ button.jd-money-chip:active { opacity: 0.75; }
 .aj-quote-total-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 .aj-quote-total-input:focus { border-bottom-color: var(--primary, #28b581); }
 
+/* ── Voice-quote confirm card — the "10-second signature" glanceable card ── */
+.aj-confirm-card {
+  background: var(--surface-2);
+  border-radius: var(--radius-lg);
+  padding: 4px 16px;
+  display: flex;
+  flex-direction: column;
+  margin: 8px 0 4px;
+}
+.aj-confirm-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+.aj-confirm-row:last-child { border-bottom: none; }
+.aj-confirm-row--deposit {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+.aj-confirm-row-label {
+  font-size: var(--fs-label);
+  font-weight: 600;
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+.aj-confirm-row-value {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  padding: 4px 0;
+  font-size: var(--fs-body);
+  font-weight: 700;
+  color: var(--text);
+  text-align: right;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.aj-confirm-row-value--total { font-variant-numeric: tabular-nums; }
+.aj-confirm-row-value:active { opacity: 0.7; }
+.aj-confirm-row-placeholder { color: var(--text-dim); font-weight: 500; }
+.aj-confirm-row-input {
+  flex: 1;
+  text-align: right;
+  font-size: var(--fs-body);
+  font-weight: 700;
+  color: var(--text);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid var(--accent);
+  outline: none;
+  padding: 4px 0;
+  font-family: inherit;
+}
+.aj-confirm-row-total-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.aj-confirm-vat-chip {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent);
+  background: rgba(16,185,129,0.18);
+  border-radius: var(--radius-pill);
+  padding: 3px 8px;
+  flex-shrink: 0;
+}
+.aj-confirm-deposit-chips {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.aj-confirm-deposit-chips .aj-chip {
+  min-height: 36px;
+  padding: 6px 14px;
+}
+.aj-confirm-deposit-custom-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.aj-deposit-custom-input {
+  width: 64px;
+  height: 36px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0 8px;
+  font-size: var(--fs-label);
+  background: var(--surface);
+  color: var(--text);
+}
+.aj-confirm-deposit-custom-suffix {
+  font-size: var(--fs-label);
+  color: var(--text-dim);
+}
+.aj-confirm-deposit-preview {
+  font-size: var(--fs-label);
+  color: var(--text-dim);
+}
+.aj-confirm-add-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 4px 0 8px;
+  padding-top: 4px;
+}
+
 /* Line items section */
 .aj-quote-line-items {
   margin: 8px 0;
