@@ -2955,12 +2955,28 @@ body {
   display: flex;
   justify-content: center;
 }
+/* Eyebrow — small line above the headline, sets the profit-led premise */
+.auth-eyebrow {
+  font-size: var(--fs-label);
+  font-weight: 600;
+  color: var(--text-dim);
+  letter-spacing: 0.01em;
+  margin: 0 0 8px;
+}
 /* Hero line — replaces the old .auth-tagline */
 .auth-hero {
   font-size: var(--fs-subhead);
   font-weight: 700;
   color: var(--text);
   line-height: 1.25;
+  margin: 0 0 10px;
+}
+/* Subhead — restates the get-paid loop under the profit-led headline */
+.auth-subhead {
+  font-size: var(--fs-label);
+  font-weight: 500;
+  color: var(--text-dim);
+  line-height: 1.45;
   margin: 0 0 20px;
 }
 /* Loop strip — four chips with chevron separators */
