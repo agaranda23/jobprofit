@@ -84,7 +84,8 @@ describe('B. Resend request shape', () => {
 
     const [, init] = fetchSpy.mock.calls[0];
     const body = JSON.parse(init.body);
-    expect(body.from).toContain('onboarding@resend.dev');
+    expect(body.from).toContain('ohnar.co.uk');
+    expect(body.reply_to).toBe('getohnar@gmail.com');
     expect(body.to).toBe('trader@example.com');
     expect(body.subject).toContain('Jane Customer');
     expect(body.subject).toContain('1200.00');
@@ -107,7 +108,7 @@ describe('B. Resend request shape', () => {
     expect(body.text).toContain('staging.jobprofit.netlify.app');
   });
 
-  it('defaults to jobprofit.netlify.app when APP_BASE_URL is unset', async () => {
+  it('defaults to ohnar.co.uk when APP_BASE_URL is unset', async () => {
     delete process.env.APP_BASE_URL;
     const fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
       new Response(JSON.stringify({ id: 'test-id' }), { status: 200 })
@@ -118,7 +119,7 @@ describe('B. Resend request shape', () => {
 
     const [, init] = fetchSpy.mock.calls[0];
     const body = JSON.parse(init.body);
-    expect(body.html).toContain('jobprofit.netlify.app');
+    expect(body.html).toContain('ohnar.co.uk');
   });
 });
 

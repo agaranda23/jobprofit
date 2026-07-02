@@ -12,18 +12,19 @@
  *   - If the fetch times out (3s) → logs and returns { ok: false, reason: '...' }
  *
  * Provider: Resend (https://resend.com)
- *   Sender:  onboarding@resend.dev — works without domain verification for v1.
- *   Switch to quotes@jobprofit.co.uk once domain is verified in Resend dashboard.
+ *   Sender:  OHNAR Notifications <alan@ohnar.co.uk> — ohnar.co.uk is verified
+ *   in the Resend dashboard (SPF/DKIM). Replies route to getohnar@gmail.com.
  *
  * Required env vars:
  *   RESEND_API_KEY  — Netlify dashboard → Environment variables
  * Optional env vars:
- *   APP_BASE_URL    — defaults to https://jobprofit.netlify.app
+ *   APP_BASE_URL    — defaults to https://ohnar.co.uk
  */
 
 const RESEND_ENDPOINT = 'https://api.resend.com/emails';
-const SENDER = 'JobProfit <onboarding@resend.dev>';
-const DEFAULT_APP_URL = 'https://jobprofit.netlify.app';
+const SENDER = 'OHNAR Notifications <alan@ohnar.co.uk>';
+const REPLY_TO = 'getohnar@gmail.com';
+const DEFAULT_APP_URL = 'https://ohnar.co.uk';
 
 /**
  * @param {object} params
@@ -105,6 +106,7 @@ export async function sendTraderAcceptEmail({
       body: JSON.stringify({
         from: SENDER,
         to: traderEmail,
+        reply_to: REPLY_TO,
         subject,
         html,
         text,

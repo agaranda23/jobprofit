@@ -302,6 +302,18 @@ describe('F. Email payload shape sent to Resend', () => {
     const handler = await getHandler();
     await handler(makeEvent());
     expect(capturedBody.from).toContain('OHNAR');
+    expect(capturedBody.from).toContain('alan@ohnar.co.uk');
+  });
+
+  it('sets reply_to so replies land in the founder inbox, not the sending address', async () => {
+    let capturedBody = null;
+    mockFetch.mockImplementationOnce(async (_url, opts) => {
+      capturedBody = JSON.parse(opts.body);
+      return makeResendSuccess();
+    });
+    const handler = await getHandler();
+    await handler(makeEvent());
+    expect(capturedBody.reply_to).toBe('getohnar@gmail.com');
   });
 
   it('uses the expected subject line', async () => {
@@ -337,8 +349,8 @@ describe('F. Email payload shape sent to Resend', () => {
     });
     const handler = await getHandler();
     await handler(makeEvent());
-    expect(capturedBody.html).toContain('Hi Dave,');
-    expect(capturedBody.text).toContain('Hi Dave,');
+    expect(capturedBody.html).toContain('Hi Dave');
+    expect(capturedBody.text).toContain('Hi Dave');
   });
 
   it('falls back to generic greeting when first_name is null', async () => {
@@ -350,8 +362,8 @@ describe('F. Email payload shape sent to Resend', () => {
     });
     const handler = await getHandler();
     await handler(makeEvent());
-    expect(capturedBody.html).toContain('Hi there,');
-    expect(capturedBody.text).toContain('Hi there,');
+    expect(capturedBody.html).toContain('Hi there');
+    expect(capturedBody.text).toContain('Hi there');
   });
 
   it('posts to the Resend API endpoint', async () => {
@@ -415,7 +427,10 @@ describe('I. buildEmailHtml and buildEmailText shape', () => {
     const { buildEmailHtml } = await import('../send-welcome-email.js');
     const html = buildEmailHtml('Dave');
     expect(html).toContain('A spreadsheet tells you what you charged');
-    expect(html).toContain('OHNAR tells you what you made');
+    // "made" is wrapped in an underline <span> in the HTML design, so match
+    // the surrounding copy rather than the exact phrase.
+    expect(html).toContain('OHNAR tells you what you');
+    expect(html).toMatch(/OHNAR tells you what you <span[^>]*>made<\/span>/);
   });
 
   it('buildEmailHtml contains the CTA linking to ohnar.co.uk', async () => {
@@ -453,5 +468,54 @@ describe('I. buildEmailHtml and buildEmailText shape', () => {
     const { buildEmailText } = await import('../send-welcome-email.js');
     const text = buildEmailText(null);
     expect(text).toContain('Alan, OHNAR');
+  });
+
+  it('buildEmailHtml uses a hosted logo URL, not a base64 data-URI', async () => {
+    const { buildEmailHtml } = await import('../send-welcome-email.js');
+    const html = buildEmailHtml(null);
+    expect(html).toContain('/ohnar-logo-dark.png');
+    expect(html).not.toContain('data:image');
+  });
+
+  it('buildEmailHtml contains the 3-step getting-started checklist', async () => {
+    const { buildEmailHtml } = await import('../send-welcome-email.js');
+    const html = buildEmailHtml(null);
+    expect(html).toContain('Log a job by voice');
+    expect(html).toContain('Send a quote or invoice');
+    expect(html).toContain('See your true profit');
+  });
+
+  it('buildEmailHtml contains the Founding Member note', async () => {
+    const { buildEmailHtml } = await import('../send-welcome-email.js');
+    const html = buildEmailHtml(null);
+    expect(html).toContain("You're a Founding Member");
+  });
+
+  it('buildEmailHtml contains the Add to Home Screen PWA tip', async () => {
+    const { buildEmailHtml } = await import('../send-welcome-email.js');
+    const html = buildEmailHtml(null);
+    expect(html).toContain('Add to Home Screen');
+  });
+
+  it('buildEmailHtml contains the legal footer with company details', async () => {
+    const { buildEmailHtml } = await import('../send-welcome-email.js');
+    const html = buildEmailHtml(null);
+    expect(html).toContain('JOB PROFIT LTD');
+    expect(html).toContain('17249792');
+    expect(html).toContain('128 City Road, London EC1V 2NX');
+  });
+
+  it('buildEmailText contains the 3-step getting-started checklist', async () => {
+    const { buildEmailText } = await import('../send-welcome-email.js');
+    const text = buildEmailText(null);
+    expect(text).toContain('Log a job by voice');
+    expect(text).toContain('Send a quote or invoice');
+    expect(text).toContain('See your true profit');
+  });
+
+  it('buildEmailText contains the Add to Home Screen PWA tip', async () => {
+    const { buildEmailText } = await import('../send-welcome-email.js');
+    const text = buildEmailText(null);
+    expect(text).toContain('Add to Home Screen');
   });
 });
