@@ -123,7 +123,11 @@ export default function AuthScreen() {
         <h1 className="auth-title">
           <OhnarWordmark size="clamp(2rem, 10vw, 2.75rem)" />
         </h1>
-        <p className="auth-hero">Quote it, send it, get paid. From the van.</p>
+        <p className="auth-eyebrow">The number your invoice doesn't show you</p>
+        <p className="auth-hero">Know what you actually made. Every job, every time.</p>
+        <p className="auth-subhead">
+          Quote it, send it, get paid — from the van. Then watch the real profit land, not just the invoice total. No app store. No lead fees. No one clipping your ticket.
+        </p>
 
         <div className="auth-loop" aria-label="Quote, Signed, Invoiced, Paid">
           <span className="auth-loop-chip auth-loop-chip--1">Quote</span>
@@ -136,9 +140,9 @@ export default function AuthScreen() {
         </div>
 
         <ul className="auth-benefits">
-          <li>Speak the job — quote in your customer's WhatsApp in 52 seconds.</li>
-          <li>Get it signed, invoiced, and unpaid ones chased — without nagging anyone yourself.</li>
-          <li>See the real profit on every job, not just what landed in the bank.</li>
+          <li>See the real profit on every job — after materials, fuel and tax, not before.</li>
+          <li>Quote it, send it, get paid, from the van — before the kettle's even boiled.</li>
+          <li>Your tool, not a lead directory's — no lead fees, no commission, no middleman.</li>
         </ul>
 
         <p className="auth-trust">£12/mo flat. Tradify charges £34. Free trial, no card. No app store — it just opens.</p>

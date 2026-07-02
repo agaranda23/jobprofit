@@ -47,9 +47,22 @@ afterEach(() => {
 // ── Pitch copy ────────────────────────────────────────────────────────────────
 
 describe('AuthScreen — pitch copy', () => {
+  it('renders the eyebrow line', () => {
+    renderAuth();
+    expect(screen.getByText("The number your invoice doesn't show you")).toBeTruthy();
+  });
+
   it('renders the hero line', () => {
     renderAuth();
-    expect(screen.getByText('Quote it, send it, get paid. From the van.')).toBeTruthy();
+    expect(screen.getByText('Know what you actually made. Every job, every time.')).toBeTruthy();
+  });
+
+  it('renders the subhead line', () => {
+    const { container } = renderAuth();
+    const subhead = container.querySelector('.auth-subhead');
+    expect(subhead).toBeTruthy();
+    expect(subhead?.textContent).toContain('Quote it, send it, get paid');
+    expect(subhead?.textContent).toContain('No lead fees');
   });
 
   it('renders all four loop chips via class selectors', () => {
@@ -77,20 +90,20 @@ describe('AuthScreen — pitch copy', () => {
   it('renders the first proof beat', () => {
     renderAuth();
     const items = screen.getAllByRole('listitem');
-    expect(items[0].textContent).toContain('Speak the job');
-    expect(items[0].textContent).toContain('52 seconds');
+    expect(items[0].textContent).toContain('See the real profit on every job');
+    expect(items[0].textContent).toContain('materials, fuel and tax');
   });
 
   it('renders the second proof beat', () => {
     renderAuth();
     const items = screen.getAllByRole('listitem');
-    expect(items[1].textContent).toContain('Get it signed, invoiced, and unpaid ones chased');
+    expect(items[1].textContent).toContain('Quote it, send it, get paid, from the van');
   });
 
   it('renders the third proof beat', () => {
     renderAuth();
     const items = screen.getAllByRole('listitem');
-    expect(items[2].textContent).toContain('See the real profit on every job');
+    expect(items[2].textContent).toContain('no lead fees, no commission, no middleman');
   });
 
   it('renders exactly three proof-beat list items', () => {
