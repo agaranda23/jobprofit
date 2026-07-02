@@ -2,6 +2,24 @@
   command = "npm run build"
   publish = "dist"
 
+# Brand cutover — jobprofit.co.uk (old domain) → ohnar.co.uk (path-preserving).
+# Host-scoped "from" (full URL incl. host) only matches requests to that host,
+# so ohnar.co.uk traffic is unaffected. Placed FIRST so it fires ahead of the
+# path-only rules below (e.g. /privacy) — otherwise a jobprofit.co.uk/privacy
+# request would match the path-only rule and be served locally instead of
+# redirecting to ohnar.co.uk.
+[[redirects]]
+  from = "https://jobprofit.co.uk/*"
+  to = "https://ohnar.co.uk/:splat"
+  status = 301
+  force = true
+
+[[redirects]]
+  from = "https://www.jobprofit.co.uk/*"
+  to = "https://ohnar.co.uk/:splat"
+  status = 301
+  force = true
+
 # Legal pages — clean URLs for static HTML in /public.
 # Listed BEFORE the SPA catch-all so /privacy, /terms, /cookies resolve to
 # their respective HTML files rather than falling through to index.html.
