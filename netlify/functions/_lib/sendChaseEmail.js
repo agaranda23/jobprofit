@@ -20,7 +20,8 @@
  * @returns {Promise<{ sent: true } | { skipped: string } | { error: string }>}
  */
 
-const FROM_ADDRESS = 'Alan at OHNAR <alan@jobprofit.co.uk>'; // FLAG: flip to alan@ohnar.co.uk after Resend verifies ohnar.co.uk SPF/DKIM
+const FROM_ADDRESS = 'Alan at OHNAR <alan@ohnar.co.uk>';
+const REPLY_TO = 'getohnar@gmail.com';
 const RESEND_API_URL = 'https://api.resend.com/emails';
 // Netlify sets process.env.URL to the PRIMARY custom domain at runtime.
 // Falls back to ohnar.co.uk so deep-links are always brand-correct.
@@ -89,6 +90,7 @@ export async function sendChaseEmail({ userId, adminClient, job, dpd, currentTie
       body: JSON.stringify({
         from: FROM_ADDRESS,
         to: [traderEmail],
+        reply_to: REPLY_TO,
         subject,
         text: lines,
       }),

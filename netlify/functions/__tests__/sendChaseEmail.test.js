@@ -111,8 +111,10 @@ describe('sendChaseEmail — B: calls Resend with correct subject + deep-link', 
     expect(body.subject).toContain('£450');
     // Sent to the trader
     expect(body.to).toContain(FAKE_TRADER_EMAIL);
-    // FROM is always JobProfit
-    expect(body.from).toContain('alan@jobprofit.co.uk');
+    // FROM is always OHNAR
+    expect(body.from).toContain('alan@ohnar.co.uk');
+    // Replies route to the founder's inbox, not the sending address
+    expect(body.reply_to).toBe('getohnar@gmail.com');
   });
 
   it('includes the deep-link URL in the plain-text body', async () => {

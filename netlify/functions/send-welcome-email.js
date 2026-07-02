@@ -46,16 +46,23 @@ const CORS_HEADERS = {
 // Netlify sets process.env.URL to the PRIMARY custom domain at runtime.
 // Falls back to ohnar.co.uk so the welcome email CTA is always brand-correct.
 const APP_URL = (process.env.URL || 'https://ohnar.co.uk').replace(/\/$/, '');
-const FROM_ADDRESS = 'Alan at OHNAR <alan@jobprofit.co.uk>'; // FLAG: flip to alan@ohnar.co.uk after Resend verifies ohnar.co.uk SPF/DKIM
+const FROM_ADDRESS = 'Alan at OHNAR <alan@ohnar.co.uk>';
+const REPLY_TO = 'getohnar@gmail.com';
 const RESEND_API_URL = 'https://api.resend.com/emails';
 
 function json(statusCode, body) {
   return { statusCode, headers: CORS_HEADERS, body: JSON.stringify(body) };
 }
 
-/** Build the HTML email body. Inline styles for broadest email client support. */
+/**
+ * Build the HTML email body. Inline styles for broadest email client support.
+ *
+ * The logo is loaded from a hosted URL (${APP_URL}/ohnar-logo-dark.png), not a
+ * base64 data-URI — most email clients (Gmail, Outlook) strip or block inline
+ * data-URI images, so a hosted PNG is required for the logo to render at all.
+ */
 export function buildEmailHtml(firstName) {
-  const greeting = firstName ? `Hi ${firstName},` : 'Hi there,';
+  const greeting = firstName ? `Hi ${firstName} \u{1F44B}` : 'Hi there \u{1F44B}';
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -63,61 +70,86 @@ export function buildEmailHtml(firstName) {
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Welcome to OHNAR</title>
 </head>
-<body style="margin:0;padding:0;background:#f5f5f5;font-family:'DM Sans',Arial,Helvetica,sans-serif;">
-  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f5f5f5;padding:32px 16px;">
+<body style="margin:0;padding:0;background:#eef1f6;font-family:'DM Sans',Arial,Helvetica,sans-serif;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#eef1f6;padding:28px 16px;">
     <tr>
       <td align="center">
-        <table role="presentation" width="100%" style="max-width:560px;background:#ffffff;border-radius:12px;overflow:hidden;">
+        <table role="presentation" width="100%" style="max-width:560px;background:#ffffff;border-radius:14px;overflow:hidden;box-shadow:0 2px 10px rgba(11,19,32,.06);">
 
-          <!-- Header bar -->
+          <!-- Header -->
           <tr>
-            <td style="background:#0B1320;padding:24px 32px;">
-              <p style="margin:0;font-size:22px;font-weight:700;color:#ffffff;letter-spacing:-0.5px;">OHNAR</p>
+            <td style="background:#0B1320;padding:22px 32px;" align="left">
+              <img src="${APP_URL}/ohnar-logo-dark.png" alt="OHNAR" width="140" height="31" style="display:block;border:0;" />
             </td>
           </tr>
 
           <!-- Body -->
           <tr>
-            <td style="padding:32px 32px 24px;">
-              <p style="margin:0 0 16px;font-size:16px;color:#111827;line-height:1.5;">${greeting}</p>
-
-              <p style="margin:0 0 16px;font-size:16px;color:#111827;line-height:1.5;">
-                Welcome aboard &#8212; really glad you're here.
+            <td style="padding:30px 32px 8px;">
+              <p style="margin:0 0 14px;font-size:22px;font-weight:800;color:#0B1320;line-height:1.2;">${greeting}</p>
+              <p style="margin:0 0 18px;font-size:15px;color:#334155;line-height:1.55;">
+                Welcome aboard &#8212; really glad you're here. OHNAR is the fastest way to quote, get paid, and actually <b>see what each job made</b> &#8212; all from your phone.
               </p>
 
-              <p style="margin:0 0 24px;font-size:17px;font-weight:600;color:#2563EB;line-height:1.4;border-left:3px solid #2563EB;padding-left:12px;">
-                A spreadsheet tells you what you charged.<br />
-                OHNAR tells you what you made.
+              <!-- Profit hook -->
+              <p style="margin:0 0 22px;font-size:17px;font-weight:700;color:#2563EB;line-height:1.4;border-left:4px solid #2563EB;padding-left:14px;">
+                A spreadsheet tells you what you charged.<br />OHNAR tells you what you <span style="text-decoration:underline;">made</span>.
               </p>
 
-              <!-- CTA button -->
-              <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 24px;">
+              <!-- CTA -->
+              <table role="presentation" cellpadding="0" cellspacing="0" style="margin:0 0 26px;">
                 <tr>
-                  <td style="background:#2563EB;border-radius:8px;">
-                    <a href="${APP_URL}"
-                       style="display:inline-block;padding:14px 28px;font-size:15px;font-weight:600;color:#ffffff;text-decoration:none;letter-spacing:0.2px;">
-                      Log your first job &#8212; 60 seconds
-                    </a>
+                  <td style="background:#2563EB;border-radius:10px;">
+                    <a href="${APP_URL}" style="display:inline-block;padding:15px 30px;font-size:15px;font-weight:700;color:#ffffff;text-decoration:none;">Log your first job &#8212; 60 seconds \u{2192}</a>
                   </td>
                 </tr>
               </table>
 
-              <p style="margin:0 0 24px;font-size:14px;color:#6b7280;line-height:1.5;background:#f9fafb;border-radius:8px;padding:12px 14px;">
-                You're a Founding Member &#8212; that means &#163;12/month for life, locked in as long as you stay subscribed. We're grateful for the early trust.
+              <!-- Getting started -->
+              <p style="margin:0 0 12px;font-size:12px;font-weight:800;color:#64748b;letter-spacing:.06em;text-transform:uppercase;">Getting started</p>
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 12px;">
+                <tr>
+                  <td width="26" valign="top" style="font-size:16px;color:#0E9F6E;font-weight:800;">\u{2713}</td>
+                  <td style="font-size:14px;color:#1e2d44;line-height:1.5;"><b style="color:#0B1320;">Log a job by voice</b> &#8212; Just say it &#8212; "kitchen job, Sarah, &#163;780" &#8212; OHNAR writes it up.</td>
+                </tr>
+              </table>
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 12px;">
+                <tr>
+                  <td width="26" valign="top" style="font-size:16px;color:#0E9F6E;font-weight:800;">\u{2713}</td>
+                  <td style="font-size:14px;color:#1e2d44;line-height:1.5;"><b style="color:#0B1320;">Send a quote or invoice</b> &#8212; Your branding, sent from your phone, paid by card.</td>
+                </tr>
+              </table>
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 12px;">
+                <tr>
+                  <td width="26" valign="top" style="font-size:16px;color:#0E9F6E;font-weight:800;">\u{2713}</td>
+                  <td style="font-size:14px;color:#1e2d44;line-height:1.5;"><b style="color:#0B1320;">See your true profit</b> &#8212; What you actually made on the job, after costs. Not just what you charged.</td>
+                </tr>
+              </table>
+
+              <!-- Founding member -->
+              <p style="margin:18px 0 22px;font-size:13.5px;color:#8a6a12;line-height:1.5;background:#fdf6e3;border:1px solid #f0dfa8;border-radius:9px;padding:12px 14px;">
+                <b>You're a Founding Member</b> &#8212; &#163;12/month locked for life, as long as you stay subscribed. Thanks for the early trust.
               </p>
 
-              <p style="margin:0;font-size:15px;color:#374151;line-height:1.5;">
-                Any questions, just reply to this email.<br /><br />
+              <!-- Independence + human -->
+              <p style="margin:0 0 18px;font-size:15px;color:#334155;line-height:1.55;">
+                Your customers, your brand, your data &#8212; <b>no strings</b>. Any questions, just reply to this email &#8212; I read every one.<br /><br />
                 &#8212; Alan, OHNAR
+              </p>
+
+              <!-- PWA install tip -->
+              <p style="margin:0 0 8px;font-size:13px;color:#475569;line-height:1.5;background:#f4f7fc;border-radius:9px;padding:11px 14px;">
+                \u{1F4F2} <b>Tip:</b> Add OHNAR to your home screen so it opens like an app &#8212; open <a href="${APP_URL}" style="color:#2563EB;text-decoration:none;">ohnar.co.uk</a>, tap Share \u{2192} &#8220;Add to Home Screen&#8221;.
               </p>
             </td>
           </tr>
 
           <!-- Footer -->
           <tr>
-            <td style="background:#f9fafb;padding:16px 32px;border-top:1px solid #e5e7eb;">
-              <p style="margin:0;font-size:12px;color:#9ca3af;line-height:1.5;">
-                OHNAR &middot; <a href="${APP_URL}" style="color:#6b7280;text-decoration:none;">ohnar.co.uk</a>
+            <td style="background:#0B1320;padding:18px 32px;">
+              <p style="margin:0 0 6px;font-size:12px;color:#dce8fd;font-weight:700;">OHNAR &middot; Run your business. Get paid. Repeat.</p>
+              <p style="margin:0;font-size:11px;color:#8ba0c4;line-height:1.5;">
+                OHNAR is a trading name of JOB PROFIT LTD, registered in England &amp; Wales (No. 17249792). 128 City Road, London EC1V 2NX. \u{00B7} <a href="${APP_URL}" style="color:#9dc0fb;text-decoration:none;">ohnar.co.uk</a>
               </p>
             </td>
           </tr>
@@ -132,21 +164,28 @@ export function buildEmailHtml(firstName) {
 
 /** Plain-text fallback for email clients that can't render HTML. */
 export function buildEmailText(firstName) {
-  const greeting = firstName ? `Hi ${firstName},` : 'Hi there,';
+  const greeting = firstName ? `Hi ${firstName} \u{1F44B}` : 'Hi there \u{1F44B}';
   return [
     greeting,
     '',
-    "Welcome aboard — really glad you're here.",
+    "Welcome aboard — really glad you're here. OHNAR is the fastest way to quote, get paid, and actually see what each job made — all from your phone.",
     '',
     '"A spreadsheet tells you what you charged. OHNAR tells you what you made."',
     '',
     `Log your first job (60 seconds): ${APP_URL}`,
     '',
-    "You're a Founding Member — that means £12/month for life, locked in as long as you stay subscribed. We're grateful for the early trust.",
+    'GETTING STARTED',
+    '✓ Log a job by voice — Just say it — "kitchen job, Sarah, £780" — OHNAR writes it up.',
+    '✓ Send a quote or invoice — Your branding, sent from your phone, paid by card.',
+    '✓ See your true profit — What you actually made on the job, after costs. Not just what you charged.',
     '',
-    'Any questions, just reply to this email.',
+    "You're a Founding Member — £12/month locked for life, as long as you stay subscribed. Thanks for the early trust.",
+    '',
+    'Your customers, your brand, your data — no strings. Any questions, just reply to this email — I read every one.',
     '',
     '— Alan, OHNAR',
+    '',
+    `Tip: Add OHNAR to your home screen so it opens like an app — open ${APP_URL}, tap Share → "Add to Home Screen".`,
   ].join('\n');
 }
 
@@ -278,6 +317,7 @@ export const handler = async function (event) {
       body: JSON.stringify({
         from: FROM_ADDRESS,
         to: [email],
+        reply_to: REPLY_TO,
         subject,
         html: buildEmailHtml(firstName),
         text: buildEmailText(firstName),
