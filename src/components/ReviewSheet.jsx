@@ -33,22 +33,19 @@
 import { useState, useCallback } from 'react';
 import Icon from './Icon';
 import QRCode from 'qrcode';
+import BankGateSheet from './BankGateSheet';
 import { downloadInvoicePDF, getInvoicePDFBlob } from '../lib/invoicePDF';
-import { downloadQuotePDF, getQuotePDFBlob } from '../lib/invoicePDF';
+import { downloadQuotePDF } from '../lib/invoicePDF';
 import { buildInvoiceWhatsAppMessage, buildWhatsAppLink } from '../lib/invoiceMessage';
-import { buildQuoteWhatsAppMessage } from '../lib/quoteMessage';
 import { nextInvoiceNumber } from '../lib/invoiceNumber';
 import {
   buildPublicQuoteUrl,
 } from '../lib/publicQuoteToken';
-import { persistPublicToken, reissuePublicToken } from '../lib/store';
-import { extractJobMeta, writeJobMeta } from '../lib/jobMeta';
 import { logTelemetry } from '../lib/telemetry';
 import { getJobProfit } from '../lib/cashflow';
 import { isPro } from '../lib/plan';
 import { canShareFile } from '../lib/webShare';
-import { stagePatch } from '../lib/jobStatus';
-import { supabase } from '../lib/supabase';
+import { sendQuote } from '../lib/sendQuote';
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -200,9 +197,6 @@ function DepositPickerRow({ profile, jobTotal, depositPercent, onDepositChange }
   );
 }
 
-import { formatSortCode, profileHasBank } from '../lib/bankDetails.js';
-
-
 export default function ReviewSheet({
   mode,
   job,
@@ -248,16 +242,6 @@ export default function ReviewSheet({
 
   // Bank-gate view: 'main' | 'bank-gate'
   const [sheetView, setSheetView] = useState('main');
-
-  // Bank-gate form fields
-  const [bankSortCode, setBankSortCode] = useState('');
-  const [bankAccountNumber, setBankAccountNumber] = useState('');
-  const [bankSaving, setBankSaving] = useState(false);
-  const [bankError, setBankError] = useState(null);
-
-  // First-send teach: shown once when a deposit is set and the quote is sent.
-  // Stored in localStorage so it appears only on the first send.
-  const DEPOSIT_TEACH_KEY = 'jp.deposit_bank_teach_shown';
 
   const jobName = job?.summary || job?.customer || job?.name || 'Job';
   const sheetTitle = isInvoice
@@ -347,226 +331,25 @@ export default function ReviewSheet({
     }
   };
 
-  // ── Bank-gate save handler ─────────────────────────────────────────────────
-  // Mirrors the same pattern from SendInvoiceModal. Called when the trader
-  // saves bank details in the bank-gate sheet. On success transitions back to
-  // the main quote sheet so the send can proceed.
-  const handleBankGateSave = async () => {
-    const sortCodeValid = /^\d{6}$/.test(bankSortCode.replace(/\D/g, ''));
-    const accountNumberValid = /^\d{6,8}$/.test(bankAccountNumber);
-    if (!sortCodeValid || !accountNumberValid || bankSaving) return;
-
-    setBankSaving(true);
-    setBankError(null);
-    try {
-      const patch = {
-        sort_code:      bankSortCode.trim(),
-        account_number: bankAccountNumber.trim(),
-      };
-      if (onProfileUpdate) {
-        await onProfileUpdate(patch);
-      } else {
-        // Fallback: write directly when onProfileUpdate is not threaded.
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!session?.user?.id) throw new Error('Not signed in');
-        const { error: dbErr } = await supabase
-          .from('profiles')
-          .update(patch)
-          .eq('id', session.user.id);
-        if (dbErr) throw dbErr;
-      }
-      setLocalProfile(prev => ({ ...(prev || {}), ...patch }));
-      setSheetView('main');
-    } catch (e) {
-      setBankError(e?.message || 'Could not save — check your connection and try again');
-    } finally {
-      setBankSaving(false);
-    }
-  };
-
   // ── Quote: WhatsApp send ───────────────────────────────────────────────────
-  // Decision tree:
-  //   0. deposit > 0 + no bank details → bank-gate (collect sort code / account)
-  //   1. Clamp stale deposit_amount_pence to current job total at send time.
-  //   2. Mint/reuse publicAccessToken and AWAIT its write to the cloud BEFORE
-  //      generating the PDF or share link — this is the fix for the "Quote not
-  //      found" bug. The URL is embedded in both the QR code and the PDF; if the
-  //      customer opens the link before the cloud write completes (even 200ms),
-  //      fetchPublicJob returns null → "Quote not found."
-  //   3. If the cloud write fails offline → warn the trader and abort the send.
-  //   4. canShareFile(file) + has phone  → navigator.share({ files, text })
-  //   5. canShareFile(file), no phone    → navigator.share({ files, text }) only
-  //   6. No Web Share Level 2 + phone    → wa.me text-only + auto-trigger PDF download
-  //   7. No Web Share Level 2, no phone  → clipboard copy of quote URL
-  //   8. AbortError                      → don't close, don't flash error
+  // Thin wrapper around the shared sendQuote() helper (src/lib/sendQuote.js) —
+  // the voice-quote confirm card (AddJobModal) calls the exact same function
+  // directly, without hopping through this sheet. See sendQuote.js for the
+  // full decision tree (bank-gate, token persist, PDF+QR, share fallbacks).
   const handleQuoteWhatsApp = async () => {
-    // Step 0: Bank-gate — only fires when a deposit is requested by bank transfer
-    // (i.e. NOT Pro+Stripe-connected). We do NOT fire the identity gate here —
-    // that is invoice-send territory.
-    const isOnlineDeposit = isPro(localProfile) &&
-      localProfile?.stripe_connect_status === 'connected' &&
-      !!localProfile?.stripe_user_id;
-
-    if (depositPercent > 0 && !isOnlineDeposit && !profileHasBank(localProfile)) {
+    const result = await sendQuote(job, {
+      biz,
+      profile: localProfile,
+      depositPercent,
+      receipts,
+      onUpdate,
+      flash,
+      onClose,
+      setBusy,
+    });
+    if (result?.reason === 'bank-gate') {
       setSheetView('bank-gate');
-      return;
     }
-
-    setBusy(true);
-    // When the job's previous link was revoked, mint a fresh UUID so the new link
-    // works and the old revoked URL stays dead (old token no longer matches any DB row).
-    // When not revoked, reuse the existing token to keep any bookmarked links stable.
-    const { token, wasRevoked } = reissuePublicToken(job);
-
-    // ── Step 1: persist the token to cloud BEFORE producing the shareable URL ──
-    // Build the full meta snapshot that includes the new token and stage fields so
-    // the single cloud write captures everything in one round-trip.
-    const isLead = job.status === 'lead' || !job.status;
-    const jobTotal = Number(job.total ?? job.amount ?? 0);
-    // Clamp: if deposit_amount_pence from a previous send exceeds current total
-    // (e.g. trader edited the price after the first send), recompute from current total.
-    const rawDepositPence = depositPercent > 0 && jobTotal > 0
-      ? Math.round(jobTotal * (depositPercent / 100) * 100)
-      : 0;
-    const lockedDepositPence = Math.min(rawDepositPence, Math.round(jobTotal * 100));
-    const updatedJob = {
-      ...job,
-      ...(isLead ? stagePatch('Quoted') : {}),
-      quoteStatus: 'sent',
-      quoteSentAt: new Date().toISOString(),
-      publicAccessToken: token,
-      // Clear the revoke flag when we minted a fresh token — without this the
-      // Netlify functions would still return 404 for the new link.
-      ...(wasRevoked ? { publicTokenRevokedAt: undefined } : {}),
-      quoteDraft: false,
-      deposit_percent:       depositPercent > 0 ? depositPercent : 0,
-      deposit_amount_pence:  lockedDepositPence > 0 ? lockedDepositPence : null,
-    };
-    // Write to localStorage first (synchronous, always succeeds).
-    const mergedMeta = writeJobMeta(updatedJob.id, extractJobMeta(updatedJob));
-
-    // Await the cloud write. If we're offline the token can't reach Supabase, so
-    // the sign link will be dead — surface this clearly rather than producing a
-    // silently broken link.
-    const persistResult = await persistPublicToken(updatedJob.id, mergedMeta);
-    if (!persistResult.ok) {
-      if (persistResult.offline) {
-        flash?.('No connection — quote link won\'t work until you\'re back online. Try again when connected.');
-      } else {
-        flash?.('Could not save quote link — try again');
-      }
-      setBusy(false);
-      return;
-    }
-
-    // Token is now committed to the cloud. The URL is safe to share.
-    const quoteUrl = buildPublicQuoteUrl(token);
-    const phone = resolvePhone(job);
-    // Merge biz with localProfile bank details so the bank-transfer deposit block
-    // appears in the WhatsApp message for traders who saved bank details via the
-    // bank-gate (localProfile is optimistically updated at that point).
-    const bizWithBank = {
-      ...(biz || {}),
-      accountName:   biz?.accountName   || localProfile?.account_name   || '',
-      sortCode:      biz?.sortCode      || biz?.sort_code || localProfile?.sort_code || '',
-      accountNumber: biz?.accountNumber || biz?.account_number || localProfile?.account_number || '',
-    };
-    const message = buildQuoteWhatsAppMessage({ job: updatedJob, biz: bizWithBank, quoteUrl });
-    const link = buildWhatsAppLink({ phone: phone || '', message });
-
-    // Pre-generate QR for embedding in the PDF.
-    // Mirrors the invoice pay-now flow's QRCode.toDataURL pattern.
-    // Best-effort: if QR generation fails, the PDF still renders with just the
-    // clickable button (qrDataUrl falsy in drawSignQuoteRow).
-    let qrDataUrl = '';
-    try {
-      qrDataUrl = await QRCode.toDataURL(quoteUrl, {
-        width: 128,
-        margin: 1,
-        errorCorrectionLevel: 'M',
-      });
-    } catch {
-      // QR generation failed — proceed without it
-    }
-
-    let shareMethod = 'wame_fallback';
-    try {
-      const blob = await getQuotePDFBlob({ job: updatedJob, biz, profile, quoteUrl, qrDataUrl });
-      const customer = (job?.customer || 'quote').replace(/\s/g, '-');
-      const file = new File([blob], `quote-${customer}.pdf`, { type: 'application/pdf' });
-
-      if (canShareFile(file)) {
-        shareMethod = 'web_share_files';
-        const shareData = phone
-          ? { files: [file], text: message + '\n' + link, title: 'Your quote' }
-          : { files: [file], text: message, title: 'Your quote' };
-        await navigator.share(shareData);
-      } else if (phone) {
-        shareMethod = 'wame_fallback';
-        window.open(link, '_blank', 'noopener');
-        await downloadQuotePDF({ job: updatedJob, biz, profile, quoteUrl, qrDataUrl, hidePoweredBy: isProUser });
-      } else {
-        // No file share, no phone — copy the quote URL so the user can paste it
-        shareMethod = 'web_share_text';
-        try {
-          await navigator.clipboard.writeText(quoteUrl);
-          flash?.('Link copied — paste it in WhatsApp');
-        } catch {
-          flash?.('Share this URL: ' + quoteUrl);
-        }
-      }
-    } catch (err) {
-      if (err?.name === 'AbortError') {
-        // User dismissed the share sheet. The token was already persisted so it's
-        // safe to call onUpdate and close — the link exists in the cloud.
-        onUpdate?.(updatedJob);
-        flash?.('Quote saved — tap Send to share when ready');
-        setBusy(false);
-        onClose?.();
-        return;
-      }
-      // PDF generation failed — fall back to text-only wa.me
-      shareMethod = 'wame_fallback';
-      if (phone) {
-        window.open(link, '_blank', 'noopener');
-      } else {
-        flash?.('Could not share — try copying the link');
-        setBusy(false);
-        return;
-      }
-    }
-
-    logTelemetry('quote_send', { channel: 'whatsapp', source: 'review_sheet', share_method: shareMethod });
-    const _q1 = getJobProfit(job, receipts);
-    logTelemetry('quote_sent', { headline_price: _q1.quote, job_costs: _q1.materials, true_profit: _q1.profit, channel: 'whatsapp' });
-    // The cloud write already happened above. onUpdate here updates React state
-    // (in-memory jobs list) — it will call writeJobMeta+syncMetaToCloud again but
-    // that is idempotent (same meta object, no-op cloud write).
-    onUpdate?.(updatedJob);
-
-    // First-send teach: fire once when the trader sends their first deposit request
-    // by bank transfer. Shown AFTER the quote is sent (not before — don't block).
-    const isOnlineDepositAfterSend = isPro(localProfile) &&
-      localProfile?.stripe_connect_status === 'connected' &&
-      !!localProfile?.stripe_user_id;
-    if (depositPercent > 0 && !isOnlineDepositAfterSend) {
-      try {
-        const alreadyShown = localStorage.getItem(DEPOSIT_TEACH_KEY) === 'yes';
-        if (!alreadyShown) {
-          localStorage.setItem(DEPOSIT_TEACH_KEY, 'yes');
-          flash?.('Deposit asked for. When it lands, open the job and tap Record deposit.');
-        } else {
-          flash?.('Quote sent');
-        }
-      } catch {
-        flash?.('Quote sent');
-      }
-    } else {
-      flash?.('Quote sent');
-    }
-
-    setBusy(false);
-    onClose?.();
   };
 
   // ── Quote: PDF download ────────────────────────────────────────────────────
@@ -603,83 +386,23 @@ export default function ReviewSheet({
   const primaryLabel = isInvoice ? 'Send invoice via WhatsApp' : 'Send via WhatsApp';
   const handleDownloadPDF = isInvoice ? handleInvoiceDownloadPDF : handleQuoteDownloadPDF;
 
-  const bankSortCodeValid = /^\d{6}$/.test(bankSortCode.replace(/\D/g, ''));
-  const bankAccountNumberValid = /^\d{6,8}$/.test(bankAccountNumber);
-  const bankCanSave = bankSortCodeValid && bankAccountNumberValid && !bankSaving;
-
   // ── Bank-gate view ─────────────────────────────────────────────────────────
   if (sheetView === 'bank-gate') {
     return (
-      <div className="modal-backdrop modal-backdrop--top" onClick={e => { if (e.target === e.currentTarget) onClose?.(); }}>
-        <div className="modal-sheet rs-sheet" role="dialog" aria-modal="true" aria-label="Add your bank details">
-          <div className="modal-sheet-header">
-            <h3 className="modal-sheet-title">Add your bank details</h3>
-            <button className="modal-sheet-close" onClick={onClose} aria-label="Close">
-              <Icon name="close" size={20} />
-            </button>
-          </div>
-          <div className="modal-sheet-body">
-            <p className="modal-sheet-text">
-              Your bank details are included in the quote message so your customer knows where to send the deposit.
-            </p>
-          </div>
-          <div className="invoice-fields-row" style={{ flexDirection: 'column', gap: 12 }}>
-            <div className="invoice-field-group">
-              <label className="invoice-field-label" htmlFor="rs-bg-sort-code">Sort code</label>
-              <input
-                id="rs-bg-sort-code"
-                className="invoice-field-input"
-                type="text"
-                inputMode="numeric"
-                value={bankSortCode}
-                placeholder="12-34-56"
-                onChange={e => setBankSortCode(formatSortCode(e.target.value))}
-                autoFocus
-                autoComplete="off"
-                aria-label="Sort code"
-              />
-            </div>
-            <div className="invoice-field-group">
-              <label className="invoice-field-label" htmlFor="rs-bg-account-number">Account number</label>
-              <input
-                id="rs-bg-account-number"
-                className="invoice-field-input"
-                type="text"
-                inputMode="numeric"
-                value={bankAccountNumber}
-                placeholder="12345678"
-                onChange={e => setBankAccountNumber(e.target.value.replace(/\D/g, '').slice(0, 8))}
-                autoComplete="off"
-                aria-label="Account number"
-              />
-            </div>
-          </div>
-          {bankError && (
-            <p className="modal-sheet-error" role="alert">{bankError}</p>
-          )}
-          <button
-            type="button"
-            className="btn-primary modal-sheet-btn"
-            onClick={handleBankGateSave}
-            disabled={!bankCanSave}
-          >
-            {bankSaving ? 'Saving…' : 'Save and continue'}
-          </button>
-          <button
-            type="button"
-            className="btn-ghost modal-sheet-btn"
-            style={{ marginTop: 8 }}
-            onClick={() => {
-              // Send without deposit — zero out the percent and proceed
-              setDepositPercent(0);
-              setSheetView('main');
-              flash?.('Sending without a deposit');
-            }}
-          >
-            Send without a deposit
-          </button>
-        </div>
-      </div>
+      <BankGateSheet
+        onClose={onClose}
+        onProfileUpdate={onProfileUpdate}
+        onSaved={(patch) => {
+          setLocalProfile(prev => ({ ...(prev || {}), ...patch }));
+          setSheetView('main');
+        }}
+        onSkip={() => {
+          // Send without deposit — zero out the percent and proceed
+          setDepositPercent(0);
+          setSheetView('main');
+          flash?.('Sending without a deposit');
+        }}
+      />
     );
   }
 

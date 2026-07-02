@@ -7,6 +7,13 @@
 //   bank details set + deposit_percent > 0 + no depositPayUrl → bank transfer block appended
 //
 // The bank block reads name/sort/account from biz (same fields as invoiceMessage.js).
+//
+// TODO(voice-quote): the voice-quote confirm card (AddJobModal) now captures a
+// `vat` flag (see src/lib/voiceParse.js) and shows a "+VAT" chip in-app, but
+// this builder does not yet render "+ VAT" anywhere in the WhatsApp message or
+// the quote PDF (src/lib/invoicePDF.js generateQuotePDF). Fast-follow: render
+// "Total: £X + VAT" (or the VAT-inclusive breakdown) on both surfaces once the
+// copy/placement is agreed — do not block the voice-quote launch on this.
 
 /**
  * @param {{ job: object, biz: object, quoteUrl: string, depositPayUrl?: string }} params
