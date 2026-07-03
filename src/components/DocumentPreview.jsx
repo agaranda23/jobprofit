@@ -280,177 +280,194 @@ export default function DocumentPreview({
 
   return (
     <div className="dp-root" onClick={e => e.stopPropagation()}>
-      {/* ── Header band — tappable brand regions ───────────────────────────── */}
-      <div className="dp-header">
-        <button
-          type="button"
-          className="dp-logo-tap"
-          onClick={() => setEditingField('logo')}
-          aria-label="Edit logo"
-        >
-          {logo ? (
-            <img src={logo} alt="" className="dp-logo-img" />
-          ) : (
-            <span className="dp-logo-placeholder">Add your logo</span>
-          )}
-          <Icon name="edit" size={12} className="dp-logo-pencil" />
-        </button>
-
-        <button
-          type="button"
-          className="dp-identity-tap"
-          onClick={() => setEditingField('identity')}
-          aria-label="Edit business details"
-        >
-          <div className="dp-business-name">
-            {identity.name || <span className="dp-placeholder-text">Add your business name</span>}
-          </div>
-          {contactLine && <div className="dp-contact-line">{contactLine}</div>}
-        </button>
-      </div>
-
-      <p className="dp-hint">This is what your customer sees. Tap anything to change it.</p>
-
-      {/* ── Doc-type title + meta — invoice no / due date / valid-until tap ─── */}
-      <div className="dp-doctitle">
-        <div className="dp-doctitle-label">{isInvoice ? 'INVOICE' : 'QUOTE'}</div>
-        <div className="dp-doctitle-meta">
-          {metaRows.map(row => row.onClick ? (
+      {/* dp-paper — the actual document facsimile. Forced-light "real paper"
+          card (see the CSS): white regardless of the app's dark/light theme,
+          because a printed quote/invoice is always white paper. Every editor
+          overlay below (LogoModal/EditFieldModal/QuoteLineEditorSheet/
+          ProUpgradeSheet) renders OUTSIDE this div, on purpose — they must
+          keep inheriting the app's REAL theme tokens, not this card's
+          forced-light override (CSS custom properties inherit down the DOM
+          tree regardless of position:fixed, so nesting them inside dp-paper
+          would have silently forced them light too). */}
+      <div className="dp-paper">
+        {/* ── Letterhead — logo + business identity, then doc type + ref/date,
+            grouped as ONE professional document header band (mirrors the
+            actual PDF's layout in invoicePDF.js: brand row, then doc-title
+            row, stacked — not a form full of separate boxes). ───────────── */}
+        <div className="dp-letterhead">
+          <div className="dp-header">
             <button
-              key={row.key}
               type="button"
-              className="dp-doctitle-meta-tap"
-              onClick={row.onClick}
-              // "Change" (not "Edit") — avoids an aria-label substring collision
-              // with the "Edit invoice"/"Edit quote" ghost button in ReviewSheet
-              // (e.g. "Edit Invoice no" would otherwise match /edit invoice/i).
-              aria-label={`Change ${row.label}`}
+              className="dp-logo-tap"
+              onClick={() => setEditingField('logo')}
+              aria-label="Edit logo"
             >
-              {row.label}: {row.value}
-            </button>
-          ) : (
-            <span key={row.key}>{row.label}: {row.value}</span>
-          ))}
-        </div>
-      </div>
-
-      {/* ── Recipient block — whole block tappable; never falls back to the
-          job title (see distinctCustomer above) ────────────────────────────── */}
-      {canEditJob ? (
-        <button
-          type="button"
-          className="dp-recipient dp-recipient--tap"
-          onClick={() => setEditingField('customer')}
-          aria-label={customerName ? 'Edit customer' : 'Add customer'}
-        >
-          <div className="dp-recipient-label">{isInvoice ? 'Bill to' : 'Prepared for'}</div>
-          <div className="dp-recipient-name">
-            {customerName || <span className="dp-placeholder-text">+ Add customer</span>}
-          </div>
-          {customerPhone && <div className="dp-recipient-line">{customerPhone}</div>}
-          {customerAddress && <div className="dp-recipient-line">{customerAddress}</div>}
-        </button>
-      ) : (
-        <div className="dp-recipient">
-          <div className="dp-recipient-label">{isInvoice ? 'Bill to' : 'Prepared for'}</div>
-          <div className="dp-recipient-name">
-            {customerName || <span className="dp-placeholder-text">No customer added</span>}
-          </div>
-          {customerPhone && <div className="dp-recipient-line">{customerPhone}</div>}
-          {customerAddress && <div className="dp-recipient-line">{customerAddress}</div>}
-        </div>
-      )}
-
-      {/* ── Line items — tap a row to edit; "+ Add line" always available ──── */}
-      <div className="dp-lineitems" role="list" aria-label="Line items">
-        {lineItems.map(li => {
-          const Row = canEditJob ? 'button' : 'div';
-          return (
-            <Row
-              key={li.key}
-              {...(canEditJob ? { type: 'button' } : {})}
-              className="dp-lineitem-row"
-              onClick={canEditJob ? () => setLineSheetIdx(li.key) : undefined}
-              aria-label={canEditJob ? `Edit ${li.desc}` : undefined}
-            >
-              <span className="dp-li-desc">{li.desc}</span>
-              {li.showRate && li.rate != null && (
-                <span className="dp-li-qty">{li.qty} × {gbp(li.rate)}</span>
+              {logo ? (
+                <img src={logo} alt="" className="dp-logo-img" />
+              ) : (
+                <span className="dp-logo-placeholder">Add your logo</span>
               )}
-              <span className="dp-li-amount">{gbp(li.cost)}</span>
-            </Row>
-          );
-        })}
-        {canEditJob && (
-          <button
-            type="button"
-            className="dp-lineitem-add"
-            onClick={() => setLineSheetIdx(-1)}
-            aria-label="Add a line item"
-          >
-            <Icon name="add" size={14} /> Add line
-          </button>
-        )}
-      </div>
+              <Icon name="edit" size={12} className="dp-logo-pencil" />
+            </button>
 
-      {/* ── Totals ───────────────────────────────────────────────────────────── */}
-      <div className="dp-totals">
-        {showVat && (
-          <div className="dp-totals-row">
-            <span>Subtotal</span><span>{gbp(net)}</span>
+            <button
+              type="button"
+              className="dp-identity-tap"
+              onClick={() => setEditingField('identity')}
+              aria-label="Edit business details"
+            >
+              <div className="dp-business-name">
+                {identity.name || <span className="dp-placeholder-text">Add your business name</span>}
+              </div>
+              {contactLine && <div className="dp-contact-line">{contactLine}</div>}
+            </button>
           </div>
-        )}
-        {showVat && (
-          <div className="dp-totals-row">
-            <span>VAT (20%)</span><span>{gbp(vat)}</span>
+
+          {/* Doc-type title + meta — invoice no / due date / valid-until tap */}
+          <div className="dp-doctitle">
+            <div className="dp-doctitle-label">{isInvoice ? 'INVOICE' : 'QUOTE'}</div>
+            <div className="dp-doctitle-meta">
+              {metaRows.map(row => row.onClick ? (
+                <button
+                  key={row.key}
+                  type="button"
+                  className="dp-doctitle-meta-tap"
+                  onClick={row.onClick}
+                  // "Change" (not "Edit") — avoids an aria-label substring collision
+                  // with the "Edit invoice"/"Edit quote" ghost button in ReviewSheet
+                  // (e.g. "Edit Invoice no" would otherwise match /edit invoice/i).
+                  aria-label={`Change ${row.label}`}
+                >
+                  {row.label}: {row.value}
+                </button>
+              ) : (
+                <span key={row.key}>{row.label}: {row.value}</span>
+              ))}
+            </div>
           </div>
-        )}
-        {depositAmount > 0 && (
-          <div className="dp-totals-row dp-totals-row--deposit">
-            <span>Deposit due now ({depositPercent}%)</span><span>{gbp(depositAmount)}</span>
-          </div>
-        )}
-        {canEditJob && lineItems.length === 1 ? (
+        </div>
+
+        <p className="dp-hint">This is what your customer sees. Tap anything to change it.</p>
+
+        {/* ── Recipient block — whole block tappable; never falls back to the
+            job title (see distinctCustomer above) ──────────────────────────── */}
+        {canEditJob ? (
           <button
             type="button"
-            className="dp-totals-row dp-totals-row--total dp-totals-row--tap"
-            onClick={() => setLineSheetIdx(0)}
-            aria-label="Edit total"
+            className="dp-recipient dp-recipient--tap"
+            onClick={() => setEditingField('customer')}
+            aria-label={customerName ? 'Edit customer' : 'Add customer'}
           >
-            <span>Total payable</span><span>{gbp(total)}</span>
+            <div className="dp-recipient-label">{isInvoice ? 'Bill to' : 'Prepared for'}</div>
+            <div className="dp-recipient-name">
+              {customerName || <span className="dp-placeholder-text">+ Add customer</span>}
+            </div>
+            {customerPhone && <div className="dp-recipient-line">{customerPhone}</div>}
+            {customerAddress && <div className="dp-recipient-line">{customerAddress}</div>}
           </button>
         ) : (
-          <div className="dp-totals-row dp-totals-row--total">
-            <span>Total payable</span><span>{gbp(total)}</span>
+          <div className="dp-recipient">
+            <div className="dp-recipient-label">{isInvoice ? 'Bill to' : 'Prepared for'}</div>
+            <div className="dp-recipient-name">
+              {customerName || <span className="dp-placeholder-text">No customer added</span>}
+            </div>
+            {customerPhone && <div className="dp-recipient-line">{customerPhone}</div>}
+            {customerAddress && <div className="dp-recipient-line">{customerAddress}</div>}
+          </div>
+        )}
+
+        {/* ── Line items — tap a row to edit; "+ Add line" always available ── */}
+        <div className="dp-lineitems" role="list" aria-label="Line items">
+          {lineItems.map(li => {
+            const Row = canEditJob ? 'button' : 'div';
+            return (
+              <Row
+                key={li.key}
+                {...(canEditJob ? { type: 'button' } : {})}
+                className="dp-lineitem-row"
+                onClick={canEditJob ? () => setLineSheetIdx(li.key) : undefined}
+                aria-label={canEditJob ? `Edit ${li.desc}` : undefined}
+              >
+                <span className="dp-li-desc">{li.desc}</span>
+                {li.showRate && li.rate != null && (
+                  <span className="dp-li-qty">{li.qty} × {gbp(li.rate)}</span>
+                )}
+                <span className="dp-li-amount">{gbp(li.cost)}</span>
+              </Row>
+            );
+          })}
+          {canEditJob && (
+            <button
+              type="button"
+              className="dp-lineitem-add"
+              onClick={() => setLineSheetIdx(-1)}
+              aria-label="Add a line item"
+            >
+              <Icon name="add" size={14} /> Add line
+            </button>
+          )}
+        </div>
+
+        {/* ── Totals ────────────────────────────────────────────────────────── */}
+        <div className="dp-totals">
+          {showVat && (
+            <div className="dp-totals-row">
+              <span>Subtotal</span><span>{gbp(net)}</span>
+            </div>
+          )}
+          {showVat && (
+            <div className="dp-totals-row">
+              <span>VAT (20%)</span><span>{gbp(vat)}</span>
+            </div>
+          )}
+          {depositAmount > 0 && (
+            <div className="dp-totals-row dp-totals-row--deposit">
+              <span>Deposit due now ({depositPercent}%)</span><span>{gbp(depositAmount)}</span>
+            </div>
+          )}
+          {canEditJob && lineItems.length === 1 ? (
+            <button
+              type="button"
+              className="dp-totals-row dp-totals-row--total dp-totals-row--tap"
+              onClick={() => setLineSheetIdx(0)}
+              aria-label="Edit total"
+            >
+              <span>Total payable</span><span>{gbp(total)}</span>
+            </button>
+          ) : (
+            <div className="dp-totals-row dp-totals-row--total">
+              <span>Total payable</span><span>{gbp(total)}</span>
+            </div>
+          )}
+        </div>
+
+        {/* ── Locked footer + Pro upsell ─────────────────────────────────────
+            Single source of truth: showJobProfitFooter(profile) === !isPro(profile).
+            No second inline check, no per-document flag. Fail-safe default: a
+            missing/undefined profile resolves to "not Pro" (see plan.js isPro),
+            so the footer defaults to SHOWN — it never silently disappears. ── */}
+        {showJobProfitFooter(profile) && (
+          <div className="dp-footer-locked">
+            <PoweredByJobProfit source={isInvoice ? 'invoice' : 'quote'} />
+            <div className="dp-footer-lockrow">
+              <Icon name="lock" size={12} variant="muted" />
+              <span className="dp-footer-lock-copy">
+                Your logo, not ours. Remove the OHNAR footer with Pro.
+              </span>
+              <button
+                type="button"
+                className="dp-footer-remove-chip"
+                onClick={() => setShowUpgradeSheet(true)}
+              >
+                Remove →
+              </button>
+            </div>
           </div>
         )}
       </div>
 
-      {/* ── Locked footer + Pro upsell ───────────────────────────────────────
-          Single source of truth: showJobProfitFooter(profile) === !isPro(profile).
-          No second inline check, no per-document flag. Fail-safe default: a
-          missing/undefined profile resolves to "not Pro" (see plan.js isPro),
-          so the footer defaults to SHOWN — it never silently disappears. ──── */}
-      {showJobProfitFooter(profile) && (
-        <div className="dp-footer-locked">
-          <PoweredByJobProfit source={isInvoice ? 'invoice' : 'quote'} />
-          <div className="dp-footer-lockrow">
-            <Icon name="lock" size={12} variant="muted" />
-            <span className="dp-footer-lock-copy">
-              Your logo, not ours. Remove the OHNAR footer with Pro.
-            </span>
-            <button
-              type="button"
-              className="dp-footer-remove-chip"
-              onClick={() => setShowUpgradeSheet(true)}
-            >
-              Remove →
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* ── Brand editors — reuse the exact Settings editors, no rebuild ────── */}
+      {/* ── Brand editors — reuse the exact Settings editors, no rebuild.
+          Rendered OUTSIDE dp-paper — see the note above the opening tag. ──── */}
       {editingField === 'logo' && (
         <LogoModal
           currentUrl={logo || ''}
