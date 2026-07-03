@@ -5685,6 +5685,45 @@ input[type=number] { -moz-appearance: textfield; }
   border-color: rgba(220, 38, 38, 0.25);
 }
 
+/* ── Today screen — resume-your-quote draft banner ───────────────────────────── */
+.today-resume-draft-banner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  background: rgba(37, 99, 235, 0.08);
+  border: 1px solid rgba(37, 99, 235, 0.2);
+  border-radius: var(--radius-md);
+  margin-bottom: var(--space-2);
+}
+.today-resume-draft-banner__text {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--fs-body);
+  font-weight: 600;
+  color: var(--text);
+}
+.today-resume-draft-banner__icon {
+  flex-shrink: 0;
+  color: var(--accent);
+}
+.today-resume-draft-banner__actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--space-4);
+}
+.today-resume-draft-banner__actions .btn-secondary {
+  padding: var(--space-2) var(--space-4);
+  min-height: 40px;
+}
+[data-theme="light"] .today-resume-draft-banner {
+  background: rgba(37, 99, 235, 0.06);
+  border-color: rgba(37, 99, 235, 0.2);
+}
+
 /* ── Today screen — paid-flash animation (item 4) ────────────────────────────── */
 @keyframes foreman-paid-flash {
   0%   { box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.5); }

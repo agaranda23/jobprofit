@@ -1761,6 +1761,12 @@ export default function AppShell() {
           initialCustomer={addJobPrefill.customer || ''}
           initialPhone={addJobPrefill.phone || ''}
           initialAddress={addJobPrefill.address || ''}
+          // The re-book flow is short (pre-filled, no voice) and shares no UI
+          // with the "Resume your quote?" banner on Today — scoping autosave
+          // out here avoids two independent AddJobModal instances contending
+          // for the single draft slot. Fast-follow if re-books turn out to
+          // need the same crash-safety net.
+          enableAutosave={false}
           tradePrimary={profile?.trade_primary ?? null}
           materials={materials}
           defaultMarkup={profile?.default_markup ?? 20}

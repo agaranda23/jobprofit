@@ -24,6 +24,7 @@ import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import { useCountUp } from '../lib/useCountUp';
 import AddJobModal from '../components/AddJobModal';
 import Icon from '../components/Icon';
+import { loadDraft, clearDraft } from '../lib/draftAutosave';
 import ReviewSheet from '../components/ReviewSheet';
 import GetProPill from '../components/GetProPill';
 import ProUpgradeSheet from '../components/ProUpgradeSheet';
@@ -89,6 +90,27 @@ export default function TodayScreen({
   // reviewQuoteJob: when set, opens ReviewSheet in quote mode immediately after
   // a voice "Save & send quote" action. Cleared when the sheet closes.
   const [reviewQuoteJob, setReviewQuoteJob] = useState(null);
+
+  // ── Draft autosave — "Resume your quote?" ─────────────────────────────────
+  // resumeDraftBanner: the unsent AddJobModal draft found on mount (localStorage,
+  // see src/lib/draftAutosave.js), or null. Re-checked whenever AddJobModal
+  // closes without saving, so an explicit-close-without-sending still offers
+  // Resume later in THIS session, not just after a reload.
+  // resumeDraftPayload: the draft actually being resumed into AddJobModal right
+  // now (only set once the trader taps "Continue").
+  const [resumeDraftBanner, setResumeDraftBanner] = useState(() => loadDraft());
+  const [resumeDraftPayload, setResumeDraftPayload] = useState(null);
+
+  const handleResumeDraftContinue = useCallback(() => {
+    setJobOpenMode(resumeDraftBanner?.view === 'quote' ? 'quote' : 'normal');
+    setResumeDraftPayload(resumeDraftBanner);
+    setJobOpen(true);
+  }, [resumeDraftBanner]);
+
+  const handleResumeDraftDiscard = useCallback(() => {
+    clearDraft();
+    setResumeDraftBanner(null);
+  }, []);
   // toast/gotPaidToastQueue/payNowNudge removed (JP-LU2) — managed by snackbar in AppShell.
   // showToast shim: keeps all existing call-sites unchanged; delegates to onSnackbar.
   const showToast = useCallback((msg, action = null) => {
@@ -124,6 +146,11 @@ export default function TodayScreen({
   const handleJobSave = async (payload) => {
     setJobOpen(false);
     setJobOpenMode('normal');
+    // The job was actually saved — AddJobModal already cleared the autosaved
+    // draft (see clearDraftNow() in saveMicro/saveDetails/saveQuote); drop our
+    // local copy too so a stale banner can't reappear for completed work.
+    setResumeDraftBanner(null);
+    setResumeDraftPayload(null);
 
     const isDraftQuote = payload?.quoteStatus === 'draft';
     const isFastPath   = payload?.via === 'fast';
@@ -184,6 +211,8 @@ export default function TodayScreen({
   const handleSaveAndSend = async (payload) => {
     setJobOpen(false);
     setJobOpenMode('normal');
+    setResumeDraftBanner(null);
+    setResumeDraftPayload(null);
     try { await onAddJob?.(payload); } catch {}
     setReviewQuoteJob(payload);
   };
@@ -196,6 +225,8 @@ export default function TodayScreen({
   const handleVoiceQuoteSave = async (payload) => {
     setJobOpen(false);
     setJobOpenMode('normal');
+    setResumeDraftBanner(null);
+    setResumeDraftPayload(null);
     try { await onAddJob?.(payload); } catch {}
   };
 
@@ -464,6 +495,29 @@ export default function TodayScreen({
           onOpen={() => setUpgradeSheetOpen(true)}
           onError={(msg) => showToast(msg)}
         />
+      )}
+
+      {/* ── Resume-your-quote banner (unsent AddJobModal draft found) ─────── */}
+      {/* Protects the "call comes in mid-quote" moment — see src/lib/draftAutosave.js. */}
+      {!jobOpen && resumeDraftBanner && (
+        <section className="today-resume-draft-banner" aria-label="Resume unsent quote">
+          <div className="today-resume-draft-banner__text">
+            <Icon name="file" size={16} className="today-resume-draft-banner__icon" />
+            <span>
+              {resumeDraftBanner.summary || resumeDraftBanner.name
+                ? `Resume your ${resumeDraftBanner.summary || resumeDraftBanner.name} quote?`
+                : 'Resume your unsent quote?'}
+            </span>
+          </div>
+          <div className="today-resume-draft-banner__actions">
+            <button type="button" className="link-btn" onClick={handleResumeDraftDiscard}>
+              Discard
+            </button>
+            <button type="button" className="btn-secondary" onClick={handleResumeDraftContinue}>
+              Continue
+            </button>
+          </div>
+        </section>
       )}
 
       {/* ── Accepted-quote banner (persistent until acknowledged) ─────────── */}
@@ -786,10 +840,19 @@ export default function TodayScreen({
       {/* ── Modals ──────────────────────────────────────────────────────────── */}
       {jobOpen && (
         <AddJobModal
-          onClose={() => { setJobOpen(false); setJobOpenMode('normal'); }}
+          onClose={() => {
+            setJobOpen(false);
+            setJobOpenMode('normal');
+            setResumeDraftPayload(null);
+            // Re-check storage: closing WITHOUT saving leaves the autosaved
+            // draft in place, so the banner should offer to resume it again
+            // later in this same session (not just after a reload).
+            setResumeDraftBanner(loadDraft());
+          }}
           onSave={handleJobSave}
           onOpenDetailed={onOpenDetailed}
           defaultMode={jobOpenMode === 'quote' ? 'quote' : undefined}
+          resumeDraft={resumeDraftPayload}
           onSaveAndSend={handleSaveAndSend}
           onVoiceQuoteSave={handleVoiceQuoteSave}
           profile={profile}

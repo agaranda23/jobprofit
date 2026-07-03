@@ -11,6 +11,7 @@ import MarkupChip from './MarkupChip';
 import EstimatorSheet from './EstimatorSheet';
 import BankGateSheet from './BankGateSheet';
 import { checkEstimatorQuota } from '../lib/estimatorQuota';
+import { useDraftAutosave } from '../lib/useDraftAutosave';
 
 // Deposit percent presets for the voice-quote confirm card — mirrors
 // ReviewSheet's DEPOSIT_PRESETS so the two surfaces feel identical.
@@ -78,7 +79,26 @@ export function getTradeVoiceHint(tradePrimary) {
   return map[key] || 'Kitchen for John, £4,800 plus VAT, 25% deposit';
 }
 
-export default function AddJobModal({ onClose, onSave, _onOpenDetailed, defaultMode, onSaveAndSend, onVoiceQuoteSave, profile, onUpdateJob, flash, tradePrimary, initialDate, materials, defaultMarkup, onBrowseMaterials, onMaterialSaved, initialCustomer = '', initialPhone = '', initialAddress = '' }) {
+// ── Draft autosave — "resume your quote?" ────────────────────────────────────
+// A draft is worth persisting/resuming only once it has some real content —
+// an untouched form should never surface as a "Resume your quote?" prompt.
+function isDraftEmpty(s) {
+  const hasLineItemContent = Array.isArray(s.lineItems) &&
+    s.lineItems.some(li => (li.desc || '').trim() || parseFloat(li.cost) > 0);
+  return !(
+    (s.amount || '').trim() ||
+    (s.customer || '').trim() ||
+    (s.name || '').trim() ||
+    (s.summary || '').trim() ||
+    (s.qTotal || '').trim() ||
+    (s.notes || '').trim() ||
+    (s.transcript || '').trim() ||
+    (s.quoteTranscript || '').trim() ||
+    hasLineItemContent
+  );
+}
+
+export default function AddJobModal({ onClose, onSave, _onOpenDetailed, defaultMode, onSaveAndSend, onVoiceQuoteSave, profile, onUpdateJob, flash, tradePrimary, initialDate, materials, defaultMarkup, onBrowseMaterials, onMaterialSaved, initialCustomer = '', initialPhone = '', initialAddress = '', resumeDraft = null, enableAutosave = true }) {
   // 'micro'          — Stage 1: fast capture (amount + paid-by + Save it)
   // 'details'        — Stage 2: full form (name, customer, date, more options)
   // 'quote'          — Create-quote surface: voice OR type, summary + total + optional line items
@@ -88,7 +108,10 @@ export default function AddJobModal({ onClose, onSave, _onOpenDetailed, defaultM
   // defaultMode="quote"          — mounts into 'quote', starts voice immediately.
   // defaultMode="details-manual" — mounts into 'details', no mic auto-start (opened from calendar).
   // No prop (or 'micro')         — default 'micro' keypad view (Stage 1).
+  // resumeDraft.view (when present) wins over defaultMode — resuming a saved
+  // draft always re-opens on the exact surface the trader was last editing.
   const [view, setView] = useState(
+    resumeDraft?.view ? resumeDraft.view :
     defaultMode === 'voice'          ? 'details' :
     defaultMode === 'details-manual' ? 'details' :
     defaultMode === 'quote'          ? 'quote'   : 'micro'
@@ -99,23 +122,28 @@ export default function AddJobModal({ onClose, onSave, _onOpenDetailed, defaultM
   // entry into details was an explicit voice request (defaultMode="voice") vs a manual nav.
   // true  = voice was explicitly requested on mount → auto-start is allowed once.
   // false = user navigated from micro, opened from calendar (details-manual), etc. → no auto-start.
-  const voiceEntryExplicit = useRef(defaultMode === 'voice');
+  // Resuming a draft never auto-arms the mic (building sites are noisy, and the
+  // trader is mid-flow already — auto-listening would talk over them).
+  const voiceEntryExplicit = useRef(defaultMode === 'voice' && !resumeDraft);
 
   // ── Shared field state (micro + details share these) ──────────────────────
-  const [amount, setAmount]           = useState('');
-  const [paymentChip, setPaymentChip] = useState('awaiting');
-  const [name, setName]               = useState('');
+  // Every field below falls back to resumeDraft.<field> first (when a draft
+  // is being resumed), then to the normal default — see draftAutosave.js /
+  // useDraftAutosave.js for why and how the draft is captured in the first place.
+  const [amount, setAmount]           = useState(resumeDraft?.amount ?? '');
+  const [paymentChip, setPaymentChip] = useState(resumeDraft?.paymentChip || 'awaiting');
+  const [name, setName]               = useState(resumeDraft?.name ?? '');
   // initialCustomer/initialPhone/initialAddress: seeded from the re-book prefill
   // when PostPaidSheet's "Book again" CTA opens this modal. Date and amount are
   // intentionally NOT pre-filled — re-books always start fresh (today + empty amount).
-  const [customer, setCustomer]       = useState(initialCustomer || '');
-  const [phone, setPhone]             = useState(initialPhone    || '');
-  const [jobDate, setJobDate]         = useState(initialDate || todayISODate());
-  const [materialsCostInput, setMaterialsCostInput] = useState('');
-  const [labourHours, setLabourHours] = useState('');
-  const [notes, setNotes]             = useState('');
-  const [deposit, setDeposit]         = useState('');
-  const [address, setAddress]         = useState(initialAddress  || '');
+  const [customer, setCustomer]       = useState(resumeDraft?.customer ?? (initialCustomer || ''));
+  const [phone, setPhone]             = useState(resumeDraft?.phone ?? (initialPhone || ''));
+  const [jobDate, setJobDate]         = useState(resumeDraft?.jobDate || initialDate || todayISODate());
+  const [materialsCostInput, setMaterialsCostInput] = useState(resumeDraft?.materialsCostInput ?? '');
+  const [labourHours, setLabourHours] = useState(resumeDraft?.labourHours ?? '');
+  const [notes, setNotes]             = useState(resumeDraft?.notes ?? '');
+  const [deposit, setDeposit]         = useState(resumeDraft?.deposit ?? '');
+  const [address, setAddress]         = useState(resumeDraft?.address ?? (initialAddress || ''));
   const [error, setError]             = useState('');
   const [moreOpen, setMoreOpen]       = useState(false);
   // amountEditOpen: Stage 2 inline amount/chip editor (✎ edit affordance on the summary chip)
@@ -126,15 +154,20 @@ export default function AddJobModal({ onClose, onSave, _onOpenDetailed, defaultM
   // qTotal: the quote total amount (string while editing)
   // lineItems: array of { desc, cost } — optional breakdown rows
   // showLineItems: whether the + Add line item section is expanded
-  const [summary, setSummary]           = useState('');
-  const [qTotal, setQTotal]             = useState('');
-  const [lineItems, setLineItems]       = useState([]);
-  const [showLineItems, setShowLineItems] = useState(false);
+  const [summary, setSummary]           = useState(resumeDraft?.summary ?? '');
+  const [qTotal, setQTotal]             = useState(resumeDraft?.qTotal ?? '');
+  const [lineItems, setLineItems]       = useState(resumeDraft?.lineItems ?? []);
+  const [showLineItems, setShowLineItems] = useState(!!(resumeDraft?.lineItems?.length));
   // quoteVoiceStatus mirrors voiceStatus but is owned by the quote view so
   // opening 'quote' and 'details' independently don't collide.
-  const [quoteVoiceStatus, setQuoteVoiceStatus] = useState('listening');
-  const [quoteTranscript, setQuoteTranscript]   = useState('');
-  const hasAutoStartedQuote = useRef(false);
+  // Resuming a draft never re-arms the mic: land straight on the glanceable
+  // confirm card when there's already a price/description to show, otherwise
+  // the manual form (never 'listening' — the trader is already mid-flow).
+  const [quoteVoiceStatus, setQuoteVoiceStatus] = useState(
+    resumeDraft ? ((resumeDraft.qTotal || resumeDraft.summary) ? 'confirm' : 'manual') : 'listening'
+  );
+  const [quoteTranscript, setQuoteTranscript]   = useState(resumeDraft?.quoteTranscript ?? '');
+  const hasAutoStartedQuote = useRef(!!resumeDraft);
 
   // ── Voice-quote confirm-card state (10-second-signature) ────────────────────
   // Parsed straight from voiceParse's enriched shape (vat/depositPercent/depositDue).
@@ -146,9 +179,9 @@ export default function AddJobModal({ onClose, onSave, _onOpenDetailed, defaultM
   //   single-toggle amountEditOpen pattern used in the Stage 2 'details' view.
   // showConfirmAddDetail: collapsed phone / itemise / margin panel.
   // showBankGate / confirmSendBusy: voice-confirm's own send-flow state.
-  const [quoteVat, setQuoteVat]                 = useState(null);
-  const [quoteDepositPercent, setQuoteDepositPercent] = useState(0);
-  const [quoteDepositDue, setQuoteDepositDue]   = useState(null);
+  const [quoteVat, setQuoteVat]                 = useState(resumeDraft?.quoteVat ?? null);
+  const [quoteDepositPercent, setQuoteDepositPercent] = useState(resumeDraft?.quoteDepositPercent ?? 0);
+  const [quoteDepositDue, setQuoteDepositDue]   = useState(resumeDraft?.quoteDepositDue ?? null);
   const [confirmEditField, setConfirmEditField] = useState(null);
   const [showConfirmAddDetail, setShowConfirmAddDetail] = useState(false);
   const [showBankGate, setShowBankGate]         = useState(false);
@@ -167,7 +200,7 @@ export default function AddJobModal({ onClose, onSave, _onOpenDetailed, defaultM
   // showMarginSection: collapsed by default so the 30-sec quote flow is untouched.
   // showMarkupReveal: one-tap reveal for the markup teach copy.
   // seenMarginReassurance: localStorage gate for the first-use "only you see this" message.
-  const [estCost, setEstCost]                   = useState('');
+  const [estCost, setEstCost]                   = useState(resumeDraft?.estCost ?? '');
   const [showMarginSection, setShowMarginSection] = useState(false);
   const [showMarkupReveal, setShowMarkupReveal]   = useState(false);
   const seenMarginReassurance = typeof localStorage !== 'undefined'
@@ -203,16 +236,37 @@ export default function AddJobModal({ onClose, onSave, _onOpenDetailed, defaultM
   // ── Voice state (active in 'details' and 'quote' views) ───────────────────
   // details-manual: initialise directly to 'form' so the user sees the form
   // immediately — no mic auto-start, no idle mic screen (building sites are noisy).
-  const [voiceStatus, setVoiceStatus]       = useState(defaultMode === 'details-manual' ? 'form' : 'idle');
-  const [transcript, setTranscript]         = useState('');
+  // resumeDraft: same reasoning — always land on the form, never re-arm the mic.
+  const [voiceStatus, setVoiceStatus]       = useState(
+    resumeDraft || defaultMode === 'details-manual' ? 'form' : 'idle'
+  );
+  const [transcript, setTranscript]         = useState(resumeDraft?.transcript ?? '');
   const [retryCount, setRetryCount]         = useState(0);
   // showParsingSpinner: only true when parsing has taken >400ms — avoids a
   // distracting flash for responses that come back quickly.
   const [showParsingSpinner, setShowParsingSpinner] = useState(false);
   const recogRef        = useRef(null);
   const manualOverride  = useRef(false);
-  const hasAutoStarted  = useRef(false);
+  const hasAutoStarted  = useRef(!!resumeDraft);
   const spinnerTimerRef = useRef(null);
+
+  // ── Draft autosave — continuously persists this session so a phone call,
+  // lock-screen, or OS kill mid-quote can't lose the work (see
+  // src/lib/useDraftAutosave.js). Debounced on every field change, and
+  // flushed immediately on visibilitychange/pagehide. clearNow() is called
+  // from every save/send path below so a completed quote is never resurrected
+  // as a "resume?" prompt.
+  const draftSnapshot = {
+    view,
+    amount, paymentChip, name, customer, phone, jobDate, address,
+    materialsCostInput, labourHours, notes, deposit,
+    summary, qTotal, lineItems, quoteVat, quoteDepositPercent, quoteDepositDue, estCost,
+    transcript, quoteTranscript,
+  };
+  const { clearNow: clearDraftNow } = useDraftAutosave(draftSnapshot, {
+    enabled: enableAutosave,
+    isEmpty: isDraftEmpty,
+  });
 
   // Hide the bottom nav pill while the modal is open.
   useEffect(() => {
@@ -364,6 +418,7 @@ export default function AddJobModal({ onClose, onSave, _onOpenDetailed, defaultM
       return;
     }
     setError('');
+    clearDraftNow();
     onSave({
       id:          crypto.randomUUID(),
       name:        autoJobName(),
@@ -418,6 +473,7 @@ export default function AddJobModal({ onClose, onSave, _onOpenDetailed, defaultM
   const saveDetails = () => {
     const payload = buildDetailsPayload();
     if (!payload) return;
+    clearDraftNow();
     // via='details' signals the parent to redirect to the new job's detail view.
     onSave({ ...payload, via: 'details' });
   };
@@ -428,6 +484,7 @@ export default function AddJobModal({ onClose, onSave, _onOpenDetailed, defaultM
   const saveAndSend = () => {
     const payload = buildDetailsPayload();
     if (!payload) return;
+    clearDraftNow();
     logTelemetry('quote_send', { source: 'voice_confirm' });
     onSaveAndSend?.(payload);
   };
@@ -820,6 +877,7 @@ export default function AddJobModal({ onClose, onSave, _onOpenDetailed, defaultM
   const saveQuote = () => {
     const payload = buildQuotePayload();
     if (!payload) return;
+    clearDraftNow();
     logTelemetry('quote_save', { source: 'create_quote', hasLineItems: payload.lineItems.length > 1 });
     onSave(payload);
   };
@@ -828,6 +886,7 @@ export default function AddJobModal({ onClose, onSave, _onOpenDetailed, defaultM
   const saveQuoteAndSend = () => {
     const payload = buildQuotePayload();
     if (!payload) return;
+    clearDraftNow();
     logTelemetry('quote_send', { source: 'create_quote', hasLineItems: payload.lineItems.length > 1 });
     onSaveAndSend?.(payload);
   };
@@ -873,6 +932,10 @@ export default function AddJobModal({ onClose, onSave, _onOpenDetailed, defaultM
     setConfirmSendBusy(true);
     flash?.('Sending your quote…');
     logTelemetry('quote_send', { source: 'voice_confirm', hasLineItems: payload.lineItems.length > 1 });
+
+    // Only clear the draft once we're actually committed to sending — the
+    // bank-gate early-return above must never clear it (nothing's sent yet).
+    clearDraftNow();
 
     // Persist (INSERT) the job row first — sendQuote()'s token persist is an
     // UPDATE and needs the row to already exist. This also closes the modal
