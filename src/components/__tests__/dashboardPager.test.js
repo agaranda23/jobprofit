@@ -21,11 +21,20 @@
  *     small horizontal wobble must not lock horizontal / must not preventDefault
  *   - A clearly-horizontal drag still locks horizontal, preventDefaults, and pages
  *   - onTouchCancel resets gesture state and settles the track (stuck-state fix)
+ *   - DashboardPager component: non-active .dp-page slots are `inert` (and
+ *     aria-hidden) so an off-screen page can never receive a leaked tap; the
+ *     active page is interactive; switching `pageIndex` moves `inert` to the
+ *     newly-inactive page and clears it from the newly-active one.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { renderHook, act } from '@testing-library/react';
+import { renderHook, render, act } from '@testing-library/react';
+// This file is plain *.js (no JSX transform configured for that extension —
+// only *.test.jsx gets it, see vitest.config.js). The component test below
+// uses React.createElement directly instead of JSX so it stays valid here.
+import React from 'react';
 import { useDashboardPager } from '../../lib/useDashboardPager';
+import DashboardPager from '../DashboardPager';
 
 // ─── Minimal track element mock ───────────────────────────────────────────────
 
@@ -380,5 +389,62 @@ describe('useDashboardPager', () => {
     // jumpTo(1) should have bailed — left is still '' (cleared by the animation)
     // and not re-set to '-100%' which would fight the transform.
     expect(track.style.left).toBe(leftBefore);
+  });
+});
+
+describe('DashboardPager (component) — inactive pages are non-interactive', () => {
+  // Regression test: `aria-hidden` alone does NOT stop touch/pointer events, so
+  // before this fix all 3 page slots stayed tappable and a tap could leak
+  // through to an adjacent (off-screen) tab whenever the track was even
+  // slightly shifted (mid-drag, rubber-band, interrupted gesture). The fix
+  // adds the `inert` attribute to every non-active page.
+  it('marks non-active .dp-page slots inert (and aria-hidden), and leaves the active one interactive', () => {
+    const { container } = render(
+      React.createElement(
+        DashboardPager,
+        { pageIndex: 0, onSwipe: () => {}, overlayOpen: false },
+        React.createElement('div', null, 'Today'),
+        React.createElement('div', null, 'Jobs'),
+        React.createElement('div', null, 'Money'),
+      )
+    );
+
+    const pages = container.querySelectorAll('.dp-page');
+    expect(pages.length).toBe(3);
+
+    pages.forEach((page, i) => {
+      if (i === 0) {
+        expect(page.hasAttribute('inert')).toBe(false);
+        expect(page.hasAttribute('aria-hidden')).toBe(false);
+      } else {
+        expect(page.hasAttribute('inert')).toBe(true);
+        expect(page.getAttribute('aria-hidden')).toBe('true');
+      }
+    });
+  });
+
+  it('moves `inert` to the newly-inactive page when pageIndex changes', () => {
+    const makePager = (idx) => React.createElement(
+      DashboardPager,
+      { pageIndex: idx, onSwipe: () => {}, overlayOpen: false },
+      React.createElement('div', null, 'Today'),
+      React.createElement('div', null, 'Jobs'),
+      React.createElement('div', null, 'Money'),
+    );
+
+    const { container, rerender } = render(makePager(0));
+
+    rerender(makePager(1));
+
+    const pages = container.querySelectorAll('.dp-page');
+    // Page 1 (Jobs) is now active — inert must be cleared so it can receive taps.
+    expect(pages[1].hasAttribute('inert')).toBe(false);
+    expect(pages[1].hasAttribute('aria-hidden')).toBe(false);
+    // Page 0 (Today), now inactive, must have picked up inert.
+    expect(pages[0].hasAttribute('inert')).toBe(true);
+    expect(pages[0].getAttribute('aria-hidden')).toBe('true');
+    // Page 2 (Money) stays inactive/inert throughout.
+    expect(pages[2].hasAttribute('inert')).toBe(true);
+    expect(pages[2].getAttribute('aria-hidden')).toBe('true');
   });
 });

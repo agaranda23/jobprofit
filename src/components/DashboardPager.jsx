@@ -69,6 +69,16 @@ export default function DashboardPager({ pageIndex, onSwipe, overlayOpen, childr
             key={i}
             className="dp-page"
             aria-hidden={i !== pageIndex ? true : undefined}
+            // `aria-hidden` alone only affects screen readers — it does NOT stop
+            // touch/pointer events. Without `inert`, an off-screen page slot stays
+            // fully tappable, so a tap during/after a partially-shifted track (a
+            // rubber-band, an interrupted drag, a mid-animation frame) can land on
+            // the NEIGHBOURING page's controls instead of the visible one. `inert`
+            // disables pointer events, focus and interaction on the whole subtree.
+            // It clears itself on the very next render once `pageIndex` changes
+            // (the swipe/nav-tap flow already re-renders this component then), so
+            // the freshly-active page is interactive well before the user's next tap.
+            inert={i !== pageIndex ? true : undefined}
           >
             {child}
           </div>
