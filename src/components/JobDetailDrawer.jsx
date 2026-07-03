@@ -4415,6 +4415,7 @@ export default function JobDetailDrawer({
           onClose={() => setReviewSheetMode(null)}
           onDismiss={() => setReviewSheetMode(null)}
           onEdit={onUpdateJob ? () => handleReviewEdit(reviewSheetMode) : undefined}
+          onProfileUpdate={onProfileUpdate}
           flash={showFlash}
         />
       )}
