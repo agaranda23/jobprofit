@@ -1123,6 +1123,16 @@ body { background: var(--bg); color: var(--text); -webkit-font-smoothing: antial
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
+  pointer-events: auto;
+}
+
+/* Belt-and-suspenders for the `inert` prop on non-active .dp-page slots (React
+   sets the `inert` attribute, which already disables pointer events/focus in
+   browsers that support it). This CSS fallback covers any browser where
+   `inert` isn't honoured, so a tap can never leak through to an off-screen
+   neighbouring page. */
+.dp-page[aria-hidden="true"] {
+  pointer-events: none;
 }
 
 .bottom-nav {
