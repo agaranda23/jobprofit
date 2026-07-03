@@ -31,7 +31,7 @@ export default function DashboardPager({ pageIndex, onSwipe, overlayOpen, childr
     onSwipe?.(nextIdx);
   }, [onSwipe]);
 
-  const { trackRef, onTouchStart, onTouchMove, onTouchEnd, jumpTo } = useDashboardPager({
+  const { trackRef, onTouchStart, onTouchMove, onTouchEnd, onTouchCancel, jumpTo } = useDashboardPager({
     pageCount: pages.length,
     pageIndex,
     onPageChange: handlePageChange,
@@ -52,6 +52,7 @@ export default function DashboardPager({ pageIndex, onSwipe, overlayOpen, childr
       onTouchStart={onTouchStart}
       onTouchMove={onTouchMove}
       onTouchEnd={onTouchEnd}
+      onTouchCancel={onTouchCancel}
     >
       {/*
         NO inline left here. Track position is 100% JS-owned via jumpTo/settleAt.
