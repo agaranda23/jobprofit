@@ -25,8 +25,14 @@
  *   jobs          – all jobs array (for nextInvoiceNumber)
  *   onClose()     – close without draft save
  *   onDismiss()   – close + save draft (called when user taps X or backdrop)
- *   onUpdate(job) – persists job update (invoiceSentAt, quoteSentAt, draft flags)
- *   onEdit()      – close without draft save and open the job edit form (price / line items)
+ *   onUpdate(job) – persists job update (invoiceSentAt, quoteSentAt, draft flags,
+ *                   AND every inline edit made in DocumentPreview — see localJob below)
+ *   onEdit()      – optional; renders the "Edit quote/invoice" ghost button, which
+ *                   still closes this sheet and opens the full job-edit screen (an
+ *                   explicit, distinctly-labelled escape hatch). Inline field/line-item
+ *                   taps inside DocumentPreview no longer route through this — they
+ *                   open a small overlay editor over the still-open sheet instead
+ *                   (see DocumentPreview.jsx's onJobPatch/onInvoiceNumberChange/onDueDateChange).
  *   flash(msg)    – toast callback
  */
 
@@ -183,16 +189,45 @@ export default function ReviewSheet({
 }) {
   const isInvoice = mode === 'invoice';
 
-  const [invoiceNumber] = useState(
+  const [invoiceNumber, setInvoiceNumber] = useState(
     () => job.invoiceNumber || nextInvoiceNumber(jobs)
   );
-  const [dueDate] = useState(() => {
+  const [dueDate, setDueDate] = useState(() => {
     if (job.invoiceDueDate) return new Date(job.invoiceDueDate).toISOString().slice(0, 10);
     const d = new Date();
     d.setDate(d.getDate() + 14);
     return d.toISOString().slice(0, 10);
   });
   const [busy, setBusy] = useState(false);
+
+  // localJob: optimistically updated the moment an inline edit is made inside
+  // DocumentPreview (line items/total, customer, phone, address) — mirrors the
+  // localProfile pattern below. Every doc-generation path (WhatsApp send, PDF
+  // download, deposit calc) reads localJob, not the raw `job` prop, so an edit
+  // made THIS session is reflected in what's actually sent, not just the next
+  // time the sheet opens. Persists via the real onUpdate data layer immediately
+  // — this is not a "review-only" draft, it's the same save path as any other
+  // job edit, just surfaced inline instead of via a screen jump.
+  const [localJob, setLocalJob] = useState(job);
+
+  // Central patch handler for DocumentPreview's inline job-content editors.
+  const handleJobPatch = useCallback((patch) => {
+    setLocalJob(prev => {
+      const next = { ...prev, ...patch };
+      onUpdate?.(next);
+      return next;
+    });
+  }, [onUpdate]);
+
+  const handleInvoiceNumberChange = useCallback((value) => {
+    setInvoiceNumber(value);
+    onUpdate?.({ ...localJob, invoiceNumber: value });
+  }, [onUpdate, localJob]);
+
+  const handleDueDateChange = useCallback((value) => {
+    setDueDate(value);
+    onUpdate?.({ ...localJob, invoiceDueDate: new Date(value).toISOString() });
+  }, [onUpdate, localJob]);
 
   // Per-quote deposit percent — pre-filled from the profile default or the job's
   // existing value (in case the sheet is opened on a job that already has one set).
@@ -216,20 +251,21 @@ export default function ReviewSheet({
   // Bank-gate view: 'main' | 'bank-gate'
   const [sheetView, setSheetView] = useState('main');
 
-  const jobName = job?.summary || job?.customer || job?.name || 'Job';
+  const jobName = localJob?.summary || localJob?.customer || localJob?.name || 'Job';
   const sheetTitle = isInvoice
     ? `Review invoice · ${jobName}`
     : `Review quote · ${jobName}`;
 
-  // Dismiss = close + save draft
+  // Dismiss = close + save draft. Uses localJob so an inline edit made before
+  // dismissing (without sending) is still persisted in the draft patch.
   const handleDismiss = useCallback(() => {
     const draftPatch = isInvoice
-      ? { ...job, invoiceDraft: true }
-      : { ...job, quoteDraft: true };
+      ? { ...localJob, invoiceDraft: true }
+      : { ...localJob, quoteDraft: true };
     onUpdate?.(draftPatch);
     flash?.('Draft saved. Send when you\'re ready.');
     onDismiss?.();
-  }, [isInvoice, job, onUpdate, flash, onDismiss]);
+  }, [isInvoice, localJob, onUpdate, flash, onDismiss]);
 
   // ── Invoice: WhatsApp send ─────────────────────────────────────────────────
   // Decision tree:
@@ -238,15 +274,19 @@ export default function ReviewSheet({
   //   3. canShareFile(file), no phone    → navigator.share({ files, text }) only (user picks recipient)
   //   4. No Web Share Level 2            → wa.me text-only + auto-trigger PDF download as manual fallback
   //   5. AbortError (sheet dismissed)    → don't close, don't flash error
+  // All job data below reads localJob (not the raw `job` prop) so an inline
+  // edit made this session — a line-item change, an added customer — is
+  // reflected in the invoice actually sent, not just the next time this sheet
+  // opens. Nothing about the send DECISION TREE below changed.
   const handleInvoiceWhatsApp = async () => {
     setBusy(true);
-    const message = buildInvoiceWhatsAppMessage({ job, biz, invoiceNumber, dueDate });
-    const phone = resolvePhone(job);
+    const message = buildInvoiceWhatsAppMessage({ job: localJob, biz, invoiceNumber, dueDate });
+    const phone = resolvePhone(localJob);
     const link = buildWhatsAppLink({ phone, message });
 
     let shareMethod = 'wame_fallback';
     try {
-      const blob = await getInvoicePDFBlob({ job, biz, profile: localProfile, invoiceNumber, dueDate, hidePoweredBy: isProUser });
+      const blob = await getInvoicePDFBlob({ job: localJob, biz, profile: localProfile, invoiceNumber, dueDate, hidePoweredBy: isProUser });
       const file = new File([blob], `invoice-${invoiceNumber}.pdf`, { type: 'application/pdf' });
 
       if (canShareFile(file)) {
@@ -259,7 +299,7 @@ export default function ReviewSheet({
         // Web Share Level 2 not available — open wa.me + give the user the PDF to attach manually
         shareMethod = 'wame_fallback';
         window.open(link, '_blank', 'noopener');
-        await downloadInvoicePDF({ job, biz, profile: localProfile, invoiceNumber, dueDate, hidePoweredBy: isProUser });
+        await downloadInvoicePDF({ job: localJob, biz, profile: localProfile, invoiceNumber, dueDate, hidePoweredBy: isProUser });
       }
     } catch (err) {
       if (err?.name === 'AbortError') {
@@ -274,10 +314,10 @@ export default function ReviewSheet({
     }
 
     logTelemetry('invoice_send', { channel: 'whatsapp', source: 'review_sheet', share_method: shareMethod });
-    const _inv1 = getJobProfit(job, receipts);
+    const _inv1 = getJobProfit(localJob, receipts);
     logTelemetry('invoice_sent', { headline_price: _inv1.quote, job_costs: _inv1.materials, true_profit: _inv1.profit, channel: 'whatsapp' });
     onUpdate?.({
-      ...job,
+      ...localJob,
       status: 'invoice_sent',
       invoiceSentAt: new Date().toISOString(),
       invoiceNumber,
@@ -294,10 +334,10 @@ export default function ReviewSheet({
   // ReviewSheet doesn't have a payNowUrl — omitting it renders the PDF as before.
   const handleInvoiceDownloadPDF = async () => {
     logTelemetry('invoice_send', { channel: 'download', source: 'review_sheet' });
-    const _inv2 = getJobProfit(job, receipts);
+    const _inv2 = getJobProfit(localJob, receipts);
     logTelemetry('invoice_sent', { headline_price: _inv2.quote, job_costs: _inv2.materials, true_profit: _inv2.profit, channel: 'download' });
     try {
-      await downloadInvoicePDF({ job, biz, profile: localProfile, invoiceNumber, dueDate, hidePoweredBy: isProUser });
+      await downloadInvoicePDF({ job: localJob, biz, profile: localProfile, invoiceNumber, dueDate, hidePoweredBy: isProUser });
       flash?.('Saved to Files. Share it however you like.');
     } catch {
       flash?.('PDF failed — check Settings for business details');
@@ -310,7 +350,7 @@ export default function ReviewSheet({
   // directly, without hopping through this sheet. See sendQuote.js for the
   // full decision tree (bank-gate, token persist, PDF+QR, share fallbacks).
   const handleQuoteWhatsApp = async () => {
-    const result = await sendQuote(job, {
+    const result = await sendQuote(localJob, {
       biz,
       profile: localProfile,
       depositPercent,
@@ -331,10 +371,10 @@ export default function ReviewSheet({
   // token hasn't been minted yet, so quoteUrl = '' and the sign block is skipped.
   const handleQuoteDownloadPDF = async () => {
     logTelemetry('quote_send', { channel: 'download', source: 'review_sheet' });
-    const _q2 = getJobProfit(job, receipts);
+    const _q2 = getJobProfit(localJob, receipts);
     logTelemetry('quote_sent', { headline_price: _q2.quote, job_costs: _q2.materials, true_profit: _q2.profit, channel: 'download' });
     try {
-      const existingToken = job.publicAccessToken || '';
+      const existingToken = localJob.publicAccessToken || '';
       const downloadQuoteUrl = existingToken ? buildPublicQuoteUrl(existingToken) : '';
       let downloadQrDataUrl = '';
       if (downloadQuoteUrl) {
@@ -348,7 +388,7 @@ export default function ReviewSheet({
           // QR generation failed — proceed without it
         }
       }
-      await downloadQuotePDF({ job, biz, profile: localProfile, quoteUrl: downloadQuoteUrl, qrDataUrl: downloadQrDataUrl, hidePoweredBy: isProUser });
+      await downloadQuotePDF({ job: localJob, biz, profile: localProfile, quoteUrl: downloadQuoteUrl, qrDataUrl: downloadQrDataUrl, hidePoweredBy: isProUser });
       flash?.('Saved to Files. Share it however you like.');
     } catch {
       flash?.('PDF failed — check Settings for business details');
@@ -384,7 +424,18 @@ export default function ReviewSheet({
       className="modal-backdrop modal-backdrop--top"
       onClick={e => { if (e.target === e.currentTarget) handleDismiss(); }}
     >
-      <div className="modal-sheet rs-sheet" role="dialog" aria-modal="true" aria-label={sheetTitle}>
+      {/* stopPropagation here is the P0 dismiss-jank fix (founder live-test,
+          2026-07): every tap inside the sheet — including a tap on a document
+          region that isn't wired to anything — must never reach the backdrop's
+          onClick and dismiss the sheet / fall through to the screen behind it.
+          Only the X button and a genuine backdrop tap (outside this div) close it. */}
+      <div
+        className="modal-sheet rs-sheet"
+        role="dialog"
+        aria-modal="true"
+        aria-label={sheetTitle}
+        onClick={e => e.stopPropagation()}
+      >
         {/* Header */}
         <div className="modal-sheet-header">
           <h3 className="modal-sheet-title rs-title">{sheetTitle}</h3>
@@ -397,19 +448,23 @@ export default function ReviewSheet({
           </button>
         </div>
 
-        {/* Document preview — tappable facsimile (Preview & Edit slice 1).
-            profile={localProfile} so a brand edit made mid-session (logo /
-            business name / contact) shows here AND in the doc this sheet is
-            about to send — see the localProfile note above. */}
+        {/* Document preview — tappable facsimile ("Preview & Edit" full-tap
+            slice, built on slice 1). job={localJob} + onJobPatch so every
+            inline edit (line items, customer, phone/address) is reflected here
+            AND in the doc this sheet is about to send. profile={localProfile}
+            so a brand edit made mid-session (logo / business name / contact)
+            shows here AND in the doc too — see the localProfile note above. */}
         <DocumentPreview
           mode={mode}
-          job={job}
+          job={localJob}
           biz={biz}
           profile={localProfile}
           depositPercent={depositPercent}
           invoiceNumber={invoiceNumber}
           dueDate={dueDate}
-          onEdit={onEdit}
+          onJobPatch={onUpdate ? handleJobPatch : undefined}
+          onInvoiceNumberChange={handleInvoiceNumberChange}
+          onDueDateChange={handleDueDateChange}
           onProfileUpdate={onProfileUpdate}
           onProfileSaved={(patch) => setLocalProfile(prev => ({ ...(prev || {}), ...patch }))}
           flash={flash}
@@ -419,7 +474,7 @@ export default function ReviewSheet({
         {!isInvoice && (
           <DepositPickerRow
             profile={localProfile}
-            jobTotal={Number(job.total ?? job.amount ?? 0)}
+            jobTotal={Number(localJob.total ?? localJob.amount ?? 0)}
             depositPercent={depositPercent}
             onDepositChange={setDepositPercent}
           />

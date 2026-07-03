@@ -79,6 +79,13 @@ function FieldRow({ field, value, onChange, error, showLabel = true }) {
           rows={field.rows || 4}
           autoCapitalize="sentences"
         />
+      ) : field.inputType === 'date' ? (
+        // Native date picker — value must be a 'YYYY-MM-DD' string. Used by
+        // invoice due-date / quote valid-until inline editors (DocumentPreview).
+        <input
+          {...sharedProps}
+          type="date"
+        />
       ) : (
         <input
           {...sharedProps}
