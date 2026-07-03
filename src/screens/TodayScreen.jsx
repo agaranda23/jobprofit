@@ -44,6 +44,7 @@ import {
   jobAmount,
 } from '../lib/nextBestAction';
 import { isPro, isTrialActive, trialDaysLeft } from '../lib/plan';
+import { shouldOfferSampleData } from '../lib/sampleData';
 import OhnarWordmark from '../components/OhnarWordmark';
 import { UPGRADE_TRIGGERS } from '../lib/telemetry';
 import { supabase } from '../lib/supabase';
@@ -71,6 +72,7 @@ export default function TodayScreen({
   onJobTap,
   onNavigateToMoney,
   onSeeTheWeek,
+  onLoadSampleData,
   onNavigateToCardPayments,
   profile,
   onProfileUpdate,
@@ -116,6 +118,21 @@ export default function TodayScreen({
   const showToast = useCallback((msg, action = null) => {
     onSnackbar?.({ type: 'toast', message: msg, action, dwell: 2400, priority: 8 });
   }, [onSnackbar]);
+  // loadingSample: guards the empty-state "Load a sample day" CTA against a
+  // double-tap while the seed (several sequential cloud writes) is in flight.
+  const [loadingSample, setLoadingSample] = useState(false);
+  const handleLoadSampleData = useCallback(async () => {
+    if (loadingSample || !onLoadSampleData) return;
+    setLoadingSample(true);
+    try {
+      await onLoadSampleData();
+      showToast('Sample day loaded — explore, then clear it anytime in Settings');
+    } catch {
+      showToast('Could not load sample data — try again');
+    } finally {
+      setLoadingSample(false);
+    }
+  }, [loadingSample, onLoadSampleData, showToast]);
   // rankVersion bumps after Mark paid / Snooze to force re-rank without a full re-fetch
   const [rankVersion, setRankVersion] = useState(0);
   // invoicePickerOpen: "Send an invoice" pivot button opened the job picker
@@ -676,6 +693,21 @@ export default function TodayScreen({
               You&rsquo;re on a 14-day Pro trial
               {trialDaysLeft(profile) > 0 ? ` — ${trialDaysLeft(profile)} day${trialDaysLeft(profile) === 1 ? '' : 's'} left` : ''}.
             </p>
+          )}
+          {/* shouldOfferSampleData is redundant with the enclosing jobs.length === 0
+              branch today, but makes the "zero REAL jobs" rule explicit and self-
+              documenting rather than implicit in the outer condition — and keeps
+              this call-site correct if that outer condition ever changes. */}
+          {onLoadSampleData && shouldOfferSampleData(jobs) && (
+            <button
+              type="button"
+              className="empty-welcome-sample-cta"
+              onClick={handleLoadSampleData}
+              disabled={loadingSample}
+              data-testid="load-sample-data-cta"
+            >
+              {loadingSample ? 'Loading sample day…' : 'New here? Load a sample day to see how OHNAR works'}
+            </button>
           )}
         </section>
       ) : (

@@ -86,6 +86,7 @@ import PaidCelebration from './components/PaidCelebration.jsx';
 import PostPaidSheet from './components/PostPaidSheet.jsx';
 import AddJobModal from './components/AddJobModal.jsx';
 import { haptic } from './lib/haptics.js';
+import { seedSampleData, clearSampleData } from './lib/sampleData.js';
 
 // ─── App-boot cleanup ─────────────────────────────────────────────────────────
 // Remove localStorage keys that were used by the now-deleted newNav and
@@ -918,6 +919,23 @@ export default function AppShell() {
     }
   };
 
+  // "Load sample data" — see src/lib/sampleData.js for the full design note.
+  // Re-throws on failure so the calling screen (TodayScreen/SettingsScreen)
+  // can show its own error toast instead of this silently no-op'ing.
+  const handleLoadSampleData = async () => {
+    const result = await seedSampleData();
+    await refreshFromCloud();
+    logTelemetry('sample_data_loaded', { created: result?.created ?? 0, already_loaded: !!result?.alreadyLoaded });
+    return result;
+  };
+
+  const handleClearSampleData = async () => {
+    const result = await clearSampleData();
+    await refreshFromCloud();
+    logTelemetry('sample_data_cleared', { removed: result?.removed ?? 0 });
+    return result;
+  };
+
   const handleDeleteReceipt = async (receiptId) => {
     try {
       await deleteReceiptFromCloud(receiptId);
@@ -1418,6 +1436,7 @@ export default function AppShell() {
             onMaterialSaved={handleMaterialSaved}
             onSnackbar={snackbarEnqueue}
             onSnackbarDismiss={snackbarDismiss}
+            onLoadSampleData={handleLoadSampleData}
           />
 
           {/* Page 1 — Jobs/Work */}
@@ -1443,6 +1462,7 @@ export default function AppShell() {
             onBrowseMaterials={() => setMaterialsOpen(true)}
             onMaterialSaved={handleMaterialSaved}
             onOverlayChange={setWorkOverlayOpen}
+            onClearSampleData={handleClearSampleData}
           />
 
           {/* Page 2 — Money/Finance */}
@@ -1499,6 +1519,8 @@ export default function AppShell() {
           scrollTarget={settingsScrollTarget}
           onScrollTargetConsumed={() => setSettingsScrollTarget(null)}
           settingsResetKey={settingsResetKey}
+          onLoadSampleData={handleLoadSampleData}
+          onClearSampleData={handleClearSampleData}
         />
       )}
 
