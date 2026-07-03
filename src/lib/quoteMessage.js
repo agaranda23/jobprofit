@@ -3,6 +3,11 @@
 // request — but VAT and a deposit due-date are now shown when present,
 // matching the invoice message's minimal presentation:
 //
+//   Tone refresh (2026-07-03): warmer greeting ("Hi {name} 👋") + the job
+//   name now reads naturally in the intro sentence ahead of the quote link.
+//   VAT-inclusive total and deposit due-date rendering (below) are unchanged
+//   by this pass — only the surrounding copy/structure moved.
+//
 //   VAT: prices are VAT-inclusive (gross); we never add VAT on top, only
 //   disclose "(inc VAT)" on the total line — same treatment as
 //   invoiceMessage.js. Triggered by the trader's VAT-registration setting
@@ -70,39 +75,38 @@ export function buildQuoteWhatsAppMessage({ job, biz, quoteUrl, depositPayUrl = 
   const accountNumber = biz?.accountNumber || biz?.account_number || '';
   const hasBankDetails = !!(sortCode && accountNumber);
 
-  // Link-first ordering: WhatsApp truncates file-share captions on iOS,
-  // so the sign URL must sit in the first 2-3 lines or the customer will
-  // only see the PDF and miss the call to action. Greeting + sign link
-  // come first; details (summary, total, deposit) sit below as context.
+  // The link still needs to sit within the first ~4 lines so WhatsApp's iOS
+  // caption-preview truncation never buries the CTA. The job name now reads
+  // naturally in the intro sentence just above the link (warmer tone pass,
+  // 2026-07-03) — that still leaves the link on line 4.
   const lines = [
-    firstName ? `Hi ${firstName},` : 'Hi,',
+    firstName ? `Hi ${firstName} 👋` : 'Hi 👋',
     '',
-    `📝 Tap to view and accept or decline your quote:`,
+    `Thanks for your enquiry. Your quote for ${summary} is ready — tap below to view and accept or decline it:`,
     quoteUrl,
-    '',
-    `🔨 ${summary}`,
   ];
-  if (totalStr) lines.push(`💷 Total: ${totalStr}${showVat ? ' (inc VAT)' : ''}`);
+  if (totalStr) lines.push('', `Total: ${totalStr}${showVat ? ' (inc VAT)' : ''}`);
 
   // Deposit pay link (Pro + Stripe) — separate visible block below the sign link.
   if (depositPayUrl && depositAmount) {
     lines.push('');
-    lines.push(`Pay ${depositAmount} deposit${dueSuffix} (locks in your slot):`);
+    lines.push(`Deposit to secure your booking: ${depositAmount}${dueSuffix} — pay here:`);
     lines.push(depositPayUrl);
   } else if (!depositPayUrl && depositAmount && hasBankDetails) {
     // Bank-transfer deposit block (V1 — all traders without Stripe).
+    const bankBits = [];
+    if (accountName) bankBits.push(`Name: ${accountName}`);
+    bankBits.push(`Sort code: ${sortCode}`);
+    bankBits.push(`Account: ${accountNumber}`);
     lines.push('');
     lines.push(`Deposit to secure your booking: ${depositAmount} (${depositPercent}%)${dueSuffix}`);
-    lines.push(`Pay by bank transfer to:`);
-    if (accountName) lines.push(`Name: ${accountName}`);
-    lines.push(`Sort code: ${sortCode}`);
-    lines.push(`Account: ${accountNumber}`);
-    lines.push(`Use your name as the reference, then drop me a message and I'll book you in.`);
+    lines.push(`Pay by bank transfer — ${bankBits.join(' · ')}. Use your name as the reference and let me know once it's sent.`);
   }
 
-  lines.push('');
-  lines.push(`Cheers,`);
-  lines.push(businessName);
+  lines.push('', 'Thanks!');
+  // Omit the sign-off line entirely (not just leave it blank) when no
+  // business name is set — avoids a dangling empty last line.
+  if (businessName) lines.push(businessName);
 
   return lines.join('\n');
 }

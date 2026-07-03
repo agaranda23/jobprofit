@@ -17,7 +17,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { buildInvoiceWhatsAppMessage, buildWhatsAppLink } from '../invoiceMessage.js';
+import { buildInvoiceWhatsAppMessage, buildWhatsAppLink, buildReviewRequestWhatsAppMessage } from '../invoiceMessage.js';
 
 function baseJob(overrides = {}) {
   return {
@@ -319,5 +319,88 @@ describe('buildInvoiceWhatsAppMessage — hostedInvoiceUrl', () => {
     });
     expect(msg).toContain('120.00');
     expect(msg).toContain(HOSTED_URL);
+  });
+});
+
+// ── Warmer-tone pass (2026-07-03) ─────────────────────────────────────────────
+
+describe('buildInvoiceWhatsAppMessage — warmer tone + Reference line', () => {
+  it('uses a warm first-name greeting', () => {
+    const msg = buildInvoiceWhatsAppMessage({ job: baseJob(), biz: baseBiz(), invoiceNumber, dueDate });
+    expect(msg).toContain('Hi Mrs. 👋');
+  });
+
+  it('includes the combined Invoice/Job/Amount due/Due summary line', () => {
+    const msg = buildInvoiceWhatsAppMessage({ job: baseJob({ total: 200 }), biz: baseBiz(), invoiceNumber, dueDate });
+    expect(msg).toContain(`Invoice: ${invoiceNumber} · Job: Replace kitchen taps · Amount due: £200.00 · Due:`);
+  });
+
+  it('uses "Reference:" (not "Ref:") for the invoice reference line', () => {
+    const msg = buildInvoiceWhatsAppMessage({ job: baseJob(), biz: baseBiz(), invoiceNumber, dueDate });
+    expect(msg).toContain(`Reference: ${invoiceNumber}`);
+  });
+
+  it('still shows the Received/Balance partial-payment block when a deposit was paid', () => {
+    const msg = buildInvoiceWhatsAppMessage({
+      job: baseJob({ total: 380, payments: [{ amount: 100 }] }),
+      biz: baseBiz(),
+      invoiceNumber,
+      dueDate,
+    });
+    expect(msg).toContain('Received: £100.00');
+    expect(msg).toContain('Balance: £280.00');
+  });
+});
+
+// ── buildReviewRequestWhatsAppMessage — post-paid review ask ──────────────────
+
+describe('buildReviewRequestWhatsAppMessage', () => {
+  it('includes a warm first-name greeting', () => {
+    const msg = buildReviewRequestWhatsAppMessage({
+      job: { customer: 'Sarah Jones' },
+      biz: { google_review_link: 'https://g.page/r/abc123' },
+    });
+    expect(msg).toContain('Hi Sarah 👋');
+  });
+
+  it('falls back to a generic greeting when there is no customer name', () => {
+    const msg = buildReviewRequestWhatsAppMessage({ job: {}, biz: { google_review_link: 'https://g.page/r/abc123' } });
+    expect(msg).toContain('Hi 👋');
+  });
+
+  it('thanks the customer for their payment', () => {
+    const msg = buildReviewRequestWhatsAppMessage({
+      job: { customer: 'Sarah' },
+      biz: { google_review_link: 'https://g.page/r/abc123' },
+    });
+    expect(msg).toContain('Thanks so much for your payment');
+  });
+
+  it('includes the review link with a star marker when google_review_link is set', () => {
+    const msg = buildReviewRequestWhatsAppMessage({
+      job: { customer: 'Sarah' },
+      biz: { google_review_link: 'https://g.page/r/abc123' },
+    });
+    expect(msg).toContain('⭐ https://g.page/r/abc123');
+  });
+
+  it('omits the review-link line entirely when no review link is configured (no broken/blank link shipped)', () => {
+    const msg = buildReviewRequestWhatsAppMessage({ job: { customer: 'Sarah' }, biz: {} });
+    expect(msg).not.toContain('⭐');
+    expect(msg).not.toContain('undefined');
+  });
+
+  it('includes the business name in the sign-off when present', () => {
+    const msg = buildReviewRequestWhatsAppMessage({
+      job: { customer: 'Sarah' },
+      biz: { google_review_link: 'https://g.page/r/abc123', name: 'Alan Plumbing Ltd' },
+    });
+    expect(msg).toContain('Alan Plumbing Ltd');
+  });
+
+  it('omits a dangling blank sign-off line when no business name is set', () => {
+    const msg = buildReviewRequestWhatsAppMessage({ job: { customer: 'Sarah' }, biz: { google_review_link: 'https://g.page/r/abc123' } });
+    const lines = msg.split('\n');
+    expect(lines[lines.length - 1]).not.toBe('');
   });
 });

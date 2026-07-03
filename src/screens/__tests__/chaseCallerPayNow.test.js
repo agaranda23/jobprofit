@@ -105,7 +105,9 @@ describe('G. Connected trader (batch chase) — Pay-now line in WhatsApp URL', (
 
     const decoded = decodeURIComponent(link);
     const payNowIndex = decoded.indexOf('Pay by card here:');
-    const chaseIndex = decoded.indexOf('Dave Brown');
+    // buildChaseMessage greets with first-name-only (Dave), not the full
+    // "Dave Brown" passed in — see the 2026-07-03 "Hi Sam doors" name-glitch fix.
+    const chaseIndex = decoded.indexOf('Hi Dave');
     // Pay-now line precedes the customer name in the chase copy
     expect(payNowIndex).toBeGreaterThanOrEqual(0);
     expect(chaseIndex).toBeGreaterThan(payNowIndex);

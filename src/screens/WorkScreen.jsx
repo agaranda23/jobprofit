@@ -60,12 +60,12 @@ import {
   computeTier,
   daysPastDue,
   daysUntilDue,
-  buildChaseLink,
-  buildChaseMessage,
+  buildChaseMessageWithPayNow,
   buildPaymentDetails,
   recordChase,
   recordChaseCloud,
   isDoubleSendBlocked,
+  chaseCustomerFirstName,
   DEFAULT_PAYMENT_TERMS_DAYS,
 } from '../lib/chaseLadder';
 import { supabase } from '../lib/supabase';
@@ -173,11 +173,14 @@ function chaseJobTiered(job, biz = null, forceTier = null, payNowUrl = '') {
   const daysOverdue = Math.max(0, daysPastDue(job));
   const paymentDetails = buildPaymentDetails(biz);
 
-  const link = buildChaseLink({
-    phone,
-    customerName: job.customer || job.name || '',
+  // Built once via buildChaseMessageWithPayNow (not the old ad-hoc fallback
+  // string) so the no-phone path gets the exact same tiered, warmer copy —
+  // including the "already paid? ignore this" line — as the phone path.
+  const msg = buildChaseMessageWithPayNow({
+    customerName: chaseCustomerFirstName(job),
     amount: '£' + formatAmount(outstanding),
     jobSummary: job.summary || '',
+    invoiceNumber: job.invoiceNumber || '',
     dueDate: job.invoiceDueDate || null,
     daysOverdue,
     tier,
@@ -188,17 +191,10 @@ function chaseJobTiered(job, biz = null, forceTier = null, payNowUrl = '') {
     payNowUrl,
   });
 
-  // link is null when there's no phone — open wa.me without a recipient so the
-  // user can pick the contact manually in WhatsApp.
-  const finalUrl = link ?? `https://wa.me/?text=${encodeURIComponent(
-    [
-      `Hi ${job.customer || job.name || 'there'},`,
-      `just chasing the invoice for £${formatAmount(outstanding)}`,
-      daysOverdue > 0 ? `— now ${daysOverdue} days overdue.` : '.',
-      paymentDetails || '',
-      biz?.name || '',
-    ].filter(Boolean).join(' ')
-  )}`;
+  // Empty cleanPhone opens wa.me with no recipient — the user picks the
+  // contact manually in WhatsApp (same degradation as buildChaseLink()).
+  const cleanPhone = phone.replace(/\s/g, '').replace(/^0/, '44').replace(/^\+/, '');
+  const finalUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`;
 
   window.open(finalUrl, '_blank', 'noopener');
   recordChase(job.id);
@@ -1462,11 +1458,11 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
     const phone = job.customerPhone || job.phone || job.mobile || '';
     const outstanding = Number(job.total ?? job.amount ?? 0) || 0;
     const paymentDetails = buildPaymentDetails(biz);
-    const link = buildChaseLink({
-      phone,
-      customerName: job.customer || job.name || '',
+    const msg = buildChaseMessageWithPayNow({
+      customerName: chaseCustomerFirstName(job),
       amount: '£' + formatAmount(outstanding),
       jobSummary: job.summary || '',
+      invoiceNumber: job.invoiceNumber || '',
       dueDate: job.invoiceDueDate || null,
       daysOverdue: 0,
       tier: 0,
@@ -1476,19 +1472,9 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
       isB2B: false,
       payNowUrl: payNowUrls.get(job.id) ?? '',
     });
-    const finalUrl = link ?? `https://wa.me/?text=${encodeURIComponent(
-      buildChaseMessage({
-        customerName: job.customer || job.name || '',
-        amount: '£' + formatAmount(outstanding),
-        jobSummary: job.summary || '',
-        dueDate: job.invoiceDueDate || null,
-        daysOverdue: 0,
-        tier: 0,
-        paymentDetails,
-        businessName: biz?.name || '',
-        isB2B: false,
-      })
-    )}`;
+    // Empty cleanPhone opens wa.me with no recipient — matches chaseJobTiered's degradation.
+    const cleanPhone = phone.replace(/\s/g, '').replace(/^0/, '44').replace(/^\+/, '');
+    const finalUrl = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(msg)}`;
     window.open(finalUrl, '_blank', 'noopener');
   };
 

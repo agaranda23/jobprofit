@@ -197,6 +197,27 @@ export function computeTier(job, _now = new Date()) {
   return 0; // pre-due
 }
 
+// ── Customer name helper ──────────────────────────────────────────────────
+
+/**
+ * Resolves a clean first-name-only greeting name from a job.
+ *
+ * Regression guard (2026-07-03): call sites used to fall back to job.name
+ * (the JOB TITLE, e.g. "New doors") when job.customer was blank, and passed
+ * whatever was left in customer/customerName straight through unsplit — so a
+ * customer surname or a job title could bleed into the greeting (reported as
+ * "Hi Sam doors"). Mirrors the `.split(' ')[0]` convention already used by
+ * quoteMessage.js / invoiceMessage.js. Never falls back to job.name/summary —
+ * those are JOB fields, not a person's name; buildChaseMessage's own 'there'
+ * fallback handles the blank case.
+ *
+ * @param {object} job
+ * @returns {string}
+ */
+export function chaseCustomerFirstName(job) {
+  return (job?.customer || job?.customerName || '').split(' ')[0] || '';
+}
+
 // ── Payment details helper ────────────────────────────────────────────────
 
 /**
@@ -241,10 +262,18 @@ function fmtDate(raw) {
 /**
  * Builds the approved tiered chase message.
  *
- * Approved copy: founder sign-off 2026-05-30.
+ * Approved copy: founder sign-off 2026-05-30. Refreshed 2026-07-03 (warmer
+ * tone pass) — added the "if you've already paid, ignore this" disclaimer to
+ * every overdue tier (1/2/3, B2B included) so a chase can never read as
+ * pestering a customer who has already paid but whose payment the trader
+ * hasn't logged yet (a real race — bank transfers land before the trader
+ * marks the job Paid). customerName is now split to first-name-only inside
+ * this function (defense in depth — see chaseCustomerFirstName for the
+ * call-site fix to the root cause).
  *
  * Omission rules (clean degradation):
  *   - {jobSummary}       -> omitted (with surrounding parens) when blank
+ *   - {invoiceNumber}    -> "invoice {number}" when present, else "the invoice"
  *   - {paymentDetails}   -> clause omitted entirely when blank
  *   - {businessName}     -> falls back to '' (no trailing newline emitted)
  *   - part-pay prefix    -> applied to Tier 2 AND Tier 3 when amountPaid > 0
@@ -255,6 +284,7 @@ function fmtDate(raw) {
  *   customerName?: string,
  *   amount: string,
  *   jobSummary?: string,
+ *   invoiceNumber?: string,
  *   dueDate?: string|Date,
  *   daysOverdue?: number,
  *   tier: number,
@@ -269,6 +299,7 @@ export function buildChaseMessage({
   customerName,
   amount,
   jobSummary = '',
+  invoiceNumber = '',
   dueDate,
   daysOverdue = 0,
   tier,
@@ -277,11 +308,13 @@ export function buildChaseMessage({
   businessName = '',
   isB2B = false,
 }) {
-  const name = customerName || 'there';
+  const name = (customerName || '').split(' ')[0] || 'there';
   const jobClause = jobSummary ? ` (${jobSummary})` : '';
+  const invoiceRef = invoiceNumber ? `invoice ${invoiceNumber}` : 'the invoice';
   const dueDateStr = dueDate ? fmtDate(dueDate) : '';
   const payLine = paymentDetails ? `\n\n${paymentDetails}` : '';
   const bizLine = businessName ? `\n\n${businessName}` : '';
+  const alreadyPaidLine = "If you've already paid, thank you — please ignore this message.";
 
   const partPayPrefix = amountPaid > 0 ? `Thanks for the £${amountPaid} — ` : '';
 
@@ -289,20 +322,21 @@ export function buildChaseMessage({
 
   switch (effectiveTier) {
     case 0: {
-      // Tier 0: pre-due heads-up — surfaces in amber bar when due in 1-2 days
+      // Tier 0: pre-due heads-up — surfaces in amber bar when due in 1-2 days.
+      // Not overdue yet, so no "already paid" disclaimer needed here.
       const duePart = dueDateStr ? ` is due on ${dueDateStr}` : '';
-      return `Hi ${name}, quick heads-up — the invoice for ${amount}${jobClause}${duePart}. No action needed yet, just wanted it on your radar.${payLine}${bizLine}`;
+      return `Hi ${name} 👋\n\nQuick heads-up — ${invoiceRef} for ${amount}${jobClause}${duePart}. No action needed yet, just wanted it on your radar.${payLine}${bizLine}`;
     }
 
     case 1: {
       // Tier 1: light nudge — 1-6 days overdue (Day 8 is first prompt post-grace)
       const landedPart = dueDateStr ? ` — it was due ${dueDateStr}` : '';
-      return `Hi ${name}, just checking the invoice for ${amount}${jobClause} is on your radar${landedPart}. Let me know if you need me to resend anything.${payLine}${bizLine}`;
+      return `Hi ${name} 👋\n\nJust a friendly reminder that ${invoiceRef} for ${amount}${jobClause} is still outstanding${landedPart}. ${alreadyPaidLine} If not, let me know if you need me to resend anything.${payLine}${bizLine}`;
     }
 
     case 2: {
       // Tier 2: firm follow-up — 7-13 days overdue
-      return `${partPayPrefix}Hi ${name}, following up on the invoice for ${amount}${jobClause} — it's now ${daysOverdue} days overdue. Could you let me know when you're expecting to get that across?${payLine}${bizLine}`;
+      return `${partPayPrefix}Hi ${name} 👋\n\nJust following up on ${invoiceRef} for ${amount}${jobClause} — it's now ${daysOverdue} days overdue. ${alreadyPaidLine} If not, could you let me know when you're expecting to get that across?${payLine}${bizLine}`;
     }
 
     case 3: {
@@ -310,14 +344,14 @@ export function buildChaseMessage({
       // explicitly true. Hard-defaults to B2C until a customer tag ships.
       if (isB2B) {
         const payInline = paymentDetails ? ` to ${paymentDetails}` : '';
-        return `${partPayPrefix}Hi ${name}, this is a final reminder that the invoice for ${amount}${jobClause} is now ${daysOverdue} days overdue. Under the Late Payment of Commercial Debts Act 1998 interest and compensation may now apply. Please arrange payment${payInline} or contact me today. If I don't receive payment or a confirmed date by end of this week I'll be taking further steps.${bizLine}`;
+        return `${partPayPrefix}Hi ${name},\n\nThis is a final reminder that ${invoiceRef} for ${amount}${jobClause} is now ${daysOverdue} days overdue. Under the Late Payment of Commercial Debts Act 1998 interest and compensation may now apply. If you've already paid, please disregard this notice — otherwise, please arrange payment${payInline} or contact me today. If I don't receive payment or a confirmed date by end of this week I'll be taking further steps.${bizLine}`;
       }
       // Tier 3-B2C (homeowner / DEFAULT)
-      return `${partPayPrefix}Hi ${name}, last one from me on this — the invoice for ${amount}${jobClause} is now ${daysOverdue} days overdue. If there's a problem at your end, give me a ring and we'll sort it. If I don't hear back this week I'll need to follow this up more formally.${payLine}${bizLine}`;
+      return `${partPayPrefix}Hi ${name} 👋\n\nlast one from me on this — ${invoiceRef} for ${amount}${jobClause} is now ${daysOverdue} days overdue. ${alreadyPaidLine} If there's a problem at your end, give me a ring and we'll sort it. If I don't hear back this week I'll need to follow this up more formally.${payLine}${bizLine}`;
     }
 
     default:
-      return `Hi ${name}, just a reminder that the invoice for ${amount}${jobClause} is outstanding. Please let me know when payment is on the way.${payLine}${bizLine}`;
+      return `Hi ${name} 👋\n\nJust a reminder that ${invoiceRef} for ${amount}${jobClause} is outstanding. ${alreadyPaidLine} If not, please let me know when payment is on the way.${payLine}${bizLine}`;
   }
 }
 
@@ -334,6 +368,7 @@ export function buildChaseMessage({
  *   customerName?: string,
  *   amount: string,
  *   jobSummary?: string,
+ *   invoiceNumber?: string,
  *   dueDate?: string|Date,
  *   daysOverdue?: number,
  *   tier: number,

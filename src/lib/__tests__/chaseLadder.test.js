@@ -12,6 +12,7 @@ import {
   buildChaseMessage,
   buildChaseLink,
   lastChasedLabel,
+  chaseCustomerFirstName,
   DEFAULT_PAYMENT_TERMS_DAYS,
 } from '../chaseLadder.js';
 
@@ -199,6 +200,34 @@ describe('daysUntilDue', () => {
   });
 });
 
+// ── chaseCustomerFirstName — regression guard for the "Hi Sam doors" bug ──
+// Root cause: call sites used to fall back to job.name (the JOB TITLE) when
+// job.customer was blank, and never split a full name to first-name-only.
+
+describe('chaseCustomerFirstName', () => {
+  it('returns the first word of job.customer', () => {
+    expect(chaseCustomerFirstName({ customer: 'Sam Doors' })).toBe('Sam');
+  });
+
+  it('reads job.customerName as a fallback', () => {
+    expect(chaseCustomerFirstName({ customerName: 'Priya Patel' })).toBe('Priya');
+  });
+
+  it('never falls back to job.name (the job title, not a person)', () => {
+    expect(chaseCustomerFirstName({ customer: '', name: 'New doors' })).toBe('');
+  });
+
+  it('returns "" for a job with no customer name at all', () => {
+    expect(chaseCustomerFirstName({})).toBe('');
+  });
+
+  it('handles a null/undefined job without throwing', () => {
+    expect(() => chaseCustomerFirstName(null)).not.toThrow();
+    expect(chaseCustomerFirstName(null)).toBe('');
+    expect(chaseCustomerFirstName(undefined)).toBe('');
+  });
+});
+
 // ── buildChaseMessage — 6+ cases (per tier, with/without amountPaid) ──────
 // v2 API: { customerName, amount, daysOverdue, tier, amountPaid, ... }
 
@@ -212,13 +241,64 @@ describe('buildChaseMessage', () => {
     expect(msg).toContain('No action needed yet');
   });
 
-  it('tier 1: light nudge — "is on your radar" (not "has landed okay")', () => {
+  it('tier 1: light nudge — "friendly reminder ... still outstanding" (not "has landed okay")', () => {
     const msg = buildChaseMessage({ ...base, tier: 1 });
     expect(msg).toContain('Dave');
     expect(msg).toContain('£350');
-    expect(msg).toContain('just checking');
-    expect(msg).toContain('is on your radar');
+    expect(msg).toContain('friendly reminder');
+    expect(msg).toContain('still outstanding');
     expect(msg).not.toContain('has landed okay');
+  });
+
+  // ── "Already paid" disclaimer (2026-07-03 warmer-tone pass) ───────────────
+  // The chase must never read as pestering a customer who has already paid
+  // but whose payment the trader hasn't logged yet.
+
+  it('tier 1 includes the "already paid, ignore this" disclaimer', () => {
+    const msg = buildChaseMessage({ ...base, tier: 1 });
+    expect(msg).toContain("If you've already paid, thank you — please ignore this message.");
+  });
+
+  it('tier 2 includes the "already paid, ignore this" disclaimer', () => {
+    const msg = buildChaseMessage({ ...base, tier: 2 });
+    expect(msg).toContain("If you've already paid, thank you — please ignore this message.");
+  });
+
+  it('tier 3 B2C includes the "already paid, ignore this" disclaimer', () => {
+    const msg = buildChaseMessage({ ...base, tier: 3 });
+    expect(msg).toContain("If you've already paid, thank you — please ignore this message.");
+  });
+
+  it('tier 3 B2B includes a formal "already paid, disregard" disclaimer', () => {
+    const msg = buildChaseMessage({ ...base, tier: 3, isB2B: true });
+    expect(msg).toContain("If you've already paid, please disregard this notice");
+  });
+
+  it('tier 0 (pre-due, not yet overdue) does NOT include the "already paid" disclaimer', () => {
+    const msg = buildChaseMessage({ ...base, tier: 0, dueDate: '2025-06-15' });
+    expect(msg).not.toContain('already paid');
+  });
+
+  // ── invoiceNumber — real invoice reference in the chase copy ──────────────
+
+  it('references the real invoice number when provided', () => {
+    const msg = buildChaseMessage({ ...base, tier: 1, invoiceNumber: 'JP-0042' });
+    expect(msg).toContain('invoice JP-0042');
+  });
+
+  it('falls back to "the invoice" when invoiceNumber is absent', () => {
+    const msg = buildChaseMessage({ ...base, tier: 1 });
+    expect(msg).toContain('the invoice for £350');
+  });
+
+  // ── name glitch regression (2026-07-03) ────────────────────────────────────
+  // customerName is split to first-name-only inside buildChaseMessage too
+  // (defense in depth — see chaseCustomerFirstName for the call-site fix).
+
+  it('uses only the first name even when a full name/surname is passed through', () => {
+    const msg = buildChaseMessage({ ...base, tier: 1, customerName: 'Sam Doors' });
+    expect(msg).toContain('Hi Sam');
+    expect(msg).not.toContain('Sam Doors');
   });
 
   it('tier 2: firm follow-up — names the figure and days overdue', () => {
