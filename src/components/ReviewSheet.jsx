@@ -53,6 +53,7 @@ import { getJobProfit } from '../lib/cashflow';
 import { isPro } from '../lib/plan';
 import { canShareFile } from '../lib/webShare';
 import { sendQuote } from '../lib/sendQuote';
+import { haptic } from '../lib/haptics';
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -399,6 +400,16 @@ export default function ReviewSheet({
   const primaryLabel = isInvoice ? 'Send invoice via WhatsApp' : 'Send via WhatsApp';
   const handleDownloadPDF = isInvoice ? handleInvoiceDownloadPDF : handleQuoteDownloadPDF;
 
+  // Fires the instant tactile confirm the moment the trader commits to
+  // sending — same 'medium' pattern SendInvoiceModal already uses on its
+  // send paths (see haptics.js's call-site guide). Fired synchronously on
+  // tap, ahead of the async PDF/share work in primaryAction, so it never
+  // waits on network/PDF-generation latency.
+  const handlePrimaryTap = () => {
+    haptic('medium');
+    primaryAction();
+  };
+
   // ── Bank-gate view ─────────────────────────────────────────────────────────
   if (sheetView === 'bank-gate') {
     return (
@@ -480,14 +491,23 @@ export default function ReviewSheet({
           />
         )}
 
-        {/* Primary CTA — green WhatsApp button */}
+        {/* Primary CTA — inherits the app-wide "Live Steel Blue" premium
+            button recipe from .btn-primary (see the PREMIUM PRIMARY BUTTON
+            SYSTEM block in index.css); .rs-send-btn only adds icon+label
+            layout on top of it. haptic('medium') fires on tap — see
+            handlePrimaryTap above. */}
         <button
           type="button"
           className="btn-primary modal-sheet-btn rs-send-btn"
-          onClick={primaryAction}
+          onClick={handlePrimaryTap}
           disabled={busy}
         >
-          {busy ? 'Preparing…' : primaryLabel}
+          {busy ? 'Preparing…' : (
+            <>
+              <Icon name="whatsapp" size={18} />
+              {primaryLabel}
+            </>
+          )}
         </button>
 
         {/* Auto-chase chip — invoice mode only.

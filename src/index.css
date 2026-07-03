@@ -13859,85 +13859,28 @@ button.jd-money-chip:active { opacity: 0.75; }
   line-height: 1.3;
 }
 
-/* Document preview block */
-.rs-preview {
-  background: var(--surface-2);
-  border-radius: var(--radius-lg);
-  padding: 14px 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
+/* NOTE: .rs-preview / .rs-preview-* / .rs-line-item* / .rs-li-desc / .rs-li-cost
+   (the old PreviewTable's CSS) were removed here — PreviewTable was replaced by
+   DocumentPreview's .dp-* classes (see "DocumentPreview — tappable document
+   facsimile" below) and nothing in the app renders these classes any more. */
 
-.rs-preview-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: baseline;
-  gap: 8px;
-}
-
-.rs-preview-customer {
-  font-size: var(--fs-body);
-  font-weight: 700;
-  color: var(--text);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.rs-preview-add-customer {
-  color: var(--text-dim);
-  font-weight: 600;
-}
-
-.rs-preview-total {
-  font-size: var(--fs-body);
-  font-weight: 700;
-  color: var(--text);
-  flex-shrink: 0;
-}
-
-.rs-line-items {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  border-top: 1px solid var(--border);
-  padding-top: 10px;
-}
-
-.rs-line-item {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.rs-li-desc {
-  font-size: var(--fs-label);
-  color: var(--text);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.rs-li-cost {
-  font-size: var(--fs-label);
-  color: var(--text);
-  flex-shrink: 0;
-}
-
-/* Primary WhatsApp send button — green */
+/* Primary send CTA — inherits background/box-shadow/sheen entirely from
+   .btn-primary's grouped "Live Steel Blue" recipe (PREMIUM PRIMARY BUTTON
+   SYSTEM block, further down this file); this rule only adds icon+label
+   layout so it never fights that shared premium surface. (This used to
+   override background to WhatsApp green here, but .btn-primary's rule sits
+   LATER in the file and always won that fight at equal specificity — the
+   button was already rendering Live Steel Blue. Removed the dead override
+   and made that the documented, intentional behaviour: OHNAR blue over
+   WhatsApp-brand green, consistent with the rest of the app's premium CTAs.) */
 .rs-send-btn {
-  background: #25d366;
-  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
   font-size: var(--fs-body);
   font-weight: 700;
-}
-.rs-send-btn:hover,
-.rs-send-btn:focus-visible {
-  background: #1ebe5c;
+  letter-spacing: -0.01em;
 }
 
 /* Per-quote deposit picker in ReviewSheet — quote mode only ─────────────── */
@@ -13959,6 +13902,8 @@ button.jd-money-chip:active { opacity: 0.75; }
   font-weight: 400;
   color: var(--jp-green, #28b581);
   margin-left: 4px;
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
 }
 
 .rs-deposit-picker {
@@ -14066,19 +14011,50 @@ button.jd-money-chip:active { opacity: 0.75; }
 }
 
 
-/* ── DocumentPreview — tappable document facsimile (Preview & Edit slice 1) ──
-   Replaces PreviewTable inside ReviewSheet. Layout-aligned with invoicePDF.js
-   (logo left, business identity right, doc title, recipient block, line
-   items, totals, locked footer) but this is NOT the PDF renderer — a shared
-   <DocumentBody> is a later item. */
+/* ── DocumentPreview — tappable document facsimile (premium paper pass) ──────
+   Layout-aligned with invoicePDF.js (logo left, business identity right, doc
+   title + meta, recipient block, line items, totals, locked footer) but this
+   is NOT the PDF renderer — a shared <DocumentBody> is a later item.
 
-.dp-root {
-  background: var(--surface-2);
-  border-radius: var(--radius-lg);
-  padding: 14px 16px;
+   .dp-root is a bare, unstyled wrapper (just carries the stopPropagation
+   handler). .dp-paper is the actual "real paper" card and is deliberately
+   FORCED LIGHT — a printed quote/invoice is always white paper, regardless of
+   whether the trader is using the app in dark mode. Mirrors the established
+   .pqv-card "forced-light" pattern (PublicQuoteView) so the two documents —
+   the one the trader previews here and the one the customer actually opens —
+   read as the same object. The editor overlays (LogoModal, EditFieldModal,
+   QuoteLineEditorSheet, ProUpgradeSheet) render as DOM siblings of .dp-paper,
+   not inside it — custom properties inherit down the DOM tree regardless of
+   position:fixed, so nesting them inside would silently force THEM light too. */
+.dp-paper {
+  color-scheme: light;
+  --text:       #1E3A5F;
+  --text-dim:   #6b7280;
+  --border:     #e5e7eb;
+  --accent:     #2563eb;
+  --jp-green:   #2563eb;
+  --surface:    #f3f4f6; /* inset tint for the logo box / recipient card / press states */
+
+  position: relative;
+  background: #ffffff;
+  border-radius: var(--radius-xl);
+  padding: 20px 18px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
+  box-shadow:
+    0 1px 2px rgba(11, 19, 32, 0.06),
+    var(--shadow-md);
+}
+
+/* Letterhead — brand row + doc-type/meta row grouped as one header band,
+   separated from the editable body by a single divider (not two). */
+.dp-letterhead {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-bottom: 12px;
+  border-bottom: 1.5px solid var(--border);
 }
 
 /* Header band — two tappable brand regions */
@@ -14176,18 +14152,19 @@ button.jd-money-chip:active { opacity: 0.75; }
   text-align: center;
 }
 
-/* Doc-type title + meta */
+/* Doc-type title + meta — grouped into .dp-letterhead above the brand row's
+   own divider, so no border/padding of its own is needed here any more. */
 .dp-doctitle {
-  border-top: 1px solid var(--border);
-  padding-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .dp-doctitle-label {
-  font-size: var(--fs-body);
+  font-size: var(--fs-subhead);
   font-weight: 800;
   color: var(--accent, #2563eb);
   letter-spacing: -0.02em;
-  margin-bottom: 4px;
 }
 
 .dp-doctitle-meta {
@@ -14217,7 +14194,7 @@ button.jd-money-chip:active { opacity: 0.75; }
 .dp-recipient {
   background: var(--surface);
   border-radius: var(--radius-md);
-  padding: 8px 12px;
+  padding: 10px 14px;
 }
 
 .dp-recipient--tap {
@@ -14263,7 +14240,7 @@ button.jd-money-chip:active { opacity: 0.75; }
   align-items: center;
   gap: 8px;
   min-height: 44px;
-  padding: 4px 2px;
+  padding: 8px 2px;
   background: none;
   border: none;
   border-bottom: 1px solid var(--border);
@@ -14297,6 +14274,8 @@ button.dp-lineitem-row:active {
   font-weight: 600;
   color: var(--text);
   flex-shrink: 0;
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
 }
 
 /* "+ Add line" — dashed pill, mirrors JobDetailDrawer's jd-add-dashed */
@@ -14322,10 +14301,10 @@ button.dp-lineitem-row:active {
 /* Totals */
 .dp-totals {
   border-top: 1px solid var(--border);
-  padding-top: 8px;
+  padding-top: 10px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
 }
 
 .dp-totals-row {
@@ -14335,20 +14314,38 @@ button.dp-lineitem-row:active {
   color: var(--text-dim);
 }
 
+/* Money value is always the second span in a totals row — tabular-nums so
+   the digits never jitter width against the label. */
+.dp-totals-row span:last-child {
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
+}
+
 .dp-totals-row--deposit {
   color: var(--jp-green, #28b581);
   font-weight: 600;
 }
 
+/* "Total payable" — the one figure that must read as genuinely prominent.
+   Bumped a size step above the other totals rows and the value itself picks
+   up the brand accent, echoing --profit-value's hero-money treatment used
+   elsewhere in the app. */
 .dp-totals-row--total {
-  font-size: var(--fs-body);
+  font-size: var(--fs-money-sm);
   font-weight: 800;
   color: var(--text);
   border-top: 1.5px solid var(--accent, #2563eb);
-  padding-top: 6px;
-  margin-top: 2px;
+  padding-top: 10px;
+  margin-top: 4px;
+}
+.dp-totals-row--total span:last-child {
+  color: var(--accent, #2563eb);
 }
 
+/* Single-line jobs render "Total payable" as a <button> (tappable → edit).
+   Deliberately does NOT reset font-size/weight/color via a `font:` shorthand
+   — that used to silently fight .dp-totals-row--total's own values (equal
+   px coincidence hid the bug). Only the box-model needs resetting here. */
 button.dp-totals-row--total.dp-totals-row--tap {
   width: 100%;
   background: none;
@@ -14357,8 +14354,7 @@ button.dp-totals-row--total.dp-totals-row--tap {
   border-bottom: none;
   padding-left: 0;
   padding-right: 0;
-  font: inherit;
-  font-weight: 800;
+  font-family: inherit;
   text-align: left;
   cursor: pointer;
 }
