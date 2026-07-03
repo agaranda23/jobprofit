@@ -308,6 +308,25 @@ describe('G. generateQuotePDF — deposit row drawn when deposit_percent > 0', (
     });
     expect(drawnTexts.some(t => String(t).includes('125'))).toBe(true);
   });
+
+  it('renders "due <date>" instead of "Locks in your slot" when deposit_due_date is set', async () => {
+    await generateQuotePDF({
+      job: baseJob({ total: 500, deposit_percent: 25, deposit_due_date: '2026-07-11' }),
+      biz: baseBiz(),
+      quoteRef: 'QT-001',
+    });
+    expect(drawnTexts.some(t => String(t).includes('due Sat 11 Jul'))).toBe(true);
+    expect(drawnTexts.some(t => String(t).includes('Locks in your slot'))).toBe(false);
+  });
+
+  it('falls back to "Locks in your slot" when deposit_due_date is absent', async () => {
+    await generateQuotePDF({
+      job: baseJob({ total: 500, deposit_percent: 25 }),
+      biz: baseBiz(),
+      quoteRef: 'QT-001',
+    });
+    expect(drawnTexts.some(t => String(t).includes('Locks in your slot'))).toBe(true);
+  });
 });
 
 // ── H. generateQuotePDF — no deposit row when deposit_percent = 0 ─────────────
@@ -381,6 +400,51 @@ describe('I. VAT line appears only when biz.vatRegistered is true', () => {
     // Total Payable should be £1200, not £1440 (old bug: 1200 + 240)
     expect(drawnTexts.some(t => String(t).includes('£1200.00') || String(t).includes('£1,200.00'))).toBe(true);
     expect(drawnTexts.some(t => String(t).includes('£1440') || String(t).includes('£1,440'))).toBe(false);
+  });
+});
+
+// ── I-A. generateQuotePDF — VAT (fast-follow to the voice-quote work) ────────
+// Quote PDF reuses drawSummaryBlock (same as invoice), so the VAT row/maths
+// were already correct once showVat is true. What was missing: showVat only
+// checked effectiveBiz.vatRegistered — job.vat (voice-captured "plus/inc VAT"
+// flag, set by AddJobModal's buildQuotePayload) is now an OR condition.
+
+describe('I-A. generateQuotePDF — VAT via biz.vatRegistered OR job.vat', () => {
+  beforeEach(() => { drawnTexts = []; addImageCalls = []; vi.clearAllMocks(); });
+
+  it('shows VAT row when biz.vatRegistered is true', async () => {
+    await generateQuotePDF({
+      job: baseJob({ total: 1000 }),
+      biz: baseBiz({ vatRegistered: true, vatNumber: 'GB123456789' }),
+    });
+    expect(drawnTexts.some(t => String(t).includes('VAT (20%)'))).toBe(true);
+  });
+
+  it('shows VAT row when job.vat is true even though biz is not VAT-registered', async () => {
+    await generateQuotePDF({
+      job: baseJob({ total: 1000, vat: true }),
+      biz: baseBiz({ vatRegistered: false }),
+    });
+    expect(drawnTexts.some(t => String(t).includes('VAT (20%)'))).toBe(true);
+  });
+
+  it('does not show VAT row when neither biz.vatRegistered nor job.vat is set', async () => {
+    await generateQuotePDF({
+      job: baseJob({ total: 1000 }),
+      biz: baseBiz({ vatRegistered: false }),
+    });
+    expect(drawnTexts.some(t => String(t).includes('VAT (20%)'))).toBe(false);
+  });
+
+  it('is penny-correct via splitVatInclusive for a non-round gross total: £137.50 → net £114.58, VAT £22.92', async () => {
+    await generateQuotePDF({
+      job: baseJob({ total: 137.50, vat: true }),
+      biz: baseBiz({ vatRegistered: false }),
+    });
+    expect(drawnTexts.some(t => String(t).includes('£22.92'))).toBe(true);
+    // Total Payable stays the entered gross — not inflated to £165.00 (137.50 × 1.2)
+    expect(drawnTexts.some(t => String(t).includes('£137.50'))).toBe(true);
+    expect(drawnTexts.some(t => String(t).includes('£165.00'))).toBe(false);
   });
 });
 

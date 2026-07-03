@@ -178,11 +178,16 @@ export async function sendQuote(job, {
   // Merge biz with profile bank details so the bank-transfer deposit block
   // appears in the WhatsApp message for traders who saved bank details via the
   // bank-gate (profile is optimistically updated at that point by the caller).
+  // vatRegistered is merged in the same way — callers (e.g. AddJobModal's
+  // voice-confirm send) often pass a minimal `biz` ({ name }) and rely on
+  // `profile` for VAT status; without this fallback the quote message's VAT
+  // line could never fire for a VAT-registered trader on that path.
   const bizWithBank = {
     ...(biz || {}),
     accountName:   biz?.accountName   || profile?.account_name   || '',
     sortCode:      biz?.sortCode      || biz?.sort_code || profile?.sort_code || '',
     accountNumber: biz?.accountNumber || biz?.account_number || profile?.account_number || '',
+    vatRegistered: biz?.vatRegistered ?? biz?.vat_registered ?? profile?.vat_registered ?? false,
   };
   const message = buildQuoteWhatsAppMessage({ job: updatedJob, biz: bizWithBank, quoteUrl });
   const link = buildWhatsAppLink({ phone: phone || '', message });

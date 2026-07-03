@@ -244,3 +244,66 @@ describe('writeJobMeta / readJobMeta — deposit round-trip', () => {
     expect(m.deposit_amount_pence ?? null).toBe(12500);
   });
 });
+
+// ── deposit_due_date + vat round-trip (quote doc VAT/deposit-due fast-follow) ──
+// Root cause (same shape as the deposit_percent bug above): sendQuote.js writes
+// job.deposit_due_date onto updatedJob, but without a META_FIELDS entry
+// extractJobMeta stripped it before every meta write — it survived only for
+// the initial in-memory send, then vanished on reload/resend. `vat` is the
+// voice-quote confirm card's "plus/inc VAT" flag (AddJobModal), same story.
+
+const VAT_DEPOSIT_JOB_ID = 'test-job-meta-vat-deposit-due-001';
+
+describe('extractJobMeta — deposit_due_date + vat', () => {
+  it('extracts deposit_due_date when present', () => {
+    const meta = extractJobMeta({ id: VAT_DEPOSIT_JOB_ID, deposit_due_date: '2026-07-11' });
+    expect(meta.deposit_due_date).toBe('2026-07-11');
+  });
+
+  it('does not include deposit_due_date when absent from job', () => {
+    const meta = extractJobMeta({ id: VAT_DEPOSIT_JOB_ID, status: 'quoted' });
+    expect('deposit_due_date' in meta).toBe(false);
+  });
+
+  it('extracts vat:true when present', () => {
+    const meta = extractJobMeta({ id: VAT_DEPOSIT_JOB_ID, vat: true });
+    expect(meta.vat).toBe(true);
+  });
+
+  it('extracts vat:false when present', () => {
+    const meta = extractJobMeta({ id: VAT_DEPOSIT_JOB_ID, vat: false });
+    expect(meta.vat).toBe(false);
+  });
+
+  it('does not include vat when absent from job', () => {
+    const meta = extractJobMeta({ id: VAT_DEPOSIT_JOB_ID, status: 'quoted' });
+    expect('vat' in meta).toBe(false);
+  });
+});
+
+describe('writeJobMeta / readJobMeta — deposit_due_date + vat round-trip', () => {
+  it('persists deposit_due_date and reads it back (the bug: previously always stripped)', () => {
+    writeJobMeta(VAT_DEPOSIT_JOB_ID, { deposit_percent: 25, deposit_amount_pence: 12500, deposit_due_date: '2026-07-11' });
+    const stored = readJobMeta(VAT_DEPOSIT_JOB_ID);
+    expect(stored.deposit_due_date).toBe('2026-07-11');
+  });
+
+  it('persists vat:true and reads it back', () => {
+    writeJobMeta(VAT_DEPOSIT_JOB_ID, { vat: true });
+    expect(readJobMeta(VAT_DEPOSIT_JOB_ID).vat).toBe(true);
+  });
+
+  it('deposit_due_date + vat survive alongside other meta fields', () => {
+    writeJobMeta(VAT_DEPOSIT_JOB_ID, {
+      quoteStatus: 'sent',
+      vat: true,
+      deposit_percent: 25,
+      deposit_amount_pence: 12500,
+      deposit_due_date: '2026-07-11',
+    });
+    const stored = readJobMeta(VAT_DEPOSIT_JOB_ID);
+    expect(stored.quoteStatus).toBe('sent');
+    expect(stored.vat).toBe(true);
+    expect(stored.deposit_due_date).toBe('2026-07-11');
+  });
+});

@@ -4,6 +4,7 @@ import QRCode from 'qrcode';
 import { resolveCisStatus } from './cashflow.js';
 import { splitVatInclusive } from './vatUtils.js';
 import { downscaleDataUrl } from './photoCompress.js';
+import { formatToday } from './today.js';
 
 // Generates an invoice PDF for the new Get Paid workflow. Distinct from
 // the legacy generateInvoicePDF in App.jsx (which uses window.jspdf and
@@ -1074,8 +1075,11 @@ export async function generateQuotePDF({ job, biz, profile = null, quoteUrl = ''
   // ── Totals (legacy drawTotals-style for quotes — no CIS, simpler) ────
   // Prices entered in the app are VAT-INCLUSIVE (gross). VAT is derived from
   // the entered subtotal, never added on top. Decision locked: ACC, 2026-06-21.
+  // showVat: profile-level VAT registration OR this specific quote's
+  // voice-captured "plus/inc VAT" flag (job.vat, set by AddJobModal from
+  // voiceParse's `vat` field via buildQuotePayload).
   const subtotal = job?.total ?? job?.amount ?? 0;
-  const showVat  = !!effectiveBiz.vatRegistered;
+  const showVat  = !!effectiveBiz.vatRegistered || job?.vat === true;
   const gross    = subtotal; // subtotal IS the gross (VAT-inclusive)
 
   // Re-use the summary block for quotes too (simpler: no CIS, no deposit)
@@ -1100,10 +1104,22 @@ export async function generateQuotePDF({ job, biz, profile = null, quoteUrl = ''
     doc.setFillColor(214, 245, 230); // #D6F5E6
     doc.roundedRect(panelX, y + 2, panelW, 16, 2, 2, 'F');
 
+    // Deposit due-date — set by sendQuote.js from the voice-quote confirm
+    // card's depositDue (job.deposit_due_date). Falls back to the original
+    // "Locks in your slot" copy when no due date was captured.
+    const depositDueDate = job?.deposit_due_date
+      ? (job.deposit_due_date.length === 10
+          ? new Date(job.deposit_due_date + 'T00:00:00')
+          : new Date(job.deposit_due_date))
+      : null;
+    const depositTrailer = depositDueDate
+      ? `due ${formatToday(depositDueDate)}`
+      : 'Locks in your slot';
+
     doc.setFontSize(10);
     doc.setFont('HankenGrotesk', 'bold');
     doc.setTextColor(8, 107, 69); // #086B45
-    doc.text(`Deposit (${depositPercent}%) · £${depositAmount.toFixed(2)} · Locks in your slot`, panelX + 6, y + 12);
+    doc.text(`Deposit (${depositPercent}%) · £${depositAmount.toFixed(2)} · ${depositTrailer}`, panelX + 6, y + 12);
     y += 22;
   }
 
