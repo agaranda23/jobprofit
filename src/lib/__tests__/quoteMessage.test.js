@@ -13,13 +13,13 @@ const QUOTE_URL = 'https://jobprofit.app/quote/tok_abc123';
 // ── buildQuoteWhatsAppMessage ─────────────────────────────────────────────
 
 describe('buildQuoteWhatsAppMessage', () => {
-  it('includes the customer first name as a greeting', () => {
+  it('includes the customer first name as a warm greeting', () => {
     const msg = buildQuoteWhatsAppMessage({
       job: { customer: 'Alan Smith', total: 500 },
       biz: { name: 'A Plumbing Co' },
       quoteUrl: QUOTE_URL,
     });
-    expect(msg).toContain('Hi Alan,');
+    expect(msg).toContain('Hi Alan 👋');
   });
 
   it('uses only the first name even when full name is provided', () => {
@@ -28,7 +28,7 @@ describe('buildQuoteWhatsAppMessage', () => {
       biz: {},
       quoteUrl: QUOTE_URL,
     });
-    expect(msg).toContain('Hi Bob,');
+    expect(msg).toContain('Hi Bob 👋');
     expect(msg).not.toContain('Jones');
   });
 
@@ -38,7 +38,7 @@ describe('buildQuoteWhatsAppMessage', () => {
       biz: {},
       quoteUrl: QUOTE_URL,
     });
-    expect(msg).toContain('Hi,');
+    expect(msg).toContain('Hi 👋');
   });
 
   it('includes the job summary', () => {
@@ -145,9 +145,10 @@ describe('buildQuoteWhatsAppMessage', () => {
       biz: {},
       quoteUrl: QUOTE_URL,
     });
-    // The displayed summary should be at most 200 chars
-    const summaryLine = msg.split('\n').find((l) => l.startsWith('🔨'));
-    expect(summaryLine.replace('🔨 ', '').length).toBeLessThanOrEqual(200);
+    // The job name is folded into the intro sentence — the message should
+    // never contain the full untruncated 300-char run.
+    expect(msg).not.toContain('x'.repeat(300));
+    expect(msg).toContain('x'.repeat(200));
   });
 
   it('handles a null job gracefully (no crash)', () => {
@@ -156,15 +157,16 @@ describe('buildQuoteWhatsAppMessage', () => {
     ).not.toThrow();
   });
 
-  // Link-first ordering — WhatsApp truncates file-share captions on iOS, so
-  // the sign URL must sit ahead of the summary/total lines.
-  it('places the quote URL above the summary line', () => {
+  // The job name now reads naturally in the intro sentence just above the
+  // link (warmer tone pass, 2026-07-03) — the link still needs to land
+  // within the caption-preview-safe first-4-lines window (tested below).
+  it('places the job summary in the intro sentence, directly above the quote URL', () => {
     const msg = buildQuoteWhatsAppMessage({
       job: { customer: 'Alan', summary: 'Boiler service', total: 500 },
       biz: { name: 'A Plumbing' },
       quoteUrl: QUOTE_URL,
     });
-    expect(msg.indexOf(QUOTE_URL)).toBeLessThan(msg.indexOf('🔨'));
+    expect(msg.indexOf('Boiler service')).toBeLessThan(msg.indexOf(QUOTE_URL));
   });
 
   it('places the quote URL above the total line', () => {
@@ -173,7 +175,7 @@ describe('buildQuoteWhatsAppMessage', () => {
       biz: { name: 'A Plumbing' },
       quoteUrl: QUOTE_URL,
     });
-    expect(msg.indexOf(QUOTE_URL)).toBeLessThan(msg.indexOf('💷'));
+    expect(msg.indexOf(QUOTE_URL)).toBeLessThan(msg.indexOf('Total:'));
   });
 
   it('places the quote URL within the first 4 lines (caption-preview safe)', () => {
@@ -269,7 +271,7 @@ describe('buildQuoteWhatsAppMessage — deposit due-date', () => {
       quoteUrl: QUOTE_URL,
       depositPayUrl: 'https://pay.stripe.com/abc',
     });
-    expect(msg).toContain('Pay £250.00 deposit · due Sat 11 Jul (locks in your slot):');
+    expect(msg).toContain('Deposit to secure your booking: £250.00 · due Sat 11 Jul — pay here:');
   });
 
   it('omits the due-date suffix when deposit_due_date is absent', () => {
@@ -314,13 +316,13 @@ describe('buildQuoteWhatsAppMessage — bank-transfer deposit block', () => {
     expect(msg).toContain('£250.00 (25%)');
   });
 
-  it('includes "Pay by bank transfer to:" instruction', () => {
+  it('includes "Pay by bank transfer —" instruction', () => {
     const msg = buildQuoteWhatsAppMessage({
       job: { customer: 'Jane', total: 500, deposit_percent: 50 },
       biz: BIZ_WITH_BANK,
       quoteUrl: QUOTE_URL,
     });
-    expect(msg).toContain('Pay by bank transfer to:');
+    expect(msg).toContain('Pay by bank transfer —');
   });
 
   it('includes reference instruction', () => {
@@ -361,7 +363,7 @@ describe('buildQuoteWhatsAppMessage — bank-transfer deposit block', () => {
     // Stripe path fires
     expect(msg).toContain('https://pay.stripe.com/abc');
     // Bank block does NOT fire in parallel
-    expect(msg).not.toContain('Pay by bank transfer to:');
+    expect(msg).not.toContain('Pay by bank transfer —');
   });
 
   it('reads sortCode from snake_case fallback (biz.sort_code)', () => {

@@ -236,7 +236,7 @@ describe('E. quote-send — bank details absent from quote message', () => {
       biz: { name: 'Smith Plumbing' },
       quoteUrl: 'https://app.jobprofit.co.uk/q/abc',
     });
-    expect(msg).toContain('view and accept or decline your quote');
+    expect(msg).toContain('view and accept or decline it');
   });
 });
 

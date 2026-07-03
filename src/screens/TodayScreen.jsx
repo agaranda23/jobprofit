@@ -29,7 +29,7 @@ import GetProPill from '../components/GetProPill';
 import ProUpgradeSheet from '../components/ProUpgradeSheet';
 import { gbp, formatToday } from '../lib/today';
 import { isAwaitingPayment, deriveStatus } from '../lib/jobStatus';
-import { daysPastDue, recordChase, recordChaseCloud, buildChaseMessage, computeTier, buildPaymentDetails } from '../lib/chaseLadder';
+import { daysPastDue, recordChase, recordChaseCloud, buildChaseMessage, computeTier, buildPaymentDetails, chaseCustomerFirstName } from '../lib/chaseLadder';
 import { writeJobMeta } from '../lib/jobMeta';
 import { getNewlyAcceptedJobs, buildAcceptedLabel, formatAcceptedDate } from '../lib/acceptedNotification';
 import {
@@ -284,7 +284,7 @@ export default function TodayScreen({
 
     if (ctaAction === 'whatsapp') {
       const phone = promptJob.customerPhone || promptJob.phone || '';
-      const name = promptJob.customer || promptJob.customerName || '';
+      const name = chaseCustomerFirstName(promptJob);
       const amount = gbp(jobAmount(promptJob));
       const jobSummary = promptJob.name || promptJob.summary || '';
       const dpd = daysPastDue(promptJob, new Date());
@@ -299,6 +299,7 @@ export default function TodayScreen({
         customerName: name,
         amount,
         jobSummary,
+        invoiceNumber: promptJob.invoiceNumber || '',
         daysOverdue: dpd,
         tier: chaseTier,
         paymentDetails: payDetails,
@@ -316,7 +317,11 @@ export default function TodayScreen({
 
     if (ctaAction === 'email') {
       const email = promptJob.customerEmail || promptJob.email || '';
-      const name = promptJob.customer || promptJob.customerName || promptJob.name || '';
+      // Regression guard: this used to fall back to promptJob.name (the JOB
+      // TITLE, e.g. "New doors") when customer/customerName were both blank,
+      // which could bleed a job title into the customer greeting. Use the
+      // shared first-name-only resolver instead — never the job title.
+      const name = chaseCustomerFirstName(promptJob);
       const amount = gbp(jobAmount(promptJob));
       const jobSummary = promptJob.name || promptJob.summary || '';
       const chaseTier = computeTier(promptJob, new Date());
@@ -325,6 +330,7 @@ export default function TodayScreen({
         customerName: name,
         amount,
         jobSummary,
+        invoiceNumber: promptJob.invoiceNumber || '',
         daysOverdue: dpd,
         tier: chaseTier,
       });

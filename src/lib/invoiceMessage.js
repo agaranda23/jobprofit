@@ -1,6 +1,12 @@
 // WhatsApp invoice text + wa.me link builder for the new Get Paid flow.
 // Distinct from the legacy waInvoiceLink in App.jsx (which uses the old
 // `invoices` collection). This one reads directly from the job + biz.
+//
+// Tone refresh (2026-07-03): warmer greeting + a single "Invoice · Job ·
+// Amount due · Due" summary line. The hosted-link CTA, VAT-inclusive amount,
+// partial-payment Received/Balance block, Stripe pay-by-card line, and bank
+// transfer block are all unchanged by this pass — only the surrounding
+// copy/structure moved.
 
 import { splitVatInclusive } from './vatUtils.js';
 
@@ -38,7 +44,7 @@ export function buildInvoiceWhatsAppMessage({ job, biz, invoiceNumber, dueDate, 
   const balance = grossTotal - amountPaid;
   const showPartialBlock = amountPaid > 0;
 
-  const lines = [`Hi ${customer},`, ''];
+  const lines = [`Hi ${customer} 👋`, '', 'Thanks again for choosing us. Your invoice is ready.', ''];
 
   // Hosted invoice link — the headline CTA when available.
   // The customer taps this to see the full branded document + pay by card.
@@ -50,14 +56,11 @@ export function buildInvoiceWhatsAppMessage({ job, biz, invoiceNumber, dueDate, 
   }
 
   lines.push(
-    `Invoice: ${invoiceNumber}`,
-    `Job: ${summary}`,
-    `Amount: £${grossTotal.toFixed(2)}${showVat ? ' (inc VAT)' : ''}`,
+    `Invoice: ${invoiceNumber} · Job: ${summary} · Amount due: £${grossTotal.toFixed(2)}${showVat ? ' (inc VAT)' : ''} · Due: ${dueStr}`,
     ...(showPartialBlock ? [
       `Received: £${amountPaid.toFixed(2)}`,
       `Balance: £${balance.toFixed(2)}`,
     ] : []),
-    `Due: ${dueStr}`,
     '',
   );
 
@@ -85,10 +88,11 @@ export function buildInvoiceWhatsAppMessage({ job, biz, invoiceNumber, dueDate, 
     lines.push('');
   }
 
-  lines.push(`Ref: ${invoiceNumber}`);
-  lines.push('');
-  lines.push(`Cheers,`);
-  lines.push(biz?.name || '');
+  lines.push(`Reference: ${invoiceNumber}`);
+  lines.push('', 'Thanks!');
+  // Omit the sign-off line entirely (not just leave it blank) when no
+  // business name is set — avoids a dangling empty last line.
+  if (biz?.name) lines.push(biz.name);
 
   return lines.join('\n');
 }
@@ -96,6 +100,8 @@ export function buildInvoiceWhatsAppMessage({ job, biz, invoiceNumber, dueDate, 
 /**
  * Builds a post-paid WhatsApp review-request message.
  * Sent via the PostPaidSheet "Leave a Google review" CTA after a job is marked paid.
+ * PostPaidSheet only shows that CTA when biz.google_review_link is set (hasReviewLink
+ * gate) — this builder still degrades cleanly (omits the link line) if called without one.
  *
  * @param {object} args
  * @param {object} args.job  — the paid job (customer, customerName)
@@ -106,12 +112,12 @@ export function buildReviewRequestWhatsAppMessage({ job, biz }) {
   const reviewLink = biz?.google_review_link || '';
   const bizName = biz?.name || biz?.business_name || biz?.trading_name || '';
   const lines = [];
-  lines.push(firstName ? `Hi ${firstName},` : 'Hi,');
+  lines.push(firstName ? `Hi ${firstName} 👋` : 'Hi 👋');
   lines.push('');
-  lines.push("Really appreciate the work — if you have 30 seconds, a Google review would mean a lot.");
-  if (reviewLink) { lines.push(''); lines.push(reviewLink); }
+  lines.push("Thanks so much for your payment — it was a pleasure working with you. If you've got 30 seconds, we'd really appreciate a review:");
+  if (reviewLink) { lines.push(''); lines.push(`⭐ ${reviewLink}`); }
   lines.push('');
-  lines.push('Thanks,');
+  lines.push('Thanks!');
   if (bizName) lines.push(bizName); // omit blank sign-off line when business name unset
   return lines.join('\n');
 }
