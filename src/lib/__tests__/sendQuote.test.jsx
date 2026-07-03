@@ -294,6 +294,84 @@ describe('sendQuote — deposit_amount_pence clamp', () => {
   });
 });
 
+// ── sendQuote — depositDue → job.deposit_due_date ────────────────────────────
+// The voice-quote confirm card (AddJobModal) threads depositDue through as an
+// opt, not part of the job payload — sendQuote must be the one to land it on
+// updatedJob so extractJobMeta/writeJobMeta (jobMeta.js META_FIELDS) can
+// persist it.
+
+describe('sendQuote — depositDue threads onto updatedJob.deposit_due_date', () => {
+  const PROFILE_WITH_BANK = { plan: 'free', sort_code: '12-34-56', account_number: '12345678' };
+
+  it('sets deposit_due_date on updatedJob when depositDue is provided', async () => {
+    persistPublicToken.mockResolvedValueOnce({ ok: true });
+    const onUpdate = vi.fn();
+    const job = makeJob({ id: 'job-due-1' });
+
+    await sendQuote(job, {
+      biz: BIZ, profile: PROFILE_WITH_BANK, depositPercent: 25, depositDue: '2026-07-11', onUpdate,
+    });
+
+    const updatedJob = onUpdate.mock.calls[0][0];
+    expect(updatedJob.deposit_due_date).toBe('2026-07-11');
+  });
+
+  it('omits deposit_due_date when depositDue is not provided', async () => {
+    persistPublicToken.mockResolvedValueOnce({ ok: true });
+    const onUpdate = vi.fn();
+    const job = makeJob({ id: 'job-due-2' });
+
+    await sendQuote(job, { biz: BIZ, profile: PROFILE_FREE, depositPercent: 0, onUpdate });
+
+    const updatedJob = onUpdate.mock.calls[0][0];
+    expect('deposit_due_date' in updatedJob).toBe(false);
+  });
+
+  it('the persisted meta payload carries deposit_due_date (survives extractJobMeta)', async () => {
+    persistPublicToken.mockResolvedValueOnce({ ok: true });
+    const job = makeJob({ id: 'job-due-3' });
+
+    await sendQuote(job, {
+      biz: BIZ, profile: PROFILE_WITH_BANK, depositPercent: 25, depositDue: '2026-07-11',
+    });
+
+    const [, calledMeta] = persistPublicToken.mock.calls[0];
+    expect(calledMeta.deposit_due_date).toBe('2026-07-11');
+  });
+});
+
+// ── sendQuote — biz.vatRegistered fallback to profile.vat_registered ────────
+// AddJobModal's voice-confirm send passes a minimal biz ({ name }) and relies
+// on `profile` for VAT status — the WhatsApp message builder only sees `biz`,
+// so sendQuote must merge profile.vat_registered into bizWithBank or the
+// quote message's VAT line can never fire on that path.
+
+describe('sendQuote — VAT registration reaches the WhatsApp message via profile fallback', () => {
+  it('shows "(inc VAT)" in the shared WhatsApp text when profile.vat_registered is true and biz omits it', async () => {
+    persistPublicToken.mockResolvedValueOnce({ ok: true });
+    const job = makeJob({ id: 'job-vat-1', total: 500, amount: 500 });
+    const minimalBiz = { name: 'Voice Confirm Trader' }; // no vatRegistered field at all
+    const profile = { plan: 'free', vat_registered: true };
+
+    await sendQuote(job, { biz: minimalBiz, profile, depositPercent: 0 });
+
+    const shareText = shareSpy.mock.calls.at(-1)?.[0]?.text;
+    expect(shareText).toContain('(inc VAT)');
+  });
+
+  it('omits "(inc VAT)" when profile.vat_registered is false', async () => {
+    persistPublicToken.mockResolvedValueOnce({ ok: true });
+    const job = makeJob({ id: 'job-vat-2', total: 500, amount: 500 });
+    const minimalBiz = { name: 'Voice Confirm Trader' };
+    const profile = { plan: 'free', vat_registered: false };
+
+    await sendQuote(job, { biz: minimalBiz, profile, depositPercent: 0 });
+
+    const shareText = shareSpy.mock.calls.at(-1)?.[0]?.text;
+    expect(shareText).not.toContain('VAT');
+  });
+});
+
 // ── PARITY CONTRACT ───────────────────────────────────────────────────────────
 // Drives sendQuote() directly AND drives ReviewSheet's quote-send button on
 // the SAME fixture, then asserts both produce identical persistPublicToken

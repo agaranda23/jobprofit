@@ -796,6 +796,11 @@ export default function AddJobModal({ onClose, onSave, _onOpenDetailed, defaultM
       amount:       resolvedTotal,
       total:        resolvedTotal,
       lineItems:    resolvedLineItems,
+      // vat: carries the voice-quote confirm card's "+VAT" flag (quoteVat) onto
+      // the job so the quote PDF/WhatsApp renderers can show the VAT treatment
+      // even when the trader's profile isn't VAT-registered. Previously this
+      // never left component state — the renderers had nothing to read.
+      vat:          !!quoteVat,
       paid:         false,
       paymentType:  null,
       status:       'lead',

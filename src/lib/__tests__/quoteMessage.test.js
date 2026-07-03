@@ -120,14 +120,22 @@ describe('buildQuoteWhatsAppMessage', () => {
     expect(msg).not.toContain('Bank details');
   });
 
-  it('does NOT include VAT information (quote, not invoice)', () => {
+  it('includes "(inc VAT)" on the total line when biz.vatRegistered is true', () => {
     const msg = buildQuoteWhatsAppMessage({
       job: { customer: 'Alan', total: 500 },
       biz: { vatRegistered: true },
       quoteUrl: QUOTE_URL,
     });
+    expect(msg).toContain('£500.00 (inc VAT)');
+  });
+
+  it('omits VAT information when biz is not VAT-registered and job.vat is unset', () => {
+    const msg = buildQuoteWhatsAppMessage({
+      job: { customer: 'Alan', total: 500 },
+      biz: { vatRegistered: false },
+      quoteUrl: QUOTE_URL,
+    });
     expect(msg).not.toContain('VAT');
-    expect(msg).not.toContain('inc VAT');
   });
 
   it('truncates summary to 200 chars', () => {
@@ -186,6 +194,101 @@ describe('buildQuoteWhatsAppMessage', () => {
     });
     // "Tap to view and accept or decline" must appear before the URL
     expect(msg.indexOf('accept or decline')).toBeLessThan(msg.indexOf(QUOTE_URL));
+  });
+});
+
+// ── VAT — fast-follow to the voice-quote work (TODO removed) ──────────────────
+// Mirrors invoiceMessage.js's "(inc VAT)" suffix on the total line. Two
+// independent triggers: biz.vatRegistered (profile setting) or job.vat
+// (this specific quote's voice-captured "plus/inc VAT" flag).
+
+describe('buildQuoteWhatsAppMessage — VAT', () => {
+  it('shows VAT when job.vat is true even though biz is not VAT-registered (voice-captured flag)', () => {
+    const msg = buildQuoteWhatsAppMessage({
+      job: { customer: 'Alan', total: 500, vat: true },
+      biz: { vatRegistered: false },
+      quoteUrl: QUOTE_URL,
+    });
+    expect(msg).toContain('£500.00 (inc VAT)');
+  });
+
+  it('omits VAT when job.vat is explicitly false and biz is not VAT-registered', () => {
+    const msg = buildQuoteWhatsAppMessage({
+      job: { customer: 'Alan', total: 500, vat: false },
+      biz: { vatRegistered: false },
+      quoteUrl: QUOTE_URL,
+    });
+    expect(msg).not.toContain('VAT');
+  });
+
+  it('reads biz.vat_registered snake_case fallback', () => {
+    const msg = buildQuoteWhatsAppMessage({
+      job: { customer: 'Alan', total: 500 },
+      biz: { vat_registered: true },
+      quoteUrl: QUOTE_URL,
+    });
+    expect(msg).toContain('(inc VAT)');
+  });
+
+  it('is penny-correct via splitVatInclusive for a non-round gross total (£137.50, not inflated to £165.00)', () => {
+    const msg = buildQuoteWhatsAppMessage({
+      job: { customer: 'Alan', total: 137.50 },
+      biz: { vatRegistered: true },
+      quoteUrl: QUOTE_URL,
+    });
+    expect(msg).toContain('£137.50 (inc VAT)');
+    expect(msg).not.toContain('£165.00'); // would indicate VAT wrongly added on top
+  });
+});
+
+// ── Deposit due-date — fast-follow to the voice-quote work ────────────────────
+// job.deposit_due_date is set by sendQuote.js from the voice-quote confirm
+// card's depositDue and appended to whichever deposit line renders.
+
+describe('buildQuoteWhatsAppMessage — deposit due-date', () => {
+  const BIZ_WITH_BANK = {
+    name: 'A Plumbing Co',
+    accountName: 'Alan Smith',
+    sortCode: '12-34-56',
+    accountNumber: '12345678',
+  };
+
+  it('appends the due date to the bank-transfer deposit line', () => {
+    const msg = buildQuoteWhatsAppMessage({
+      job: { customer: 'Jane', total: 1000, deposit_percent: 25, deposit_due_date: '2026-07-11' },
+      biz: BIZ_WITH_BANK,
+      quoteUrl: QUOTE_URL,
+    });
+    expect(msg).toContain('Deposit to secure your booking: £250.00 (25%) · due Sat 11 Jul');
+  });
+
+  it('appends the due date to the Stripe deposit-pay-link line', () => {
+    const msg = buildQuoteWhatsAppMessage({
+      job: { customer: 'Jane', total: 1000, deposit_percent: 25, deposit_due_date: '2026-07-11' },
+      biz: { name: 'A Plumbing' },
+      quoteUrl: QUOTE_URL,
+      depositPayUrl: 'https://pay.stripe.com/abc',
+    });
+    expect(msg).toContain('Pay £250.00 deposit · due Sat 11 Jul (locks in your slot):');
+  });
+
+  it('omits the due-date suffix when deposit_due_date is absent', () => {
+    const msg = buildQuoteWhatsAppMessage({
+      job: { customer: 'Jane', total: 1000, deposit_percent: 25 },
+      biz: BIZ_WITH_BANK,
+      quoteUrl: QUOTE_URL,
+    });
+    expect(msg).not.toContain('due ');
+    expect(msg).toContain('Deposit to secure your booking: £250.00 (25%)');
+  });
+
+  it('does not render a due-date suffix when there is no deposit at all', () => {
+    const msg = buildQuoteWhatsAppMessage({
+      job: { customer: 'Jane', total: 1000, deposit_due_date: '2026-07-11' },
+      biz: BIZ_WITH_BANK,
+      quoteUrl: QUOTE_URL,
+    });
+    expect(msg).not.toContain('due Sat 11 Jul');
   });
 });
 

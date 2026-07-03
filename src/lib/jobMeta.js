@@ -100,6 +100,17 @@ const META_FIELDS = [
   // read as 0). No DB column migration needed — JSONB meta is schema-free.
   'deposit_percent',      // number (0–100) — percentage of total requested as deposit
   'deposit_amount_pence', // number — locked pence value computed at send time
+  // deposit_due_date — set by sendQuote.js from the voice-quote confirm card's
+  // depositDue (AddJobModal). Same silent-drop bug as deposit_percent above:
+  // sendQuote.js writes it onto updatedJob, but without an entry here
+  // extractJobMeta stripped it before every meta write, so the due date never
+  // survived past the initial in-memory send (lost on reload/resend).
+  'deposit_due_date', // ISO date string (YYYY-MM-DD) | undefined
+  // vat — voice-quote captured flag: true when the trader said the price is
+  // plus/inc VAT (voiceParse.js `vat`), set on the job by AddJobModal's
+  // buildQuotePayload. Read by the quote PDF/WhatsApp renderers as an OR
+  // condition alongside the trader's profile-level VAT registration.
+  'vat', // boolean
   // Schedule fields — drawer handleScheduleSave and App.jsx saveSchedule both
   // route through onUpdateJob → writeJobMeta. Without these entries the schedule
   // date/time would appear saved in-memory but be silently stripped on reload.
