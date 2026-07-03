@@ -1,10 +1,10 @@
 // @vitest-environment jsdom
 /**
- * AuthScreen — value-first sign-in screen
+ * AuthScreen — clarity-led sign-in screen (Option A hero)
  *
- * Covers: pitch copy (hero, loop chips, proof beats, trust line), reworded CTA,
- * existing submit handler behaviour, telemetry events, and Google OAuth callback
- * error handling (FIX 1 — stress-test-batch-1).
+ * Covers: pitch copy (hero, loop chips, feature strip, profit/independence
+ * strip, CTA lines, trust line), existing submit handler behaviour, telemetry
+ * events, and Google OAuth callback error handling (FIX 1 — stress-test-batch-1).
  * Auth logic (supabase.auth.signInWithOtp) and telemetry calls are mocked —
  * we verify the wires are connected without making real network calls.
  */
@@ -49,20 +49,20 @@ afterEach(() => {
 describe('AuthScreen — pitch copy', () => {
   it('renders the eyebrow line', () => {
     renderAuth();
-    expect(screen.getByText("The number your invoice doesn't show you")).toBeTruthy();
+    expect(screen.getByText('Not another app to figure out.')).toBeTruthy();
   });
 
   it('renders the hero line', () => {
     renderAuth();
-    expect(screen.getByText('Know what you actually made. Every job, every time.')).toBeTruthy();
+    expect(screen.getByText('Run your trade business from your phone.')).toBeTruthy();
   });
 
   it('renders the subhead line', () => {
     const { container } = renderAuth();
     const subhead = container.querySelector('.auth-subhead');
     expect(subhead).toBeTruthy();
-    expect(subhead?.textContent).toContain('Quote it, send it, get paid');
-    expect(subhead?.textContent).toContain('No lead fees');
+    expect(subhead?.textContent).toContain('Quote jobs, send invoices, track payments');
+    expect(subhead?.textContent).toContain('in minutes, not hours');
   });
 
   it('renders all four loop chips via class selectors', () => {
@@ -87,37 +87,48 @@ describe('AuthScreen — pitch copy', () => {
     seps.forEach((sep) => expect(sep.getAttribute('aria-hidden')).toBe('true'));
   });
 
-  it('renders the first proof beat', () => {
-    renderAuth();
-    const items = screen.getAllByRole('listitem');
-    expect(items[0].textContent).toContain('See the real profit on every job');
-    expect(items[0].textContent).toContain('materials, fuel and tax');
+  it('renders the plain feature strip', () => {
+    const { container } = renderAuth();
+    const features = container.querySelector('.auth-features');
+    expect(features).toBeTruthy();
+    expect(features?.textContent).toBe(
+      'Quote in seconds · Send invoices · Get paid · See your real profit'
+    );
   });
 
-  it('renders the second proof beat', () => {
-    renderAuth();
-    const items = screen.getAllByRole('listitem');
-    expect(items[1].textContent).toContain('Quote it, send it, get paid, from the van');
+  it('renders the profit/independence strip under the feature strip', () => {
+    const { container } = renderAuth();
+    const strip = container.querySelector('.auth-profit-strip');
+    expect(strip).toBeTruthy();
+    expect(strip?.textContent).toContain('after materials, fuel and tax');
+    expect(strip?.textContent).toContain('No lead fees, no commission, nobody clipping your ticket');
   });
 
-  it('renders the third proof beat', () => {
+  it('renders the primary CTA line', () => {
     renderAuth();
-    const items = screen.getAllByRole('listitem');
-    expect(items[2].textContent).toContain('no lead fees, no commission, no middleman');
+    expect(screen.getByText('Start free — no card needed')).toBeTruthy();
   });
 
-  it('renders exactly three proof-beat list items', () => {
-    renderAuth();
-    const items = screen.getAllByRole('listitem');
-    expect(items).toHaveLength(3);
+  it('renders the CTA sub-line value cue', () => {
+    const { container } = renderAuth();
+    const subline = container.querySelector('.auth-cta-subline');
+    expect(subline).toBeTruthy();
+    expect(subline?.textContent).toContain('£12/mo flat once you\'re set up');
+    expect(subline?.textContent).toContain('No card to start');
   });
 
-  it('renders the price/trust line', () => {
+  it('renders the trust line without naming any competitor', () => {
     const { container } = renderAuth();
     const trust = container.querySelector('.auth-trust');
     expect(trust).toBeTruthy();
-    expect(trust?.textContent).toContain('£12/mo flat');
-    expect(trust?.textContent).toContain('Tradify charges £34');
+    expect(trust?.textContent).toContain('Built with feedback from UK builders');
+    expect(trust?.textContent).not.toMatch(/Tradify|ServiceM8|Powered Now/i);
+  });
+
+  it('does not name a competitor anywhere in the hero pitch', () => {
+    const { container } = renderAuth();
+    const brand = container.querySelector('.auth-brand');
+    expect(brand?.textContent).not.toMatch(/Tradify|ServiceM8|Powered Now/i);
   });
 });
 
