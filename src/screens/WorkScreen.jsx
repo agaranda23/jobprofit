@@ -1927,6 +1927,7 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
           jobs={jobs}
           receipts={receipts}
           profile={profile}
+          onProfileUpdate={onProfileUpdate}
           onUpdate={onUpdateJob ?? (() => {})}
           onClose={() => setReviewJob(null)}
           onDismiss={() => setReviewJob(null)}

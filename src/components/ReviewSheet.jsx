@@ -34,6 +34,7 @@ import { useState, useCallback } from 'react';
 import Icon from './Icon';
 import QRCode from 'qrcode';
 import BankGateSheet from './BankGateSheet';
+import DocumentPreview from './DocumentPreview';
 import { downloadInvoicePDF, getInvoicePDFBlob } from '../lib/invoicePDF';
 import { downloadQuotePDF } from '../lib/invoicePDF';
 import { buildInvoiceWhatsAppMessage, buildWhatsAppLink } from '../lib/invoiceMessage';
@@ -55,37 +56,6 @@ function resolvePhone(job) {
 
 function gbp(n) {
   return '£' + Number(n || 0).toLocaleString('en-GB', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
-// ── Line-item preview ──────────────────────────────────────────────────────────
-
-function PreviewTable({ job }) {
-  const lineItems = Array.isArray(job?.lineItems) && job.lineItems.length > 0
-    ? job.lineItems
-    : [{ desc: job?.summary || 'Work', cost: job?.total ?? job?.amount ?? 0 }];
-
-  const total = job?.total ?? job?.amount ?? 0;
-
-  return (
-    <div className="rs-preview">
-      <div className="rs-preview-header">
-        <span className="rs-preview-customer">
-          {job?.customer || job?.name
-            ? (job.customer || job.name)
-            : <span className="rs-preview-add-customer">+ Add customer</span>}
-        </span>
-        <span className="rs-preview-total">{gbp(total)}</span>
-      </div>
-      <ul className="rs-line-items" aria-label="Line items">
-        {lineItems.map((li, i) => (
-          <li key={i} className="rs-line-item">
-            <span className="rs-li-desc">{li.desc || '—'}</span>
-            <span className="rs-li-cost">{gbp(li.cost ?? 0)}</span>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
 }
 
 // ── Component ──────────────────────────────────────────────────────────────────
@@ -212,7 +182,6 @@ export default function ReviewSheet({
   onProfileUpdate,
 }) {
   const isInvoice = mode === 'invoice';
-  const isProUser = isPro(profile);
 
   const [invoiceNumber] = useState(
     () => job.invoiceNumber || nextInvoiceNumber(jobs)
@@ -237,8 +206,12 @@ export default function ReviewSheet({
   });
 
   // localProfile: optimistically updated when the trader saves bank details via
-  // the bank-gate inside this sheet. Mirrors the pattern from SendInvoiceModal.
+  // the bank-gate, or a brand edit (logo/name/contact) via the DocumentPreview
+  // tappable regions, inside this sheet. Mirrors the pattern from SendInvoiceModal.
+  // All doc-generation paths below read localProfile (not the raw `profile` prop)
+  // so a mid-session edit is reflected in THIS document too, not just future ones.
   const [localProfile, setLocalProfile] = useState(profile);
+  const isProUser = isPro(localProfile);
 
   // Bank-gate view: 'main' | 'bank-gate'
   const [sheetView, setSheetView] = useState('main');
@@ -273,7 +246,7 @@ export default function ReviewSheet({
 
     let shareMethod = 'wame_fallback';
     try {
-      const blob = await getInvoicePDFBlob({ job, biz, profile, invoiceNumber, dueDate, hidePoweredBy: isProUser });
+      const blob = await getInvoicePDFBlob({ job, biz, profile: localProfile, invoiceNumber, dueDate, hidePoweredBy: isProUser });
       const file = new File([blob], `invoice-${invoiceNumber}.pdf`, { type: 'application/pdf' });
 
       if (canShareFile(file)) {
@@ -286,7 +259,7 @@ export default function ReviewSheet({
         // Web Share Level 2 not available — open wa.me + give the user the PDF to attach manually
         shareMethod = 'wame_fallback';
         window.open(link, '_blank', 'noopener');
-        await downloadInvoicePDF({ job, biz, profile, invoiceNumber, dueDate, hidePoweredBy: isProUser });
+        await downloadInvoicePDF({ job, biz, profile: localProfile, invoiceNumber, dueDate, hidePoweredBy: isProUser });
       }
     } catch (err) {
       if (err?.name === 'AbortError') {
@@ -324,7 +297,7 @@ export default function ReviewSheet({
     const _inv2 = getJobProfit(job, receipts);
     logTelemetry('invoice_sent', { headline_price: _inv2.quote, job_costs: _inv2.materials, true_profit: _inv2.profit, channel: 'download' });
     try {
-      await downloadInvoicePDF({ job, biz, profile, invoiceNumber, dueDate, hidePoweredBy: isProUser });
+      await downloadInvoicePDF({ job, biz, profile: localProfile, invoiceNumber, dueDate, hidePoweredBy: isProUser });
       flash?.('Saved to Files. Share it however you like.');
     } catch {
       flash?.('PDF failed — check Settings for business details');
@@ -375,7 +348,7 @@ export default function ReviewSheet({
           // QR generation failed — proceed without it
         }
       }
-      await downloadQuotePDF({ job, biz, profile, quoteUrl: downloadQuoteUrl, qrDataUrl: downloadQrDataUrl, hidePoweredBy: isProUser });
+      await downloadQuotePDF({ job, biz, profile: localProfile, quoteUrl: downloadQuoteUrl, qrDataUrl: downloadQrDataUrl, hidePoweredBy: isProUser });
       flash?.('Saved to Files. Share it however you like.');
     } catch {
       flash?.('PDF failed — check Settings for business details');
@@ -424,8 +397,23 @@ export default function ReviewSheet({
           </button>
         </div>
 
-        {/* Document preview */}
-        <PreviewTable job={job} />
+        {/* Document preview — tappable facsimile (Preview & Edit slice 1).
+            profile={localProfile} so a brand edit made mid-session (logo /
+            business name / contact) shows here AND in the doc this sheet is
+            about to send — see the localProfile note above. */}
+        <DocumentPreview
+          mode={mode}
+          job={job}
+          biz={biz}
+          profile={localProfile}
+          depositPercent={depositPercent}
+          invoiceNumber={invoiceNumber}
+          dueDate={dueDate}
+          onEdit={onEdit}
+          onProfileUpdate={onProfileUpdate}
+          onProfileSaved={(patch) => setLocalProfile(prev => ({ ...(prev || {}), ...patch }))}
+          flash={flash}
+        />
 
         {/* Deposit picker — quote mode only, available to all traders */}
         {!isInvoice && (
@@ -451,8 +439,8 @@ export default function ReviewSheet({
             Shows real state: on for pro/trial with auto_chase_enabled,
             a Pro upsell for free users, hidden when explicitly off. */}
         {isInvoice && (() => {
-          const proUser = isPro(profile);
-          const autoOn  = profile?.auto_chase_enabled !== false;
+          const proUser = isPro(localProfile);
+          const autoOn  = localProfile?.auto_chase_enabled !== false;
 
           if (proUser && autoOn) {
             return (

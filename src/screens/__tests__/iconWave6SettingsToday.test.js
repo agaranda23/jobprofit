@@ -57,6 +57,10 @@ const TODAY_JSX      = path.resolve(__dirname, '../TodayScreen.jsx');
 const APPSHELL_JSX   = path.resolve(__dirname, '../../AppShell.jsx');
 const SNACKBAR_JSX   = path.resolve(__dirname, '../../components/Snackbar.jsx');
 const NAVIGATION_JS  = path.resolve(__dirname, '../../lib/navigation.js');
+// LogoModal was extracted out of SettingsScreen.jsx into its own file
+// (Preview & Edit slice 1, so ReviewSheet's DocumentPreview can reuse it) —
+// the close-glyph assertions below now read this file instead.
+const LOGO_MODAL_JSX = path.resolve(__dirname, '../../components/LogoModal.jsx');
 
 const iconSrc       = fs.readFileSync(ICON_JSX,     'utf8');
 const settingsSrc   = fs.readFileSync(SETTINGS_JSX, 'utf8');
@@ -64,6 +68,7 @@ const todaySrc      = fs.readFileSync(TODAY_JSX,    'utf8');
 const appShellSrc   = fs.readFileSync(APPSHELL_JSX, 'utf8');
 const snackbarSrc   = fs.readFileSync(SNACKBAR_JSX, 'utf8');
 const navigationSrc = fs.readFileSync(NAVIGATION_JS, 'utf8');
+const logoModalSrc  = fs.readFileSync(LOGO_MODAL_JSX, 'utf8');
 
 // ── SettingsScreen ────────────────────────────────────────────────────────────
 
@@ -104,14 +109,14 @@ describe('SettingsScreen.jsx — check mark removed from VoiceLanguageSection', 
   });
 });
 
-describe('SettingsScreen.jsx — close glyph removed from LogoModal', () => {
+describe('LogoModal.jsx — close glyph removed (extracted from SettingsScreen.jsx)', () => {
   it('no ✕ emoji literal remains in LogoModal close button', () => {
     // ✕ U+2715 — was the LogoModal header close button
-    expect(settingsSrc).not.toContain('✕');
+    expect(logoModalSrc).not.toContain('✕');
   });
 
   it('Icon name="close" is used in LogoModal close button', () => {
-    expect(settingsSrc).toContain('name="close"');
+    expect(logoModalSrc).toContain('name="close"');
   });
 });
 

@@ -1408,6 +1408,7 @@ export default function AppShell() {
             onAddReceipt={handleAddReceipt}
             avatarProps={avatarProps}
             profile={profile}
+            onProfileUpdate={handleProfileUpdate}
             onNavigateToMoney={() => navigate('finance')}
             onSeeTheWeek={handleSeeTheWeek}
             onNavigateToCardPayments={() => setSettingsSubView('card-payments')}

@@ -72,6 +72,7 @@ export default function TodayScreen({
   onSeeTheWeek,
   onNavigateToCardPayments,
   profile,
+  onProfileUpdate,
   materials,
   defaultMarkup,
   onBrowseMaterials,
@@ -801,11 +802,13 @@ export default function TodayScreen({
           mode="quote"
           job={reviewQuoteJob}
           biz={{ name: profile?.business_name || '' }}
+          profile={profile}
           jobs={jobs}
           receipts={receipts}
           onUpdate={(updatedJob) => { onUpdateJob?.(updatedJob); setReviewQuoteJob(null); }}
           onClose={() => setReviewQuoteJob(null)}
           onDismiss={() => setReviewQuoteJob(null)}
+          onProfileUpdate={onProfileUpdate}
           flash={showToast}
         />
       )}

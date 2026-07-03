@@ -13967,6 +13967,280 @@ button.jd-money-chip:active { opacity: 0.75; }
 }
 
 
+/* ── DocumentPreview — tappable document facsimile (Preview & Edit slice 1) ──
+   Replaces PreviewTable inside ReviewSheet. Layout-aligned with invoicePDF.js
+   (logo left, business identity right, doc title, recipient block, line
+   items, totals, locked footer) but this is NOT the PDF renderer — a shared
+   <DocumentBody> is a later item. */
+
+.dp-root {
+  background: var(--surface-2);
+  border-radius: var(--radius-lg);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Header band — two tappable brand regions */
+.dp-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.dp-logo-tap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 48px;
+  min-height: 48px;
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-md);
+  border: 1px dashed var(--border);
+  background: var(--surface);
+  flex-shrink: 0;
+  padding: 0;
+  overflow: visible;
+}
+
+.dp-logo-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: var(--radius-md);
+}
+
+.dp-logo-placeholder {
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--text-dim);
+  text-align: center;
+  line-height: 1.2;
+  padding: 0 4px;
+}
+
+.dp-logo-pencil {
+  position: absolute;
+  bottom: -4px;
+  right: -4px;
+  background: var(--accent, #2563eb);
+  color: #fff;
+  border-radius: 999px;
+  padding: 3px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+}
+
+.dp-identity-tap {
+  flex: 1 1 auto;
+  min-height: 44px;
+  text-align: right;
+  background: none;
+  border: none;
+  padding: 2px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.dp-business-name {
+  font-size: var(--fs-body);
+  font-weight: 700;
+  color: var(--text);
+  border-bottom: 1px dashed var(--border);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dp-contact-line {
+  font-size: var(--fs-label);
+  color: var(--text-dim);
+  margin-top: 2px;
+}
+
+.dp-placeholder-text {
+  color: var(--text-dim);
+  font-weight: 600;
+}
+
+.dp-hint {
+  font-size: var(--fs-label);
+  color: var(--text-dim);
+  margin: 0;
+  text-align: center;
+}
+
+/* Doc-type title + meta */
+.dp-doctitle {
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+
+.dp-doctitle-label {
+  font-size: var(--fs-body);
+  font-weight: 800;
+  color: var(--accent, #2563eb);
+  letter-spacing: -0.02em;
+  margin-bottom: 4px;
+}
+
+.dp-doctitle-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  font-size: var(--fs-label);
+  color: var(--text-dim);
+}
+
+/* Recipient block */
+.dp-recipient {
+  background: var(--surface);
+  border-radius: var(--radius-md);
+  padding: 8px 12px;
+}
+
+.dp-recipient-label {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--text-dim);
+  letter-spacing: 0.06em;
+  margin-bottom: 4px;
+}
+
+.dp-recipient-name {
+  font-size: var(--fs-body);
+  font-weight: 700;
+  color: var(--text);
+}
+
+.dp-recipient-line {
+  font-size: var(--fs-label);
+  color: var(--text-dim);
+  margin-top: 1px;
+}
+
+/* Line items — each row tappable, routes to the existing price editor */
+.dp-lineitems {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--border);
+  padding-top: 4px;
+}
+
+.dp-lineitem-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 4px 2px;
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  width: 100%;
+}
+.dp-lineitem-row:last-child {
+  border-bottom: none;
+}
+button.dp-lineitem-row:active {
+  background: var(--surface);
+}
+
+.dp-li-desc {
+  flex: 1 1 auto;
+  font-size: var(--fs-label);
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dp-li-qty {
+  font-size: var(--fs-label);
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+
+.dp-li-amount {
+  font-size: var(--fs-label);
+  font-weight: 600;
+  color: var(--text);
+  flex-shrink: 0;
+}
+
+/* Totals */
+.dp-totals {
+  border-top: 1px solid var(--border);
+  padding-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.dp-totals-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: var(--fs-label);
+  color: var(--text-dim);
+}
+
+.dp-totals-row--deposit {
+  color: var(--jp-green, #28b581);
+  font-weight: 600;
+}
+
+.dp-totals-row--total {
+  font-size: var(--fs-body);
+  font-weight: 800;
+  color: var(--text);
+  border-top: 1.5px solid var(--accent, #2563eb);
+  padding-top: 6px;
+  margin-top: 2px;
+}
+
+/* Locked footer + Pro upsell */
+.dp-footer-locked {
+  border-top: 1px solid var(--border);
+  padding-top: 10px;
+}
+
+.dp-footer-lockrow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.dp-footer-lock-copy {
+  flex: 1 1 auto;
+  font-size: 11px;
+  color: var(--text-dim);
+  line-height: 1.3;
+}
+
+.dp-footer-remove-chip {
+  flex-shrink: 0;
+  min-height: 32px;
+  padding: 0 10px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--accent, #2563eb);
+  background: none;
+  color: var(--accent, #2563eb);
+  font-size: var(--fs-label);
+  font-weight: 700;
+}
+.dp-footer-remove-chip:active {
+  background: var(--surface);
+}
+
+
 /* ── Create-quote view (AddJobModal defaultMode="quote") ────────────────── */
 
 /* "Use voice instead" restart button — shown in manual mode when mic available */
