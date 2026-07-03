@@ -14,6 +14,7 @@ import ReviewSheet from './ReviewSheet';
 import AddReceiptModal from './AddReceiptModal';
 import SignaturePad from './SignaturePad';
 import EditFieldModal from './EditFieldModal';
+import QuoteLineEditorSheet from './QuoteLineEditorSheet';
 import NextStepCard from './NextStepCard';
 import CollapsedSectionRow from './CollapsedSectionRow';
 import ProfitRibbon from './ProfitRibbon';
@@ -996,96 +997,6 @@ function VisitEditorSheet({ open, visit, onSave, onDelete, onCancel }) {
           )}
           <button type="button" className="btn-ghost edit-field-cancel" onClick={onCancel}>Cancel</button>
           <button type="button" className="btn-primary edit-field-save" onClick={handleSave} disabled={!date}>Save visit</button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/**
- * QuoteLineEditorSheet — bottom sheet for adding or editing a single quote line item.
- * Modelled on VisitEditorSheet: same backdrop/sheet chrome, same button pattern.
- *
- * Props:
- *   open     – boolean
- *   item     – { desc, cost, qty } or null (null = new item)
- *   onSave(item)   – called with { desc, cost } on Save
- *   onDelete()     – called when user taps Delete (only shown when item !== null)
- *   onCancel()     – called on Cancel / backdrop tap
- */
-function QuoteLineEditorSheet({ open, item, onSave, onDelete, onCancel }) {
-  const [desc, setDesc] = React.useState('');
-  const [cost, setCost] = React.useState('');
-
-  React.useEffect(() => {
-    if (open) {
-      setDesc(item?.desc || '');
-      // Present empty (not '0') when cost is 0 so the user does not have to
-      // clear the field — matches the EditFieldModal pattern for needsPrice jobs.
-      setCost(item != null && Number(item.cost) !== 0 ? String(item.cost ?? '') : '');
-    }
-  }, [open, item]);
-
-  if (!open) return null;
-
-  const parsedCost = parseFloat(cost) || 0;
-  const canSave = desc.trim().length > 0 || parsedCost > 0;
-
-  const handleSave = () => {
-    if (!canSave) return;
-    onSave({ desc: desc.trim(), cost: parsedCost });
-  };
-
-  return (
-    <div
-      className="modal-backdrop"
-      role="dialog"
-      aria-modal="true"
-      aria-label={item ? 'Edit line item' : 'Add line item'}
-      onClick={e => { if (e.target === e.currentTarget) onCancel(); }}
-    >
-      <div className="modal-sheet edit-field-sheet" onClick={e => e.stopPropagation()}>
-        <div className="modal-sheet-header">
-          <h3 className="modal-sheet-title">{item ? 'Edit line' : 'Add a line'}</h3>
-          <button type="button" className="modal-sheet-close" onClick={onCancel} aria-label="Close">✕</button>
-        </div>
-        <div className="edit-field-body">
-          <div className="edit-field-group">
-            <label className="edit-field-label">Description</label>
-            <input
-              type="text"
-              className="edit-field-input"
-              value={desc}
-              onChange={e => setDesc(e.target.value)}
-              placeholder="e.g. Labour, Materials, Skip hire"
-              aria-label="Line item description"
-              autoFocus
-              maxLength={200}
-            />
-          </div>
-          <div className="edit-field-group">
-            <label className="edit-field-label">Amount (£)</label>
-            <input
-              type="number"
-              className="edit-field-input"
-              value={cost}
-              onChange={e => setCost(e.target.value)}
-              placeholder="0.00"
-              min="0"
-              step="0.01"
-              aria-label="Line item amount"
-              inputMode="decimal"
-            />
-          </div>
-          <div className="edit-field-actions">
-            {item && onDelete && (
-              <button type="button" className="btn-ghost btn-ghost--danger" onClick={onDelete} style={{ marginRight: 'auto' }}>
-                Delete
-              </button>
-            )}
-            <button type="button" className="btn-ghost edit-field-cancel" onClick={onCancel}>Cancel</button>
-            <button type="button" className="btn-primary edit-field-save" onClick={handleSave} disabled={!canSave}>Save</button>
-          </div>
         </div>
       </div>
     </div>

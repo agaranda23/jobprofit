@@ -222,24 +222,209 @@ describe('DocumentPreview — VAT row reuses splitVatInclusive (no re-implemente
   });
 });
 
-// ── Line items route to the existing onEdit bridge — no new price editor ─────
+// ── Line items — inline edit/add/delete, no more onEdit round-trip ───────────
+// (Preview & Edit "full tap" slice, 2026-07: replaces the slice-1 onEdit bridge
+// with a true inline editor that layers over the still-open sheet.)
 
-describe('DocumentPreview — line items tap the EXISTING onEdit bridge', () => {
-  it('tapping a line item calls onEdit (not a new inline editor)', () => {
-    const onEdit = vi.fn();
+describe('DocumentPreview — line items are inline-editable via onJobPatch', () => {
+  it('tapping a line item opens the inline editor (not onEdit)', () => {
+    const onJobPatch = vi.fn();
     render(
-      <DocumentPreview mode="quote" job={makeJob()} biz={BIZ} profile={{ plan: 'free' }} onEdit={onEdit} flash={NOOP} />
+      <DocumentPreview mode="quote" job={makeJob()} biz={BIZ} profile={{ plan: 'free' }} onJobPatch={onJobPatch} flash={NOOP} />
     );
     fireEvent.click(screen.getByRole('button', { name: /edit labour/i }));
-    expect(onEdit).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole('dialog', { name: /edit line item/i })).toBeInTheDocument();
+    expect(screen.getByLabelText(/line item description/i)).toHaveValue('Labour');
   });
 
-  it('renders line items as non-interactive when onEdit is not provided', () => {
+  it('editing a line item recomputes and persists the total via onJobPatch', () => {
+    const onJobPatch = vi.fn();
+    render(
+      <DocumentPreview mode="quote" job={makeJob()} biz={BIZ} profile={{ plan: 'free' }} onJobPatch={onJobPatch} flash={NOOP} />
+    );
+    fireEvent.click(screen.getByRole('button', { name: /edit labour/i }));
+    fireEvent.change(screen.getByLabelText(/line item amount/i), { target: { value: '650' } });
+    fireEvent.click(screen.getByRole('button', { name: /^save$/i }));
+
+    expect(onJobPatch).toHaveBeenCalledWith({
+      lineItems: [{ desc: 'Labour', cost: 650 }],
+      total: 650,
+      amount: 650,
+    });
+  });
+
+  it('"+ Add line" appends a new line item and recomputes the total', () => {
+    const onJobPatch = vi.fn();
+    render(
+      <DocumentPreview mode="quote" job={makeJob()} biz={BIZ} profile={{ plan: 'free' }} onJobPatch={onJobPatch} flash={NOOP} />
+    );
+    fireEvent.click(screen.getByRole('button', { name: /add a line item/i }));
+    fireEvent.change(screen.getByLabelText(/line item description/i), { target: { value: 'Materials' } });
+    fireEvent.change(screen.getByLabelText(/line item amount/i), { target: { value: '120' } });
+    fireEvent.click(screen.getByRole('button', { name: /^save$/i }));
+
+    expect(onJobPatch).toHaveBeenCalledWith({
+      lineItems: [{ desc: 'Labour', cost: 500 }, { desc: 'Materials', cost: 120 }],
+      total: 620,
+      amount: 620,
+    });
+  });
+
+  it('deleting a line item removes it and recomputes the total', () => {
+    const onJobPatch = vi.fn();
+    const job = makeJob({ lineItems: [{ desc: 'Labour', cost: 400 }, { desc: 'Materials', cost: 100 }], total: 500 });
+    render(
+      <DocumentPreview mode="quote" job={job} biz={BIZ} profile={{ plan: 'free' }} onJobPatch={onJobPatch} flash={NOOP} />
+    );
+    fireEvent.click(screen.getByRole('button', { name: /edit materials/i }));
+    fireEvent.click(screen.getByRole('button', { name: /delete/i }));
+
+    expect(onJobPatch).toHaveBeenCalledWith({
+      lineItems: [{ desc: 'Labour', cost: 400 }],
+      total: 400,
+      amount: 400,
+    });
+  });
+
+  it('a single-line job can edit its amount directly by tapping "Total payable"', () => {
+    const onJobPatch = vi.fn();
+    const job = makeJob({ lineItems: [{ desc: 'Kitchen taps', cost: 500 }], total: 500 });
+    render(
+      <DocumentPreview mode="quote" job={job} biz={BIZ} profile={{ plan: 'free' }} onJobPatch={onJobPatch} flash={NOOP} />
+    );
+    fireEvent.click(screen.getByRole('button', { name: /edit total/i }));
+    fireEvent.change(screen.getByLabelText(/line item amount/i), { target: { value: '720' } });
+    fireEvent.click(screen.getByRole('button', { name: /^save$/i }));
+
+    expect(onJobPatch).toHaveBeenCalledWith({
+      lineItems: [{ desc: 'Kitchen taps', cost: 720 }],
+      total: 720,
+      amount: 720,
+    });
+  });
+
+  it('renders line items read-only, with no "Add line" affordance, when onJobPatch is not provided', () => {
     render(
       <DocumentPreview mode="quote" job={makeJob()} biz={BIZ} profile={{ plan: 'free' }} flash={NOOP} />
     );
     expect(screen.queryByRole('button', { name: /edit labour/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /add a line item/i })).not.toBeInTheDocument();
     expect(screen.getByText('Labour')).toBeInTheDocument();
+  });
+});
+
+// ── Bill-to / customer — never duplicates the job title ──────────────────────
+
+describe('DocumentPreview — bill-to shows the real customer, never the job title', () => {
+  it('shows "+ Add customer" when job.customer was defaulted to the job title (Quick Add data-model quirk)', () => {
+    // Mirrors store.js addTodayJob: customer defaults to the job title when no
+    // separate customer was captured — must never render as a duplicate line.
+    const job = makeJob({ customer: 'Kitchen job lisa', summary: 'Kitchen job lisa' });
+    render(
+      <DocumentPreview mode="invoice" job={job} biz={BIZ} profile={{ plan: 'free' }} onJobPatch={vi.fn()} flash={NOOP} />
+    );
+    expect(screen.getByText('+ Add customer')).toBeInTheDocument();
+    expect(screen.queryByText('Kitchen job lisa', { selector: '.dp-recipient-name' })).not.toBeInTheDocument();
+  });
+
+  it('shows the real customer name when it differs from the job title', () => {
+    const job = makeJob({ customer: 'Sarah Jones', summary: 'Kitchen taps' });
+    render(
+      <DocumentPreview mode="invoice" job={job} biz={BIZ} profile={{ plan: 'free' }} onJobPatch={vi.fn()} flash={NOOP} />
+    );
+    expect(screen.getByText('Sarah Jones')).toBeInTheDocument();
+  });
+
+  it('never falls back to job.name (the legacy job-title alias)', () => {
+    const job = makeJob({ customer: '', name: 'Kitchen job lisa', summary: 'Kitchen job lisa' });
+    render(
+      <DocumentPreview mode="invoice" job={job} biz={BIZ} profile={{ plan: 'free' }} onJobPatch={vi.fn()} flash={NOOP} />
+    );
+    expect(screen.getByText('+ Add customer')).toBeInTheDocument();
+  });
+
+  it('tapping "+ Add customer" and saving persists via onJobPatch', () => {
+    const onJobPatch = vi.fn();
+    const job = makeJob({ customer: 'Kitchen job lisa', summary: 'Kitchen job lisa' });
+    render(
+      <DocumentPreview mode="invoice" job={job} biz={BIZ} profile={{ plan: 'free' }} onJobPatch={onJobPatch} flash={NOOP} />
+    );
+    fireEvent.click(screen.getByRole('button', { name: /add customer/i }));
+    fireEvent.change(screen.getByLabelText('Customer name'), { target: { value: 'Lisa Bloggs' } });
+    fireEvent.click(screen.getByRole('button', { name: /^save$/i }));
+    expect(onJobPatch).toHaveBeenCalledWith(expect.objectContaining({ customer: 'Lisa Bloggs' }));
+  });
+
+  it('renders the recipient block read-only when onJobPatch is not provided', () => {
+    const job = makeJob({ customer: 'Kitchen job lisa', summary: 'Kitchen job lisa' });
+    render(
+      <DocumentPreview mode="invoice" job={job} biz={BIZ} profile={{ plan: 'free' }} flash={NOOP} />
+    );
+    expect(screen.queryByRole('button', { name: /add customer/i })).not.toBeInTheDocument();
+    expect(screen.getByText('No customer added')).toBeInTheDocument();
+  });
+});
+
+// ── Invoice number / due date — tappable, persist via the ReviewSheet bridge ─
+
+describe('DocumentPreview — invoice number and due date are inline-editable', () => {
+  it('tapping the invoice number opens its editor and saves via onInvoiceNumberChange', () => {
+    const onInvoiceNumberChange = vi.fn();
+    const job = makeJob({ status: 'complete' });
+    render(
+      <DocumentPreview
+        mode="invoice"
+        job={job}
+        biz={BIZ}
+        profile={{ plan: 'free' }}
+        invoiceNumber="INV-0007"
+        dueDate="2026-07-20"
+        onInvoiceNumberChange={onInvoiceNumberChange}
+        flash={NOOP}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: /change invoice no/i }));
+    fireEvent.change(screen.getByLabelText('Invoice number'), { target: { value: 'INV-0099' } });
+    fireEvent.click(screen.getByRole('button', { name: /^save$/i }));
+    expect(onInvoiceNumberChange).toHaveBeenCalledWith('INV-0099');
+  });
+
+  it('tapping the due date opens its editor and saves via onDueDateChange', () => {
+    const onDueDateChange = vi.fn();
+    const job = makeJob({ status: 'complete' });
+    render(
+      <DocumentPreview
+        mode="invoice"
+        job={job}
+        biz={BIZ}
+        profile={{ plan: 'free' }}
+        invoiceNumber="INV-0007"
+        dueDate="2026-07-20"
+        onDueDateChange={onDueDateChange}
+        flash={NOOP}
+      />
+    );
+    fireEvent.click(screen.getByRole('button', { name: /change due/i }));
+    fireEvent.change(screen.getByLabelText('Due date'), { target: { value: '2026-08-01' } });
+    fireEvent.click(screen.getByRole('button', { name: /^save$/i }));
+    expect(onDueDateChange).toHaveBeenCalledWith('2026-08-01');
+  });
+});
+
+// ── Tap-anywhere never bubbles out of the card (P0 dismiss-jank fix) ─────────
+
+describe('DocumentPreview — clicks never bubble past the card', () => {
+  it('a click anywhere inside the card is stopped from reaching an ancestor listener', () => {
+    const outerClick = vi.fn();
+    render(
+      <div onClick={outerClick}>
+        <DocumentPreview mode="quote" job={makeJob()} biz={BIZ} profile={{ plan: 'free' }} flash={NOOP} />
+      </div>
+    );
+    // "Total payable" is read-only text here (no onJobPatch) — exactly the kind
+    // of "non-editable region" tap the founder reported falling through.
+    fireEvent.click(screen.getByText(/total payable/i));
+    expect(outerClick).not.toHaveBeenCalled();
   });
 });
 
@@ -248,14 +433,14 @@ describe('DocumentPreview — line items tap the EXISTING onEdit bridge', () => 
 describe('DocumentPreview — empty brand fields show placeholders, never block', () => {
   it('shows "Add your logo" when no logo_url is set', () => {
     render(
-      <DocumentPreview mode="quote" job={makeJob()} biz={{}} profile={{ plan: 'free' }} onEdit={NOOP} flash={NOOP} />
+      <DocumentPreview mode="quote" job={makeJob()} biz={{}} profile={{ plan: 'free' }} flash={NOOP} />
     );
     expect(screen.getByText(/add your logo/i)).toBeInTheDocument();
   });
 
   it('shows "Add your business name" when no business name is set', () => {
     render(
-      <DocumentPreview mode="quote" job={makeJob()} biz={{}} profile={{ plan: 'free' }} onEdit={NOOP} flash={NOOP} />
+      <DocumentPreview mode="quote" job={makeJob()} biz={{}} profile={{ plan: 'free' }} flash={NOOP} />
     );
     expect(screen.getByText(/add your business name/i)).toBeInTheDocument();
   });

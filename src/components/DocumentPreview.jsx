@@ -1,22 +1,38 @@
 /**
  * DocumentPreview — tappable document facsimile for ReviewSheet
- * ("Preview & Edit — slice 1").
+ * ("Preview & Edit — full-tap slice", built on slice 1).
  *
- * Replaces the old PreviewTable summary card with something that reads like the
- * real customer-facing quote/invoice: header (logo + business identity),
- * doc-type title + meta, recipient block, line items, totals (VAT-aware,
- * deposit-aware), and the locked "Sent with OHNAR" footer with its Pro upsell.
+ * Reads like the real customer-facing quote/invoice: header (logo + business
+ * identity), doc-type title + meta, recipient block, line items, totals
+ * (VAT-aware, deposit-aware), and the locked "Sent with OHNAR" footer with its
+ * Pro upsell. The hint says "Tap anything to change it" — every field below is
+ * now wired to a small overlay editor that layers OVER this preview (the sheet
+ * never unmounts, never closes) and saves live:
  *
- * Brand regions (logo / business name & contact) are tappable and persist to
- * the PROFILE (not per-document) — every future quote/invoice/receipt picks up
- * the same edit. Reuses the existing LogoModal + EditFieldModal editors —
- * no second logo/field-edit implementation.
+ *   - Logo / business name & contact  → LogoModal / EditFieldModal, persist to
+ *     the PROFILE (unchanged from slice 1 — every future document picks it up).
+ *   - Customer / phone / address      → EditFieldModal (composite), persists to
+ *     the JOB via onJobPatch. Never falls back to the job title — see
+ *     `distinctCustomer` below, which mirrors JobDetailDrawer.jsx's own
+ *     duplicate-guard for the exact same data-model quirk (Quick Add seeds
+ *     job.customer from the job title when no separate customer was captured).
+ *   - Line items (add / edit / delete) → QuoteLineEditorSheet, persists
+ *     lineItems + total (+ amount, kept in lockstep per the app's
+ *     total===sum(lineItems) invariant) via onJobPatch. A single-line job's
+ *     "Total payable" row is also tappable — it opens the same one-line editor.
+ *   - Invoice number / due date       → EditFieldModal (single field), persist
+ *     via onInvoiceNumberChange/onDueDateChange (ReviewSheet-level state — see
+ *     that file for why these aren't threaded through onJobPatch).
+ *   - Quote "Valid until"             → EditFieldModal (date), converts the
+ *     picked date back to profile.quote_validity_days (the same field
+ *     Settings/invoicePDF.js/PublicQuoteView.jsx already read) and saves via
+ *     the existing handleBrandSave path — no per-job override field invented,
+ *     no invoicePDF.js edit needed to keep the sent PDF in sync.
  *
- * Line items are read-only here — tapping one routes back through the EXISTING
- * onEdit → handleReviewEdit → maybeReopenReview bridge the "Edit quote/invoice"
- * ghost button in ReviewSheet already uses. No new price editor in this slice
- * (full field-map — editable invoice number/due date, tappable customer,
- * full-screen preview — is a later slice per the founder brief).
+ * P0 fix (founder live-test, 2026-07): tapping ANY region inside this card —
+ * including a region that isn't wired to anything — must never dismiss the
+ * sheet or fall through to whatever is behind it. The root wrapper below stops
+ * click propagation so only the sheet's own X / true backdrop can dismiss.
  *
  * Footer visibility is derived ONLY from showJobProfitFooter(profile) (i.e.
  * isPro()) — the same source of truth invoicePDF.js and the public doc pages
@@ -30,29 +46,36 @@
  * uses, so the on-screen number never drifts from the sent PDF.
  *
  * Props:
- *   mode             'quote' | 'invoice'
- *   job              full job object
- *   biz              legacy biz settings object (as already threaded through ReviewSheet)
- *   profile          Supabase profiles row — pass the SHEET's localProfile so a
- *                    brand edit made mid-session is reflected immediately, both
- *                    in this header and in the PDF/message the sheet is about to send.
- *   depositPercent   current deposit picker value (quote mode only)
- *   invoiceNumber    invoice mode meta
- *   dueDate          invoice mode meta
- *   onEdit           () => void — same handler as the "Edit quote/invoice" button;
- *                    tapping a line item calls this instead of opening a new editor.
- *   onProfileUpdate  optional async (patch) => void — the app's central profile-update
- *                    pipeline (e.g. AppShell.handleProfileUpdate). When omitted, falls
- *                    back to a direct Supabase write — mirrors BankGateSheet.jsx.
- *   onProfileSaved   (patch) => void — called after ANY successful save (central
- *                    pipeline or fallback) so the caller can refresh its own
- *                    optimistic profile copy (ReviewSheet's localProfile bridge).
- *   flash            (msg) => void — toast callback
+ *   mode                 'quote' | 'invoice'
+ *   job                  full job object — the CALLER's freshest copy (ReviewSheet
+ *                        passes its own localJob mirror so an edit made here is
+ *                        reflected immediately in what gets sent).
+ *   biz                  legacy biz settings object (as already threaded through ReviewSheet)
+ *   profile              Supabase profiles row — pass the SHEET's localProfile so a
+ *                        brand edit made mid-session is reflected immediately, both
+ *                        in this header and in the PDF/message the sheet is about to send.
+ *   depositPercent        current deposit picker value (quote mode only)
+ *   invoiceNumber         invoice mode meta
+ *   dueDate               invoice mode meta ('YYYY-MM-DD')
+ *   onJobPatch            (patch) => void — persist a job-content edit (line items,
+ *                        total/amount, customer, customerPhone, address). Optional —
+ *                        omitting it renders line items / the recipient block read-only
+ *                        (mirrors the slice-1 "onEdit optional" convention).
+ *   onInvoiceNumberChange (value) => void — invoice mode only.
+ *   onDueDateChange       (value) => void — invoice mode only ('YYYY-MM-DD').
+ *   onProfileUpdate       optional async (patch) => void — the app's central profile-update
+ *                        pipeline (e.g. AppShell.handleProfileUpdate). When omitted, falls
+ *                        back to a direct Supabase write — mirrors BankGateSheet.jsx.
+ *   onProfileSaved        (patch) => void — called after ANY successful save (central
+ *                        pipeline or fallback) so the caller can refresh its own
+ *                        optimistic profile copy (ReviewSheet's localProfile bridge).
+ *   flash                 (msg) => void — toast callback
  */
 import { useState } from 'react';
 import Icon from './Icon';
 import EditFieldModal from './EditFieldModal';
 import LogoModal from './LogoModal';
+import QuoteLineEditorSheet from './QuoteLineEditorSheet';
 import PoweredByJobProfit from './PoweredByJobProfit';
 import ProUpgradeSheet from './ProUpgradeSheet';
 import { resolveBusinessIdentity } from '../lib/resolveBusinessIdentity';
@@ -71,8 +94,15 @@ function validateNonEmpty(v) {
   return v.trim() ? null : 'This field is required';
 }
 
+function validateDateField(v) {
+  if (!v || !v.trim()) return 'This field is required';
+  return isNaN(new Date(`${v}T00:00:00`).getTime()) ? 'Enter a valid date' : null;
+}
+
 // Normalises line items the same way invoicePDF.js / the old PreviewTable do:
-// a single "Work" row when the job has no structured line items yet.
+// a single "Work" row when the job has no structured line items yet. Kept in
+// lockstep with the raw-selection condition below (rawLineItems) so UI index
+// `key` always addresses the same underlying array element.
 function normaliseLineItems(job) {
   const raw = Array.isArray(job?.lineItems) && job.lineItems.length > 0
     ? job.lineItems
@@ -93,7 +123,9 @@ export default function DocumentPreview({
   depositPercent = 0,
   invoiceNumber,
   dueDate,
-  onEdit,
+  onJobPatch,
+  onInvoiceNumberChange,
+  onDueDateChange,
   onProfileUpdate,
   onProfileSaved,
   flash,
@@ -103,9 +135,11 @@ export default function DocumentPreview({
   const logo = identity.logoUrl || identity.logo_url;
   const contactLine = [identity.phone, identity.email].filter(Boolean).join('  ·  ');
 
-  // editingField: null | 'logo' | 'identity'
+  // editingField: null | 'logo' | 'identity' | 'customer' | 'invoiceNumber' | 'dueDate' | 'validUntil'
   const [editingField, setEditingField] = useState(null);
   const [showUpgradeSheet, setShowUpgradeSheet] = useState(false);
+  // lineSheetIdx: null = closed, -1 = add new, 0+ = editing that line index
+  const [lineSheetIdx, setLineSheetIdx] = useState(null);
 
   // Persists a brand-edit patch to the profile — central pipeline first, direct
   // Supabase write as a fallback. Mirrors BankGateSheet.jsx's established pattern
@@ -127,6 +161,12 @@ export default function DocumentPreview({
   const lineItems = normaliseLineItems(job);
   const total = Number(job?.total ?? job?.amount ?? 0);
 
+  // Raw (un-normalised) line items — same "has real items" condition
+  // normaliseLineItems uses, so `rawLineItems[idx]` and `lineItems[idx]`
+  // always address the same element.
+  const hasRealItems = Array.isArray(job?.lineItems) && job.lineItems.length > 0;
+  const rawLineItems = hasRealItems ? job.lineItems : [];
+
   // ── Totals — VAT-inclusive (locked decision); reuses the shared
   // splitVatInclusive() helper so the preview matches invoicePDF.js /
   // generateQuotePDF to the penny — never re-derive the VAT formula here. ────
@@ -135,43 +175,111 @@ export default function DocumentPreview({
 
   // Deposit — quote mode only. Mirrors sendQuote.js's send-time clamp exactly
   // (lockedDepositPence = Math.min(pct × total, total), see sendQuote.js) so
-  // the number shown here always equals the number actually sent.
+  // the number shown here always equals the number actually sent. Because the
+  // deposit is always a PERCENT of `total`, this clamp holds automatically —
+  // no separate re-clamp is needed when a line-item edit changes the total.
   const depositPence = !isInvoice && depositPercent > 0 && total > 0
     ? Math.min(Math.round(total * (depositPercent / 100) * 100), Math.round(total * 100))
     : 0;
   const depositAmount = depositPence / 100;
 
-  // ── Doc-type meta (read-only in this slice) ──────────────────────────────
+  // ── Doc-type meta — invoice no / due date / valid-until are tappable ─────
+  const issueDate = job?.date
+    ? new Date(job.date.length === 10 ? `${job.date}T00:00:00` : job.date)
+    : new Date();
+  const validityDays = Number(profile?.quote_validity_days ?? 30);
+  const validUntil = new Date(issueDate);
+  validUntil.setDate(validUntil.getDate() + validityDays);
+  const validUntilIso = validUntil.toISOString().slice(0, 10);
+
   let metaRows;
   if (isInvoice) {
     const issued = new Date().toLocaleDateString('en-GB');
     const due = dueDate ? new Date(dueDate).toLocaleDateString('en-GB') : '';
     metaRows = [
-      invoiceNumber ? ['Invoice no', invoiceNumber] : null,
-      ['Issued', issued],
-      due ? ['Due', due] : null,
-    ].filter(Boolean);
+      { key: 'invoiceNumber', label: 'Invoice no', value: invoiceNumber || '+ Add', onClick: () => setEditingField('invoiceNumber') },
+      { key: 'issued', label: 'Issued', value: issued },
+      { key: 'due', label: 'Due', value: due || '+ Add', onClick: () => setEditingField('dueDate') },
+    ];
   } else {
     const quoteNumber = job?.quoteNumber || (job?.id ? `Q-${String(job.id).slice(-4).toUpperCase()}` : '');
-    const validityDays = Number(profile?.quote_validity_days ?? 30);
-    const issueDate = job?.date
-      ? new Date(job.date.length === 10 ? `${job.date}T00:00:00` : job.date)
-      : new Date();
-    const validUntil = new Date(issueDate);
-    validUntil.setDate(validUntil.getDate() + validityDays);
     metaRows = [
-      quoteNumber ? ['Ref', quoteNumber] : null,
-      ['Date', issueDate.toLocaleDateString('en-GB')],
-      ['Valid until', validUntil.toLocaleDateString('en-GB')],
+      quoteNumber ? { key: 'ref', label: 'Ref', value: quoteNumber } : null,
+      { key: 'date', label: 'Date', value: issueDate.toLocaleDateString('en-GB') },
+      { key: 'validUntil', label: 'Valid until', value: validUntil.toLocaleDateString('en-GB'), onClick: () => setEditingField('validUntil') },
     ].filter(Boolean);
   }
 
-  const customerName    = job?.customer || job?.customerName || job?.name || '';
+  // ── Recipient block ──────────────────────────────────────────────────────
+  // distinctCustomer mirrors JobDetailDrawer.jsx's own guard: job.customer
+  // defaults to the job title in the Quick Add path (store.js addTodayJob), so
+  // "customer === title" reads as "no customer set" rather than duplicating
+  // the job title in both the bill-to block AND the line item. NEVER falls
+  // back to job.name (the legacy job-title alias) per the founder's fix brief.
+  const jobTitle = (job?.summary || '').trim();
+  const rawCustomer = (job?.customer || '').trim();
+  const customerName = rawCustomer && rawCustomer !== jobTitle ? rawCustomer : '';
   const customerPhone   = job?.customerPhone || job?.phone || '';
   const customerAddress = job?.address || '';
+  const canEditJob = !!onJobPatch;
+
+  // ── Line-item handlers — total always recomputed from lineItems (invariant
+  // per JobDetailDrawer's Option A price-reconciliation PRD, 2026-06-13) ────
+  const handleSaveLine = ({ desc, cost }) => {
+    const idx = lineSheetIdx;
+    let next;
+    if (idx === -1) {
+      next = [...rawLineItems, { desc, cost: Number(cost) }];
+    } else if (hasRealItems) {
+      next = rawLineItems.map((item, i) => i === idx ? { ...item, desc, cost: Number(cost) } : item);
+    } else {
+      // Editing the single synthetic placeholder row — seed the first real line.
+      next = [{ desc, cost: Number(cost) }];
+    }
+    const newTotal = next.reduce((s, i) => s + Number(i.cost || 0), 0);
+    onJobPatch?.({ lineItems: next, total: newTotal, amount: newTotal });
+    flash?.(idx === -1 ? 'Line added' : 'Line updated');
+    setLineSheetIdx(null);
+  };
+
+  const handleDeleteLine = () => {
+    const idx = lineSheetIdx;
+    const next = rawLineItems.filter((_, i) => i !== idx);
+    const newTotal = next.reduce((s, i) => s + Number(i.cost || 0), 0);
+    onJobPatch?.({ lineItems: next, total: newTotal, amount: newTotal });
+    flash?.('Line removed');
+    setLineSheetIdx(null);
+  };
+
+  const editingLineItem = lineSheetIdx != null && lineSheetIdx >= 0
+    ? (hasRealItems ? rawLineItems[lineSheetIdx] : { desc: lineItems[0]?.desc, cost: lineItems[0]?.cost })
+    : null;
+
+  // ── Invoice number / due date — persisted via ReviewSheet-level state ────
+  const handleInvoiceNumberSave = (patch) => {
+    onInvoiceNumberChange?.(patch.invoiceNumber);
+    flash?.('Invoice number updated');
+  };
+  const handleDueDateSave = (patch) => {
+    onDueDateChange?.(patch.dueDate);
+    flash?.('Due date updated');
+  };
+
+  // ── Quote "Valid until" — converts the picked date back into
+  // profile.quote_validity_days (the SAME field invoicePDF.js /
+  // PublicQuoteView.jsx already read), so the sent PDF stays in sync without
+  // inventing a per-job override field. Saved via the existing brand-edit
+  // pipeline — same as logo/business name. Note: this updates the trader's
+  // DEFAULT validity window (applies to future quotes too), same caveat as
+  // editing business name/logo here.
+  const handleValidUntilSave = async (patch) => {
+    const picked = new Date(`${patch.validUntil}T00:00:00`);
+    const diffDays = Math.max(1, Math.round((picked - issueDate) / 86400000));
+    await handleBrandSave({ quote_validity_days: diffDays });
+  };
 
   return (
-    <div className="dp-root">
+    <div className="dp-root" onClick={e => e.stopPropagation()}>
       {/* ── Header band — tappable brand regions ───────────────────────────── */}
       <div className="dp-header">
         <button
@@ -203,37 +311,67 @@ export default function DocumentPreview({
 
       <p className="dp-hint">This is what your customer sees. Tap anything to change it.</p>
 
-      {/* ── Doc-type title + meta (read-only in this slice) ─────────────────── */}
+      {/* ── Doc-type title + meta — invoice no / due date / valid-until tap ─── */}
       <div className="dp-doctitle">
         <div className="dp-doctitle-label">{isInvoice ? 'INVOICE' : 'QUOTE'}</div>
         <div className="dp-doctitle-meta">
-          {metaRows.map(([label, value]) => (
-            <span key={label}>{label}: {value}</span>
+          {metaRows.map(row => row.onClick ? (
+            <button
+              key={row.key}
+              type="button"
+              className="dp-doctitle-meta-tap"
+              onClick={row.onClick}
+              // "Change" (not "Edit") — avoids an aria-label substring collision
+              // with the "Edit invoice"/"Edit quote" ghost button in ReviewSheet
+              // (e.g. "Edit Invoice no" would otherwise match /edit invoice/i).
+              aria-label={`Change ${row.label}`}
+            >
+              {row.label}: {row.value}
+            </button>
+          ) : (
+            <span key={row.key}>{row.label}: {row.value}</span>
           ))}
         </div>
       </div>
 
-      {/* ── Recipient block (read-only in this slice) ───────────────────────── */}
-      <div className="dp-recipient">
-        <div className="dp-recipient-label">{isInvoice ? 'Bill to' : 'Prepared for'}</div>
-        <div className="dp-recipient-name">
-          {customerName || <span className="dp-placeholder-text">+ Add customer</span>}
+      {/* ── Recipient block — whole block tappable; never falls back to the
+          job title (see distinctCustomer above) ────────────────────────────── */}
+      {canEditJob ? (
+        <button
+          type="button"
+          className="dp-recipient dp-recipient--tap"
+          onClick={() => setEditingField('customer')}
+          aria-label={customerName ? 'Edit customer' : 'Add customer'}
+        >
+          <div className="dp-recipient-label">{isInvoice ? 'Bill to' : 'Prepared for'}</div>
+          <div className="dp-recipient-name">
+            {customerName || <span className="dp-placeholder-text">+ Add customer</span>}
+          </div>
+          {customerPhone && <div className="dp-recipient-line">{customerPhone}</div>}
+          {customerAddress && <div className="dp-recipient-line">{customerAddress}</div>}
+        </button>
+      ) : (
+        <div className="dp-recipient">
+          <div className="dp-recipient-label">{isInvoice ? 'Bill to' : 'Prepared for'}</div>
+          <div className="dp-recipient-name">
+            {customerName || <span className="dp-placeholder-text">No customer added</span>}
+          </div>
+          {customerPhone && <div className="dp-recipient-line">{customerPhone}</div>}
+          {customerAddress && <div className="dp-recipient-line">{customerAddress}</div>}
         </div>
-        {customerPhone && <div className="dp-recipient-line">{customerPhone}</div>}
-        {customerAddress && <div className="dp-recipient-line">{customerAddress}</div>}
-      </div>
+      )}
 
-      {/* ── Line items — tap routes to the EXISTING price editor ───────────── */}
+      {/* ── Line items — tap a row to edit; "+ Add line" always available ──── */}
       <div className="dp-lineitems" role="list" aria-label="Line items">
         {lineItems.map(li => {
-          const Row = onEdit ? 'button' : 'div';
+          const Row = canEditJob ? 'button' : 'div';
           return (
             <Row
               key={li.key}
-              {...(onEdit ? { type: 'button' } : {})}
+              {...(canEditJob ? { type: 'button' } : {})}
               className="dp-lineitem-row"
-              onClick={onEdit ? () => onEdit() : undefined}
-              aria-label={onEdit ? `Edit ${li.desc}` : undefined}
+              onClick={canEditJob ? () => setLineSheetIdx(li.key) : undefined}
+              aria-label={canEditJob ? `Edit ${li.desc}` : undefined}
             >
               <span className="dp-li-desc">{li.desc}</span>
               {li.showRate && li.rate != null && (
@@ -243,6 +381,16 @@ export default function DocumentPreview({
             </Row>
           );
         })}
+        {canEditJob && (
+          <button
+            type="button"
+            className="dp-lineitem-add"
+            onClick={() => setLineSheetIdx(-1)}
+            aria-label="Add a line item"
+          >
+            <Icon name="add" size={14} /> Add line
+          </button>
+        )}
       </div>
 
       {/* ── Totals ───────────────────────────────────────────────────────────── */}
@@ -262,9 +410,20 @@ export default function DocumentPreview({
             <span>Deposit due now ({depositPercent}%)</span><span>{gbp(depositAmount)}</span>
           </div>
         )}
-        <div className="dp-totals-row dp-totals-row--total">
-          <span>Total payable</span><span>{gbp(total)}</span>
-        </div>
+        {canEditJob && lineItems.length === 1 ? (
+          <button
+            type="button"
+            className="dp-totals-row dp-totals-row--total dp-totals-row--tap"
+            onClick={() => setLineSheetIdx(0)}
+            aria-label="Edit total"
+          >
+            <span>Total payable</span><span>{gbp(total)}</span>
+          </button>
+        ) : (
+          <div className="dp-totals-row dp-totals-row--total">
+            <span>Total payable</span><span>{gbp(total)}</span>
+          </div>
+        )}
       </div>
 
       {/* ── Locked footer + Pro upsell ───────────────────────────────────────
@@ -314,6 +473,65 @@ export default function DocumentPreview({
         ]}
         onSave={handleBrandSave}
         onClose={() => setEditingField(null)}
+      />
+
+      {/* ── Customer editor — persists to the JOB (not the profile) ─────────── */}
+      <EditFieldModal
+        open={editingField === 'customer'}
+        title="Customer"
+        fields={[
+          { key: 'customer', label: 'Customer name', value: customerName },
+          { key: 'customerPhone', label: 'Phone', value: customerPhone, inputType: 'tel' },
+          { key: 'address', label: 'Address', value: customerAddress, inputType: 'textarea', rows: 2 },
+        ]}
+        onSave={(patch) => {
+          onJobPatch?.(patch);
+          flash?.('Customer updated');
+        }}
+        onClose={() => setEditingField(null)}
+      />
+
+      {/* ── Invoice number / due date editors ───────────────────────────────── */}
+      <EditFieldModal
+        open={editingField === 'invoiceNumber'}
+        fieldKey="invoiceNumber"
+        fieldLabel="Invoice number"
+        currentValue={invoiceNumber || ''}
+        validate={validateNonEmpty}
+        onSave={handleInvoiceNumberSave}
+        onClose={() => setEditingField(null)}
+      />
+
+      <EditFieldModal
+        open={editingField === 'dueDate'}
+        fieldKey="dueDate"
+        fieldLabel="Due date"
+        inputType="date"
+        currentValue={dueDate || ''}
+        validate={validateDateField}
+        onSave={handleDueDateSave}
+        onClose={() => setEditingField(null)}
+      />
+
+      {/* ── Quote "Valid until" editor ───────────────────────────────────────── */}
+      <EditFieldModal
+        open={editingField === 'validUntil'}
+        fieldKey="validUntil"
+        fieldLabel="Valid until"
+        inputType="date"
+        currentValue={validUntilIso}
+        validate={validateDateField}
+        onSave={handleValidUntilSave}
+        onClose={() => setEditingField(null)}
+      />
+
+      {/* ── Line item add/edit/delete sheet ──────────────────────────────────── */}
+      <QuoteLineEditorSheet
+        open={lineSheetIdx !== null}
+        item={editingLineItem}
+        onSave={handleSaveLine}
+        onDelete={hasRealItems && lineSheetIdx >= 0 ? handleDeleteLine : undefined}
+        onCancel={() => setLineSheetIdx(null)}
       />
 
       {/* ── Pro upsell — opened only by the footer "Remove →" chip ─────────── */}

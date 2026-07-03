@@ -14099,11 +14099,36 @@ button.jd-money-chip:active { opacity: 0.75; }
   color: var(--text-dim);
 }
 
+/* Tappable meta row (invoice no / due date / valid-until). Padding + negative
+   margin enlarges the tap target beyond the visible text without disturbing
+   the flex-wrap layout. */
+.dp-doctitle-meta-tap {
+  background: none;
+  border: none;
+  padding: 6px 4px;
+  margin: -6px -4px;
+  font: inherit;
+  color: inherit;
+  text-decoration: underline dashed;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
 /* Recipient block */
 .dp-recipient {
   background: var(--surface);
   border-radius: var(--radius-md);
   padding: 8px 12px;
+}
+
+.dp-recipient--tap {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 1px dashed transparent;
+}
+.dp-recipient--tap:active {
+  border-color: var(--border);
 }
 
 .dp-recipient-label {
@@ -14126,7 +14151,7 @@ button.jd-money-chip:active { opacity: 0.75; }
   margin-top: 1px;
 }
 
-/* Line items — each row tappable, routes to the existing price editor */
+/* Line items — each row tappable, opens the inline line-item editor */
 .dp-lineitems {
   display: flex;
   flex-direction: column;
@@ -14175,6 +14200,26 @@ button.dp-lineitem-row:active {
   flex-shrink: 0;
 }
 
+/* "+ Add line" — dashed pill, mirrors JobDetailDrawer's jd-add-dashed */
+.dp-lineitem-add {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 40px;
+  margin-top: 6px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-md);
+  background: none;
+  color: var(--accent, #2563eb);
+  font-size: var(--fs-label);
+  font-weight: 700;
+  width: 100%;
+}
+.dp-lineitem-add:active {
+  background: var(--surface);
+}
+
 /* Totals */
 .dp-totals {
   border-top: 1px solid var(--border);
@@ -14203,6 +14248,23 @@ button.dp-lineitem-row:active {
   border-top: 1.5px solid var(--accent, #2563eb);
   padding-top: 6px;
   margin-top: 2px;
+}
+
+button.dp-totals-row--total.dp-totals-row--tap {
+  width: 100%;
+  background: none;
+  border-left: none;
+  border-right: none;
+  border-bottom: none;
+  padding-left: 0;
+  padding-right: 0;
+  font: inherit;
+  font-weight: 800;
+  text-align: left;
+  cursor: pointer;
+}
+button.dp-totals-row--total.dp-totals-row--tap:active {
+  background: var(--surface);
 }
 
 /* Locked footer + Pro upsell */
