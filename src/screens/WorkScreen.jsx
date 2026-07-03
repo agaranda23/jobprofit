@@ -48,6 +48,7 @@ import { hasVisitDate } from '../lib/visits';
 import { deleteJobWithData } from '../lib/store';
 import { buildDeleteJobCopy } from '../lib/deleteJobCopy';
 import { shouldShowPartPaidChip, formatPartPaidLabel } from '../lib/partPaidChip';
+import { countSampleJobs } from '../lib/sampleData';
 // JP-LU5 PR1: sortJobsByColumn, daysInStage removed from WorkScreen import —
 // call sites in JobsTable deleted. Both are still exported from lib/jobSort.js.
 import { jobMatchesQuery, sortJobsByStage, sortJobsForAllView, firstLineOfAddress } from '../lib/jobSort';
@@ -1158,7 +1159,7 @@ function JobsList({ jobs, _receipts, selectedStage, showAll, searchQuery, _profi
 
 // JP-LU5 PR1: pendingWorkView and onPendingWorkViewConsumed removed from props —
 // calendar subview gone. AppShell's handleSeeTheWeek now plain navigate('work').
-export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJob, onAddPayment, onUpdateJob, onDeleteJob, onAddReceipt, onDeleteReceipt, onUpdateReceipt, biz, profile, initialJobId, onNavigateToCardPayments, onProfileUpdate, materials, defaultMarkup, onBrowseMaterials, onMaterialSaved, onOverlayChange }) {
+export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJob, onAddPayment, onUpdateJob, onDeleteJob, onAddReceipt, onDeleteReceipt, onUpdateReceipt, biz, profile, initialJobId, onNavigateToCardPayments, onProfileUpdate, materials, defaultMarkup, onBrowseMaterials, onMaterialSaved, onOverlayChange, onClearSampleData }) {
   const [selectedStage, setSelectedStage] = useState(() => getPersistedFilter().selectedStage);
   const [showAll, setShowAll] = useState(() => getPersistedFilter().showAll);
   // 1B: client-side search — pure JS filter, works offline
@@ -1387,6 +1388,25 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
   const showToast = (msg) => {
     setToast(msg);
     setTimeout(() => setToast(''), 2400);
+  };
+
+  // ── Sample data banner ─────────────────────────────────────────────────────
+  // Subtle "Sample data · Clear" strip so a demo/screenshot session is never
+  // mistaken for real work — visible for as long as any sample-tagged job
+  // is loaded (see src/lib/sampleData.js for the tagging + cascade-clear design).
+  const sampleJobCount = countSampleJobs(jobs);
+  const [clearingSample, setClearingSample] = useState(false);
+  const handleClearSampleBanner = async () => {
+    if (clearingSample || !onClearSampleData) return;
+    setClearingSample(true);
+    try {
+      await onClearSampleData();
+      showToast('Sample data cleared');
+    } catch {
+      showToast('Could not clear sample data — try again');
+    } finally {
+      setClearingSample(false);
+    }
   };
 
   const handleSelectStage = (stage) => {
@@ -1639,6 +1659,23 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
           </button>
         </div>
       </div>
+
+      {/* Sample data banner — persists while any sample-tagged job is loaded */}
+      {sampleJobCount > 0 && (
+        <div className="sample-data-banner" role="status">
+          <span className="sample-data-banner-label">
+            Sample data &middot; {sampleJobCount} job{sampleJobCount === 1 ? '' : 's'}
+          </span>
+          <button
+            type="button"
+            className="sample-data-banner-clear"
+            onClick={handleClearSampleBanner}
+            disabled={clearingSample}
+          >
+            {clearingSample ? 'Clearing…' : 'Clear'}
+          </button>
+        </div>
+      )}
 
       {/* Chase bar — Design A: one-invoice focus with tier-priority queue.
            Four mutually exclusive states (evaluated top-down):

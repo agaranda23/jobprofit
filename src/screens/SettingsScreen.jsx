@@ -61,6 +61,7 @@ import { openBillingPortal } from '../lib/billing.js';
 import OhnarWordmark from '../components/OhnarWordmark.jsx';
 import { isValidStripePaymentLink } from '../lib/bizValidation.js';
 import { addJobToCloud } from '../lib/store.js';
+import { countSampleJobs } from '../lib/sampleData.js';
 import { buildJobsCsv, buildEverythingCsv, downloadOrShareCsv } from '../lib/exportCsv.js';
 import { buildJobsPdf } from '../lib/exportPdf.js';
 import { buildJobsXlsx } from '../lib/exportXlsx.js';
@@ -1765,6 +1766,8 @@ export default function SettingsScreen({
   onOpenJob,
   onNavigateToCardPayments,
   onBrowseMaterials,
+  onLoadSampleData,
+  onClearSampleData,
   // scrollTarget: 'overheads' | 'invoices' | null — from AppShell.
   //   'overheads' → navigates to Settings > Costs sub-screen (from FinanceScreen nudge).
   //   'invoices'  → navigates to Settings > Invoices & Quotes sub-screen (from PostPaidSheet review nudge).
@@ -2035,6 +2038,39 @@ export default function SettingsScreen({
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     setSaveToast(msg);
     toastTimerRef.current = setTimeout(() => setSaveToast(''), 2500);
+  };
+
+  // ── Sample data (demo seed) ────────────────────────────────────────────────
+  // sampleJobCount drives which of the two rows (Load / Clear) is shown —
+  // recomputed from the live `jobs` prop, not local state, so it stays correct
+  // after the parent's refreshFromCloud() runs post-seed/post-clear.
+  const sampleJobCount = countSampleJobs(Array.isArray(jobs) ? jobs : []);
+  const [sampleBusy, setSampleBusy] = useState(false);
+
+  const handleLoadSampleData = async () => {
+    if (sampleBusy || !onLoadSampleData) return;
+    setSampleBusy(true);
+    try {
+      await onLoadSampleData();
+      showSavedToast('Sample day loaded');
+    } catch {
+      showSavedToast('Could not load sample data — try again');
+    } finally {
+      setSampleBusy(false);
+    }
+  };
+
+  const handleClearSampleData = async () => {
+    if (sampleBusy || !onClearSampleData) return;
+    setSampleBusy(true);
+    try {
+      await onClearSampleData();
+      showSavedToast('Sample data cleared');
+    } catch {
+      showSavedToast('Could not clear sample data — try again');
+    } finally {
+      setSampleBusy(false);
+    }
   };
 
   const handleShare = async () => {
@@ -2837,6 +2873,19 @@ export default function SettingsScreen({
             onTap={() => setShowImportSheet(true)}
             chevron
           />
+          {sampleJobCount > 0 ? (
+            <Row
+              label="Clear sample data"
+              value={sampleBusy ? 'Clearing…' : `${sampleJobCount} sample job${sampleJobCount === 1 ? '' : 's'} loaded`}
+              onTap={sampleBusy ? undefined : handleClearSampleData}
+            />
+          ) : (
+            <Row
+              label="Load sample data"
+              value={sampleBusy ? 'Loading…' : 'See a demo day'}
+              onTap={sampleBusy ? undefined : handleLoadSampleData}
+            />
+          )}
           <Row
             label="Export records"
             value={exporting ? 'Preparing…' : 'Choose format'}
