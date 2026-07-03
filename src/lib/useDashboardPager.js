@@ -2,7 +2,11 @@
  * useDashboardPager — horizontal swipe pager hook for the 3 dashboard views.
  *
  * Gesture rules:
- *   - Activates only when |dx| > |dy| AND |dx| > LOCK_THRESHOLD (dominantly horizontal)
+ *   - Direction lock is biased toward VERTICAL: horizontal only wins once one axis
+ *     crosses LOCK_THRESHOLD AND |dx| clearly dominates |dy| (by H_LOCK_RATIO).
+ *     A vertical scroll that starts with a small horizontal wobble (the classic
+ *     "|dx| ticks past 10px a frame before |dy|" case) must lock VERTICAL, not
+ *     horizontal — see H_LOCK_RATIO below.
  *   - Ignores swipes starting within LEFT_EDGE_GUARD px of the left edge (iOS back gesture)
  *   - Rubber-band resistance at first/last page
  *   - Velocity threshold FLICK_VX advances a page even on short drag distance
@@ -33,6 +37,11 @@
 import { useRef, useCallback, useEffect } from 'react';
 
 const LOCK_THRESHOLD  = 10;    // px — before we commit to a direction
+const H_LOCK_RATIO    = 1.5;   // |dx| must beat |dy| by this multiple to lock horizontal.
+                                // Vertical scrolling is the primary gesture and a deliberate
+                                // tab-swipe is always clearly horizontal, so biasing this hard
+                                // toward vertical costs nothing on real swipes while protecting
+                                // real scrolls that start with a small horizontal wobble.
 const SNAP_THRESHOLD  = 0.25;  // fraction of page width needed to advance (responsive)
 const FLICK_VX        = 0.4;   // px/ms velocity threshold for a flick
 const LEFT_EDGE_GUARD = 20;    // px reserved for iOS system back gesture
@@ -266,7 +275,15 @@ export function useDashboardPager({ pageCount, pageIndex, onPageChange, locked }
 
     if (dirLock.current === null) {
       if (absDx < LOCK_THRESHOLD && absDy < LOCK_THRESHOLD) return;
-      dirLock.current = absDx > absDy;
+      // Bias hard toward vertical: only commit to horizontal when |dx| clearly
+      // dominates |dy|. A real vertical scroll can start with a frame or two
+      // where |dx| ticks past LOCK_THRESHOLD a hair before |dy| does (hand
+      // pivot / finger curve) — without the ratio gate that instant reads as
+      // "horizontal" (absDx > absDy) and permanently locks the wrong axis for
+      // the rest of the gesture, since preventDefault() then kills the scroll.
+      // Requiring dominance means an ambiguous/diagonal start always resolves
+      // to vertical, which is the safe default (undecided → let the browser scroll).
+      dirLock.current = absDx >= LOCK_THRESHOLD && absDx > absDy * H_LOCK_RATIO;
       // Anchor the drag at the lock point so the page starts following from 0
       // rather than jumping by the ~10px threshold (premium 1:1 finger feel).
       if (dirLock.current) lockDx.current = dx;
@@ -388,6 +405,23 @@ export function useDashboardPager({ pageCount, pageIndex, onPageChange, locked }
     }
   }, [pageCount, onPageChange]);
 
+  // ─── onTouchCancel: browser/OS took the gesture away without a touchend ──────
+  // iOS can fire `touchcancel` instead of `touchend` (e.g. Control Center edge
+  // swipe, an incoming-call/notification interrupt, or the browser itself
+  // reclaiming the gesture). Without handling it, `t0`/`dirLock`/`dragging`
+  // stay set and the track can be left stranded mid-drag — transform applied,
+  // never settled — which shows up as an adjacent page peeking in from the
+  // side and taps landing on the wrong element, fixed only by a refresh.
+  // Always resolve to a safe settle: no page change, just snap back to
+  // wherever we're actually settled and clear all gesture state.
+  const onTouchCancel = useCallback(() => {
+    if (!t0.current) return;
+    t0.current       = null;
+    dirLock.current  = null;
+    dragging.current = false;
+    settleAt(trackRef.current, settledIdx.current);
+  }, []);
+
   // ── Non-passive native touchmove listener ────────────────────────────────
   // React 19 attaches synthetic onTouchMove as passive, so e.preventDefault()
   // inside the React handler is a no-op and the browser ignores it. We attach a
@@ -424,6 +458,7 @@ export function useDashboardPager({ pageCount, pageIndex, onPageChange, locked }
     onTouchStart,
     onTouchMove,
     onTouchEnd,
+    onTouchCancel,
     jumpTo,
   };
 }

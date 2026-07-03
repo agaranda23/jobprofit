@@ -17,6 +17,10 @@
  *   - `locked` prop disables gesture entirely
  *   - body.overlay-open class disables gesture
  *   - onTouchEnd with no prior start is a no-op
+ *   - Direction lock is biased toward vertical: a mostly-vertical drag with a
+ *     small horizontal wobble must not lock horizontal / must not preventDefault
+ *   - A clearly-horizontal drag still locks horizontal, preventDefaults, and pages
+ *   - onTouchCancel resets gesture state and settles the track (stuck-state fix)
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -228,6 +232,99 @@ describe('useDashboardPager', () => {
 
     // Start very close to left edge
     swipe(hook, { startX: 15, startY: 200, endX: 200, endY: 200 });
+
+    expect(onPageChange).not.toHaveBeenCalled();
+  });
+
+  it('does NOT lock horizontal (and does NOT preventDefault) on a mostly-vertical drag with a small horizontal wobble', () => {
+    // Regression test for the "intermittent dead scroll" bug: a real vertical
+    // scroll's opening frames can have |dx| tick past LOCK_THRESHOLD a hair
+    // before |dy| does (hand pivot / finger curve). The OLD lock (absDx > absDy)
+    // would wrongly commit to horizontal here (11 > 9) and then preventDefault()
+    // for the rest of the gesture, killing the scroll. The fix requires |dx| to
+    // beat |dy| by H_LOCK_RATIO (1.5x) before locking horizontal, so this wobble
+    // must resolve to vertical instead.
+    const hook = setupHook({ pageIndex: 0 });
+    const { onTouchStart, onTouchMove, onTouchEnd } = hook.result.current;
+
+    act(() => { onTouchStart(touchEvent([makeTouch(200, 100)])); });
+
+    // dx=11, dy=9 — crosses LOCK_THRESHOLD on dx first, but not by a dominant margin.
+    const move1 = touchEvent([makeTouch(211, 109)]);
+    act(() => { onTouchMove(move1); });
+    expect(move1.preventDefault).not.toHaveBeenCalled();
+
+    // Gesture continues as an obvious vertical scroll — the lock must hold
+    // vertical for the rest of the drag (it's decided once, not re-evaluated).
+    const move2 = touchEvent([makeTouch(215, 260)]);
+    act(() => { onTouchMove(move2); });
+    expect(move2.preventDefault).not.toHaveBeenCalled();
+
+    act(() => { onTouchEnd({ changedTouches: [makeTouch(215, 260)] }); });
+
+    expect(onPageChange).not.toHaveBeenCalled();
+  });
+
+  it('locks horizontal, preventDefaults, and pages on a clearly-horizontal drag', () => {
+    // Sanity check that biasing toward vertical hasn't broken deliberate tab-swipes:
+    // a real horizontal swipe has |dx| dominate |dy| by a wide margin from the first frame.
+    const hook = setupHook({ pageIndex: 0 });
+    const { onTouchStart, onTouchMove, onTouchEnd } = hook.result.current;
+
+    act(() => { onTouchStart(touchEvent([makeTouch(300, 200)])); });
+
+    // dx=15, dy=3 — dx clearly dominates (15 > 3 * 1.5).
+    const move1 = touchEvent([makeTouch(285, 203)]);
+    act(() => { onTouchMove(move1); });
+    expect(move1.preventDefault).toHaveBeenCalled();
+
+    const move2 = touchEvent([makeTouch(150, 205)]);
+    act(() => { onTouchMove(move2); });
+    expect(move2.preventDefault).toHaveBeenCalled();
+
+    act(() => { onTouchEnd({ changedTouches: [makeTouch(150, 205)] }); });
+
+    expect(onPageChange).toHaveBeenCalledWith(1);
+  });
+
+  it('onTouchCancel resets gesture state and settles the track (stuck-state fix)', () => {
+    // iOS can fire touchcancel instead of touchend (Control Center swipe, an
+    // interrupt, the browser reclaiming the gesture). Before this fix there was
+    // no handler at all, so a mid-drag transform could be left stranded on the
+    // track until the user's next touch — the "adjacent page peeks in" /
+    // "needs a refresh" symptom.
+    const hook = setupHook({ pageIndex: 0 });
+    const { onTouchStart, onTouchMove, onTouchCancel, onTouchEnd } = hook.result.current;
+
+    act(() => { onTouchStart(touchEvent([makeTouch(300, 200)])); });
+    act(() => { onTouchMove(touchEvent([makeTouch(200, 200)])); }); // locks horizontal, mid-drag
+
+    expect(track.style.transform).toContain('translateX');
+
+    act(() => { onTouchCancel(); });
+
+    // Track must be settled (no stray drag transform left behind) at the
+    // still-current page, and no page change should have fired.
+    expect(track.style.left).toBe('0%');
+    expect(onPageChange).not.toHaveBeenCalled();
+
+    // A fresh gesture right after the cancel must behave normally — proves
+    // dirLock/t0/dragging weren't left stuck from the cancelled gesture.
+    act(() => { onTouchStart(touchEvent([makeTouch(300, 200)])); });
+    const move = touchEvent([makeTouch(150, 200)]);
+    act(() => { onTouchMove(move); });
+    expect(move.preventDefault).toHaveBeenCalled();
+    act(() => { onTouchEnd({ changedTouches: [makeTouch(150, 200)] }); });
+    expect(onPageChange).toHaveBeenCalledWith(1);
+  });
+
+  it('onTouchCancel with no active gesture is a no-op', () => {
+    const hook = setupHook({ pageIndex: 0 });
+    const { onTouchCancel } = hook.result.current;
+
+    expect(() => {
+      act(() => { onTouchCancel(); });
+    }).not.toThrow();
 
     expect(onPageChange).not.toHaveBeenCalled();
   });
