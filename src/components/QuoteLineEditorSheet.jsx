@@ -23,8 +23,13 @@ export default function QuoteLineEditorSheet({ open, item, onSave, onDelete, onC
   const [desc, setDesc] = useState('');
   const [cost, setCost] = useState('');
 
+  // Resets the local form fields whenever the sheet opens targeting a
+  // (possibly different) item — pre-existing pattern, unchanged from before
+  // this component was extracted from JobDetailDrawer.jsx. Intentional: this
+  // is a one-shot reset gated on `open`, not a render-loop risk.
   useEffect(() => {
     if (open) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setDesc(item?.desc || '');
       // Present empty (not '0') when cost is 0 so the user does not have to
       // clear the field — matches the EditFieldModal pattern for needsPrice jobs.

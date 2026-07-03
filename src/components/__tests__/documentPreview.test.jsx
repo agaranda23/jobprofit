@@ -417,7 +417,6 @@ describe('DocumentPreview — clicks never bubble past the card', () => {
   it('a click anywhere inside the card is stopped from reaching an ancestor listener', () => {
     const outerClick = vi.fn();
     render(
-      // eslint-disable-next-line jsx-a11y/no-static-element-interactions, jsx-a11y/click-events-have-key-events
       <div onClick={outerClick}>
         <DocumentPreview mode="quote" job={makeJob()} biz={BIZ} profile={{ plan: 'free' }} flash={NOOP} />
       </div>
