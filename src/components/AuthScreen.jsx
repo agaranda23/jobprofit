@@ -123,10 +123,10 @@ export default function AuthScreen() {
         <h1 className="auth-title">
           <OhnarWordmark size="clamp(2rem, 10vw, 2.75rem)" />
         </h1>
-        <p className="auth-eyebrow">The number your invoice doesn't show you</p>
-        <p className="auth-hero">Know what you actually made. Every job, every time.</p>
+        <p className="auth-eyebrow">Not another app to figure out.</p>
+        <p className="auth-hero">Run your trade business from your phone.</p>
         <p className="auth-subhead">
-          Quote it, send it, get paid — from the van. Then watch the real profit land, not just the invoice total. No app store. No lead fees. No one clipping your ticket.
+          Quote jobs, send invoices, track payments and see your real profit — in minutes, not hours.
         </p>
 
         <div className="auth-loop" aria-label="Quote, Signed, Invoiced, Paid">
@@ -139,13 +139,15 @@ export default function AuthScreen() {
           <span className="auth-loop-chip auth-loop-chip--4">Paid</span>
         </div>
 
-        <ul className="auth-benefits">
-          <li>See the real profit on every job — after materials, fuel and tax, not before.</li>
-          <li>Quote it, send it, get paid, from the van — before the kettle's even boiled.</li>
-          <li>Your tool, not a lead directory's — no lead fees, no commission, no middleman.</li>
-        </ul>
+        <p className="auth-features">Quote in seconds · Send invoices · Get paid · See your real profit</p>
+        <p className="auth-profit-strip">
+          See what you actually made — after materials, fuel and tax. No lead fees, no commission, nobody clipping your ticket.
+        </p>
 
-        <p className="auth-trust">£12/mo flat. Tradify charges £34. Free trial, no card. No app store — it just opens.</p>
+        <p className="auth-cta-line">Start free — no card needed</p>
+        <p className="auth-cta-subline">£12/mo flat once you're set up. No card to start.</p>
+
+        <p className="auth-trust">Built with feedback from UK builders, electricians, gardeners, cleaners &amp; sole traders.</p>
       </div>
 
       {!sent ? (

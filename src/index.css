@@ -2955,7 +2955,7 @@ body {
   display: flex;
   justify-content: center;
 }
-/* Eyebrow — small line above the headline, sets the profit-led premise */
+/* Eyebrow — small line above the headline, sets the clarity-led premise */
 .auth-eyebrow {
   font-size: var(--fs-label);
   font-weight: 600;
@@ -2971,7 +2971,7 @@ body {
   line-height: 1.25;
   margin: 0 0 10px;
 }
-/* Subhead — restates the get-paid loop under the profit-led headline */
+/* Subhead — spells out the get-paid loop in plain terms under the headline */
 .auth-subhead {
   font-size: var(--fs-label);
   font-weight: 500;
@@ -3043,38 +3043,41 @@ body {
     .auth-loop-chip--4 { animation: auth-chip-pulse-paid-light 4s ease-in-out infinite 3s; }
   }
 }
-.auth-benefits {
-  list-style: none;
-  padding: 0;
-  margin: 22px 0 0;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-  text-align: left;
-}
-.auth-benefits li {
-  position: relative;
-  padding-left: 26px;
-  color: var(--text);
+/* Plain feature strip — dot-separated loop features under the animated chips */
+.auth-features {
   font-size: var(--fs-label);
-  line-height: 1.4;
   font-weight: 600;
+  color: var(--text);
+  text-align: center;
+  line-height: 1.5;
+  margin: 22px 0 0;
 }
-.auth-benefits li::before {
-  content: "";
-  position: absolute;
-  left: 0;
-  top: 4px;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: var(--accent);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 12'%3E%3Cpath d='M2.5 6.2l2.5 2.3 4.5-5' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: center;
-  background-size: 12px 12px;
+/* Profit/independence strip — secondary line preserving the profit differentiator */
+.auth-profit-strip {
+  font-size: var(--fs-label);
+  font-weight: 500;
+  color: var(--text-dim);
+  text-align: center;
+  line-height: 1.45;
+  margin: 8px 0 0;
 }
-/* Price/trust line */
+/* Primary CTA line — visual emphasis above the actual sign-in actions below */
+.auth-cta-line {
+  font-size: var(--fs-body);
+  font-weight: 700;
+  color: var(--accent);
+  text-align: center;
+  margin: 20px 0 0;
+}
+/* CTA sub-line — the £12/mo value cue under the primary CTA */
+.auth-cta-subline {
+  font-size: var(--fs-label);
+  font-weight: 500;
+  color: var(--text-dim);
+  text-align: center;
+  margin: 4px 0 0;
+}
+/* Trust line */
 .auth-trust {
   font-size: var(--fs-label);
   color: var(--text-dim);
