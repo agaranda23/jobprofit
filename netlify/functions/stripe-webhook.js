@@ -17,6 +17,22 @@
  * All other events return 200 immediately (ignored, not an error).
  * The handler is idempotent — safe on duplicate Stripe deliveries.
  *
+ * ── Card-free trial (create-checkout.js default path) ────────────────────────
+ * checkout.session.completed fires as soon as Checkout finishes, whether or not
+ * a card was collected — a trialing subscription (no card, trial_period_days:14)
+ * completes the session just like a paid one. This handler sets plan='pro'
+ * unconditionally here, so a trialing user is already treated as Pro from the
+ * moment they tap "Start trial" — correct, since isPro() in src/lib/plan.js
+ * gates on profiles.plan only, never on subscription_status.
+ * subscription_status is set to 'active' here as an optimistic default (we don't
+ * fetch the live Stripe status, which would really read 'trialing') — this is
+ * harmless because nothing in the app reads subscription_status for entitlement,
+ * only plan. If Stripe auto-cancels the subscription at day 14 because no
+ * payment method was ever added (trial_settings.end_behavior.missing_payment_method:
+ * 'cancel'), it fires customer.subscription.deleted like any other cancellation
+ * — the case below already flips plan='free' and clears the subscription id, so
+ * the user drops back to free with no separate handling needed.
+ *
  * Required env vars (set in Netlify dashboard):
  *   STRIPE_SECRET_KEY        — Stripe secret key
  *   STRIPE_WEBHOOK_SECRET    — Stripe dashboard → Webhooks → endpoint → Signing secret (whsec_...)

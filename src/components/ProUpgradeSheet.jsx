@@ -339,7 +339,7 @@ export default function ProUpgradeSheet({
 
             {/* 7. Footer */}
             <p className="pro-upgrade-sheet__footer">
-              £12/month after trial. Cancel anytime in Settings.
+              After 14 days, add a card to stay on Pro (£12/mo) — or you'll simply drop back to free. No card, no auto-charge until you choose.
             </p>
           </>
         )}
