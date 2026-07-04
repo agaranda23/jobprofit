@@ -59,7 +59,7 @@ import { formatChargeDate, shouldShowPreChargeReminder } from './lib/trialConver
 import { shouldShowProReveal, markProRevealSeen } from './lib/proReveal';
 import { getJobProfit } from './lib/cashflow';
 import { enqueueJob, wireOnlineSync, runSync } from './lib/offlineQueue';
-import { logTelemetry, identifyUser, getLastUpgradeTrigger } from './lib/telemetry';
+import { logTelemetry, identifyUser, getLastUpgradeTrigger, UPGRADE_TRIGGERS } from './lib/telemetry';
 import posthog from 'posthog-js';
 import SyncBadge from './components/SyncBadge';
 import ConsentBanner from './components/ConsentBanner.jsx';
@@ -79,7 +79,9 @@ import AddMaterialModal from './components/AddMaterialModal';
 import { buildJobsCsv, downloadOrShareCsv, downloadOrShare } from './lib/exportCsv';
 import { buildJobsPdf } from './lib/exportPdf.js';
 import { buildJobsXlsx } from './lib/exportXlsx.js';
+import { buildAccountantExportFiles, buildAccountantExportZipBlob } from './lib/accountantExport.js';
 import ExportFormatSheet from './components/ExportFormatSheet.jsx';
+import AccountantExportRangeSheet from './components/AccountantExportRangeSheet.jsx';
 import AppErrorBoundary from './components/AppErrorBoundary.jsx';
 import Splash from './components/Splash.jsx';
 import DashboardPager from './components/DashboardPager.jsx';
@@ -1288,6 +1290,18 @@ export default function AppShell() {
   const [moneyExportSheetOpen, setMoneyExportSheetOpen] = useState(false);
   const [moneyExporting, setMoneyExporting] = useState(false);
 
+  // ── Accountant-ready export (Xero / QuickBooks) ─────────────────────────
+  // Smarter-export-only: no OAuth, no API connection, no sync — just correctly
+  // shaped CSV files zipped for a one-go accountant import. UNLIKE the plain
+  // CSV/XLSX/PDF formats above (kept FREE for the GDPR data-portability
+  // promise), these two are Pro-gated: they're a bookkeeping value-add, not a
+  // basic data export, so they follow the same Insight Layer seam as the rest
+  // of the Money tab's Pro features.
+  const [accountantExportPlatform, setAccountantExportPlatform] = useState(null); // 'xero' | 'quickbooks'
+  const [accountantExportSheetOpen, setAccountantExportSheetOpen] = useState(false);
+  const [accountantExportUpgradeOpen, setAccountantExportUpgradeOpen] = useState(false);
+  const [accountantExporting, setAccountantExporting] = useState(false);
+
   const handleExportFromMoney = useCallback(() => {
     const safeJobs = Array.isArray(jobs) ? jobs : [];
     if (safeJobs.length === 0) return; // FinanceScreen disables the button in this case
@@ -1296,6 +1310,17 @@ export default function AppShell() {
 
   const handleMoneyExportFormatPick = useCallback(async (format) => {
     setMoneyExportSheetOpen(false);
+
+    if (format === 'xero' || format === 'quickbooks') {
+      if (!isPro(profile)) {
+        setAccountantExportUpgradeOpen(true);
+      } else {
+        setAccountantExportPlatform(format);
+        setAccountantExportSheetOpen(true);
+      }
+      return;
+    }
+
     if (moneyExporting) return;
     const safeJobs     = Array.isArray(jobs)     ? jobs     : [];
     const safeReceipts = Array.isArray(receipts) ? receipts : [];
@@ -1328,6 +1353,39 @@ export default function AppShell() {
       setMoneyExporting(false);
     }
   }, [jobs, receipts, profile, moneyExporting]);
+
+  const handleAccountantExportGenerate = useCallback(async (period, customStart, customEnd) => {
+    if (accountantExporting || !accountantExportPlatform) return;
+    const safeJobs     = Array.isArray(jobs)     ? jobs     : [];
+    const safeReceipts = Array.isArray(receipts) ? receipts : [];
+    // Canonical VAT-registered check — mirrors FinanceScreen's isVatRegistered
+    // (biz is always null in AppShell; profile.vat_number/.vat_registered are
+    // the live fields since the slice-3 nav migration).
+    const isVatRegisteredForExport = !!(profile?.vat_number) || !!(profile?.vat_registered);
+
+    setAccountantExporting(true);
+    try {
+      const { files, zipFilename } = buildAccountantExportFiles({
+        platform: accountantExportPlatform,
+        jobs: safeJobs,
+        receipts: safeReceipts,
+        profile,
+        isVatRegistered: isVatRegisteredForExport,
+        period,
+        customStart,
+        customEnd,
+      });
+      const blob = await buildAccountantExportZipBlob(files);
+      await downloadOrShare(blob, zipFilename, 'application/zip');
+      setAccountantExportSheetOpen(false);
+      setAccountantExportPlatform(null);
+    } catch {
+      // Non-critical: the user can try again — mirrors the Money-export pattern above.
+      console.warn('Accountant export (Xero/QuickBooks) failed');
+    } finally {
+      setAccountantExporting(false);
+    }
+  }, [jobs, receipts, profile, accountantExportPlatform, accountantExporting]);
 
   const openDetailed = () => {
     // Profile-completeness gate removed (feat/zero-friction-entry, 2026-06-02).
@@ -1784,9 +1842,41 @@ export default function AppShell() {
             label: 'PDF summary',
             sublabel: 'A clean sheet you can send',
           },
+          {
+            id: 'xero',
+            icon: 'external-link',
+            label: 'Xero-ready file',
+            sublabel: 'Sales invoices + bills, ready to import',
+            locked: !isPro(profile),
+          },
+          {
+            id: 'quickbooks',
+            icon: 'external-link',
+            label: 'QuickBooks-ready file',
+            sublabel: 'Invoices + expenses, ready to import',
+            locked: !isPro(profile),
+          },
         ]}
         onPick={handleMoneyExportFormatPick}
         onClose={() => setMoneyExportSheetOpen(false)}
+      />
+
+      {/* ── Money tab — Xero/QuickBooks period picker (Pro only) ─────────────── */}
+      <AccountantExportRangeSheet
+        open={accountantExportSheetOpen}
+        platform={accountantExportPlatform}
+        generating={accountantExporting}
+        onGenerate={handleAccountantExportGenerate}
+        onClose={() => { setAccountantExportSheetOpen(false); setAccountantExportPlatform(null); }}
+      />
+
+      {/* ── Locked Xero/QuickBooks tile tapped by a non-Pro user ─────────────── */}
+      <ProUpgradeSheet
+        open={accountantExportUpgradeOpen}
+        trigger={UPGRADE_TRIGGERS.ACCOUNTANT_EXPORT}
+        profile={profile}
+        jobs={jobs}
+        onClose={() => setAccountantExportUpgradeOpen(false)}
       />
 
       {/* ── Paid celebration overlay (shared across all mark-paid entry points) ── */}

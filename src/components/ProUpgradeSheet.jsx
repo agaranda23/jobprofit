@@ -12,6 +12,7 @@
  *   - White-label nudge in SendInvoiceModal              → trigger='whitelabel_footer'
  *   - Auto-chase locked row in Settings                  → trigger='auto_chase_locked'
  *   - Day-14 trial-end trigger (AppShell)                → trigger='trial_end', variant='trial_end'
+ *   - Locked Xero/QuickBooks export tile (AppShell)      → trigger='accountant_export'
  *   - "You've got Pro" reveal (AppShell, once per device) → trigger='pro_reveal', variant='pro_reveal'
  *
  * The sheet fires upgrade_sheet_viewed on open (with trigger) and

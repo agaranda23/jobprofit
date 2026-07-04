@@ -61,6 +61,7 @@ export const UPGRADE_TRIGGERS = /** @type {const} */ ({
   // Trial-end conversion events (Moment 1 + Moment 2)
   TRIAL_END:          'trial_end',       // Moment-1 sheet (Day 14)
   DROP_TO_FREE:       'drop_to_free',    // Moment-2 full-screen
+  ACCOUNTANT_EXPORT:  'accountant_export', // Xero/QuickBooks export locked tile (Money tab)
   // "You've got Pro" reveal — one-time comprehension fix, not a checkout trigger
   // (see ProUpgradeSheet variant="pro_reveal" — fires pro_reveal_viewed/dismissed
   // instead of the usual upgrade_sheet_viewed/checkout_started pair).

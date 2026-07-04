@@ -19436,6 +19436,80 @@ button.dp-totals-row--total.dp-totals-row--tap:active {
   flex-shrink: 0;
 }
 
+.export-format-sheet__option--locked {
+  opacity: 0.72;
+}
+
+.export-format-sheet__option-lock {
+  display: flex;
+  align-items: center;
+  color: var(--text-dim);
+  flex-shrink: 0;
+}
+
+.export-format-sheet__option-badge {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 7px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: var(--gold, #d4a017);
+  background: rgba(212, 160, 23, 0.12);
+  border: 1px solid rgba(212, 160, 23, 0.35);
+  border-radius: 999px;
+  vertical-align: middle;
+}
+
+.export-format-sheet__custom-range {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 14px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  margin-top: -2px;
+}
+
+.export-format-sheet__custom-field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: var(--fs-body);
+  color: var(--text);
+}
+
+.export-format-sheet__custom-field input[type="date"] {
+  flex: 1;
+  max-width: 170px;
+  padding: 8px 10px;
+  font-size: var(--fs-body);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 10px);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.export-format-sheet__custom-generate {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px;
+  background: var(--text);
+  color: var(--surface);
+  border: none;
+  border-radius: var(--radius-lg);
+  font-size: var(--fs-body);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.export-format-sheet__custom-generate:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .export-format-sheet__cancel {
   width: 100%;
   padding: 14px;
