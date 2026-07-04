@@ -8,7 +8,11 @@
  *   A. Signature failure → 400
  *   B. Missing env vars → 500
  *   C. checkout.session.completed → plan='pro', stripe ids saved
+ *      (including a card-free trialing subscription — see C.trialing test)
  *   D. customer.subscription.deleted → plan='free', ids cleared
+ *      (covers BOTH a deliberate cancel AND Stripe's automatic trial-end
+ *      cancellation when no payment method was ever added — Stripe fires the
+ *      same event either way, so one handler covers both)
  *   E. customer.subscription.updated → subscription_status synced
  *   F. invoice.payment_failed → subscription_status='past_due'
  *   G. invoice.payment_succeeded → subscription_status='active'
@@ -191,6 +195,42 @@ describe('C. checkout.session.completed → plan=pro', () => {
     const res = await handler(makeEvent());
     expect(res.statusCode).toBe(200);
   });
+
+  // ── Card-free trial: checkout.session.completed fires the same whether or
+  // not a card was collected — a trialing subscription completes the Checkout
+  // Session just like a paid one. Pro must be granted immediately either way,
+  // since isPro() (src/lib/plan.js) gates on profiles.plan, not on Stripe's
+  // subscription status.
+  it('grants plan=pro even when the session has no payment method (card-free trial)', async () => {
+    mockConstructEvent = vi.fn(() => ({
+      type: 'checkout.session.completed',
+      data: {
+        object: {
+          id: 'cs_trial_no_card',
+          customer: FAKE_CUSTOMER,
+          subscription: FAKE_SUB_ID,
+          metadata: { user_id: FAKE_USER_ID, coupon_mode: 'default' },
+          client_reference_id: FAKE_USER_ID,
+          // No payment_method / setup_intent on the session — nothing was collected.
+        },
+      },
+    }));
+
+    let capturedUpdate = null;
+    mockUpdate = vi.fn((payload) => {
+      capturedUpdate = payload;
+      return { eq: vi.fn(async () => ({ error: null })) };
+    });
+
+    const handler = await getHandler();
+    const res = await handler(makeEvent());
+
+    expect(res.statusCode).toBe(200);
+    if (capturedUpdate) {
+      expect(capturedUpdate.plan).toBe('pro');
+      expect(capturedUpdate.stripe_subscription_id).toBe(FAKE_SUB_ID);
+    }
+  });
 });
 
 // ─── D. customer.subscription.deleted ────────────────────────────────────────
@@ -219,6 +259,40 @@ describe('D. customer.subscription.deleted → plan=free', () => {
       expect(capturedUpdate.plan).toBe('free');
       expect(capturedUpdate.stripe_subscription_id).toBeNull();
       expect(capturedUpdate.subscription_status).toBe('canceled');
+    }
+  });
+
+  // Same event, different cause: Stripe fires customer.subscription.deleted
+  // when trial_settings.end_behavior.missing_payment_method:'cancel' auto-cancels
+  // an unpaid trial at day 14, exactly as it does for a manual cancellation.
+  // cancellation_details.reason lets Stripe tell the two apart, but the app
+  // doesn't need to — either way the correct outcome is plan=free, no charge.
+  it('also fires (and is handled identically) when Stripe auto-cancels a card-free trial at day 14', async () => {
+    mockConstructEvent = vi.fn(() => ({
+      type: 'customer.subscription.deleted',
+      data: {
+        object: {
+          id: FAKE_SUB_ID,
+          customer: FAKE_CUSTOMER,
+          status: 'canceled',
+          cancellation_details: { reason: 'payment_method_missing_at_trial_end' },
+        },
+      },
+    }));
+
+    let capturedUpdate = null;
+    mockUpdate = vi.fn((payload) => {
+      capturedUpdate = payload;
+      return { eq: vi.fn(async () => ({ error: null })) };
+    });
+
+    const handler = await getHandler();
+    const res = await handler(makeEvent());
+
+    expect(res.statusCode).toBe(200);
+    if (capturedUpdate) {
+      expect(capturedUpdate.plan).toBe('free');
+      expect(capturedUpdate.stripe_subscription_id).toBeNull();
     }
   });
 });

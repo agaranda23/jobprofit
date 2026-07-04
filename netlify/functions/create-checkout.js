@@ -6,7 +6,21 @@
  * Authorization header and verified server-side. The user id is NEVER trusted
  * from the request body.
  *
- * POST (no body required — auth token carries the identity)
+ * POST body: { coupon_mode?: 'trial_extension' | 'none' } — see coupon_mode below.
+ *
+ * Three checkout shapes, selected by body.coupon_mode:
+ *   (absent)           — DEFAULT: genuinely card-free 14-day trial
+ *                         (payment_method_collection: 'if_required' +
+ *                         subscription_data.trial_period_days: 14 +
+ *                         trial_settings.end_behavior.missing_payment_method:
+ *                         'cancel'). No card asked; if none is added by day 14,
+ *                         Stripe cancels the subscription and the webhook drops
+ *                         the user back to plan='free' — never a surprise charge.
+ *   'trial_extension'  — Moment-1 "add a card, keep Pro free another month":
+ *                         deliberately collects a card + applies the
+ *                         STRIPE_TRIAL_EXTENSION_COUPON_ID coupon.
+ *   'none'             — Moment-2 "charge me now": deliberately collects a card,
+ *                         no trial, billed immediately.
  *
  * Required env vars (set in Netlify dashboard):
  *   STRIPE_SECRET_KEY       — Stripe dashboard → Developers → API keys → Secret key
@@ -148,6 +162,35 @@ export const handler = async function (event) {
     } else {
       // New customer — pre-fill email so they don't have to type it
       sessionParams.customer_email = userEmail;
+    }
+
+    // ── Default path only: genuinely card-free 14-day trial ────────────────
+    // The upgrade sheet promises "14-day free trial · no card needed" — that
+    // promise is only true if we tell Stripe not to insist on a payment method.
+    // `payment_method_collection: 'if_required'` skips the card form when
+    // nothing is due today; `trial_settings.end_behavior.missing_payment_method:
+    // 'cancel'` is what makes the trial SAFE with no card on file — if the
+    // trial reaches day 14 with no payment method attached, Stripe cancels the
+    // subscription itself (webhook: customer.subscription.deleted → plan=free)
+    // instead of trying to charge a card that was never collected.
+    //
+    // 'trial_extension' and 'none' are DELIBERATE card-collecting paths
+    // (Moment-1 "add a card, keep Pro free another month" and Moment-2
+    // "charge me now") — do NOT relax card collection on those.
+    //
+    // Trial length is defined ONCE, here, at the subscription level. If the
+    // Stripe Price (STRIPE_PRICE_ID) is ever edited to carry its own
+    // trial_period_days, this subscription_data value wins (Stripe uses the
+    // most specific setting) — but check the Stripe dashboard doesn't also
+    // set one, so nobody is confused about where the "14" lives.
+    if (couponMode === null) {
+      sessionParams.payment_method_collection = 'if_required';
+      sessionParams.subscription_data = {
+        trial_period_days: 14,
+        trial_settings: {
+          end_behavior: { missing_payment_method: 'cancel' },
+        },
+      };
     }
 
     // Apply the trial-extension coupon for Moment-1 ("Add card, free month").
