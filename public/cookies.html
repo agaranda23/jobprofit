@@ -75,7 +75,7 @@
     </div>
 
     <h1>Cookie Policy</h1>
-    <p class="meta">Last updated: 14 June 2026</p>
+    <p class="meta">Last updated: 4 July 2026</p>
 
     <p><strong>Short version:</strong> We use essential cookies the app needs to work, plus two optional analytics tools (Google Analytics 4 and PostHog). You can accept or decline analytics.</p>
 
@@ -102,6 +102,10 @@
         <tr>
           <td>Local preferences (e.g. dark mode)</td>
           <td>Remember your settings between sessions.</td>
+        </tr>
+        <tr>
+          <td>Cookie consent choice (localStorage: <code>jp.analytics_consent</code>)</td>
+          <td>Remembers whether you accepted or declined analytics cookies, so we don't ask again on every visit and don't load analytics before you've chosen.</td>
         </tr>
       </tbody>
     </table>
@@ -132,6 +136,30 @@
 
     <h2>Third-party cookies</h2>
     <p>Stripe may set cookies during payment flows, governed by <a href="https://stripe.com/privacy" target="_blank" rel="noopener">Stripe's own privacy policy</a>.</p>
+
+    <h2>Change your cookie choice</h2>
+    <p>If you're signed in, the quickest way to change your mind is in-app: Settings &#x2192; Cookie settings, a single tap to switch analytics on or off.</p>
+    <p>If you're not signed in, or you'd rather reset it on this device, use the button below. It clears the saved choice so the cookie banner asks you again next time you open the app.</p>
+    <p>
+      <button type="button" id="reset-consent-btn" style="min-height: 44px; padding: 10px 18px; background: transparent; color: #1a1a1a; border: 1.5px solid #d1d1d1; border-radius: 8px; font-weight: 600; font-size: 14px; font-family: inherit; cursor: pointer;">Reset my cookie choice on this device</button>
+      <span id="reset-consent-status" role="status" style="display: block; margin-top: 10px; font-size: 14px; color: #2563eb;"></span>
+    </p>
+    <script>
+      // Reuses the exact localStorage key src/lib/consent.js reads/writes
+      // (KEY = 'jp.analytics_consent'). This page is served as a static file
+      // (not bundled by Vite), so it can't import that module directly — if
+      // the key ever changes in consent.js, update it here too.
+      document.getElementById('reset-consent-btn').addEventListener('click', function () {
+        try {
+          localStorage.removeItem('jp.analytics_consent');
+          document.getElementById('reset-consent-status').textContent =
+            "Done — next time you open the app, you'll be asked again.";
+        } catch (e) {
+          document.getElementById('reset-consent-status').textContent =
+            'Could not reset your choice on this device (private browsing mode can block this).';
+        }
+      });
+    </script>
 
     <h2>Managing cookies</h2>
     <p>Most browsers let you block or delete cookies. Blocking essential cookies will break the app (you won't be able to log in). Blocking analytics cookies has no effect on app functionality.</p>

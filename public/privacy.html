@@ -62,7 +62,7 @@
     </div>
 
     <h1>Privacy Policy</h1>
-    <p class="meta">Last updated: 26 June 2026</p>
+    <p class="meta">Last updated: 4 July 2026</p>
 
     <h2>1. Who we are</h2>
     <p>OHNAR is a trading name of JOB PROFIT LTD (company number 17249792), registered at 128 City Road, London, EC1V 2NX, United Kingdom ("we", "us", "JOB PROFIT LTD"). Contact: <a href="mailto:getjobprofit@gmail.com">getjobprofit@gmail.com</a>. We are registered with the ICO (registration number ZC163042). References in this policy to "OHNAR" are references to JOB PROFIT LTD, which is the legal entity responsible for your data.</p>
@@ -88,6 +88,19 @@
 
     <p>For all data about your customers, JOB PROFIT LTD (trading as OHNAR) acts only as your processor and only on your documented instructions: we use it to provide the service to you (storing your jobs, generating your quotes and invoices, and sending messages you ask us to send) and for nothing else. We do not use your customers' data for our own purposes, do not sell it, and do not use it to market to your customers. The one exception is that we may include this data, once fully anonymised and aggregated so it can no longer identify any individual, within the anonymised statistics described in Section 4a — at which point it is no longer personal data.</p>
 
+    <!-- [SOLICITOR TO CONFIRM]: Unsubscribe / marketing (founder's "Decision 2").
+         All customer-facing messages sent through OHNAR today (quotes, invoices,
+         payment reminders) are transactional, sent on the trader's instruction —
+         our working assumption is that no PECR-style unsubscribe link is required.
+         Open question: should this policy instead offer customers an explicit
+         data-removal request route (distinct from an unsubscribe)? Do not add
+         unsubscribe copy until this is confirmed. -->
+    <!-- [SOLICITOR TO CONFIRM]: Quote-acceptance consent copy (founder's "Decision
+         3"). The founder wants the public quote-acceptance checkbox to state
+         explicitly how long a customer's contact details are stored (e.g. "held
+         for [X], ask [trader] to remove them any time"). This copy cannot be
+         written until the retention reconciliation above (§4 flag) is settled —
+         no "[X]" value has been invented here or in the app. -->
     <p><strong>Payment reminders (WhatsApp and SMS):</strong> When you send a payment reminder by WhatsApp or SMS, OHNAR prepares a pre-filled message and opens it in your own WhatsApp or messaging app on your device — you send it yourself. We do not transmit your customer's phone number to WhatsApp/Meta, any SMS provider, or any other third party as part of this feature.</p>
 
     <p><strong>3c. Providing your data.</strong> Some of the account data above (such as your name, email, and business details) is necessary to provide the service under our contract with you — if you do not provide it, we may be unable to create or operate your account. Analytics data is optional and based on your consent.</p>
@@ -95,6 +108,14 @@
     <p><strong>3d. Automated decision-making.</strong> We do not carry out automated decision-making or profiling that produces legal or similarly significant effects on you.</p>
 
     <h2>4. How long we keep data</h2>
+    <!-- [SOLICITOR TO CONFIRM]: The retention model below (immediate erasure on
+         account deletion; 6-month unconverted-lead purge; 36-month inactivity
+         purge in §4c) is the CURRENT live behaviour. There is an open, not-yet-
+         reconciled question (founder's "Decision 1", DATA-PROTECTION-DECISIONS-
+         FOR-SOLICITOR.md) about whether customer CONTACT DETAILS specifically
+         should carry their own distinct retention period (founder suggested
+         ~24 months) separate from financial/HMRC records. Do not change any
+         number below without solicitor sign-off on the reconciled model. -->
     <ul>
       <li>Account data: kept while your account is active. When you delete your account, your account data is <strong>erased immediately and permanently</strong> — we do not keep it for a grace period. The only exceptions are the limited transaction records we are legally required to retain for accounting and tax (see the Stripe bullet below) and any anonymised, non-identifying statistics that no longer relate to you (see Section 4a).</li>
       <li>Job and invoice records: kept for as long as your account is active, because they are your business records and you control them. We hold them as your processor on your instruction. (Separately, HMRC generally expects sole traders to keep their own financial records for around 6 years — that is your obligation as a business, not a rule we impose, and you can export your records at any time to meet it.)</li>
@@ -115,14 +136,24 @@
 
     <h2>5. Who we share data with (sub-processors)</h2>
     <ul>
-      <li><strong>Supabase</strong> — database hosting — all account and job data — hosted in the EU (eu-west-1, Ireland / EEA). The EEA holds UK adequacy status, so no additional transfer safeguards (IDTA/SCCs) are required for this data. (Supabase Inc. is US-incorporated; a Data Processing Agreement with SCCs/UK Addendum is in place to cover any access from the US.)</li>
+      <!-- [SOLICITOR TO CONFIRM]: eu-west-1 (Ireland) is our understanding of
+           where Supabase hosts this project, but it has not been re-verified
+           against the live Supabase dashboard for this project as part of this
+           update — founder to confirm the project region before this is relied
+           on as final. -->
+      <li><strong>Supabase</strong> — database (Postgres), authentication, and file storage — all account and job data — hosted in the EU (eu-west-1, Ireland / EEA), running on Amazon Web Services (AWS) infrastructure. The EEA holds UK adequacy status, so no additional transfer safeguards (IDTA/SCCs) are required for this data. (Supabase Inc. is US-incorporated; a Data Processing Agreement with SCCs/UK Addendum is in place to cover any access from the US.)</li>
       <li><strong>Netlify</strong> — hosting/serverless — request metadata, logs — USA; transfers covered by Standard Contractual Clauses / the UK Addendum (per Netlify's Data Processing Agreement).</li>
-      <li><strong>Stripe / Stripe Connect</strong> — payment processing and trader payment-account linking — trader name, email, billing metadata; card/bank-card details held directly by Stripe, OHNAR never sees or stores them — USA (EU-US DPF).</li>
-      <li><strong>Supabase Auth (via Supabase's infrastructure)</strong> — delivery of transactional email (login links and account notifications) — recipient email address and message content — hosted on Supabase's EU infrastructure; no separate third-party email provider is currently used.</li>
-      <li><strong>Twilio (Twilio Inc.)</strong> — SMS delivery for login verification codes — recipient phone numbers and message content — USA; transfers covered by Standard Contractual Clauses / the UK Addendum (per Twilio's Data Processing Addendum).</li>
+      <li><strong>Stripe / Stripe Connect</strong> — payment processing and the £12/month Pro subscription billing, plus trader payment-account linking — trader name, email, billing metadata; card/bank-card details held directly by Stripe, OHNAR never sees or stores them — USA (EU-US DPF).</li>
+      <li><strong>Supabase Auth (via Supabase's infrastructure)</strong> — delivery of sign-in emails (magic links / one-time codes) — recipient email address and message content — hosted on Supabase's EU infrastructure.</li>
+      <li><strong>Resend</strong> — delivery of transactional emails we send directly (account welcome emails, and notifying you when a customer accepts a quote) — recipient email address and message content — USA; transfers covered by Standard Contractual Clauses / the UK Addendum (per Resend's Data Processing Agreement).</li>
+      <!-- Twilio (SMS one-time-passcode login) is NOT yet built or live — see
+           DATA-PROTECTION-DECISIONS-FOR-SOLICITOR.md "Decision 4". Do not
+           re-add a Twilio sub-processor line here until (a) the feature ships
+           and (b) the solicitor has confirmed the Decision-4 wording; adding
+           it earlier would describe a processor that isn't actually in use. -->
       <li><strong>Google Analytics 4 (Google LLC)</strong> — pseudonymised usage events and device metadata; cookies set: <code>_ga</code>, <code>_ga_&lt;id&gt;</code>. Data is processed on Google's servers (USA); transfers are covered by the EU–US Data Privacy Framework and Standard Contractual Clauses / the UK Addendum. IP anonymisation is enabled by default in GA4. Google's privacy policy: <a href="https://policies.google.com/privacy" target="_blank" rel="noopener">policies.google.com/privacy</a>.</li>
       <li><strong>PostHog (PostHog Inc.)</strong> — pseudonymised usage events and session analytics; data is stored on PostHog's EU cloud (eu.i.posthog.com, hosted in the EU). No cross-site tracking; no advertising cookies. Session replay is not currently enabled. PostHog's privacy policy: <a href="https://posthog.com/privacy" target="_blank" rel="noopener">posthog.com/privacy</a>.</li>
-      <li><strong>Anthropic</strong> — AI quote generation — job descriptions and pricing history (no customer contact details) — USA; transfers covered by Standard Contractual Clauses / the UK Addendum.</li>
+      <li><strong>Anthropic</strong> — AI-assisted voice-to-job parsing, quote/estimate generation, and materials-receipt data extraction — job descriptions, voice transcripts (which may include a customer's name if you say it aloud — no other customer contact details are sent), pricing/estimate inputs, and photos of your own supplier receipts — USA; transfers covered by Standard Contractual Clauses / the UK Addendum.</li>
     </ul>
     <p>We do not sell data or use it for advertising targeting.</p>
 
