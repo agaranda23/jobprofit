@@ -6,7 +6,9 @@
  *   - ProGate lock badge on Insight cards                → trigger='insight_locked'
  *   - Today GetProPill                                   → trigger='today_pill'
  *   - Settings → Subscription → Upgrade to Pro row      → trigger='settings'
- *   - TrialBanner → startCheckout() direct (no sheet)
+ *   - TrialBanner → startCheckoutImmediate() direct (no sheet; not currently
+ *     rendered anywhere in the app, but still wired for when it is — see
+ *     TrialBanner.jsx)
  *   - White-label nudge in SendInvoiceModal              → trigger='whitelabel_footer'
  *   - Auto-chase locked row in Settings                  → trigger='auto_chase_locked'
  *   - Day-14 trial-end trigger (AppShell)                → trigger='trial_end', variant='trial_end'

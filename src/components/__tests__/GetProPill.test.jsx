@@ -7,12 +7,17 @@
  *   2. Dismiss is blocked in urgency and last-day states (X button absent)
  *   3. Dismiss is available in settled and free states
  *   4. Direct checkout is called for urgency / last-day (not onOpen)
- *   5. onOpen is called for settled / free (not startCheckout)
+ *   5. onOpen is called for settled / free (not startCheckoutImmediate)
  *   6. Singular/plural day wording
  *   7. Pill hidden entirely for paid Pro users
  *
+ * fix/pro-trial-no-card: urgency/last-day now call startCheckoutImmediate()
+ * (card required), NOT startCheckout() (now card-free) — these two states
+ * exist to convert an ALREADY-running trial into a real paid subscription,
+ * not to start a fresh one. See GetProPill.jsx doc comment.
+ *
  * Mocking strategy:
- *   - startCheckout is mocked at the module level (billing.js)
+ *   - startCheckoutImmediate is mocked at the module level (billing.js)
  *   - sessionStorage is reset between tests
  *   - plan helpers are real (tested in plan.test.js), injected via profile shape
  */
@@ -24,7 +29,7 @@ import GetProPill from '../GetProPill';
 // ── Module mocks ─────────────────────────────────────────────────────────────
 
 vi.mock('../../lib/billing', () => ({
-  startCheckout: vi.fn().mockResolvedValue({}),
+  startCheckoutImmediate: vi.fn().mockResolvedValue({}),
 }));
 
 vi.mock('../../lib/telemetry', () => ({
@@ -38,7 +43,7 @@ vi.mock('../Icon', () => ({
   default: ({ name }) => <span data-testid={`icon-${name}`} />,
 }));
 
-import { startCheckout } from '../../lib/billing';
+import { startCheckoutImmediate } from '../../lib/billing';
 
 // ── Profile factories ─────────────────────────────────────────────────────────
 
@@ -187,41 +192,41 @@ describe('GetProPill — dismissal gating', () => {
 // ── Tests: CTA routing ────────────────────────────────────────────────────────
 
 describe('GetProPill — CTA routing', () => {
-  it('settled: tapping body calls onOpen, NOT startCheckout', async () => {
+  it('settled: tapping body calls onOpen, NOT startCheckoutImmediate', async () => {
     const onOpen = vi.fn();
     render(<GetProPill profile={trialProfile(8)} onOpen={onOpen} />);
     fireEvent.click(screen.getByRole('button', { name: /Pro trial/i }));
     expect(onOpen).toHaveBeenCalledTimes(1);
-    expect(startCheckout).not.toHaveBeenCalled();
+    expect(startCheckoutImmediate).not.toHaveBeenCalled();
   });
 
-  it('free: tapping body calls onOpen, NOT startCheckout', () => {
+  it('free: tapping body calls onOpen, NOT startCheckoutImmediate', () => {
     const onOpen = vi.fn();
     render(<GetProPill profile={freeProfile()} onOpen={onOpen} />);
     fireEvent.click(screen.getByRole('button', { name: /Get Pro/i }));
     expect(onOpen).toHaveBeenCalledTimes(1);
-    expect(startCheckout).not.toHaveBeenCalled();
+    expect(startCheckoutImmediate).not.toHaveBeenCalled();
   });
 
-  it('urgency: tapping body calls startCheckout, NOT onOpen', async () => {
+  it('urgency: tapping body calls startCheckoutImmediate (card-required), NOT onOpen', async () => {
     const onOpen = vi.fn();
     render(<GetProPill profile={trialProfile(2)} onOpen={onOpen} />);
     fireEvent.click(screen.getByRole('button', { name: /2 days left/i }));
     // Allow async to settle
-    await vi.waitFor(() => expect(startCheckout).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() => expect(startCheckoutImmediate).toHaveBeenCalledTimes(1));
     expect(onOpen).not.toHaveBeenCalled();
   });
 
-  it('last-day: tapping body calls startCheckout, NOT onOpen', async () => {
+  it('last-day: tapping body calls startCheckoutImmediate (card-required), NOT onOpen', async () => {
     const onOpen = vi.fn();
     render(<GetProPill profile={lastDayProfile()} onOpen={onOpen} />);
     fireEvent.click(screen.getByRole('button', { name: /Last day of Pro/i }));
-    await vi.waitFor(() => expect(startCheckout).toHaveBeenCalledTimes(1));
+    await vi.waitFor(() => expect(startCheckoutImmediate).toHaveBeenCalledTimes(1));
     expect(onOpen).not.toHaveBeenCalled();
   });
 
-  it('urgency: startCheckout error is forwarded to onError', async () => {
-    startCheckout.mockResolvedValueOnce({ error: 'Network error' });
+  it('urgency: startCheckoutImmediate error is forwarded to onError', async () => {
+    startCheckoutImmediate.mockResolvedValueOnce({ error: 'Network error' });
     const onError = vi.fn();
     render(<GetProPill profile={trialProfile(2)} onOpen={vi.fn()} onError={onError} />);
     fireEvent.click(screen.getByRole('button', { name: /2 days left/i }));

@@ -8,14 +8,22 @@
  *     trial_ends_at in the future).
  *   - When > 2 days left: standard countdown copy.
  *   - When ≤ 2 days left (urgent): escalate to "keep it another month" framing
- *     + amber tint emphasis. The CTA still calls startCheckout() directly
- *     (skips ProUpgradeSheet) to minimise friction on the last day.
+ *     + amber tint emphasis. The CTA still calls checkout directly (skips
+ *     ProUpgradeSheet) to minimise friction on the last day.
  *
- * The CTA calls startCheckout() from billing.js (not the coupon path — that
- * requires the user to reach ProUpgradeSheet with variant='trial_end').
+ * This banner only ever renders while isTrialActive(profile) is true — i.e.
+ * the user is on the homegrown trial (plan='trial') and has NEVER been
+ * through Stripe checkout yet (completing Stripe checkout flips plan='pro'
+ * via the webhook, which hides this banner). So both states here are a
+ * "convert my already-running trial → real subscription" action, never a
+ * "start a trial" one — the CTA must collect a card. It calls
+ * startCheckoutImmediate() (coupon_mode:'none', charged today) from
+ * billing.js, the same card-required path DropToFreeScreen.jsx already uses.
+ * (Not the trial_extension/coupon path either — that requires the user to
+ * reach ProUpgradeSheet with variant='trial_end'.)
  */
 import { UNLOCK_PRO_FOR_ALL, isTrialActive, trialDaysLeft } from '../lib/plan.js';
-import { startCheckout } from '../lib/billing.js';
+import { startCheckoutImmediate } from '../lib/billing.js';
 import { logTelemetry, setLastUpgradeTrigger, UPGRADE_TRIGGERS } from '../lib/telemetry.js';
 
 export default function TrialBanner({ profile, onError }) {
@@ -33,7 +41,7 @@ export default function TrialBanner({ profile, onError }) {
     // after the Stripe redirect, and fire checkout_started for funnel visibility.
     setLastUpgradeTrigger(UPGRADE_TRIGGERS.TRIAL_BANNER);
     logTelemetry('checkout_started', { trigger: UPGRADE_TRIGGERS.TRIAL_BANNER, urgent });
-    const { error } = await startCheckout();
+    const { error } = await startCheckoutImmediate({ source: UPGRADE_TRIGGERS.TRIAL_BANNER });
     if (error) onError?.(error);
   };
 
