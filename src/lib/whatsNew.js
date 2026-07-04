@@ -71,6 +71,12 @@ export const WHATS_NEW = [
     blurb: 'Jobs that need chasing now show a badge on the Jobs tab, and if a push notification doesn\'t get through, we\'ll email you a nudge too.',
   },
   {
+    date: '2026-06-27',
+    title: 'Find any quote, invoice or receipt fast',
+    emoji: '📂',
+    blurb: 'Search every quote, invoice and receipt by customer name, then filter receipts or invoices down to a tax period — handy when your accountant asks for last year\'s numbers.',
+  },
+  {
     date: '2026-06-25',
     title: 'OHNAR — new name, same app',
     emoji: '🔵',
@@ -95,16 +101,46 @@ export const WHATS_NEW = [
     blurb: 'The Money tab now shows your real profit after job costs and monthly bills, plus a Tax Pot that tells you how much to set aside — Pro feature.',
   },
   {
+    date: '2026-06-10',
+    title: 'Materials library',
+    emoji: '🧱',
+    blurb: 'Save your regular supplier prices and markup once, then drop them straight into a quote in a couple of taps instead of retyping costs every time.',
+  },
+  {
+    date: '2026-06-09',
+    title: 'Quote by voice in 10 languages',
+    emoji: '🗣️',
+    blurb: 'Speak a job or quote in Polish, Romanian, Lithuanian, Ukrainian, Arabic and more — OHNAR writes it up in English so the quote goes out the same either way.',
+  },
+  {
     date: '2026-06-05',
     title: 'Import your existing jobs',
     emoji: '📥',
     blurb: 'Bring your jobs across from a CSV or Excel spreadsheet in Settings → Data & Privacy → Import jobs — no re-entering by hand.',
   },
   {
+    date: '2026-06-05',
+    title: 'Call, text or WhatsApp a customer in one tap',
+    emoji: '📞',
+    blurb: 'Every job now has one-tap buttons to call, text, WhatsApp or navigate to the customer — no more digging their number out of your contacts app mid-job.',
+  },
+  {
     date: '2026-06-02',
     title: 'Paid celebration',
     emoji: '🎉',
     blurb: 'Mark a job paid and get a satisfying buzz — a small reminder that the work was worth it.',
+  },
+  {
+    date: '2026-06-02',
+    title: 'Describe the job, get a quote',
+    emoji: '🤖',
+    blurb: 'Say or type what the job involves and OHNAR itemises and prices it for you to check over — three free a month, unlimited on Pro, or build it by hand as before.',
+  },
+  {
+    date: '2026-06-01',
+    title: 'Get paid by card',
+    emoji: '💳',
+    blurb: 'Add a pay-by-card link to any invoice so your customer can pay by card or Apple Pay — once you\'ve connected Stripe, it\'s marked paid for you automatically.',
   },
   {
     date: '2026-05-30',
@@ -159,6 +195,12 @@ export const WHATS_NEW = [
     title: 'Create-quote flow',
     emoji: '📝',
     blurb: 'Build a quote with line items using voice or text, then send a link to the customer to sign on their phone.',
+  },
+  {
+    date: '2026-04-19',
+    title: 'Snap a receipt, skip the typing',
+    emoji: '📸',
+    blurb: 'Take a photo of a supplier receipt and OHNAR reads off the merchant, total and VAT for you — no more typing numbers off a crumpled slip.',
   },
 ];
 
