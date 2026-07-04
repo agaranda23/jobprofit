@@ -89,6 +89,7 @@ import PaidCelebration from './components/PaidCelebration.jsx';
 import PostPaidSheet from './components/PostPaidSheet.jsx';
 import AddJobModal from './components/AddJobModal.jsx';
 import { haptic } from './lib/haptics.js';
+import { unlockAudioContext, playPaymentReceivedSound } from './lib/paymentSound.js';
 import { seedSampleData, clearSampleData } from './lib/sampleData.js';
 
 // ─── App-boot cleanup ─────────────────────────────────────────────────────────
@@ -392,6 +393,21 @@ export default function AppShell() {
   // listens for the 'online' event to retry on reconnect.
   useEffect(() => {
     wireOnlineSync();
+  }, []);
+
+  // Unlock the payment-received AudioContext on the app's first user gesture.
+  // iOS Safari refuses to play audio from a context that hasn't been resumed
+  // inside a user-gesture callback — a mark-paid tap later in the session
+  // (possibly after an await) wouldn't otherwise qualify. One-time listener,
+  // removed after it fires.
+  useEffect(() => {
+    const onFirstGesture = () => unlockAudioContext();
+    window.addEventListener('pointerdown', onFirstGesture, { once: true });
+    window.addEventListener('touchstart', onFirstGesture, { once: true });
+    return () => {
+      window.removeEventListener('pointerdown', onFirstGesture);
+      window.removeEventListener('touchstart', onFirstGesture);
+    };
   }, []);
 
   const refreshFromCloud = useCallback(async () => {
@@ -757,6 +773,25 @@ export default function AppShell() {
             }
           }
         }
+
+        // Payment landed remotely — either the customer paid a Stripe pay-link
+        // (stripe-connect-webhook.js writes paid straight to the jobs row), or
+        // this trader marked the job paid from a different device. Compare
+        // against jobsRef.current, which already reflects THIS device's own
+        // optimistic mark-paid writes (see onMarkPaidFromToday/onUpdateJob) —
+        // so the echo of a payment this device itself just made does not
+        // double-fire the chime; only a genuinely new not-paid→paid transition
+        // does. No PaidCelebration/PostPaidSheet here — those stay tied to the
+        // direct call sites; this is just the quiet "money landed" ping.
+        const incomingPaid = incoming.paid === true || incoming.status === 'paid';
+        if (incomingPaid && incoming.id) {
+          const prevJob = jobsRef.current.find(j => j.id === incoming.id);
+          const wasPaid = prevJob?.paid === true || prevJob?.status === 'paid';
+          if (!wasPaid) {
+            haptic('success');
+            playPaymentReceivedSound();
+          }
+        }
       }
 
       // Refetch regardless of event type — keeps all state in sync.
@@ -1070,6 +1105,7 @@ export default function AppShell() {
 
     // Fire the shared paid celebration + haptic on every mark-paid gesture.
     haptic('success');
+    playPaymentReceivedSound();
     setPaidCelebrationAmount(job.total ?? job.amount ?? null);
     // PostPaidSheet will show after PaidCelebration auto-dismisses (~1.3s).
     // We pass the original job here — customer/phone/address are read-only props.
@@ -1117,6 +1153,7 @@ export default function AppShell() {
     // applyAutoFlip (inside addPayment) sets status='paid' on a full clearance.
     if (updated.status === 'paid') {
       haptic('success');
+      playPaymentReceivedSound();
       setPaidCelebrationAmount(updated.total ?? updated.amount ?? null);
       // PostPaidSheet will show after PaidCelebration auto-dismisses.
       setPostPaidJob(updated);
@@ -1140,6 +1177,7 @@ export default function AppShell() {
     setJobs(prev => prev.map(j => j.id === updated.id ? updated : j));
     if (!wasPaid && nowPaid) {
       haptic('success');
+      playPaymentReceivedSound();
       setPaidCelebrationAmount(updated.total ?? updated.amount ?? null);
       // PostPaidSheet will show after PaidCelebration auto-dismisses.
       setPostPaidJob(updated);
