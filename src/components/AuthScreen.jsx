@@ -126,7 +126,7 @@ export default function AuthScreen() {
         <p className="auth-eyebrow">Not another app to figure out.</p>
         <p className="auth-hero">Run your trade business from your phone.</p>
         <p className="auth-subhead">
-          Quote jobs, send invoices, track payments and see your real profit — in minutes, not hours.
+          Quote jobs, send invoices, track payments and know your real profit — in minutes, not hours.
         </p>
 
         <div className="auth-loop" aria-label="Quote, Signed, Invoiced, Paid">
@@ -139,15 +139,18 @@ export default function AuthScreen() {
           <span className="auth-loop-chip auth-loop-chip--4">Paid</span>
         </div>
 
-        <p className="auth-features">Quote in seconds · Send invoices · Get paid · See your real profit</p>
+        <p className="auth-features">Quote in seconds · Get paid faster · Know your real profit</p>
         <p className="auth-profit-strip">
           See what you actually made — after materials, fuel and tax. No lead fees, no commission, nobody clipping your ticket.
         </p>
 
-        <p className="auth-cta-line">Start free — no card needed</p>
-        <p className="auth-cta-subline">£12/mo flat once you're set up. No card to start.</p>
+        <p className="auth-cta-line">
+          Start free — <strong className="auth-cta-highlight">no card needed</strong>
+        </p>
+        <p className="auth-cta-free-line">Unlimited quotes · Unlimited invoices · Free to try</p>
+        <p className="auth-cta-subline">£12/month for Pro when you're ready. Cancel anytime.</p>
 
-        <p className="auth-trust">Built with feedback from UK builders, electricians, gardeners, cleaners &amp; sole traders.</p>
+        <p className="auth-trust">Built with feedback from UK plumbers, builders, electricians, gardeners, cleaners &amp; sole traders.</p>
       </div>
 
       {!sent ? (

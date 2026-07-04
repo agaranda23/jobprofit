@@ -3087,21 +3087,41 @@ body {
   line-height: 1.45;
   margin: 8px 0 0;
 }
-/* Primary CTA line — visual emphasis above the actual sign-in actions below */
+/* Primary CTA line — "Start free" is base-weight framing; the risk-remover
+   ("no card needed") is what actually earns the click, so it carries the
+   strongest visual weight on this line, not the framing text around it. */
 .auth-cta-line {
   font-size: var(--fs-body);
-  font-weight: 700;
-  color: var(--accent);
+  font-weight: 500;
+  color: var(--text-dim);
   text-align: center;
   margin: 20px 0 0;
 }
-/* CTA sub-line — the £12/mo value cue under the primary CTA */
-.auth-cta-subline {
+.auth-cta-highlight {
+  font-size: var(--fs-subhead);
+  font-weight: 800;
+  color: var(--accent);
+  letter-spacing: -0.01em;
+}
+/* "What's free" line — the risk-removal detail directly under the CTA.
+   Deliberately lighter than .auth-features so the hero doesn't stack a
+   third feature list; this reads as reassurance, not another pitch. */
+.auth-cta-free-line {
   font-size: var(--fs-label);
   font-weight: 500;
   color: var(--text-dim);
   text-align: center;
-  margin: 4px 0 0;
+  margin: 8px 0 0;
+}
+/* CTA sub-line — the £12/mo Pro cue, kept visually subordinate to
+   "no card needed" above: the smallest, lightest line in the CTA block. */
+.auth-cta-subline {
+  font-size: var(--fs-meta);
+  font-weight: 500;
+  color: var(--text-dim);
+  text-align: center;
+  margin: 6px 0 0;
+  opacity: 0.85;
 }
 /* Trust line */
 .auth-trust {
