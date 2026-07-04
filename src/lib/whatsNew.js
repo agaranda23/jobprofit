@@ -11,6 +11,66 @@
 
 export const WHATS_NEW = [
   {
+    date: '2026-07-04',
+    title: 'Export your books for your accountant',
+    emoji: '🧮',
+    blurb: 'Tap "Export for your accountant" on the Money tab and pick a Xero-ready or QuickBooks-ready file — a correctly formatted export your accountant can import in one go instead of re-typing every invoice and receipt. Pro feature.',
+  },
+  {
+    date: '2026-07-04',
+    title: 'Your free trial, no card required',
+    emoji: '🎁',
+    blurb: 'Start your 14-day OHNAR Pro trial without entering a card, and you\'ll get a friendly "You\'ve got Pro" welcome the moment it kicks in.',
+  },
+  {
+    date: '2026-07-03',
+    title: 'Quotes and invoices look the part',
+    emoji: '📄',
+    blurb: 'The quote and invoice preview your customer opens now looks like a real document — a clear letterhead, a bold total, and a proper paper feel instead of a plain form.',
+  },
+  {
+    date: '2026-07-03',
+    title: 'Edit straight from the preview',
+    emoji: '✏️',
+    blurb: 'Tap any line on the quote or invoice preview — customer details, dates, prices, or line items — to edit it on the spot, no need to back out to a separate screen.',
+  },
+  {
+    date: '2026-07-03',
+    title: 'VAT and deposit due-date on your quotes',
+    emoji: '🔢',
+    blurb: 'Customer-facing quotes now show the VAT breakdown and the deposit due date clearly, matching what your invoices already display.',
+  },
+  {
+    date: '2026-07-03',
+    title: 'Never lose an in-progress quote',
+    emoji: '💾',
+    blurb: 'Get pulled away mid-quote by a phone call? OHNAR now autosaves your draft and offers to pick up right where you left off the next time you open the app.',
+  },
+  {
+    date: '2026-07-03',
+    title: 'Try it with sample data',
+    emoji: '🧪',
+    blurb: 'New to OHNAR? Load a set of realistic sample jobs from Settings to see how everything works, then clear it with one tap whenever you\'re ready to add your own.',
+  },
+  {
+    date: '2026-07-02',
+    title: 'Voice quotes, smarter and quicker',
+    emoji: '🎙️',
+    blurb: 'Quote by voice in one shorter step — OHNAR now picks up VAT and deposit details automatically as you talk, then sends straight from the confirm card.',
+  },
+  {
+    date: '2026-07-01',
+    title: 'Ask for a review, or book them again',
+    emoji: '⭐',
+    blurb: 'Once a job\'s marked paid, OHNAR prompts you to ask the customer for a Google review and offers a one-tap "Book them again" to start a repeat job.',
+  },
+  {
+    date: '2026-06-28',
+    title: 'Smarter chasing: Jobs badge + backup email',
+    emoji: '🔔',
+    blurb: 'Jobs that need chasing now show a badge on the Jobs tab, and if a push notification doesn\'t get through, we\'ll email you a nudge too.',
+  },
+  {
     date: '2026-06-25',
     title: 'OHNAR — new name, same app',
     emoji: '🔵',

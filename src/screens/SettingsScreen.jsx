@@ -2960,6 +2960,9 @@ export default function SettingsScreen({
           <FaqItem question="How much should I set aside for tax?">
             <p>The Tax Pot on the Money tab does this for you — it rings off a percentage of your monthly profit (20% by default, adjustable in Settings &rarr; Invoices &amp; Quotes &rarr; Tax set-aside %). Pro feature, included at £12/mo.</p>
           </FaqItem>
+          <FaqItem question="Can I send my books to my accountant?">
+            <p>Yes — on the Money tab, tap &ldquo;Export for your accountant&rdquo; and choose a Xero-ready or QuickBooks-ready file: a correctly formatted export your accountant can import in one go, instead of re-typing every invoice and receipt by hand. A plain CSV, Excel, or PDF summary is also available and free for everyone. The Xero and QuickBooks formats are Pro.</p>
+          </FaqItem>
           <FaqItem question="Can customers pay me by card?">
             <p>Yes. Go to Settings &rarr; Card payments to connect Stripe. Once connected, every invoice includes a card payment button — customers tap and pay without you chasing bank transfers. Stripe&rsquo;s standard processing fee applies; OHNAR doesn&rsquo;t add anything on top.</p>
           </FaqItem>
