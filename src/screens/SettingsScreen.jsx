@@ -39,6 +39,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import pkg from '../../package.json';
 import { supabase } from '../lib/supabase.js';
 import { haptic } from '../lib/haptics.js';
+import { isSoundOnPaymentEnabled, setSoundOnPaymentEnabled, playPaymentReceivedSound } from '../lib/paymentSound.js';
 import {
   buildReferralLink,
   copyReferralLink,
@@ -190,6 +191,34 @@ function TestVibrationRow() {
       label="Test vibration"
       value={msg || (supported ? 'Tap to buzz' : 'Unsupported')}
       onTap={handleTap}
+      chevron={false}
+    />
+  );
+}
+
+// Sound when you get paid — a single soft chime on mark-paid / payment-cleared,
+// synthesized via Web Audio (see src/lib/paymentSound.js). Client-side-only
+// preference (localStorage, mirrors CookieSettingsRow below) — this is a
+// per-device audio setting, not something that needs to sync across the
+// trader's devices. The haptic buzz still fires on payment regardless of this
+// toggle; this only gates the sound.
+function PaymentSoundRow() {
+  const [enabled, setEnabled] = useState(() => isSoundOnPaymentEnabled());
+
+  const handleToggle = () => {
+    const next = !enabled;
+    setSoundOnPaymentEnabled(next);
+    setEnabled(next);
+    // Preview the chime immediately when turning it on, so the toggle itself
+    // demonstrates what the trader just enabled.
+    if (next) playPaymentReceivedSound();
+  };
+
+  return (
+    <Row
+      label="Sound when you get paid"
+      value={enabled ? 'On' : 'Off'}
+      onTap={handleToggle}
       chevron={false}
     />
   );
@@ -2708,6 +2737,7 @@ export default function SettingsScreen({
             onTap={onNavigateToCardPayments}
           />
           <DefaultDepositRow profile={profile} onProfileUpdate={handleSave} />
+          <PaymentSoundRow />
         </SectionCard>
 
         <div style={{ height: 32 }} />
