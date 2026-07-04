@@ -62,6 +62,7 @@ describe('AuthScreen — pitch copy', () => {
     const subhead = container.querySelector('.auth-subhead');
     expect(subhead).toBeTruthy();
     expect(subhead?.textContent).toContain('Quote jobs, send invoices, track payments');
+    expect(subhead?.textContent).toContain('know your real profit');
     expect(subhead?.textContent).toContain('in minutes, not hours');
   });
 
@@ -92,7 +93,7 @@ describe('AuthScreen — pitch copy', () => {
     const features = container.querySelector('.auth-features');
     expect(features).toBeTruthy();
     expect(features?.textContent).toBe(
-      'Quote in seconds · Send invoices · Get paid · See your real profit'
+      'Quote in seconds · Get paid faster · Know your real profit'
     );
   });
 
@@ -104,24 +105,42 @@ describe('AuthScreen — pitch copy', () => {
     expect(strip?.textContent).toContain('No lead fees, no commission, nobody clipping your ticket');
   });
 
-  it('renders the primary CTA line', () => {
-    renderAuth();
-    expect(screen.getByText('Start free — no card needed')).toBeTruthy();
+  it('renders the primary CTA line with "no card needed" as a distinct risk-remover', () => {
+    const { container } = renderAuth();
+    const ctaLine = container.querySelector('.auth-cta-line');
+    expect(ctaLine).toBeTruthy();
+    expect(ctaLine?.textContent).toContain('Start free');
+    expect(ctaLine?.textContent).toContain('no card needed');
+
+    // "no card needed" gets its own visually-prominent element — that's the
+    // click driver, not the framing text around it.
+    const highlight = container.querySelector('.auth-cta-highlight');
+    expect(highlight).toBeTruthy();
+    expect(highlight?.textContent).toBe('no card needed');
   });
 
-  it('renders the CTA sub-line value cue', () => {
+  it('renders the "what\'s free" line directly under the CTA', () => {
+    const { container } = renderAuth();
+    const freeLine = container.querySelector('.auth-cta-free-line');
+    expect(freeLine).toBeTruthy();
+    expect(freeLine?.textContent).toBe('Unlimited quotes · Unlimited invoices · Free to try');
+  });
+
+  it('renders the CTA sub-line as a secondary, non-forced Pro pricing cue', () => {
     const { container } = renderAuth();
     const subline = container.querySelector('.auth-cta-subline');
     expect(subline).toBeTruthy();
-    expect(subline?.textContent).toContain('£12/mo flat once you\'re set up');
-    expect(subline?.textContent).toContain('No card to start');
+    expect(subline?.textContent).toContain('£12/month for Pro when you\'re ready');
+    expect(subline?.textContent).toContain('Cancel anytime');
+    // Must not read as a forced-conversion trial — free tier is genuinely free, not time-limited.
+    expect(subline?.textContent).not.toMatch(/after your free trial|trial ends/i);
   });
 
-  it('renders the trust line without naming any competitor', () => {
+  it('renders the trust line naming plumbers first, without naming any competitor', () => {
     const { container } = renderAuth();
     const trust = container.querySelector('.auth-trust');
     expect(trust).toBeTruthy();
-    expect(trust?.textContent).toContain('Built with feedback from UK builders');
+    expect(trust?.textContent).toContain('Built with feedback from UK plumbers, builders');
     expect(trust?.textContent).not.toMatch(/Tradify|ServiceM8|Powered Now/i);
   });
 
