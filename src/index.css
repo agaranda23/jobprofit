@@ -10028,6 +10028,23 @@ button.jd-money-chip:active { opacity: 0.75; }
 .edit-field-sheet {
   gap: 16px;
 }
+/* Keyboard-safe sheet — shared by EditFieldModal, LogoModal, QuoteLineEditorSheet
+   and JobDetailDrawer's VisitEditorSheet (every consumer of .edit-field-sheet).
+   .modal-sheet is the scrolling ancestor (overflow-y:auto, shrinks by --kb-inset
+   when the on-screen keyboard opens — see useKeyboardInset). Header and action
+   row stick to the top/bottom of THAT scrollport so Save/Cancel/Delete stay
+   reachable without the user having to discover a scroll gesture once the
+   keyboard eats the bottom of the sheet. Mirrors the .arm-header/.arm-footer
+   sticky pattern already proven in AddReceiptModal. Scoped to `.edit-field-sheet`
+   (not the bare `.modal-sheet-header`/`.edit-field-actions` element) so the many
+   other .modal-sheet consumers (ReviewSheet, SendInvoiceModal, RecordPaymentModal,
+   etc.) are unaffected. */
+.edit-field-sheet .modal-sheet-header {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--surface);
+}
 .edit-field-body {
   display: flex;
   flex-direction: column;
@@ -10091,6 +10108,18 @@ button.jd-money-chip:active { opacity: 0.75; }
   display: flex;
   gap: 10px;
   padding-top: 4px;
+  /* Sticky footer — see the .edit-field-sheet .modal-sheet-header comment
+     above. Keeps Save/Cancel/Delete pinned to the bottom of the sheet's
+     scrollport (not the bottom of the document) so they stay reachable and
+     tappable while the on-screen keyboard is open, without requiring the
+     user to discover a scroll gesture first. The border-top doubles as a
+     "content is scrolled under me" cue on the (rarer) sheets tall enough to
+     scroll even with the keyboard up. */
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
 }
 .edit-field-cancel {
   flex: 1;
