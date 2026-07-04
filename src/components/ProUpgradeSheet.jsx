@@ -12,16 +12,21 @@
  *   - White-label nudge in SendInvoiceModal              → trigger='whitelabel_footer'
  *   - Auto-chase locked row in Settings                  → trigger='auto_chase_locked'
  *   - Day-14 trial-end trigger (AppShell)                → trigger='trial_end', variant='trial_end'
+ *   - "You've got Pro" reveal (AppShell, once per device) → trigger='pro_reveal', variant='pro_reveal'
  *
  * The sheet fires upgrade_sheet_viewed on open (with trigger) and
  * checkout_started on CTA tap (with the same trigger), forming the
  * attribution chain that feeds subscription_active.last_trigger.
+ * EXCEPTION: variant='pro_reveal' is not a sales surface — no checkout follows
+ * it, so it fires pro_reveal_viewed / pro_reveal_dismissed instead (see below).
  *
  * Props:
  *   open     — boolean, controls visibility
  *   trigger  — string from UPGRADE_TRIGGERS enum; defaults to 'settings'
- *   variant  — 'default' | 'trial_end'
+ *   variant  — 'default' | 'trial_end' | 'pro_reveal'
  *              'trial_end' swaps in the Moment-1 "keep Pro free another month" content
+ *              'pro_reveal' swaps in the one-time "You've got OHNAR Pro" gift reveal —
+ *              single CTA ("Show me") that just dismisses; no checkout, no "maybe later"
  *   profile  — Supabase profiles row (used by trial_end variant for proof-line + chargeDate)
  *   jobs     — jobs array (used by trial_end variant for proof-line stats)
  *   onClose  — called when the sheet should close (ESC, overlay tap, secondary CTA)
@@ -43,6 +48,16 @@ const TRIAL_END_BENEFITS = [
   "Auto-chase — OHNAR chases late payers so you don't have to",
   'True profit after your monthly bills — what you actually make',
   'Tax pot — enough kept back for the taxman, all year',
+];
+
+// ── "You've got Pro" reveal bullets (variant='pro_reveal') ──────────────────
+// Founder-approved exact copy — loop/automation first, matching lead-with-loop.
+
+const PRO_REVEAL_BULLETS = [
+  'Your name only — no "Sent with OHNAR" on your docs',
+  "Auto-chase — OHNAR chases late payers so you don't have to",
+  'True profit — what you actually kept after your bills',
+  'Tax pot — enough put by for the taxman, all year',
 ];
 
 // ── Feature list (default variant) ───────────────────────────────────────────
@@ -78,20 +93,28 @@ export default function ProUpgradeSheet({
   // Accept either `trigger` (new) or `source` (legacy alias) so old callers keep working.
   const trigger = triggerProp ?? sourceProp ?? UPGRADE_TRIGGERS.SETTINGS;
   const isTrialEnd = variant === 'trial_end';
+  const isProReveal = variant === 'pro_reveal';
 
   const sheetRef = useRef(null);
   const closeRef = useRef(null);
 
   // Fire upgrade_sheet_viewed (and trial_end_sheet_viewed for the trial_end
   // variant) on open and persist the trigger for the attribution chain.
+  // pro_reveal is NOT a sales surface — it fires its own pro_reveal_viewed
+  // event instead and skips the upgrade attribution chain entirely (there's
+  // no checkout to attribute to).
   useEffect(() => {
     if (!open) return;
+    if (isProReveal) {
+      logTelemetry('pro_reveal_viewed');
+      return;
+    }
     setLastUpgradeTrigger(trigger);
     logTelemetry('upgrade_sheet_viewed', { trigger, variant });
     if (isTrialEnd) {
       logTelemetry('trial_end_sheet_viewed', { trigger });
     }
-  }, [open, trigger, variant, isTrialEnd]);
+  }, [open, trigger, variant, isTrialEnd, isProReveal]);
 
   // Focus trap + ESC close
   useEffect(() => {
@@ -176,6 +199,12 @@ export default function ProUpgradeSheet({
     if (isTrialEnd) {
       logTelemetry('trial_end_dismissed', { trigger });
     }
+    if (isProReveal) {
+      // The reveal has one CTA ("Show me") which IS the acknowledgement —
+      // there's no separate "maybe later", so this fires from the CTA, the
+      // close (×) button, and the overlay tap alike.
+      logTelemetry('pro_reveal_dismissed');
+    }
     onClose?.();
   };
 
@@ -190,7 +219,13 @@ export default function ProUpgradeSheet({
         className="pro-upgrade-sheet"
         role="dialog"
         aria-modal="true"
-        aria-label={isTrialEnd ? 'Keep Pro free for another month' : 'Upgrade to OHNAR Pro'}
+        aria-label={
+          isProReveal
+            ? "You've got OHNAR Pro"
+            : isTrialEnd
+              ? 'Keep Pro free for another month'
+              : 'Upgrade to OHNAR Pro'
+        }
       >
         {/* Close button (top-right) */}
         <button
@@ -203,7 +238,51 @@ export default function ProUpgradeSheet({
           &times;
         </button>
 
-        {isTrialEnd ? (
+        {isProReveal ? (
+          /* ── "You've got Pro" reveal — one-time comprehension fix ────── */
+          <>
+            {/* Eyebrow */}
+            <div className="pro-upgrade-sheet__eyebrow">ON FOR 14 DAYS &mdash; NO CARD</div>
+
+            {/* Headline */}
+            <div className="pro-upgrade-sheet__header">
+              <div className="pro-upgrade-sheet__title trial-end-title">
+                You&rsquo;ve got OHNAR Pro
+              </div>
+            </div>
+
+            {/* Body */}
+            <p className="pro-upgrade-sheet__body">
+              Your quote &rarr; invoice &rarr; paid loop is free, forever. For the next 14 days Pro&rsquo;s switched on too &mdash; nothing to pay, no card needed. Here&rsquo;s what it adds:
+            </p>
+
+            {/* Bullets */}
+            <ul className="pro-upgrade-sheet__features" aria-label="What Pro adds">
+              {PRO_REVEAL_BULLETS.map((b) => (
+                <li key={b} className="pro-upgrade-sheet__feature">
+                  <span className="pro-upgrade-sheet__feature-tick" aria-hidden="true">&#10003;</span>
+                  <span className="pro-upgrade-sheet__feature-body">
+                    <span className="pro-upgrade-sheet__feature-label">{b}</span>
+                  </span>
+                </li>
+              ))}
+            </ul>
+
+            {/* Single primary CTA — this IS the dismissal, no "maybe later" */}
+            <button
+              type="button"
+              className="pro-upgrade-sheet__cta"
+              onClick={handleDismiss}
+            >
+              Show me
+            </button>
+
+            {/* Sub-line */}
+            <p className="pro-upgrade-sheet__footer">
+              On day 14 we&rsquo;ll show you how to keep it. Till then &mdash; use it.
+            </p>
+          </>
+        ) : isTrialEnd ? (
           /* ── Moment-1 trial_end variant ──────────────────────────────── */
           <>
             {/* Eyebrow */}
