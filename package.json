@@ -16,6 +16,7 @@
     "@supabase/supabase-js": "^2.104.0",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.7",
+    "jszip": "^3.10.1",
     "lucide-react": "^1.17.0",
     "posthog-js": "^1.386.6",
     "qrcode": "^1.5.4",

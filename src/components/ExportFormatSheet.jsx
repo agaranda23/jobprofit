@@ -8,7 +8,10 @@
  *   open       — boolean
  *   title      — string, e.g. "Export records" or "Export everything"
  *   subtitle   — string shown below the title
- *   options    — [{ id, icon, label, sublabel }] — rendered in order
+ *   options    — [{ id, icon, label, sublabel, locked }] — rendered in order.
+ *                `locked: true` dims the tile and swaps the chevron for a lock
+ *                glyph + "Pro" badge — it still calls onPick(id) on tap so the
+ *                caller decides what happens (e.g. open the upgrade sheet).
  *   onPick     — (id: string) => void — called when an option tile is tapped
  *   onClose    — () => void
  *
@@ -105,7 +108,7 @@ export default function ExportFormatSheet({ open, title, subtitle, options = [],
             <button
               key={opt.id}
               type="button"
-              className="export-format-sheet__option"
+              className={`export-format-sheet__option${opt.locked ? ' export-format-sheet__option--locked' : ''}`}
               role="listitem"
               onClick={() => onPick?.(opt.id)}
             >
@@ -115,12 +118,21 @@ export default function ExportFormatSheet({ open, title, subtitle, options = [],
                 </span>
               )}
               <span className="export-format-sheet__option-text">
-                <span className="export-format-sheet__option-label">{opt.label}</span>
+                <span className="export-format-sheet__option-label">
+                  {opt.label}
+                  {opt.locked && <span className="export-format-sheet__option-badge">Pro</span>}
+                </span>
                 {opt.sublabel && (
                   <span className="export-format-sheet__option-sublabel">{opt.sublabel}</span>
                 )}
               </span>
-              <span className="export-format-sheet__option-chevron" aria-hidden="true">›</span>
+              {opt.locked ? (
+                <span className="export-format-sheet__option-lock" aria-hidden="true">
+                  <Icon name="lock" size={16} />
+                </span>
+              ) : (
+                <span className="export-format-sheet__option-chevron" aria-hidden="true">›</span>
+              )}
             </button>
           ))}
         </div>

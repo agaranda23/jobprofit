@@ -126,22 +126,41 @@ describe('AppShell — handleExportFromMoney wiring', () => {
     expect(handlerBody).not.toContain('ProGate');
   });
 
-  it('handleMoneyExportFormatPick uses isPro for PDF branding, not as an access gate', () => {
+  it('handleMoneyExportFormatPick uses isPro for PDF branding, not as an access gate on the free formats', () => {
     // Since the PDF export branch (feat/money-tab-pdf-export) was merged, the
     // format-picker handler passes isPro(profile) to buildJobsPdf for watermarking /
     // branding — this is intentional, not a paywall. Verify it is present and that
-    // the handler does NOT gate format access behind an isPro() conditional.
-    const handlerStart = appshellSrc.indexOf('handleMoneyExportFormatPick');
+    // the CSV/PDF/XLSX branches do NOT gate format access behind an isPro() conditional.
+    //
+    // Scoped slice: starts at the `if (moneyExporting) return;` guard, which is the
+    // first line AFTER the Xero/QuickBooks branch (added feat/accountant-export-xero-quickbooks,
+    // see the dedicated describe block below) — this test intentionally does not cover
+    // that branch, which IS gated by design (Pro-only accountant-pack export).
+    const handlerStart = appshellSrc.indexOf('if (moneyExporting) return;');
     const handlerEnd   = appshellSrc.indexOf('const openDetailed', handlerStart);
     const handlerBody  = handlerStart !== -1 && handlerEnd !== -1
       ? appshellSrc.slice(handlerStart, handlerEnd)
       : '';
     // isPro(profile) present — used as metadata passed to buildJobsPdf, not a gate.
     expect(handlerBody).toMatch(/isPro\s*\(/);
-    // Must NOT gate any format behind isPro — all formats are free.
+    // Must NOT gate the CSV/PDF/XLSX formats behind isPro — those stay free forever.
     expect(handlerBody).not.toMatch(/isPro\s*\(.*\)\s*&&\s*(?:format|build|download)/);
     expect(handlerBody).not.toMatch(/if\s*\(\s*!?\s*isPro/);
     expect(handlerBody).not.toContain('ProGate');
+  });
+
+  it('gates the Xero/QuickBooks formats behind isPro — Pro-only bookkeeping export, distinct from the free CSV/PDF/XLSX formats', () => {
+    // These two formats are a smarter accountant-export value-add (Insight Layer seam),
+    // NOT the same data-portability promise the free formats above are protected by.
+    const handlerStart = appshellSrc.indexOf('handleMoneyExportFormatPick');
+    const handlerEnd   = appshellSrc.indexOf('const openDetailed', handlerStart);
+    const handlerBody  = handlerStart !== -1 && handlerEnd !== -1
+      ? appshellSrc.slice(handlerStart, handlerEnd)
+      : '';
+    expect(handlerBody).toMatch(/format === 'xero' \|\| format === 'quickbooks'/);
+    const xeroBranchMatch = handlerBody.match(/format === 'xero'[\s\S]{0,400}/);
+    expect(xeroBranchMatch).toBeTruthy();
+    expect(xeroBranchMatch[0]).toMatch(/if\s*\(\s*!isPro\s*\(\s*profile\s*\)\s*\)/);
   });
 
   it('handler uses buildJobsCsv (jobs-ledger-only, not buildEverythingCsv)', () => {

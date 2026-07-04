@@ -61,6 +61,7 @@ export const UPGRADE_TRIGGERS = /** @type {const} */ ({
   // Trial-end conversion events (Moment 1 + Moment 2)
   TRIAL_END:          'trial_end',       // Moment-1 sheet (Day 14)
   DROP_TO_FREE:       'drop_to_free',    // Moment-2 full-screen
+  ACCOUNTANT_EXPORT:  'accountant_export', // Xero/QuickBooks export locked tile (Money tab)
 });
 
 const TRIGGER_SESSION_KEY = 'jp.lastUpgradeTrigger';
