@@ -11,13 +11,15 @@
  *
  *   trial-urgency  isTrialActive && daysLeft <= 3 (and not last day)
  *     Copy: "{N} days left — keep your true-profit view for £12/mo"
- *     CTA:  startCheckout() direct (minimal friction)
+ *     CTA:  startCheckoutImmediate() direct (minimal friction, card required —
+ *           this converts the already-running trial into a real £12/mo sub,
+ *           it does NOT start a new trial)
  *     Tint: amber
  *     Dismissible: NO (urgency must survive a prior dismiss)
  *
  *   last-day       isTrialLastDay
  *     Copy: "Last day of Pro — keep it for £12/mo"
- *     CTA:  startCheckout() direct
+ *     CTA:  startCheckoutImmediate() direct (card required)
  *     Tint: amber
  *     Dismissible: NO
  *
@@ -36,12 +38,12 @@
  * Props:
  *   profile    — Supabase profiles row (may be null while loading)
  *   onOpen     — called when the pill opens ProUpgradeSheet (settled / free states)
- *   onError    — called with an error string if startCheckout() fails (urgency / last-day states)
+ *   onError    — called with an error string if startCheckoutImmediate() fails (urgency / last-day states)
  */
 
 import { useState } from 'react';
 import { isPro, isTrialActive, isTrialLastDay, trialDaysLeft } from '../lib/plan';
-import { startCheckout } from '../lib/billing';
+import { startCheckoutImmediate } from '../lib/billing';
 import { logTelemetry, setLastUpgradeTrigger, UPGRADE_TRIGGERS } from '../lib/telemetry';
 import Icon from './Icon';
 
@@ -128,7 +130,8 @@ export default function GetProPill({ profile, onOpen, onError }) {
     if (isDirectCheckout) {
       setLastUpgradeTrigger(UPGRADE_TRIGGERS.TRIAL_BANNER);
       logTelemetry('checkout_started', { trigger: UPGRADE_TRIGGERS.TRIAL_BANNER, state });
-      const { error } = await startCheckout();
+      // Converting an already-running trial → card required, no new trial.
+      const { error } = await startCheckoutImmediate({ source: UPGRADE_TRIGGERS.TRIAL_BANNER });
       if (error) onError?.(error);
     } else {
       onOpen?.();
