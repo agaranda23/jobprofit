@@ -56,6 +56,7 @@ import {
   initTrialOnFirstUse,
 } from './lib/plan';
 import { formatChargeDate, shouldShowPreChargeReminder } from './lib/trialConversion';
+import { shouldShowProReveal, markProRevealSeen } from './lib/proReveal';
 import { getJobProfit } from './lib/cashflow';
 import { enqueueJob, wireOnlineSync, runSync } from './lib/offlineQueue';
 import { logTelemetry, identifyUser, getLastUpgradeTrigger } from './lib/telemetry';
@@ -242,6 +243,15 @@ export default function AppShell() {
   const [dropToFreeUpgradeError, setDropToFreeUpgradeError] = useState(null);
   // preChargeReminderVisible: Day-~43 in-app banner (external push/email stubbed).
   const [preChargeReminderVisible, setPreChargeReminderVisible] = useState(false);
+
+  // ── "You've got Pro" reveal (comprehension fix) ────────────────────────────
+  // proRevealOpen: shows the one-time gift-framed "You've got OHNAR Pro" sheet.
+  // Fired from two places: right after OnboardingWizard.onComplete (below), and
+  // as a fallback in refreshProfile for wizard-skippers (the common case since
+  // zero-friction-entry lands new users straight on Today — see PR #262).
+  // Gated on shouldShowProReveal (isTrialActive + a per-device localStorage
+  // flag, NOT a Supabase column — see lib/proReveal.js for why).
+  const [proRevealOpen, setProRevealOpen] = useState(false);
 
   // settingsSubView: which sub-screen within Settings is active.
   // null          → top-level SettingsScreen
@@ -465,6 +475,15 @@ export default function AppShell() {
         // Stripe so the gate is never needed in that path.
         if (isTrialLastDay(data) && !trialEndSheetDismissedToday()) {
           setTrialEndSheetOpen(true);
+        }
+
+        // ── "You've got Pro" reveal — Today-load fallback ───────────────────
+        // Wizard-skippers (the common case — see the state comment above) get
+        // the reveal here instead of via OnboardingWizard.onComplete. Runs once
+        // per sign-in; shouldShowProReveal is false once the localStorage flag
+        // is set, so this never re-fires after the trader has seen it.
+        if (shouldShowProReveal(data, userId)) {
+          setProRevealOpen(true);
         }
 
         // ── Day-~43 pre-charge reminder ──────────────────────────────────────
@@ -1188,6 +1207,17 @@ export default function AppShell() {
   };
 
   /**
+   * "You've got Pro" reveal dismiss — the single "Show me" CTA (and the
+   * shared × / overlay-tap close) all route here via ProUpgradeSheet's
+   * onClose. Marks the per-device localStorage flag so the reveal never
+   * fires again for this user on this device, then closes the sheet.
+   */
+  const handleProRevealDismiss = () => {
+    markProRevealSeen(session?.user?.id);
+    setProRevealOpen(false);
+  };
+
+  /**
    * Moment-2 "Stay on free" dismiss — this is the point where we:
    *   1. Mark drop_to_free_seen on this device (localStorage)
    *   2. Write drop_to_free_seen=true + plan='free' to Supabase (flip)
@@ -1385,6 +1415,7 @@ export default function AppShell() {
     costSnackbarJob ||
     trialEndSheetOpen ||
     dropToFreeOpen ||
+    proRevealOpen ||
     moneyExportSheetOpen ||
     pushPromptVisible ||
     paidCelebrationAmount !== null ||
@@ -1634,6 +1665,18 @@ export default function AppShell() {
         onClose={handleTrialEndSheetDismiss}
       />
 
+      {/* ── "You've got Pro" reveal (comprehension fix) ───────────────── */}
+      {/* Shown once, ever, per device: right after onboarding completes  */}
+      {/* (wired via OnboardingWizard.onComplete below) or on first Today  */}
+      {/* load for wizard-skippers (refreshProfile). Single "Show me" CTA  */}
+      {/* — dismissing IS the acknowledgement, so it always marks seen.    */}
+      <ProUpgradeSheet
+        open={proRevealOpen}
+        variant="pro_reveal"
+        trigger="pro_reveal"
+        onClose={handleProRevealDismiss}
+      />
+
       {/* ── Drop-to-free screen (Moment 2) — honesty fix ──────────────── */}
       {/* Shown BEFORE plan is flipped on first post-expiry open.         */}
       {/* Closing this screen triggers the plan flip + mark-seen.         */}
@@ -1675,6 +1718,13 @@ export default function AppShell() {
             setProfile(savedProfile);
             setWizardOpen(false);
             sessionStorage.removeItem('jp.wizardActive');
+            // "You've got Pro" reveal — fires immediately here (before Today
+            // paints) when the wizard path completes on an active trial that
+            // hasn't seen it yet. The refreshProfile fallback below covers
+            // wizard-skippers; this covers the (less common) explicit-wizard path.
+            if (shouldShowProReveal(savedProfile, session?.user?.id)) {
+              setProRevealOpen(true);
+            }
             if (postWizardNav) {
               navigate(postWizardNav);
               setPostWizardNav(null);

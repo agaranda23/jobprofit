@@ -21,8 +21,9 @@
  *       just added)
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, screen, cleanup } from '@testing-library/react';
+import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import ProUpgradeSheet from '../ProUpgradeSheet';
+import { logTelemetry } from '../../lib/telemetry';
 
 vi.mock('../../lib/billing', () => ({
   startCheckout: vi.fn().mockResolvedValue({ error: null }),
@@ -42,6 +43,7 @@ vi.mock('../../lib/telemetry', () => ({
     UPGRADE_BANNER:    'upgrade_banner',
     TRIAL_END:         'trial_end',
     DROP_TO_FREE:      'drop_to_free',
+    PRO_REVEAL:        'pro_reveal',
   },
 }));
 
@@ -93,5 +95,53 @@ describe('ProUpgradeSheet — trial_end variant is unaffected', () => {
     // this is accurate for that flow (card collected) and must not be touched.
     expect(screen.getByText(/nothing to pay today/i)).toBeTruthy();
     expect(screen.getByText(/£12\/month, starting/i)).toBeTruthy();
+  });
+});
+
+// ── "You've got Pro" reveal (variant='pro_reveal') ──────────────────────────
+// Slice 1 of the silent-trial-activation fix: a one-time gift-framed reveal
+// shown right after onboarding (or on first Today load for wizard-skippers —
+// see AppShell.jsx). Single CTA, no checkout, no "maybe later".
+
+describe('ProUpgradeSheet — pro_reveal variant', () => {
+  it('shows the exact founder-approved copy', () => {
+    render(<ProUpgradeSheet open trigger="pro_reveal" variant="pro_reveal" onClose={vi.fn()} />);
+    expect(screen.getByText('ON FOR 14 DAYS — NO CARD')).toBeTruthy();
+    expect(screen.getByText(/You.?ve got OHNAR Pro/)).toBeTruthy();
+    expect(screen.getByText(/Your quote → invoice → paid loop is free, forever/)).toBeTruthy();
+    expect(screen.getByText(/Your name only — no "Sent with OHNAR" on your docs/)).toBeTruthy();
+    expect(screen.getByText(/Auto-chase — OHNAR chases late payers/)).toBeTruthy();
+    expect(screen.getByText(/True profit — what you actually kept after your bills/)).toBeTruthy();
+    expect(screen.getByText(/Tax pot — enough put by for the taxman, all year/)).toBeTruthy();
+    expect(screen.getByText(/On day 14 we.?ll show you how to keep it\. Till then — use it\./)).toBeTruthy();
+  });
+
+  it('has a single primary CTA ("Show me") and no "maybe later" secondary link', () => {
+    render(<ProUpgradeSheet open trigger="pro_reveal" variant="pro_reveal" onClose={vi.fn()} />);
+    expect(screen.getByRole('button', { name: 'Show me' })).toBeTruthy();
+    expect(screen.queryByText(/maybe later/i)).toBeNull();
+    expect(screen.queryByText(/not now/i)).toBeNull();
+  });
+
+  it('fires pro_reveal_viewed (and nothing else) on open', () => {
+    render(<ProUpgradeSheet open trigger="pro_reveal" variant="pro_reveal" onClose={vi.fn()} />);
+    expect(logTelemetry).toHaveBeenCalledWith('pro_reveal_viewed');
+    expect(logTelemetry).not.toHaveBeenCalledWith('upgrade_sheet_viewed', expect.anything());
+    expect(logTelemetry).not.toHaveBeenCalledWith('checkout_started', expect.anything());
+  });
+
+  it('the CTA tap dismisses (calls onClose) and fires pro_reveal_dismissed', () => {
+    const onClose = vi.fn();
+    render(<ProUpgradeSheet open trigger="pro_reveal" variant="pro_reveal" onClose={onClose} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Show me' }));
+    expect(onClose).toHaveBeenCalledTimes(1);
+    expect(logTelemetry).toHaveBeenCalledWith('pro_reveal_dismissed');
+    // No checkout call for this variant — it's a reveal, not a sale.
+    expect(logTelemetry).not.toHaveBeenCalledWith('checkout_started', expect.anything());
+  });
+
+  it('renders nothing when open is false', () => {
+    render(<ProUpgradeSheet open={false} trigger="pro_reveal" variant="pro_reveal" onClose={vi.fn()} />);
+    expect(screen.queryByText(/You.?ve got OHNAR Pro/)).toBeNull();
   });
 });
