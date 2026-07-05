@@ -15,12 +15,29 @@
 // review link sent — see src/lib/commsLog.js) so those touches now appear
 // too, without the trader typing a note.
 //
+// Slice 2 adds:
+//   - Visits (src/lib/visits.js, read via readVisits so legacy scheduledDate
+//     jobs are folded in): a "Visit booked" event per dated visit, plus a
+//     "Visit done" event for visits stamped with doneAt (added in this slice
+//     — JobDetailDrawer now sets doneAt wherever a visit's status flips to
+//     'done'). Visits marked done before doneAt existed have no timestamp to
+//     place a "done" event at, so it's omitted — same rule as legacy photos.
+//   - Photos (job.photos[], see src/lib/jobPhotos.js): a "Photo added" event
+//     for each new-format { path, uploadedAt } entry. Legacy base64-string
+//     entries carry no timestamp and are never guessed at — omitted.
+//   - Chase summary (src/lib/chaseLadder.js — localStorage-backed and
+//     already hydrated from job_chase_states on sign-in, so no new fetch is
+//     needed): one summarised "Chased ×N · last {date}" row per job, not one
+//     row per chase.
+//
 // Deliberately NOT emitted (later slice or never): email sends (deep-link
-// only — never logged), visits, photos, chase events. Legacy base64 photos
-// have no timestamp so they can't be placed on a timeline anyway.
+// only — never logged).
 
 import { gbp } from './today';
 import { computeAmountPaid } from './payments';
+import { readVisits } from './visits';
+import { isLegacyPhoto } from './jobPhotos';
+import { getChaseState } from './chaseLadder';
 
 /** Trims + lowercases a customer name for bucketing. Empty/null/whitespace → ''. */
 export function normaliseCustomerName(name) {
@@ -69,6 +86,14 @@ function toTs(raw) {
 
 function jobLabel(job) {
   return (job?.summary || job?.name || '').trim();
+}
+
+/** Short en-GB date for inline summary text (e.g. "12 Jul") — mirrors the
+ *  row's own fmtShort() in CustomerTimelineSheet so the two never disagree. */
+function formatShortDate(raw) {
+  const ts = toTs(raw);
+  if (ts == null) return '';
+  return new Date(ts).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 }
 
 // Voice-note summary length — long enough to be useful at a glance on the
@@ -219,6 +244,49 @@ export function buildTimeline(customerJobs, receipts) {
         jobId: job.id, jobName: label, sub, amount: r.amount,
       });
     }
+
+    // Slice 2 — visits. readVisits() folds in the legacy single-scheduledDate
+    // shape so old jobs get a "Visit booked" event too.
+    for (const v of readVisits(job)) {
+      if (!v?.date) continue;
+      events.push({
+        ts: toTs(v.date), type: 'visit_booked', icon: 'date',
+        summary: `Visit booked — ${formatShortDate(v.date)}`,
+        jobId: job.id, jobName: label, sub,
+      });
+
+      // Only visits stamped with doneAt (this slice's addition) get a "done"
+      // event — a visit marked done before doneAt existed has no timestamp
+      // to place it at, so it's left off rather than guessed.
+      if (v.status === 'done' && v.doneAt) {
+        events.push({
+          ts: toTs(v.doneAt), type: 'visit_done', icon: 'complete',
+          summary: 'Visit done', jobId: job.id, jobName: label, sub,
+        });
+      }
+    }
+
+    // Slice 2 — photos. Legacy base64-string entries carry no uploadedAt and
+    // are skipped rather than placed on a guessed date (isLegacyPhoto()).
+    for (const p of (job.photos || [])) {
+      if (isLegacyPhoto(p) || !p?.uploadedAt) continue;
+      events.push({
+        ts: toTs(p.uploadedAt), type: 'photo', icon: 'photos',
+        summary: 'Photo added', jobId: job.id, jobName: label, sub,
+      });
+    }
+
+    // Slice 2 — chase summary. One row per job, not one per chase tap.
+    // getChaseState is a synchronous localStorage read (already hydrated
+    // from job_chase_states on sign-in), so this needs no new fetch.
+    const chase = getChaseState(job.id);
+    if (chase?.count > 0) {
+      events.push({
+        ts: toTs(chase.lastChasedAt), type: 'chase_summary', icon: 'chase',
+        summary: `Chased ×${chase.count} · last ${formatShortDate(chase.lastChasedAt)}`,
+        jobId: job.id, jobName: label, sub,
+      });
+    }
   }
 
   events.sort((a, b) => (b.ts ?? 0) - (a.ts ?? 0));
@@ -239,10 +307,16 @@ function startOfDay(ts) {
 
 /**
  * Groups an already-descending event list into date-group headers:
- * Today · This week · This month · {Month} · {Year}.
+ * Upcoming · Today · This week · This month · {Month} · {Year}.
  * Returns [{ label, events }], preserving the incoming (descending) order —
  * so as long as `events` is sorted newest-first, the groups come out in the
  * right sequence with no extra sort needed.
+ *
+ * "Upcoming" (diffDays < 0) exists for Slice 2's "Visit booked" events,
+ * which — unlike every slice-1 event — can be dated in the future (a visit
+ * scheduled for next week). Before slice 2 no event ever carried a future
+ * ts, so this branch was unreachable; without it a future date's negative
+ * diffDays would wrongly satisfy `diffDays <= 0` and land under "Today".
  */
 export function bucketEvents(events, now = new Date()) {
   const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
@@ -256,7 +330,9 @@ export function bucketEvents(events, now = new Date()) {
       label = 'Earlier';
     } else {
       const diffDays = Math.floor((startOfToday - startOfDay(ev.ts)) / dayMs);
-      if (diffDays <= 0) {
+      if (diffDays < 0) {
+        label = 'Upcoming';
+      } else if (diffDays === 0) {
         label = 'Today';
       } else if (diffDays <= 6) {
         label = 'This week';

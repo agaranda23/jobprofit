@@ -2,8 +2,17 @@
  * visits.js — multi-visit schedule helpers.
  *
  * Data model:
- *   Visit { id, date, start?, end?, status, note? }
+ *   Visit { id, date, start?, end?, status, note?, doneAt? }
  *   status: 'planned' | 'done' | 'cancelled'
+ *
+ * doneAt (ISO timestamp) is stamped by JobDetailDrawer wherever a visit's
+ * status is set to 'done' (quick "mark done", the editor's status dropdown,
+ * and the bulk "end job" completion) — added for Customer Timeline slice 2
+ * so "Visit done" events can be placed on the real date, not job.completedAt
+ * (which is job-wide and wrong for any visit finished before the job ends).
+ * Visits marked done before this field existed have no doneAt — the
+ * timeline omits their "done" event rather than guess a date, same
+ * treatment as legacy base64 photos with no uploadedAt.
  *
  * Reader: always returns Visit[] so downstream UI never sees the legacy shape.
  * Writer: returns a Partial<Job> patch to apply — does NOT delete legacy fields
