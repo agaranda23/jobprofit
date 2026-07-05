@@ -1017,9 +1017,14 @@ export default function TodayScreen({
 
 
       {/* ── ProUpgradeSheet — opened by GetProPill on Today ──────────────── */}
+      {/* profile is threaded through so cardFreeEligible (see ProUpgradeSheet.jsx)
+          can route expired/free profiles to the honest card-required "Get Pro —
+          £12/mo" CTA instead of the card-free trial promise (fix/today-pill-honest-cta,
+          same bug class as feat/pro-billing-tidy #600 — this call site was missed). */}
       <ProUpgradeSheet
         open={upgradeSheetOpen}
         trigger={UPGRADE_TRIGGERS.TODAY_PILL}
+        profile={profile}
         onClose={() => setUpgradeSheetOpen(false)}
       />
     </div>
