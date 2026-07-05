@@ -445,3 +445,27 @@ describe('DocumentPreview — empty brand fields show placeholders, never block'
     expect(screen.getByText(/add your business name/i)).toBeInTheDocument();
   });
 });
+
+// ── Logo mixed-content fix — http:// logo_url must render as https:// ───────
+// A logo_url saved before LogoModal's https hardening can still be sitting
+// in an existing profile. DocumentPreview's letterhead <img> must upgrade it
+// on render (via secureImageUrl) so it never trips a browser "Not secure" /
+// mixed-content warning.
+
+describe('DocumentPreview — logo <img> upgrades an http:// logo_url to https://', () => {
+  it('renders an https:// src when biz.logoUrl is stored as http://', () => {
+    const biz = { ...BIZ, logoUrl: 'http://example.com/logo.png' };
+    const { container } = render(
+      <DocumentPreview mode="quote" job={makeJob()} biz={biz} profile={{ plan: 'free' }} flash={NOOP} />
+    );
+    expect(container.querySelector('.dp-logo-img')).toHaveAttribute('src', 'https://example.com/logo.png');
+  });
+
+  it('leaves an already-https:// logoUrl unchanged', () => {
+    const biz = { ...BIZ, logoUrl: 'https://example.com/logo.png' };
+    const { container } = render(
+      <DocumentPreview mode="quote" job={makeJob()} biz={biz} profile={{ plan: 'free' }} flash={NOOP} />
+    );
+    expect(container.querySelector('.dp-logo-img')).toHaveAttribute('src', 'https://example.com/logo.png');
+  });
+});

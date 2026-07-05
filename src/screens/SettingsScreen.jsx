@@ -62,6 +62,7 @@ import { isPro, isTrialActive, trialDaysLeft, UNLOCK_PRO_FOR_ALL } from '../lib/
 import { openBillingPortal } from '../lib/billing.js';
 import OhnarWordmark from '../components/OhnarWordmark.jsx';
 import { isValidStripePaymentLink } from '../lib/bizValidation.js';
+import { secureImageUrl } from '../lib/secureImageUrl.js';
 import { addJobToCloud } from '../lib/store.js';
 import { countSampleJobs } from '../lib/sampleData.js';
 import { buildJobsCsv, buildEverythingCsv, downloadOrShareCsv } from '../lib/exportCsv.js';
@@ -1558,7 +1559,7 @@ function SettingsAvatar({ profile, session }) {
     return (
       <div className="settings-avatar settings-avatar--logo">
         <img
-          src={logoUrl}
+          src={secureImageUrl(logoUrl)}
           alt="Business logo"
           className="settings-avatar-img"
           onError={(e) => {
