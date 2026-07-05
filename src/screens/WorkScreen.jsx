@@ -1937,6 +1937,7 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
             onProfileUpdate={onProfileUpdate}
             materialsLibrary={materials}
             onMaterialSaved={onMaterialSaved}
+            onOpenJob={handleOpenJob}
           />
         </DrawerErrorBoundary>
       )}

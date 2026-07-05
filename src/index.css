@@ -18599,6 +18599,170 @@ button.dp-totals-row--total.dp-totals-row--tap:active {
   white-space: nowrap;
 }
 
+/* ── CustomerTimelineSheet — Customer Timeline slice 1 ───────────────────
+   Container reuses .modal-backdrop.modal-backdrop--top + .modal-sheet (same
+   pushed-sheet-over-the-drawer chrome as DocumentsHub). Rail (dot + line)
+   reuses .stage-timeline__dot/__line — see component header comment for why
+   the rail resets per date-group instead of running continuously. */
+.ct-sheet {
+  gap: 16px;
+}
+.ct-contact-row {
+  margin-top: -4px;
+}
+.ct-add-contact-btn {
+  background: none;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-md);
+  color: var(--text-dim);
+  font-size: var(--fs-label);
+  font-weight: 600;
+  padding: 12px;
+  text-align: center;
+  cursor: pointer;
+  font-family: inherit;
+}
+.ct-add-contact-btn:active { opacity: 0.7; }
+
+.ct-lifetime-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--fs-body);
+  font-weight: 600;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  padding: 4px 2px;
+}
+.ct-lifetime-dot {
+  color: var(--text-dim);
+  opacity: 0.6;
+}
+.ct-lifetime-owed {
+  color: var(--danger);
+}
+
+.ct-feed {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ct-date-group + .ct-date-group {
+  margin-top: 8px;
+}
+.ct-date-header {
+  font-size: var(--fs-label);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+  padding: 4px 0;
+}
+
+/* Event row content — sits to the right of the reused stage-timeline dot/line.
+   .ct-event overrides the base .stage-timeline__item min-height (32px is a
+   little tight for a 2-line summary + sub-label). */
+.ct-event {
+  min-height: 40px;
+}
+.ct-event-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  background: none;
+  border: none;
+  padding: 6px 0;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+}
+.ct-event-btn:active { opacity: 0.7; }
+.ct-event-icon {
+  flex-shrink: 0;
+  display: flex;
+}
+.ct-event-body {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.ct-event-summary {
+  font-size: var(--fs-label);
+  font-weight: 600;
+  color: var(--text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ct-event-sub {
+  font-size: var(--fs-label);
+  color: var(--text-dim);
+  opacity: 0.7;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ct-event-sub::before {
+  content: '· ';
+}
+.ct-event-date {
+  flex-shrink: 0;
+  font-size: var(--fs-label);
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.ct-empty-state {
+  padding: 32px 8px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.ct-empty-title {
+  font-size: var(--fs-subhead);
+  font-weight: 700;
+  color: var(--text);
+  margin: 0;
+}
+.ct-empty-sub {
+  font-size: var(--fs-label);
+  color: var(--text-dim);
+  margin: 0;
+  max-width: 32ch;
+}
+.ct-empty-action {
+  margin-top: 8px;
+  background: var(--accent);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-md);
+  padding: 10px 20px;
+  font-size: var(--fs-label);
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+}
+.ct-empty-action:active { opacity: 0.85; }
+
+.ct-show-earlier {
+  align-self: center;
+  margin-top: 8px;
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: var(--fs-label);
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  padding: 8px;
+}
+
 /* ── OHNAR Brand Palette + WorkflowCircles (feat/ohnar-six-stage-workflow) ──
    OHNAR design tokens — primitive palette.
    These are the raw brand values; semantic workflow tokens below map onto them.

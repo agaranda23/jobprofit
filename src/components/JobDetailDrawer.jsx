@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import Icon from './Icon';
 import PaymentSummaryBlock from './PaymentSummaryBlock';
 import PaymentHistoryList from './PaymentHistoryList';
@@ -68,6 +68,8 @@ import { buildQuoteRecordMeta, buildInvoiceRecordMeta } from '../lib/documentRec
 import PhotoSourceSheet from './PhotoSourceSheet';
 // downloadQuotePDF/downloadInvoicePDF and isPro are consumed by DocumentsHub; no longer needed here.
 import DocumentsHub from './DocumentsHub';
+import CustomerTimelineSheet from './CustomerTimelineSheet';
+import { getCustomerJobs } from '../lib/customerTimeline';
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -203,7 +205,7 @@ function PhotoLightbox({ src, onClose, receipt, onEdit }) {
  * Empty fields render as ghost-button "+ Add" rows.
  * No B2B toggle — that moved to the bottom settings row (Alaister override 2026-05-31).
  */
-function CustomerCard({ job, onEditName, onEditPhone, onEditAddress, onEditEmail, onEditDescription }) {
+function CustomerCard({ job, onEditName, onEditPhone, onEditAddress, onEditEmail, onEditDescription, otherJobsCount = 0, onOpenTimeline }) {
   // Never fall back to job.name — that's the job title, not the customer name.
   // If job.customer is not set, show a ghost-button "+ Add customer name" instead.
   const customer = job.customer || '';
@@ -257,6 +259,23 @@ function CustomerCard({ job, onEditName, onEditPhone, onEditAddress, onEditEmail
             <span className="jd-card-row-add">+ Add customer name</span>
           </button>
         )
+      )}
+
+      {/* Customer Timeline entry — only when this customer has ≥1 OTHER job
+          (otherJobsCount is jobs sharing this customer name, minus this one). */}
+      {otherJobsCount > 0 && onOpenTimeline && (
+        <button
+          type="button"
+          className="jd-card-row jd-card-row--tappable"
+          onClick={onOpenTimeline}
+          aria-label={`See all work with ${customer || 'this customer'} — ${otherJobsCount + 1} jobs`}
+        >
+          <span className="jd-card-row-icon"><Icon name="clock" size={16} variant="muted" /></span>
+          <span className="jd-card-row-val">
+            See all work with {(customer.split(/\s+/)[0] || 'them')} · {otherJobsCount + 1} jobs
+          </span>
+          <span className="jd-card-row-edit" aria-hidden="true"><Icon name="chevron-right" size={16} /></span>
+        </button>
       )}
 
       {/* Phone — tap number to edit; action chips (Call · Text · WhatsApp) below;
@@ -2221,6 +2240,11 @@ export default function JobDetailDrawer({
   // calls this handler only after the user confirms. The handler should throw on failure
   // so the drawer can surface an error toast without closing.
   onDeleteJob,
+  // Optional: opens a different job's drawer (same handler WorkScreen already
+  // wires to JobTile/StageChipDropdown taps). Used by CustomerTimelineSheet so
+  // tapping an event for a different job in the customer's history navigates
+  // there directly instead of requiring the trader to close and re-find it.
+  onOpenJob,
 }) {
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
@@ -2315,6 +2339,13 @@ export default function JobDetailDrawer({
   // Customer field editing — single EditFieldModal controlled by this key.
   // null = closed; 'name' | 'phone' | 'email' | 'summary' = which field is open.
   const [editingField, setEditingField] = useState(null);
+
+  // Customer Timeline sheet (slice 1) — pushed over this drawer.
+  const [timelineOpen, setTimelineOpen] = useState(false);
+
+  // All jobs sharing this job's customer name (this job included). Purely a
+  // client-side grouping of the already-loaded `jobs` prop — see lib/customerTimeline.js.
+  const customerJobs = useMemo(() => getCustomerJobs(job, jobs), [job, jobs]);
 
   // Close on Escape — also closes lightbox, photo sheet, kebab, or edit modals if open
   useEffect(() => {
@@ -4031,6 +4062,8 @@ export default function JobDetailDrawer({
                   onEditAddress={onUpdateJob ? () => setEditingField('address') : undefined}
                   onEditEmail={onUpdateJob ? () => setEditingField('email') : undefined}
                   onEditDescription={onUpdateJob ? () => setEditingField('description') : undefined}
+                  otherJobsCount={customerJobs.length - 1}
+                  onOpenTimeline={() => setTimelineOpen(true)}
                 />
 
                 {/* CIS-4/5: tax meta (CIS toggle + exclude) */}
@@ -4351,6 +4384,23 @@ export default function JobDetailDrawer({
             if (needsPrice(job)) openPriceEditor();
             else setReviewSheetMode('invoice');
           }}
+        />
+      )}
+
+      {/* CustomerTimelineSheet — Customer Timeline slice 1. Opened from the
+          "See all work with {FirstName}" row in CustomerCard above. */}
+      {timelineOpen && (
+        <CustomerTimelineSheet
+          job={job}
+          jobs={jobs}
+          receipts={receipts}
+          onClose={() => setTimelineOpen(false)}
+          onSelectJob={(nextJob) => {
+            setTimelineOpen(false);
+            onOpenJob?.(nextJob);
+          }}
+          onAddNote={onUpdateJob ? () => { setTimelineOpen(false); setNoteFormOpen(true); } : undefined}
+          onAddPhone={() => { setTimelineOpen(false); setEditingField('phone'); }}
         />
       )}
 
