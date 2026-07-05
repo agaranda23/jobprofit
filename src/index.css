@@ -9714,6 +9714,30 @@ button.jd-money-chip:active { opacity: 0.75; }
 }
 .jd-note-delete-btn:active { opacity: 0.7; }
 
+/* ── Voice note (Capture Layer Slice B) ──
+   Reuses .jd-add-dashed--tinted so it matches Add photo/Add note visually;
+   the --listening modifier just flips to a solid fill so "recording" is
+   unmistakable at a glance (one hand on a kerb, not reading closely). */
+.jd-voice-note-btn--listening {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #06120b;
+}
+.jd-voice-note-transcript {
+  margin: 6px 0 0;
+  padding: 0 2px;
+  font-size: var(--fs-label);
+  color: var(--text-dim);
+  line-height: 1.5;
+  font-style: italic;
+}
+.jd-voice-note-error {
+  margin: 6px 0 0;
+  padding: 0 2px;
+  font-size: var(--fs-label);
+  color: var(--danger, #ef4444);
+}
+
 /* ── Section header with action CTA (Phase E-1) ── */
 
 .jd-section-header--with-action {

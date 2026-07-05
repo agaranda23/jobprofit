@@ -71,6 +71,16 @@ function jobLabel(job) {
   return (job?.summary || job?.name || '').trim();
 }
 
+// Voice-note summary length — long enough to be useful at a glance on the
+// timeline row, short enough not to wrap onto 3+ lines on a phone screen.
+const NOTE_SUMMARY_MAX = 60;
+
+/** Trims a voice-note body to ~60 chars for the timeline row, ellipsis only when cut. */
+function truncateNoteSummary(body) {
+  const text = (body || '').trim();
+  return text.length > NOTE_SUMMARY_MAX ? text.slice(0, NOTE_SUMMARY_MAX - 1) + '…' : text;
+}
+
 function methodLabel(method) {
   switch (method) {
     case 'cash': return 'cash';
@@ -166,10 +176,16 @@ export function buildTimeline(customerJobs, receipts) {
 
     for (const n of (job.jobNotes || [])) {
       if (!n?.date) continue;
-      const text = (n.subject && n.subject !== 'Note') ? n.subject : (n.body || '').slice(0, 60);
+      // Capture Layer — Slice B: voice notes (source:'voice') get a mic icon
+      // and always summarise from the transcript body (subject is always the
+      // fixed 'Voice note' label, so it carries no extra info to show).
+      const isVoice = n.source === 'voice';
+      const summary = isVoice
+        ? `Voice note: "${truncateNoteSummary(n.body)}"`
+        : `Note: "${(n.subject && n.subject !== 'Note') ? n.subject : (n.body || '').slice(0, 60)}"`;
       events.push({
-        ts: toTs(n.date), type: 'note', icon: 'note',
-        summary: `Note: "${text}"`, jobId: job.id, jobName: label, sub,
+        ts: toTs(n.date), type: 'note', icon: isVoice ? 'mic' : 'note',
+        summary, jobId: job.id, jobName: label, sub,
       });
     }
 
