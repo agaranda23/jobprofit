@@ -7,6 +7,9 @@
  *   C. acceptedAt / declinedAt resolution
  *   D. acceptedSource display logic for JobDetailDrawer
  *   E. Token validation used by the public page
+ *   F. VAT breakdown derivation (fix/quote-public-vat-validity)
+ *   G. Per-quote "Valid until" derivation (fix/quote-public-vat-validity)
+ *   H. Deposit due-date display string (fix/quote-public-vat-validity)
  *
  * Signature-based detection removed (Phase G-2): quoteStatus is now the canonical
  * acceptance signal. acceptedSignature is retained as a legacy safety fallback for
@@ -18,6 +21,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { isValidToken } from '../../lib/publicQuoteToken';
+import { splitVatInclusive } from '../../lib/vatUtils';
 
 // ── A. isAccepted derivation ──────────────────────────────────────────────────
 // Mirrors the logic in PublicQuoteView's render body (G-2):
@@ -193,5 +197,124 @@ describe('E. Token shape used by G-2 submit', () => {
 
   it('rejects a token with injected characters', () => {
     expect(isValidToken("a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'; DROP TABLE jobs; --")).toBe(false);
+  });
+});
+
+// ── F. VAT breakdown derivation (fix/quote-public-vat-validity) ──────────────
+// Mirrors PublicQuoteView's render body:
+//   const showVat = !!vatRegistered || job.vat === true;
+//   const { net: vatNet, vat: vatAmount } = showVat ? splitVatInclusive(total) : { net: total, vat: 0 };
+// Must match generateQuotePDF's showVat exactly and never re-derive the split
+// by hand — splitVatInclusive() is the single source of truth.
+
+function deriveShowVat(vatRegistered, job) {
+  return !!vatRegistered || job.vat === true;
+}
+
+function deriveVatBreakdown(vatRegistered, job, total) {
+  const showVat = deriveShowVat(vatRegistered, job);
+  return showVat ? splitVatInclusive(total) : { gross: total, net: total, vat: 0 };
+}
+
+describe('F. showVat derivation', () => {
+  it('is false when the trader is not VAT-registered and job.vat is unset', () => {
+    expect(deriveShowVat(false, {})).toBe(false);
+  });
+
+  it('is true when the trader profile is VAT-registered', () => {
+    expect(deriveShowVat(true, {})).toBe(true);
+  });
+
+  it('is true when job.vat is true even if the trader is not VAT-registered (voice-quote flag)', () => {
+    expect(deriveShowVat(false, { vat: true })).toBe(true);
+  });
+
+  it('is false when job.vat is a truthy-but-not-true value (strict === true check)', () => {
+    expect(deriveShowVat(false, { vat: 'yes' })).toBe(false);
+  });
+});
+
+describe('F. VAT breakdown values — penny-correct via splitVatInclusive', () => {
+  it('returns net/vat that sum back to a round gross (£240 → £200 net + £40 VAT)', () => {
+    const { net, vat } = deriveVatBreakdown(true, {}, 240);
+    expect(net).toBe(200);
+    expect(vat).toBe(40);
+    expect(net + vat).toBe(240);
+  });
+
+  it('is penny-correct for a non-round gross total (£137.50)', () => {
+    const { net, vat } = deriveVatBreakdown(true, {}, 137.50);
+    expect(net).toBeCloseTo(114.5833333, 5);
+    expect(vat).toBeCloseTo(22.9166667, 5);
+    expect(net + vat).toBeCloseTo(137.50, 8);
+  });
+
+  it('returns net === total and vat === 0 when VAT does not apply', () => {
+    const { net, vat } = deriveVatBreakdown(false, {}, 137.50);
+    expect(net).toBe(137.50);
+    expect(vat).toBe(0);
+  });
+});
+
+// ── G. Per-quote "Valid until" derivation (fix/quote-public-vat-validity) ────
+// Mirrors PublicQuoteView's render body: job.quoteValidUntil (per-quote
+// override) wins over issueDate + profile.quote_validity_days. The founder
+// flagged that editing "Valid until" used to silently rewrite the trader's
+// GLOBAL default (profile.quote_validity_days) for every future quote — this
+// derivation is the fix: a per-job field that never touches the profile.
+
+function deriveValidUntil(job, issueDateIso, quoteValidityDays) {
+  const issueDate = new Date(`${issueDateIso}T00:00:00`);
+  const defaultValidUntil = new Date(issueDate);
+  defaultValidUntil.setDate(defaultValidUntil.getDate() + quoteValidityDays);
+  if (job.quoteValidUntil) {
+    return new Date(`${job.quoteValidUntil}T00:00:00`);
+  }
+  return defaultValidUntil;
+}
+
+describe('G. Per-quote valid-until override', () => {
+  // Dates compared via toLocaleDateString('en-GB') (DD/MM/YYYY) — same
+  // convention as invoicePDF.test.js — NOT toISOString(), which shifts by the
+  // runner's local UTC offset and can roll the date back/forward a day.
+
+  it('falls back to issueDate + profile default when job.quoteValidUntil is absent', () => {
+    const result = deriveValidUntil({}, '2026-06-01', 30);
+    expect(result.toLocaleDateString('en-GB')).toBe('01/07/2026');
+  });
+
+  it('uses job.quoteValidUntil when set, ignoring the profile default entirely', () => {
+    const job = { quoteValidUntil: '2026-09-15' };
+    const result = deriveValidUntil(job, '2026-06-01', 30); // default would be 01/07/2026
+    expect(result.toLocaleDateString('en-GB')).toBe('15/09/2026');
+  });
+
+  it('a per-quote override does not change what a DIFFERENT job with no override derives', () => {
+    const editedJob = { quoteValidUntil: '2026-09-15' };
+    const otherJob = {};
+    expect(deriveValidUntil(editedJob, '2026-06-01', 30).toLocaleDateString('en-GB')).toBe('15/09/2026');
+    // The "global default" (quote_validity_days) is untouched by the edit above —
+    // a sibling job with no override still derives from the same 30-day default.
+    expect(deriveValidUntil(otherJob, '2026-06-01', 30).toLocaleDateString('en-GB')).toBe('01/07/2026');
+  });
+});
+
+// ── H. Deposit due-date display (fix/quote-public-vat-validity) ──────────────
+// Mirrors PublicQuoteView's render body:
+//   const depositDueStr = job.deposit_due_date ? fmtDate(job.deposit_due_date) : '';
+// fmtDate itself is exercised elsewhere; this covers the presence/absence gate
+// that decides whether the "Due <date>" trailer renders on the deposit blocks.
+
+function deriveDepositDueStr(job) {
+  return job.deposit_due_date ? job.deposit_due_date : '';
+}
+
+describe('H. Deposit due-date gate', () => {
+  it('is present when job.deposit_due_date is set', () => {
+    expect(deriveDepositDueStr({ deposit_due_date: '2026-07-11' })).toBe('2026-07-11');
+  });
+
+  it('is empty when job.deposit_due_date is absent (falls back to the existing generic copy)', () => {
+    expect(deriveDepositDueStr({})).toBe('');
   });
 });

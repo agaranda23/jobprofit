@@ -26,6 +26,17 @@
  *     invoiceDueDate,  — from meta
  *     acceptedSignature, acceptedAt,  — from meta (quote acceptance)
  *     deposit_percent, deposit_amount_pence, deposit_paid_at,  — deposit flow
+ *     deposit_due_date,  — from meta (fix/quote-public-vat-validity: already drawn
+ *                          on the quote PDF/WhatsApp message via job.deposit_due_date,
+ *                          but never reached the public "view & accept" page)
+ *     vat,               — from meta (fix/quote-public-vat-validity: voice-quote
+ *                          "plus/inc VAT" flag; the public page OR's this with the
+ *                          trader's profile-level vatRegistered, mirroring
+ *                          generateQuotePDF's showVat logic exactly)
+ *     quoteValidUntil,   — from meta (fix/quote-public-vat-validity: per-quote
+ *                          "Valid until" override, ISO date YYYY-MM-DD | undefined —
+ *                          the public page falls back to issueDate +
+ *                          profile.quote_validity_days when absent)
  *   }
  *
  * Fields deliberately EXCLUDED from the response:
@@ -167,6 +178,17 @@ export const handler = async function (event) {
     deposit_percent:       m.deposit_percent       ?? 0,
     deposit_amount_pence:  m.deposit_amount_pence  ?? null,
     deposit_paid_at:       m.deposit_paid_at        ?? null,
+    deposit_due_date:      m.deposit_due_date       ?? null,
+
+    // VAT flag (fix/quote-public-vat-validity) — voice-quote "plus/inc VAT" flag.
+    // The public page OR's this with the trader's profile vatRegistered field
+    // (from fetch-public-quote-profile) to decide showVat, same as generateQuotePDF.
+    vat: m.vat === true,
+
+    // Per-quote "Valid until" override (fix/quote-public-vat-validity). When
+    // absent, public pages fall back to issueDate + profile.quote_validity_days —
+    // never a change to the trader's global default (see jobMeta.js).
+    quoteValidUntil: m.quoteValidUntil ?? null,
 
     // Payment records from meta (needed for receipt view paid-amount display)
     payments: Array.isArray(m.payments) ? m.payments : [],

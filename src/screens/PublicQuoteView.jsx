@@ -7,7 +7,12 @@
  * What renders:
  *   - Trader business name (from job meta / profile fields in meta)
  *   - Customer name + job description
- *   - Line items breakdown + total
+ *   - Line items breakdown + total, with a VAT-inclusive Subtotal/VAT split
+ *     when the trader is VAT-registered or this quote's voice-captured "plus/
+ *     inc VAT" flag is set (fix/quote-public-vat-validity — matches the PDF/
+ *     WhatsApp message via the shared splitVatInclusive() helper)
+ *   - Deposit due-date trailer (job.deposit_due_date) alongside the deposit
+ *     amount, when the trader captured one (fix/quote-public-vat-validity)
  *   - Accept / Decline buttons when quote is pending
  *   - Read-only terminal state when already accepted or declined
  *
@@ -26,6 +31,7 @@
 
 import { useState, useEffect } from 'react';
 import { isValidToken } from '../lib/publicQuoteToken';
+import { splitVatInclusive } from '../lib/vatUtils';
 
 // Fetch job data via the server-side function so the anon Supabase client is
 // never used for job data. See fix/security-stop-the-line (H-1).
@@ -113,7 +119,12 @@ function AcceptedBadge({ acceptedAt }) {
   );
 }
 
-function LineItemsTable({ items }) {
+/**
+ * showVat/vatNet/vatAmount are computed ONCE in the parent (from splitVatInclusive)
+ * and passed down here — never re-derived — so the breakdown always matches the
+ * PDF/WhatsApp message to the penny (fix/quote-public-vat-validity).
+ */
+function LineItemsTable({ items, showVat, vatNet, vatAmount }) {
   if (!Array.isArray(items) || items.length === 0) return null;
 
   const total = items.reduce((sum, i) => {
@@ -140,6 +151,18 @@ function LineItemsTable({ items }) {
             </div>
           );
         })}
+        {showVat && (
+          <>
+            <div className="pqv-vat-row">
+              <span>Subtotal</span>
+              <span>{gbp(vatNet)}</span>
+            </div>
+            <div className="pqv-vat-row">
+              <span>VAT (20%)</span>
+              <span>{gbp(vatAmount)}</span>
+            </div>
+          </>
+        )}
         <div className="pqv-line-total">
           <span className="pqv-line-total-label">Total</span>
           <span className="pqv-line-total-value">{gbp(total)}</span>
@@ -153,7 +176,7 @@ function LineItemsTable({ items }) {
  * RemoteAcceptedBlock — shown after customer accepts in this session.
  * Also shown on revisit when quoteStatus is already 'accepted'.
  */
-function RemoteAcceptedBlock({ acceptedAt, showBankDetails, depositPercent, depositAmountPence, accountName, sortCode, accountNumber }) {
+function RemoteAcceptedBlock({ acceptedAt, showBankDetails, depositPercent, depositAmountPence, accountName, sortCode, accountNumber, depositDueStr }) {
   return (
     <div className="pqv-sign-accepted" role="status">
       <div className="pqv-sign-accepted-title">Quote accepted</div>
@@ -173,6 +196,7 @@ function RemoteAcceptedBlock({ acceptedAt, showBankDetails, depositPercent, depo
         <div className="pqv-bank-details" style={{ marginTop: 12, fontSize: 'var(--fs-label)', lineHeight: 1.7, color: '#086B45' }}>
           <div style={{ fontWeight: 700, marginBottom: 4, color: '#086B45' }}>
             Deposit ({depositPercent}%) — {depositAmountPence > 0 ? new Intl.NumberFormat('en-GB', { style: 'currency', currency: 'GBP' }).format(depositAmountPence / 100) : ''}
+            {depositDueStr ? ` · due ${depositDueStr}` : ''}
           </div>
           {accountName && <div><strong>Name:</strong> {accountName}</div>}
           <div><strong>Sort code:</strong> {sortCode}</div>
@@ -417,9 +441,10 @@ function DecisionSection({ token, onAccepted, onDeclined }) {
  *   accountName:        string,
  *   sortCode:           string,
  *   accountNumber:      string,
+ *   depositDueStr:      string, — formatted due date (fmtDate output) | '' when absent
  * }} props
  */
-function BankDepositBlock({ depositPercent, depositAmountPence, accountName, sortCode, accountNumber }) {
+function BankDepositBlock({ depositPercent, depositAmountPence, accountName, sortCode, accountNumber, depositDueStr }) {
   const depositGbp = depositAmountPence > 0 ? gbp(depositAmountPence / 100) : '';
   if (!depositGbp || !sortCode || !accountNumber) return null;
 
@@ -431,7 +456,7 @@ function BankDepositBlock({ depositPercent, depositAmountPence, accountName, sor
           <span>{depositGbp}</span>
         </div>
         <div className="pqv-deposit-block-sub">
-          Pay by bank transfer to secure your booking
+          {depositDueStr ? `Due ${depositDueStr} — pay by bank transfer to secure your booking` : 'Pay by bank transfer to secure your booking'}
         </div>
         {/* color:#086B45 is explicit here — the parent .pqv-deposit-block has no
             inherited color, so without this the values render invisible on the
@@ -470,9 +495,10 @@ function BankDepositBlock({ depositPercent, depositAmountPence, accountName, sor
  *   onAcceptWithoutDeposit: function,  — show the SignSection
  *   depositSuccess: boolean,           — ?deposit_success=true on the URL
  *   depositCancelled: boolean,         — ?deposit_cancelled=true on the URL
+ *   depositDueStr: string,             — formatted due date (fmtDate output) | '' when absent
  * }} props
  */
-function DepositBlock({ _job, token, depositPercent, depositAmountPence, onAcceptWithoutDeposit, depositSuccess, depositCancelled }) {
+function DepositBlock({ _job, token, depositPercent, depositAmountPence, onAcceptWithoutDeposit, depositSuccess, depositCancelled, depositDueStr }) {
   const [depositState, setDepositState] = useState('idle'); // 'idle' | 'loading' | 'error'
   const [depositError, setDepositError] = useState('');
   const [consentChecked, setConsentChecked] = useState(false);
@@ -549,7 +575,9 @@ function DepositBlock({ _job, token, depositPercent, depositAmountPence, onAccep
           <span>Deposit ({depositPercent}%)</span>
           <span>{depositGbp}</span>
         </div>
-        <div className="pqv-deposit-block-sub">Pay now to lock in your slot</div>
+        <div className="pqv-deposit-block-sub">
+          {depositDueStr ? `Due ${depositDueStr} — pay now to lock in your slot` : 'Pay now to lock in your slot'}
+        </div>
       </div>
 
       {/* Consent checkbox — mirrors the sign flow; must be ticked before Pay is active */}
@@ -702,14 +730,20 @@ export default function PublicQuoteView({ token }) {
   const traderSortCode      = traderProfile.sortCode      || '';
   const traderAccountNumber = traderProfile.accountNumber || '';
 
-  // Quote number and valid-until date from the server profile / job
+  // Quote number and valid-until date from the server profile / job.
+  // job.quoteValidUntil (per-quote override, fix/quote-public-vat-validity)
+  // wins over the profile default — must never fall back to recomputing from
+  // quoteValidityDays when the trader edited THIS quote's date specifically.
   const quoteValidityDays = traderProfile.quoteValidityDays ?? 30;
   const quoteNumber = job.quoteNumber || (job.id ? `Q-${String(job.id).slice(-4).toUpperCase()}` : '');
   const issueDate = job.date
     ? (job.date.length === 10 ? new Date(job.date + 'T00:00:00') : new Date(job.date))
     : new Date();
-  const validUntil = new Date(issueDate);
-  validUntil.setDate(validUntil.getDate() + quoteValidityDays);
+  const defaultValidUntil = new Date(issueDate);
+  defaultValidUntil.setDate(defaultValidUntil.getDate() + quoteValidityDays);
+  const validUntil = job.quoteValidUntil
+    ? (job.quoteValidUntil.length === 10 ? new Date(job.quoteValidUntil + 'T00:00:00') : new Date(job.quoteValidUntil))
+    : defaultValidUntil;
   const validUntilStr = validUntil.toLocaleDateString('en-GB');
   const customerName = job.customer || job.customer_name || job.name || '';
   const description = job.summary || '';
@@ -718,12 +752,22 @@ export default function PublicQuoteView({ token }) {
     : [];
   const total = job.total ?? job.amount ?? 0;
 
+  // VAT breakdown — mirrors generateQuotePDF's showVat exactly (profile-level
+  // vatRegistered OR this job's voice-captured "plus/inc VAT" flag). Never
+  // re-derive the VAT split by hand — splitVatInclusive() is the single
+  // source of truth shared with the PDF/WhatsApp message/DocumentPreview.
+  const showVat = !!vatRegistered || job.vat === true;
+  const { net: vatNet, vat: vatAmount } = showVat ? splitVatInclusive(total) : { net: total, vat: 0 };
+
   // Deposit: use stored percent/amount from DB; calculate if absent.
   const depositPercent = Number(job.deposit_percent ?? 0);
   const hasDeposit = depositPercent > 0;
   const depositAmountPence = job.deposit_amount_pence
     ? job.deposit_amount_pence
     : Math.round(total * (depositPercent / 100) * 100);
+  // Deposit due-date — same job.deposit_due_date the PDF/WhatsApp message
+  // already render (fix/quote-public-vat-validity: this page never received it).
+  const depositDueStr = job.deposit_due_date ? fmtDate(job.deposit_due_date) : '';
 
   // Deposit already paid (either from DB or from ?deposit_success param this session)
   const depositAlreadyPaid = !!job.deposit_paid_at || depositSuccess;
@@ -820,10 +864,22 @@ export default function PublicQuoteView({ token }) {
 
         {/* Line items breakdown */}
         {lineItems.length > 0 ? (
-          <LineItemsTable items={lineItems} />
+          <LineItemsTable items={lineItems} showVat={showVat} vatNet={vatNet} vatAmount={vatAmount} />
         ) : (
           total > 0 && (
             <div className="pqv-section">
+              {showVat && (
+                <>
+                  <div className="pqv-vat-row">
+                    <span>Subtotal</span>
+                    <span>{gbp(vatNet)}</span>
+                  </div>
+                  <div className="pqv-vat-row">
+                    <span>VAT (20%)</span>
+                    <span>{gbp(vatAmount)}</span>
+                  </div>
+                </>
+              )}
               <div className="pqv-flat-total">
                 <span className="pqv-flat-total-label">Total</span>
                 <span className="pqv-flat-total-value">{gbp(total)}</span>
@@ -842,6 +898,7 @@ export default function PublicQuoteView({ token }) {
             onAcceptWithoutDeposit={() => setShowDecisionSection(true)}
             depositSuccess={depositSuccess}
             depositCancelled={depositCancelled}
+            depositDueStr={depositDueStr}
           />
         )}
 
@@ -853,6 +910,7 @@ export default function PublicQuoteView({ token }) {
             accountName={traderAccountName}
             sortCode={traderSortCode}
             accountNumber={traderAccountNumber}
+            depositDueStr={depositDueStr}
           />
         )}
 
@@ -875,6 +933,7 @@ export default function PublicQuoteView({ token }) {
             accountName={traderAccountName}
             sortCode={traderSortCode}
             accountNumber={traderAccountNumber}
+            depositDueStr={depositDueStr}
           />
         )}
         {remoteDeclined && (
