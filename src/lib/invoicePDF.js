@@ -5,6 +5,7 @@ import { resolveCisStatus } from './cashflow.js';
 import { splitVatInclusive } from './vatUtils.js';
 import { downscaleDataUrl } from './photoCompress.js';
 import { formatToday } from './today.js';
+import { secureImageUrl } from './secureImageUrl.js';
 
 // Generates an invoice PDF for the new Get Paid workflow. Distinct from
 // the legacy generateInvoicePDF in App.jsx (which uses window.jspdf and
@@ -80,7 +81,9 @@ export async function logoUrlToBase64(url) {
   if (!url) return null;
   if (url.startsWith('data:')) return url; // already a data URL — nothing to do
   try {
-    const res = await fetch(url);
+    // An http:// logo URL fetched from this https-served app is mixed content
+    // and can be blocked outright by the browser — upgrade before fetching.
+    const res = await fetch(secureImageUrl(url));
     if (!res.ok) return null;
     const blob = await res.blob();
     return new Promise((resolve) => {

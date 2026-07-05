@@ -1887,7 +1887,7 @@ describe('intent=quote on already-priced job — ReviewSheet opens directly (bug
 function buildMapsUrl(address) {
   const enc = encodeURIComponent(address);
   if (/iPad|iPhone|iPod/.test(navigator.userAgent)) {
-    return `http://maps.apple.com/?q=${enc}`;
+    return `https://maps.apple.com/?q=${enc}`;
   }
   return `https://www.google.com/maps/search/?api=1&query=${enc}`;
 }

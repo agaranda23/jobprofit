@@ -45,6 +45,7 @@ async function fetchPublicJobViaFunction(token) {
 }
 import { resolvePaidDate, resolveAmountPaid, formatReceiptDate } from '../lib/receiptMessage';
 import { resolvePaymentMethod, resolveReceiptNumber } from '../lib/receiptPDF';
+import { secureImageUrl } from '../lib/secureImageUrl';
 import ConsentBanner from '../components/ConsentBanner.jsx';
 import PoweredByJobProfit from '../components/PoweredByJobProfit.jsx';
 
@@ -139,7 +140,7 @@ function ReceiptCard({ job, profile }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 12 }}>
         <div style={{ width: 48, height: 48, flexShrink: 0 }}>
           {logoUrl && (
-            <img src={logoUrl} alt="Logo" style={{ width: 48, height: 48, objectFit: 'contain', borderRadius: 4 }} />
+            <img src={secureImageUrl(logoUrl)} alt="Logo" style={{ width: 48, height: 48, objectFit: 'contain', borderRadius: 4 }} />
           )}
         </div>
         <div style={{ textAlign: 'right', flex: 1, paddingLeft: 10 }}>

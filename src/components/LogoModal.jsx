@@ -21,6 +21,7 @@
  */
 import { useRef, useState } from 'react';
 import { supabase } from '../lib/supabase.js';
+import { secureImageUrl } from '../lib/secureImageUrl.js';
 import Icon from './Icon.jsx';
 
 const LOGOS_BUCKET = 'logos';
@@ -92,10 +93,34 @@ export default function LogoModal({ currentUrl, userId, onSave, onClose }) {
   const handleUrlSave = async () => {
     setError('');
     const trimmed = urlValue.trim();
+
+    if (!trimmed) {
+      setUploading(true);
+      setProgress('Saving…');
+      try {
+        await onSave({ logo_url: null });
+      } catch (err) {
+        setError(err?.message || 'Could not save — try again');
+        setUploading(false);
+        setProgress('');
+      }
+      return;
+    }
+
+    // Auto-upgrade a bare http:// paste to https:// — never store an
+    // http:// logo_url again, or it renders as mixed content on every
+    // https page that shows this logo (including public customer-facing
+    // quote/invoice/receipt pages).
+    const secured = secureImageUrl(trimmed);
+    if (!/^(https:\/\/|\/\/|data:)/i.test(secured)) {
+      setError('Enter a valid image URL starting with https://');
+      return;
+    }
+
     setUploading(true);
     setProgress('Saving…');
     try {
-      await onSave({ logo_url: trimmed || null });
+      await onSave({ logo_url: secured });
     } catch (err) {
       setError(err?.message || 'Could not save — try again');
       setUploading(false);
@@ -132,7 +157,7 @@ export default function LogoModal({ currentUrl, userId, onSave, onClose }) {
         {preview && (
           <div className="logo-modal__preview">
             <img
-              src={preview}
+              src={secureImageUrl(preview)}
               alt="Current logo"
               className="logo-modal__img"
               onError={() => setPreview('')}

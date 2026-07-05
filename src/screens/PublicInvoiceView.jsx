@@ -29,6 +29,7 @@
 
 import { useState, useEffect } from 'react';
 import { isValidToken } from '../lib/publicInvoiceToken';
+import { secureImageUrl } from '../lib/secureImageUrl';
 
 // Fetch job data via the server-side function so the anon Supabase client is
 // never used for job data. See fix/security-stop-the-line (H-1).
@@ -291,7 +292,7 @@ export default function PublicInvoiceView({ token }) {
         <div className="pqv-header">
           {biz.logoUrl && (
             <img
-              src={biz.logoUrl}
+              src={secureImageUrl(biz.logoUrl)}
               alt="Business logo"
               className="pqv-business-logo"
               style={{ maxHeight: 56, maxWidth: 120, objectFit: 'contain', marginBottom: 6 }}

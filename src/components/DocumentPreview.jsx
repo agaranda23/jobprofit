@@ -82,6 +82,7 @@ import QuoteLineEditorSheet from './QuoteLineEditorSheet';
 import PoweredByJobProfit from './PoweredByJobProfit';
 import ProUpgradeSheet from './ProUpgradeSheet';
 import { resolveBusinessIdentity } from '../lib/resolveBusinessIdentity';
+import { secureImageUrl } from '../lib/secureImageUrl';
 import { splitVatInclusive } from '../lib/vatUtils';
 import { showJobProfitFooter } from '../lib/plan';
 import { UPGRADE_TRIGGERS } from '../lib/telemetry';
@@ -318,7 +319,7 @@ export default function DocumentPreview({
               aria-label="Edit logo"
             >
               {logo ? (
-                <img src={logo} alt="" className="dp-logo-img" />
+                <img src={secureImageUrl(logo)} alt="" className="dp-logo-img" />
               ) : (
                 <span className="dp-logo-placeholder">Add your logo</span>
               )}

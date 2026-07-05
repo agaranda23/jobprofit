@@ -49,6 +49,7 @@ import {
 } from '../lib/jobPhotos';
 import { uploadJobPhoto, getSignedPhotoUrl, deleteJobPhoto, getReceiptSignedUrl, revokePublicLink } from '../lib/store';
 import { buildDeleteJobCopy } from '../lib/deleteJobCopy';
+import { secureImageUrl } from '../lib/secureImageUrl';
 import { extractJobMeta } from '../lib/jobMeta';
 import { buildWhatsAppLink } from '../lib/invoiceMessage';
 import { logTelemetry } from '../lib/telemetry';
@@ -89,7 +90,7 @@ function resolvePhone(job) {
 function buildMapsUrl(addr) {
   const enc = encodeURIComponent(addr);
   if (/iPad|iPhone|iPod/.test(navigator.userAgent)) {
-    return `http://maps.apple.com/?q=${enc}`;
+    return `https://maps.apple.com/?q=${enc}`;
   }
   return `https://www.google.com/maps/search/?api=1&query=${enc}`;
 }
@@ -155,7 +156,7 @@ function PhotoLightbox({ src, onClose, receipt, onEdit }) {
       aria-label="Photo enlarged"
       aria-modal="true"
     >
-      <img src={src} alt="" className="photo-lightbox-img" />
+      <img src={secureImageUrl(src)} alt="" className="photo-lightbox-img" />
 
       {receipt && (
         <div
@@ -1447,7 +1448,7 @@ function ReceiptRow({ r, isRowTappable, onRowTap, onDeleteReceipt, onReceiptRowT
     >
       {hasPhoto ? (
         <div className="jd-receipt-icon" aria-hidden="true">
-          <img src={resolvedPhoto} alt="" className="jd-receipt-thumb" />
+          <img src={secureImageUrl(resolvedPhoto)} alt="" className="jd-receipt-thumb" />
         </div>
       ) : (
         <div className="jd-receipt-icon"><Icon name="receipt" size={16} variant="muted" /></div>
@@ -1611,7 +1612,7 @@ function PhotoThumb({ entry, index, total, onViewPhoto, onDeletePhoto, onSetCapt
         onClick={() => onViewPhoto(resolvedSrc)}
         aria-label={`View photo ${index + 1}`}
       >
-        <img src={resolvedSrc} alt={caption || ''} className="jd-photo-thumb" />
+        <img src={secureImageUrl(resolvedSrc)} alt={caption || ''} className="jd-photo-thumb" />
       </button>
 
       {onDeletePhoto && (

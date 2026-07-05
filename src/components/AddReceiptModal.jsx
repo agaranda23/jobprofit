@@ -5,6 +5,7 @@ import Icon from './Icon';
 import PhotoSourceSheet from './PhotoSourceSheet';
 import { meaningfulItemCount, computeItemsSubtotal, itemsDirty } from '../lib/receiptItemsHelpers';
 import { logTelemetry } from '../lib/telemetry';
+import { secureImageUrl } from '../lib/secureImageUrl';
 
 /**
  * AddReceiptModal — add a new receipt or edit an existing one.
@@ -396,7 +397,7 @@ export default function AddReceiptModal({
             </>
           ) : (
             <>
-              <img src={photo} alt="Receipt" className="receipt-preview" />
+              <img src={secureImageUrl(photo)} alt="Receipt" className="receipt-preview" />
               <button
                 type="button"
                 ref={addPhotoBtnRef}
