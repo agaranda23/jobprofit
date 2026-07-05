@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   normaliseCustomerName,
   groupByCustomer,
@@ -7,6 +7,32 @@ import {
   bucketEvents,
   computeLifetime,
 } from '../customerTimeline.js';
+
+// ── localStorage mock — buildTimeline's chase-summary row reads chaseLadder's
+// getChaseState(), which is a synchronous localStorage read. Vitest runs
+// these pure-logic tests in Node (no localStorage global), so stub it the
+// same way chaseLadder.test.js does. Seeded directly via setItem using the
+// documented key (chaseLadder.js: "localStorage key: jobprofit:chases:v1")
+// rather than importing recordChase(), so the chase tests get a fixed,
+// deterministic lastChasedAt instead of a real Date.now() timestamp.
+const CHASE_STORAGE_KEY = 'jobprofit:chases:v1';
+
+function makeLocalStorageMock() {
+  let store = {};
+  return {
+    getItem: vi.fn(key => store[key] ?? null),
+    setItem: vi.fn((key, val) => { store[key] = String(val); }),
+    removeItem: vi.fn(key => { delete store[key]; }),
+    clear: vi.fn(() => { store = {}; }),
+  };
+}
+
+const localStorageMock = makeLocalStorageMock();
+vi.stubGlobal('localStorage', localStorageMock);
+
+beforeEach(() => {
+  localStorageMock.clear();
+});
 
 // ── normaliseCustomerName ────────────────────────────────────────────────
 describe('normaliseCustomerName', () => {
@@ -261,6 +287,119 @@ describe('buildTimeline — voice notes', () => {
   });
 });
 
+// ── buildTimeline — Slice 2: visits ────────────────────────────────────────
+describe('buildTimeline — visits', () => {
+  it('emits a "Visit booked" event at the visit\'s scheduled date', () => {
+    const job = { id: 'j1', customer: 'Dave', visits: [{ id: 'v1', date: '2026-07-10', status: 'planned' }] };
+    const events = buildTimeline([job], []);
+    const booked = events.find(e => e.type === 'visit_booked');
+    expect(booked.icon).toBe('date');
+    expect(booked.summary).toBe('Visit booked — 10 Jul');
+    expect(booked.ts).toBe(new Date('2026-07-10T00:00:00').getTime());
+  });
+
+  it('emits a "Visit done" event at doneAt for a completed visit', () => {
+    const job = {
+      id: 'j1', customer: 'Dave',
+      visits: [{ id: 'v1', date: '2026-07-10', status: 'done', doneAt: '2026-07-10T15:30:00Z' }],
+    };
+    const events = buildTimeline([job], []);
+    const done = events.find(e => e.type === 'visit_done');
+    expect(done.icon).toBe('complete');
+    expect(done.summary).toBe('Visit done');
+    expect(done.ts).toBe(new Date('2026-07-10T15:30:00Z').getTime());
+    // Both the booked and the done event exist for the same visit.
+    expect(events.some(e => e.type === 'visit_booked')).toBe(true);
+  });
+
+  it('omits the "Visit done" event for a visit marked done before doneAt existed (legacy data)', () => {
+    const job = { id: 'j1', customer: 'Dave', visits: [{ id: 'v1', date: '2026-07-10', status: 'done' }] };
+    const events = buildTimeline([job], []);
+    expect(events.some(e => e.type === 'visit_done')).toBe(false);
+    expect(events.some(e => e.type === 'visit_booked')).toBe(true);
+  });
+
+  it('does not emit a "Visit done" event for a visit still planned', () => {
+    const job = { id: 'j1', customer: 'Dave', visits: [{ id: 'v1', date: '2026-07-10', status: 'planned' }] };
+    const events = buildTimeline([job], []);
+    expect(events.some(e => e.type === 'visit_done')).toBe(false);
+  });
+
+  it('folds in a legacy scheduledDate-only job as a "Visit booked" event', () => {
+    const job = { id: 'j1', customer: 'Dave', scheduledDate: '2026-07-12' };
+    const events = buildTimeline([job], []);
+    const booked = events.find(e => e.type === 'visit_booked');
+    expect(booked.summary).toBe('Visit booked — 12 Jul');
+  });
+
+  it('emits one "Visit booked" event per visit on a multi-visit job', () => {
+    const job = {
+      id: 'j1', customer: 'Dave',
+      visits: [
+        { id: 'v1', date: '2026-07-10', status: 'done', doneAt: '2026-07-10T12:00:00Z' },
+        { id: 'v2', date: '2026-07-17', status: 'planned' },
+      ],
+    };
+    const events = buildTimeline([job], []);
+    expect(events.filter(e => e.type === 'visit_booked').length).toBe(2);
+    expect(events.filter(e => e.type === 'visit_done').length).toBe(1);
+  });
+});
+
+// ── buildTimeline — Slice 2: photos ────────────────────────────────────────
+describe('buildTimeline — photos', () => {
+  it('emits a "Photo added" event for a new-format {path, uploadedAt} entry', () => {
+    const job = {
+      id: 'j1', customer: 'Dave',
+      photos: [{ path: 'u1/j1/123-photo.jpg', uploadedAt: '2026-07-01T09:00:00Z' }],
+    };
+    const events = buildTimeline([job], []);
+    const photo = events.find(e => e.type === 'photo');
+    expect(photo.icon).toBe('photos');
+    expect(photo.summary).toBe('Photo added');
+    expect(photo.ts).toBe(new Date('2026-07-01T09:00:00Z').getTime());
+  });
+
+  it('omits a legacy base64-string photo entry — no timestamp to place it at', () => {
+    const job = { id: 'j1', customer: 'Dave', photos: ['data:image/jpeg;base64,/9j/legacyphoto'] };
+    expect(buildTimeline([job], []).some(e => e.type === 'photo')).toBe(false);
+  });
+
+  it('emits one event per new-format photo while skipping legacy ones in the same array', () => {
+    const job = {
+      id: 'j1', customer: 'Dave',
+      photos: [
+        'data:image/jpeg;base64,/9j/legacyphoto',
+        { path: 'u1/j1/1.jpg', uploadedAt: '2026-07-01T09:00:00Z' },
+        { path: 'u1/j1/2.jpg', uploadedAt: '2026-07-02T09:00:00Z' },
+      ],
+    };
+    const events = buildTimeline([job], []);
+    expect(events.filter(e => e.type === 'photo').length).toBe(2);
+  });
+});
+
+// ── buildTimeline — Slice 2: chase summary ─────────────────────────────────
+describe('buildTimeline — chase summary', () => {
+  it('emits a single summarised "Chased ×N · last {date}" row, not one per chase', () => {
+    localStorageMock.setItem(CHASE_STORAGE_KEY, JSON.stringify({
+      j1: { count: 3, lastChasedAt: '2026-07-01T09:00:00Z', firstChasedAt: '2026-06-10T09:00:00Z' },
+    }));
+    const job = { id: 'j1', customer: 'Dave' };
+    const events = buildTimeline([job], []);
+    const chaseEvents = events.filter(e => e.type === 'chase_summary');
+    expect(chaseEvents.length).toBe(1);
+    expect(chaseEvents[0].icon).toBe('chase');
+    expect(chaseEvents[0].summary).toBe('Chased ×3 · last 1 Jul');
+    expect(chaseEvents[0].ts).toBe(new Date('2026-07-01T09:00:00Z').getTime());
+  });
+
+  it('emits nothing when the job has never been chased', () => {
+    const job = { id: 'j1', customer: 'Dave' };
+    expect(buildTimeline([job], []).some(e => e.type === 'chase_summary')).toBe(false);
+  });
+});
+
 // ── bucketEvents ──────────────────────────────────────────────────────────
 describe('bucketEvents', () => {
   // Fixed "now" (late in the month, so a "this month, >6 days ago" bucket
@@ -290,6 +429,18 @@ describe('bucketEvents', () => {
     expect(groups.length).toBe(1);
     expect(groups[0].label).toBe('Today');
     expect(groups[0].events.length).toBe(2);
+  });
+
+  // Slice 2 — "Visit booked" events can be future-dated (a visit scheduled
+  // next week), the first event type that's ever true for this codebase.
+  it('buckets a future-dated event under "Upcoming", ahead of Today', () => {
+    const events = [
+      ev('2026-07-27T09:00:00'), // 7 days ahead
+      ev('2026-07-20T09:00:00'), // today
+    ];
+    const groups = bucketEvents(events, NOW);
+    expect(groups.map(g => g.label)).toEqual(['Upcoming', 'Today']);
+    expect(groups[0].events.length).toBe(1);
   });
 });
 

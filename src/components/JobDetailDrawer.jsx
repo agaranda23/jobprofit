@@ -3104,10 +3104,17 @@ export default function JobDetailDrawer({
     let updatedVisits;
 
     if (editingVisit && !editingVisit._isNew) {
-      // Editing existing visit — patch the entry
-      updatedVisits = currentVisits.map(v =>
-        v.id === editingVisit.id ? { ...v, ...fields } : v,
-      );
+      // Editing existing visit — patch the entry. Stamp doneAt the moment
+      // status first becomes 'done' (Customer Timeline needs a real done
+      // date, not job.completedAt — that's job-wide); clear it if the visit
+      // is reopened, same as handleReopen clears job.completedAt.
+      updatedVisits = currentVisits.map(v => {
+        if (v.id !== editingVisit.id) return v;
+        const next = { ...v, ...fields };
+        if (fields.status === 'done' && v.status !== 'done') next.doneAt = new Date().toISOString();
+        else if (fields.status && fields.status !== 'done') delete next.doneAt;
+        return next;
+      });
     } else {
       // Adding new visit — append with a fresh ID
       const newVisit = { id: generateVisitId(), ...fields };
@@ -3131,7 +3138,7 @@ export default function JobDetailDrawer({
   const handleMarkVisitDone = (visitId) => {
     const currentVisits = readVisits(job);
     const updatedVisits = currentVisits.map(v =>
-      v.id === visitId ? { ...v, status: 'done' } : v,
+      v.id === visitId ? { ...v, status: 'done', doneAt: new Date().toISOString() } : v,
     );
     onUpdateJob({ ...job, ...writeVisits(job, updatedVisits) });
 
@@ -3146,8 +3153,9 @@ export default function JobDetailDrawer({
   const handleEndJob = () => {
     if (needsPrice(job)) { openPriceEditor(); return; }
     const cv = readVisits(job);
-    const allDone = cv.map(v => v.status !== 'done' && v.status !== 'cancelled' ? { ...v, status: 'done' } : v);
-    onUpdateJob({ ...job, ...writeVisits(job, allDone), completedAt: new Date().toISOString(), jobStatus: 'complete' });
+    const nowIso = new Date().toISOString();
+    const allDone = cv.map(v => v.status !== 'done' && v.status !== 'cancelled' ? { ...v, status: 'done', doneAt: nowIso } : v);
+    onUpdateJob({ ...job, ...writeVisits(job, allDone), completedAt: nowIso, jobStatus: 'complete' });
     if (showSendInvoice) setShowInvoicePrompt(true);
     showFlash('Job ended');
   };
