@@ -151,6 +151,64 @@ describe('AuthScreen — pitch copy', () => {
   });
 });
 
+// ── Screenshot strip ("show, don't tell") ────────────────────────────────────
+// Real product screenshots, added so a visitor sees the app before signing in.
+// Sits between the hero pitch and the sign-in buttons — visible early, but the
+// sign-in itself must stay intact and reachable (not removed or buried).
+
+describe('AuthScreen — screenshot strip', () => {
+  it('renders exactly 4 screenshots', () => {
+    const { container } = renderAuth();
+    const shots = container.querySelectorAll('.auth-screenshot');
+    expect(shots.length).toBe(4);
+  });
+
+  it('renders the 4 screenshots in Today → Quote → Invoice → Pipeline order with meaningful alt text', () => {
+    const { container } = renderAuth();
+    const shots = Array.from(container.querySelectorAll('.auth-screenshot'));
+    expect(shots.map((img) => img.getAttribute('src'))).toEqual([
+      '/screens/ohnar-screen-today.png',
+      '/screens/ohnar-screen-quote.png',
+      '/screens/ohnar-screen-invoice.png',
+      '/screens/ohnar-screen-pipeline.png',
+    ]);
+    shots.forEach((img) => {
+      const alt = img.getAttribute('alt');
+      expect(alt).toBeTruthy();
+      expect(alt.length).toBeGreaterThan(10);
+    });
+    expect(shots[0].getAttribute('alt')).toMatch(/today/i);
+    expect(shots[1].getAttribute('alt')).toMatch(/quote/i);
+    expect(shots[2].getAttribute('alt')).toMatch(/invoice/i);
+    expect(shots[3].getAttribute('alt')).toMatch(/pipeline|jobs/i);
+  });
+
+  it('lazy-loads every screenshot (it sits below the immediate fold)', () => {
+    const { container } = renderAuth();
+    const shots = container.querySelectorAll('.auth-screenshot');
+    shots.forEach((img) => expect(img.getAttribute('loading')).toBe('lazy'));
+  });
+
+  it('places the strip after the hero pitch block and before the sign-in options', () => {
+    const { container } = renderAuth();
+    const brand = container.querySelector('.auth-brand');
+    const strip = container.querySelector('.auth-screenshots');
+    const googleBtn = container.querySelector('.auth-google-btn');
+    expect(brand && strip && googleBtn).toBeTruthy();
+    expect(brand.compareDocumentPosition(strip) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(strip.compareDocumentPosition(googleBtn) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('does not remove or hide the Google sign-in and email sign-in — both still render', () => {
+    renderAuth();
+    expect(screen.getByRole('button', { name: /Continue with Google/i })).toBeTruthy();
+    expect(screen.getByPlaceholderText('you@example.com')).toBeTruthy();
+    expect(
+      screen.getByRole('button', { name: /Start free — email me a sign-in link/i })
+    ).toBeTruthy();
+  });
+});
+
 // ── CTA and form ──────────────────────────────────────────────────────────────
 
 describe('AuthScreen — CTA and form', () => {

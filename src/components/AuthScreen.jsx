@@ -118,6 +118,7 @@ export default function AuthScreen() {
   };
 
   return (
+    <div className="auth-page">
     <div className="auth-screen">
       <div className="auth-brand">
         <h1 className="auth-title">
@@ -151,6 +152,44 @@ export default function AuthScreen() {
         <p className="auth-cta-subline">£12/month for Pro when you're ready. Cancel anytime.</p>
 
         <p className="auth-trust">Built with feedback from UK plumbers, builders, electricians, gardeners, cleaners &amp; sole traders.</p>
+      </div>
+
+      <div className="auth-screenshots">
+        <p className="auth-screenshots-eyebrow">Quote → invoice → paid, from your phone</p>
+        <div className="auth-screenshots-track">
+          <img
+            className="auth-screenshot"
+            src="/screens/ohnar-screen-today.png"
+            alt="OHNAR Today dashboard showing money waiting to collect"
+            loading="lazy"
+            width="680"
+            height="1061"
+          />
+          <img
+            className="auth-screenshot"
+            src="/screens/ohnar-screen-quote.png"
+            alt="A quote in OHNAR, ready to send to a customer"
+            loading="lazy"
+            width="680"
+            height="1085"
+          />
+          <img
+            className="auth-screenshot"
+            src="/screens/ohnar-screen-invoice.png"
+            alt="An invoice in OHNAR with a pay-now link for the customer"
+            loading="lazy"
+            width="680"
+            height="1085"
+          />
+          <img
+            className="auth-screenshot"
+            src="/screens/ohnar-screen-pipeline.png"
+            alt="OHNAR jobs pipeline showing every job from quoted to paid"
+            loading="lazy"
+            width="680"
+            height="1168"
+          />
+        </div>
       </div>
 
       {!sent ? (
@@ -208,6 +247,7 @@ export default function AuthScreen() {
           </button>
         </div>
       )}
+    </div>
     </div>
   );
 }

@@ -2937,6 +2937,12 @@ body {
 .empty-welcome-sample-cta:disabled { opacity: 0.6; cursor: default; }
 
 /* Auth screen */
+/* Wraps .auth-screen. Only exists so the >=768px screenshot-strip breakout
+   (100vw with negative margins, see .auth-screenshots) can't introduce a
+   page-level horizontal scrollbar — it doesn't constrain width itself. */
+.auth-page {
+  overflow-x: hidden;
+}
 .auth-screen {
   min-height: 100vh;
   padding: 0 24px;
@@ -3109,6 +3115,61 @@ body {
   color: var(--text-dim);
   text-align: center;
   margin: 18px 0;
+}
+/* Screenshot strip — "show, don't tell". Sits between the hero pitch and the
+   sign-in buttons so the app is visible early without pushing sign-in down.
+   Mobile-first: a compact horizontal-scroll strip (default). At >=768px there's
+   room either side of the narrow .auth-screen column, so the strip breaks out
+   to the full viewport width and lays the four screens out in one row. */
+.auth-screenshots {
+  margin: 20px 0 24px;
+}
+.auth-screenshots-eyebrow {
+  font-size: var(--fs-label);
+  font-weight: 600;
+  color: var(--text-dim);
+  text-align: center;
+  margin: 0 0 10px;
+}
+.auth-screenshots-track {
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+  padding: 4px 4px 10px;
+}
+.auth-screenshot {
+  width: 132px;
+  flex: 0 0 132px;
+  height: auto;
+  display: block;
+  scroll-snap-align: start;
+  filter: drop-shadow(var(--shadow-lg));
+}
+@media (min-width: 768px) {
+  /* Break the strip out of the 420px-wide .auth-screen column (the parent has
+     no overflow-x set, so this doesn't affect anything else on the page) —
+     .auth-page below catches the 1px scrollbar-gutter rounding this can cause. */
+  .auth-screenshots {
+    width: 100vw;
+    margin-left: calc(50% - 50vw);
+    margin-right: calc(50% - 50vw);
+    padding: 0 24px;
+  }
+  .auth-screenshots-track {
+    flex-wrap: wrap;
+    justify-content: center;
+    overflow-x: visible;
+    gap: 24px;
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 0;
+  }
+  .auth-screenshot {
+    width: 220px;
+    flex: 0 0 220px;
+  }
 }
 /* Divider separating pitch from the email action */
 .auth-form {
