@@ -6,14 +6,18 @@
 // No new table, no new query, no backend — works offline, entirely from
 // state AppShell already holds (jobs[] + receipts[]).
 //
-// Slice-1 event fields only (all already stored + timestamped — see
+// Slice-1 event fields (all already stored + timestamped — see
 // src/lib/jobMeta.js META_FIELDS): createdAt, quoteSentAt, quoteLinkOpenedAt,
 // acceptedAt, invoiceSentAt/invoiceLinkSentAt, payments[], paidAt, jobNotes[],
 // and receipts matched by jobId/cloudId.
 //
-// Deliberately NOT emitted (slice 2 or never): phone calls, WhatsApp/SMS/email
-// sends (deep-link only — never logged), visits, photos, chase events. Legacy
-// base64 photos have no timestamp so they can't be placed on a timeline anyway.
+// Capture Layer — Slice A adds job.commsLog[] (call/whatsapp/sms tapped,
+// review link sent — see src/lib/commsLog.js) so those touches now appear
+// too, without the trader typing a note.
+//
+// Deliberately NOT emitted (later slice or never): email sends (deep-link
+// only — never logged), visits, photos, chase events. Legacy base64 photos
+// have no timestamp so they can't be placed on a timeline anyway.
 
 import { gbp } from './today';
 import { computeAmountPaid } from './payments';
@@ -166,6 +170,28 @@ export function buildTimeline(customerJobs, receipts) {
       events.push({
         ts: toTs(n.date), type: 'note', icon: 'note',
         summary: `Note: "${text}"`, jobId: job.id, jobName: label, sub,
+      });
+    }
+
+    // Capture Layer — Slice A: auto-logged comms touches (commsLog.js).
+    // `type` is kept as the raw touch type ('call'|'whatsapp'|'sms'|'review')
+    // so it doubles as the event type; commsId is set so the timeline can
+    // offer delete-by-id for the rare phantom tap.
+    const first = (job.customer || '').trim().split(/\s+/)[0] || 'them';
+    const COMMS_COPY = {
+      call:     { icon: 'phone',    summary: `Called ${first}` },
+      whatsapp: { icon: 'whatsapp', summary: `Messaged ${first} on WhatsApp` },
+      sms:      { icon: 'text',     summary: `Texted ${first}` },
+      review:   { icon: 'review',   summary: `Asked ${first} for a review` },
+    };
+    for (const c of (job.commsLog || [])) {
+      if (!c?.date) continue;
+      const copy = COMMS_COPY[c.type];
+      if (!copy) continue; // unknown/future type — skip defensively
+      events.push({
+        ts: toTs(c.date), type: c.type, icon: copy.icon,
+        summary: copy.summary, jobId: job.id, jobName: label, sub,
+        commsId: c.id,
       });
     }
 
