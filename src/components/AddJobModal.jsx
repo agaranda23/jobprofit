@@ -1160,8 +1160,8 @@ export default function AddJobModal({ onClose, onSave, _onOpenDetailed, defaultM
                   aria-label="Tap to try the microphone again"
                 >
                   <div className="aj-mic-icon aj-mic-icon--idle"><Icon name="voice" size={32} /></div>
-                  <div className="aj-mic-label">Nothing heard</div>
-                  <div className="aj-mic-sub">Tap to try again</div>
+                  <div className="aj-mic-label">Didn&rsquo;t catch that</div>
+                  <div className="aj-mic-sub">Tap the mic and try again</div>
                 </button>
                 <div className="aj-footer-links">
                   <button
@@ -1398,8 +1398,8 @@ export default function AddJobModal({ onClose, onSave, _onOpenDetailed, defaultM
                   aria-label="Tap to try the microphone again"
                 >
                   <div className="aj-mic-icon aj-mic-icon--idle"><Icon name="voice" size={32} /></div>
-                  <div className="aj-mic-label">Nothing heard</div>
-                  <div className="aj-mic-sub">Tap to try again</div>
+                  <div className="aj-mic-label">Didn&rsquo;t catch that</div>
+                  <div className="aj-mic-sub">Tap the mic and try again</div>
                 </button>
                 <div className="aj-footer-links">
                   <button
