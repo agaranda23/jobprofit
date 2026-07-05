@@ -15,6 +15,9 @@
  *   H. Default path (no coupon_mode) — card-free 14-day trial config
  *   I. coupon_mode=trial_extension — still card-required, applies coupon
  *   J. coupon_mode=none — still card-required, charges immediately
+ *   K. Duplicate-subscription guard — active/trialing sub routes to the
+ *      Billing Portal instead of a second Checkout Session; no existing sub,
+ *      no customer id, or a guard-check failure all fall through unchanged
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -26,9 +29,14 @@ const FAKE_PRICE_ID  = 'price_test_fake';
 const FAKE_USER_ID   = 'user-uuid-abc';
 const FAKE_USER_EMAIL = 'trader@example.com';
 const FAKE_SESSION_URL = 'https://checkout.stripe.com/pay/cs_test_fake';
+const FAKE_PORTAL_URL = 'https://billing.stripe.com/p/session/fake';
 
 // ── Stripe mock ───────────────────────────────────────────────────────────────
 let mockStripeSessionCreate = vi.fn(async () => ({ url: FAKE_SESSION_URL }));
+// Default: no existing subscriptions — the duplicate-subscription guard is a no-op
+// for every test that doesn't explicitly override it.
+let mockSubscriptionsList = vi.fn(async () => ({ data: [] }));
+let mockPortalSessionCreate = vi.fn(async () => ({ url: FAKE_PORTAL_URL }));
 
 vi.mock('stripe', () => {
   function MockStripe() {
@@ -36,6 +44,14 @@ vi.mock('stripe', () => {
       checkout: {
         sessions: {
           create: (...args) => mockStripeSessionCreate(...args),
+        },
+      },
+      subscriptions: {
+        list: (...args) => mockSubscriptionsList(...args),
+      },
+      billingPortal: {
+        sessions: {
+          create: (...args) => mockPortalSessionCreate(...args),
         },
       },
     };
@@ -97,6 +113,8 @@ beforeEach(() => {
   mockGetUser  = vi.fn(async () => ({ data: { user: { id: FAKE_USER_ID, email: FAKE_USER_EMAIL } }, error: null }));
   mockProfile  = { data: { stripe_customer_id: null }, error: null };
   mockStripeSessionCreate = vi.fn(async () => ({ url: FAKE_SESSION_URL }));
+  mockSubscriptionsList = vi.fn(async () => ({ data: [] }));
+  mockPortalSessionCreate = vi.fn(async () => ({ url: FAKE_PORTAL_URL }));
   vi.clearAllMocks();
 });
 
@@ -241,6 +259,83 @@ describe('F. Returning customer — uses existing stripe_customer_id', () => {
       expect(capturedParams.customer).toBe(EXISTING_CID);
       expect(capturedParams.customer_email).toBeUndefined();
     }
+  });
+});
+
+// ─── K. Duplicate-subscription guard ────────────────────────────────────────
+// existingCustomerId only dedupes the Stripe Customer record — it says nothing
+// about whether that customer already has a live subscription. These tests
+// guard against a second Checkout Session (and a second bill) ever being
+// created for someone who already has one.
+
+describe('K. Duplicate-subscription guard', () => {
+  const EXISTING_CID = 'cus_existing123';
+
+  it('active subscription: routes to the Billing Portal instead of creating a new Checkout Session', async () => {
+    mockProfile = { data: { stripe_customer_id: EXISTING_CID }, error: null };
+    mockSubscriptionsList = vi.fn(async () => ({ data: [{ id: 'sub_1', status: 'active' }] }));
+
+    const handler = await getHandler();
+    const res = await handler(makeEvent({ token: 'Bearer valid-tok' }));
+
+    expect(res.statusCode).toBe(200);
+    const body = JSON.parse(res.body);
+    expect(body.url).toBe(FAKE_PORTAL_URL);
+    expect(body.alreadySubscribed).toBe(true);
+    expect(mockPortalSessionCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ customer: EXISTING_CID })
+    );
+    expect(mockStripeSessionCreate).not.toHaveBeenCalled();
+  });
+
+  it('trialing subscription: also routes to the Billing Portal', async () => {
+    mockProfile = { data: { stripe_customer_id: EXISTING_CID }, error: null };
+    mockSubscriptionsList = vi.fn(async () => ({ data: [{ id: 'sub_1', status: 'trialing' }] }));
+
+    const handler = await getHandler();
+    const res = await handler(makeEvent({ token: 'Bearer valid-tok' }));
+
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(res.body).url).toBe(FAKE_PORTAL_URL);
+    expect(mockStripeSessionCreate).not.toHaveBeenCalled();
+  });
+
+  it('only a canceled/past subscription exists: falls through to a normal Checkout Session', async () => {
+    mockProfile = { data: { stripe_customer_id: EXISTING_CID }, error: null };
+    mockSubscriptionsList = vi.fn(async () => ({ data: [{ id: 'sub_old', status: 'canceled' }] }));
+
+    const handler = await getHandler();
+    const res = await handler(makeEvent({ token: 'Bearer valid-tok' }));
+
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(res.body).url).toBe(FAKE_SESSION_URL);
+    expect(mockStripeSessionCreate).toHaveBeenCalledTimes(1);
+    expect(mockPortalSessionCreate).not.toHaveBeenCalled();
+  });
+
+  it('no existing stripe_customer_id: the guard check is skipped entirely (unchanged happy path)', async () => {
+    mockProfile = { data: { stripe_customer_id: null }, error: null };
+
+    const handler = await getHandler();
+    const res = await handler(makeEvent({ token: 'Bearer valid-tok' }));
+
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(res.body).url).toBe(FAKE_SESSION_URL);
+    expect(mockSubscriptionsList).not.toHaveBeenCalled();
+    expect(mockPortalSessionCreate).not.toHaveBeenCalled();
+    expect(mockStripeSessionCreate).toHaveBeenCalledTimes(1);
+  });
+
+  it('guard check itself throws: degrades gracefully to a normal Checkout Session (never blocks a legit subscriber)', async () => {
+    mockProfile = { data: { stripe_customer_id: EXISTING_CID }, error: null };
+    mockSubscriptionsList = vi.fn(async () => { throw new Error('Stripe network error'); });
+
+    const handler = await getHandler();
+    const res = await handler(makeEvent({ token: 'Bearer valid-tok' }));
+
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(res.body).url).toBe(FAKE_SESSION_URL);
+    expect(mockStripeSessionCreate).toHaveBeenCalledTimes(1);
   });
 });
 

@@ -2525,6 +2525,7 @@ export default function SettingsScreen({
       <ProUpgradeSheet
         open={upgradeSheetOpen}
         trigger={upgradeSheetTrigger}
+        profile={profile}
         onClose={() => setUpgradeSheetOpen(false)}
       />
 

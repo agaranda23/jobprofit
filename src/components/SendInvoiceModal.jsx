@@ -874,6 +874,7 @@ export default function SendInvoiceModal({
     <ProUpgradeSheet
       open={upgradeSheetOpen}
       trigger={UPGRADE_TRIGGERS.WHITELABEL_FOOTER}
+      profile={profile}
       onClose={() => { setUpgradeSheetOpen(false); onClose(); }}
     />
     </>

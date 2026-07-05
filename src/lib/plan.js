@@ -10,7 +10,6 @@
 // paid features so they can be reviewed end-to-end.
 // TO RE-ENABLE the free/Pro split when editing is done: set this back to false.
 // The underlying plan rule is preserved in planAllowsPro() and stays tested.
-// NOTE: while this is true, trial banners are also suppressed (see TrialBanner).
 export const UNLOCK_PRO_FOR_ALL = false;
 
 // ── Founding Member price-lock ────────────────────────────────────────────────
