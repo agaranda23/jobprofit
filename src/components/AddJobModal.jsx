@@ -12,6 +12,8 @@ import EstimatorSheet from './EstimatorSheet';
 import BankGateSheet from './BankGateSheet';
 import { checkEstimatorQuota } from '../lib/estimatorQuota';
 import { useDraftAutosave } from '../lib/useDraftAutosave';
+import { haptic } from '../lib/haptics';
+import { playMicStartEarcon, playMicStopEarcon } from '../lib/voiceEarcons';
 
 // Deposit percent presets for the voice-quote confirm card — mirrors
 // ReviewSheet's DEPOSIT_PRESETS so the two surfaces feel identical.
@@ -534,6 +536,13 @@ export default function AddJobModal({ onClose, onSave, _onOpenDetailed, defaultM
           try { r.stop(); } catch {}
         }, SILENCE_MS);
       };
+      // onstart fires when the mic has actually armed (after the permission
+      // round-trip) — not the earlier button tap — so this earcon+haptic
+      // always matches the true mic state, used eyes-off mid-conversation.
+      r.onstart = () => {
+        playMicStartEarcon();
+        haptic('light');
+      };
       r.onresult = (e) => {
         let interim = '';
         for (let i = e.resultIndex; i < e.results.length; i++) {
@@ -562,6 +571,12 @@ export default function AddJobModal({ onClose, onSave, _onOpenDetailed, defaultM
       };
       r.onend = () => {
         clearTimeout(silenceTimer);
+        // Fires on every true end of the recognition session — silence
+        // auto-stop, the "Done" tap, or an error — so it's the single place
+        // that reliably matches "mic is now off", unlike the manualOverride
+        // short-circuit just below which only governs the parse/status logic.
+        playMicStopEarcon();
+        haptic('light');
         if (manualOverride.current) { manualOverride.current = false; return; }
         setQuoteVoiceStatus(s => {
           if (s === 'listening') {

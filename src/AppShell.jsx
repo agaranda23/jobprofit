@@ -395,11 +395,12 @@ export default function AppShell() {
     wireOnlineSync();
   }, []);
 
-  // Unlock the payment-received AudioContext on the app's first user gesture.
-  // iOS Safari refuses to play audio from a context that hasn't been resumed
-  // inside a user-gesture callback — a mark-paid tap later in the session
-  // (possibly after an await) wouldn't otherwise qualify. One-time listener,
-  // removed after it fires.
+  // Unlock the shared AudioContext (payment chime + voice-mic earcons, see
+  // paymentSound.js/voiceEarcons.js) on the app's first user gesture. iOS
+  // Safari refuses to play audio from a context that hasn't been resumed
+  // inside a user-gesture callback — a mark-paid tap or a mic-open later in
+  // the session (possibly after an await) wouldn't otherwise qualify.
+  // One-time listener, removed after it fires.
   useEffect(() => {
     const onFirstGesture = () => unlockAudioContext();
     window.addEventListener('pointerdown', onFirstGesture, { once: true });
