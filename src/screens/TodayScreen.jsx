@@ -50,6 +50,8 @@ import { UPGRADE_TRIGGERS } from '../lib/telemetry';
 import { supabase } from '../lib/supabase';
 import { getMonthSummary, getOverheadTotal, monthKey } from '../lib/cashflow';
 import { haptic } from '../lib/haptics.js';
+import { waitingToCollectTotal, jobsOnCount, weekOverWeek } from '../lib/todayPulse';
+import { shouldCelebrateFirstQuote, markFirstQuoteCelebrationSeen } from '../lib/firstQuoteCelebration';
 
 // ── Snooze helpers (delegate to nextBestAction.js store, keep SNOOZE_MS local) ──
 const SNOOZE_MS = 24 * 60 * 60 * 1000;
@@ -160,6 +162,22 @@ export default function TodayScreen({
 
   const now = new Date();
 
+  // ── First-quote celebration (item 2) ─────────────────────────────────────────
+  // One-time, per-user-per-device (see src/lib/firstQuoteCelebration.js) —
+  // fires the moment the trader's FIRST-EVER quote lands, from whichever of
+  // the three quote-save paths triggered it (draft / save-and-send / voice
+  // confirm). `jobs` here is always the pre-save snapshot — these handlers
+  // call it before (or independently of) the cloud round-trip, so "no prior
+  // quote" reflects real history, not a fabricated flag.
+  const celebrateFirstQuote = useCallback((sentImmediately) => {
+    if (!shouldCelebrateFirstQuote(jobs, profile?.id)) return;
+    markFirstQuoteCelebrationSeen(profile?.id);
+    const message = sentImmediately
+      ? "🎉 Nice — your first quote's on its way to your customer."
+      : "🎉 Nice — your first quote's ready. Now send it to your customer.";
+    onSnackbar?.({ id: 'first-quote-celebration', type: 'toast', message, dwell: 4200, priority: 8 });
+  }, [jobs, profile, onSnackbar]);
+
   const handleJobSave = async (payload) => {
     setJobOpen(false);
     setJobOpenMode('normal');
@@ -175,6 +193,7 @@ export default function TodayScreen({
 
     if (isDraftQuote) {
       showToast('Quote saved as draft');
+      celebrateFirstQuote(false);
     } else if (isFastPath) {
       // Fast-save path: stay on Today, show "Saved · £380" toast with a View link.
       // The View link calls onJobTap which opens JobDetailDrawer on the Work tab.
@@ -230,6 +249,7 @@ export default function TodayScreen({
     setJobOpenMode('normal');
     setResumeDraftBanner(null);
     setResumeDraftPayload(null);
+    celebrateFirstQuote(true);
     try { await onAddJob?.(payload); } catch {}
     setReviewQuoteJob(payload);
   };
@@ -244,6 +264,7 @@ export default function TodayScreen({
     setJobOpenMode('normal');
     setResumeDraftBanner(null);
     setResumeDraftPayload(null);
+    celebrateFirstQuote(true);
     try { await onAddJob?.(payload); } catch {}
   };
 
@@ -289,6 +310,53 @@ export default function TodayScreen({
   // Count-up for the Today tax-pot hero line (Pro users only).
   // useCountUp is always called (Rules of Hooks) — isPro check guards rendering.
   const animatedTodayTaxPot = useCountUp(taxPotData.monthTaxPot);
+
+  // ── Today "pulse" dopamine cards (item 1) ────────────────────────────────────
+  // Real computed values only — see src/lib/todayPulse.js. Each figure is
+  // dropped from the row entirely (not shown as a fake/zero stat) when there
+  // isn't genuine, meaningful data behind it yet.
+  const pulseWaitingToCollect = useMemo(() => waitingToCollectTotal(jobs), [jobs]);
+  const pulseJobsOn = useMemo(() => jobsOnCount(jobs), [jobs]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const pulseWeekOverWeek = useMemo(() => weekOverWeek(jobs, now), [jobs]);
+
+  const animatedPulseWaitingToCollect = useCountUp(pulseWaitingToCollect);
+  const pulseAheadAmount = pulseWeekOverWeek.hasComparison && pulseWeekOverWeek.delta > 0
+    ? pulseWeekOverWeek.delta
+    : 0;
+  const animatedPulseAhead = useCountUp(pulseAheadAmount);
+
+  const pulseCards = [];
+  if (pulseWaitingToCollect > 0) {
+    pulseCards.push({
+      key: 'collect',
+      icon: 'money',
+      value: gbp(Math.round(animatedPulseWaitingToCollect)),
+      label: 'waiting to collect',
+      ariaLabel: `${gbp(pulseWaitingToCollect)} waiting to collect — tap to see who owes you`,
+      onTap: () => onSeeTheWeek?.(),
+    });
+  }
+  if (pulseJobsOn > 0) {
+    pulseCards.push({
+      key: 'on',
+      icon: 'active-job',
+      value: String(pulseJobsOn),
+      label: pulseJobsOn === 1 ? 'job on' : 'jobs on',
+      ariaLabel: `${pulseJobsOn} ${pulseJobsOn === 1 ? 'job' : 'jobs'} on right now — tap to see them`,
+      onTap: () => onSeeTheWeek?.(),
+    });
+  }
+  if (pulseAheadAmount > 0) {
+    pulseCards.push({
+      key: 'trend',
+      icon: 'trend-up',
+      value: gbp(Math.round(animatedPulseAhead)),
+      label: 'ahead of last week',
+      ariaLabel: `${gbp(pulseAheadAmount)} ahead of last week — tap to see your money`,
+      onTap: () => onNavigateToMoney?.(),
+    });
+  }
 
   // ── Overdue-money push (item 2) ──────────────────────────────────────────────
   // All Tier-1 jobs (overdue + awaiting payment, not snoozed) — used for the
@@ -505,12 +573,34 @@ export default function TodayScreen({
         </span>
       </header>
 
-      {/* ── Get Pro upsell pill (free users + active trials only) ──────── */}
-      {!isPro(profile) && (
+      {/* ── Today "pulse" cards (item 1) — real computed data only ─────── */}
+      {pulseCards.length > 0 && (
+        <div className="today-pulse-row" role="list" aria-label="Today at a glance">
+          {pulseCards.map(card => (
+            <button
+              key={card.key}
+              type="button"
+              className={`today-pulse-card today-pulse-card--${card.key}`}
+              role="listitem"
+              onClick={card.onTap}
+              aria-label={card.ariaLabel}
+            >
+              <Icon name={card.icon} size={18} className="today-pulse-card__icon" />
+              <span className="today-pulse-card__value">{card.value}</span>
+              <span className="today-pulse-card__label">{card.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* ── Get Pro upsell pill (free users + active trials; not paid Pro) ── */}
+      {/* Repointed 2026-07-05 (item 5): active trials now see the pill too — */}
+      {/* GetProPill itself decides sell (free) vs "use it" (trial) copy.     */}
+      {profile?.plan !== 'pro' && (
         <GetProPill
           profile={profile}
           onOpen={() => setUpgradeSheetOpen(true)}
-          onError={(msg) => showToast(msg)}
+          onNavigateToMoney={onNavigateToMoney}
         />
       )}
 
@@ -676,8 +766,8 @@ export default function TodayScreen({
             <Icon name="active-job" size={40} variant="brand" />
           </div>
           <div className="empty-welcome-text">
-            <p className="empty-welcome-headline">Welcome to OHNAR.</p>
-            <p className="empty-welcome-sub">Log your first job and see exactly what you made.</p>
+            <p className="empty-welcome-headline">What&rsquo;s today&rsquo;s job?</p>
+            <p className="empty-welcome-sub">Log it and see exactly what you made.</p>
           </div>
           <button
             type="button"
@@ -717,7 +807,9 @@ export default function TodayScreen({
             <Icon name="complete" size={32} variant="success" />
           </div>
           <div className="foreman-empty-headline">
-            <p>All clear.</p>
+            {/* Warm the headline only when there's real activity to be warm
+                about (item 3) — never praise a week that didn't happen. */}
+            <p>{weekCount > 0 ? 'All clear — nice work.' : 'All clear.'}</p>
           </div>
           {weekCount > 0 ? (
             <p className="foreman-empty-meta">
@@ -748,10 +840,16 @@ export default function TodayScreen({
         </button>
         <button
           type="button"
-          className="foreman-pivot-btn"
+          className="foreman-pivot-btn foreman-pivot-btn--voice"
           onClick={() => { setJobOpenMode('quote'); setJobOpen(true); }}
+          aria-label="Quote it — speak your quote, or type it"
         >
-          <Icon name="file" size={24} className="foreman-pivot-icon" />
+          {/* Item 4: mic (not a generic file icon) + a subtle pulsing ring so
+              the wedge feature — voice-to-quote — reads as "speak it" at a
+              glance, without adding a second line of text to the button. */}
+          <span className="foreman-pivot-mic-badge">
+            <Icon name="mic" size={24} className="foreman-pivot-icon" />
+          </span>
           Quote it
         </button>
         <button

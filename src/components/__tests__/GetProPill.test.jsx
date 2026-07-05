@@ -1,24 +1,28 @@
 // @vitest-environment jsdom
 /**
- * GetProPill — 4-state machine tests
+ * GetProPill — 3-state "use it" machine tests (Today-alive, item 5)
  *
  * Covers:
- *   1. Four copy/state variants render for the correct profile conditions
- *   2. Dismiss is blocked in urgency and last-day states (X button absent)
+ *   1. Copy/state variants render for the correct profile conditions
+ *   2. Dismiss is blocked in urgency (X button absent)
  *   3. Dismiss is available in settled and free states
- *   4. Direct checkout is called for urgency / last-day (not onOpen)
- *   5. onOpen is called for settled / free (not startCheckoutImmediate)
+ *   4. Settled deep-links to Money (onNavigateToMoney), rotating the
+ *      suggested perk across mounts via lib/proPillRotation.js
+ *   5. Urgency opens the upgrade sheet (onOpen) — NOT a direct checkout call
  *   6. Singular/plural day wording
  *   7. Pill hidden entirely for paid Pro users
+ *   8. Pill renders during an ACTIVE trial (the bug this PR fixes lived in
+ *      TodayScreen's render gate, not here, but this file pins the component
+ *      itself never hides a trial profile)
  *
- * fix/pro-trial-no-card: urgency/last-day now call startCheckoutImmediate()
- * (card required), NOT startCheckout() (now card-free) — these two states
- * exist to convert an ALREADY-running trial into a real paid subscription,
- * not to start a fresh one. See GetProPill.jsx doc comment.
+ * 2026-07-05: rewritten for the "use it" repoint — urgency no longer calls
+ * startCheckoutImmediate() directly (see GetProPill.jsx doc comment); it
+ * reopens ProUpgradeSheet instead. billing.js is no longer imported by the
+ * component, so it is no longer mocked here.
  *
  * Mocking strategy:
- *   - startCheckoutImmediate is mocked at the module level (billing.js)
- *   - sessionStorage is reset between tests
+ *   - sessionStorage/localStorage reset between tests (rotation lives in
+ *     localStorage — must be cleared or state leaks across tests)
  *   - plan helpers are real (tested in plan.test.js), injected via profile shape
  */
 
@@ -28,22 +32,10 @@ import GetProPill from '../GetProPill';
 
 // ── Module mocks ─────────────────────────────────────────────────────────────
 
-vi.mock('../../lib/billing', () => ({
-  startCheckoutImmediate: vi.fn().mockResolvedValue({}),
-}));
-
-vi.mock('../../lib/telemetry', () => ({
-  logTelemetry: vi.fn(),
-  setLastUpgradeTrigger: vi.fn(),
-  UPGRADE_TRIGGERS: { TRIAL_BANNER: 'trial_banner', TODAY_PILL: 'today_pill' },
-}));
-
 // Icon renders nothing meaningful in unit tests — stub it to keep snapshots clean.
 vi.mock('../Icon', () => ({
   default: ({ name }) => <span data-testid={`icon-${name}`} />,
 }));
-
-import { startCheckoutImmediate } from '../../lib/billing';
 
 // ── Profile factories ─────────────────────────────────────────────────────────
 
@@ -66,7 +58,8 @@ function proProfile() {
   return { plan: 'pro' };
 }
 
-// Last-day profile: trial ends in <24 hours but still active.
+// Last-day profile: trial ends in <24 hours but still active. Folds into the
+// "urgency" state under the new 3-state machine (trialDaysLeft ceils to 1).
 function lastDayProfile() {
   return {
     plan: 'trial',
@@ -78,59 +71,78 @@ function lastDayProfile() {
 
 beforeEach(() => {
   sessionStorage.clear();
+  localStorage.clear();
   vi.clearAllMocks();
 });
 
 // ── Tests: copy states ────────────────────────────────────────────────────────
 
 describe('GetProPill — copy per state', () => {
-  it('settled state (>=4 days left): shows trial settled copy', () => {
-    render(<GetProPill profile={trialProfile(8)} onOpen={vi.fn()} />);
-    expect(screen.getByText(/Pro trial — 8 days of true-profit left/i)).toBeTruthy();
+  it('settled state (>=4 days left): shows trial settled copy, first rotation slot (true profit)', () => {
+    render(<GetProPill profile={trialProfile(8)} onOpen={vi.fn()} onNavigateToMoney={vi.fn()} />);
+    expect(screen.getByText(/Pro trial · 8 days left — see your true profit/i)).toBeTruthy();
   });
 
   it('settled state (exactly 4 days): shows settled copy not urgency', () => {
-    render(<GetProPill profile={trialProfile(4)} onOpen={vi.fn()} />);
-    expect(screen.getByText(/Pro trial — 4 days of true-profit left/i)).toBeTruthy();
+    render(<GetProPill profile={trialProfile(4)} onOpen={vi.fn()} onNavigateToMoney={vi.fn()} />);
+    expect(screen.getByText(/Pro trial · 4 days left/i)).toBeTruthy();
   });
 
-  it('urgency state (3 days left): shows urgency copy', () => {
+  it('settled state: rotates to "remove your footer" on the 2nd mount, "tax pot" on the 3rd', () => {
+    const { unmount } = render(<GetProPill profile={trialProfile(8)} onOpen={vi.fn()} onNavigateToMoney={vi.fn()} />);
+    expect(screen.getByText(/see your true profit/i)).toBeTruthy();
+    unmount();
+
+    const second = render(<GetProPill profile={trialProfile(8)} onOpen={vi.fn()} onNavigateToMoney={vi.fn()} />);
+    expect(screen.getByText(/remove your footer/i)).toBeTruthy();
+    second.unmount();
+
+    const third = render(<GetProPill profile={trialProfile(8)} onOpen={vi.fn()} onNavigateToMoney={vi.fn()} />);
+    expect(screen.getByText(/see your tax pot/i)).toBeTruthy();
+    third.unmount();
+
+    // Cycles back round to true profit on the 4th mount.
+    render(<GetProPill profile={trialProfile(8)} onOpen={vi.fn()} onNavigateToMoney={vi.fn()} />);
+    expect(screen.getByText(/see your true profit/i)).toBeTruthy();
+  });
+
+  it('urgency state (3 days left): shows the "use it" urgency copy', () => {
     render(<GetProPill profile={trialProfile(3)} onOpen={vi.fn()} />);
-    expect(screen.getByText(/3 days left — keep your true-profit view for £12\/mo/i)).toBeTruthy();
+    expect(screen.getByText(/3 days of Pro left — after that, chasing's back on you/i)).toBeTruthy();
   });
 
   it('urgency state (2 days left): shows urgency copy', () => {
     render(<GetProPill profile={trialProfile(2)} onOpen={vi.fn()} />);
-    expect(screen.getByText(/2 days left — keep your true-profit view for £12\/mo/i)).toBeTruthy();
+    expect(screen.getByText(/2 days of Pro left — after that, chasing's back on you/i)).toBeTruthy();
   });
 
-  it('urgency state (1 day left): uses singular "day"', () => {
-    // 1 day left but >24 hours (not last-day). 1.5 days rounds up to 2 via ceil,
-    // so use exactly 1.1 days to get ceil=2. Use 28 hours to get ceil(1.166)=2.
-    // For exactly 1 day we need <24h but isTrialLastDay false: use 1.001 days.
-    // Note: trialDaysLeft uses Math.ceil so 1.0001 days left → ceil = 2. We
-    // need to land on exactly 1 via Math.ceil, which means <=24h && >0h.
-    // Use the lastDayProfile shape but with enough hours that isTrialLastDay is
-    // still false — actually isTrialLastDay is <=24h so ANY sub-24h trial is last-day.
-    // Conclusion: "1 day" copy only appears in last-day state. Test last-day copy directly.
+  it('last-day profile (folded into urgency): singular "day" wording', () => {
     render(<GetProPill profile={lastDayProfile()} onOpen={vi.fn()} />);
-    expect(screen.getByText(/Last day of Pro — keep it for £12\/mo/i)).toBeTruthy();
+    expect(screen.getByText(/1 day of Pro left — after that, chasing's back on you/i)).toBeTruthy();
   });
 
-  it('last-day state: shows last-day copy', () => {
-    render(<GetProPill profile={lastDayProfile()} onOpen={vi.fn()} />);
-    expect(screen.getByText(/Last day of Pro — keep it for £12\/mo/i)).toBeTruthy();
-  });
-
-  it('free state: shows free copy', () => {
+  it('free state: shows free copy (unchanged)', () => {
     render(<GetProPill profile={freeProfile()} onOpen={vi.fn()} />);
-    // Copy updated (feat/today-taxpot-and-pro-copy): leads with loop + automation.
     expect(screen.getByText(/Get Pro — auto-chase late payers, remove OHNAR branding/i)).toBeTruthy();
   });
 
   it('plural days: "8 days" not "8 day"', () => {
-    render(<GetProPill profile={trialProfile(8)} onOpen={vi.fn()} />);
+    render(<GetProPill profile={trialProfile(8)} onOpen={vi.fn()} onNavigateToMoney={vi.fn()} />);
     expect(screen.getByText(/8 days/)).toBeTruthy();
+  });
+});
+
+// ── Tests: renders during an active trial (the TodayScreen gate this PR fixes) ─
+
+describe('GetProPill — never self-hides for an active trial', () => {
+  it('renders (does not return null) for a settled-trial profile', () => {
+    const { container } = render(<GetProPill profile={trialProfile(8)} onOpen={vi.fn()} onNavigateToMoney={vi.fn()} />);
+    expect(container.firstChild).not.toBeNull();
+  });
+
+  it('renders (does not return null) for an urgency-trial profile', () => {
+    const { container } = render(<GetProPill profile={trialProfile(2)} onOpen={vi.fn()} />);
+    expect(container.firstChild).not.toBeNull();
   });
 });
 
@@ -147,7 +159,7 @@ describe('GetProPill — hidden for paid Pro', () => {
 
 describe('GetProPill — dismissal gating', () => {
   it('settled state: dismiss button is present', () => {
-    render(<GetProPill profile={trialProfile(8)} onOpen={vi.fn()} />);
+    render(<GetProPill profile={trialProfile(8)} onOpen={vi.fn()} onNavigateToMoney={vi.fn()} />);
     expect(screen.getByRole('button', { name: /dismiss/i })).toBeTruthy();
   });
 
@@ -161,13 +173,13 @@ describe('GetProPill — dismissal gating', () => {
     expect(screen.queryByRole('button', { name: /dismiss/i })).toBeNull();
   });
 
-  it('last-day state: NO dismiss button', () => {
+  it('last-day profile (urgency): NO dismiss button', () => {
     render(<GetProPill profile={lastDayProfile()} onOpen={vi.fn()} />);
     expect(screen.queryByRole('button', { name: /dismiss/i })).toBeNull();
   });
 
   it('settled: dismissed pill hides after X tap', () => {
-    const { container } = render(<GetProPill profile={trialProfile(8)} onOpen={vi.fn()} />);
+    const { container } = render(<GetProPill profile={trialProfile(8)} onOpen={vi.fn()} onNavigateToMoney={vi.fn()} />);
     fireEvent.click(screen.getByRole('button', { name: /dismiss/i }));
     expect(container.firstChild).toBeNull();
   });
@@ -178,58 +190,56 @@ describe('GetProPill — dismissal gating', () => {
     const { container } = render(<GetProPill profile={trialProfile(2)} onOpen={vi.fn()} />);
     // Urgency state ignores the dismiss flag
     expect(container.firstChild).not.toBeNull();
-    expect(screen.getByText(/2 days left/i)).toBeTruthy();
+    expect(screen.getByText(/2 days of Pro left/i)).toBeTruthy();
   });
 
-  it('last-day: pill is still visible even when session dismiss flag is set', () => {
+  it('last-day profile (urgency): pill is still visible even when session dismiss flag is set', () => {
     sessionStorage.setItem('jp.getproPillDismissed', '1');
     const { container } = render(<GetProPill profile={lastDayProfile()} onOpen={vi.fn()} />);
     expect(container.firstChild).not.toBeNull();
-    expect(screen.getByText(/Last day of Pro/i)).toBeTruthy();
+    expect(screen.getByText(/1 day of Pro left/i)).toBeTruthy();
   });
 });
 
 // ── Tests: CTA routing ────────────────────────────────────────────────────────
 
 describe('GetProPill — CTA routing', () => {
-  it('settled: tapping body calls onOpen, NOT startCheckoutImmediate', async () => {
+  it('settled: tapping body calls onNavigateToMoney, NOT onOpen', () => {
+    const onOpen = vi.fn();
+    const onNavigateToMoney = vi.fn();
+    render(<GetProPill profile={trialProfile(8)} onOpen={onOpen} onNavigateToMoney={onNavigateToMoney} />);
+    fireEvent.click(screen.getByRole('button', { name: /Pro trial/i }));
+    expect(onNavigateToMoney).toHaveBeenCalledTimes(1);
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  it('settled: falls back to onOpen when onNavigateToMoney is not wired (never dead-ends)', () => {
     const onOpen = vi.fn();
     render(<GetProPill profile={trialProfile(8)} onOpen={onOpen} />);
     fireEvent.click(screen.getByRole('button', { name: /Pro trial/i }));
     expect(onOpen).toHaveBeenCalledTimes(1);
-    expect(startCheckoutImmediate).not.toHaveBeenCalled();
   });
 
-  it('free: tapping body calls onOpen, NOT startCheckoutImmediate', () => {
+  it('free: tapping body calls onOpen', () => {
     const onOpen = vi.fn();
     render(<GetProPill profile={freeProfile()} onOpen={onOpen} />);
     fireEvent.click(screen.getByRole('button', { name: /Get Pro/i }));
     expect(onOpen).toHaveBeenCalledTimes(1);
-    expect(startCheckoutImmediate).not.toHaveBeenCalled();
   });
 
-  it('urgency: tapping body calls startCheckoutImmediate (card-required), NOT onOpen', async () => {
+  it('urgency: tapping body calls onOpen (opens ProUpgradeSheet), not onNavigateToMoney', () => {
     const onOpen = vi.fn();
-    render(<GetProPill profile={trialProfile(2)} onOpen={onOpen} />);
-    fireEvent.click(screen.getByRole('button', { name: /2 days left/i }));
-    // Allow async to settle
-    await vi.waitFor(() => expect(startCheckoutImmediate).toHaveBeenCalledTimes(1));
-    expect(onOpen).not.toHaveBeenCalled();
+    const onNavigateToMoney = vi.fn();
+    render(<GetProPill profile={trialProfile(2)} onOpen={onOpen} onNavigateToMoney={onNavigateToMoney} />);
+    fireEvent.click(screen.getByRole('button', { name: /2 days of Pro left/i }));
+    expect(onOpen).toHaveBeenCalledTimes(1);
+    expect(onNavigateToMoney).not.toHaveBeenCalled();
   });
 
-  it('last-day: tapping body calls startCheckoutImmediate (card-required), NOT onOpen', async () => {
+  it('last-day profile (urgency): tapping body calls onOpen', () => {
     const onOpen = vi.fn();
     render(<GetProPill profile={lastDayProfile()} onOpen={onOpen} />);
-    fireEvent.click(screen.getByRole('button', { name: /Last day of Pro/i }));
-    await vi.waitFor(() => expect(startCheckoutImmediate).toHaveBeenCalledTimes(1));
-    expect(onOpen).not.toHaveBeenCalled();
-  });
-
-  it('urgency: startCheckoutImmediate error is forwarded to onError', async () => {
-    startCheckoutImmediate.mockResolvedValueOnce({ error: 'Network error' });
-    const onError = vi.fn();
-    render(<GetProPill profile={trialProfile(2)} onOpen={vi.fn()} onError={onError} />);
-    fireEvent.click(screen.getByRole('button', { name: /2 days left/i }));
-    await vi.waitFor(() => expect(onError).toHaveBeenCalledWith('Network error'));
+    fireEvent.click(screen.getByRole('button', { name: /1 day of Pro left/i }));
+    expect(onOpen).toHaveBeenCalledTimes(1);
   });
 });
