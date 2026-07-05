@@ -6537,6 +6537,72 @@ input[type=number] { -moz-appearance: textfield; }
   box-shadow: 0 1px 4px rgba(0,0,0,0.3);
 }
 
+/* ── People / Jobs toggle (feat/customers-list) ────────────────────────────
+   Segmented control at the top of the Jobs tab — same visual language as
+   the (currently dormant) WorkCalendar view toggle, given its own class
+   names so this doesn't couple to that parked feature. */
+.wj-view-toggle {
+  display: flex;
+  gap: 0;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 2px;
+  margin: 0 16px 12px;
+}
+.wj-view-btn {
+  flex: 1;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  padding: 10px 14px; /* ≥44px tap target */
+  border-radius: var(--radius-sm);
+  font-size: var(--fs-label);
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+}
+.wj-view-btn--active {
+  background: var(--surface);
+  color: var(--text);
+}
+
+/* People list — one row per customer (groupByCustomer), sorted by most-
+   recent activity. Mirrors .job-card's surface/border/radius so it reads
+   as a sibling of the Jobs list, but stays a single-line-plus-summary row
+   (no stage rail — a customer isn't in a stage). */
+.people-list {
+  list-style: none;
+  padding: 0 16px 20px;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.people-row {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-xs);
+  padding: 14px 16px;
+  min-height: 44px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  cursor: pointer;
+}
+.people-row:active { background: var(--surface-2); }
+.people-row-name {
+  font-size: var(--fs-body);
+  font-weight: 600;
+  color: var(--text);
+}
+.people-row-summary {
+  font-size: var(--fs-label);
+  color: var(--text-dim);
+}
+.people-row-owed { color: var(--jp-amber, #E8A33D); }
+
 /* Controls row — List/Calendar segmented control (left) + Show all pill (right) */
 .work-controls-row {
   display: flex;

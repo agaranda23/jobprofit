@@ -43,6 +43,12 @@ import DrawerErrorBoundary from '../components/DrawerErrorBoundary';
 import ReviewSheet from '../components/ReviewSheet';
 import StageStrip from '../components/StageStrip';
 import DocumentSearchOverlay from '../components/DocumentSearchOverlay';
+// Customers list (feat/customers-list) — People/Jobs toggle fast-follow to the
+// Customer Timeline. groupByCustomer/computeLifetime/buildTimeline already
+// exist for CustomerTimelineSheet; reused here, not duplicated.
+import { groupByCustomer, computeLifetime, buildTimeline } from '../lib/customerTimeline';
+import { gbp } from '../lib/today';
+import CustomerTimelineSheet from '../components/CustomerTimelineSheet';
 import { logTelemetry } from '../lib/telemetry';
 import { deriveDisplayStatus, requiresPriceForStage, stagePatch } from '../lib/jobStatus';
 import { hasVisitDate } from '../lib/visits';
@@ -1156,6 +1162,99 @@ function JobsList({ jobs, _receipts, selectedStage, showAll, searchQuery, _profi
   );
 }
 
+// ── PeopleList subview (feat/customers-list) ──────────────────────────────────
+// "People" lens on the exact same jobs+receipts data JobsList renders above —
+// no second timeline, no new table. groupByCustomer/computeLifetime are the
+// same helpers CustomerTimelineSheet uses; buildTimeline is reused purely to
+// read off each customer's most-recent event ts for the "who's active" sort
+// (its full descending event list already does the work — event [0] is it).
+
+/** Most-recent event ts across a customer's jobs + receipts, or 0 if none. */
+function latestActivityTs(customerJobs, receipts) {
+  const events = buildTimeline(customerJobs, receipts);
+  return events[0]?.ts ?? 0;
+}
+
+function PeopleRow({ name, lifetime, onSelect }) {
+  return (
+    <li
+      className="people-row"
+      role="button"
+      tabIndex={0}
+      onClick={onSelect}
+      onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') onSelect(); }}
+      aria-label={`Open timeline with ${name}`}
+    >
+      <span className="people-row-name">{name}</span>
+      <span className="people-row-summary">
+        {lifetime.jobCount} job{lifetime.jobCount === 1 ? '' : 's'} &middot; {gbp(lifetime.billed)} billed
+        {lifetime.owed > 0 && (
+          <span className="people-row-owed"> &middot; {gbp(lifetime.owed)} owed</span>
+        )}
+      </span>
+    </li>
+  );
+}
+
+function PeopleList({ jobs, receipts, searchQuery, onSelectCustomer }) {
+  // groupByCustomer already skips jobs with no/blank customer name — a
+  // customer only ever appears here once they have a name attached to a job.
+  const buckets = groupByCustomer(jobs);
+  const customers = Object.entries(buckets).map(([key, customerJobs]) => {
+    const anchor = customerJobs[0];
+    return {
+      key,
+      anchor,
+      name: (anchor.customer || '').trim(),
+      lifetime: computeLifetime(customerJobs),
+      lastActivity: latestActivityTs(customerJobs, receipts),
+    };
+  });
+
+  // Most-recent activity first — whoever you're actively working with sits on top.
+  customers.sort((a, b) => (b.lastActivity ?? 0) - (a.lastActivity ?? 0));
+
+  if (customers.length === 0) {
+    return (
+      <div className="screen-empty">
+        <p className="screen-empty-title">No customers yet</p>
+        <p className="screen-empty-hint">Your customers show up here as you log jobs.</p>
+      </div>
+    );
+  }
+
+  const q = (searchQuery || '').trim().toLowerCase();
+  const visible = q
+    ? customers.filter(c => {
+        if (c.name.toLowerCase().includes(q)) return true;
+        const phone = resolvePhone(c.anchor).toLowerCase();
+        return !!phone && phone.includes(q);
+      })
+    : customers;
+
+  if (visible.length === 0) {
+    return (
+      <div className="screen-empty">
+        <p className="screen-empty-title">No customers match &ldquo;{searchQuery}&rdquo;</p>
+        <p className="screen-empty-hint">Check the spelling.</p>
+      </div>
+    );
+  }
+
+  return (
+    <ul className="people-list">
+      {visible.map(c => (
+        <PeopleRow
+          key={c.key}
+          name={c.name}
+          lifetime={c.lifetime}
+          onSelect={() => onSelectCustomer(c.anchor)}
+        />
+      ))}
+    </ul>
+  );
+}
+
 // ── WorkScreen (root) ─────────────────────────────────────────────────────────
 
 // JP-LU5 PR1: pendingWorkView and onPendingWorkViewConsumed removed from props —
@@ -1165,6 +1264,17 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
   const [showAll, setShowAll] = useState(() => getPersistedFilter().showAll);
   // 1B: client-side search — pure JS filter, works offline
   const [searchQuery, setSearchQuery] = useState('');
+  // People/Jobs toggle (feat/customers-list) — default stays 'jobs' so the
+  // existing view is byte-for-byte unchanged until the trader opts in.
+  const [viewMode, setViewMode] = useState('jobs');
+  // Search is kept separate from the Jobs searchQuery above — it filters a
+  // different list (customers, not jobs) and shouldn't reset when switching tabs.
+  const [peopleSearchQuery, setPeopleSearchQuery] = useState('');
+  // timelineJob — anchor job for the open CustomerTimelineSheet; null = closed.
+  // Any job belonging to the tapped customer works as the anchor (getCustomerJobs
+  // re-derives the full customer bucket from it) — same contract JobDetailDrawer
+  // already relies on for its own "See all work with…" entry point.
+  const [timelineJob, setTimelineJob] = useState(null);
   // selectedJob drives the JobDetailDrawer — null means closed.
   // initialJobId: when set, pre-open the drawer for that job on first render.
   const [selectedJob, setSelectedJob] = useState(() => {
@@ -1384,6 +1494,11 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
   // Keep the drawer's job in sync when AppShell refreshes jobs[] after a payment.
   const liveSelectedJob = selectedJob
     ? (jobs.find(j => j.id === selectedJob.id) ?? selectedJob)
+    : null;
+
+  // Same freshness guarantee for the People-list CustomerTimelineSheet anchor.
+  const liveTimelineJob = timelineJob
+    ? (jobs.find(j => j.id === timelineJob.id) ?? timelineJob)
     : null;
 
   const handleAddPayment = (job, payload) => {
@@ -1682,6 +1797,73 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
         </div>
       )}
 
+      {/* People / Jobs segmented toggle (feat/customers-list) — sits above the
+          stage strip so it reads as "which lens on this tab", not a stage
+          filter. Default stays Jobs; the deliberate slice-3 bottom nav
+          (Today/Jobs/Money/Settings) is unchanged — this is NOT a 5th tab. */}
+      <div className="wj-view-toggle" role="tablist" aria-label="Jobs or People view">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={viewMode === 'jobs'}
+          className={`wj-view-btn${viewMode === 'jobs' ? ' wj-view-btn--active' : ''}`}
+          onClick={() => setViewMode('jobs')}
+        >
+          Jobs
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={viewMode === 'people'}
+          className={`wj-view-btn${viewMode === 'people' ? ' wj-view-btn--active' : ''}`}
+          onClick={() => setViewMode('people')}
+        >
+          People
+        </button>
+      </div>
+
+      {viewMode === 'people' ? (
+        <>
+          {/* People search — same input pattern/styling as the Jobs search
+              below, bound to its own state (peopleSearchQuery) since it
+              filters a different list. */}
+          <div className="jobs-search-wrap">
+            <input
+              type="search"
+              className={`jobs-search${peopleSearchQuery ? ' jobs-search--has-value' : ''}`}
+              placeholder="Search customers by name or phone"
+              value={peopleSearchQuery}
+              onChange={e => setPeopleSearchQuery(e.target.value)}
+              aria-label="Search customers"
+              autoComplete="off"
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck="false"
+            />
+            {peopleSearchQuery && (
+              <button
+                type="button"
+                className="jobs-search-clear"
+                aria-label="Clear search"
+                onClick={() => setPeopleSearchQuery('')}
+              >
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden="true">
+                  <line x1="4" y1="4" x2="12" y2="12"/>
+                  <line x1="12" y1="4" x2="4" y2="12"/>
+                </svg>
+              </button>
+            )}
+          </div>
+
+          <PeopleList
+            jobs={visibleJobs}
+            receipts={receipts}
+            searchQuery={peopleSearchQuery}
+            onSelectCustomer={setTimelineJob}
+          />
+        </>
+      ) : (
+      <>
       {/* Chase bar — Design A: one-invoice focus with tier-priority queue.
            Four mutually exclusive states (evaluated top-down):
            1. Red — overdue invoices exist; shows the most-urgent one (Tier 3 first).
@@ -1910,6 +2092,8 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
         onCallJob={handleCallJob}
         onRequestBook={handleRequestBook}
       />
+      </>
+      )}
 
       {/* Job detail drawer — wrapped in an error boundary so a render crash
           shows a fallback instead of a blank white screen. Keyed by job id
@@ -1945,6 +2129,30 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
             onOpenJob={handleOpenJob}
           />
         </DrawerErrorBoundary>
+      )}
+
+      {/* CustomerTimelineSheet — opened by tapping a row in the People list
+          (feat/customers-list). Same sheet JobDetailDrawer's "See all work
+          with…" row opens; onOpenJob/onLogComms are threaded through to the
+          existing handleOpenJob/logComms so tapping an event or a Call/
+          WhatsApp chip behaves identically from either entry point. */}
+      {liveTimelineJob && (
+        <CustomerTimelineSheet
+          job={liveTimelineJob}
+          jobs={jobs}
+          receipts={receipts}
+          onClose={() => setTimelineJob(null)}
+          onSelectJob={(nextJob) => {
+            setTimelineJob(null);
+            handleOpenJob(nextJob);
+          }}
+          onAddPhone={() => {
+            setTimelineJob(null);
+            handleOpenJob(liveTimelineJob, { editField: 'phone' });
+          }}
+          onLogComms={(type) => logComms(liveTimelineJob, type, onUpdateJob)}
+          onUpdateJob={onUpdateJob}
+        />
       )}
 
       {/* ReviewSheet — opened by "Send invoice" tile CTA on On-stage cards */}
