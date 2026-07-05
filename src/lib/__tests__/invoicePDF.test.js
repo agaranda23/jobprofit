@@ -886,6 +886,31 @@ describe('IX. generateQuotePDF — valid until + quote number', () => {
     // 2026-06-01 + 30 days = 2026-07-01
     expect(drawnTexts.some(t => String(t).includes('01/07/2026'))).toBe(true);
   });
+
+  // ── fix/quote-public-vat-validity: per-quote override ──────────────────────
+  // job.quoteValidUntil must win over the profile-derived default, and must
+  // NEVER be re-derived from quote_validity_days — that would silently drift
+  // this quote's date whenever the trader's global default changes later.
+
+  it('uses job.quoteValidUntil over the profile-derived default when set', async () => {
+    await generateQuotePDF({
+      job: baseJob({ date: '2026-06-01', quoteValidUntil: '2026-09-15' }),
+      biz: baseBiz(),
+      profile: { quote_validity_days: 30 }, // would derive 01/07/2026 — must be ignored
+    });
+    expect(drawnTexts.some(t => String(t).includes('15/09/2026'))).toBe(true);
+    expect(drawnTexts.some(t => String(t).includes('01/07/2026'))).toBe(false);
+  });
+
+  it('falls back to the profile default when job.quoteValidUntil is absent', async () => {
+    await generateQuotePDF({
+      job: baseJob({ date: '2026-06-01' }),
+      biz: baseBiz(),
+      profile: { quote_validity_days: 14 },
+    });
+    // 2026-06-01 + 14 days = 2026-06-15
+    expect(drawnTexts.some(t => String(t).includes('15/06/2026'))).toBe(true);
+  });
 });
 
 // ── X. Invoice auto due date from payment_terms_days ─────────────────────────

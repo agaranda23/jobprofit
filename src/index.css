@@ -10770,6 +10770,19 @@ button.jd-money-chip:active { opacity: 0.75; }
   white-space: nowrap;
 }
 
+/* VAT breakdown row — Subtotal / VAT (20%), shown above the Total row when
+   the trader is VAT-registered or the quote's voice-captured "plus/inc VAT"
+   flag is set (fix/quote-public-vat-validity). Muted vs. the bold Total row. */
+.pqv-vat-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 4px 0;
+  font-size: var(--fs-label);
+  color: var(--text-dim, #666);
+  font-variant-numeric: tabular-nums;
+}
+
 /* Total row */
 .pqv-line-total {
   display: flex;

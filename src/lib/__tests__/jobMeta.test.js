@@ -307,3 +307,37 @@ describe('writeJobMeta / readJobMeta — deposit_due_date + vat round-trip', () 
     expect(stored.deposit_due_date).toBe('2026-07-11');
   });
 });
+
+// ── quoteValidUntil regression (fix/quote-public-vat-validity) ───────────────
+// Root cause: DocumentPreview's "Valid until" edit used to write
+// profile.quote_validity_days, silently changing the validity window on EVERY
+// future quote. quoteValidUntil is the per-JOB override that fixes this —
+// it must survive the same JSONB meta round-trip as every other per-job field.
+
+const VALID_UNTIL_JOB_ID = 'test-job-meta-quote-valid-until-001';
+
+describe('extractJobMeta — quoteValidUntil', () => {
+  it('extracts quoteValidUntil when present on the job', () => {
+    const meta = extractJobMeta({ id: VALID_UNTIL_JOB_ID, quoteValidUntil: '2026-08-01' });
+    expect(meta.quoteValidUntil).toBe('2026-08-01');
+  });
+
+  it('does not include quoteValidUntil when absent from the job', () => {
+    const meta = extractJobMeta({ id: VALID_UNTIL_JOB_ID, status: 'quoted' });
+    expect('quoteValidUntil' in meta).toBe(false);
+  });
+});
+
+describe('writeJobMeta / readJobMeta — quoteValidUntil round-trip', () => {
+  it('persists the per-quote override and reads it back', () => {
+    writeJobMeta(VALID_UNTIL_JOB_ID, { quoteValidUntil: '2026-08-01' });
+    expect(readJobMeta(VALID_UNTIL_JOB_ID).quoteValidUntil).toBe('2026-08-01');
+  });
+
+  it('quoteValidUntil survives alongside other meta fields (no profile field is touched)', () => {
+    writeJobMeta(VALID_UNTIL_JOB_ID, { quoteStatus: 'sent', quoteValidUntil: '2026-08-01' });
+    const stored = readJobMeta(VALID_UNTIL_JOB_ID);
+    expect(stored.quoteStatus).toBe('sent');
+    expect(stored.quoteValidUntil).toBe('2026-08-01');
+  });
+});

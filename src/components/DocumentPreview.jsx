@@ -23,11 +23,14 @@
  *   - Invoice number / due date       → EditFieldModal (single field), persist
  *     via onInvoiceNumberChange/onDueDateChange (ReviewSheet-level state — see
  *     that file for why these aren't threaded through onJobPatch).
- *   - Quote "Valid until"             → EditFieldModal (date), converts the
- *     picked date back to profile.quote_validity_days (the same field
- *     Settings/invoicePDF.js/PublicQuoteView.jsx already read) and saves via
- *     the existing handleBrandSave path — no per-job override field invented,
- *     no invoicePDF.js edit needed to keep the sent PDF in sync.
+ *   - Quote "Valid until"             → EditFieldModal (date), persists
+ *     job.quoteValidUntil (per-JOB override, JSONB meta field — see jobMeta.js)
+ *     via onJobPatch. fix/quote-public-vat-validity: this used to write
+ *     profile.quote_validity_days, which silently changed the validity window
+ *     on EVERY future quote — a founder-flagged surprise side effect. Now only
+ *     THIS quote's date changes; invoicePDF.js and PublicQuoteView.jsx both
+ *     prefer job.quoteValidUntil and fall back to the profile default. Read-only
+ *     (no tap) when onJobPatch is absent, matching the recipient/line-item gate.
  *
  * P0 fix (founder live-test, 2026-07): tapping ANY region inside this card —
  * including a region that isn't wired to anything — must never dismiss the
@@ -167,6 +170,10 @@ export default function DocumentPreview({
   const hasRealItems = Array.isArray(job?.lineItems) && job.lineItems.length > 0;
   const rawLineItems = hasRealItems ? job.lineItems : [];
 
+  // canEditJob — computed early so metaRows (below) can gate the "Valid until"
+  // tap affordance on it, same as the recipient block / line items.
+  const canEditJob = !!onJobPatch;
+
   // ── Totals — VAT-inclusive (locked decision); reuses the shared
   // splitVatInclusive() helper so the preview matches invoicePDF.js /
   // generateQuotePDF to the penny — never re-derive the VAT formula here. ────
@@ -188,9 +195,14 @@ export default function DocumentPreview({
     ? new Date(job.date.length === 10 ? `${job.date}T00:00:00` : job.date)
     : new Date();
   const validityDays = Number(profile?.quote_validity_days ?? 30);
-  const validUntil = new Date(issueDate);
-  validUntil.setDate(validUntil.getDate() + validityDays);
-  const validUntilIso = validUntil.toISOString().slice(0, 10);
+  // Per-quote override (job.quoteValidUntil) wins over the profile default —
+  // see the class-level doc comment above for why this must stay per-job.
+  const defaultValidUntil = new Date(issueDate);
+  defaultValidUntil.setDate(defaultValidUntil.getDate() + validityDays);
+  const validUntil = job?.quoteValidUntil
+    ? new Date(`${job.quoteValidUntil}T00:00:00`)
+    : defaultValidUntil;
+  const validUntilIso = job?.quoteValidUntil || defaultValidUntil.toISOString().slice(0, 10);
 
   let metaRows;
   if (isInvoice) {
@@ -206,7 +218,12 @@ export default function DocumentPreview({
     metaRows = [
       quoteNumber ? { key: 'ref', label: 'Ref', value: quoteNumber } : null,
       { key: 'date', label: 'Date', value: issueDate.toLocaleDateString('en-GB') },
-      { key: 'validUntil', label: 'Valid until', value: validUntil.toLocaleDateString('en-GB'), onClick: () => setEditingField('validUntil') },
+      {
+        key: 'validUntil',
+        label: 'Valid until',
+        value: validUntil.toLocaleDateString('en-GB'),
+        onClick: canEditJob ? () => setEditingField('validUntil') : undefined,
+      },
     ].filter(Boolean);
   }
 
@@ -221,7 +238,6 @@ export default function DocumentPreview({
   const customerName = rawCustomer && rawCustomer !== jobTitle ? rawCustomer : '';
   const customerPhone   = job?.customerPhone || job?.phone || '';
   const customerAddress = job?.address || '';
-  const canEditJob = !!onJobPatch;
 
   // ── Line-item handlers — total always recomputed from lineItems (invariant
   // per JobDetailDrawer's Option A price-reconciliation PRD, 2026-06-13) ────
@@ -265,17 +281,16 @@ export default function DocumentPreview({
     flash?.('Due date updated');
   };
 
-  // ── Quote "Valid until" — converts the picked date back into
-  // profile.quote_validity_days (the SAME field invoicePDF.js /
-  // PublicQuoteView.jsx already read), so the sent PDF stays in sync without
-  // inventing a per-job override field. Saved via the existing brand-edit
-  // pipeline — same as logo/business name. Note: this updates the trader's
-  // DEFAULT validity window (applies to future quotes too), same caveat as
-  // editing business name/logo here.
-  const handleValidUntilSave = async (patch) => {
-    const picked = new Date(`${patch.validUntil}T00:00:00`);
-    const diffDays = Math.max(1, Math.round((picked - issueDate) / 86400000));
-    await handleBrandSave({ quote_validity_days: diffDays });
+  // ── Quote "Valid until" — persists job.quoteValidUntil via onJobPatch
+  // (per-JOB override, JSONB meta field — see jobMeta.js). fix/quote-public-
+  // vat-validity: previously converted the picked date into
+  // profile.quote_validity_days, which silently changed the validity window
+  // on EVERY future quote — a founder-flagged surprise side effect. This is
+  // the same persistence path as line-item/customer edits, so only THIS
+  // quote's date changes; the trader's default window is untouched.
+  const handleValidUntilSave = (patch) => {
+    onJobPatch?.({ quoteValidUntil: patch.validUntil });
+    flash?.('Valid until date updated');
   };
 
   return (

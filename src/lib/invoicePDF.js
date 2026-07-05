@@ -1030,12 +1030,19 @@ export async function generateQuotePDF({ job, biz, profile = null, quoteUrl = ''
   // from job.id so every quote has a reference even in the legacy flow.
   const quoteNumber = job?.quoteNumber || (job?.id ? `Q-${String(job.id).slice(-4).toUpperCase()}` : '');
 
-  // Valid-until date: quote issue date (job.date / today) + quoteValidityDays
+  // Valid-until date: quote issue date (job.date / today) + quoteValidityDays,
+  // UNLESS this specific quote has a per-job override (job.quoteValidUntil, set
+  // via DocumentPreview's "Valid until" editor — fix/quote-public-vat-validity).
+  // The override is per-quote ONLY: it must never be derived from or written
+  // back to profile.quote_validity_days (that would silently change every
+  // future quote's default window — the exact bug this fix corrects).
   const issueDate = job?.date
     ? (job.date.length === 10 ? new Date(job.date + 'T00:00:00') : new Date(job.date))
     : new Date();
-  const validUntil = new Date(issueDate);
-  validUntil.setDate(validUntil.getDate() + quoteValidityDays);
+  const validUntil = job?.quoteValidUntil
+    ? (job.quoteValidUntil.length === 10 ? new Date(job.quoteValidUntil + 'T00:00:00') : new Date(job.quoteValidUntil))
+    : new Date(issueDate);
+  if (!job?.quoteValidUntil) validUntil.setDate(validUntil.getDate() + quoteValidityDays);
   const validUntilStr = validUntil.toLocaleDateString('en-GB');
 
   // ── Logo pre-fetch ────────────────────────────────────────────────────

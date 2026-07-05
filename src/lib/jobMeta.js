@@ -111,6 +111,13 @@ const META_FIELDS = [
   // buildQuotePayload. Read by the quote PDF/WhatsApp renderers as an OR
   // condition alongside the trader's profile-level VAT registration.
   'vat', // boolean
+  // quoteValidUntil — per-quote "Valid until" override (fix/quote-public-vat-validity).
+  // Founder-flagged bug: editing "Valid until" in the Preview & Edit sheet used to
+  // write profile.quote_validity_days, silently changing the default window for
+  // EVERY future quote. This field lets DocumentPreview/invoicePDF/PublicQuoteView
+  // persist a per-JOB override instead — no DB migration needed (JSONB meta), and
+  // renderers fall back to issueDate + profile.quote_validity_days when absent.
+  'quoteValidUntil', // ISO date string (YYYY-MM-DD) | undefined
   // Schedule fields — drawer handleScheduleSave and App.jsx saveSchedule both
   // route through onUpdateJob → writeJobMeta. Without these entries the schedule
   // date/time would appear saved in-memory but be silently stripped on reload.

@@ -346,3 +346,72 @@ describe('ReviewSheet — "Send via WhatsApp" still fires sendQuote() unchanged,
     expect(calledJob).toBe(job);
   });
 });
+
+// ── (E) Quote "Valid until" persists PER-QUOTE, never the profile default ───
+// fix/quote-public-vat-validity: the founder flagged that editing "Valid
+// until" used to write profile.quote_validity_days, silently changing the
+// validity window on EVERY future quote. It must now persist onto THIS job
+// only (via onJobPatch → onUpdate) and never touch the profiles table.
+
+describe('ReviewSheet — quote "Valid until" edit is per-quote only', () => {
+  it('editing Valid until calls onUpdate with quoteValidUntil, not the profile', () => {
+    const onUpdate = vi.fn();
+    const job = makeJob({ date: '2026-06-01' });
+    render(
+      <ReviewSheet
+        mode="quote"
+        job={job}
+        biz={BIZ}
+        profile={{ plan: 'free', quote_validity_days: 30 }}
+        jobs={[job]}
+        onClose={NOOP}
+        onDismiss={NOOP}
+        onUpdate={onUpdate}
+        flash={NOOP}
+      />
+    );
+
+    // Default (issueDate 2026-06-01 + 30 days) shown before any edit.
+    expect(screen.getByText(/valid until: 01\/07\/2026/i)).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /change valid until/i }));
+    fireEvent.change(screen.getByLabelText('Valid until'), { target: { value: '2026-08-01' } });
+    fireEvent.click(screen.getByRole('button', { name: /^save$/i }));
+
+    // Persisted via the job-content path (onJobPatch → onUpdate), never as a
+    // direct Supabase profiles write.
+    expect(onUpdate).toHaveBeenCalledWith(expect.objectContaining({ quoteValidUntil: '2026-08-01' }));
+    expect(supabaseUpdate).not.toHaveBeenCalled();
+
+    // The preview reflects the new PER-JOB date immediately (localJob mirror).
+    expect(screen.getByText(/valid until: 01\/08\/2026/i)).toBeInTheDocument();
+  });
+
+  it('does NOT call supabase.from("profiles").update — the old profile-mutation bug', () => {
+    const onUpdate = vi.fn();
+    const job = makeJob({ date: '2026-06-01' });
+    render(
+      <ReviewSheet
+        mode="quote"
+        job={job}
+        biz={BIZ}
+        profile={{ plan: 'free', quote_validity_days: 30 }}
+        jobs={[job]}
+        onClose={NOOP}
+        onDismiss={NOOP}
+        onUpdate={onUpdate}
+        flash={NOOP}
+      />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /change valid until/i }));
+    fireEvent.change(screen.getByLabelText('Valid until'), { target: { value: '2026-09-20' } });
+    fireEvent.click(screen.getByRole('button', { name: /^save$/i }));
+
+    // Assert the onUpdate patch never carries quote_validity_days — the exact
+    // field the old (buggy) implementation wrote to the shared profile.
+    for (const call of onUpdate.mock.calls) {
+      expect(call[0]).not.toHaveProperty('quote_validity_days');
+    }
+  });
+});
