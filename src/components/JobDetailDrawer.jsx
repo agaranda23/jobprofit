@@ -53,6 +53,7 @@ import { secureImageUrl } from '../lib/secureImageUrl';
 import { extractJobMeta } from '../lib/jobMeta';
 import { buildWhatsAppLink } from '../lib/invoiceMessage';
 import { logTelemetry } from '../lib/telemetry';
+import { logComms } from '../lib/commsLog';
 import {
   readVisits,
   writeVisits,
@@ -3601,7 +3602,10 @@ export default function JobDetailDrawer({
                     href={`tel:${phone}`}
                     className="jt-action-btn"
                     aria-label={`Call ${firstName || 'customer'}`}
-                    onClick={() => logTelemetry('drawer_action_call', { source: 'drawer' })}
+                    onClick={() => {
+                      logTelemetry('drawer_action_call', { source: 'drawer' });
+                      logComms(job, 'call', onUpdateJob);
+                    }}
                   >{callInner}</a>
                 ) : (
                   <button
@@ -3617,7 +3621,10 @@ export default function JobDetailDrawer({
                     href={smsLink}
                     className="jt-action-btn"
                     aria-label={`Text ${firstName || 'customer'}`}
-                    onClick={() => logTelemetry('drawer_action_text', { source: 'drawer' })}
+                    onClick={() => {
+                      logTelemetry('drawer_action_text', { source: 'drawer' });
+                      logComms(job, 'sms', onUpdateJob);
+                    }}
                   >{textInner}</a>
                 ) : (
                   <button
@@ -3635,6 +3642,7 @@ export default function JobDetailDrawer({
                     aria-label={`WhatsApp ${firstName || 'customer'}`}
                     onClick={() => {
                       logTelemetry('drawer_action_whatsapp', { source: 'drawer' });
+                      logComms(job, 'whatsapp', onUpdateJob);
                       window.open(waLink, '_blank', 'noopener');
                     }}
                   >{waInner}</button>
@@ -4402,6 +4410,8 @@ export default function JobDetailDrawer({
           }}
           onAddNote={onUpdateJob ? () => { setTimelineOpen(false); setNoteFormOpen(true); } : undefined}
           onAddPhone={() => { setTimelineOpen(false); setEditingField('phone'); }}
+          onLogComms={(type) => logComms(job, type, onUpdateJob)}
+          onUpdateJob={onUpdateJob}
         />
       )}
 

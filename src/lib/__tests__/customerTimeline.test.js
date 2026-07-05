@@ -164,6 +164,60 @@ describe('buildTimeline', () => {
   });
 });
 
+// ── buildTimeline — Capture Layer Slice A (commsLog) ───────────────────────
+describe('buildTimeline — commsLog events', () => {
+  const baseJob = { id: 'j1', customer: 'Dave Smith' };
+
+  it('renders a call event with the exact soft-true copy', () => {
+    const job = { ...baseJob, commsLog: [{ id: 'C-1', type: 'call', date: '2026-07-01T09:00:00Z' }] };
+    const events = buildTimeline([job], []);
+    const ev = events.find(e => e.type === 'call');
+    expect(ev.summary).toBe('Called Dave');
+    expect(ev.icon).toBe('phone');
+    expect(ev.commsId).toBe('C-1');
+  });
+
+  it('renders a whatsapp event with the exact copy', () => {
+    const job = { ...baseJob, commsLog: [{ id: 'C-2', type: 'whatsapp', date: '2026-07-01T09:00:00Z' }] };
+    const events = buildTimeline([job], []);
+    const ev = events.find(e => e.type === 'whatsapp');
+    expect(ev.summary).toBe('Messaged Dave on WhatsApp');
+    expect(ev.icon).toBe('whatsapp');
+  });
+
+  it('renders an sms event with the exact copy', () => {
+    const job = { ...baseJob, commsLog: [{ id: 'C-3', type: 'sms', date: '2026-07-01T09:00:00Z' }] };
+    const events = buildTimeline([job], []);
+    const ev = events.find(e => e.type === 'sms');
+    expect(ev.summary).toBe('Texted Dave');
+    expect(ev.icon).toBe('text');
+  });
+
+  it('renders a review event with the exact copy', () => {
+    const job = { ...baseJob, commsLog: [{ id: 'C-4', type: 'review', date: '2026-07-01T09:00:00Z' }] };
+    const events = buildTimeline([job], []);
+    const ev = events.find(e => e.type === 'review');
+    expect(ev.summary).toBe('Asked Dave for a review');
+    expect(ev.icon).toBe('review');
+  });
+
+  it('falls back to "them" when the job has no customer name', () => {
+    const job = { id: 'j1', customer: '', commsLog: [{ id: 'C-1', type: 'call', date: '2026-07-01T09:00:00Z' }] };
+    const events = buildTimeline([job], []);
+    expect(events.find(e => e.type === 'call').summary).toBe('Called them');
+  });
+
+  it('skips an unknown/future commsLog type defensively', () => {
+    const job = { ...baseJob, commsLog: [{ id: 'C-9', type: 'carrier-pigeon', date: '2026-07-01T09:00:00Z' }] };
+    expect(buildTimeline([job], [])).toEqual([]);
+  });
+
+  it('skips a commsLog entry with no date', () => {
+    const job = { ...baseJob, commsLog: [{ id: 'C-1', type: 'call' }] };
+    expect(buildTimeline([job], [])).toEqual([]);
+  });
+});
+
 // ── bucketEvents ──────────────────────────────────────────────────────────
 describe('bucketEvents', () => {
   // Fixed "now" (late in the month, so a "this month, >6 days ago" bucket

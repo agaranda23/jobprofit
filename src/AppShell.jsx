@@ -28,6 +28,7 @@ import { buildChaseList } from './lib/chaseList.js';
 import AuthScreen from './components/AuthScreen';
 import { parseHash, replaceHistory } from './lib/navigation';
 import { writeJobMeta, extractJobMeta, applyJobMetaToJobs, clearPending } from './lib/jobMeta';
+import { logComms } from './lib/commsLog';
 import { subscribeToJobs } from './lib/realtime';
 import { addPayment } from './lib/payments';
 import {
@@ -1941,6 +1942,7 @@ export default function AppShell() {
           navigate('settings');
           setSettingsScrollTarget('invoices');
         }}
+        onReviewSent={() => postPaidJob && logComms(postPaidJob, 'review', onUpdateJob)}
       />
 
       {/* ── Re-book AddJobModal (opened from PostPaidSheet "Book again" CTA) ───── */}

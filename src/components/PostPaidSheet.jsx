@@ -8,6 +8,8 @@
  *   onClose             — called when the sheet should close (ESC, backdrop tap, dismiss button)
  *   onBookAgain(p)      — called with { customer, phone, address } to pre-fill AddJobModal
  *   onGoToReviewSettings — called to navigate to Settings > Invoices & Quotes review-link row
+ *   onReviewSent()      — called when the review WhatsApp link is actually opened (Capture
+ *                         Layer Slice A — logs a 'review' commsLog touch on the Customer Timeline)
  *
  * iOS PWA note: WhatsApp links use window.open(..., '_blank', 'noopener') to match
  * the existing "Chase on WhatsApp" pattern in JobDetailDrawer. Using <a target="_blank">
@@ -19,7 +21,7 @@ import { buildWhatsAppLink, buildReviewRequestWhatsAppMessage } from '../lib/inv
 
 // ── PostPaidSheet ─────────────────────────────────────────────────────────────
 
-export default function PostPaidSheet({ active, job, profile, onClose, onBookAgain, onGoToReviewSettings }) {
+export default function PostPaidSheet({ active, job, profile, onClose, onBookAgain, onGoToReviewSettings, onReviewSent }) {
   // ── Hooks zone — ALL hooks above the early return ────────────────────────────
 
   // ESC key dismisses the sheet.
@@ -55,6 +57,7 @@ export default function PostPaidSheet({ active, job, profile, onClose, onBookAga
     // used throughout the app (JobDetailDrawer, WorkScreen chase bar).
     // Do NOT use <a target="_blank"> — it ejects iOS PWA standalone mode into Safari.
     window.open(link, '_blank', 'noopener');
+    onReviewSent?.();
   };
 
   const handleBookAgain = () => {

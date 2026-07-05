@@ -213,6 +213,7 @@ const REGISTRY = {
   help:     HelpCircle,
   loading:  Loader2,
   star:     Star,
+  review:   Star,          // ⭐ review-request comms touch (Customer Timeline)
 
   // Wave 2 — Jobs/Work pipeline stages
   lead:          ClipboardList,  // 📋 pipeline lead / job list

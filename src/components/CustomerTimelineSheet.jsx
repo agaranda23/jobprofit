@@ -15,10 +15,11 @@
  * the correct fix, not a shortcut).
  */
 
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import Icon from './Icon';
 import { gbp } from '../lib/today';
 import { buildWhatsAppLink } from '../lib/invoiceMessage';
+import { removeComms } from '../lib/commsLog';
 import {
   normaliseCustomerName,
   getCustomerJobs,
@@ -28,6 +29,13 @@ import {
 } from '../lib/customerTimeline';
 
 const INITIAL_EVENT_LIMIT = 50;
+
+// Long-press-to-delete tuning for commsLog rows (the rare phantom touch).
+// A long press only — not a full swipe-reveal — keeps this slice small and
+// avoids fighting the app-wide horizontal swipe pager (useDashboardPager)
+// for the same touch gesture.
+const LONG_PRESS_MS = 550;
+const MOVE_CANCEL_PX = 10;
 
 /** Mirrors resolvePhone() duplicated across JobDetailDrawer/WorkScreen/ReviewSheet/sendQuote —
  *  same small local-helper convention rather than a shared import (see those files). */
@@ -68,10 +76,20 @@ export default function CustomerTimelineSheet({
   onSelectJob,
   onAddNote,
   onAddPhone,
+  onLogComms,
+  onUpdateJob,
 }) {
   // R1 — all hooks declared before any early return (see PR #125 trap, and
   // DocumentsHub.jsx's GatedSignature for the same pattern in this codebase).
   const [showAll, setShowAll] = useState(false);
+  // pendingDeleteComms — { jobId, commsId } | null. Set by a long-press on a
+  // commsLog row; confirmed/cancelled via the small sheet rendered below.
+  const [pendingDeleteComms, setPendingDeleteComms] = useState(null);
+  // Long-press bookkeeping — a single ref is enough since only one row can
+  // be mid-press at a time. `fired` lets the subsequent click/tap (which
+  // still arrives on touch devices after the press timer fires) be swallowed
+  // instead of also navigating to the job.
+  const longPressRef = useRef({ timer: null, x: 0, y: 0, fired: false });
 
   const customerJobs = useMemo(() => getCustomerJobs(job, jobs), [job, jobs]);
   const events = useMemo(() => buildTimeline(customerJobs, receipts), [customerJobs, receipts]);
@@ -101,6 +119,51 @@ export default function CustomerTimelineSheet({
     onSelectJob(target);
   };
 
+  // ── Long-press-to-delete (commsLog rows only) ────────────────────────────
+  const clearLongPress = () => {
+    if (longPressRef.current.timer) {
+      clearTimeout(longPressRef.current.timer);
+      longPressRef.current.timer = null;
+    }
+  };
+
+  const handleRowPointerDown = (ev) => (e) => {
+    if (!ev.commsId) return;
+    longPressRef.current.fired = false;
+    longPressRef.current.x = e.clientX;
+    longPressRef.current.y = e.clientY;
+    clearLongPress();
+    longPressRef.current.timer = setTimeout(() => {
+      longPressRef.current.fired = true;
+      setPendingDeleteComms({ jobId: ev.jobId, commsId: ev.commsId });
+    }, LONG_PRESS_MS);
+  };
+
+  const handleRowPointerMove = (e) => {
+    if (!longPressRef.current.timer) return;
+    const dx = e.clientX - longPressRef.current.x;
+    const dy = e.clientY - longPressRef.current.y;
+    if (Math.hypot(dx, dy) > MOVE_CANCEL_PX) clearLongPress();
+  };
+
+  const handleRowPointerUp = () => clearLongPress();
+
+  const handleRowClick = (ev) => () => {
+    // The long-press timer already opened the delete confirm for this tap —
+    // swallow the click so it doesn't also navigate to the job.
+    if (longPressRef.current.fired) { longPressRef.current.fired = false; return; }
+    handleSelect(ev);
+  };
+
+  const cancelDeleteComms = () => setPendingDeleteComms(null);
+
+  const confirmDeleteComms = () => {
+    if (!pendingDeleteComms) return;
+    const target = customerJobs.find(j => String(j.id) === String(pendingDeleteComms.jobId));
+    if (target && onUpdateJob) removeComms(target, pendingDeleteComms.commsId, onUpdateJob);
+    setPendingDeleteComms(null);
+  };
+
   return (
     <div className="modal-backdrop modal-backdrop--top" onClick={onClose}>
       <div
@@ -124,7 +187,12 @@ export default function CustomerTimelineSheet({
         {hasContact ? (
           <div className="jd-header-action-row ct-contact-row">
             {phone ? (
-              <a href={`tel:${phone}`} className="jt-action-btn" aria-label={`Call ${firstName}`}>
+              <a
+                href={`tel:${phone}`}
+                className="jt-action-btn"
+                aria-label={`Call ${firstName}`}
+                onClick={() => onLogComms?.('call')}
+              >
                 <Icon name="phone" size={16} /><span>Call</span>
               </a>
             ) : (
@@ -133,7 +201,12 @@ export default function CustomerTimelineSheet({
               </button>
             )}
             {phone ? (
-              <a href={smsLink} className="jt-action-btn" aria-label={`Text ${firstName}`}>
+              <a
+                href={smsLink}
+                className="jt-action-btn"
+                aria-label={`Text ${firstName}`}
+                onClick={() => onLogComms?.('sms')}
+              >
                 <Icon name="text" size={16} /><span>Text</span>
               </a>
             ) : (
@@ -146,7 +219,10 @@ export default function CustomerTimelineSheet({
                 type="button"
                 className="jt-action-btn"
                 aria-label={`WhatsApp ${firstName}`}
-                onClick={() => window.open(waLink, '_blank', 'noopener')}
+                onClick={() => {
+                  onLogComms?.('whatsapp');
+                  window.open(waLink, '_blank', 'noopener');
+                }}
               >
                 <Icon name="whatsapp" size={16} /><span>WhatsApp</span>
               </button>
@@ -191,7 +267,8 @@ export default function CustomerTimelineSheet({
             <div className="ct-empty-state">
               <p className="ct-empty-title">This is the start with {firstName}.</p>
               <p className="ct-empty-sub">
-                Every quote, invoice, payment and note you log will show up here — the whole story in one place.
+                Every quote, invoice, payment and note you log will show up here — the whole story in one place
+                — even the calls and messages. Tap Call or WhatsApp above and it lands on the thread.
               </p>
               {onAddNote && (
                 <button type="button" className="ct-empty-action" onClick={onAddNote}>
@@ -214,8 +291,13 @@ export default function CustomerTimelineSheet({
                         <button
                           type="button"
                           className="ct-event-btn"
-                          onClick={() => handleSelect(ev)}
-                          aria-label={`${ev.summary}${ev.sub ? ' · ' + ev.sub : ''}, go to job`}
+                          onClick={handleRowClick(ev)}
+                          onPointerDown={handleRowPointerDown(ev)}
+                          onPointerMove={handleRowPointerMove}
+                          onPointerUp={handleRowPointerUp}
+                          onPointerCancel={handleRowPointerUp}
+                          onContextMenu={ev.commsId ? (e => e.preventDefault()) : undefined}
+                          aria-label={`${ev.summary}${ev.sub ? ' · ' + ev.sub : ''}, go to job${ev.commsId ? '. Long-press to remove' : ''}`}
                         >
                           <span className="ct-event-icon"><Icon name={ev.icon} size={16} variant="muted" /></span>
                           <span className="ct-event-body">
@@ -238,6 +320,33 @@ export default function CustomerTimelineSheet({
           )}
         </div>
       </div>
+
+      {/* Delete-confirm for a long-pressed commsLog row — reuses the exact
+          classes JobDetailDrawer's own delete-confirm overlay uses (global
+          CSS, not scoped to that file) so this stays visually identical
+          without importing anything from the 4,600-line drawer module. */}
+      {pendingDeleteComms && (
+        <div
+          className="jd-delete-confirm-backdrop"
+          onClick={e => { e.stopPropagation(); cancelDeleteComms(); }}
+          role="alertdialog"
+          aria-modal="true"
+          aria-labelledby="ct-delete-confirm-title"
+        >
+          <div className="jd-delete-confirm-sheet" onClick={e => e.stopPropagation()}>
+            <p id="ct-delete-confirm-title" className="jd-delete-confirm__title">Remove this?</p>
+            <p className="jd-delete-confirm__msg">This just removes it from your timeline.</p>
+            <div className="jd-delete-confirm__actions">
+              <button type="button" className="jd-delete-confirm__cancel" onClick={cancelDeleteComms}>
+                Keep
+              </button>
+              <button type="button" className="jd-delete-confirm__ok" onClick={confirmDeleteComms}>
+                Remove
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

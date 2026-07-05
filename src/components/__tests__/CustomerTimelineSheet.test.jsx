@@ -10,8 +10,8 @@
  *  5. "Show earlier" reveals events beyond the initial 50.
  */
 
-import { describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import CustomerTimelineSheet from '../CustomerTimelineSheet';
 
 function makeJob(overrides = {}) {
@@ -113,6 +113,133 @@ describe('CustomerTimelineSheet — lifetime strip', () => {
     expect(screen.getByText('£400 paid')).toBeInTheDocument();
     expect(screen.getByText('£600 owed')).toBeInTheDocument();
     expect(screen.getByText('1 job')).toBeInTheDocument();
+  });
+});
+
+describe('CustomerTimelineSheet — Capture Layer Slice A (comms chips)', () => {
+  it('calls onLogComms("call") when the Call chip is tapped', () => {
+    const job = makeJob({ customerPhone: '07700900000' });
+    const onLogComms = vi.fn();
+    render(<CustomerTimelineSheet job={job} jobs={[job]} receipts={[]} onClose={vi.fn()} onLogComms={onLogComms} />);
+    fireEvent.click(screen.getByText('Call').closest('a'));
+    expect(onLogComms).toHaveBeenCalledWith('call');
+  });
+
+  it('calls onLogComms("sms") when the Text chip is tapped', () => {
+    const job = makeJob({ customerPhone: '07700900000' });
+    const onLogComms = vi.fn();
+    render(<CustomerTimelineSheet job={job} jobs={[job]} receipts={[]} onClose={vi.fn()} onLogComms={onLogComms} />);
+    fireEvent.click(screen.getByText('Text').closest('a'));
+    expect(onLogComms).toHaveBeenCalledWith('sms');
+  });
+
+  it('calls onLogComms("whatsapp") when the WhatsApp chip is tapped', () => {
+    const job = makeJob({ customerPhone: '07700900000' });
+    const onLogComms = vi.fn();
+    const openSpy = vi.spyOn(window, 'open').mockImplementation(() => {});
+    render(<CustomerTimelineSheet job={job} jobs={[job]} receipts={[]} onClose={vi.fn()} onLogComms={onLogComms} />);
+    fireEvent.click(screen.getByText('WhatsApp').closest('button'));
+    expect(onLogComms).toHaveBeenCalledWith('whatsapp');
+    openSpy.mockRestore();
+  });
+
+  it('does NOT call onLogComms when there is no phone (chips render as "Add phone" instead)', () => {
+    const job = makeJob(); // no customerPhone
+    const onLogComms = vi.fn();
+    render(<CustomerTimelineSheet job={job} jobs={[job]} receipts={[]} onClose={vi.fn()} onLogComms={onLogComms} onAddPhone={vi.fn()} />);
+    expect(screen.queryByText('Call')).not.toBeInTheDocument();
+    expect(onLogComms).not.toHaveBeenCalled();
+  });
+});
+
+describe('CustomerTimelineSheet — commsLog rows on the feed', () => {
+  it('renders a call/whatsapp/sms/review row with the soft-true copy', () => {
+    const job = makeJob({
+      commsLog: [
+        { id: 'C-1', type: 'call', date: '2026-06-02T09:00:00Z' },
+        { id: 'C-2', type: 'review', date: '2026-06-03T09:00:00Z' },
+      ],
+    });
+    render(<CustomerTimelineSheet job={job} jobs={[job]} receipts={[]} onClose={vi.fn()} />);
+    expect(screen.getByText('Called Sarah')).toBeInTheDocument();
+    expect(screen.getByText('Asked Sarah for a review')).toBeInTheDocument();
+  });
+});
+
+describe('CustomerTimelineSheet — long-press to delete a commsLog row', () => {
+  beforeEach(() => { vi.useFakeTimers(); });
+  afterEach(() => { vi.useRealTimers(); });
+
+  function renderWithComms(onUpdateJob) {
+    const job = makeJob({
+      commsLog: [{ id: 'C-1', type: 'call', date: '2026-06-02T09:00:00Z' }],
+    });
+    render(
+      <CustomerTimelineSheet job={job} jobs={[job]} receipts={[]} onClose={vi.fn()} onUpdateJob={onUpdateJob} />
+    );
+    return job;
+  }
+
+  it('a long-press (550ms hold) opens the "Remove this?" confirm', () => {
+    renderWithComms(vi.fn());
+    const row = screen.getByText('Called Sarah').closest('button');
+    fireEvent.pointerDown(row, { clientX: 10, clientY: 10 });
+    act(() => { vi.advanceTimersByTime(600); });
+    expect(screen.getByText('Remove this?')).toBeInTheDocument();
+    expect(screen.getByText('This just removes it from your timeline.')).toBeInTheDocument();
+  });
+
+  it('confirming removes the entry by id via onUpdateJob, and cancel ("Keep") leaves it alone', () => {
+    const onUpdateJob = vi.fn();
+    const job = renderWithComms(onUpdateJob);
+    const row = screen.getByText('Called Sarah').closest('button');
+    fireEvent.pointerDown(row, { clientX: 10, clientY: 10 });
+    act(() => { vi.advanceTimersByTime(600); });
+    fireEvent.click(screen.getByText('Remove'));
+
+    expect(onUpdateJob).toHaveBeenCalledTimes(1);
+    expect(onUpdateJob.mock.calls[0][0]).toMatchObject({ id: job.id, commsLog: [] });
+  });
+
+  it('"Keep" dismisses the confirm without calling onUpdateJob', () => {
+    const onUpdateJob = vi.fn();
+    renderWithComms(onUpdateJob);
+    const row = screen.getByText('Called Sarah').closest('button');
+    fireEvent.pointerDown(row, { clientX: 10, clientY: 10 });
+    act(() => { vi.advanceTimersByTime(600); });
+    fireEvent.click(screen.getByText('Keep'));
+
+    expect(onUpdateJob).not.toHaveBeenCalled();
+    expect(screen.queryByText('Remove this?')).not.toBeInTheDocument();
+  });
+
+  it('releasing before 550ms cancels the long-press and just navigates instead', () => {
+    const onSelectJob = vi.fn();
+    const jobA = makeJob({ id: 'a', commsLog: [{ id: 'C-1', type: 'call', date: '2026-06-02T09:00:00Z' }] });
+    const jobB = makeJob({ id: 'b', createdAt: '2026-06-05T09:00:00Z' });
+    render(
+      <CustomerTimelineSheet job={jobA} jobs={[jobA, jobB]} receipts={[]} onClose={vi.fn()} onSelectJob={onSelectJob} />
+    );
+    const row = screen.getByText('Called Sarah').closest('button');
+    fireEvent.pointerDown(row, { clientX: 10, clientY: 10 });
+    act(() => { vi.advanceTimersByTime(200); }); // well short of the 550ms threshold
+    fireEvent.pointerUp(row);
+    fireEvent.click(row);
+
+    expect(screen.queryByText('Remove this?')).not.toBeInTheDocument();
+    expect(onSelectJob).toHaveBeenCalledWith(jobA);
+  });
+
+  it('a normal (non-comms) event row is unaffected — no long-press wiring, tap navigates as before', () => {
+    const onSelectJob = vi.fn();
+    const job = makeJob({ quoteSentAt: '2026-06-02T09:00:00Z' });
+    render(<CustomerTimelineSheet job={job} jobs={[job]} receipts={[]} onClose={vi.fn()} onSelectJob={onSelectJob} />);
+    const row = screen.getByText('Quote sent — £500').closest('button');
+    fireEvent.pointerDown(row, { clientX: 10, clientY: 10 });
+    act(() => { vi.advanceTimersByTime(600); });
+    expect(screen.queryByText('Remove this?')).not.toBeInTheDocument();
+    fireEvent.click(row);
+    expect(onSelectJob).toHaveBeenCalledWith(job);
   });
 });
 

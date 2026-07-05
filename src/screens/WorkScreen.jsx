@@ -35,6 +35,7 @@ import {
   clearCallRecord,
   shouldShowCallPayPrompt,
 } from '../lib/callPayPrompt';
+import { logComms } from '../lib/commsLog';
 // WorkCalendar import removed (JP-LU5 PR1) — file kept on disk for future Plan-Mode feature.
 import AddJobModal from '../components/AddJobModal';
 import JobDetailDrawer from '../components/JobDetailDrawer';
@@ -1259,8 +1260,12 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
   // were away; the minimum threshold (800ms) skips accidental tab swipes.
   const handleCallJob = useCallback((job) => {
     recordCall(job.id);
+    // Capture Layer Slice A — fast-follow: this tile Call chip already had a
+    // dedicated callback (unlike Text/WhatsApp, which don't exist on the
+    // tile), so logging the touch here was cheap once commsLog.js existed.
+    logComms(job, 'call', onUpdateJob);
     hiddenAtRef.current = null; // will be set by visibilitychange 'hidden'
-  }, []);
+  }, [onUpdateJob]);
 
   useEffect(() => {
     function handleHide() {
