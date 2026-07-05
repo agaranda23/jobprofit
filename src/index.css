@@ -878,26 +878,6 @@ button:focus-visible {
    block (lines ~233-234). All rules below use var(--gold) / var(--gold-gradient),
    which resolve to the richer light values automatically. */
 
-/* 1. TrialBanner — fix hardcoded dark fallbacks in border-bottom and CTA border/color.
-      The --accent and --border tokens already resolve correctly for light, but the
-      *fallback* values in the base rules are dark-tuned Vite purple (#646cff).
-      Override urgency border-bottom to use the light accent explicitly. */
-[data-theme="light"] .trial-banner {
-  background: var(--surface-2);
-  border-bottom-color: var(--border);
-}
-[data-theme="light"] .trial-banner--urgent {
-  border-bottom-color: var(--accent);
-}
-[data-theme="light"] .trial-banner__cta {
-  border-color: var(--accent);
-  color: var(--accent);
-}
-[data-theme="light"] .trial-banner__cta:active {
-  background: var(--accent);
-  color: #fff;
-}
-
 /* 2. GetProPill — box-shadow glow uses the re-tuned gold token.
       Pill text (#fff on gold gradient) is self-contained and fine.
       Shadow glow was dark-gold #d4a017; now references the lighter #b8880a tint
@@ -5825,48 +5805,6 @@ input[type=number] { -moz-appearance: textfield; }
   margin-bottom: 4px;
   text-align: center;
   font-weight: 400;
-}
-
-/* ── Trial countdown banner ───────────────────── */
-.trial-banner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 8px 16px;
-  background: var(--surface-2, #1e1e1e);
-  border-bottom: 1px solid var(--border, rgba(255,255,255,0.08));
-  font-size: var(--fs-label);
-  color: var(--text-dim, rgba(255,255,255,0.55));
-}
-.trial-banner--urgent {
-  color: var(--text, rgba(255,255,255,0.87));
-  font-weight: 600;
-  border-bottom-color: var(--accent, #646cff);
-}
-.trial-banner__text {
-  flex: 1 1 auto;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.trial-banner__cta {
-  flex: 0 0 auto;
-  background: none;
-  border: 1px solid var(--accent, #646cff);
-  border-radius: var(--radius-sm);
-  color: var(--accent, #646cff);
-  font-family: inherit;
-  font-size: var(--fs-label);
-  font-weight: 600;
-  padding: 4px 10px;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: background 0.15s, color 0.15s;
-}
-.trial-banner__cta:active {
-  background: var(--accent, #646cff);
-  color: #fff;
 }
 
 /* DEPRECATED — remove after JP-LU2 ships (separate zero-risk CSS PR) */

@@ -30,8 +30,20 @@
  *   APP_URL                 — optional; base URL for success/cancel redirects
  *                             (falls back to the request Origin header)
  *
+ * Duplicate-subscription guard:
+ *   existingCustomerId (from profiles.stripe_customer_id) only dedupes the
+ *   Stripe Customer record — it says nothing about whether that customer
+ *   already has a live subscription. Before creating a new Checkout Session,
+ *   we list that customer's subscriptions and, if one is already
+ *   active/trialing, open the Billing Portal instead and return ITS url in
+ *   the same { url } shape. The caller (billing.js) just redirects to
+ *   whatever url comes back, so no client-side branching is needed — a
+ *   double-subscribe attempt lands the user on their existing subscription
+ *   in the portal rather than Stripe Checkout for a second one.
+ *
  * Response shapes:
- *   200  { url }           — Stripe Checkout session URL; redirect the browser here
+ *   200  { url }           — Stripe Checkout (or, if a subscription already
+ *                            exists, Billing Portal) session URL; redirect here
  *   400  { error }         — bad request
  *   401  { error }         — missing or invalid auth token
  *   500  { error }         — server configuration error
@@ -77,6 +89,8 @@ export const handler = async function (event) {
     );
     return json(500, { error: 'Server configuration error — contact support' });
   }
+
+  const stripe = new Stripe(stripeSecretKey, { apiVersion: '2024-06-20' });
 
   // ── 2. Authenticate the caller via Supabase ──────────────────────────────────
   // Read the Bearer token from the Authorization header — never trust body params.
@@ -126,6 +140,38 @@ export const handler = async function (event) {
   const successUrl = `${appBase}/#/settings?upgraded=1`;
   const cancelUrl  = `${appBase}/#/money`;
 
+  // ── 4a. Duplicate-subscription guard ─────────────────────────────────────────
+  // existingCustomerId only means "we've seen this Stripe customer before" — it
+  // says nothing about whether they already have a live subscription (e.g. the
+  // webhook that flips plan back to 'pro' raced this request, or two tabs both
+  // hit "Get Pro" at once). List their subscriptions and, if one is already
+  // active or trialing, send them to the Billing Portal instead of minting a
+  // second Checkout Session. Only runs when we have a customer id — a brand
+  // new customer cannot have an existing subscription.
+  if (existingCustomerId) {
+    try {
+      const existingSubs = await stripe.subscriptions.list({
+        customer: existingCustomerId,
+        status: 'all',
+        limit: 10,
+      });
+      const alreadySubscribed = existingSubs.data.some(
+        (sub) => sub.status === 'active' || sub.status === 'trialing'
+      );
+      if (alreadySubscribed) {
+        const portalSession = await stripe.billingPortal.sessions.create({
+          customer: existingCustomerId,
+          return_url: `${appBase}/#/settings`,
+        });
+        return json(200, { url: portalSession.url, alreadySubscribed: true });
+      }
+    } catch (err) {
+      // Non-fatal — if the guard check itself fails (Stripe hiccup), fall
+      // through to normal checkout rather than blocking a legitimate subscriber.
+      console.error('create-checkout: duplicate-subscription check failed', err?.message);
+    }
+  }
+
   // ── 4b. Parse coupon_mode from body ─────────────────────────────────────────
   // coupon_mode:
   //   'trial_extension' — Moment-1: apply the +1-free-month Stripe coupon
@@ -143,8 +189,6 @@ export const handler = async function (event) {
   }
 
   // ── 5. Create Stripe Checkout Session ───────────────────────────────────────
-  const stripe = new Stripe(stripeSecretKey, { apiVersion: '2024-06-20' });
-
   let session;
   try {
     const sessionParams = {

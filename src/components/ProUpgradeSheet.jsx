@@ -6,9 +6,6 @@
  *   - ProGate lock badge on Insight cards                → trigger='insight_locked'
  *   - Today GetProPill                                   → trigger='today_pill'
  *   - Settings → Subscription → Upgrade to Pro row      → trigger='settings'
- *   - TrialBanner → startCheckoutImmediate() direct (no sheet; not currently
- *     rendered anywhere in the app, but still wired for when it is — see
- *     TrialBanner.jsx)
  *   - White-label nudge in SendInvoiceModal              → trigger='whitelabel_footer'
  *   - Auto-chase locked row in Settings                  → trigger='auto_chase_locked'
  *   - Day-14 trial-end trigger (AppShell)                → trigger='trial_end', variant='trial_end'
@@ -28,18 +25,35 @@
  *              'trial_end' swaps in the Moment-1 "keep Pro free another month" content
  *              'pro_reveal' swaps in the one-time "You've got OHNAR Pro" gift reveal —
  *              single CTA ("Show me") that just dismisses; no checkout, no "maybe later"
- *   profile  — Supabase profiles row (used by trial_end variant for proof-line + chargeDate)
+ *   profile  — Supabase profiles row. Used by trial_end variant for proof-line +
+ *              chargeDate, AND by the default variant to decide which checkout
+ *              promise is honest (see cardFreeEligible below).
  *   jobs     — jobs array (used by trial_end variant for proof-line stats)
  *   onClose  — called when the sheet should close (ESC, overlay tap, secondary CTA)
+ *
+ * Default-variant CTA honesty (fix/pro-billing-tidy):
+ *   The card-free "Start 14-day free trial — no card" promise only holds for a
+ *   user still on their first, never-touched-Stripe homegrown trial. Once that
+ *   trial has expired, or the profile has already been flipped to plan='free'
+ *   (or is plan='pro'), the same person hitting Stripe Checkout again is not
+ *   getting a fresh no-card trial — so we show the honest "Get Pro — £12/mo"
+ *   CTA (startCheckoutImmediate, card required) instead.
+ *   cardFreeEligible = profile == null || isTrialActive(profile). A handful of
+ *   callers (Today's GetProPill, DocumentPreview's white-label nudge) don't
+ *   thread `profile` through yet — until they do, they keep the pre-existing
+ *   card-free default rather than a new, unrelated regression; every caller
+ *   that DOES pass a profile (Settings, Finance/Money, SendInvoiceModal, the
+ *   accountant-export trigger) gets the honest, plan-aware CTA.
  *
  * @deprecated prop `source` is accepted as a fallback alias for `trigger` so
  *   existing callers keep working during the migration — remove by 2026-Q3.
  */
 
 import { useEffect, useRef } from 'react';
-import { startCheckout, startCheckoutWithCoupon } from '../lib/billing';
+import { startCheckout, startCheckoutWithCoupon, startCheckoutImmediate } from '../lib/billing';
 import { logTelemetry, setLastUpgradeTrigger, UPGRADE_TRIGGERS } from '../lib/telemetry';
 import { deriveProofLine, formatChargeDate } from '../lib/trialConversion';
+import { isTrialActive } from '../lib/plan';
 import OhnarWordmark from './OhnarWordmark';
 
 // ── Moment-1 benefit bullets ──────────────────────────────────────────────────
@@ -95,6 +109,14 @@ export default function ProUpgradeSheet({
   const trigger = triggerProp ?? sourceProp ?? UPGRADE_TRIGGERS.SETTINGS;
   const isTrialEnd = variant === 'trial_end';
   const isProReveal = variant === 'pro_reveal';
+
+  // Default variant only: true while this profile is still on its first,
+  // never-touched-Stripe homegrown trial — the only state where a fresh
+  // card-free Stripe trial is an honest promise. `profile == null` means the
+  // caller hasn't threaded a profile through yet (see file header) — keep the
+  // pre-existing card-free default there rather than a caller-by-caller
+  // regression.
+  const cardFreeEligible = profile == null || isTrialActive(profile);
 
   const sheetRef = useRef(null);
   const closeRef = useRef(null);
@@ -185,7 +207,9 @@ export default function ProUpgradeSheet({
     logTelemetry('checkout_started', { trigger, variant });
     const { error } = isTrialEnd
       ? await startCheckoutWithCoupon({ source: trigger })
-      : await startCheckout();
+      : cardFreeEligible
+        ? await startCheckout()
+        : await startCheckoutImmediate({ source: trigger });
     if (error) {
       // Checkout redirects on success; on error log only — no toast infra here.
       console.warn('ProUpgradeSheet: checkout error', error);
@@ -364,7 +388,11 @@ export default function ProUpgradeSheet({
               <div className="pro-upgrade-sheet__loop-pitch">
                 Auto-chase late payers &middot; remove OHNAR branding &middot; see your true profit
               </div>
-              <div className="pro-upgrade-sheet__trust">14-day free trial &middot; no card needed &middot; cancel anytime</div>
+              <div className="pro-upgrade-sheet__trust">
+                {cardFreeEligible
+                  ? '14-day free trial · no card needed · cancel anytime'
+                  : '£12/month · cancel anytime'}
+              </div>
             </div>
 
             {/* 2. Price comparison wedge */}
@@ -407,7 +435,7 @@ export default function ProUpgradeSheet({
               className="pro-upgrade-sheet__cta"
               onClick={handleUpgrade}
             >
-              Start 14-day free trial &mdash; no card
+              {cardFreeEligible ? 'Start 14-day free trial — no card' : 'Get Pro — £12/mo'}
             </button>
 
             {/* 6. Secondary dismiss */}
@@ -421,7 +449,9 @@ export default function ProUpgradeSheet({
 
             {/* 7. Footer */}
             <p className="pro-upgrade-sheet__footer">
-              After 14 days, add a card to stay on Pro (£12/mo) — or you'll simply drop back to free. No card, no auto-charge until you choose.
+              {cardFreeEligible
+                ? "After 14 days, add a card to stay on Pro (£12/mo) — or you'll simply drop back to free. No card, no auto-charge until you choose."
+                : 'Billed £12/month from today. Cancel anytime in two taps from Settings.'}
             </p>
           </>
         )}

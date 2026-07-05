@@ -1,33 +1,44 @@
 // @vitest-environment jsdom
 /**
  * ProUpgradeSheet — copy tests for the card-free trial fix
- * (branch fix/pro-trial-no-card).
+ * (branch fix/pro-trial-no-card) AND the expired/free honesty fix
+ * (branch feat/pro-billing-tidy).
  *
- * The Stripe checkout that startCheckout() triggers is now genuinely card-free
+ * The Stripe checkout that startCheckout() triggers is genuinely card-free
  * (payment_method_collection: 'if_required' + a 14-day Stripe trial that
  * auto-cancels to plan=free if no card is ever added — see
- * netlify/functions/create-checkout.js). These tests guard the copy so it
- * never again promises something the checkout doesn't do, and never again
- * implies an auto-charge that can't happen without a card on file.
+ * netlify/functions/create-checkout.js). But that promise only holds for a
+ * user still on their first, never-touched-Stripe homegrown trial
+ * (isTrialActive(profile) === true). A user whose trial has already expired,
+ * or who is already on plan='free', is NOT getting a fresh no-card trial —
+ * so the sheet must route them to the honest, card-required
+ * startCheckoutImmediate() CTA instead ("Get Pro — £12/mo").
  *
  * Covers:
- *   (a) Default variant keeps "14-day free trial · no card needed" trust line
- *   (b) Default variant keeps the "no card" CTA
- *   (c) Default variant footer no longer says "£12/month after trial" (implies
- *       an automatic charge) — replaced with honest end-of-trial copy
- *   (d) Footer explicitly states no auto-charge without a card
- *   (e) trial_end variant is untouched by this fix (still promises a real
+ *   (a) Active-trial profile keeps the card-free CTA + copy, and tapping it
+ *       calls startCheckout() (not startCheckoutImmediate)
+ *   (b) Expired-trial / free / pro all show the honest card-required CTA +
+ *       copy, and tapping it calls startCheckoutImmediate() (not startCheckout)
+ *   (c) No profile passed at all (a handful of callers — Today's GetProPill,
+ *       DocumentPreview — don't thread `profile` through this sheet yet) keeps
+ *       the PRE-EXISTING card-free default rather than a new, unrelated
+ *       regression at those call sites; every caller that DOES pass a profile
+ *       gets the honest, plan-aware CTA
+ *   (d) trial_end variant is untouched by this fix (still promises a real
  *       charge at chargeDate, which IS accurate for that variant — a card was
  *       just added)
+ *   (e) pro_reveal variant is untouched (no checkout at all)
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, cleanup, fireEvent } from '@testing-library/react';
 import ProUpgradeSheet from '../ProUpgradeSheet';
 import { logTelemetry } from '../../lib/telemetry';
+import { startCheckout, startCheckoutImmediate } from '../../lib/billing';
 
 vi.mock('../../lib/billing', () => ({
   startCheckout: vi.fn().mockResolvedValue({ error: null }),
   startCheckoutWithCoupon: vi.fn().mockResolvedValue({ error: null }),
+  startCheckoutImmediate: vi.fn().mockResolvedValue({ error: null }),
 }));
 
 vi.mock('../../lib/telemetry', () => ({
@@ -51,37 +62,88 @@ vi.mock('../OhnarWordmark', () => ({
   default: () => <span data-testid="wordmark">OHNAR</span>,
 }));
 
+const ACTIVE_TRIAL_PROFILE = {
+  plan: 'trial',
+  trial_ends_at: new Date(Date.now() + 5 * 86400000).toISOString(), // 5 days left
+};
+const EXPIRED_TRIAL_PROFILE = {
+  plan: 'trial',
+  trial_ends_at: new Date(Date.now() - 86400000).toISOString(), // expired yesterday
+};
+const FREE_PROFILE = { plan: 'free' };
+const PRO_PROFILE = { plan: 'pro' };
+
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
 });
 
-describe('ProUpgradeSheet — default variant copy', () => {
-  it('keeps the "14-day free trial · no card needed" trust line', () => {
-    render(<ProUpgradeSheet open trigger="settings" onClose={vi.fn()} />);
+describe('ProUpgradeSheet — default variant, active trial (card-free eligible)', () => {
+  it('shows the "14-day free trial · no card needed" trust line', () => {
+    render(<ProUpgradeSheet open trigger="settings" profile={ACTIVE_TRIAL_PROFILE} onClose={vi.fn()} />);
     expect(screen.getByText(/14-day free trial.*no card needed.*cancel anytime/i)).toBeTruthy();
   });
 
-  it('keeps the "no card" CTA', () => {
-    render(<ProUpgradeSheet open trigger="settings" onClose={vi.fn()} />);
+  it('shows the "no card" CTA', () => {
+    render(<ProUpgradeSheet open trigger="settings" profile={ACTIVE_TRIAL_PROFILE} onClose={vi.fn()} />);
     expect(screen.getByRole('button', { name: /Start 14-day free trial.*no card/i })).toBeTruthy();
   });
 
-  it('does NOT show the old "£12/month after trial" auto-charge wording', () => {
-    render(<ProUpgradeSheet open trigger="settings" onClose={vi.fn()} />);
-    expect(screen.queryByText(/£12\/month after trial/i)).toBeNull();
-    expect(screen.queryByText(/after your free trial/i)).toBeNull();
-  });
-
-  it('shows honest end-of-trial copy: add a card to stay Pro, or drop to free', () => {
-    render(<ProUpgradeSheet open trigger="settings" onClose={vi.fn()} />);
+  it('shows honest end-of-trial footer: add a card to stay Pro, or drop to free, no auto-charge', () => {
+    render(<ProUpgradeSheet open trigger="settings" profile={ACTIVE_TRIAL_PROFILE} onClose={vi.fn()} />);
     expect(screen.getByText(/add a card to stay on Pro/i)).toBeTruthy();
     expect(screen.getByText(/drop back to free/i)).toBeTruthy();
+    expect(screen.getByText(/no auto-charge until you choose/i)).toBeTruthy();
   });
 
-  it('explicitly states no auto-charge without a card', () => {
-    render(<ProUpgradeSheet open trigger="settings" onClose={vi.fn()} />);
-    expect(screen.getByText(/no auto-charge until you choose/i)).toBeTruthy();
+  it('does NOT show the card-required "Get Pro — £12/mo" CTA', () => {
+    render(<ProUpgradeSheet open trigger="settings" profile={ACTIVE_TRIAL_PROFILE} onClose={vi.fn()} />);
+    expect(screen.queryByRole('button', { name: /Get Pro/i })).toBeNull();
+  });
+
+  it('tapping the CTA calls the card-free startCheckout(), not startCheckoutImmediate()', async () => {
+    render(<ProUpgradeSheet open trigger="settings" profile={ACTIVE_TRIAL_PROFILE} onClose={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: /Start 14-day free trial/i }));
+    await vi.waitFor(() => expect(startCheckout).toHaveBeenCalledTimes(1));
+    expect(startCheckoutImmediate).not.toHaveBeenCalled();
+  });
+
+  it('no profile passed at all: keeps the pre-existing card-free default (callers that have not been updated yet)', () => {
+    render(<ProUpgradeSheet open trigger="today_pill" onClose={vi.fn()} />);
+    expect(screen.getByRole('button', { name: /Start 14-day free trial.*no card/i })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Get Pro/i })).toBeNull();
+  });
+});
+
+describe('ProUpgradeSheet — default variant, expired/free/pro (card-required, honest)', () => {
+  it.each([
+    ['expired trial', EXPIRED_TRIAL_PROFILE],
+    ['free plan', FREE_PROFILE],
+    ['pro plan', PRO_PROFILE],
+  ])('%s: shows "Get Pro — £12/mo", not the card-free trial promise', (_label, profile) => {
+    render(<ProUpgradeSheet open trigger="settings" profile={profile} onClose={vi.fn()} />);
+    expect(screen.getByRole('button', { name: /Get Pro.*£12\/mo/i })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /Start 14-day free trial/i })).toBeNull();
+    expect(screen.queryByText(/no card needed/i)).toBeNull();
+  });
+
+  it('shows the honest £12/month trust line and footer (no trial promise)', () => {
+    render(<ProUpgradeSheet open trigger="settings" profile={FREE_PROFILE} onClose={vi.fn()} />);
+    expect(screen.getByText('£12/month · cancel anytime')).toBeTruthy();
+    expect(screen.getByText(/Billed £12\/month from today/i)).toBeTruthy();
+  });
+
+  it('tapping the CTA calls the card-required startCheckoutImmediate(), not startCheckout()', async () => {
+    render(<ProUpgradeSheet open trigger="settings" profile={FREE_PROFILE} onClose={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: /Get Pro/i }));
+    await vi.waitFor(() => expect(startCheckoutImmediate).toHaveBeenCalledTimes(1));
+    expect(startCheckout).not.toHaveBeenCalled();
+  });
+
+  it('passes the sheet trigger through to startCheckoutImmediate as the source', async () => {
+    render(<ProUpgradeSheet open trigger="insight_locked" profile={EXPIRED_TRIAL_PROFILE} onClose={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: /Get Pro/i }));
+    await vi.waitFor(() => expect(startCheckoutImmediate).toHaveBeenCalledWith({ source: 'insight_locked' }));
   });
 });
 

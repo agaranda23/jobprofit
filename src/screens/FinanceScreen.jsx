@@ -1323,6 +1323,7 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
       <ProUpgradeSheet
         open={upgradeSheetOpen}
         source={upgradeSheetSource}
+        profile={profile}
         onClose={() => setUpgradeSheetOpen(false)}
       />
 
