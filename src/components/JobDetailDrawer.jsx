@@ -54,6 +54,8 @@ import { extractJobMeta } from '../lib/jobMeta';
 import { buildWhatsAppLink } from '../lib/invoiceMessage';
 import { logTelemetry } from '../lib/telemetry';
 import { logComms } from '../lib/commsLog';
+import { startVoiceCapture } from '../lib/voiceCapture';
+import { appendVoiceNote } from '../lib/voiceNotes';
 import {
   readVisits,
   writeVisits,
@@ -2285,6 +2287,14 @@ export default function JobDetailDrawer({
   const [noteSubject, setNoteSubject] = useState('');
   const [noteBody, setNoteBody] = useState('');
 
+  // Voice note — Capture Layer Slice B. Separate from the typed-note form
+  // state above: voice notes auto-save on stop (no Save-button tap), so they
+  // don't share noteSubject/noteBody with the typed flow.
+  const [voiceNoteStatus, setVoiceNoteStatus] = useState('idle'); // 'idle' | 'listening'
+  const [voiceNoteTranscript, setVoiceNoteTranscript] = useState('');
+  const [voiceNoteError, setVoiceNoteError] = useState('');
+  const voiceNoteControllerRef = useRef(null);
+
   // Note edit — EditFieldModal composite, null = closed, otherwise the note being edited
   const [editingNote, setEditingNote] = useState(null);
 
@@ -2841,6 +2851,63 @@ export default function JobDetailDrawer({
     setNoteFormOpen(false);
     showFlash('Note added');
   };
+
+  // ── Voice note toggle ─────────────────────────────────────────────────────
+  // Capture Layer Slice B. Tap starts recording (live interim transcript
+  // shown under the button); tap again — or the mic auto-stopping on
+  // no-speech/error — ends the session. On end, a non-empty transcript is
+  // saved straight through voiceNotes.appendVoiceNote (no separate Save tap,
+  // unlike the typed-note form above). Offline / mic-blocked / unsupported
+  // all fall back to the typed note form so the trader never loses the tap.
+  const handleVoiceNoteToggle = () => {
+    if (voiceNoteStatus === 'listening') {
+      voiceNoteControllerRef.current?.stop();
+      return;
+    }
+    setVoiceNoteError('');
+    setVoiceNoteTranscript('');
+    let errorFired = false; // guards onEnd from clobbering a specific onError message
+
+    const controller = startVoiceCapture({
+      handlers: {
+        onTranscript: (text) => setVoiceNoteTranscript(text),
+        onError: (code, message) => {
+          errorFired = true;
+          setVoiceNoteStatus('idle');
+          voiceNoteControllerRef.current = null;
+          setVoiceNoteError(message);
+          // Transcription is online-only and mic access is a hard requirement —
+          // drop into the typed form so the trader can still leave a note.
+          if (code === 'offline' || code === 'unsupported' || code === 'not-allowed') {
+            setNoteFormOpen(true);
+          }
+        },
+        onEnd: (finalText) => {
+          setVoiceNoteStatus('idle');
+          voiceNoteControllerRef.current = null;
+          if (errorFired) return; // onError already set the message + any fallback
+          if (appendVoiceNote(job, finalText, onUpdateJob)) {
+            showFlash('Voice note added');
+            setVoiceNoteTranscript('');
+          } else {
+            setVoiceNoteError("Didn't catch that — try again.");
+          }
+        },
+      },
+    });
+
+    if (controller) {
+      voiceNoteControllerRef.current = controller;
+      setVoiceNoteStatus('listening');
+    }
+  };
+
+  // Abort any in-flight recording if the drawer unmounts mid-recording
+  // (e.g. trader swipes the drawer closed) — avoids a stray onend firing
+  // after the component is gone.
+  useEffect(() => {
+    return () => { try { voiceNoteControllerRef.current?.abort(); } catch { /* noop */ } };
+  }, []);
 
   // ── Receipt add ───────────────────────────────────────────────────────────
   // After AddReceiptModal calls onSave(arg), we inject the jobId into the
@@ -4139,6 +4206,26 @@ export default function JobDetailDrawer({
                               Add note
                             </button>
                           </div>
+                          {/* Voice note — Capture Layer Slice B. Own row below the
+                              photo/note pair so its longer "Listening…" label never
+                              squeezes those two. Transcript-first: no stored audio. */}
+                          <div className="jd-add-pill-row">
+                            <button
+                              type="button"
+                              className={`jd-add-dashed jd-add-dashed--tinted jd-voice-note-btn${voiceNoteStatus === 'listening' ? ' jd-voice-note-btn--listening' : ''}`}
+                              onClick={handleVoiceNoteToggle}
+                              aria-label={voiceNoteStatus === 'listening' ? 'Stop recording voice note' : 'Record a voice note'}
+                            >
+                              <Icon name="mic" size={16} />
+                              {voiceNoteStatus === 'listening' ? 'Listening… tap to stop' : 'Tap to record a voice note'}
+                            </button>
+                          </div>
+                          {voiceNoteStatus === 'listening' && voiceNoteTranscript && (
+                            <p className="jd-voice-note-transcript">{voiceNoteTranscript}</p>
+                          )}
+                          {voiceNoteError && (
+                            <p className="jd-voice-note-error">{voiceNoteError}</p>
+                          )}
                         </>
                       )}
                       {notesEl}

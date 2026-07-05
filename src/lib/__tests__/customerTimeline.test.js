@@ -218,6 +218,49 @@ describe('buildTimeline — commsLog events', () => {
   });
 });
 
+// ── buildTimeline — Capture Layer Slice B (voice notes) ────────────────────
+describe('buildTimeline — voice notes', () => {
+  const baseJob = { id: 'j1', customer: 'Dave Smith' };
+
+  it('renders a source:"voice" note with the mic icon and "Voice note:" prefix', () => {
+    const job = {
+      ...baseJob,
+      jobNotes: [{
+        id: 'N-1',
+        subject: 'Voice note',
+        body: 'Dave wants the render done before the scaffold comes down',
+        date: '2026-07-01T09:00:00Z',
+        source: 'voice',
+      }],
+    };
+    const events = buildTimeline([job], []);
+    const ev = events.find(e => e.type === 'note');
+    expect(ev.icon).toBe('mic');
+    expect(ev.summary).toBe('Voice note: "Dave wants the render done before the scaffold comes down"');
+  });
+
+  it('truncates a long voice-note body to ~60 chars with an ellipsis', () => {
+    const longBody = 'Dave wants the render done before the scaffold comes down and also wants the guttering checked';
+    const job = {
+      ...baseJob,
+      jobNotes: [{ id: 'N-1', subject: 'Voice note', body: longBody, date: '2026-07-01T09:00:00Z', source: 'voice' }],
+    };
+    const ev = buildTimeline([job], []).find(e => e.type === 'note');
+    expect(ev.summary).toBe(`Voice note: "${longBody.slice(0, 59)}…"`);
+    expect(ev.summary.length).toBeLessThan(`Voice note: "${longBody}"`.length);
+  });
+
+  it('a typed note (no source field) keeps the plain "Note:" prefix and "note" icon', () => {
+    const job = {
+      ...baseJob,
+      jobNotes: [{ id: 'N-1', subject: 'Access', body: 'Key under the mat', date: '2026-07-01T09:00:00Z' }],
+    };
+    const ev = buildTimeline([job], []).find(e => e.type === 'note');
+    expect(ev.icon).toBe('note');
+    expect(ev.summary).toBe('Note: "Access"');
+  });
+});
+
 // ── bucketEvents ──────────────────────────────────────────────────────────
 describe('bucketEvents', () => {
   // Fixed "now" (late in the month, so a "this month, >6 days ago" bucket
