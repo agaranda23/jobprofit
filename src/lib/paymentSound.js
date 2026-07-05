@@ -1,9 +1,17 @@
 /**
- * paymentSound.js — the one "payment received" chime.
+ * paymentSound.js — the one "payment received" chime, plus the shared
+ * Web Audio plumbing other synthesized UI sounds build on.
  *
- * Fires on exactly one moment: money landing (mark-paid / partial payment
- * clears the balance). Synthesized via the Web Audio API — no shipped audio
- * asset, no bundle weight, fully tunable without touching call sites.
+ * Fires on exactly one payment moment: money landing (mark-paid / partial
+ * payment clears the balance). Synthesized via the Web Audio API — no
+ * shipped audio asset, no bundle weight, fully tunable without touching
+ * call sites.
+ *
+ * getAudioCtx() is exported so other short-lived UI sounds (e.g.
+ * src/lib/voiceEarcons.js's mic start/stop cues) share this SAME
+ * AudioContext instance rather than opening a second one — important
+ * because only THIS context gets unlocked by the app's first-gesture
+ * listener below, and a never-unlocked context stays silent on iOS.
  *
  * iOS Safari/PWA will not produce sound from an AudioContext until it has
  * been unlocked by a user gesture. unlockAudioContext() is called once, on
@@ -20,13 +28,14 @@
  *   setSoundOnPaymentEnabled(bool) → persists the Settings toggle
  *   unlockAudioContext()           → call once on the first user gesture
  *   playPaymentReceivedSound()     → plays the chime if enabled; never throws
+ *   getAudioCtx()                  → shared AudioContext singleton (or null); see above
  */
 
 const KEY = 'jp.sound_on_payment';
 
 let audioCtx = null;
 
-function getAudioCtx() {
+export function getAudioCtx() {
   if (audioCtx) return audioCtx;
   const Ctor = typeof window !== 'undefined' && (window.AudioContext || window.webkitAudioContext);
   if (!Ctor) return null;

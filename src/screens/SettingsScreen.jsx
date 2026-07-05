@@ -40,6 +40,7 @@ import pkg from '../../package.json';
 import { supabase } from '../lib/supabase.js';
 import { haptic } from '../lib/haptics.js';
 import { isSoundOnPaymentEnabled, setSoundOnPaymentEnabled, playPaymentReceivedSound } from '../lib/paymentSound.js';
+import { isVoiceSoundEnabled, setVoiceSoundEnabled, playMicStartEarcon } from '../lib/voiceEarcons.js';
 import {
   buildReferralLink,
   copyReferralLink,
@@ -217,6 +218,34 @@ function PaymentSoundRow() {
   return (
     <Row
       label="Sound when you get paid"
+      value={enabled ? 'On' : 'Off'}
+      onTap={handleToggle}
+      chevron={false}
+    />
+  );
+}
+
+// Mic start/stop earcons on the voice-to-quote mic (see
+// src/lib/voiceEarcons.js) — independent of PaymentSoundRow above, since a
+// trade might want mic cues off in a quiet client's home while keeping the
+// payment chime, or vice versa. Same client-side-only localStorage pattern.
+// The haptic buzz on mic start/stop always fires regardless of this toggle
+// (it's the functional half of the cue); this only gates the sound.
+function VoiceMicSoundRow() {
+  const [enabled, setEnabled] = useState(() => isVoiceSoundEnabled());
+
+  const handleToggle = () => {
+    const next = !enabled;
+    setVoiceSoundEnabled(next);
+    setEnabled(next);
+    // Preview the start cue immediately when turning it on, matching
+    // PaymentSoundRow's preview-on-enable pattern.
+    if (next) playMicStartEarcon();
+  };
+
+  return (
+    <Row
+      label="Mic start/stop sounds"
       value={enabled ? 'On' : 'Off'}
       onTap={handleToggle}
       chevron={false}
@@ -2795,6 +2824,7 @@ export default function SettingsScreen({
         />
         <SectionCard title="Voice input language">
           <VoiceLanguageSection session={session} />
+          <VoiceMicSoundRow />
         </SectionCard>
         <div style={{ height: 32 }} />
         {modalLayer}
