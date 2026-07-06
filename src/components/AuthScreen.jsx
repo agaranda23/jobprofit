@@ -60,6 +60,7 @@ export default function AuthScreen() {
   const [sending, setSending] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState('');
+  const [hasReferralInvite, setHasReferralInvite] = useState(false);
 
   // Funnel step 1: auth wall viewed.
   // Also check for a returning OAuth error (e.g. user cancelled Google sign-in).
@@ -69,6 +70,21 @@ export default function AuthScreen() {
     if (oauthError) {
       setError(oauthError);
       logTelemetry('signin_google_callback_error', { raw: oauthError });
+    }
+
+    // Referral invite banner (JP-LU7 Phase 2, part D):
+    // main.jsx captures ?ref=CODE into sessionStorage before any auth redirect
+    // can strip the query param. It's only cleared by AppShell on a genuine
+    // new sign-in, so it's still present here for anyone arriving via a
+    // referral link who hasn't signed in yet. V1 deliberately does NOT look up
+    // the referrer's name — no pre-signup PII endpoint, keep it simple.
+    try {
+      if (sessionStorage.getItem('jp.referralCode')) {
+        setHasReferralInvite(true);
+        logTelemetry('referral_invite_banner_shown');
+      }
+    } catch {
+      // sessionStorage unavailable (private browsing) — banner just doesn't show
     }
   }, []);
 
@@ -120,6 +136,14 @@ export default function AuthScreen() {
   return (
     <div className="auth-page">
     <div className="auth-screen">
+      {hasReferralInvite && (
+        <div className="auth-referral-banner" role="status">
+          <Icon name="gift" size={20} variant="brand" label="" />
+          <p className="auth-referral-banner-text">
+            You've been invited to OHNAR — sign up and you <strong>both get a free month of Pro</strong>.
+          </p>
+        </div>
+      )}
       <div className="auth-brand">
         <h1 className="auth-title">
           <OhnarWordmark size="clamp(2rem, 10vw, 2.75rem)" />
