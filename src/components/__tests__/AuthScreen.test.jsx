@@ -340,6 +340,63 @@ describe('AuthScreen — telemetry', () => {
   });
 });
 
+// ── Referral invite banner (JP-LU7 Phase 2, part D) ──────────────────────────
+// main.jsx captures ?ref=CODE into sessionStorage('jp.referralCode') before any
+// auth redirect can strip it. AuthScreen shows a friendly invite banner while
+// that key is still present (i.e. before the visitor has signed in).
+
+describe('AuthScreen — referral invite banner', () => {
+  afterEach(() => {
+    try { sessionStorage.clear(); } catch { /* jsdom */ }
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  it('does not render the banner when no referral code is in sessionStorage', () => {
+    try { sessionStorage.removeItem('jp.referralCode'); } catch { /* jsdom */ }
+    const { container } = renderAuth();
+    expect(container.querySelector('.auth-referral-banner')).toBeNull();
+  });
+
+  it('renders the invite banner when jp.referralCode is present', () => {
+    sessionStorage.setItem('jp.referralCode', 'ABC123');
+    const { container } = renderAuth();
+    const banner = container.querySelector('.auth-referral-banner');
+    expect(banner).toBeTruthy();
+    expect(banner.textContent).toContain("You've been invited to OHNAR");
+    expect(banner.textContent).toContain('both get a free month of Pro');
+  });
+
+  it('does not look up or display a referrer name (V1 — no pre-signup PII endpoint)', () => {
+    sessionStorage.setItem('jp.referralCode', 'ABC123');
+    const { container } = renderAuth();
+    const banner = container.querySelector('.auth-referral-banner');
+    // The raw code itself must never leak into the visible copy.
+    expect(banner.textContent).not.toContain('ABC123');
+  });
+
+  it('renders the banner before .auth-brand in the DOM', () => {
+    sessionStorage.setItem('jp.referralCode', 'ABC123');
+    const { container } = renderAuth();
+    const banner = container.querySelector('.auth-referral-banner');
+    const brand = container.querySelector('.auth-brand');
+    expect(banner && brand).toBeTruthy();
+    expect(banner.compareDocumentPosition(brand) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('fires referral_invite_banner_shown telemetry when the banner is shown', () => {
+    sessionStorage.setItem('jp.referralCode', 'ABC123');
+    renderAuth();
+    expect(logTelemetry).toHaveBeenCalledWith('referral_invite_banner_shown');
+  });
+
+  it('does NOT fire referral_invite_banner_shown when there is no referral code', () => {
+    try { sessionStorage.removeItem('jp.referralCode'); } catch { /* jsdom */ }
+    renderAuth();
+    expect(logTelemetry).not.toHaveBeenCalledWith('referral_invite_banner_shown');
+  });
+});
+
 // ── Google sign-in ────────────────────────────────────────────────────────────
 
 describe('AuthScreen — Google sign-in', () => {

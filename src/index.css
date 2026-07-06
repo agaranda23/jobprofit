@@ -2952,6 +2952,31 @@ body {
   max-width: 420px;
   margin: 0 auto;
 }
+/* Referral invite banner — shown when a ?ref=CODE link is still in
+   sessionStorage (jp.referralCode) and the visitor hasn't signed in yet.
+   Sits above .auth-brand so it's the first thing a referred visitor sees. */
+.auth-referral-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  margin-bottom: 20px;
+  background: var(--surface-2);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-md);
+}
+.auth-referral-banner-text {
+  margin: 0;
+  font-size: var(--fs-label);
+  font-weight: 500;
+  color: var(--text);
+  line-height: 1.4;
+  text-align: left;
+}
+.auth-referral-banner-text strong {
+  color: var(--accent);
+  font-weight: 700;
+}
 .auth-brand {
   text-align: center;
   margin-bottom: 24px;

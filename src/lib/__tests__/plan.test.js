@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { isPro, planAllowsPro, canSendInvoice, countInvoicesSentThisMonth, incrementSendCount, UNLOCK_PRO_FOR_ALL, FREE_MONTHLY_INVOICE_LIMIT, isTrialActive, trialDaysLeft, showJobProfitFooter, eligibleForWhiteLabelNudge, initTrialOnFirstUse, isFoundingEligible, isFoundingMember, FOUNDER_CUTOFF } from '../plan.js';
+import { isPro, planAllowsPro, canSendInvoice, countInvoicesSentThisMonth, incrementSendCount, UNLOCK_PRO_FOR_ALL, FREE_MONTHLY_INVOICE_LIMIT, isTrialActive, trialDaysLeft, showJobProfitFooter, eligibleForWhiteLabelNudge, initTrialOnFirstUse, isFoundingEligible, isFoundingMember, FOUNDER_CUTOFF, isProCompActive } from '../plan.js';
 
 // ──────────────────────────────────────────────────────────────────────────
 // The real entitlement rule — always valid regardless of the temporary
@@ -398,6 +398,80 @@ describe('isPro — trial-aware entitlement', () => {
 
   it('null profile follows the override flag (defaults to free when off)', () => {
     expect(isPro(null, now)).toBe(UNLOCK_PRO_FOR_ALL ? true : false);
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// isProCompActive / isPro — referral-reward comp grant (JP-LU7 Phase 2)
+// profiles.pro_comp_until is stamped by netlify/functions/_lib/referralReward.js
+// when a free-tier user (referrer or referee) earns a free Pro month. It must
+// grant Pro access on its own, independent of plan/trial state.
+// ──────────────────────────────────────────────────────────────────────────
+describe('isProCompActive — referral comp grant', () => {
+  const now = new Date('2026-07-06T12:00:00Z');
+  const future = new Date(now.getTime() + 5 * 86400000).toISOString();
+  const past = new Date(now.getTime() - 1 * 86400000).toISOString();
+
+  it('returns true when pro_comp_until is in the future', () => {
+    expect(isProCompActive({ plan: 'free', pro_comp_until: future }, now)).toBe(true);
+  });
+
+  it('returns false when pro_comp_until is in the past', () => {
+    expect(isProCompActive({ plan: 'free', pro_comp_until: past }, now)).toBe(false);
+  });
+
+  it('returns false when pro_comp_until is null', () => {
+    expect(isProCompActive({ plan: 'free', pro_comp_until: null }, now)).toBe(false);
+  });
+
+  it('returns false when pro_comp_until is absent', () => {
+    expect(isProCompActive({ plan: 'free' }, now)).toBe(false);
+  });
+
+  it('returns false when pro_comp_until is an unparseable string', () => {
+    expect(isProCompActive({ plan: 'free', pro_comp_until: 'not-a-date' }, now)).toBe(false);
+  });
+
+  it('returns false for null profile', () => {
+    expect(isProCompActive(null, now)).toBe(false);
+  });
+});
+
+describe('isPro — honours pro_comp_until (referral comp grant)', () => {
+  const now = new Date('2026-07-06T12:00:00Z');
+  const future = new Date(now.getTime() + 5 * 86400000).toISOString();
+  const past = new Date(now.getTime() - 1 * 86400000).toISOString();
+
+  it('a free-plan user with a future pro_comp_until is Pro', () => {
+    const profile = { plan: 'free', pro_comp_until: future };
+    if (!UNLOCK_PRO_FOR_ALL) {
+      expect(isPro(profile, now)).toBe(true);
+    } else {
+      expect(isPro(profile, now)).toBe(true); // override wins anyway
+    }
+  });
+
+  it('a free-plan user with a past pro_comp_until is NOT Pro via comp', () => {
+    const profile = { plan: 'free', pro_comp_until: past };
+    expect(isPro(profile, now)).toBe(UNLOCK_PRO_FOR_ALL ? true : false);
+  });
+
+  it('a free-plan user with no pro_comp_until is unchanged (not Pro, unless override)', () => {
+    const profile = { plan: 'free', pro_comp_until: null };
+    expect(isPro(profile, now)).toBe(UNLOCK_PRO_FOR_ALL ? true : false);
+  });
+
+  it('plan=pro is Pro regardless of pro_comp_until', () => {
+    expect(isPro({ plan: 'pro', pro_comp_until: past }, now)).toBe(true);
+  });
+
+  it('an active trial with a past pro_comp_until is still Pro via the trial', () => {
+    const profile = { plan: 'trial', trial_ends_at: future, pro_comp_until: past };
+    if (!UNLOCK_PRO_FOR_ALL) {
+      expect(isPro(profile, now)).toBe(true);
+    } else {
+      expect(isPro(profile, now)).toBe(true);
+    }
   });
 });
 

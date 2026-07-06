@@ -18,6 +18,12 @@
  *   G. invoice.payment_succeeded → subscription_status='active'
  *   H. Unknown event → 200 { received: true } (no DB call)
  *   I. Missing user_id in checkout session → 200 (logged, not retried)
+ *   K. Referral reward grant wiring (JP-LU7 Phase 2) — only fires the grant
+ *      helper on billing_reason==='subscription_create'; a bug in the grant
+ *      never turns a successful payment into a 500. The grant logic itself
+ *      (happy path, idempotency, self-referral, free-tier vs paying delivery)
+ *      is unit-tested directly against real DB/Stripe fakes in
+ *      referralReward.test.js — this file only proves the wiring.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -67,6 +73,16 @@ vi.mock('@supabase/supabase-js', () => ({
   })),
 }));
 
+// ── Referral reward grant mock ────────────────────────────────────────────────
+// Mocked as a whole module so this file only has to assert the WIRING
+// (called / not called, with what invoice) — the grant logic itself is
+// covered exhaustively in referralReward.test.js against real fakes.
+let mockGrantReferralReward = vi.fn(async () => ({ granted: true }));
+
+vi.mock('../_lib/referralReward.js', () => ({
+  grantReferralReward: (...args) => mockGrantReferralReward(...args),
+}));
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function makeEvent(body = 'raw-body') {
@@ -102,6 +118,7 @@ function clearEnv() {
 beforeEach(() => {
   setEnv();
   mockUpdate = vi.fn(() => ({ eq: vi.fn(async () => ({ error: null })) }));
+  mockGrantReferralReward = vi.fn(async () => ({ granted: true }));
   mockConstructEvent = vi.fn(() => ({
     type: 'checkout.session.completed',
     data: {
@@ -378,6 +395,86 @@ describe('G. invoice.payment_succeeded → subscription_status=active', () => {
     if (capturedUpdate) {
       expect(capturedUpdate.subscription_status).toBe('active');
     }
+  });
+});
+
+// ─── K. Referral reward grant wiring (JP-LU7 Phase 2) ────────────────────────
+
+describe('K. Referral reward grant wiring', () => {
+  it('calls grantReferralReward when billing_reason is subscription_create', async () => {
+    mockConstructEvent = vi.fn(() => ({
+      type: 'invoice.payment_succeeded',
+      data: {
+        object: {
+          id: 'in_referral_test',
+          customer: FAKE_CUSTOMER,
+          subscription: FAKE_SUB_ID,
+          billing_reason: 'subscription_create',
+        },
+      },
+    }));
+
+    const handler = await getHandler();
+    const res = await handler(makeEvent());
+
+    expect(res.statusCode).toBe(200);
+    expect(mockGrantReferralReward).toHaveBeenCalledTimes(1);
+    const callArg = mockGrantReferralReward.mock.calls[0][0];
+    expect(callArg.invoice.id).toBe('in_referral_test');
+    expect(callArg.invoice.billing_reason).toBe('subscription_create');
+    expect(callArg.adminClient).toBeDefined();
+    expect(callArg.stripe).toBeDefined();
+  });
+
+  it('does NOT call grantReferralReward when billing_reason is absent (plain renewal, matches test G)', async () => {
+    mockConstructEvent = vi.fn(() => ({
+      type: 'invoice.payment_succeeded',
+      data: {
+        object: { id: 'in_test', customer: FAKE_CUSTOMER },
+      },
+    }));
+
+    const handler = await getHandler();
+    const res = await handler(makeEvent());
+
+    expect(res.statusCode).toBe(200);
+    expect(mockGrantReferralReward).not.toHaveBeenCalled();
+  });
+
+  it('does NOT call grantReferralReward for a subscription_cycle (renewal) invoice', async () => {
+    mockConstructEvent = vi.fn(() => ({
+      type: 'invoice.payment_succeeded',
+      data: {
+        object: { id: 'in_renewal', customer: FAKE_CUSTOMER, billing_reason: 'subscription_cycle' },
+      },
+    }));
+
+    const handler = await getHandler();
+    const res = await handler(makeEvent());
+
+    expect(res.statusCode).toBe(200);
+    expect(mockGrantReferralReward).not.toHaveBeenCalled();
+  });
+
+  it('still returns 200 and does not crash the webhook when grantReferralReward throws', async () => {
+    mockGrantReferralReward = vi.fn(async () => { throw new Error('unexpected grant failure'); });
+    mockConstructEvent = vi.fn(() => ({
+      type: 'invoice.payment_succeeded',
+      data: {
+        object: {
+          id: 'in_referral_throws',
+          customer: FAKE_CUSTOMER,
+          subscription: FAKE_SUB_ID,
+          billing_reason: 'subscription_create',
+        },
+      },
+    }));
+
+    const handler = await getHandler();
+    const res = await handler(makeEvent());
+
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(res.body).received).toBe(true);
   });
 });
 

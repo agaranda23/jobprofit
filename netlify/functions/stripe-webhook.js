@@ -12,7 +12,10 @@
  *   customer.subscription.updated  → sync subscription_status
  *   customer.subscription.deleted  → plan='free', status='canceled', clear ids
  *   invoice.payment_failed         → subscription_status='past_due'
- *   invoice.payment_succeeded      → subscription_status='active'
+ *   invoice.payment_succeeded      → subscription_status='active'; also grants the
+ *                                     JP-LU7 Phase 2 referral reward when
+ *                                     billing_reason==='subscription_create' — see
+ *                                     ./_lib/referralReward.js
  *
  * All other events return 200 immediately (ignored, not an error).
  * The handler is idempotent — safe on duplicate Stripe deliveries.
@@ -52,6 +55,7 @@
 
 import Stripe from 'stripe';
 import { createClient } from '@supabase/supabase-js';
+import { grantReferralReward } from './_lib/referralReward.js';
 
 // Founding Member cutoff — must match src/lib/plan.js FOUNDER_CUTOFF exactly.
 // Env var FOUNDER_CUTOFF overrides this fallback without a code deploy.
@@ -233,6 +237,23 @@ export const handler = async function (event) {
           .from('profiles')
           .update({ subscription_status: 'active' })
           .eq('stripe_customer_id', invoice.customer);
+
+        // ── Referral reward grant (JP-LU7 Phase 2) ────────────────────────────
+        // Only on the referee's FIRST successful subscription payment — chosen
+        // deliberately over signup so a card-free trial (never charges) can't
+        // be gamed for a reward. See netlify/functions/_lib/referralReward.js
+        // for the full grant logic (idempotent claim, free-tier vs paying
+        // delivery). grantReferralReward never throws, but it is still awaited
+        // inside its own try/catch here — a bug in reward-granting must never
+        // turn this already-successful Stripe payment into a 500, which would
+        // make Stripe re-deliver the whole webhook.
+        if (invoice.billing_reason === 'subscription_create') {
+          try {
+            await grantReferralReward({ stripe, adminClient, invoice });
+          } catch (err) {
+            console.error('stripe-webhook: referral reward grant threw unexpectedly', err?.message);
+          }
+        }
 
         break;
       }

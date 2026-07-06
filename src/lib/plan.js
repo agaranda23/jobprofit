@@ -172,9 +172,30 @@ export function trialDaysLeft(profile, now = new Date()) {
 }
 
 /**
+ * Returns true when profile.pro_comp_until is a valid timestamp in the future.
+ * pro_comp_until is a referral-reward comp grant (see JP-LU7 Phase 2 —
+ * netlify/functions/_lib/referralReward.js) stamped for free-tier users who
+ * receive a free Pro month, either as a referrer or a referred-and-converted
+ * user. It stacks independently of plan/trial — a user can be on plan='free'
+ * with no trial and still be Pro purely via an active comp.
+ *
+ * @param {object|null|undefined} profile - Supabase profiles row
+ * @param {Date} [now]                    - injectable for testing
+ * @returns {boolean}
+ */
+export function isProCompActive(profile, now = new Date()) {
+  if (!profile?.pro_comp_until) return false;
+  const compDate = new Date(profile.pro_comp_until);
+  if (isNaN(compDate.getTime())) return false;
+  return compDate > now;
+}
+
+/**
  * Returns true when the user should see Pro features.
  * While UNLOCK_PRO_FOR_ALL is true, everyone is treated as Pro.
  * An active trial also grants Pro access (falls through to free on expiry).
+ * A referral-reward comp (profiles.pro_comp_until in the future) also grants
+ * Pro access, independent of plan/trial state — see isProCompActive().
  * Accepts null/undefined safely — unloaded profiles default to free.
  *
  * @param {object|null|undefined} profile  - Supabase profiles row
@@ -184,7 +205,8 @@ export function trialDaysLeft(profile, now = new Date()) {
 export function isPro(profile, now = new Date()) {
   if (UNLOCK_PRO_FOR_ALL) return true;
   if (planAllowsPro(profile)) return true;
-  return isTrialActive(profile, now);
+  if (isTrialActive(profile, now)) return true;
+  return isProCompActive(profile, now);
 }
 
 /**
