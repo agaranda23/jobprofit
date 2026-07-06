@@ -500,7 +500,7 @@ describe('I. buildEmailHtml and buildEmailText shape', () => {
   it('buildEmailHtml contains the legal footer with company details', async () => {
     const { buildEmailHtml } = await import('../send-welcome-email.js');
     const html = buildEmailHtml(null);
-    expect(html).toContain('JOB PROFIT LTD');
+    expect(html).toContain('OHNAR LTD');
     expect(html).toContain('17249792');
     expect(html).toContain('128 City Road, London EC1V 2NX');
   });
