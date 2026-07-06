@@ -4,9 +4,10 @@
 
 ## 1. Company & context
 
-- **Legal entity:** JOB PROFIT LTD, registered in England & Wales, company no. **17249792**, registered office **128 City Road, London EC1V 2NX**.
-- **Trading name:** OHNAR (product/brand name; the legal entity behind it is JOB PROFIT LTD — this is stated explicitly in all three documents).
-- **ICO registration:** ZC163042.
+- **Legal entity:** OHNAR LTD, registered in England & Wales, company no. **17249792**, registered office **128 City Road, London EC1V 2NX**.
+- **Companies House rename (29 June 2026):** the company was renamed at Companies House from JOB PROFIT LTD to OHNAR LTD on 29 June 2026. Company number, registered office, and ICO registration are unchanged — only the legal name changed. All three legal documents (and the welcome-email footer) have been updated in this pass to reflect the new name; the privacy policy's "Who we are" section carries a one-time "(formerly JOB PROFIT LTD)" parenthetical for continuity, since some records/correspondence predate the rename.
+- **Trading name:** OHNAR is the product/brand name; OHNAR LTD is now the registered legal entity itself (previously the entity traded as OHNAR under the name JOB PROFIT LTD — that "trading name of" framing has been removed since it's no longer accurate).
+- **ICO registration:** ZC163042. **Flag for you:** the ICO register entry may still show the old company name (JOB PROFIT LTD) and should be updated to OHNAR LTD to match Companies House — the registration number itself is unchanged.
 - **What the product is:** a mobile-first PWA (progressive web app, no native app store install) used by UK sole-trader/small tradespeople to quote, log jobs, invoice, chase payment, and track profit — from a phone, often on-site.
 - **Data it holds, in two distinct buckets:**
   1. **The trader's own account data** (name, email, phone, business details, bank details for invoicing, VAT/UTR numbers, hourly rate) — **OHNAR is the controller** of this.
@@ -33,7 +34,7 @@
 
 **a) Retention periods (the big open item).** The live policy today: account data erased immediately on deletion (no grace period); unconverted leads purged ~6 months after last activity; inactive accounts purged after 36 months of no logins; financial/job records kept for the life of the account (HMRC ~6-year guidance flagged as the trader's own obligation); Stripe metadata kept up to 7 years. Separately, the founder has floated a **24-month** retention specifically for customer **contact details**, which doesn't cleanly map onto the buckets above. **We have not invented or changed any number** — we need you to reconcile these into one coherent, defensible retention model (see `DATA-PROTECTION-DECISIONS-FOR-SOLICITOR.md`, Decision 1, folded in below) before it's treated as final.
 
-**b) Supabase region.** The policy states Supabase is hosted in `eu-west-1` (Ireland/EEA). This has **not been re-verified against the live Supabase project dashboard** as part of this pass — please have the founder confirm the actual project region before this is relied on; if it's not EU, the international-transfer section needs strengthening.
+**b) Supabase region — RESOLVED.** Confirmed against the live Supabase project dashboard: the project region is `eu-west-1` (West EU, Ireland). `public/privacy.html` has been updated to state this as confirmed rather than flagged for founder sign-off. No action needed from you here.
 
 **c) Unsubscribe / marketing (Decision 2 in the memo).** All current customer-facing messages (quotes, invoices, payment reminders) are transactional, sent on the trader's instruction. Our working position is that no PECR unsubscribe mechanism is required, but the policy should perhaps offer customers an explicit **data-removal request** route instead. Please confirm this position is correct, and whether that route needs to be more visible than the current general contact-email line.
 

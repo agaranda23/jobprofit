@@ -149,7 +149,7 @@ export function buildEmailHtml(firstName) {
             <td style="background:#0B1320;padding:18px 32px;">
               <p style="margin:0 0 6px;font-size:12px;color:#dce8fd;font-weight:700;">OHNAR &middot; Run your business. Get paid. Repeat.</p>
               <p style="margin:0;font-size:11px;color:#8ba0c4;line-height:1.5;">
-                OHNAR is a trading name of JOB PROFIT LTD, registered in England &amp; Wales (No. 17249792). 128 City Road, London EC1V 2NX. \u{00B7} <a href="${APP_URL}" style="color:#9dc0fb;text-decoration:none;">ohnar.co.uk</a>
+                OHNAR LTD, registered in England &amp; Wales (No. 17249792). 128 City Road, London EC1V 2NX. \u{00B7} <a href="${APP_URL}" style="color:#9dc0fb;text-decoration:none;">ohnar.co.uk</a>
               </p>
             </td>
           </tr>
