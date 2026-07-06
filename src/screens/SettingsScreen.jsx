@@ -46,6 +46,7 @@ import {
   copyReferralLink,
   ensureReferralCode,
 } from '../lib/referral.js';
+import { generateBooksShareToken, buildPublicBooksUrl } from '../lib/publicBooksToken.js';
 import { logTelemetry, UPGRADE_TRIGGERS } from '../lib/telemetry.js';
 import EditFieldModal from '../components/EditFieldModal.jsx';
 import LogoModal from '../components/LogoModal.jsx';
@@ -1812,6 +1813,159 @@ function ReferralRow({ session, profile, onGenericShare }) {
   );
 }
 
+// ── Accountant books-link row (feat/accountant-books-link) ──────────────────
+// Pro-gated. Generate / copy / revoke profiles.books_share_token — the
+// capability that unlocks the read-only /books/<token> summary page.
+//
+// The GENERATE/REVOKE write here goes through the exact same generic
+// onProfileUpdate → supabase.update().eq('id', session.user.id) path every
+// other Settings field already uses — the trader is only ever updating their
+// OWN row, already covered by the existing profiles_update_own RLS policy.
+// The READ path for the accountant's page is a completely separate,
+// service-role-only Netlify function (fetch-books-summary.js) that trusts
+// nothing but the token itself — see that file for the security model.
+function AccountantBooksLinkRow({ profile, onProfileUpdate, onUpgrade }) {
+  const proUser = isPro(profile);
+  const [working, setWorking] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [confirmingRevoke, setConfirmingRevoke] = useState(false);
+  const copyTimerRef = useRef(null);
+
+  if (!proUser) {
+    return (
+      <Row
+        label="Share my books with your accountant"
+        value="Pro"
+        chevron={!!onUpgrade}
+        onTap={onUpgrade ?? undefined}
+      />
+    );
+  }
+
+  const token = profile?.books_share_token || null;
+
+  const handleGenerate = async () => {
+    if (working) return;
+    setWorking(true);
+    try {
+      const newToken = generateBooksShareToken();
+      await onProfileUpdate({ books_share_token: newToken, books_share_created_at: new Date().toISOString() });
+      logTelemetry('books_link_generated', {});
+    } catch {
+      // Non-critical — the row just keeps showing "Generate link"; the user can retry.
+    } finally {
+      setWorking(false);
+    }
+  };
+
+  const handleCopy = async () => {
+    if (!token) return;
+    const url = buildPublicBooksUrl(token);
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: 'My books', text: 'Read-only view of my books', url })
+          .catch(() => navigator.clipboard?.writeText(url));
+      } else if (navigator.clipboard) {
+        await navigator.clipboard.writeText(url);
+      }
+    } catch {
+      // Clipboard/share permission failures are non-fatal — nothing to revert.
+    }
+    setCopied(true);
+    if (copyTimerRef.current) clearTimeout(copyTimerRef.current);
+    copyTimerRef.current = setTimeout(() => setCopied(false), 2000);
+    logTelemetry('books_link_copied', {});
+  };
+
+  const handleRevoke = async () => {
+    if (working) return;
+    setWorking(true);
+    try {
+      await onProfileUpdate({ books_share_token: null });
+      logTelemetry('books_link_revoked', {});
+    } catch {
+      // Non-critical — Settings just shows the stale link until the retry succeeds.
+    } finally {
+      setWorking(false);
+      setConfirmingRevoke(false);
+    }
+  };
+
+  if (!token) {
+    return (
+      <div className="settings-row settings-row--passive">
+        <span className="settings-row-label">
+          <Icon name="link" size={16} variant="brand" />{' '}Share my books with your accountant
+        </span>
+        <button type="button" className="referral-row__pill" onClick={handleGenerate} disabled={working}>
+          {working ? 'Generating…' : 'Generate link'}
+        </button>
+      </div>
+    );
+  }
+
+  const url = buildPublicBooksUrl(token);
+
+  return (
+    <div
+      className="settings-row settings-row--passive referral-row"
+      style={{ flexDirection: 'column', alignItems: 'stretch' }}
+    >
+      <span className="settings-row-label" style={{ marginBottom: 6 }}>
+        <Icon name="link" size={16} variant="brand" />{' '}Share my books with your accountant
+      </span>
+      <p style={{ fontSize: 11, color: 'var(--text-dim, #767676)', margin: '0 0 8px' }}>
+        Anyone with this link can view your books, read-only. Send it only to your accountant — revoke any time.
+      </p>
+      <div className="referral-row__right">
+        <button
+          type="button"
+          className="referral-row__pill"
+          onClick={handleCopy}
+          aria-label={copied ? 'Link copied' : 'Copy books link'}
+          title={url}
+        >
+          <Icon name="copy" size={14} />
+          <span className="referral-row__pill-text">{copied ? 'Copied!' : url.replace(/^https?:\/\//, '')}</span>
+        </button>
+        <button type="button" className="referral-row__share-btn" onClick={handleCopy} aria-label="Share books link">
+          <Icon name="share" size={18} />
+        </button>
+      </div>
+      {!confirmingRevoke ? (
+        <button
+          type="button"
+          onClick={() => setConfirmingRevoke(true)}
+          disabled={working}
+          style={{ alignSelf: 'flex-start', marginTop: 8, background: 'none', border: 'none', padding: 0, color: '#b3261e', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}
+        >
+          Revoke link
+        </button>
+      ) : (
+        <div style={{ marginTop: 8, display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 12, color: 'var(--text-dim, #767676)' }}>Revoke this link? A new one can be generated any time.</span>
+          <button
+            type="button"
+            onClick={handleRevoke}
+            disabled={working}
+            style={{ background: '#b3261e', color: '#fff', border: 'none', borderRadius: 6, padding: '5px 10px', fontSize: 12, fontWeight: 700, cursor: 'pointer' }}
+          >
+            {working ? 'Revoking…' : 'Revoke'}
+          </button>
+          <button
+            type="button"
+            onClick={() => setConfirmingRevoke(false)}
+            disabled={working}
+            style={{ background: 'none', border: 'none', color: 'var(--text-dim, #767676)', fontSize: 12, cursor: 'pointer' }}
+          >
+            Cancel
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── SettingsScreen ────────────────────────────────────────────────────────────
 
 export default function SettingsScreen({
@@ -2804,6 +2958,17 @@ export default function SettingsScreen({
           />
         </SectionCard>
 
+        <SectionCard
+          title="Accountant access"
+          subline="A revocable, read-only link — no account or password needed on their end."
+        >
+          <AccountantBooksLinkRow
+            profile={profile}
+            onProfileUpdate={handleSave}
+            onUpgrade={() => openUpgradeSheet(UPGRADE_TRIGGERS.BOOKS_LINK)}
+          />
+        </SectionCard>
+
         <div style={{ height: 32 }} />
         {modalLayer}
       </div>
@@ -3023,7 +3188,7 @@ export default function SettingsScreen({
             <p>The Tax Pot on the Money tab does this for you — it rings off a percentage of your monthly profit (20% by default, adjustable in Settings &rarr; Invoices &amp; Quotes &rarr; Tax set-aside %). Pro feature, included at £12/mo.</p>
           </FaqItem>
           <FaqItem question="Can I send my books to my accountant?">
-            <p>Yes — on the Money tab, tap &ldquo;Export for your accountant&rdquo; and choose a Xero-ready or QuickBooks-ready file: a correctly formatted export your accountant can import in one go, instead of re-typing every invoice and receipt by hand. A plain CSV, Excel, or PDF summary is also available and free for everyone. The Xero and QuickBooks formats are Pro.</p>
+            <p>Yes, two ways. On the Money tab, tap &ldquo;Export for your accountant&rdquo; for a Xero-ready or QuickBooks-ready file your accountant can import in one go. Or, on Pro, go to Settings &rarr; Costs &rarr; &ldquo;Share my books with your accountant&rdquo; to generate a read-only link — no account or password needed on their end — that you can revoke any time. A plain CSV, Excel, or PDF summary export is also available and free for everyone. The Xero/QuickBooks export and the read-only link are both Pro.</p>
           </FaqItem>
           <FaqItem question="Can customers pay me by card?">
             <p>Yes. Go to Settings &rarr; Card payments to connect Stripe. Once connected, every invoice includes a card payment button — customers tap and pay without you chasing bank transfers. Stripe&rsquo;s standard processing fee applies; OHNAR doesn&rsquo;t add anything on top.</p>
