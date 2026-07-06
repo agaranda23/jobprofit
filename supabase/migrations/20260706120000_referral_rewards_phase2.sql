@@ -1,4 +1,4 @@
--- Migration #36 — referral programme reward grant (JP-LU7 Phase 2)
+-- Migration #37 — referral programme reward grant (JP-LU7 Phase 2)
 --
 -- Phase 1 (#33, 20260623010000_add_referrals.sql) only built ATTRIBUTION —
 -- profiles.referral_code / referred_by + the referrals table. Nobody was ever
