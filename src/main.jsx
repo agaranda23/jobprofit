@@ -118,6 +118,10 @@ const PublicInvoiceView = lazy(() => import('./screens/PublicInvoiceView.jsx'));
 // Lazy-loaded: customers open this after payment is confirmed.
 const PublicReceiptView = lazy(() => import('./screens/PublicReceiptView.jsx'));
 
+// Accountant books-link page — /books/<token> (feat/accountant-books-link)
+// Lazy-loaded: an accountant opens this in a browser, not the app shell.
+const PublicBooksView = lazy(() => import('./screens/PublicBooksView.jsx'));
+
 /**
  * Checks whether the current URL path is a public quote route.
  * Pattern: /q/<token> where token is any non-empty segment.
@@ -151,16 +155,33 @@ function parsePublicReceiptRoute() {
   return match ? match[1] : null;
 }
 
+/**
+ * Checks whether the current URL path is the accountant books-link route.
+ * Pattern: /books/<token> where token is any non-empty segment.
+ * Returns the token string if matched, null otherwise.
+ */
+function parsePublicBooksRoute() {
+  const path = window.location.pathname;
+  const match = /^\/books\/([^/]+)$/.exec(path);
+  return match ? match[1] : null;
+}
+
 const publicQuoteToken   = parsePublicQuoteRoute();
 const publicInvoiceToken = parsePublicInvoiceRoute();
 const publicReceiptToken = parsePublicReceiptRoute();
+const publicBooksToken   = parsePublicBooksRoute();
 
 const SUSPENSE_FALLBACK = <Splash />;
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <ErrorBoundary>
-      {publicInvoiceToken ? (
+      {publicBooksToken ? (
+        // Accountant books-link page — no auth gate, no AppShell, code-split
+        <Suspense fallback={SUSPENSE_FALLBACK}>
+          <PublicBooksView token={publicBooksToken} />
+        </Suspense>
+      ) : publicInvoiceToken ? (
         // Hosted invoice page — no auth gate, no AppShell, code-split
         <Suspense fallback={SUSPENSE_FALLBACK}>
           <PublicInvoiceView token={publicInvoiceToken} />
