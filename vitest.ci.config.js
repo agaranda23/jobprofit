@@ -20,18 +20,11 @@ export default mergeConfig(
     test: {
       exclude: [
         '**/node_modules/**',
-        // TODO(pre-existing, verified against origin/main 2026-07): missing
-        // `navigator` global — these tests call
-        // Object.defineProperty(navigator, ...) but the file has no
-        // `// @vitest-environment jsdom` pragma, so `navigator` doesn't
-        // exist in vitest's default 'node' environment.
-        // NOTE: simply adding the jsdom pragma is NOT safe — verified it
-        // causes the whole file to fail to collect (0 tests) under the
-        // html-encoding-sniffer ERR_REQUIRE_ESM crash (see PR description).
-        // Fix needs a real look, not a one-line pragma.
-        'src/components/__tests__/JobDetailDrawer.test.js',
-        'src/components/__tests__/reviewSheetSendPaths.test.js',
-        'src/lib/__tests__/referral.test.js',
+        // Un-excluded 2026-07-07 (the ERR_REQUIRE_ESM blocker is gone on the CI
+        // Node >=20.19, where require(ESM) is supported): JobDetailDrawer +
+        // reviewSheetSendPaths now run under a `// @vitest-environment jsdom`
+        // pragma; referral stays node-env with a small `navigator` shim (it has
+        // a "fallback in Node env" test that a jsdom window would break).
         // TODO(pre-existing, verified against origin/main 2026-07): CSS
         // token/rule assertions no longer match src/index.css — content
         // drift between the test's expected CSS and the current stylesheet.

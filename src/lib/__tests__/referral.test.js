@@ -18,6 +18,14 @@ import {
   copyReferralLink,
 } from '../referral.js';
 
+// This suite must stay in the default 'node' environment: a jsdom `window` would
+// break the "fallback in Node env" test above. Node <21 has no global `navigator`,
+// so provide a minimal mutable one for the share/clipboard mocks below
+// (`Object.defineProperty(navigator, ...)`). No-op on Node >=21 / CI's newer Node.
+if (typeof globalThis.navigator === 'undefined') {
+  globalThis.navigator = {};
+}
+
 // ── A. buildReferralLink ──────────────────────────────────────────────────────
 
 describe('A. buildReferralLink', () => {
