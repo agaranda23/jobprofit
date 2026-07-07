@@ -30,12 +30,11 @@ export default mergeConfig(
         // drift between the test's expected CSS and the current stylesheet.
         'src/components/__tests__/onColourTokens.test.js',
         'src/screens/__tests__/ohnarReskinBlackBoxes.test.js',
-        // TODO(pre-existing, verified against origin/main 2026-07): deposit
-        // due-date formatting mismatch — code renders "due Sat, 11 Jul"
-        // (with comma), tests assert "due Sat 11 Jul" (no comma). Same
-        // root cause in both files; needs a decision on which side is right.
-        'src/lib/__tests__/invoicePDF.test.js',
-        'src/lib/__tests__/quoteMessage.test.js',
+        // Un-excluded 2026-07-07: the deposit due-date mismatch was an ICU
+        // artifact, not a real bug — toLocaleDateString('en-GB', {weekday,...})
+        // emits "Sat, 11 Jul" on ICU 73 (Node 20) but "Sat 11 Jul" on ICU 76
+        // (Node 22). The assertions in both files now normalise the comma away,
+        // so they pass on any Node/ICU. (invoicePDF + quoteMessage restored.)
       ],
     },
   })

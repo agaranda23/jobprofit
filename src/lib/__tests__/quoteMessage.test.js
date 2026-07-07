@@ -261,7 +261,9 @@ describe('buildQuoteWhatsAppMessage — deposit due-date', () => {
       biz: BIZ_WITH_BANK,
       quoteUrl: QUOTE_URL,
     });
-    expect(msg).toContain('Deposit to secure your booking: £250.00 (25%) · due Sat 11 Jul');
+    // ICU 76 (Node >=22) dropped the comma from the en-GB "Sat, 11 Jul" weekday
+    // format that ICU 73 (Node 20) still emits; strip it so this is Node-agnostic.
+    expect(msg.replace(/, (\d\d? \w{3})/, ' $1')).toContain('Deposit to secure your booking: £250.00 (25%) · due Sat 11 Jul');
   });
 
   it('appends the due date to the Stripe deposit-pay-link line', () => {
@@ -271,7 +273,7 @@ describe('buildQuoteWhatsAppMessage — deposit due-date', () => {
       quoteUrl: QUOTE_URL,
       depositPayUrl: 'https://pay.stripe.com/abc',
     });
-    expect(msg).toContain('Deposit to secure your booking: £250.00 · due Sat 11 Jul — pay here:');
+    expect(msg.replace(/, (\d\d? \w{3})/, ' $1')).toContain('Deposit to secure your booking: £250.00 · due Sat 11 Jul — pay here:');
   });
 
   it('omits the due-date suffix when deposit_due_date is absent', () => {
@@ -290,7 +292,8 @@ describe('buildQuoteWhatsAppMessage — deposit due-date', () => {
       biz: BIZ_WITH_BANK,
       quoteUrl: QUOTE_URL,
     });
-    expect(msg).not.toContain('due Sat 11 Jul');
+    // comma-agnostic (see note above): a stray "due Sat, 11 Jul" must fail this too
+    expect(msg.replace(/, (\d\d? \w{3})/, ' $1')).not.toContain('due Sat 11 Jul');
   });
 });
 

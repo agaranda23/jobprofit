@@ -315,7 +315,9 @@ describe('G. generateQuotePDF — deposit row drawn when deposit_percent > 0', (
       biz: baseBiz(),
       quoteRef: 'QT-001',
     });
-    expect(drawnTexts.some(t => String(t).includes('due Sat 11 Jul'))).toBe(true);
+    // ICU 76 (Node >=22) drops the comma from "Sat, 11 Jul" that ICU 73 (Node 20)
+    // emits; strip it so this assertion is Node-agnostic.
+    expect(drawnTexts.some(t => String(t).replace(/, (\d\d? \w{3})/, ' $1').includes('due Sat 11 Jul'))).toBe(true);
     expect(drawnTexts.some(t => String(t).includes('Locks in your slot'))).toBe(false);
   });
 
