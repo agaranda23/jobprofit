@@ -542,7 +542,7 @@ describe('SettingsScreen — Settings tab re-tap resets to hub (settingsResetKey
     renderWithResetKey(PROFILE_FREE, 0);
     // Should start on hub with no unintended navigation
     expect(screen.getByText('Invoices & Quotes')).toBeTruthy();
-    expect(screen.queryByRole('heading', { level: 1 })).toBeFalsy();
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe('Settings');
   });
 
   it('back-arrow voice→account behaviour unchanged after a reset', () => {
