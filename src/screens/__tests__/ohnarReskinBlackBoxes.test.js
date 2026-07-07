@@ -138,38 +138,42 @@ describe('aj-details-btn — blue tint post re-skin (no green)', () => {
 
 // ── Auth loop — "Paid" chip animates to success green ────────────────────────
 
-describe('auth landing — Paid chip uses success green animation', () => {
-  it('defines an auth-chip-pulse-paid keyframe', () => {
-    expect(css).toContain('auth-chip-pulse-paid');
+describe('auth landing pipeline animates with the jobs-tab stage palette', () => {
+  // The pre-login loop (Quote > Signed > Invoiced > Paid) is a travelling "comet": one chip
+  // lit at a time in its own jobs-tab stage colour on a 4s loop, replacing the old
+  // monochrome-blue pulse. These tests guard the new intent AND its accessibility.
+
+  it('drives the loop with the auth-comet keyframe (old monochrome pulse removed)', () => {
+    expect(css).toContain('@keyframes auth-comet');
+    expect(css).not.toContain('auth-chip-pulse');
   });
 
-  it('auth-chip-pulse-paid keyframe uses accessible success green (#15803d, 5.02:1 with white AA)', () => {
-    // Surface darkened from #16a34a (3.30:1 — decorative only) to #15803d (5.02:1 — passes AA
-    // for 13px label text). The intent (green Paid chip) is preserved; the shade is accessible.
-    const kfStart = css.indexOf('@keyframes auth-chip-pulse-paid');
-    expect(kfStart).toBeGreaterThan(-1);
-    // Find the block
-    const kfEnd = css.indexOf('}', css.indexOf('}', kfStart) + 1);
-    const kfBlock = css.slice(kfStart, kfEnd + 1);
-    expect(kfBlock.toLowerCase()).toContain('#15803d');
-    expect(kfBlock.toLowerCase()).not.toContain('#16a34a');
+  it('lights each chip in its own jobs-tab stage colour, not a single blue', () => {
+    expect(css).toContain('--lit-bg:#0E7490'); // Quote    -> quoted teal
+    expect(css).toContain('--lit-bg:#4F46E5'); // Signed   -> on indigo
+    expect(css).toContain('--lit-bg:#F59E0B'); // Invoiced -> invoiced amber
+    expect(css).toContain('--lit-bg:#15803D'); // Paid     -> paid green
   });
 
-  it('chip--4 (Paid) uses the paid keyframe, not the generic blue one', () => {
-    // Find the chip--4 animation rule
-    const chip4Idx = css.indexOf('.auth-loop-chip--4');
-    expect(chip4Idx).toBeGreaterThan(-1);
-    const chip4Rule = css.slice(chip4Idx, chip4Idx + 120);
-    expect(chip4Rule).toContain('auth-chip-pulse-paid');
-    expect(chip4Rule).not.toContain('auth-chip-pulse 4s');
+  it('keeps the Paid chip accessible success green (#15803D, 5.02:1 with white, not #16A34A)', () => {
+    const idx = css.indexOf('.auth-loop-chip--4 {');
+    expect(idx).toBeGreaterThan(-1);
+    const rule = css.slice(idx, css.indexOf('}', idx) + 1);
+    expect(rule.toLowerCase()).toContain('#15803d');
+    expect(rule.toLowerCase()).not.toContain('#16a34a');
   });
 
-  it('chips 1–3 (Quote, Signed, Invoiced) still use the blue pulse animation', () => {
-    // Check chip--1 uses the generic blue pulse
-    const chip1Idx = css.indexOf('.auth-loop-chip--1');
-    const chip1Rule = css.slice(chip1Idx, chip1Idx + 120);
-    expect(chip1Rule).toContain('auth-chip-pulse');
-    expect(chip1Rule).not.toContain('auth-chip-pulse-paid');
+  it('gates all chip motion behind prefers-reduced-motion: no-preference', () => {
+    const kf = css.indexOf('@keyframes auth-comet');
+    expect(kf).toBeGreaterThan(-1);
+    // the nearest enclosing @media at/above the keyframe must be the no-preference gate
+    const openMedia = css.lastIndexOf('@media (prefers-reduced-motion: no-preference)', kf);
+    expect(openMedia).toBeGreaterThan(-1);
+  });
+
+  it('reduced-motion falls back to a static, fully-coloured pipeline (no animation)', () => {
+    expect(css).toContain('@media (prefers-reduced-motion: reduce)');
+    expect(css).toContain('.auth-loop-chip { background: var(--lit-bg); color: var(--lit-ink); }');
   });
 });
 

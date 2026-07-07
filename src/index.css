@@ -3030,6 +3030,7 @@ body {
   font-size: var(--fs-label);
   padding: 0 2px;
   user-select: none;
+  opacity: 0.6;              /* recede at rest so the handoff flare reads as "flow" */
 }
 .auth-loop-chip {
   display: inline-block;
@@ -3037,48 +3038,72 @@ body {
   border-radius: 20px;
   font-size: var(--fs-label);
   font-weight: 600;
+  --rest-ink: var(--text-dim);   /* resting label colour, AA-tuned per theme (see below) */
   background: var(--surface-2);
-  color: var(--text-dim);
+  color: var(--rest-ink);
   white-space: nowrap;
+  transform: scale(1);
+  transform-origin: center;
+  /* two-layer zero shadow so the lit glow interpolates smoothly (matched layer count) */
+  box-shadow: 0 0 0 0 transparent, 0 0 0 0 transparent;
 }
-/* Cycling animation: each chip lights up in sequence on a 4 s loop.
-   Chips 1–3 (Quote, Signed, Invoiced) pulse Brand Blue.
-   Chip 4 (Paid) pulses success green — Paid is always green in the product's
-   semantic colour system, and the animation should mirror that meaning.
-   Reduced-motion users see all chips at rest (static, fully legible). */
+/* Light theme: nudge the resting label from #6B7280 (4.39:1) to #5B626E (5.58:1) so the
+   three un-lit chips clear WCAG AA at 13px. Dark-theme resting already passes (7.37:1). */
+[data-theme="light"] .auth-loop-chip { --rest-ink: #5B626E; }
+
+/* "Travelling comet" — one live highlight runs Quote > Signed > Invoiced > Paid, each
+   stage lit ~1s (25% of a 4s loop) in its jobs-tab stage colour, then hands the light on;
+   the chevron just ahead flares at the handoff. Colours are drawn from the jobs-tab stage
+   palette: teal & indigo are deepened one step in-hue so white text clears AA; amber keeps
+   its bright fill with the near-black ink it uses in-app. Every lit pair is >=4.5:1 in BOTH
+   themes because the fills are solid + theme-independent. Reduced-motion -> static AA pipeline. */
+.auth-loop-chip--1 { --lit-bg:#0E7490; --lit-ink:#FFFFFF; --lit-glow:rgba(14,116,144,.50); }  /* Quote    -> quoted teal   5.36:1 */
+.auth-loop-chip--2 { --lit-bg:#4F46E5; --lit-ink:#FFFFFF; --lit-glow:rgba(79,70,229,.50);  }  /* Signed   -> on indigo     6.29:1 */
+.auth-loop-chip--3 { --lit-bg:#F59E0B; --lit-ink:#0B1220; --lit-glow:rgba(245,158,11,.55); }  /* Invoiced -> invoiced amber 8.72:1 */
+.auth-loop-chip--4 { --lit-bg:#15803D; --lit-ink:#FFFFFF; --lit-glow:rgba(21,128,61,.50);  }  /* Paid     -> paid green     5.02:1 */
+
+/* Reduced motion: no animation. Static, fully-coloured, AA pipeline — tells the whole
+   Quote->Paid colour story without a moving pixel. */
+@media (prefers-reduced-motion: reduce) {
+  .auth-loop-chip { background: var(--lit-bg); color: var(--lit-ink); }
+  .auth-loop-sep  { opacity: 0.85; }
+}
+
+/* Motion: the travelling comet (only for users who allow motion). */
 @media (prefers-reduced-motion: no-preference) {
-  @keyframes auth-chip-pulse {
-    0%, 20%   { background: var(--accent); color: #ffffff; }
-    25%, 100% { background: var(--surface-2); color: var(--text-dim); }
+  @keyframes auth-comet {
+    0%   { background: var(--surface-2); color: var(--rest-ink); transform: scale(1);
+           box-shadow: 0 0 0 0 transparent, 0 0 0 0 transparent;
+           animation-timing-function: cubic-bezier(.2,.7,.3,1); }          /* ignite (~0.12s) */
+    3%   { background: var(--lit-bg); color: var(--lit-ink); transform: scale(1.05);
+           box-shadow: 0 0 0 1px var(--lit-glow), 0 3px 12px var(--lit-glow); }
+    22%  { background: var(--lit-bg); color: var(--lit-ink); transform: scale(1.05);
+           box-shadow: 0 0 0 1px var(--lit-glow), 0 3px 12px var(--lit-glow);
+           animation-timing-function: ease-in; }                          /* hand off (~0.12s) */
+    25%  { background: var(--surface-2); color: var(--rest-ink); transform: scale(1);
+           box-shadow: 0 0 0 0 transparent, 0 0 0 0 transparent; }
+    100% { background: var(--surface-2); color: var(--rest-ink); transform: scale(1);
+           box-shadow: 0 0 0 0 transparent, 0 0 0 0 transparent; }
   }
-  @keyframes auth-chip-pulse-paid {
-    /* #15803D gives 5.02:1 with white — AA for 13px label text. */
-    0%, 20%   { background: #15803d; color: #ffffff; }
-    25%, 100% { background: var(--surface-2); color: var(--text-dim); }
+  @keyframes auth-comet-sep {
+    0%   { color: var(--text-dim); transform: scale(1)    translateX(0);   opacity: .6;
+           animation-timing-function: cubic-bezier(.2,.7,.3,1); }
+    5%   { color: var(--text);     transform: scale(1.18) translateX(1px); opacity: 1;  }
+    14%  { color: var(--text-dim); transform: scale(1)    translateX(0);   opacity: .6; }
+    100% { color: var(--text-dim); transform: scale(1)    translateX(0);   opacity: .6; }
   }
-  .auth-loop-chip--1 { animation: auth-chip-pulse 4s ease-in-out infinite 0s; }
-  .auth-loop-chip--2 { animation: auth-chip-pulse 4s ease-in-out infinite 1s; }
-  .auth-loop-chip--3 { animation: auth-chip-pulse 4s ease-in-out infinite 2s; }
-  .auth-loop-chip--4 { animation: auth-chip-pulse-paid 4s ease-in-out infinite 3s; }
-}
-/* Light-mode contrast fix: --accent (#2563eb) on white is fine;
-   use --accent-pressed (#1d4ed8) for the active chip background. */
-[data-theme="light"] {
-  @media (prefers-reduced-motion: no-preference) {
-    @keyframes auth-chip-pulse-light {
-      0%, 20%   { background: var(--accent-pressed); color: #fff; }
-      25%, 100% { background: var(--surface-2); color: var(--text-dim); }
-    }
-    @keyframes auth-chip-pulse-paid-light {
-      /* #15803D gives 5.02:1 with white — AA for 13px label text. */
-      0%, 20%   { background: #15803d; color: #fff; }
-      25%, 100% { background: var(--surface-2); color: var(--text-dim); }
-    }
-    .auth-loop-chip--1 { animation: auth-chip-pulse-light 4s ease-in-out infinite 0s; }
-    .auth-loop-chip--2 { animation: auth-chip-pulse-light 4s ease-in-out infinite 1s; }
-    .auth-loop-chip--3 { animation: auth-chip-pulse-light 4s ease-in-out infinite 2s; }
-    .auth-loop-chip--4 { animation: auth-chip-pulse-paid-light 4s ease-in-out infinite 3s; }
-  }
+  /* One shared keyframe, phased by delay -> exactly 1s (25% of 4s) lit per stage,
+     sequential and seamless (0% and 100% are the identical dim state). */
+  .auth-loop-chip     { animation: auth-comet 4s linear infinite; }
+  .auth-loop-chip--1  { animation-delay: 0s; }
+  .auth-loop-chip--2  { animation-delay: 1s; }
+  .auth-loop-chip--3  { animation-delay: 2s; }
+  .auth-loop-chip--4  { animation-delay: 3s; }
+  /* Chevron flare at each handoff (seps are .auth-loop children 2, 4, 6). */
+  .auth-loop-sep              { animation: auth-comet-sep 4s linear infinite; }
+  .auth-loop-sep:nth-child(2) { animation-delay: 0.8s; }  /* Quote > Signed    */
+  .auth-loop-sep:nth-child(4) { animation-delay: 1.8s; }  /* Signed > Invoiced */
+  .auth-loop-sep:nth-child(6) { animation-delay: 2.8s; }  /* Invoiced > Paid   */
 }
 /* Plain feature strip — dot-separated loop features under the animated chips */
 .auth-features {

@@ -323,24 +323,15 @@ describe('WCAG AA fix — --on-success normal-text surfaces use #15803D', () => 
     expect(block).not.toContain('#16a34a');
   });
 
-  it('auth-chip-pulse-paid keyframe uses #15803d not #16a34a', () => {
-    const idx = css.indexOf('@keyframes auth-chip-pulse-paid {');
+  it('auth loop Paid chip uses #15803d not #16a34a (theme-independent, replaces old keyframes)', () => {
+    // The pre-login loop was rebuilt as a travelling "comet"; the Paid chip's success-green
+    // now lives on the .auth-loop-chip--4 --lit-bg token (one value, both themes) instead of
+    // the old auth-chip-pulse-paid / -paid-light keyframes.
+    const idx = css.indexOf('.auth-loop-chip--4 {');
     expect(idx).toBeGreaterThan(-1);
-    const braceStart = css.indexOf('{', idx);
-    const braceEnd   = css.indexOf('}', braceStart);
-    const block = css.slice(braceStart, braceEnd + 1);
-    expect(block).toContain('#15803d');
-    expect(block).not.toContain('#16a34a');
-  });
-
-  it('auth-chip-pulse-paid-light keyframe uses #15803d not #16a34a', () => {
-    const idx = css.indexOf('@keyframes auth-chip-pulse-paid-light {');
-    expect(idx).toBeGreaterThan(-1);
-    const braceStart = css.indexOf('{', idx);
-    const braceEnd   = css.indexOf('}', braceStart);
-    const block = css.slice(braceStart, braceEnd + 1);
-    expect(block).toContain('#15803d');
-    expect(block).not.toContain('#16a34a');
+    const rule = css.slice(idx, css.indexOf('}', idx) + 1);
+    expect(rule.toLowerCase()).toContain('#15803d');
+    expect(rule.toLowerCase()).not.toContain('#16a34a');
   });
 });
 
