@@ -1211,6 +1211,7 @@ describe('Per-job monthly bills estimate', () => {
 // plan-check logic breaks these tests.
 
 import { isPro } from '../../lib/plan';
+import { UPGRADE_TRIGGERS } from '../../lib/telemetry';
 
 describe('JP-LU5 PR2: Insight Layer gate consolidation', () => {
   // The gating branch is: userIsPro ? <four real cards> : <one lock card>
@@ -1249,11 +1250,10 @@ describe('JP-LU5 PR2: Insight Layer gate consolidation', () => {
     // Pin that the trigger constant is defined and equals the canonical string.
     // The consolidated CTA imports UPGRADE_TRIGGERS from lib/telemetry and uses
     // UPGRADE_TRIGGERS.INSIGHT_LOCKED — this test guards against the value changing.
-    const { UPGRADE_TRIGGERS: triggers } = require('../../lib/telemetry');
-    expect(typeof triggers.INSIGHT_LOCKED).toBe('string');
-    expect(triggers.INSIGHT_LOCKED.length).toBeGreaterThan(0);
+    expect(typeof UPGRADE_TRIGGERS.INSIGHT_LOCKED).toBe('string');
+    expect(UPGRADE_TRIGGERS.INSIGHT_LOCKED.length).toBeGreaterThan(0);
     // Value must be stable — confirm against the canonical string from telemetry.js
-    expect(triggers.INSIGHT_LOCKED).toBe('insight_locked');
+    expect(UPGRADE_TRIGGERS.INSIGHT_LOCKED).toBe('insight_locked');
   });
 
   it('VAT card independence: isVatRegistered gate is separate from the insight gate', () => {
