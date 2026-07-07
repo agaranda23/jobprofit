@@ -150,9 +150,7 @@ export default function AuthScreen() {
         </h1>
         <p className="auth-eyebrow">Not another app to figure out.</p>
         <p className="auth-hero">Run your trade business from your phone.</p>
-        <p className="auth-subhead">
-          Quote jobs, send invoices, track payments and know your real profit — in minutes, not hours.
-        </p>
+        <p className="auth-subhead">Get paid faster, without leaving the van.</p>
 
         <div className="auth-loop" aria-label="Quote, Signed, Invoiced, Paid">
           <span className="auth-loop-chip auth-loop-chip--1">Quote</span>
@@ -164,56 +162,9 @@ export default function AuthScreen() {
           <span className="auth-loop-chip auth-loop-chip--4">Paid</span>
         </div>
 
-        <p className="auth-features">Quote in seconds · Get paid faster · Know your real profit</p>
-        <p className="auth-profit-strip">
-          See what you actually made — after materials, fuel and tax. No lead fees, no commission, nobody clipping your ticket.
-        </p>
-
         <p className="auth-cta-line">
-          Start free — <strong className="auth-cta-highlight">no card needed</strong>
+          Start free, <strong className="auth-cta-highlight">no card</strong> — unlimited quotes and invoices.
         </p>
-        <p className="auth-cta-free-line">Unlimited quotes · Unlimited invoices · Free to try</p>
-        <p className="auth-cta-subline">£12/month for Pro when you're ready. Cancel anytime.</p>
-
-        <p className="auth-trust">Built with feedback from UK plumbers, builders, electricians, gardeners, cleaners &amp; sole traders.</p>
-      </div>
-
-      <div className="auth-screenshots">
-        <p className="auth-screenshots-eyebrow">Quote → invoice → paid, from your phone</p>
-        <div className="auth-screenshots-track">
-          <img
-            className="auth-screenshot"
-            src="/screens/ohnar-screen-today.png"
-            alt="OHNAR Today dashboard showing money waiting to collect"
-            loading="lazy"
-            width="680"
-            height="1061"
-          />
-          <img
-            className="auth-screenshot"
-            src="/screens/ohnar-screen-quote.png"
-            alt="A quote in OHNAR, ready to send to a customer"
-            loading="lazy"
-            width="680"
-            height="1085"
-          />
-          <img
-            className="auth-screenshot"
-            src="/screens/ohnar-screen-invoice.png"
-            alt="An invoice in OHNAR with a pay-now link for the customer"
-            loading="lazy"
-            width="680"
-            height="1085"
-          />
-          <img
-            className="auth-screenshot"
-            src="/screens/ohnar-screen-pipeline.png"
-            alt="OHNAR jobs pipeline showing every job from quoted to paid"
-            loading="lazy"
-            width="680"
-            height="1168"
-          />
-        </div>
       </div>
 
       {!sent ? (
@@ -254,10 +205,10 @@ export default function AuthScreen() {
               />
             </label>
             <button type="submit" className="auth-submit" disabled={sending || !email.trim()}>
-              {sending ? 'Sending your link…' : 'Start free — email me a sign-in link'}
+              {sending ? 'Sending your link…' : 'Email me a sign-in link'}
             </button>
             {error && <p className="auth-error">{error}</p>}
-            <p className="auth-hint">No passwords. We email you a link, you tap it, you're in.</p>
+            <p className="auth-hint">No password — we email a link, tap it, you're in.</p>
           </form>
         </>
       ) : (
@@ -271,6 +222,56 @@ export default function AuthScreen() {
           </button>
         </div>
       )}
+
+      <p className="auth-diff">No lead fees, no commission — nobody clipping your ticket.</p>
+
+      <div className="auth-screenshots">
+        <p className="auth-screenshots-eyebrow">Here's the actual app.</p>
+        <div className="auth-screenshots-track">
+          <img
+            className="auth-screenshot"
+            src="/screens/ohnar-screen-today.png"
+            alt="OHNAR Today dashboard showing money waiting to collect"
+            loading="lazy"
+            width="680"
+            height="1061"
+          />
+          <img
+            className="auth-screenshot"
+            src="/screens/ohnar-screen-quote.png"
+            alt="A quote in OHNAR, ready to send to a customer"
+            loading="lazy"
+            width="680"
+            height="1085"
+          />
+          <img
+            className="auth-screenshot"
+            src="/screens/ohnar-screen-invoice.png"
+            alt="An invoice in OHNAR with a pay-now link for the customer"
+            loading="lazy"
+            width="680"
+            height="1085"
+          />
+          <img
+            className="auth-screenshot"
+            src="/screens/ohnar-screen-pipeline.png"
+            alt="OHNAR jobs pipeline showing every job from quoted to paid"
+            loading="lazy"
+            width="680"
+            height="1168"
+          />
+        </div>
+      </div>
+
+      <p className="auth-cta-subline">
+        £12/mo flat for Pro when you're ready. Cancel anytime.
+        {/* TODO(LGL): append the competitor price-comparison clause once the figure is source-verified + dated — comparative ad claim, do not ship unverified */}
+      </p>
+      <p className="auth-profit-strip">
+        And when the job's done, see what you actually made — after materials, fuel and tax.
+      </p>
+
+      <p className="auth-trust">Built with feedback from UK plumbers, builders, electricians, gardeners, cleaners &amp; sole traders.</p>
     </div>
     </div>
   );

@@ -3105,27 +3105,11 @@ body {
   .auth-loop-sep:nth-child(4) { animation-delay: 1.8s; }  /* Signed > Invoiced */
   .auth-loop-sep:nth-child(6) { animation-delay: 2.8s; }  /* Invoiced > Paid   */
 }
-/* Plain feature strip — dot-separated loop features under the animated chips */
-.auth-features {
-  font-size: var(--fs-label);
-  font-weight: 600;
-  color: var(--text);
-  text-align: center;
-  line-height: 1.5;
-  margin: 22px 0 0;
-}
-/* Profit/independence strip — secondary line preserving the profit differentiator */
-.auth-profit-strip {
-  font-size: var(--fs-label);
-  font-weight: 500;
-  color: var(--text-dim);
-  text-align: center;
-  line-height: 1.45;
-  margin: 8px 0 0;
-}
 /* Primary CTA line — "Start free" is base-weight framing; the risk-remover
-   ("no card needed") is what actually earns the click, so it carries the
-   strongest visual weight on this line, not the framing text around it. */
+   ("no card") is what actually earns the click, so it carries the
+   strongest visual weight on this line, not the framing text around it.
+   Merges the old two-line free/price framing into a single line so Zone 1
+   collapses to one tappable screen on a 390px phone. */
 .auth-cta-line {
   font-size: var(--fs-body);
   font-weight: 500;
@@ -3139,18 +3123,20 @@ body {
   color: var(--accent);
   letter-spacing: -0.01em;
 }
-/* "What's free" line — the risk-removal detail directly under the CTA.
-   Deliberately lighter than .auth-features so the hero doesn't stack a
-   third feature list; this reads as reassurance, not another pitch. */
-.auth-cta-free-line {
+/* Differentiator line — "no lead fees, no commission" promoted out of the
+   old profit strip into its own claim, sitting right after the sign-up
+   block. Reuses the old .auth-features weight (600 / --text) since it now
+   carries that line's job as the one bold secondary claim on the page. */
+.auth-diff {
   font-size: var(--fs-label);
-  font-weight: 500;
-  color: var(--text-dim);
+  font-weight: 600;
+  color: var(--text);
   text-align: center;
-  margin: 8px 0 0;
+  line-height: 1.5;
+  margin: 24px 0 0;
 }
-/* CTA sub-line — the £12/mo Pro cue, kept visually subordinate to
-   "no card needed" above: the smallest, lightest line in the CTA block. */
+/* CTA sub-line — the £12/mo Pro price anchor, now sitting under the
+   screenshot strip as the last reassurance before the trust line. */
 .auth-cta-subline {
   font-size: var(--fs-meta);
   font-weight: 500;
@@ -3158,6 +3144,16 @@ body {
   text-align: center;
   margin: 6px 0 0;
   opacity: 0.85;
+}
+/* Profit strip — pure profit-visibility claim (the anti-commission clause
+   now lives in .auth-diff, above the screenshots). */
+.auth-profit-strip {
+  font-size: var(--fs-label);
+  font-weight: 500;
+  color: var(--text-dim);
+  text-align: center;
+  line-height: 1.45;
+  margin: 8px 0 0;
 }
 /* Trust line */
 .auth-trust {

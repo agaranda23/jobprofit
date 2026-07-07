@@ -61,9 +61,7 @@ describe('AuthScreen — pitch copy', () => {
     const { container } = renderAuth();
     const subhead = container.querySelector('.auth-subhead');
     expect(subhead).toBeTruthy();
-    expect(subhead?.textContent).toContain('Quote jobs, send invoices, track payments');
-    expect(subhead?.textContent).toContain('know your real profit');
-    expect(subhead?.textContent).toContain('in minutes, not hours');
+    expect(subhead?.textContent).toBe('Get paid faster, without leaving the van.');
   });
 
   it('renders all four loop chips via class selectors', () => {
@@ -88,52 +86,52 @@ describe('AuthScreen — pitch copy', () => {
     seps.forEach((sep) => expect(sep.getAttribute('aria-hidden')).toBe('true'));
   });
 
-  it('renders the plain feature strip', () => {
+  it('renders the merged free/price CTA line', () => {
     const { container } = renderAuth();
-    const features = container.querySelector('.auth-features');
-    expect(features).toBeTruthy();
-    expect(features?.textContent).toBe(
-      'Quote in seconds · Get paid faster · Know your real profit'
-    );
+    const ctaLine = container.querySelector('.auth-cta-line');
+    expect(ctaLine).toBeTruthy();
+    expect(ctaLine?.textContent).toBe('Start free, no card — unlimited quotes and invoices.');
   });
 
-  it('renders the profit/independence strip under the feature strip', () => {
+  it('renders the differentiator line (no lead fees / no commission)', () => {
+    const { container } = renderAuth();
+    const diff = container.querySelector('.auth-diff');
+    expect(diff).toBeTruthy();
+    expect(diff?.textContent).toBe('No lead fees, no commission — nobody clipping your ticket.');
+  });
+
+  it('renders the profit strip as a pure profit-visibility claim', () => {
     const { container } = renderAuth();
     const strip = container.querySelector('.auth-profit-strip');
     expect(strip).toBeTruthy();
+    expect(strip?.textContent).toContain('see what you actually made');
     expect(strip?.textContent).toContain('after materials, fuel and tax');
-    expect(strip?.textContent).toContain('No lead fees, no commission, nobody clipping your ticket');
   });
 
-  it('renders the primary CTA line with "no card needed" as a distinct risk-remover', () => {
+  it('renders the primary CTA line with "no card" as a distinct risk-remover', () => {
     const { container } = renderAuth();
     const ctaLine = container.querySelector('.auth-cta-line');
     expect(ctaLine).toBeTruthy();
     expect(ctaLine?.textContent).toContain('Start free');
-    expect(ctaLine?.textContent).toContain('no card needed');
+    expect(ctaLine?.textContent).toContain('no card');
 
-    // "no card needed" gets its own visually-prominent element — that's the
+    // "no card" gets its own visually-prominent element — that's the
     // click driver, not the framing text around it.
     const highlight = container.querySelector('.auth-cta-highlight');
     expect(highlight).toBeTruthy();
-    expect(highlight?.textContent).toBe('no card needed');
-  });
-
-  it('renders the "what\'s free" line directly under the CTA', () => {
-    const { container } = renderAuth();
-    const freeLine = container.querySelector('.auth-cta-free-line');
-    expect(freeLine).toBeTruthy();
-    expect(freeLine?.textContent).toBe('Unlimited quotes · Unlimited invoices · Free to try');
+    expect(highlight?.textContent).toBe('no card');
   });
 
   it('renders the CTA sub-line as a secondary, non-forced Pro pricing cue', () => {
     const { container } = renderAuth();
     const subline = container.querySelector('.auth-cta-subline');
     expect(subline).toBeTruthy();
-    expect(subline?.textContent).toContain('£12/month for Pro when you\'re ready');
+    expect(subline?.textContent).toContain('£12/mo flat for Pro when you\'re ready');
     expect(subline?.textContent).toContain('Cancel anytime');
     // Must not read as a forced-conversion trial — free tier is genuinely free, not time-limited.
     expect(subline?.textContent).not.toMatch(/after your free trial|trial ends/i);
+    // Comparative competitor pricing claim is deferred pending legal sign-off.
+    expect(subline?.textContent).not.toMatch(/Tradify|£34/i);
   });
 
   it('renders the trust line naming plumbers first, without naming any competitor', () => {
@@ -152,9 +150,9 @@ describe('AuthScreen — pitch copy', () => {
 });
 
 // ── Screenshot strip ("show, don't tell") ────────────────────────────────────
-// Real product screenshots, added so a visitor sees the app before signing in.
-// Sits between the hero pitch and the sign-in buttons — visible early, but the
-// sign-in itself must stay intact and reachable (not removed or buried).
+// Real product screenshots. Post conversion-optimisation reorder, the strip
+// sits BELOW the sign-up block (Zone 2) — the tappable sign-up action now
+// lands on the first phone screen, with proof-of-product right after it.
 
 describe('AuthScreen — screenshot strip', () => {
   it('renders exactly 4 screenshots', () => {
@@ -189,14 +187,21 @@ describe('AuthScreen — screenshot strip', () => {
     shots.forEach((img) => expect(img.getAttribute('loading')).toBe('lazy'));
   });
 
-  it('places the strip after the hero pitch block and before the sign-in options', () => {
+  it('places the strip after the sign-up block (Zone 2), not before it', () => {
     const { container } = renderAuth();
     const brand = container.querySelector('.auth-brand');
-    const strip = container.querySelector('.auth-screenshots');
     const googleBtn = container.querySelector('.auth-google-btn');
-    expect(brand && strip && googleBtn).toBeTruthy();
-    expect(brand.compareDocumentPosition(strip) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
-    expect(strip.compareDocumentPosition(googleBtn) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    const strip = container.querySelector('.auth-screenshots');
+    expect(brand && googleBtn && strip).toBeTruthy();
+    expect(brand.compareDocumentPosition(googleBtn) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(googleBtn.compareDocumentPosition(strip) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('renders the "here\'s the actual app" eyebrow above the track', () => {
+    const { container } = renderAuth();
+    const eyebrow = container.querySelector('.auth-screenshots-eyebrow');
+    expect(eyebrow).toBeTruthy();
+    expect(eyebrow?.textContent).toBe("Here's the actual app.");
   });
 
   it('does not remove or hide the Google sign-in and email sign-in — both still render', () => {
@@ -204,7 +209,7 @@ describe('AuthScreen — screenshot strip', () => {
     expect(screen.getByRole('button', { name: /Continue with Google/i })).toBeTruthy();
     expect(screen.getByPlaceholderText('you@example.com')).toBeTruthy();
     expect(
-      screen.getByRole('button', { name: /Start free — email me a sign-in link/i })
+      screen.getByRole('button', { name: /Email me a sign-in link/i })
     ).toBeTruthy();
   });
 });
@@ -212,31 +217,31 @@ describe('AuthScreen — screenshot strip', () => {
 // ── CTA and form ──────────────────────────────────────────────────────────────
 
 describe('AuthScreen — CTA and form', () => {
-  it('CTA button reads "Start free — email me a sign-in link" when idle', () => {
+  it('submit button reads "Email me a sign-in link" when idle', () => {
     renderAuth();
     expect(
-      screen.getByRole('button', { name: /Start free — email me a sign-in link/i })
+      screen.getByRole('button', { name: /Email me a sign-in link/i })
     ).toBeTruthy();
   });
 
-  it('CTA button is disabled when email is empty', () => {
+  it('submit button is disabled when email is empty', () => {
     renderAuth();
-    const btn = screen.getByRole('button', { name: /Start free/i });
+    const btn = screen.getByRole('button', { name: /Email me a sign-in link/i });
     expect(btn.disabled).toBe(true);
   });
 
-  it('CTA button is enabled after typing a valid email', () => {
+  it('submit button is enabled after typing a valid email', () => {
     renderAuth();
     const input = screen.getByPlaceholderText('you@example.com');
     fireEvent.change(input, { target: { value: 'alan@example.com' } });
-    const btn = screen.getByRole('button', { name: /Start free/i });
+    const btn = screen.getByRole('button', { name: /Email me a sign-in link/i });
     expect(btn.disabled).toBe(false);
   });
 
-  it('renders the no-passwords hint', () => {
+  it('renders the no-password hint', () => {
     renderAuth();
     expect(
-      screen.getByText(/No passwords\. We email you a link, you tap it, you're in\./)
+      screen.getByText(/No password — we email a link, tap it, you're in\./)
     ).toBeTruthy();
   });
 
@@ -245,7 +250,7 @@ describe('AuthScreen — CTA and form', () => {
     renderAuth();
     const input = screen.getByPlaceholderText('you@example.com');
     fireEvent.change(input, { target: { value: 'alan@example.com' } });
-    fireEvent.click(screen.getByRole('button', { name: /Start free/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Email me a sign-in link/i }));
     await waitFor(() =>
       expect(screen.getByRole('button', { name: /Sending your link…/i })).toBeTruthy()
     );
@@ -256,7 +261,7 @@ describe('AuthScreen — CTA and form', () => {
     renderAuth();
     const input = screen.getByPlaceholderText('you@example.com');
     fireEvent.change(input, { target: { value: 'trade@example.com' } });
-    fireEvent.click(screen.getByRole('button', { name: /Start free/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Email me a sign-in link/i }));
     await waitFor(() => expect(mockSignInWithOtp).toHaveBeenCalledOnce());
     expect(mockSignInWithOtp).toHaveBeenCalledWith(
       expect.objectContaining({ email: 'trade@example.com' })
@@ -273,7 +278,7 @@ describe('AuthScreen — sent state', () => {
     fireEvent.change(screen.getByPlaceholderText('you@example.com'), {
       target: { value: 'trade@van.com' },
     });
-    fireEvent.click(screen.getByRole('button', { name: /Start free/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Email me a sign-in link/i }));
     await waitFor(() => screen.getByText('Check your email'));
   }
 
@@ -320,7 +325,7 @@ describe('AuthScreen — telemetry', () => {
     fireEvent.change(screen.getByPlaceholderText('you@example.com'), {
       target: { value: 'trade@van.com' },
     });
-    fireEvent.click(screen.getByRole('button', { name: /Start free/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Email me a sign-in link/i }));
     await waitFor(() =>
       expect(logTelemetry).toHaveBeenCalledWith('signin_link_requested')
     );
@@ -332,7 +337,7 @@ describe('AuthScreen — telemetry', () => {
     fireEvent.change(screen.getByPlaceholderText('you@example.com'), {
       target: { value: 'trade@van.com' },
     });
-    fireEvent.click(screen.getByRole('button', { name: /Start free/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Email me a sign-in link/i }));
     await waitFor(() =>
       expect(screen.getByText(/rate limited/i)).toBeTruthy()
     );
@@ -531,7 +536,7 @@ describe('AuthScreen — OAuth callback error handling', () => {
     fireEvent.change(screen.getByPlaceholderText('you@example.com'), {
       target: { value: 'trade@van.com' },
     });
-    fireEvent.click(screen.getByRole('button', { name: /Start free/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Email me a sign-in link/i }));
     await waitFor(() => screen.getByText('Check your email'));
     expect(screen.getByText('Check your email')).toBeTruthy();
   });
