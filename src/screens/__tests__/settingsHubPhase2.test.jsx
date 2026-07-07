@@ -542,7 +542,12 @@ describe('SettingsScreen — Settings tab re-tap resets to hub (settingsResetKey
     renderWithResetKey(PROFILE_FREE, 0);
     // Should start on hub with no unintended navigation
     expect(screen.getByText('Invoices & Quotes')).toBeTruthy();
-    expect(screen.queryByRole('heading', { level: 1 })).toBeFalsy();
+    // Still on the hub — no sub-screen was opened. A sub-screen renders a
+    // "Back to Settings" arrow (SubScreenHeader); the hub does not. The old
+    // check asserted "no level-1 heading", but the hub has its own
+    // <h1 class="screen-title">Settings</h1>, so that was always wrong — it
+    // only surfaced once the CI gate made this jsdom suite actually run.
+    expect(screen.queryByRole('button', { name: 'Back to Settings' })).toBeFalsy();
   });
 
   it('back-arrow voice→account behaviour unchanged after a reset', () => {
