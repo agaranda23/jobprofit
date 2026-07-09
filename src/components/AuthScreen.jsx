@@ -278,8 +278,17 @@ export default function AuthScreen() {
   // Esc/arrow-key navigation, Tab focus trap, and body scroll lock — only
   // while a screen is open. Fully torn down on close/unmount so no listener
   // or overflow lock survives past the gallery being closed.
+  //
+  // Keyed on `isLightboxOpen` (a boolean), NOT the raw `lightboxIndex`:
+  // Prev/Next navigation changes the index but not the open state, so the
+  // keydown listener, the scroll lock, and the open-focus rAF must fire once
+  // on open and once on close — never on every navigation step (re-running
+  // the rAF each step stole focus back to the × button after each Prev/Next).
+  // goToScreenshot reads the latest index via a functional setState, so this
+  // effect never needs the index value itself.
+  const isLightboxOpen = lightboxIndex !== null;
   useEffect(() => {
-    if (lightboxIndex === null) return undefined;
+    if (!isLightboxOpen) return undefined;
 
     const frame = requestAnimationFrame(() => closeBtnRef.current?.focus());
     const prevOverflow = document.body.style.overflow;
@@ -319,7 +328,7 @@ export default function AuthScreen() {
       document.removeEventListener('keydown', handleKeyDown);
       document.body.style.overflow = prevOverflow;
     };
-  }, [lightboxIndex, closeLightbox, goToScreenshot]);
+  }, [isLightboxOpen, closeLightbox, goToScreenshot]);
 
   const signInWithGoogle = async () => {
     setGoogleLoading(true);
