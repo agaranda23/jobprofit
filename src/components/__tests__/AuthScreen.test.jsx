@@ -161,7 +161,7 @@ describe('AuthScreen — screenshot strip', () => {
     expect(shots.length).toBe(4);
   });
 
-  it('renders the 4 screenshots in Today → Quote → Invoice → Pipeline order with meaningful alt text', () => {
+  it('renders the 4 screenshots in Today → Quote → Invoice → Pipeline order, each in a tappable button with a meaningful accessible name', () => {
     const { container } = renderAuth();
     const shots = Array.from(container.querySelectorAll('.auth-screenshot'));
     expect(shots.map((img) => img.getAttribute('src'))).toEqual([
@@ -170,15 +170,22 @@ describe('AuthScreen — screenshot strip', () => {
       '/screens/ohnar-screen-invoice.png',
       '/screens/ohnar-screen-pipeline.png',
     ]);
-    shots.forEach((img) => {
-      const alt = img.getAttribute('alt');
-      expect(alt).toBeTruthy();
-      expect(alt.length).toBeGreaterThan(10);
+    // Each screenshot is now wrapped in a <button> that opens the enlarge
+    // gallery. The meaningful description lives on the button's aria-label
+    // (the inner <img> is alt="" so a screen reader announces the control's
+    // name once, not twice). Assert the accessible name — in order — on the
+    // buttons, which is where it now lives.
+    const buttons = Array.from(container.querySelectorAll('.auth-screenshot-btn'));
+    expect(buttons.length).toBe(4);
+    buttons.forEach((btn) => {
+      const label = btn.getAttribute('aria-label');
+      expect(label).toBeTruthy();
+      expect(label.length).toBeGreaterThan(10);
     });
-    expect(shots[0].getAttribute('alt')).toMatch(/today/i);
-    expect(shots[1].getAttribute('alt')).toMatch(/quote/i);
-    expect(shots[2].getAttribute('alt')).toMatch(/invoice/i);
-    expect(shots[3].getAttribute('alt')).toMatch(/pipeline|jobs/i);
+    expect(buttons[0].getAttribute('aria-label')).toMatch(/today/i);
+    expect(buttons[1].getAttribute('aria-label')).toMatch(/quote/i);
+    expect(buttons[2].getAttribute('aria-label')).toMatch(/invoice/i);
+    expect(buttons[3].getAttribute('aria-label')).toMatch(/pipeline|jobs/i);
   });
 
   it('lazy-loads every screenshot (it sits below the immediate fold)', () => {
