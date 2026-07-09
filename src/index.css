@@ -97,6 +97,47 @@
   --shadow-md: 0 4px 16px rgba(0,0,0,0.12);
   --shadow-lg: 0 8px 24px rgba(0,0,0,0.4);
 
+  /* ── Jobs-tab premium pass — elevation tokens (Phase 0, dark defaults) ──────
+     Built from the shipped "Live Steel Blue" .btn-premium depth language
+     (lit top edge + shaded bottom + grounding), de-hued so any surface can
+     use them regardless of stage colour. Light overrides live in the
+     "Elevation overrides for light mode" block below.
+       --elevation-card    resting card/nav — same recipe as .stage-strip's
+                           existing "Concept A" container lift (outer shadow;
+                           safe on elements WITHOUT overflow:hidden).
+       --elevation-raised  selected/thumb state — INSET ONLY. Elements that use
+                           this (e.g. .stage-tile) have overflow:hidden, which
+                           clips outer shadows, so depth here must be hairlines.
+       --elevation-pressed active/sunken state — inset "pushed in" look,
+                           mirrors .btn-premium:active.
+     ──────────────────────────────────────────────────────────────────────── */
+  --elevation-card:
+    inset 0 1px 0 rgba(255, 255, 255, 0.03),
+    0 1px 2px rgba(0, 0, 0, 0.30),
+    0 4px 12px -4px rgba(0, 0, 0, 0.28);
+  --elevation-raised:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.16);
+  --elevation-pressed:
+    inset 0 1px 2px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+
+  /* ── Motion tokens (Phase 0) — theme-invariant, single declaration covers
+     both themes. --ease-spring matches the cubic-bezier already used by every
+     sheet/drawer/modal spring entrance in this file (search "spring" below) —
+     tokenising it, not inventing a new curve. */
+  --ease-spring:    cubic-bezier(.22, 1, .36, 1);
+  --ease-standard:  cubic-bezier(.4, 0, .2, 1);
+  --ease-out-soft:  cubic-bezier(.16, 1, .3, 1);
+  --dur-fast: 120ms;
+  --dur-base: 200ms;
+  --dur-slow: 320ms;
+
+  /* Bottom nav frost — blur amount only (no saturate: low-end-Android jank).
+     --nav-bg (the translucent fill the blur sits on) is theme-specific —
+     declared per-theme below alongside the other app-chrome tokens. */
+  --blur-nav: blur(11px);
+
   font-family: var(--font-sans);
   line-height: 1.5;
   font-weight: 400;
@@ -111,6 +152,17 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Money-figure utility (Phase 0) — tabular digits so amounts don't jiggle
+   width as they update, slight negative tracking to read as a unit at size.
+   Not yet applied to existing money spans (.jt-price / .stage-tile-amount
+   already set these properties directly) — this is the shared class future
+   money surfaces should reach for instead of repeating the declaration. */
+.money {
+  font-family: var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
 }
 
 /* Vite scaffold link colours (#646cff purple) removed — use token instead */
@@ -203,6 +255,11 @@ button:focus-visible {
   /* Pivot tile icon colour — SVGs on the blue CTA tiles use currentColor,
      which resolves to this variable. White on Brand Blue (#2563EB) passes WCAG AA. */
   --tile-icon-color: #ffffff;
+
+  /* Bottom nav frost fill — translucent dark so --blur-nav shows through.
+     Solid #0d1014 stays the .bottom-nav fallback for browsers without
+     backdrop-filter support (see @supports block near .bottom-nav). */
+  --nav-bg: rgba(13, 16, 20, 0.82);
 
   /* ── Z-index scale (single source of truth) ─────────────────────────────
      Layer          Token                  Value   Where used
@@ -360,6 +417,26 @@ button:focus-visible {
   /* Elevation overrides for light mode — JP-LU4 PR1 */
   --shadow-md: 0 4px 16px rgba(0,0,0,0.12);
 
+  /* Jobs-tab premium pass — elevation tokens (Phase 0, light overrides).
+     --elevation-card mirrors [data-theme="light"] .stage-strip's existing
+     lift (no dark inset — reads as smudge on white, see that rule's comment).
+     --elevation-raised is declared with the SAME numbers as dark: it's an
+     inset hairline relative to the stage-colour FILL itself, not the page
+     background, so it doesn't need to change with theme. --elevation-pressed
+     is re-tuned so the "pushed in" shadow reads against a white surface. */
+  --elevation-card:
+    0 1px 2px rgba(9, 12, 20, 0.06),
+    0 3px 8px -4px rgba(9, 12, 20, 0.10);
+  --elevation-raised:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.16);
+  --elevation-pressed:
+    inset 0 1px 2px rgba(9, 12, 20, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5);
+
+  /* Bottom nav frost fill — translucent white so --blur-nav shows through */
+  --nav-bg: rgba(255, 255, 255, 0.78);
+
   /* ── ON-COLOUR TOKENS (light theme overrides) ────────────────────────────
      Light-mode contrast ratios:
        --on-accent  #fff on #2563eb  →  4.54:1  ✓ AA  (same as dark)
@@ -394,6 +471,10 @@ button:focus-visible {
 [data-theme="light"] .bottom-nav {
   background: #ffffff;
   border-top: 1px solid #e5e7eb;
+  /* Floating-pane depth (Phase 1) — lighter than the dark variant; no lit-top
+     inset (a white highlight is invisible on white — same "no highlight on
+     #f9fafb" convention used by the stage-strip ramp). */
+  box-shadow: 0 -3px 10px -6px rgba(9, 12, 20, 0.12);
 }
 
 /* Unpaid chip — dark amber tint reads poorly on light bg */
@@ -1133,18 +1214,43 @@ body { background: var(--bg); color: var(--text); -webkit-font-smoothing: antial
   margin-inline: auto;
   display: flex;
 
-  /* Opaque surface — matches --bg token (#0b0d10) so the bar reads as app chrome */
+  /* Opaque surface — matches --bg token (#0b0d10) so the bar reads as app chrome.
+     This solid fill is also the FALLBACK for browsers without backdrop-filter
+     support (see the @supports frost block below, which overrides it). */
   background: #0d1014;
 
   /* 1px top divider — visible separator between content and nav */
   border-top: 1px solid rgba(255, 255, 255, 0.09);
   border-radius: 0;
 
+  /* Floating-pane depth (Phase 1): faint lit top edge + soft upward grounding
+     shadow, hue-neutral so it works under any content scrolled behind it. */
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 -4px 16px -6px rgba(0, 0, 0, 0.35);
+
   /* Safe-area folded inside: bar is always opaque down to the physical edge */
   padding: 12px 6px calc(12px + env(safe-area-inset-bottom));
 
   /* z-index overridden in the ladder block below — use --z-nav token */
   z-index: var(--z-nav);
+}
+
+/* Frost (Phase 1) — translucent fill + blur, gated behind @supports so
+   browsers without backdrop-filter (low-end Android) keep the solid #0d1014 /
+   #ffffff fallback above. No saturate() — 11px blur only, per the app's
+   existing 8px blur convention (avoids low-end-Android jank). --nav-bg is
+   declared per-theme (dark :root / [data-theme="light"]) so this single rule
+   pair renders correctly in both themes via the cascade. */
+@supports (backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px)) {
+  .bottom-nav {
+    background: var(--nav-bg);
+    backdrop-filter: var(--blur-nav);
+    -webkit-backdrop-filter: var(--blur-nav);
+  }
+  [data-theme="light"] .bottom-nav {
+    background: var(--nav-bg);
+  }
 }
 
 /* Tabs */
@@ -1163,12 +1269,26 @@ body { background: var(--bg); color: var(--text); -webkit-font-smoothing: antial
   cursor: pointer;
 }
 .nav-tab.active {
-  background: rgba(37, 99, 235, 0.14);
+  /* Phase 1: fill lightened 0.14 → 0.10 (the filled icon + heavier "you are
+     here" cue carries the state on its own); border dropped to transparent
+     — it was competing visually with the CTA's own outline, and its -1px
+     padding compensation is no longer needed since the border width never
+     actually changed (transparent → rgba, both 1px). Padding restored to
+     match the base .nav-tab (8px 0 6px). */
+  background: rgba(37, 99, 235, 0.10);
   color: var(--accent);
-  border: 1px solid rgba(37, 99, 235, 0.35);
-  padding: 7px 0 5px;
+  border: 1px solid transparent;
+  padding: 8px 0 6px;
 }
 .nav-icon { font-size: var(--fs-subhead); }
+
+/* Dedicated nav-label rule (Phase 1) — was previously unstyled, inheriting
+   .nav-tab's --fs-label (13px). 12px reads better under a 24px icon at this
+   bar height. */
+.nav-label {
+  font-size: 12px;
+  line-height: 1.2;
+}
 
 /* ── Icon system (Wave 0) ───────────────────────────────────────────────────
    .jp-icon   — wrapper span produced by <Icon>. Inline-flex so the SVG sits
@@ -6756,8 +6876,12 @@ input[type=number] { -moz-appearance: textfield; }
   line-height: 1.2;
 }
 .show-all-pill--active {
-  background: var(--jp-green);
-  border-color: var(--jp-green);
+  /* Repointed from --jp-green (Phase 0) — --jp-green currently holds the same
+     blue as --accent so this is a no-op colour-wise, but --accent is the
+     correct intent token going forward (raw --jp-green declaration left
+     as-is; only consumers repoint, per the Phase 0/1 scope). */
+  background: var(--accent);
+  border-color: var(--accent);
   color: #0B1220;
 }
 
@@ -6794,6 +6918,7 @@ input[type=number] { -moz-appearance: textfield; }
      Hue-NEUTRAL grey (the strip holds six stage hues — a tinted glow would fight
      the amber/orange/green tiles). Additive only — bg/border/radius/padding kept. */
   box-shadow:
+    inset 0 2px 4px rgba(0, 0, 0, 0.35),        /* recessed "well" track (Phase 1) */
     inset 0 1px 0 rgba(255, 255, 255, 0.03),   /* faint lit top edge */
     0 1px 2px rgba(0, 0, 0, 0.30),             /* contact shadow     */
     0 4px 12px -4px rgba(0, 0, 0, 0.28);       /* soft elevation     */
@@ -6801,6 +6926,7 @@ input[type=number] { -moz-appearance: textfield; }
 /* Light theme: gentle card lift on white, no smudge; drop the dark inset. */
 [data-theme="light"] .stage-strip {
   box-shadow:
+    inset 0 2px 4px rgba(9, 12, 20, 0.10),      /* recessed "well" track (Phase 1) */
     0 1px 2px rgba(9, 12, 20, 0.06),
     0 3px 8px -4px rgba(9, 12, 20, 0.10);
 }
@@ -6809,13 +6935,13 @@ input[type=number] { -moz-appearance: textfield; }
 .stage-tile {
   flex: 1 1 0;
   min-width: 0;
-  min-height: 56px;
+  min-height: 60px; /* +4px vertical breathing room (Phase 1) — horizontal untouched so 6-up survives 360px */
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 1px;
-  padding: 7px 2px;
-  border-radius: 8px;
+  gap: 2px;
+  padding: 8px 2px 7px;
+  border-radius: calc(var(--radius-md) - 3px); /* concentric with the 10px .stage-strip container */
   background: transparent;
   border: none;
   cursor: pointer;
@@ -6874,23 +7000,23 @@ input[type=number] { -moz-appearance: textfield; }
    tile's 0.22 sheen so it never competes. Light theme relies on the ramp (no
    highlight added) to avoid any wash on #f9fafb. */
 .stage-tile--lead:not(.stage-tile--selected) {
-  background: rgba(37,99,235,0.07);
+  background: var(--stage-tint-lead);
   box-shadow: inset -1px 0 0 var(--border), inset 0 1px 0 rgba(255,255,255,0.04);
 }
 .stage-tile--quoted:not(.stage-tile--selected) {
-  background: rgba(40,181,129,0.06);
+  background: var(--stage-tint-quoted);
   box-shadow: inset -1px 0 0 var(--border), inset 0 1px 0 rgba(255,255,255,0.04);
 }
 .stage-tile--on:not(.stage-tile--selected) {
-  background: rgba(40,181,129,0.12);
+  background: var(--stage-tint-on);
   box-shadow: inset -1px 0 0 var(--border), inset 0 1px 0 rgba(255,255,255,0.04);
 }
 .stage-tile--invoiced:not(.stage-tile--selected) {
-  background: rgba(40,181,129,0.20);
+  background: var(--stage-tint-invoiced);
   box-shadow: inset -1px 0 0 var(--border), inset 0 1px 0 rgba(255,255,255,0.04);
 }
 .stage-tile--paid:not(.stage-tile--selected) {
-  background: rgba(24,134,90,0.16);
+  background: var(--stage-tint-paid);
   /* Paid is :last-child — no right-edge divider needed. Takes only the 0.04 top
      highlight (no divider) to keep its no-divider behaviour. */
   box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
@@ -6941,21 +7067,21 @@ input[type=number] { -moz-appearance: textfield; }
   color: #1E3A5F;
 }
 
-/* Active segment gets a solid colour fill + concentric 8px radius (inset from 10px container)
-   Default selected fill uses the brand green (On/Invoiced); stage-specific overrides below. */
+/* Active segment gets a solid colour fill + concentric radius (inset from the
+   container radius — see .stage-tile below). Every stage below has its own
+   flat --stage-* fill; this modifier-less fallback only fires if a future
+   tile is selected without a per-stage class (e.g. a prospective "All" chip),
+   so it's repointed to --accent (Phase 0 --jp-green consumer repoint) rather
+   than the brand green, which is reserved for Paid. */
 .stage-tile--selected {
-  background: var(--jp-green);
-  /* Concept-A depth on the selected tile: a 1px inset specular top HAIRLINE
-     (lit-from-above) + a 1px inset bottom shade (deeper foot). These survive
-     overflow:hidden (outer shadows would be clipped). This REPLACES the old
-     box-shadow:none — it also drops the right divider (selected has none), which
-     is the intended behaviour. Hairlines are NOT text backgrounds, so they do
-     NOT regress white-on-fill text contrast. 0.22 stays below the CTA's 0.28
-     (restraint on small dense tiles). Shared across all stages; per-stage rules
-     only set the gradient background. */
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.22),
-    inset 0 -1px 0 rgba(0, 0, 0, 0.16);
+  background: var(--accent);
+  /* Concept-A depth on the selected tile, tokenised as --elevation-raised
+     (Phase 0): a 1px inset specular top HAIRLINE (lit-from-above) + a 1px
+     inset bottom shade (deeper foot/grounding). These survive overflow:hidden
+     (outer shadows would be clipped — .stage-tile clips its own box). Hairlines
+     are NOT text backgrounds, so they do NOT regress white-on-fill text
+     contrast. Shared across all stages; per-stage rules only set the flat fill. */
+  box-shadow: var(--elevation-raised);
 }
 /* No divider after the segment immediately before an active one either —
    achieved by selecting the preceding sibling via JS class would be complex,
@@ -6971,13 +7097,14 @@ input[type=number] { -moz-appearance: textfield; }
   color: #FFB8B8;
 }
 
-/* ── Overdue overlay reskin (Tweak 2) ────────────────────────────────────────
-   Unselected Overdue: green-tinted background (matches the Invoiced ramp step)
-   + rose amount. The previous red top-bar accent is superseded by the .stage-marker
+/* ── Overdue overlay reskin ───────────────────────────────────────────────────
+   Unselected Overdue: TRUE orange tint (Phase 1 — was a green wash sharing the
+   Invoiced step's rgba(40,181,129,*), i.e. danger painted in the success hue).
+   The previous red top-bar accent is superseded by the .stage-marker
    dot (feat/stage-chip-rings). Higher specificity :not() wins over the base ramp
-   tint above. The SELECTED Overdue rose-fill state (defined further below) is untouched. */
+   tint above. The SELECTED Overdue fill state (defined further below) is untouched. */
 .stage-tile--overdue:not(.stage-tile--selected) {
-  background: rgba(40,181,129,0.20);
+  background: var(--stage-tint-overdue);
   box-shadow: inset -1px 0 0 var(--border);
 }
 .stage-tile--overdue:not(.stage-tile--selected) .stage-tile-amount { color: #FFB8B8; }
@@ -7003,11 +7130,12 @@ input[type=number] { -moz-appearance: textfield; }
   color: #0B1220;
 }
 
-/* Lead selected: brand-cycle blue fill with white text */
+/* Lead selected: brand-cycle blue fill with white text.
+   Flat canonical fill (Phase 1) — the gradient foot-hex (#2157CF) is retired;
+   depth now comes from --elevation-raised (shared rule above), not a second
+   darker stop that read as near-invisible at this tile size. */
 .stage-tile--lead.stage-tile--selected {
-  /* Top-anchored vertical gradient: top 42% stays at the canonical token so the
-     text region NEVER regresses contrast vs main; only the foot darkens ~11%. */
-  background: linear-gradient(180deg, var(--stage-lead) 0%, var(--stage-lead) 42%, #2157CF 100%);
+  background: var(--stage-lead);
 }
 .stage-tile--lead.stage-tile--selected .stage-tile-name,
 .stage-tile--lead.stage-tile--selected .stage-tile-count,
@@ -7019,9 +7147,10 @@ input[type=number] { -moz-appearance: textfield; }
   opacity: 0.7;
 }
 
-/* Overdue selected: brand-cycle orange fill */
+/* Overdue selected: brand-cycle orange fill. Flat canonical fill (Phase 1) —
+   gradient foot-hex (#DB6513) retired; see Lead selected comment above. */
 .stage-tile--overdue.stage-tile--selected {
-  background: linear-gradient(180deg, var(--stage-overdue) 0%, var(--stage-overdue) 42%, #DB6513 100%);
+  background: var(--stage-overdue);
 }
 .stage-tile--overdue.stage-tile--selected .stage-tile-name,
 .stage-tile--overdue.stage-tile--selected .stage-tile-count,
@@ -7034,30 +7163,33 @@ input[type=number] { -moz-appearance: textfield; }
 }
 
 /* Per-stage selected fills — canonical --stage-* tokens (feat/workflow-circles-brand-cycle)
-   Chips and circles now share the same palette so stage colours agree across the UI. */
-.stage-tile--quoted.stage-tile--selected { background: linear-gradient(180deg, var(--stage-quoted) 0%, var(--stage-quoted) 42%, #0C91A1 100%); }
+   Chips and circles now share the same palette so stage colours agree across the UI.
+   Flat canonical fills (Phase 1) — the gradient foot-hexes (#0C91A1/#575AD4/#D88B0A)
+   are retired; see Lead selected comment above for why. */
+.stage-tile--quoted.stage-tile--selected { background: var(--stage-quoted); }
 .stage-tile--quoted.stage-tile--selected .stage-tile-name,
 .stage-tile--quoted.stage-tile--selected .stage-tile-count,
 .stage-tile--quoted.stage-tile--selected .stage-tile-amount {
   color: #ffffff;
 }
 
-.stage-tile--on.stage-tile--selected { background: linear-gradient(180deg, var(--stage-on) 0%, var(--stage-on) 42%, #575AD4 100%); }
+.stage-tile--on.stage-tile--selected { background: var(--stage-on); }
 .stage-tile--on.stage-tile--selected .stage-tile-name,
 .stage-tile--on.stage-tile--selected .stage-tile-count,
 .stage-tile--on.stage-tile--selected .stage-tile-amount {
   color: #0B1220;
 }
 
-.stage-tile--invoiced.stage-tile--selected { background: linear-gradient(180deg, var(--stage-invoiced) 0%, var(--stage-invoiced) 42%, #D88B0A 100%); }
+.stage-tile--invoiced.stage-tile--selected { background: var(--stage-invoiced); }
 .stage-tile--invoiced.stage-tile--selected .stage-tile-name,
 .stage-tile--invoiced.stage-tile--selected .stage-tile-count,
 .stage-tile--invoiced.stage-tile--selected .stage-tile-amount {
   color: #0B1220;
 }
 
-/* Paid — deep green, white text for contrast */
-.stage-tile--paid.stage-tile--selected { background: linear-gradient(180deg, var(--stage-paid) 0%, var(--stage-paid) 42%, #127136 100%); }
+/* Paid — deep green, white text for contrast. Flat canonical fill (Phase 1) —
+   gradient foot-hex (#127136) retired; see Lead selected comment above. */
+.stage-tile--paid.stage-tile--selected { background: var(--stage-paid); }
 .stage-tile--paid.stage-tile--selected .stage-tile-name,
 .stage-tile--paid.stage-tile--selected .stage-tile-count,
 .stage-tile--paid.stage-tile--selected .stage-tile-amount {
@@ -11766,8 +11898,12 @@ button.jd-money-chip:active { opacity: 0.75; }
    Shown on the secondary identity line: customer · first-line-of-address.
    Inherits .jt-customer font to keep the visual hierarchy consistent. */
 .jt-address {
-  color: var(--text);
-  opacity: 1;
+  /* Recede (Phase 1) — was full-strength color:var(--text);opacity:1, which
+     competed with the money figure for attention. Neutral --text-dim + fw400
+     matches .jt-customer so the whole secondary identity line reads as one
+     quiet unit; the £ figure is the only thing that should pop. */
+  color: var(--text-dim);
+  font-weight: 400;
 }
 
 /* ═══════════════════════════════════════════════════════════════
@@ -11784,11 +11920,28 @@ button.jd-money-chip:active { opacity: 0.75; }
   border-radius: 14px;
   padding: 9px 12px 9px;
   position: relative;
-  /* 4px left rail using canonical stage hue */
-  box-shadow: inset 4px 0 0 0 var(--jt-hue, transparent);
+  /* 3px left rail (trimmed from 4px, Phase 1) using canonical stage hue,
+     combined with --elevation-card (lit top edge + resting lift — Phase 0
+     token, same recipe as .stage-strip's container lift). No overflow:hidden
+     on .jt, so the outer shadow layers in --elevation-card are NOT clipped. */
+  box-shadow: inset 3px 0 0 0 var(--jt-hue, transparent), var(--elevation-card);
+  transition: box-shadow var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard);
   list-style: none;
 }
 .jt + .jt { margin-top: 0; } /* gap is handled by .job-list gap */
+
+/* Pressed state — sunken via --elevation-pressed + a 1px settle, matching the
+   Call/Map buttons and the general premium press language. Transform is
+   guarded by prefers-reduced-motion; the shadow change alone is a static
+   state (not motion) so it applies either way. */
+.jt:active {
+  box-shadow: inset 3px 0 0 0 var(--jt-hue, transparent), var(--elevation-pressed);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .jt:active {
+    transform: translateY(1px);
+  }
+}
 
 /* --- Row 1: header (job name primary + chip) --- */
 .jt-head {
@@ -11801,7 +11954,9 @@ button.jd-money-chip:active { opacity: 0.75; }
 .jt-customer {
   font-size: var(--fs-body);
   font-weight: 400;
-  color: var(--text);
+  /* Recede (Phase 1) — was full-strength var(--text); dimmed so the £ figure
+     is the only thing on the tile that reads as "hero". */
+  color: var(--text-dim);
   line-height: var(--lh-body);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -11848,10 +12003,22 @@ button.jd-money-chip:active { opacity: 0.75; }
    Invoiced/Overdue variants get their signature hue so the name still
    pops on money-critical states — but shape (receipt vs warning icon
    rendered in JSX) is the primary differentiator, not hue alone. */
+/* Quiet tinted pill (Phase 1) — was plain text. Background carries the
+   per-stage hue via the new static --stage-tint-* tokens (Phase 0); text stays
+   neutral --text-dim on purpose: the raw --stage-* hues fail AA against this
+   app's surfaces for at least one theme each (e.g. --stage-on/#6366F1 measures
+   ~3.7:1 on the dark surface, --stage-quoted/#0EA5B7 ~3:1 on white) — using
+   them as foreground text would need a SECOND per-stage/per-theme ink matrix,
+   which is exactly the "parallel palette" problem this pass exists to remove.
+   Invoiced/Overdue keep their existing signature-hue text (proven contrast in
+   dark, money-critical "pop") with a light-theme override below. */
 .jt-stage-name {
   display: inline-flex;
   align-items: center;
   gap: 3px;
+  padding: 2px 7px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
   font-size: var(--fs-label);
   font-weight: 600;
   color: var(--text-dim);
@@ -11862,11 +12029,23 @@ button.jd-money-chip:active { opacity: 0.75; }
   pointer-events: none;
   line-height: 1;
 }
+.jt-stage-name--lead     { background: var(--stage-tint-lead); }
+.jt-stage-name--quoted   { background: var(--stage-tint-quoted); }
+.jt-stage-name--on       { background: var(--stage-tint-on); }
 /* Invoiced — amber to match the left-rail and circle ring; distinct from Overdue's rose */
-.jt-stage-name--invoiced { color: var(--jp-amber); }
+.jt-stage-name--invoiced { background: var(--stage-tint-invoiced); color: var(--jp-amber); }
 /* Overdue — rose/red; distinct from Invoiced's amber. Icon shape (warning triangle)
    reinforces the distinction beyond hue for colour-blind and bright-sun conditions. */
-.jt-stage-name--overdue  { color: var(--jp-rose); }
+.jt-stage-name--overdue  { background: var(--stage-tint-overdue); color: var(--jp-rose); }
+.jt-stage-name--paid     { background: var(--stage-tint-paid); }
+
+/* Light theme: --jp-amber/--jp-rose drop below AA on a near-white pill
+   background (measured ~3.3:1 / ~4.5:1 respectively) — same fix already
+   applied to StageStrip's selected-tile ink for the same two stages. */
+[data-theme="light"] .jt-stage-name--invoiced,
+[data-theme="light"] .jt-stage-name--overdue {
+  color: #1E3A5F;
+}
 
 /* ⋯ overflow button — sole menu trigger */
 .jt-dots {
@@ -11934,7 +12113,9 @@ button.jd-money-chip:active { opacity: 0.75; }
   font-weight: var(--fw-money);
   font-family: var(--font-sans);
   font-variant-numeric: tabular-nums;
-  color: var(--jp-green);
+  /* Repointed from --jp-green (Phase 0) — money is neutral ink, not a colour
+     borrowed from the CTA. --overdue / --muted modifiers below are unchanged. */
+  color: var(--text);
   letter-spacing: -0.01em;
   line-height: var(--lh-money-sm);
   margin: 1px 0 3px;
@@ -11978,7 +12159,18 @@ button.jd-money-chip:active { opacity: 0.75; }
 .jt-signal--ok      { color: var(--jp-green); }
 .jt-meta-item--mute,
 .jt-signal--mute    { color: var(--text-dim); }
-.jt-signal--draft   { color: #d97706; font-weight: 600; }
+/* Draft signal — tinted amber micro-pill (Phase 1, static tint — no color-mix).
+   Same #d97706 hue as the text, just faded to a background alpha. */
+.jt-signal--draft   {
+  color: #d97706;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border-radius: var(--radius-pill);
+  background: rgba(217, 119, 6, 0.14);
+}
+[data-theme="light"] .jt-signal--draft { background: rgba(217, 119, 6, 0.12); }
 
 /* --- Stage chip dropdown / bottom-sheet --- */
 
@@ -12236,6 +12428,10 @@ button.jd-money-chip:active { opacity: 0.75; }
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   color: var(--text-dim);
+  /* Inset lit edge (Phase 1) — dark theme only, matching the .stage-tile
+     convention: light theme relies on the ramp/white surface itself (a white
+     highlight on a near-white button is invisible, so no override needed). */
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
   cursor: pointer;
   display: inline-flex;
   flex-direction: column;
@@ -12258,19 +12454,21 @@ button.jd-money-chip:active { opacity: 0.75; }
 }
 .jt-action-btn--missing:active { opacity: 0.7; }
 
-/* Tile Call/Map — go green only when the customer detail exists.
-   Scoped to .jt-foot so the JobDetailDrawer header (.jd-header-action-row .jt-action-btn) is unaffected. */
-.jt-foot .jt-action-btn {
-  border-color: var(--accent);
-  color: var(--accent);
+/* Tile Call/Map — neutral secondary tier (Phase 1). Previously went
+   accent-blue bordered when data existed, which competed with the primary
+   CTA's blue for attention; both states now share the same --surface-2/
+   --border/--text-dim neutral look as the base rule (nothing to override).
+   Scoped :active below adds the "pushed in" premium press, specific to the
+   tile context so the JobDetailDrawer header's .jt-action-btn (shared class,
+   different surface — .jd-header-action-row) keeps its existing scale press. */
+.jt-foot .jt-action-btn:active {
+  box-shadow: var(--elevation-pressed);
 }
-/* Reset missing-state back to neutral grey — prevents the green rule above from colouring no-data buttons. */
-.jt-foot .jt-action-btn--missing {
-  border-color: var(--border);
-  color: var(--text-dim);
-  /* opacity removed — neutral hue (grey-blue vs green) is enough to distinguish no-data from has-data */
+@media (prefers-reduced-motion: no-preference) {
+  .jt-foot .jt-action-btn:active {
+    transform: translateY(1px);
+  }
 }
-.jt-foot .jt-action-btn--missing:active { opacity: 0.7; }
 
 /* "Mark paid" secondary CTA — 50/50 split with Chase payment on Invoiced/Overdue tiles.
    Both this and .jt-cta use flex: 1 1 0 so they grow equally from a zero base,
@@ -19155,6 +19353,21 @@ button.dp-totals-row--total.dp-totals-row--tap:active {
   --stage-overdue:  #F97316;  /* orange      — past due */
   --stage-paid:     #15803D;  /* deep forest-green — L≈29%; +17pt vs On; clearly "done" */
 
+  /* ── Resting-tint scale (Phase 0, jobs-premium-pass) — STATIC per-theme rgba,
+     NOT color-mix(). Safari 15 drops an invalid color-mix() background
+     entirely, so every load-bearing tint in this app is a literal rgba/hex
+     (see the .jt / StatusBadge comments for the same rule). ~8-10% alpha —
+     faint enough to read as "resting", distinct enough to be a true hue per
+     stage (replaces the old shared green-wash ramp; Overdue is orange here,
+     never green). Light-theme values are declared in the matching
+     [data-theme="light"] block immediately after this one. */
+  --stage-tint-lead:     rgba(37, 99, 235, 0.09);
+  --stage-tint-quoted:   rgba(14, 165, 183, 0.10);
+  --stage-tint-on:       rgba(99, 102, 241, 0.10);
+  --stage-tint-invoiced: rgba(245, 158, 11, 0.09);
+  --stage-tint-overdue:  rgba(249, 115, 22, 0.09);
+  --stage-tint-paid:     rgba(21, 128, 61, 0.10);
+
   /* ── Semantic workflow tokens ─────────────────────────────────────────────
      Component references ONLY these tokens — never the ohnar-* primitives
      directly. When the full OHNAR re-skin lands, update the mappings here
@@ -19178,6 +19391,19 @@ button.dp-totals-row--total.dp-totals-row--tap:active {
   --wf-was-overdue-ring: 0 0 0 2px rgba(220,38,38,0.45);
   --wf-connector:        rgba(160,163,175,0.35);
   --wf-connector-done:   rgba(160,163,175,0.55);
+}
+
+/* Resting-tint scale (Phase 0, jobs-premium-pass) — light-theme values.
+   Same ~8-10% alpha band as dark; recalculated against a near-white surface
+   rather than dark surface-2, so alphas sit at the top of the range (white
+   washes tints out faster than a near-black surface does). */
+[data-theme="light"] {
+  --stage-tint-lead:     rgba(37, 99, 235, 0.10);
+  --stage-tint-quoted:   rgba(14, 165, 183, 0.10);
+  --stage-tint-on:       rgba(99, 102, 241, 0.10);
+  --stage-tint-invoiced: rgba(245, 158, 11, 0.10);
+  --stage-tint-overdue:  rgba(249, 115, 22, 0.10);
+  --stage-tint-paid:     rgba(21, 128, 61, 0.10);
 }
 
 /* ── WorkflowCircles — Six-Stage Brand Cycle (feat/workflow-circles-brand-cycle) ──
@@ -19280,14 +19506,16 @@ button.dp-totals-row--total.dp-totals-row--tap:active {
   border-width: 2.5px;
   width: 28px;
   height: 28px;
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--circle-colour, #2563EB) 25%, transparent);
+  /* Phase 1: glow strengthened 25% → 30% (color-mix confined to box-shadow,
+     which is Safari-safe — an unsupported glow just drops, no fill breaks) */
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--circle-colour, #2563EB) 30%, transparent);
 }
 /* Compact: overdue — same emphasis sizing, orange ring + glow */
 .wfc--compact .wfc__circle--overdue {
   border-width: 2.5px;
   width: 28px;
   height: 28px;
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--stage-overdue) 25%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--stage-overdue) 32%, transparent);
 }
 /* Compact: future/muted — ring + icon use the muted grey token */
 .wfc--compact .wfc__circle--future {
@@ -19365,10 +19593,24 @@ button.dp-totals-row--total.dp-totals-row--tap:active {
   color: var(--wf-future-icon) !important;
 }
 
-/* Completed — vivid coloured ring + icon. --circle-colour drives the colour. */
+/* Completed — vivid coloured ring + icon. --circle-colour drives the colour
+   (border-color/color inherit from the base .wfc__circle rule).
+   Soft fill + inner lit edge (Phase 1) — hue-NEUTRAL, not per-stage-tinted.
+   A per-stage-tinted fill would need color-mix() against --circle-colour
+   (an arbitrary custom property, not a literal this stylesheet can branch
+   on), and this app's hard rule is NO color-mix() in background/fill
+   properties (Safari 15 drops an invalid color-mix() background entirely —
+   see the .jt / StatusBadge comments). True per-stage fill needs either a
+   stage class added in JSX or an accepted Safari risk — deferred to Phase 2.
+   The neutral fill + lit edge is the safe upgrade available now: it turns
+   the previously fully-transparent centre into a soft "filled badge" look. */
 .wfc__circle--completed {
-  /* border-color and color inherit from the base (.wfc--full .wfc__circle uses
-     var(--circle-colour)), so no override needed here — vivid by default. */
+  background: rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14);
+}
+[data-theme="light"] .wfc__circle--completed {
+  background: rgba(11, 19, 32, 0.05);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
 }
 
 /* Current — vivid ring, same as completed + scale emphasis + glow */
@@ -19376,15 +19618,17 @@ button.dp-totals-row--total.dp-totals-row--tap:active {
   transform: scale(1.12);
   box-shadow: var(--wf-current-shadow);
 }
-/* Override the generic --wf-current-shadow with a per-stage-colour glow */
+/* Override the generic --wf-current-shadow with a per-stage-colour glow
+   (Phase 1: strengthened 28% → 34%) */
 .wfc--full .wfc__circle--current {
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--circle-colour, #2563EB) 28%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--circle-colour, #2563EB) 34%, transparent);
 }
 
-/* Overdue — vivid orange ring; colour is set via inline --circle-colour=#F97316 */
+/* Overdue — vivid orange ring; colour is set via inline --circle-colour=#F97316.
+   Phase 1: glow strengthened 40% → 48%, radius 6px → 8px. */
 .wfc__circle--overdue {
   transform: scale(1.12);
-  box-shadow: 0 0 6px color-mix(in srgb, var(--stage-overdue) 40%, transparent);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--stage-overdue) 48%, transparent);
 }
 
 /* Skipped (Overdue bypassed — paid on time without going overdue).
@@ -22255,11 +22499,13 @@ button.dp-totals-row--total.dp-totals-row--tap:active {
    ─────────────────────────────────────────────────────────────────────────── */
 
 .nav-tab {
+  /* Phase 1: press timing moved onto the shared --dur-fast/--ease-standard
+     tokens (was hardcoded 0.08s/0.15s ease). */
   transition:
-    transform 0.08s ease,
-    background 0.15s ease,
-    color 0.15s ease,
-    border-color 0.15s ease;
+    transform var(--dur-fast) var(--ease-standard),
+    background var(--dur-base) var(--ease-standard),
+    color var(--dur-base) var(--ease-standard),
+    border-color var(--dur-base) var(--ease-standard);
 }
 
 @media (prefers-reduced-motion: no-preference) {
@@ -22280,16 +22526,17 @@ button.dp-totals-row--total.dp-totals-row--tap:active {
    ─────────────────────────────────────────────────────────────────────────── */
 
 .stage-tile {
-  /* Extend the existing `transition: background 0.15s` */
+  /* Extend the existing `transition: background 0.15s`. Transform now rides
+     the shared --dur-fast/--ease-spring tokens (Phase 1 tactile press). */
   transition:
     background 0.15s ease,
-    transform 0.08s ease,
-    opacity 0.08s ease;
+    transform var(--dur-fast) var(--ease-spring),
+    opacity var(--dur-fast) ease;
 }
 
 @media (prefers-reduced-motion: no-preference) {
   .stage-tile:active {
-    transform: scale(0.96);
+    transform: scale(0.97);
     opacity: 1;
   }
 }
