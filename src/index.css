@@ -11963,6 +11963,79 @@ button.jd-money-chip:active { opacity: 0.75; }
   }
 }
 
+/* ── Paid finish-line sheen (Phase 3 motion, feat/jobs-premium-pass-phase3-motion) ──
+   One-shot diagonal sheen that sweeps across a tile the instant it transitions
+   from any non-Paid stage to Paid — the "finish-line" moment of the Get Paid
+   loop. JobTile (WorkScreen.jsx) detects the transition via a usePrevious-style
+   ref and adds .jt--paid-sheen for ~700ms, then removes it: never re-applied
+   on re-render/reorder/refetch, and never applied on first mount (a job
+   already Paid on page load stays silent — see the JS comment for the guard).
+   This coordinates with, and does not replace, the existing
+   .wfc__circle--paid-anim ring pop and the PaidCelebration overlay — it is a
+   third, quieter layer: the tile itself catching light as it settles to its
+   resting 0.7 opacity (opacity: isPaid ? 0.7 : 1, unchanged, above).
+
+   Geometry is lifted straight from the .jt-cta sheen recipe (115deg diagonal,
+   250% background-size, background-position 150% → -120%) but tinted with
+   the canonical --stage-paid green (#15803D = rgb(21,128,61)) as STATIC rgba
+   stops — Safari 15 forbids color-mix() in backgrounds/gradients (see the
+   .jt-cta sheen comment for the same rule; box-shadow is the only exception
+   elsewhere in this file, not used here).
+
+   Uses @keyframes + animation (matching .wfc__circle--paid-anim just above),
+   NOT a CSS transition: .jt--paid-sheen::after is a pseudo-element that only
+   exists while the class is present, so a transition would have no prior
+   value to animate FROM on the first frame it appears. An animation runs its
+   keyframes unconditionally the moment the element/pseudo starts existing,
+   which is exactly the one-shot behaviour we want.
+
+   Rendered ABOVE tile content (z-index: 1, translucent) rather than behind it
+   like .jt-cta's z-index: -1 — this tile is a dense 3-row card with little
+   bare background, so a behind-content sheen would barely be visible. Alpha
+   is kept low enough that text/icons stay legible through the brief sweep.
+
+   GPU note: background-position is a paint (not compositor) property, same
+   as the .jt-cta recipe it's copied from — accepted there for a ~620ms
+   one-shot on a small element; kept short here for the same reason. will-change
+   is scoped to the animating prop only, and — because the whole pseudo-element
+   is removed with the class after ~700ms — it is inherently dropped straight
+   after, with no extra bookkeeping needed.
+
+   prefers-reduced-motion: reduce — the pseudo-element renders NOTHING
+   (content: none). No static green flash either: the tile flushes straight to
+   its existing pre-Phase-3 end state (dimmed opacity + plain Paid ring). */
+.jt--paid-sheen::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(
+    115deg,
+    transparent 28%,
+    rgba(21, 128, 61, 0.22) 44%,
+    rgba(74, 222, 128, 0.36) 50%,
+    rgba(21, 128, 61, 0.22) 56%,
+    transparent 72%
+  );
+  background-size: 250% 100%;
+  background-position: 150% 0;
+  animation: jt-paid-sheen-sweep 620ms var(--ease-out-soft) forwards;
+  will-change: background-position;
+}
+
+@keyframes jt-paid-sheen-sweep {
+  from { background-position: 150% 0; }
+  to   { background-position: -120% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .jt--paid-sheen::after {
+    content: none;
+  }
+}
+
 /* --- Row 1: header (job name primary + chip) --- */
 .jt-head {
   display: flex;
