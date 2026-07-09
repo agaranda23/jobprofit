@@ -1008,8 +1008,17 @@ export async function deleteJobWithData(job, linkedReceiptIds) {
  * Flow:
  *   1. Find the receipt in localStorage to retrieve imagePath (if any).
  *   2. Delete the storage object (best-effort — a missing file is not fatal).
- *   3. Delete the receipts row from Supabase (user owns their own rows via RLS).
- *   4. Mirror-remove from localStorage.
+ *   3. Delete the child receipt_items rows from Supabase (by receipt_id).
+ *   4. Delete the receipts row from Supabase (user owns their own rows via RLS).
+ *   5. Mirror-remove from localStorage.
+ *
+ * Step 3 is explicit rather than relying on an FK cascade: receipt_items was
+ * created via the Supabase dashboard and no migration ever declared its FK
+ * (see netlify/functions/delete-account.js), so prod may or may not have
+ * ON DELETE CASCADE at any given time. Deleting the child rows here first
+ * means a single-receipt delete is correct regardless of that schema state,
+ * and never leaves orphaned line items behind to skew VAT-reclaim or job
+ * cost/profit rollups.
  *
  * If the user is not signed in, falls back to localStorage-only removal so the
  * delete still works offline / in the demo build.
@@ -1027,6 +1036,18 @@ export async function deleteReceiptFromCloud(receiptId) {
     // Attempt to remove the storage object (ignore 404s — file may not exist)
     if (imagePath) {
       await supabase.storage.from('receipts').remove([imagePath]);
+    }
+
+    // Delete child receipt_items rows first — RLS scopes the delete to the
+    // caller's own rows, so this can never touch another user's data.
+    const { error: itemsError } = await supabase
+      .from('receipt_items')
+      .delete()
+      .eq('receipt_id', receiptId);
+
+    if (itemsError) {
+      console.error('deleteReceiptFromCloud: receipt_items delete failed', itemsError);
+      throw itemsError;
     }
 
     // Delete the receipts row — RLS ensures the user can only delete their own rows
