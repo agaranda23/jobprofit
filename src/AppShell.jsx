@@ -1543,59 +1543,63 @@ export default function AppShell() {
           overlayOpen={anyOverlayOpen}
         >
           {/* Page 0 — Today */}
-          <TodayScreen
-            onOpenDetailed={openDetailed}
-            onChase={() => navigate('finance')}
-            onMarkPaid={onMarkPaidFromToday}
-            onJobTap={(job) => { if (job?.id) setPendingJobId(job.id); navigate('work'); }}
-            jobs={jobs}
-            receipts={receipts}
-            onAddJob={handleAddJob}
-            onUpdateJob={onUpdateJob}
-            onAddReceipt={handleAddReceipt}
-            avatarProps={avatarProps}
-            profile={profile}
-            onProfileUpdate={handleProfileUpdate}
-            onNavigateToMoney={() => navigate('finance')}
-            onSeeTheWeek={handleSeeTheWeek}
-            onNavigateToCardPayments={() => setSettingsSubView('card-payments')}
-            materials={materials}
-            defaultMarkup={profile?.default_markup ?? 20}
-            onBrowseMaterials={() => setMaterialsOpen(true)}
-            onMaterialSaved={handleMaterialSaved}
-            onSnackbar={snackbarEnqueue}
-            onSnackbarDismiss={snackbarDismiss}
-            onLoadSampleData={handleLoadSampleData}
-          />
+          <AppErrorBoundary variant="screen" screen="today">
+            <TodayScreen
+              onOpenDetailed={openDetailed}
+              onChase={() => navigate('finance')}
+              onMarkPaid={onMarkPaidFromToday}
+              onJobTap={(job) => { if (job?.id) setPendingJobId(job.id); navigate('work'); }}
+              jobs={jobs}
+              receipts={receipts}
+              onAddJob={handleAddJob}
+              onUpdateJob={onUpdateJob}
+              onAddReceipt={handleAddReceipt}
+              avatarProps={avatarProps}
+              profile={profile}
+              onProfileUpdate={handleProfileUpdate}
+              onNavigateToMoney={() => navigate('finance')}
+              onSeeTheWeek={handleSeeTheWeek}
+              onNavigateToCardPayments={() => setSettingsSubView('card-payments')}
+              materials={materials}
+              defaultMarkup={profile?.default_markup ?? 20}
+              onBrowseMaterials={() => setMaterialsOpen(true)}
+              onMaterialSaved={handleMaterialSaved}
+              onSnackbar={snackbarEnqueue}
+              onSnackbarDismiss={snackbarDismiss}
+              onLoadSampleData={handleLoadSampleData}
+            />
+          </AppErrorBoundary>
 
           {/* Page 1 — Jobs/Work */}
-          <WorkScreen
-            key={workResetKey}
-            jobs={jobs}
-            receipts={receipts}
-            onNewJob={openDetailed}
-            onAddJob={handleAddJob}
-            onAddPayment={onAddPayment}
-            onUpdateJob={onUpdateJob}
-            onDeleteJob={onDeleteJob}
-            onAddReceipt={handleAddReceipt}
-            onDeleteReceipt={handleDeleteReceipt}
-            onUpdateReceipt={handleUpdateReceipt}
-            biz={null}
-            profile={profile}
-            initialJobId={pendingJobId}
-            onNavigateToCardPayments={() => setSettingsSubView('card-payments')}
-            onProfileUpdate={handleProfileUpdate}
-            materials={materials}
-            defaultMarkup={profile?.default_markup ?? 20}
-            onBrowseMaterials={() => setMaterialsOpen(true)}
-            onMaterialSaved={handleMaterialSaved}
-            onOverlayChange={setWorkOverlayOpen}
-            onClearSampleData={handleClearSampleData}
-          />
+          <AppErrorBoundary variant="screen" screen="jobs">
+            <WorkScreen
+              key={workResetKey}
+              jobs={jobs}
+              receipts={receipts}
+              onNewJob={openDetailed}
+              onAddJob={handleAddJob}
+              onAddPayment={onAddPayment}
+              onUpdateJob={onUpdateJob}
+              onDeleteJob={onDeleteJob}
+              onAddReceipt={handleAddReceipt}
+              onDeleteReceipt={handleDeleteReceipt}
+              onUpdateReceipt={handleUpdateReceipt}
+              biz={null}
+              profile={profile}
+              initialJobId={pendingJobId}
+              onNavigateToCardPayments={() => setSettingsSubView('card-payments')}
+              onProfileUpdate={handleProfileUpdate}
+              materials={materials}
+              defaultMarkup={profile?.default_markup ?? 20}
+              onBrowseMaterials={() => setMaterialsOpen(true)}
+              onMaterialSaved={handleMaterialSaved}
+              onOverlayChange={setWorkOverlayOpen}
+              onClearSampleData={handleClearSampleData}
+            />
+          </AppErrorBoundary>
 
           {/* Page 2 — Money/Finance */}
-          <AppErrorBoundary variant="screen">
+          <AppErrorBoundary variant="screen" screen="finance">
             <FinanceScreen
               jobs={jobs}
               receipts={receipts}

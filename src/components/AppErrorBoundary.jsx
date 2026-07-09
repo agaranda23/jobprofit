@@ -1,4 +1,5 @@
 import React from 'react';
+import { logTelemetry } from '../lib/telemetry.js';
 
 /**
  * AppErrorBoundary — generalised error boundary usable at three scopes:
@@ -6,7 +7,9 @@ import React from 'react';
  *   variant="drawer"  (default) — drawer sheet with Close button, mirrors the
  *                                 original DrawerErrorBoundary UI exactly.
  *   variant="screen"            — full-width card with a "Tap to retry" button
- *                                 that resets the boundary.  Used by FinanceScreen.
+ *                                 that resets the boundary.  Used by FinanceScreen,
+ *                                 TodayScreen and WorkScreen (Jobs) — one screen's
+ *                                 render throw never takes down the other tabs.
  *   variant="app"               — full-viewport fallback of last resort, used by
  *                                 AppShell.  Shows a "Reload" button.
  *
@@ -15,10 +18,20 @@ import React from 'react';
  * DrawerErrorBoundary uses with jobId — the consumer just passes a stable value
  * when it does not need external resets.
  *
+ * The `screen` prop (variant="screen" only) is a short label — e.g. "today",
+ * "jobs", "finance" — used to (a) tailor the fallback copy and (b) tag the
+ * crash telemetry event so we know which tab crashed. Defaults to 'finance'
+ * copy/behaviour unchanged for existing callers that don't pass it.
+ *
  * Background: React error boundaries must be class components — there is no hook
- * equivalent. This is the minimal implementation; no logging service is wired yet
- * (follow-up: add logTelemetry on componentDidCatch).
+ * equivalent.
  */
+const SCREEN_COPY = {
+  finance: 'Something went wrong loading your figures',
+  today: "Something went wrong loading today's jobs",
+  jobs: 'Something went wrong loading your jobs',
+};
+
 export default class AppErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
@@ -31,9 +44,14 @@ export default class AppErrorBoundary extends React.Component {
   }
 
   componentDidCatch(error, info) {
-    // TODO (follow-up): wire to logTelemetry when that module is available server-side
     const variant = this.props.variant || 'drawer';
     console.error(`[AppErrorBoundary:${variant}] render error`, error, info?.componentStack);
+    // No PII: error.message is a static/dev-authored string, never user record data.
+    logTelemetry('error_boundary_crash', {
+      variant,
+      screen: this.props.screen || null,
+      message: error?.message,
+    });
   }
 
   handleReset() {
@@ -93,7 +111,7 @@ export default class AppErrorBoundary extends React.Component {
           role="alert"
         >
           <p style={{ fontWeight: 600, marginBottom: 8 }}>
-            Something went wrong loading your figures
+            {SCREEN_COPY[this.props.screen] || SCREEN_COPY.finance}
           </p>
           <p style={{ color: 'var(--text-dim)', fontSize: 'var(--fs-label)', marginBottom: 20 }}>
             An unexpected error occurred. Tap to retry.

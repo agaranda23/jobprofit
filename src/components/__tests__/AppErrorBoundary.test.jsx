@@ -14,12 +14,18 @@ import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup } from '@testing-library/react';
 import AppErrorBoundary from '../AppErrorBoundary';
+import { logTelemetry } from '../../lib/telemetry';
+
+vi.mock('../../lib/telemetry', () => ({
+  logTelemetry: vi.fn(),
+}));
 
 // Suppress the expected React error boundary console.error noise in test output.
 // React always logs caught errors even when they are handled by a boundary.
 let consoleErrorSpy;
 beforeEach(() => {
   consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+  logTelemetry.mockClear();
 });
 afterEach(() => {
   consoleErrorSpy.mockRestore();
@@ -111,6 +117,43 @@ describe('AppErrorBoundary variant="screen"', () => {
     // After reset the boundary re-renders children — ConditionalBomb now returns normally
     // Note: rerender is not needed because handleReset calls setState internally
     expect(screen.getByText('Recovered')).toBeTruthy();
+  });
+
+  // Today and Jobs are wrapped with the same variant="screen" boundary as
+  // FinanceScreen (fix/error-boundaries-today-jobs) — one screen's render
+  // throw must show its own contained fallback, never a blank app.
+  it('renders Today-specific copy when screen="today"', () => {
+    render(
+      <AppErrorBoundary variant="screen" screen="today">
+        <Bomb />
+      </AppErrorBoundary>
+    );
+    expect(screen.getByText(/something went wrong loading today's jobs/i)).toBeTruthy();
+    expect(screen.getByRole('button', { name: /retry/i })).toBeTruthy();
+  });
+
+  it('renders Jobs-specific copy when screen="jobs"', () => {
+    render(
+      <AppErrorBoundary variant="screen" screen="jobs">
+        <Bomb />
+      </AppErrorBoundary>
+    );
+    expect(screen.getByText(/something went wrong loading your jobs/i)).toBeTruthy();
+    expect(screen.getByRole('button', { name: /retry/i })).toBeTruthy();
+  });
+
+  it('calls logTelemetry once with the screen label when a child throws', () => {
+    render(
+      <AppErrorBoundary variant="screen" screen="jobs">
+        <Bomb message="boom" />
+      </AppErrorBoundary>
+    );
+    expect(logTelemetry).toHaveBeenCalledTimes(1);
+    expect(logTelemetry).toHaveBeenCalledWith('error_boundary_crash', {
+      variant: 'screen',
+      screen: 'jobs',
+      message: 'boom',
+    });
   });
 });
 
