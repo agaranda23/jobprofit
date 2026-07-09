@@ -1566,6 +1566,11 @@ export default function AppShell() {
           pageIndex={pageIdx}
           onSwipe={(nextIdx) => navigate(DASHBOARD_VIEWS[nextIdx])}
           overlayOpen={anyOverlayOpen}
+          // Pull-to-refresh re-fires the same cloud sync as the realtime/
+          // visibilitychange paths above — no new sync logic, just a manual
+          // trigger. Omitted (PTR disabled) when signed out — there's no
+          // cloud to pull from, only the local view.
+          onPullToRefresh={session ? refreshFromCloud : undefined}
         >
           {/* Page 0 — Today */}
           <AppErrorBoundary variant="screen" screen="today">
