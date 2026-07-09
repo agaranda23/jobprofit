@@ -3275,6 +3275,21 @@ body {
   color: var(--accent);
   letter-spacing: -0.01em;
 }
+/* Quiet trust strip — sits directly under the primary CTA line, above the
+   sign-in buttons. Understated on purpose: small type, muted colour, no
+   badge/border chrome — a confidence signal, not a certification claim. */
+.auth-trust-strip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  font-size: var(--fs-meta);
+  font-weight: 500;
+  color: var(--text-dim);
+  text-align: center;
+  opacity: 0.8;
+  margin: 10px 0 0;
+}
 /* Differentiator line — "no lead fees, no commission" promoted out of the
    old profit strip into its own claim, sitting right after the sign-up
    block. Reuses the old .auth-features weight (600 / --text) since it now

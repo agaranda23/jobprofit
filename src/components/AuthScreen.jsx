@@ -427,6 +427,14 @@ export default function AuthScreen() {
         <p className="auth-cta-line">
           Start free, <strong className="auth-cta-highlight">no card</strong> — unlimited quotes and invoices.
         </p>
+        {/* Quiet reassurance line, not a badge farm — all three claims are true
+            today (Stripe processes cards, Supabase encrypts at rest + in
+            transit, OHNAR LTD is UK-registered — see the footer below for the
+            company number). Deliberately no "bank-level"/certification claims. */}
+        <p className="auth-trust-strip">
+          <Icon name="lock" size={13} variant="muted" />
+          Card payments secured by Stripe · Your data encrypted · UK-registered company
+        </p>
       </div>
 
       {!sent ? (
@@ -551,18 +559,21 @@ export default function AuthScreen() {
       <p className="auth-trust">Built with feedback from UK plumbers, builders, electricians, gardeners, cleaners &amp; sole traders.</p>
 
       {/* Company registration details — required for a UK limited company
-          trading online (Companies Act 2006 s.82 / E-Commerce Regs 2002). */}
+          trading online (Companies Act 2006 s.82 / E-Commerce Regs 2002).
+          Contact mailbox is getohnar@gmail.com for now — swap to
+          hello@ohnar.co.uk once that mailbox is stood up. */}
       <footer className="auth-legal-footer">
         <p className="auth-legal-footer-entity">
-          OHNAR LTD · Company No. 17249792 · Registered in England &amp; Wales · 128 City Road, London EC1V 2NX{' '}
-          · <a href="mailto:getjobprofit@gmail.com">getjobprofit@gmail.com</a>
+          OHNAR LTD · Company No. 17249792 (England &amp; Wales) · 128 City Road, London EC1V 2NX · ICO reg ZC163042
         </p>
         <p className="auth-legal-footer-links">
-          <a href="/terms" target="_blank" rel="noopener">Terms</a>
-          {' · '}
           <a href="/privacy" target="_blank" rel="noopener">Privacy</a>
           {' · '}
+          <a href="/terms" target="_blank" rel="noopener">Terms</a>
+          {' · '}
           <a href="/cookies" target="_blank" rel="noopener">Cookies</a>
+          {' · '}
+          <a href="mailto:getohnar@gmail.com">Contact</a>
         </p>
       </footer>
     </div>

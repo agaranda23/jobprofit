@@ -2356,8 +2356,11 @@ export default function SettingsScreen({
     window.open(buildWhatsAppSupportUrl(), '_blank', 'noopener');
   };
 
+  // Support inbox — getjobprofit@gmail.com was the retired JobProfit brand
+  // mailbox. getohnar@gmail.com is the founder's current inbox; swap to
+  // hello@ohnar.co.uk once that mailbox is stood up.
   const handleSendFeedback = () => {
-    window.location.href = 'mailto:getjobprofit@gmail.com?subject=OHNAR%20feedback';
+    window.location.href = 'mailto:getohnar@gmail.com?subject=OHNAR%20feedback';
   };
 
   const handleSendBugReport = () => {
@@ -2368,7 +2371,7 @@ export default function SettingsScreen({
     const body = encodeURIComponent(
       `What happened:\n\n\nWhat you expected:\n\n\n---\nApp: ${version} | Plan: ${plan} | Ref: ${userRef}\nDevice: ${ua}`,
     );
-    window.location.href = `mailto:getjobprofit@gmail.com?subject=OHNAR%20bug%20report%20v${version}&body=${body}`;
+    window.location.href = `mailto:getohnar@gmail.com?subject=OHNAR%20bug%20report%20v${version}&body=${body}`;
   };
 
   const handleSave = async (patch) => {
