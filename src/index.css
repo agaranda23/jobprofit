@@ -226,6 +226,17 @@ button:focus-visible {
   --surface: #151a1f;
   --surface-2: #1d242b;
   --surface-expanded: #11161b; /* one shade below --surface-2 for expanded accordion cards */
+  /* Second elevated tier — depth via lightness, not shadows. --shadow-md/-xs
+     are tuned as black rgba() values, so on a near-black --surface they're
+     barely visible and card-on-card depth was resting on 1px borders alone.
+     --surface-hero sits a hair lighter than --surface (between --surface and
+     --surface-2, which already carries an established "nested control"
+     meaning — buttons/inputs/chips inside a card — so hero cards borrow that
+     lightness step rather than reusing --surface-2 itself and colliding with
+     it). Reserved for the primary/hero card per screen (Today's prompt card,
+     Money's hero) — deliberately NOT a blanket restyle. Light mode: equal to
+     --surface below, so light is byte-for-byte unaffected. */
+  --surface-hero: #191f26;
   --text: #f5f7fa;
   --text-dim: #a8b3c0;
   --accent: #2563eb;
@@ -350,6 +361,11 @@ button:focus-visible {
   --surface:     #ffffff;
   --surface-2:   #f3f4f6;
   --surface-expanded: #e9ebef; /* one shade below --surface-2 for expanded accordion cards */
+  /* Light mode has no lightness headroom above --surface (already white) and
+     depth here comes from --shadow-md, not a lighter tier — so this equals
+     --surface (no-op). Hero cards also get an explicit reset below so the
+     dark-only inset highlight never renders in light mode either. */
+  --surface-hero: var(--surface);
 
   /* Text */
   --text:        #1E3A5F;
@@ -1324,6 +1340,14 @@ body { background: var(--bg); color: var(--text); -webkit-font-smoothing: antial
 .nav-tab .jp-icon {
   width: 24px;
   height: 24px;
+}
+
+/* Fill crossfades with the rest of the active/inactive swap below (the
+   .nav-tab background/color/border-color transition further down this file) —
+   without this the "filled = you are here" overlay was the one part of the
+   tab that still hard-flipped in a single frame. */
+.nav-tab .jp-icon svg {
+  transition: fill var(--dur-base) var(--ease-standard);
 }
 
 /* Active filled state — the nav is the only place we use fill.
@@ -5081,13 +5105,19 @@ input[type=number] { -moz-appearance: textfield; }
 
 /* ── Money tab M3 — hero card ─────────────────── */
 .money-hero {
-  background: var(--surface);
+  /* Second elevated tier (--surface-hero) + top inner-highlight — see the
+     matching comment on .foreman-prompt-card. Light mode reset below. */
+  background: var(--surface-hero);
   border: 1px solid var(--border);
   border-radius: var(--radius-xl);
-  box-shadow: var(--shadow-xs);
+  box-shadow: var(--shadow-xs), inset 0 1px 0 rgba(255, 255, 255, 0.05);
   padding: 20px 20px 18px;
   margin: 0 0 16px;
   text-align: center;
+}
+[data-theme="light"] .money-hero {
+  background: var(--surface);
+  box-shadow: var(--shadow-xs);
 }
 .money-hero--clear {
   padding: 14px 20px;
@@ -6316,6 +6346,51 @@ input[type=number] { -moz-appearance: textfield; }
   border-color: rgba(239, 68, 68, 0.4);
   background: rgba(127, 29, 29, 0.92);
   color: #ef4444;
+}
+
+/* ── Pull-to-refresh indicator (PullToRefreshIndicator.jsx) ─────────────────
+   position: fixed at the same top/safe-area anchor as .sync-badge (both are
+   viewport-anchored status chips), but as a small ring rather than a pill so
+   the two can't be confused. opacity/scale/stroke-dashoffset are all driven
+   inline by React on every touchmove — 1:1 with the finger, not a CSS
+   transition — so there is nothing to gate behind prefers-reduced-motion
+   there (same philosophy as the pager's own drag-follow). Only the
+   independent, finger-detached motion (the spin while refreshing) is gated. */
+.ptr-ring {
+  position: fixed;
+  top: calc(env(safe-area-inset-top, 0px) + 10px);
+  left: 50%;
+  z-index: var(--z-toast);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-sm);
+  pointer-events: none;
+}
+.ptr-ring__track {
+  stroke: var(--border);
+}
+.ptr-ring__arc {
+  stroke: var(--accent);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .ptr-ring--refreshing .ptr-ring__arc {
+    animation: sync-spin 0.8s linear infinite;
+    transform-origin: 11px 11px;
+  }
+}
+/* Reduced motion: hold a static full ring while refreshing instead of
+   spinning — the ring still communicates "in progress", just without an
+   independent (non-finger-driven) animation. */
+@media (prefers-reduced-motion: reduce) {
+  .ptr-ring--refreshing .ptr-ring__arc {
+    animation: none;
+  }
 }
 
 /* Modal overlay — shared by SyncBadge action sheet and confirm dialogs */
@@ -12575,13 +12650,22 @@ button.jd-money-chip:active { opacity: 0.75; }
 /* ── One Prompt card ────────────────────────────────────────────────────────── */
 
 .foreman-prompt-card {
-  background: var(--surface);
+  /* Today's primary/hero card — second elevated tier (--surface-hero) + a
+     subtle top inner-highlight so it reads as raised, not just outlined.
+     Dark mode only in effect; light mode is reset back to plain --surface
+     immediately below (light has no lightness headroom above white). */
+  background: var(--surface-hero);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   margin: 16px 16px 12px;
   padding: 20px 20px 16px;
   cursor: pointer;
   -webkit-tap-highlight-color: transparent;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+[data-theme="light"] .foreman-prompt-card {
+  background: var(--surface);
+  box-shadow: none;
 }
 
 .foreman-tier-label {
@@ -19476,7 +19560,12 @@ button.dp-totals-row--total.dp-totals-row--tap:active {
   flex: 1;
 }
 
-/* Connector lines — thin horizontal bridges between circles. */
+/* Connector lines — thin horizontal bridges between circles.
+   transition: background-color gives the "fill sweep" as a stage advances —
+   the segment between two circles washes from --wf-connector to
+   --wf-connector-done instead of snapping, matching the ring transition on
+   .wfc__circle below. Reduced-motion: disabled with the rest of the WFC
+   transitions (see the @media block near the paid-completion animation). */
 .wfc__connector {
   position: absolute;
   top: 50%;
@@ -19486,6 +19575,7 @@ button.dp-totals-row--total.dp-totals-row--tap:active {
   background: var(--wf-connector);
   transform: translateY(-50%);
   z-index: 0;
+  transition: background-color 0.25s ease;
 }
 .wfc__connector--done {
   background: var(--wf-connector-done);
@@ -19540,7 +19630,10 @@ button.dp-totals-row--total.dp-totals-row--tap:active {
   flex-shrink: 0;
   position: relative;
   z-index: 1;
-  transition: border-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease, transform 0.25s ease;
+  /* Unified with the full variant + the connector's fill-sweep at 0.25s
+     (was 0.2s colour / 0.25s transform — split durations read as two
+     different animations on the same advance; now one signature beat). */
+  transition: border-color 0.25s ease, color 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease;
 }
 /* Compact: current stage — slightly larger ring + coloured glow (matches full variant logic) */
 .wfc--compact .wfc__circle--current {
@@ -19605,7 +19698,10 @@ button.dp-totals-row--total.dp-totals-row--tap:active {
   flex-shrink: 0;
   position: relative;
   z-index: 1;
-  transition: border-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease;
+  /* 0.25s — unified with the compact ring + the connector's fill-sweep
+     (was 0.3s here only, so full-variant advances read slightly slower/out
+     of step with compact). */
+  transition: border-color 0.25s ease, color 0.25s ease, box-shadow 0.25s ease, transform 0.25s ease;
 }
 /* Full label — dim by default; overridden per state below */
 .wfc--full .wfc__label {
@@ -19708,6 +19804,9 @@ button.dp-totals-row--total.dp-totals-row--tap:active {
     animation: none;
   }
   .wfc__circle {
+    transition: none !important;
+  }
+  .wfc__connector {
     transition: none !important;
   }
 }

@@ -27,6 +27,14 @@
  *   Frame B  — (rAF) enable transition, set transform to target (nextIdx) position
  *   transitionend — clear transform, set left to settle position
  *
+ * One motion system, two triggers:
+ *   A swipe settles via onTouchEnd's velocity-matched snap; a nav-tap jumps via
+ *   animateTo(). Both now share the same PAGER_EASE curve (cubic-bezier(0.22,1,0.36,1))
+ *   so a tap and a swipe feel identical — animateTo used to run a different,
+ *   more mechanical curve at a fixed 0.3s, which read as two different pagers.
+ *   TAP_SETTLE_MS (320ms) mirrors the swipe settle's own low-velocity fallback
+ *   duration, since a tap has no release velocity to match against.
+ *
  * During drag:
  *   left = '' (cleared); transform = translateX(…%) (GPU)
  *
@@ -46,6 +54,16 @@ const SNAP_THRESHOLD  = 0.25;  // fraction of page width needed to advance (resp
 const FLICK_VX        = 0.4;   // px/ms velocity threshold for a flick
 const LEFT_EDGE_GUARD = 20;    // px reserved for iOS system back gesture
 const RUBBER_BAND     = 0.25;  // resistance factor past first/last page
+
+// Single easing curve for every track transform transition in this hook — a
+// swipe-settle (onTouchEnd, velocity-matched duration) and a nav-tap jump
+// (animateTo, fixed duration) must feel like ONE motion system, not two.
+// This is the same "premium decel" curve used for the velocity-matched swipe
+// settle below; TAP_SETTLE_MS mirrors that settle's own low-velocity fallback
+// (see the `durMs = vxPct > 0.02 ? … : 320` branch in onTouchEnd) so a tap and
+// a gentle drag-release land in the same rhythm.
+const PAGER_EASE      = 'cubic-bezier(0.22, 1, 0.36, 1)';
+const TAP_SETTLE_MS   = 320;
 
 function prefersReducedMotion() {
   try {
@@ -148,7 +166,7 @@ function animateTo(track, fromIdx, toIdx) {
     // Guard: component may have unmounted or a newer animateTo may have fired.
     if (!track.isConnected) return;
 
-    track.style.transition = 'transform 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94)';
+    track.style.transition = `transform ${TAP_SETTLE_MS}ms ${PAGER_EASE}`;
     track.style.transform  = `translateX(${toIdx * -100}%)`;
 
     function onEnd(e) {
@@ -385,7 +403,7 @@ export function useDashboardPager({ pageCount, pageIndex, onPageChange, locked }
       requestAnimationFrame(() => {
         if (!track.isConnected) return;
         track.style.willChange = 'transform';
-        track.style.transition = `transform ${durMs}ms cubic-bezier(0.22, 1, 0.36, 1)`;
+        track.style.transition = `transform ${durMs}ms ${PAGER_EASE}`;
         track.style.transform  = `translateX(${next * -100}%)`;
 
         function onEnd(ev) {

@@ -367,6 +367,28 @@ describe('useDashboardPager', () => {
     expect(track.style.transform).toContain('-200%');
   });
 
+  it('jumpTo (nav-tap) animates the track with the SAME easing curve as a swipe settle (unified motion system)', () => {
+    // Regression test for the two-easing-curves bug: animateTo used to hardcode
+    // cubic-bezier(0.25, 0.46, 0.45, 0.94) while the swipe settle used
+    // cubic-bezier(0.22, 1, 0.36, 1) — a tap and a swipe felt like two different
+    // pagers. Both must now share the same curve.
+    const SHARED_EASE = 'cubic-bezier(0.22, 1, 0.36, 1)';
+
+    // 1. Capture the curve a nav-tap jump (animateTo) uses.
+    const jumpHook = setupHook({ pageIndex: 0 });
+    act(() => { jumpHook.result.current.jumpTo(1); });
+    const tapTransition = track.style.transition;
+    expect(tapTransition).toContain(SHARED_EASE);
+
+    // 2. Capture the curve a swipe settle uses, on a fresh track/hook.
+    track = makeTrack();
+    onPageChange = vi.fn();
+    const swipeHook = setupHook({ pageIndex: 0 });
+    swipe(swipeHook, { startX: 300, startY: 200, endX: 100, endY: 200 });
+    const swipeTransition = track.style.transition;
+    expect(swipeTransition).toContain(SHARED_EASE);
+  });
+
   it('jumpTo does not fight an in-flight swipe animation (pager-flash fix)', () => {
     // Reproduce the race: a swipe from page 0→1 queues a rAF animation and then
     // calls onPageChange(1). The React re-render calls jumpTo(1) via useLayoutEffect
