@@ -683,10 +683,56 @@ function deriveMoneySub(job, stage) {
  * Avatar circle removed (2026-05-29). Job name promoted to primary label.
  * Customer demoted to secondary line; falls back: if summary empty, customer
  * becomes the primary label so the tile is never a bare "Untitled job".
+ *
+ * Exported (not just used internally) so Phase 3 motion tests can render it
+ * in isolation without mounting the whole stage-filtered WorkScreen shell.
  */
-function JobTile({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJob, onCopyJob, onArchiveJob, onDeleteJob, biz, onShowToast, onViewReceipt, onActionRedirect, onCallJob, onRequestBook }) {
+export function JobTile({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJob, onCopyJob, onArchiveJob, onDeleteJob, biz, onShowToast, onViewReceipt, onActionRedirect, onCallJob, onRequestBook }) {
   const stage = deriveDisplayStatus(job);
   const isPaid = stage === 'Paid';
+
+  // ── Paid finish-line sheen (Phase 3 motion) ───────────────────────────────
+  // One-shot diagonal green sheen (see .jt--paid-sheen in index.css) fired
+  // ONLY on a genuine non-Paid → Paid transition of THIS tile — never on
+  // mount, never repeatedly, never from a re-render that doesn't actually
+  // change stage (reorder/pagination/refetch all re-render this component
+  // with the same stage and must stay silent).
+  //
+  // prevStageRef seeds to the CURRENT stage, so the very first effect run
+  // always sees prevStage === stage and can never fire — including for a
+  // job that is already Paid on first render (e.g. page load/refresh). It
+  // only fires on a LATER render where stage has actually flipped to 'Paid'
+  // from something else. The ref is only ever read/written inside effects
+  // (never during render), matching react-hooks/refs.
+  //
+  // Note: this DOES trip the react-hooks/set-state-in-effect advisory (lint
+  // is not part of the CI gate — see project baseline notes; the same
+  // pattern already exists pre-existing/unaddressed elsewhere in this file,
+  // e.g. the page-reset effect below). The React-endorsed "adjust state
+  // during render" alternative to this effect requires reading/writing the
+  // ref during render, which trips the *stricter* react-hooks/refs rule
+  // instead — that rule has no pre-existing exception anywhere in this
+  // codebase, so this effect-based form is the smaller deviation of the two.
+  //
+  // JobTile has no early return (always renders a single <li>), so there is
+  // no hooks-after-early-return risk here, but these are kept at the very
+  // top of the component regardless, per the project's hooks-ordering rule.
+  const prevStageRef = useRef(stage);
+  const [paidSheenRun, setPaidSheenRun] = useState(false);
+  useEffect(() => {
+    const prevStage = prevStageRef.current;
+    if (prevStage !== 'Paid' && stage === 'Paid') {
+      setPaidSheenRun(true);
+    }
+    prevStageRef.current = stage;
+  }, [stage]);
+  useEffect(() => {
+    if (!paidSheenRun) return;
+    // 620ms sweep (see index.css) + a small buffer, then drop the class so
+    // it can never linger or re-fire without a fresh transition.
+    const t = setTimeout(() => setPaidSheenRun(false), 700);
+    return () => clearTimeout(t);
+  }, [paidSheenRun]);
 
   const timeSignal = deriveTimeSignal(job, stage);
   const moneySub = deriveMoneySub(job, stage);
@@ -796,7 +842,7 @@ function JobTile({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob, onOpenJo
 
   return (
     <li
-      className={`jt jt--${stage.toLowerCase()}`}
+      className={`jt jt--${stage.toLowerCase()}${paidSheenRun ? ' jt--paid-sheen' : ''}`}
       style={{
         '--jt-hue': stageMeta.hue,
         '--jt-fill': stageMeta.fill,
