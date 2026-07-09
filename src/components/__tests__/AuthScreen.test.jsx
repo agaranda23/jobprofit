@@ -659,3 +659,72 @@ describe('AuthScreen — referral code carried through the auth redirect', () =>
     expect(emailRedirectTo).not.toContain('ref=');
   });
 });
+
+// ── Trust signals: company footer + reassurance strip ────────────────────────
+// The logged-out front door had no trust anchors despite the back office being
+// a genuine UK-registered company. These cover the persistent footer (company
+// number, ICO registration, legal links, contact) and the quiet reassurance
+// line near the primary sign-up CTA.
+
+describe('AuthScreen — company footer', () => {
+  it('renders the company number and ICO registration in the footer', () => {
+    const { container } = renderAuth();
+    const entity = container.querySelector('.auth-legal-footer-entity');
+    expect(entity).toBeTruthy();
+    expect(entity.textContent).toContain('Company No. 17249792');
+    expect(entity.textContent).toContain('ICO reg ZC163042');
+  });
+
+  it('renders Privacy, Terms and Cookies links pointing at the static legal pages', () => {
+    const { container } = renderAuth();
+    const links = container.querySelector('.auth-legal-footer-links');
+    expect(links).toBeTruthy();
+    expect(links.querySelector('a[href="/privacy"]')).toBeTruthy();
+    expect(links.querySelector('a[href="/terms"]')).toBeTruthy();
+    expect(links.querySelector('a[href="/cookies"]')).toBeTruthy();
+  });
+
+  it('renders a Contact link mailing the current getohnar@gmail.com inbox (not the retired getjobprofit address)', () => {
+    const { container } = renderAuth();
+    const links = container.querySelector('.auth-legal-footer-links');
+    const contact = links.querySelector('a[href^="mailto:"]');
+    expect(contact).toBeTruthy();
+    expect(contact.getAttribute('href')).toBe('mailto:getohnar@gmail.com');
+    expect(contact.textContent).toBe('Contact');
+  });
+
+  it('places the footer at the end of the page, after the screenshot strip', () => {
+    const { container } = renderAuth();
+    const strip = container.querySelector('.auth-screenshots');
+    const footer = container.querySelector('.auth-legal-footer');
+    expect(strip && footer).toBeTruthy();
+    expect(strip.compareDocumentPosition(footer) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+});
+
+describe('AuthScreen — trust strip', () => {
+  it('renders the Stripe / encryption / UK-registration reassurance line', () => {
+    const { container } = renderAuth();
+    const strip = container.querySelector('.auth-trust-strip');
+    expect(strip).toBeTruthy();
+    expect(strip.textContent).toContain('Card payments secured by Stripe');
+    expect(strip.textContent).toContain('Your data encrypted');
+    expect(strip.textContent).toContain('UK-registered company');
+  });
+
+  it('does not overclaim with unverifiable trust badges', () => {
+    const { container } = renderAuth();
+    const strip = container.querySelector('.auth-trust-strip');
+    expect(strip.textContent).not.toMatch(/bank-level|certified|ISO ?27001/i);
+  });
+
+  it('sits directly under the primary CTA line, above the sign-in buttons', () => {
+    const { container } = renderAuth();
+    const ctaLine = container.querySelector('.auth-cta-line');
+    const strip = container.querySelector('.auth-trust-strip');
+    const googleBtn = container.querySelector('.auth-google-btn');
+    expect(ctaLine && strip && googleBtn).toBeTruthy();
+    expect(ctaLine.compareDocumentPosition(strip) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(strip.compareDocumentPosition(googleBtn) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+});
