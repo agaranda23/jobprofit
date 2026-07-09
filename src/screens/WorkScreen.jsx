@@ -195,7 +195,7 @@ function chaseJobTiered(job, biz = null, forceTier = null, payNowUrl = '') {
     amountPaid: 0,
     paymentDetails,
     businessName: biz?.name || '',
-    isB2B: false,
+    isB2B: !!job.isBusinessCustomer,
     payNowUrl,
   });
 
@@ -1619,7 +1619,7 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
       amountPaid: 0,
       paymentDetails,
       businessName: biz?.name || '',
-      isB2B: false,
+      isB2B: !!job.isBusinessCustomer,
       payNowUrl: payNowUrls.get(job.id) ?? '',
     });
     // Empty cleanPhone opens wa.me with no recipient — matches chaseJobTiered's degradation.
