@@ -8,8 +8,18 @@ import { stageToFilledCount } from '../lib/pipelineProgress';
  * Overdue is treated as a sub-state of Invoiced (same pipeline position,
  * but the Invoiced segment is coloured red when stage === Overdue).
  *
- * Segment colours mirror the STAGE_META hues from WorkScreen. Explicit hex
- * values avoid color-mix() for Safari 15 compatibility.
+ * Segment colours are repointed (jobs-premium-pass Phase 2) onto the ONE
+ * canonical --stage-* palette (index.css :root) — the same source StatusBadge
+ * and StageStrip read from. Previously this map used the legacy --grn-* family
+ * (mint/indigo/mint-adjacent hexes with no Overdue entry at all) plus a
+ * hardcoded #0E6B43 for Paid that matched nothing else in the app. Explicit
+ * var()/hex values still avoid color-mix() for Safari 15 compatibility.
+ *
+ * NOTE: this component is not currently rendered anywhere in the app
+ * (superseded by WorkflowCircles — see the "replaced by WorkflowCircles"
+ * comment in WorkScreen.jsx) — verified by grep. Repointed for token hygiene
+ * so it isn't a landmine if it's ever reactivated; there is no live visual
+ * change from this edit.
  *
  * Props:
  *   job  — raw job record (passed to deriveDisplayStatus)
@@ -18,14 +28,12 @@ import { stageToFilledCount } from '../lib/pipelineProgress';
 // Four logical loop steps — matches the "Get Paid loop" framing.
 const STEPS = ['Quoted', 'On', 'Invoiced', 'Paid'];
 
-// Colour for each filled segment (matches WorkScreen STAGE_META hues).
-// Token mapping verified byte-identical. #0E6B43 ≠ --grn-paid (#18865A) — left as hex until
-// the paid dot colour is reconciled with the token palette.
+// Colour for each filled segment — canonical --stage-* hues.
 const SEGMENT_COLORS = {
-  Quoted:   'var(--grn-quoted)',   // #B3F0D5 == --grn-quoted
-  On:       'var(--grn-on)',       // #5FD9A6 == --grn-on
-  Invoiced: 'var(--grn-invoiced)', // #28B581 == --grn-invoiced
-  Paid:     '#0E6B43',             // no token: #0E6B43 ≠ --grn-paid (#18865A)
+  Quoted:   'var(--stage-quoted)',
+  On:       'var(--stage-on)',
+  Invoiced: 'var(--stage-invoiced)',
+  Paid:     'var(--stage-paid)',
 };
 
 export default function JobProgressDots({ job }) {
@@ -46,7 +54,12 @@ export default function JobProgressDots({ job }) {
         const isOverdueDot = isOverdue && idx === 2;
         let bg;
         if (isOverdueDot) {
-          bg = '#E5484D';
+          // Repointed red (#E5484D) → canonical --stage-overdue (orange #F97316),
+          // jobs-premium-pass Phase 2 — flagged for founder eyeballing: this is a
+          // deliberate hue change (danger-red → canonical orange), not a bugfix
+          // to an already-orange value. Dead component (see file header) so
+          // there is no live visual change from this edit.
+          bg = 'var(--stage-overdue)';
         } else if (isFilled) {
           bg = SEGMENT_COLORS[step] || 'var(--accent)';
         } else {

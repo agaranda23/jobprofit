@@ -246,15 +246,25 @@ const STAGES = ['Lead', 'Quoted', 'On', 'Invoiced', 'Overdue', 'Paid'];
 // STAGE_TOKEN / index.css :root), so the swatch and card rail always match the
 // pipeline header dots. Do NOT reintroduce the old --jp-*/--grn-*/--danger
 // tokens here — they are pre-rebrand leftovers.
-// .fill / .ink feed only the decorative (pointer-events:none) stage pill and are
-// intentionally left on their existing values (Quoted keeps its hardcoded hex).
+// .fill / .ink feed only the decorative (pointer-events:none) stage pill
+// (.jt-stage-label — see index.css) via --jt-fill/--jt-ink. That class isn't
+// rendered by this screen's job tile any more (replaced by .jt-stage-name —
+// verified by grep), so within WorkScreen these two fields are currently
+// inert token hygiene, not a live visual change. Repointed (jobs-premium-pass
+// Phase 2) so a stage never carries a mismatched colour if this ever gets
+// reactivated: Quoted's fill was a hardcoded pale-mint hex (#7FDFB4/#1E8A5C —
+// green, not teal — no --stage-fill-quoted token exists to replace it with,
+// so it now reuses the existing --stage-tint-quoted tint) and Paid's ink
+// pointed at --grn-quoted (a leftover mint-green token, not even the Paid
+// hue) — both now fall back to their own canonical hue like the other four
+// stages already did (ink: null → hue).
 const STAGE_META = {
   Lead:     { hue: 'var(--stage-lead)',     fill: 'var(--stage-fill-lead)',     ink: null },
-  Quoted:   { hue: 'var(--stage-quoted)',   fill: '#7FDFB4',                    ink: '#1E8A5C' },               // fill + ink: no CSS token exists; kept as-is
+  Quoted:   { hue: 'var(--stage-quoted)',   fill: 'var(--stage-tint-quoted)',   ink: null },
   On:       { hue: 'var(--stage-on)',       fill: 'var(--stage-fill-on)',       ink: null },
   Invoiced: { hue: 'var(--stage-invoiced)', fill: 'var(--stage-fill-invoiced)', ink: null },
   Overdue:  { hue: 'var(--stage-overdue)',  fill: 'var(--stage-fill-overdue)',  ink: null },
-  Paid:     { hue: 'var(--stage-paid)',     fill: 'var(--stage-fill-paid)',     ink: 'var(--grn-quoted)' },
+  Paid:     { hue: 'var(--stage-paid)',     fill: 'var(--stage-fill-paid)',     ink: null },
 };
 
 /**

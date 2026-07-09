@@ -6,17 +6,29 @@ import Icon from './Icon';
 // "invoice_sent") which diverged from the stage words shown in the job tile and
 // the StageStrip. Now both sources of truth agree.
 
-// Colour palette mirrors the STAGE_META hues in WorkScreen (explicit hex, no
-// color-mix() — keeps Safari 15 compatible).
-// fg values that exactly match design tokens use var() — others kept as hex until a token lands.
-// bg values are opacity-modulated rgba — no token match; left as-is.
+// Colour palette — repointed (jobs-premium-pass Phase 2) onto the ONE canonical
+// --stage-* palette (index.css :root), the same source StatusBadge, StageStrip
+// and WorkScreen's tile rail now all read from. Previously this map had its own
+// hardcoded hexes that disagreed with the pipeline (e.g. Quoted rendered green
+// here, teal in StageStrip) — the exact "parallel palette" bug this pass exists
+// to remove. Quoted is now teal, Overdue is orange (never red/green), On is
+// indigo, Paid is the one true green.
+// bg: the static --stage-tint-* tint scale (Phase 0/1) — precomputed per-theme
+// rgba, NOT color-mix() (Safari 15 drops an invalid color-mix() background
+// entirely, so every load-bearing tint here is a literal rgba via a CSS var).
+// fg: the canonical solid --stage-* hue, reused as-is rather than inventing a
+// second per-stage/per-theme pastel ink matrix (that duplication is exactly
+// what the palette unification is trying to collapse). NOTE: this component
+// is not currently rendered anywhere in the app (superseded by WorkflowCircles
+// / .jt-stage-name) — verified by grep, so this repoint is unverified-in-browser
+// token hygiene; re-check contrast with a real render before wiring it back up.
 const STAGE_COLORS = {
-  Lead:     { bg: 'rgba(59,130,246,0.15)', fg: '#93bbf6' },           // #93bbf6: no token
-  Quoted:   { bg: 'rgba(179,240,213,0.18)', fg: '#1E8A5C' },          // #1E8A5C: no token
-  On:       { bg: 'rgba(95,217,166,0.18)', fg: 'var(--grn-invoiced)' },  // #28B581 == --grn-invoiced
-  Invoiced: { bg: 'rgba(40,181,129,0.18)', fg: 'var(--grn-invoiced)' },  // #28B581 == --grn-invoiced
-  Overdue:  { bg: 'rgba(229,72,77,0.15)', fg: '#E5484D' },            // #E5484D ≠ --danger (#ef4444)
-  Paid:     { bg: 'rgba(14,107,67,0.20)', fg: 'var(--grn-invoiced)' },   // #28B581 == --grn-invoiced
+  Lead:     { bg: 'var(--stage-tint-lead)',     fg: 'var(--stage-lead)' },
+  Quoted:   { bg: 'var(--stage-tint-quoted)',   fg: 'var(--stage-quoted)' },
+  On:       { bg: 'var(--stage-tint-on)',       fg: 'var(--stage-on)' },
+  Invoiced: { bg: 'var(--stage-tint-invoiced)', fg: 'var(--stage-invoiced)' },
+  Overdue:  { bg: 'var(--stage-tint-overdue)',  fg: 'var(--stage-overdue)' },
+  Paid:     { bg: 'var(--stage-tint-paid)',     fg: 'var(--stage-paid)' },
 };
 
 const STAGE_ICON = {
