@@ -21,10 +21,17 @@
  *     or pre-fetch not yet resolved).
  *  I. handlePreDueChase equivalent (tier 0) includes Pay-now when connected.
  *  J. JobDetailDrawer handleChase equivalent includes Pay-now when connected.
+ *  K. job.isBusinessCustomer → isB2B threading (feat/chase-b2b-customer-tag).
+ *     Every real call site reads `!!job.isBusinessCustomer` (or
+ *     `!!promptJob.isBusinessCustomer` in TodayScreen) rather than hardcoding
+ *     `isB2B: false` — a regression here would silently keep sending B2C
+ *     copy to a tagged business customer's final chase. Mirrors
+ *     WorkScreen.chaseJobTiered, WorkScreen.handlePreDueChase, and
+ *     TodayScreen's whatsapp/email handlePrimaryCta branches.
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { buildChaseLink } from '../../lib/chaseLadder.js';
+import { buildChaseLink, buildChaseMessage } from '../../lib/chaseLadder.js';
 
 // Stub localStorage (chaseLadder reads it for double-send guard)
 const localStorageMock = (() => {
@@ -241,5 +248,141 @@ describe('J. JobDetailDrawer handleChase equivalent — Pay-now when connected',
 
     expect(link).not.toBeNull();
     expect(decodeURIComponent(link)).not.toContain('Pay by card here:');
+  });
+});
+
+// ── K. job.isBusinessCustomer → isB2B threading across every chase call site ──
+
+describe('K. job.isBusinessCustomer tag flows into isB2B at every chase call site', () => {
+  const B2B_JOB = { ...BASE_JOB, isBusinessCustomer: true };
+  const B2C_JOB = { ...BASE_JOB, isBusinessCustomer: false };
+  const UNTAGGED_JOB = BASE_JOB; // no isBusinessCustomer key at all — legacy job shape
+
+  it('WorkScreen.chaseJobTiered equivalent: untagged job at tier 3 → B2C copy', () => {
+    const link = buildChaseLink({
+      phone: UNTAGGED_JOB.customerPhone,
+      customerName: UNTAGGED_JOB.customer,
+      amount: '£540.00',
+      jobSummary: UNTAGGED_JOB.summary,
+      dueDate: UNTAGGED_JOB.invoiceDueDate,
+      daysOverdue: 20,
+      tier: 3,
+      amountPaid: 0,
+      paymentDetails: '',
+      businessName: BIZ.name,
+      isB2B: !!UNTAGGED_JOB.isBusinessCustomer,
+      payNowUrl: '',
+    });
+    const decoded = decodeURIComponent(link);
+    expect(decoded).not.toContain('Late Payment of Commercial Debts');
+    expect(decoded).toContain('last one from me on this');
+  });
+
+  it('WorkScreen.chaseJobTiered equivalent: tagged job at tier 3 → B2B statutory-interest copy', () => {
+    const link = buildChaseLink({
+      phone: B2B_JOB.customerPhone,
+      customerName: B2B_JOB.customer,
+      amount: '£540.00',
+      jobSummary: B2B_JOB.summary,
+      dueDate: B2B_JOB.invoiceDueDate,
+      daysOverdue: 20,
+      tier: 3,
+      amountPaid: 0,
+      paymentDetails: '',
+      businessName: BIZ.name,
+      isB2B: !!B2B_JOB.isBusinessCustomer,
+      payNowUrl: '',
+    });
+    const decoded = decodeURIComponent(link);
+    expect(decoded).toContain('Late Payment of Commercial Debts (Interest) Act 1998');
+    expect(decoded).not.toContain('last one from me on this');
+  });
+
+  it('WorkScreen.handleBatchChaseStep equivalent (delegates to chaseJobTiered): tagged job at tier 3 → B2B copy', () => {
+    // Batch chase calls chaseJobTiered(job, biz, null, payNowUrl) with no override —
+    // same isB2B derivation as the direct per-job Chase button.
+    const link = buildChaseLink({
+      phone: B2B_JOB.customerPhone,
+      customerName: B2B_JOB.customer,
+      amount: '£540.00',
+      jobSummary: B2B_JOB.summary,
+      dueDate: B2B_JOB.invoiceDueDate,
+      daysOverdue: 20,
+      tier: 3,
+      amountPaid: 0,
+      paymentDetails: '',
+      businessName: BIZ.name,
+      isB2B: !!B2B_JOB.isBusinessCustomer,
+      payNowUrl: PAY_NOW_URL,
+    });
+    const decoded = decodeURIComponent(link);
+    expect(decoded).toContain('Late Payment of Commercial Debts (Interest) Act 1998');
+  });
+
+  it('WorkScreen.handlePreDueChase equivalent (tier 0): tagged job never surfaces B2B copy below tier 3', () => {
+    const preDueJob = { ...B2B_JOB, invoiceDueDate: '2026-06-02' };
+    const link = buildChaseLink({
+      phone: preDueJob.customerPhone,
+      customerName: preDueJob.customer,
+      amount: '£540.00',
+      jobSummary: preDueJob.summary,
+      dueDate: preDueJob.invoiceDueDate,
+      daysOverdue: 0,
+      tier: 0,
+      amountPaid: 0,
+      paymentDetails: '',
+      businessName: BIZ.name,
+      isB2B: !!preDueJob.isBusinessCustomer,
+      payNowUrl: '',
+    });
+    const decoded = decodeURIComponent(link);
+    expect(decoded).not.toContain('Late Payment of Commercial Debts');
+  });
+
+  it('TodayScreen handlePrimaryCta (whatsapp) equivalent: tagged promptJob at tier 3 → B2B copy', () => {
+    const msg = buildChaseMessage({
+      customerName: B2B_JOB.customer,
+      amount: '£540.00',
+      jobSummary: B2B_JOB.summary,
+      invoiceNumber: '',
+      daysOverdue: 20,
+      tier: 3,
+      paymentDetails: '',
+      businessName: BIZ.name,
+      isB2B: !!B2B_JOB.isBusinessCustomer,
+    });
+    expect(msg).toContain('Late Payment of Commercial Debts (Interest) Act 1998');
+  });
+
+  it('TodayScreen handlePrimaryCta (email) equivalent: untagged promptJob at tier 3 → B2C copy, no statutory clause', () => {
+    const msg = buildChaseMessage({
+      customerName: B2C_JOB.customer,
+      amount: '£540.00',
+      jobSummary: B2C_JOB.summary,
+      invoiceNumber: '',
+      daysOverdue: 20,
+      tier: 3,
+      isB2B: !!B2C_JOB.isBusinessCustomer,
+    });
+    expect(msg).not.toContain('Late Payment of Commercial Debts');
+  });
+
+  it('JobDetailDrawer.handleChase equivalent: tagged job below tier 3 (tier 2) never emits B2B copy', () => {
+    const link = buildChaseLink({
+      phone: B2B_JOB.customerPhone,
+      customerName: B2B_JOB.customer,
+      amount: '£540.00',
+      jobSummary: B2B_JOB.summary,
+      dueDate: B2B_JOB.invoiceDueDate,
+      daysOverdue: 10,
+      tier: 2,
+      amountPaid: 0,
+      paymentDetails: '',
+      businessName: BIZ.name,
+      isB2B: !!B2B_JOB.isBusinessCustomer,
+      payNowUrl: '',
+    });
+    const decoded = decodeURIComponent(link);
+    expect(decoded).not.toContain('Late Payment of Commercial Debts');
   });
 });

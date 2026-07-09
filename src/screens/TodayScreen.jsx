@@ -427,6 +427,7 @@ export default function TodayScreen({
         tier: chaseTier,
         paymentDetails: payDetails,
         businessName: bizName,
+        isB2B: !!promptJob.isBusinessCustomer,
       });
       const clean = phone.replace(/\s/g, '').replace(/^0/, '44').replace(/^\+/, '');
       window.open(`https://wa.me/${clean}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener');
@@ -462,6 +463,7 @@ export default function TodayScreen({
         invoiceNumber: promptJob.invoiceNumber || '',
         daysOverdue: dpd,
         tier: chaseTier,
+        isB2B: !!promptJob.isBusinessCustomer,
       });
       window.open(`mailto:${email}?subject=Invoice reminder&body=${encodeURIComponent(msg)}`, '_blank', 'noopener');
       haptic('light');

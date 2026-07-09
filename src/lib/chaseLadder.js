@@ -344,7 +344,7 @@ export function buildChaseMessage({
       // explicitly true. Hard-defaults to B2C until a customer tag ships.
       if (isB2B) {
         const payInline = paymentDetails ? ` to ${paymentDetails}` : '';
-        return `${partPayPrefix}Hi ${name},\n\nThis is a final reminder that ${invoiceRef} for ${amount}${jobClause} is now ${daysOverdue} days overdue. Under the Late Payment of Commercial Debts Act 1998 interest and compensation may now apply. If you've already paid, please disregard this notice — otherwise, please arrange payment${payInline} or contact me today. If I don't receive payment or a confirmed date by end of this week I'll be taking further steps.${bizLine}`;
+        return `${partPayPrefix}Hi ${name},\n\nThis is a final reminder that ${invoiceRef} for ${amount}${jobClause} is now ${daysOverdue} days overdue. Under the Late Payment of Commercial Debts (Interest) Act 1998 interest and compensation may now apply. If you've already paid, please disregard this notice — otherwise, please arrange payment${payInline} or contact me today. If I don't receive payment or a confirmed date by end of this week I'll be taking further steps.${bizLine}`;
       }
       // Tier 3-B2C (homeowner / DEFAULT)
       return `${partPayPrefix}Hi ${name} 👋\n\nlast one from me on this — ${invoiceRef} for ${amount}${jobClause} is now ${daysOverdue} days overdue. ${alreadyPaidLine} If there's a problem at your end, give me a ring and we'll sort it. If I don't hear back this week I'll need to follow this up more formally.${payLine}${bizLine}`;
