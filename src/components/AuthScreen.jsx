@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { logTelemetry } from '../lib/telemetry';
+import { REFERRAL_CODE_STORAGE_KEY, withReferralCode } from '../lib/referral';
 import Icon from './Icon';
 import OhnarWordmark from './OhnarWordmark';
 
@@ -210,7 +211,7 @@ export default function AuthScreen() {
     // referral link who hasn't signed in yet. V1 deliberately does NOT look up
     // the referrer's name — no pre-signup PII endpoint, keep it simple.
     try {
-      if (sessionStorage.getItem('jp.referralCode')) {
+      if (sessionStorage.getItem(REFERRAL_CODE_STORAGE_KEY)) {
         setHasReferralInvite(true);
         logTelemetry('referral_invite_banner_shown');
       }
@@ -335,9 +336,13 @@ export default function AuthScreen() {
     setError('');
     logTelemetry('signin_google_clicked');
     try {
+      // Carry any in-flight referral code THROUGH the OAuth round trip by
+      // putting it back in the returning URL, rather than relying solely on
+      // sessionStorage surviving the app -> Google -> Supabase -> app bounce
+      // (see withReferralCode for why sessionStorage alone is fragile here).
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
-        options: { redirectTo: window.location.origin },
+        options: { redirectTo: withReferralCode(window.location.origin) },
       });
       if (error) {
         setError(error.message);
@@ -355,10 +360,11 @@ export default function AuthScreen() {
     setSending(true);
     setError('');
     try {
+      // Same referral-carrying treatment as Google — see signInWithGoogle.
       const { error } = await supabase.auth.signInWithOtp({
         email: email.trim(),
         options: {
-          emailRedirectTo: window.location.origin,
+          emailRedirectTo: withReferralCode(window.location.origin),
         },
       });
       if (error) {

@@ -2,21 +2,40 @@
  * Tests for src/lib/referral.js (JP-LU7 Phase 1)
  *
  * No DOM, no React, no network. Supabase client is mocked inline.
+ * sessionStorage (needed by withReferralCode) is stubbed with a tiny in-memory
+ * map via vi.stubGlobal rather than switching this file to jsdom, so the rest
+ * of the suite keeps its "no DOM" node-environment speed.
  *
  * Covers:
  *   A. buildReferralLink — correct domain and encoding
  *   B. generateReferralCode — length, alphabet, uniqueness
  *   C. ensureReferralCode — fast-path, upsert, 42703 no-op, collision retry
  *   D. copyReferralLink — navigator.share and clipboard fallback (mocked)
+ *   E. withReferralCode — carries a captured ref code onto an auth redirect URL
+ *      (fix for referral attribution silently lost across the Google OAuth
+ *      round trip — see AuthScreen.jsx signInWithGoogle/send and
+ *      AppShell.jsx's SIGNED_IN/INITIAL_SESSION handler)
  */
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   buildReferralLink,
+  withReferralCode,
+  REFERRAL_CODE_STORAGE_KEY,
   generateReferralCode,
   ensureReferralCode,
   copyReferralLink,
 } from '../referral.js';
+
+/** Minimal in-memory sessionStorage stand-in for the node test environment. */
+function makeMockSessionStorage(initial = {}) {
+  const store = { ...initial };
+  return {
+    getItem: (key) => (key in store ? store[key] : null),
+    setItem: (key, value) => { store[key] = String(value); },
+    removeItem: (key) => { delete store[key]; },
+  };
+}
 
 // ── A. buildReferralLink ──────────────────────────────────────────────────────
 
@@ -211,5 +230,53 @@ describe('D. copyReferralLink', () => {
     Object.defineProperty(navigator, 'clipboard', { value: undefined, configurable: true });
 
     await expect(copyReferralLink('AAA111')).resolves.toBeUndefined();
+  });
+});
+
+// ── E. withReferralCode ───────────────────────────────────────────────────────
+
+describe('E. withReferralCode', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('appends ?ref=<code> when a referral code is in sessionStorage', () => {
+    vi.stubGlobal(
+      'sessionStorage',
+      makeMockSessionStorage({ [REFERRAL_CODE_STORAGE_KEY]: 'ruvWbv' })
+    );
+    expect(withReferralCode('https://ohnar.co.uk')).toBe('https://ohnar.co.uk/?ref=ruvWbv');
+  });
+
+  it('returns the base URL unchanged when there is no referral code', () => {
+    vi.stubGlobal('sessionStorage', makeMockSessionStorage({}));
+    expect(withReferralCode('https://ohnar.co.uk')).toBe('https://ohnar.co.uk');
+  });
+
+  it('works with either origin — jobprofit.co.uk or ohnar.co.uk (uses whatever is passed in)', () => {
+    vi.stubGlobal(
+      'sessionStorage',
+      makeMockSessionStorage({ [REFERRAL_CODE_STORAGE_KEY]: 'ABC123' })
+    );
+    expect(withReferralCode('https://jobprofit.co.uk')).toBe(
+      'https://jobprofit.co.uk/?ref=ABC123'
+    );
+  });
+
+  it('falls back to the base URL unchanged when sessionStorage throws (private browsing)', () => {
+    vi.stubGlobal('sessionStorage', {
+      getItem: () => { throw new Error('SecurityError'); },
+    });
+    expect(withReferralCode('https://ohnar.co.uk')).toBe('https://ohnar.co.uk');
+  });
+
+  it('does not clobber an existing query string on the base URL', () => {
+    vi.stubGlobal(
+      'sessionStorage',
+      makeMockSessionStorage({ [REFERRAL_CODE_STORAGE_KEY]: 'ruvWbv' })
+    );
+    expect(withReferralCode('https://ohnar.co.uk/?foo=bar')).toBe(
+      'https://ohnar.co.uk/?foo=bar&ref=ruvWbv'
+    );
   });
 });

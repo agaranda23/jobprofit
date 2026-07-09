@@ -92,6 +92,7 @@ import AddJobModal from './components/AddJobModal.jsx';
 import { haptic } from './lib/haptics.js';
 import { unlockAudioContext, playPaymentReceivedSound } from './lib/paymentSound.js';
 import { seedSampleData, clearSampleData } from './lib/sampleData.js';
+import { REFERRAL_CODE_STORAGE_KEY } from './lib/referral.js';
 
 // ─── App-boot cleanup ─────────────────────────────────────────────────────────
 // Remove localStorage keys that were used by the now-deleted newNav and
@@ -568,22 +569,41 @@ export default function AppShell() {
       // is their first ever sign-in rather than a returning login. 60 s gives
       // enough headroom for slow email delivery + link tap without false positives.
       // sign_up is kept alongside it for backward-compat with existing dashboards.
-      if (_event === 'SIGNED_IN' && newSession?.user) {
+      //
+      // Referral attribution + this telemetry share the isNew computation, but
+      // are gated on DIFFERENT events — see the comment below for why.
+      if (newSession?.user && (_event === 'SIGNED_IN' || _event === 'INITIAL_SESSION')) {
         const createdAt = new Date(newSession.user.created_at ?? 0).getTime();
         const isNew = Date.now() - createdAt < 60_000;
-        logTelemetry('signed_in', { is_new_user: isNew });
-        if (isNew) logTelemetry('sign_up', { plan: 'free' });
 
-        // Referral attribution (JP-LU7 Phase 1):
+        // Telemetry only on a genuine SIGNED_IN transition — INITIAL_SESSION
+        // also fires on every ordinary app reopen for an already-signed-in
+        // user (session restored from storage), which would otherwise
+        // double-count/inflate this funnel metric.
+        if (_event === 'SIGNED_IN') {
+          logTelemetry('signed_in', { is_new_user: isNew });
+          if (isNew) logTelemetry('sign_up', { plan: 'free' });
+        }
+
+        // Referral attribution (JP-LU7 Phase 1; widened to INITIAL_SESSION
+        // as part of the OAuth-attribution-loss fix):
         // If a ?ref= code was captured in main.jsx (persisted to sessionStorage),
         // call the record-referral function fire-and-forget.
+        //
+        // Checked on BOTH events because of a supabase-js race on the Google
+        // OAuth *return* trip: the client starts processing the callback's
+        // auth tokens as soon as it's constructed (before this effect has
+        // subscribed). On a slow connection that processing can finish first,
+        // in which case this listener receives INITIAL_SESSION (session
+        // already populated) instead of SIGNED_IN — a check gated on
+        // SIGNED_IN alone would then silently never fire for that signup.
         // We only attempt this on new sign-ups (isNew guard) to avoid re-attributing
         // existing users who click a referral link while already signed in.
         // The function itself also guards against self-referral and duplicates.
         try {
-          const refCode = sessionStorage.getItem('jp.referralCode');
+          const refCode = sessionStorage.getItem(REFERRAL_CODE_STORAGE_KEY);
           if (refCode && isNew && newSession.access_token) {
-            sessionStorage.removeItem('jp.referralCode');
+            sessionStorage.removeItem(REFERRAL_CODE_STORAGE_KEY);
             fetch('/.netlify/functions/record-referral', {
               method: 'POST',
               headers: {
