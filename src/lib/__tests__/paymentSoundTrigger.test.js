@@ -140,33 +140,41 @@ describe('payment-received sound — trigger logic', () => {
 // This is a lightweight guard against a future accidental import/call.
 
 describe('payment-received sound — scope guard', () => {
-  it('a plain-object "action registry" mirroring the app\'s haptic call sites shows sound only on payment kinds', () => {
+  it('a plain-object "action registry" mirroring the app\'s haptic call sites shows the PAYMENT CHIME only on payment kinds', () => {
     // Mirrors src/lib/haptics.js's PATTERN kinds and how AppShell/screens use them.
-    // 'success' is reused for a non-payment diagnostic (Settings "Test vibration"),
-    // so the sound must be wired at the specific payment call sites, NOT
-    // piggy-backed onto every haptic('success') call — this registry documents
-    // that split for future maintainers.
+    // 'paymentChime' means specifically playPaymentReceivedSound() (the mark-paid
+    // chime, see paymentSound.js) — NOT "any sound at all". Since
+    // feat/premium-feel-moments, several other call sites play a DIFFERENT,
+    // quieter earcon (see momentEarcons.js: playSendEarcon/playAcceptedEarcon)
+    // as their iOS-safe haptic partner — those are marked paymentChime:false
+    // here on purpose, they are simply not the money-in celebration.
+    // 'success' is also reused for a non-payment diagnostic (Settings "Test
+    // vibration"), so the chime must be wired at the specific payment call
+    // sites, NOT piggy-backed onto every haptic('success') call — this
+    // registry documents that split for future maintainers.
     const hapticCallSites = {
-      markPaidFromToday: { haptic: 'success', sound: true },
-      addPaymentBalanceCleared: { haptic: 'success', sound: true },
-      updateJobPaidTransition: { haptic: 'success', sound: true },
-      realtimePaymentLanded: { haptic: 'success', sound: true },
-      settingsTestVibration: { haptic: 'success', sound: false }, // diagnostic tap, NOT a payment
-      sendInvoiceConfirmed: { haptic: 'medium', sound: false },
-      swipePagerSettle: { haptic: 'light', sound: false },
-      chaseReminderSent: { haptic: 'light', sound: false },
+      markPaidFromToday: { haptic: 'success', paymentChime: true },
+      addPaymentBalanceCleared: { haptic: 'success', paymentChime: true },
+      updateJobPaidTransition: { haptic: 'success', paymentChime: true },
+      realtimePaymentLanded: { haptic: 'success', paymentChime: true },
+      settingsTestVibration: { haptic: 'success', paymentChime: false }, // diagnostic tap, NOT a payment
+      quoteAcceptedRealtime: { haptic: 'success', paymentChime: false }, // plays playAcceptedEarcon instead
+      sendInvoiceConfirmed: { haptic: 'medium', paymentChime: false },   // plays playSendEarcon instead
+      swipePagerSettle: { haptic: 'light', paymentChime: false },
+      chaseReminderSent: { haptic: 'light', paymentChime: false },       // plays playSendEarcon instead
+      jobOrQuoteSaved: { haptic: 'light', paymentChime: false },
     };
 
-    const soundSites = Object.entries(hapticCallSites).filter(([, v]) => v.sound);
-    expect(soundSites.map(([k]) => k)).toEqual([
+    const chimeSites = Object.entries(hapticCallSites).filter(([, v]) => v.paymentChime);
+    expect(chimeSites.map(([k]) => k)).toEqual([
       'markPaidFromToday',
       'addPaymentBalanceCleared',
       'updateJobPaidTransition',
       'realtimePaymentLanded',
     ]);
 
-    // Nothing wired to sound uses a haptic kind other than 'success' — every
-    // sound call site is a real payment celebration, never a light/medium tap.
-    soundSites.forEach(([, v]) => expect(v.haptic).toBe('success'));
+    // Nothing wired to the chime uses a haptic kind other than 'success' —
+    // every chime call site is a real payment celebration, never a light/medium tap.
+    chimeSites.forEach(([, v]) => expect(v.haptic).toBe('success'));
   });
 });

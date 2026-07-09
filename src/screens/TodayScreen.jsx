@@ -50,6 +50,7 @@ import { UPGRADE_TRIGGERS } from '../lib/telemetry';
 import { supabase } from '../lib/supabase';
 import { getMonthSummary, getOverheadTotal, monthKey } from '../lib/cashflow';
 import { haptic } from '../lib/haptics.js';
+import { playSendEarcon } from '../lib/momentEarcons.js';
 import { waitingToCollectTotal, jobsOnCount, weekOverWeek } from '../lib/todayPulse';
 import { shouldCelebrateFirstQuote, markFirstQuoteCelebrationSeen } from '../lib/firstQuoteCelebration';
 
@@ -181,6 +182,12 @@ export default function TodayScreen({
   const handleJobSave = async (payload) => {
     setJobOpen(false);
     setJobOpenMode('normal');
+    // Tactile confirm on every save gesture. No matching earcon here on
+    // purpose — this is the single most frequent action in the app, and one
+    // of the toast messages below always fires alongside it (the visual
+    // partner), so a sound on every save would get old fast. See
+    // src/lib/haptics.js's call-site guide.
+    haptic('light');
     // The job was actually saved — AddJobModal already cleared the autosaved
     // draft (see clearDraftNow() in saveMicro/saveDetails/saveQuote); drop our
     // local copy too so a stale banner can't reappear for completed work.
@@ -424,6 +431,12 @@ export default function TodayScreen({
       const clean = phone.replace(/\s/g, '').replace(/^0/, '44').replace(/^\+/, '');
       window.open(`https://wa.me/${clean}?text=${encodeURIComponent(msg)}`, '_blank', 'noopener');
       haptic('light');
+      // iOS-safe partner: haptic('light') is a no-op on iOS Safari/PWA (see
+      // haptics.js), and window.open backgrounds the app to WhatsApp before
+      // the trader necessarily notices anything happened in OHNAR itself —
+      // the earcon + toast confirm the reminder was actually logged.
+      playSendEarcon();
+      showToast('Reminder sent');
       recordChase(promptJob.id);
       // Cloud sync is fire-and-forget — localStorage tap is already recorded above.
       recordChaseCloud(promptJob.id, supabase).catch(console.warn);
@@ -452,6 +465,9 @@ export default function TodayScreen({
       });
       window.open(`mailto:${email}?subject=Invoice reminder&body=${encodeURIComponent(msg)}`, '_blank', 'noopener');
       haptic('light');
+      // iOS-safe partner — see the whatsapp branch above for why.
+      playSendEarcon();
+      showToast('Reminder sent');
       recordChase(promptJob.id);
       // Cloud sync is fire-and-forget — localStorage tap is already recorded above.
       recordChaseCloud(promptJob.id, supabase).catch(console.warn);

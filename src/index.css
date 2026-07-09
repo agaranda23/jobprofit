@@ -22729,6 +22729,94 @@ button.dp-totals-row--total.dp-totals-row--tap:active {
   }
 }
 
+/* ─── InvoiceSentMoment — small overlay after a successful invoice send (feat/premium-feel-moments) ───
+   Deliberately smaller/shorter than .paid-celebration above (~900ms vs ~1.3s,
+   no ring-burst/sheen, brand blue never green) so "sent" never out-shines
+   "paid". Single call site (ReviewSheet.jsx invoice-send success path).
+   Motion gated behind prefers-reduced-motion, matching .paid-celebration.
+   ─────────────────────────────────────────────────────────────────────────────── */
+
+.invoice-sent-moment {
+  position: fixed;
+  inset: 0;
+  z-index: 9500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  background: rgba(11, 19, 32, 0.35);
+}
+
+.invoice-sent-moment__card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2, 8px);
+  padding: var(--space-6, 24px) var(--space-7, 28px);
+  border-radius: var(--radius-2xl, 20px);
+  background: var(--surface, #ffffff);
+  box-shadow: var(--shadow-lg, 0 8px 24px rgba(0,0,0,0.4));
+  min-width: 180px;
+  text-align: center;
+}
+
+.invoice-sent-moment__plane {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: rgba(37, 99, 235, 0.12);
+}
+
+.invoice-sent-moment__label {
+  margin: 0;
+  font-size: var(--fs-body, 0.9375rem);
+  font-weight: 600;
+  color: var(--text);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  @keyframes invoice-sent-in {
+    0%   { opacity: 0; transform: scale(0.85); }
+    60%  { opacity: 1; transform: scale(1.03); }
+    100% { opacity: 1; transform: scale(1); }
+  }
+
+  @keyframes invoice-sent-out {
+    0%   { opacity: 1; transform: scale(1); }
+    100% { opacity: 0; transform: scale(0.96); }
+  }
+
+  /* Paper-plane arc: a short lift-off and forward dart, then settle — reads
+     as "it just left", not a full flight path. */
+  @keyframes invoice-plane-arc {
+    0%   { transform: translate(-6px, 4px) rotate(-8deg); opacity: 0; }
+    40%  { transform: translate(2px, -4px) rotate(2deg); opacity: 1; }
+    100% { transform: translate(0, 0) rotate(0deg); opacity: 1; }
+  }
+
+  .invoice-sent-moment {
+    animation: invoice-sent-out 0.25s ease-in 0.62s forwards;
+  }
+
+  .invoice-sent-moment__card {
+    animation: invoice-sent-in 0.28s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  }
+
+  .invoice-sent-moment__plane {
+    animation: invoice-plane-arc 0.4s cubic-bezier(0.34, 1.56, 0.64, 1) 0.05s both;
+  }
+}
+
+/* Static state for prefers-reduced-motion: visible for the full dwell, no animation */
+@media (prefers-reduced-motion: reduce) {
+  .invoice-sent-moment {
+    background: rgba(11, 19, 32, 0.4);
+  }
+}
+
 /* ── feat/premium-money-countup — count-up tabular-nums guard ───────────────
    The hero figures already have font-variant-numeric: tabular-nums from their
    own CSS rules. The today-tax-pot-line's <strong> is the one exception — it
