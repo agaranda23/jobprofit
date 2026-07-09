@@ -1290,7 +1290,7 @@ function WhatsNewModal({ onClose }) {
 
 // ── DeleteAccountModal ────────────────────────────────────────────────────────
 
-function DeleteAccountModal({ session, onClose, onDeleted }) {
+function DeleteAccountModal({ session, onClose, onDeleted, onExport, exporting }) {
   const [confirmText, setConfirmText] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -1359,6 +1359,32 @@ function DeleteAccountModal({ session, onClose, onDeleted }) {
         </div>
 
         <div className="delete-account-modal__body">
+          {/* Export-before-delete step — data portability (free, always) before
+              the destructive action. Reuses the existing "Export everything"
+              CSV/XLSX/PDF sheet via onExport; does not touch delete-account.js
+              or what gets deleted. Non-blocking — user can still delete without
+              exporting. */}
+          <div className="delete-account-modal__export-callout">
+            <p className="delete-account-modal__export-heading">
+              <Icon name="download" size={18} />
+              Take your records with you
+            </p>
+            <p className="delete-account-modal__export-copy">
+              Once your account&rsquo;s deleted this data is gone. Download it first — you&rsquo;ll want it for your taxes. Your data, your call.
+            </p>
+            <button
+              type="button"
+              className="btn-primary delete-account-modal__export-btn"
+              onClick={onExport}
+              disabled={busy || exporting}
+            >
+              <Icon name="download" size={16} />
+              {exporting ? 'Preparing…' : 'Download your records'}
+            </button>
+          </div>
+
+          <div className="delete-account-modal__divider" />
+
           <p className="delete-account-modal__warning">
             This is <strong>permanent and irreversible.</strong>
           </p>
@@ -1392,7 +1418,7 @@ function DeleteAccountModal({ session, onClose, onDeleted }) {
           )}
           <button
             type="button"
-            className="delete-account-modal__confirm-btn"
+            className="delete-account-modal__confirm-btn delete-account-modal__confirm-btn--secondary"
             onClick={handleDelete}
             disabled={!isConfirmed || busy}
           >
@@ -2702,6 +2728,8 @@ export default function SettingsScreen({
           session={session}
           onClose={() => setShowDeleteAccount(false)}
           onDeleted={handleAccountDeleted}
+          onExport={() => openExportSheet('everything')}
+          exporting={exporting}
         />
       )}
 

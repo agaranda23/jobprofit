@@ -15580,6 +15580,51 @@ button.dp-totals-row--total.dp-totals-row--tap:active {
   flex-direction: column;
   gap: 0;
 }
+/* Export-before-delete callout — accent-tinted, matches the
+   .today-resume-draft-banner pattern (rgba(37,99,235) family). Visually
+   primary so it's found before the destructive action below it. */
+.delete-account-modal__export-callout {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  margin-bottom: 16px;
+  background: rgba(37, 99, 235, 0.08);
+  border: 1px solid rgba(37, 99, 235, 0.2);
+  border-radius: var(--radius-md);
+}
+[data-theme="light"] .delete-account-modal__export-callout {
+  background: rgba(37, 99, 235, 0.06);
+}
+.delete-account-modal__export-heading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: var(--fs-body);
+  font-weight: 700;
+  color: var(--text);
+  margin: 0;
+}
+.delete-account-modal__export-heading svg { color: var(--accent); flex-shrink: 0; }
+.delete-account-modal__export-copy {
+  font-size: var(--fs-label);
+  color: var(--text-dim);
+  margin: 0;
+  line-height: 1.5;
+}
+.delete-account-modal__export-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 4px;
+}
+.delete-account-modal__divider {
+  height: 1px;
+  background: var(--border);
+  margin: 0 0 16px;
+}
 .delete-account-modal__warning {
   font-size: var(--fs-subhead);
   color: var(--jp-rose, #fb3e57);
@@ -15641,6 +15686,15 @@ button.dp-totals-row--total.dp-totals-row--tap:active {
 .delete-account-modal__confirm-btn:disabled {
   opacity: 0.35;
   cursor: not-allowed;
+}
+/* Secondary treatment — the export step above is now the visually primary
+   action; the destructive delete reads as the deliberate second step
+   (outline instead of solid fill). Same element, same onClick/disabled
+   logic — appearance only. */
+.delete-account-modal__confirm-btn--secondary {
+  background: transparent;
+  color: var(--jp-rose, #fb3e57);
+  border: 1.5px solid var(--jp-rose, #fb3e57);
 }
 .delete-account-modal__cancel-btn {
   width: 100%;
