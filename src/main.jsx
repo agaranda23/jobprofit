@@ -7,6 +7,14 @@ import Splash from './components/Splash.jsx';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
 import { activateThemeController } from './lib/theme.js';
 import { getConsent } from './lib/consent.js';
+import { captureTosAcceptanceFromUrl } from './lib/legal.js';
+
+// ── ToS acceptance — recover tos_v/tos_at BEFORE any auth redirect strips them ──
+// Cross-device fallback for the magic-link sign-in flow: see
+// captureTosAcceptanceFromUrl()'s doc comment in lib/legal.js for why this
+// must run synchronously and this early (same requirement as the referral
+// capture immediately below it).
+captureTosAcceptanceFromUrl();
 
 // ── Referral attribution — capture ?ref= BEFORE any auth redirect strips it ──
 // This runs synchronously at the very top of main so we never lose the code.

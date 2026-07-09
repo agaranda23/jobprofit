@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { logTelemetry } from '../lib/telemetry';
-import { stashTosAcceptance } from '../lib/legal';
+import { stashTosAcceptance, buildTosRedirectUrl } from '../lib/legal';
 import Icon from './Icon';
 import OhnarWordmark from './OhnarWordmark';
 
@@ -336,7 +336,10 @@ export default function AuthScreen() {
     setError('');
     logTelemetry('signin_google_clicked');
     // Clickwrap acceptance — see the "By continuing..." line rendered below
-    // the sign-in controls. Stashed now, before the OAuth redirect fires.
+    // the sign-in controls. Stashed now, before the OAuth redirect fires
+    // (not after the network call resolves — if this attempt fails and a
+    // later click succeeds, the flushed timestamp reflects this click, not
+    // the successful one; negligible, the visitor did view/click it here).
     stashTosAcceptance();
     try {
       const { error } = await supabase.auth.signInWithOAuth({
@@ -359,12 +362,17 @@ export default function AuthScreen() {
     setSending(true);
     setError('');
     // Clickwrap acceptance — same line governs this path too (see Google click above).
-    stashTosAcceptance();
+    // Stashed locally AND embedded in the redirect URL (tos_v/tos_at query
+    // params): the emailed link is often opened on a different device/browser
+    // than the one that requested it, which would otherwise never see this
+    // localStorage write. captureTosAcceptanceFromUrl() in main.jsx recovers
+    // the URL copy on landing — see src/lib/legal.js for the full picture.
+    const tosAcceptance = stashTosAcceptance();
     try {
       const { error } = await supabase.auth.signInWithOtp({
         email: email.trim(),
         options: {
-          emailRedirectTo: window.location.origin,
+          emailRedirectTo: buildTosRedirectUrl(tosAcceptance),
         },
       });
       if (error) {

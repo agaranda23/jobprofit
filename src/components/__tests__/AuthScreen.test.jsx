@@ -548,3 +548,52 @@ describe('AuthScreen — OAuth callback error handling', () => {
     expect(screen.getByText('Check your email')).toBeTruthy();
   });
 });
+
+// ── ToS clickwrap acceptance travels on the magic-link URL ───────────────────
+// The consent-capture trail must survive the link being opened on a DIFFERENT
+// device/browser than the one that requested it (Mail app in-app browser vs
+// an installed home-screen PWA, most commonly). stashTosAcceptance() alone
+// can't do that — it only writes to localStorage on the requesting device —
+// so send() must also embed tos_v/tos_at on emailRedirectTo. See
+// captureTosAcceptanceFromUrl() in lib/legal.js for the landing-side half.
+
+describe('AuthScreen — ToS acceptance on the magic-link redirect URL', () => {
+  afterEach(() => {
+    localStorage.removeItem('jp.tosAcceptance');
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  it('embeds tos_v and tos_at query params on emailRedirectTo', async () => {
+    mockSignInWithOtp.mockResolvedValue({ error: null });
+    renderAuth();
+    fireEvent.change(screen.getByPlaceholderText('you@example.com'), {
+      target: { value: 'trade@van.com' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Email me a sign-in link/i }));
+    await waitFor(() => expect(mockSignInWithOtp).toHaveBeenCalledOnce());
+
+    const [{ options }] = mockSignInWithOtp.mock.calls[0];
+    const redirectUrl = new URL(options.emailRedirectTo);
+    expect(redirectUrl.searchParams.get('tos_v')).toBeTruthy();
+    expect(redirectUrl.searchParams.get('tos_at')).toBeTruthy();
+    // acceptedAt must be a real, parseable timestamp
+    expect(Number.isNaN(Date.parse(redirectUrl.searchParams.get('tos_at')))).toBe(false);
+  });
+
+  it('also stashes the same acceptance to localStorage for the same-device fast path', async () => {
+    mockSignInWithOtp.mockResolvedValue({ error: null });
+    renderAuth();
+    fireEvent.change(screen.getByPlaceholderText('you@example.com'), {
+      target: { value: 'trade@van.com' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Email me a sign-in link/i }));
+    await waitFor(() => expect(mockSignInWithOtp).toHaveBeenCalledOnce());
+
+    const stashed = JSON.parse(localStorage.getItem('jp.tosAcceptance'));
+    const [{ options }] = mockSignInWithOtp.mock.calls[0];
+    const redirectUrl = new URL(options.emailRedirectTo);
+    expect(stashed.version).toBe(redirectUrl.searchParams.get('tos_v'));
+    expect(stashed.acceptedAt).toBe(redirectUrl.searchParams.get('tos_at'));
+  });
+});
