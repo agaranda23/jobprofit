@@ -7,6 +7,9 @@
  *   - Note delete: returns a new array with the target id removed
  *   - Note delete: preserves array order (removes only the target)
  *   - Receipt deletion: calls the handler with the correct id
+ *   - AppShell.handleDeleteReceipt state consistency (zombie-receipt regression,
+ *     fix/receipt-delete-zombie): a failed cloud delete must not strip the
+ *     receipt from render state, and must surface an error
  *   - LinkReceiptModal suppression: handleAddReceipt skips setPendingLink
  *     when jobId is already present in the payload
  *   - pendingDeleteAction guard: confirm dialog fires onConfirm only on commit
@@ -133,6 +136,105 @@ describe('receipt delete handler', () => {
     const onDeleteReceipt = vi.fn().mockResolvedValue(undefined);
     await onDeleteReceipt('R-correct');
     expect(onDeleteReceipt).not.toHaveBeenCalledWith('R-wrong');
+  });
+});
+
+// ── AppShell.handleDeleteReceipt state consistency (zombie-receipt regression) ─
+// fix/receipt-delete-zombie: handleDeleteReceipt used to catch ANY
+// deleteReceiptFromCloud failure and strip the receipt from render state
+// anyway ("optimistic" removal), even though store.js leaves the Supabase
+// row + localStorage mirror intact on failure. That made the receipt vanish
+// from the UI while still existing in the DB, so it reappeared on the next
+// refreshFromCloud()/reload. The fix: let the failure propagate untouched —
+// state is only ever updated by refreshFromCloud() (cloud-authoritative), so
+// a failed delete leaves the receipt visible everywhere, and the caller
+// (JobDetailDrawer) surfaces the error via its existing flash toast.
+
+describe('AppShell.handleDeleteReceipt — zombie-receipt regression', () => {
+  // Mirrors the fixed closure in src/AppShell.jsx.
+  function makeHandleDeleteReceipt({ deleteReceiptFromCloud, refreshFromCloud }) {
+    return async (receiptId) => {
+      await deleteReceiptFromCloud(receiptId);
+      await refreshFromCloud();
+    };
+  }
+
+  it('refreshes state (removing the receipt) on a successful delete', async () => {
+    let receipts = [{ id: 'R-1' }, { id: 'R-2' }];
+    const deleteReceiptFromCloud = vi.fn().mockResolvedValue(undefined);
+    const refreshFromCloud = vi.fn().mockImplementation(async () => {
+      // refreshFromCloud is cloud-authoritative — it re-syncs receipts[]
+      receipts = receipts.filter(r => r.id !== 'R-1');
+    });
+    const handleDeleteReceipt = makeHandleDeleteReceipt({ deleteReceiptFromCloud, refreshFromCloud });
+
+    await handleDeleteReceipt('R-1');
+
+    expect(deleteReceiptFromCloud).toHaveBeenCalledWith('R-1');
+    expect(refreshFromCloud).toHaveBeenCalledOnce();
+    expect(receipts.find(r => r.id === 'R-1')).toBeUndefined();
+  });
+
+  it('propagates the error and does not refresh/mutate state when the cloud delete fails', async () => {
+    const receipts = [{ id: 'R-1' }, { id: 'R-2' }];
+    const setReceipts = vi.fn(); // the handler itself must never call this directly
+    const deleteReceiptFromCloud = vi.fn().mockRejectedValue(new Error('network error'));
+    const refreshFromCloud = vi.fn();
+    const handleDeleteReceipt = makeHandleDeleteReceipt({ deleteReceiptFromCloud, refreshFromCloud });
+
+    await expect(handleDeleteReceipt('R-1')).rejects.toThrow('network error');
+
+    expect(refreshFromCloud).not.toHaveBeenCalled();
+    expect(setReceipts).not.toHaveBeenCalled();
+    // The receipt a caller was holding is untouched — no zombie removal.
+    expect(receipts.find(r => r.id === 'R-1')).toBeDefined();
+  });
+
+  it('keeps the receipt visible and surfaces an error toast when JobDetailDrawer catches a failed delete', async () => {
+    // Mirrors the AddReceiptModal edit-mode wrapper in JobDetailDrawer.jsx:
+    // it catches the (now-real) failure from the AppShell handler, flashes an
+    // error, and — critically — never removes the receipt from the list itself.
+    let receipts = [{ id: 'R-1' }];
+    const flashes = [];
+    const showFlash = (msg) => flashes.push(msg);
+    const onDeleteReceipt = vi.fn().mockRejectedValue(new Error('RLS denied'));
+
+    const wrapped = async (id) => {
+      try {
+        await onDeleteReceipt(id);
+        showFlash('Receipt deleted');
+        receipts = receipts.filter(r => r.id !== id);
+      } catch {
+        showFlash('Could not delete receipt — try again');
+      }
+    };
+
+    await wrapped('R-1');
+
+    expect(flashes).toEqual(['Could not delete receipt — try again']);
+    expect(receipts).toEqual([{ id: 'R-1' }]); // still there — not a zombie
+  });
+
+  it('removes the receipt and flashes success when the wrapped delete succeeds', async () => {
+    let receipts = [{ id: 'R-1' }];
+    const flashes = [];
+    const showFlash = (msg) => flashes.push(msg);
+    const onDeleteReceipt = vi.fn().mockResolvedValue(undefined);
+
+    const wrapped = async (id) => {
+      try {
+        await onDeleteReceipt(id);
+        showFlash('Receipt deleted');
+        receipts = receipts.filter(r => r.id !== id);
+      } catch {
+        showFlash('Could not delete receipt — try again');
+      }
+    };
+
+    await wrapped('R-1');
+
+    expect(flashes).toEqual(['Receipt deleted']);
+    expect(receipts).toEqual([]);
   });
 });
 

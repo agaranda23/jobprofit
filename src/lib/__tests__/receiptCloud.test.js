@@ -310,4 +310,34 @@ describe('deleteReceiptFromCloud: receipt_items cleanup', () => {
     expect(stored.expenses.find(e => e.cloudId === 'r-cascade-3')).toBeUndefined();
     expect(stored.expenses.find(e => e.cloudId === 'r-other')).toBeDefined();
   });
+
+  // Regression for the AppShell "zombie receipt" bug (fix/receipt-delete-zombie):
+  // handleDeleteReceipt in AppShell.jsx used to strip the receipt from render
+  // state on ANY cloud failure, even though the localStorage mirror + Supabase
+  // row were left untouched here — so the receipt vanished from the UI but
+  // reappeared on the next refreshFromCloud()/reload. The fix relies on this
+  // function leaving the mirror (and the caught error) exactly as asserted below.
+  it('leaves the localStorage mirror untouched when the receipts row delete fails', async () => {
+    localStorage.setItem('jobprofit-app-data', JSON.stringify({
+      jobs: [], invoices: [],
+      expenses: [
+        { id: 'E-1', cloudId: 'r-cascade-4', merchant: 'Wickes', amount: 40, vat: 0, date: '2026-07-01', items: [] },
+      ],
+    }));
+
+    const { supabase } = await import('../supabase');
+    supabase.from.mockImplementation((table) => {
+      if (table === 'receipt_items') return { delete: vi.fn(() => ({ eq: vi.fn().mockResolvedValue({ error: null }) })) };
+      if (table === 'receipts')      return { delete: vi.fn(() => ({ eq: vi.fn().mockResolvedValue({ error: new Error('receipts delete failed') }) })) };
+      return {};
+    });
+
+    const { deleteReceiptFromCloud } = await import('../store');
+    await expect(deleteReceiptFromCloud('r-cascade-4')).rejects.toThrow('receipts delete failed');
+
+    // The mirror still has the receipt — UI state built on top of this must
+    // not diverge by removing it anyway.
+    const stored = JSON.parse(localStorage.getItem('jobprofit-app-data'));
+    expect(stored.expenses.find(e => e.cloudId === 'r-cascade-4')).toBeDefined();
+  });
 });
