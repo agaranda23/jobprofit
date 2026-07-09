@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { logTelemetry } from '../lib/telemetry';
+import { stashTosAcceptance, buildTosRedirectUrl } from '../lib/legal';
 import { REFERRAL_CODE_STORAGE_KEY, withReferralCode } from '../lib/referral';
 import Icon from './Icon';
 import OhnarWordmark from './OhnarWordmark';
@@ -335,6 +336,12 @@ export default function AuthScreen() {
     setGoogleLoading(true);
     setError('');
     logTelemetry('signin_google_clicked');
+    // Clickwrap acceptance — see the "By continuing..." line rendered below
+    // the sign-in controls. Stashed now, before the OAuth redirect fires
+    // (not after the network call resolves — if this attempt fails and a
+    // later click succeeds, the flushed timestamp reflects this click, not
+    // the successful one; negligible, the visitor did view/click it here).
+    stashTosAcceptance();
     try {
       // Carry any in-flight referral code THROUGH the OAuth round trip by
       // putting it back in the returning URL, rather than relying solely on
@@ -359,12 +366,19 @@ export default function AuthScreen() {
     if (!email.trim()) return;
     setSending(true);
     setError('');
+    // Clickwrap acceptance — same line governs this path too (see Google click above).
+    // Stashed locally AND embedded in the redirect URL (tos_v/tos_at query
+    // params): the emailed link is often opened on a different device/browser
+    // than the one that requested it, which would otherwise never see this
+    // localStorage write. captureTosAcceptanceFromUrl() in main.jsx recovers
+    // the URL copy on landing — see src/lib/legal.js for the full picture.
+    const tosAcceptance = stashTosAcceptance();
     try {
       // Same referral-carrying treatment as Google — see signInWithGoogle.
       const { error } = await supabase.auth.signInWithOtp({
         email: email.trim(),
         options: {
-          emailRedirectTo: withReferralCode(window.location.origin),
+          emailRedirectTo: buildTosRedirectUrl(tosAcceptance, withReferralCode(window.location.origin)),
         },
       });
       if (error) {
@@ -458,6 +472,15 @@ export default function AuthScreen() {
             {error && <p className="auth-error">{error}</p>}
             <p className="auth-hint">No password — we email a link, tap it, you're in.</p>
           </form>
+
+          {/* Sits below both the Google button and the email form, so it
+              governs whichever sign-in path the visitor takes. */}
+          <p className="auth-clickwrap">
+            By continuing, you agree to our{' '}
+            <a href="/terms" target="_blank" rel="noopener">Terms of Service</a> and
+            acknowledge our{' '}
+            <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>.
+          </p>
         </>
       ) : (
         <div className="auth-sent">
@@ -526,6 +549,22 @@ export default function AuthScreen() {
       </p>
 
       <p className="auth-trust">Built with feedback from UK plumbers, builders, electricians, gardeners, cleaners &amp; sole traders.</p>
+
+      {/* Company registration details — required for a UK limited company
+          trading online (Companies Act 2006 s.82 / E-Commerce Regs 2002). */}
+      <footer className="auth-legal-footer">
+        <p className="auth-legal-footer-entity">
+          OHNAR LTD · Company No. 17249792 · Registered in England &amp; Wales · 128 City Road, London EC1V 2NX{' '}
+          · <a href="mailto:getjobprofit@gmail.com">getjobprofit@gmail.com</a>
+        </p>
+        <p className="auth-legal-footer-links">
+          <a href="/terms" target="_blank" rel="noopener">Terms</a>
+          {' · '}
+          <a href="/privacy" target="_blank" rel="noopener">Privacy</a>
+          {' · '}
+          <a href="/cookies" target="_blank" rel="noopener">Cookies</a>
+        </p>
+      </footer>
     </div>
     </div>
   );

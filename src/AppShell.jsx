@@ -61,6 +61,7 @@ import { shouldShowProReveal, markProRevealSeen } from './lib/proReveal';
 import { getJobProfit } from './lib/cashflow';
 import { enqueueJob, wireOnlineSync, runSync } from './lib/offlineQueue';
 import { logTelemetry, identifyUser, getLastUpgradeTrigger, UPGRADE_TRIGGERS } from './lib/telemetry';
+import { flushTosAcceptance } from './lib/legal';
 import posthog from 'posthog-js';
 import SyncBadge from './components/SyncBadge';
 import ConsentBanner from './components/ConsentBanner.jsx';
@@ -636,6 +637,9 @@ export default function AppShell() {
       // freshness). Fire-and-forget — does not block render; falls back to localStorage
       // silently if the job_chase_states table doesn't exist yet (migration pending).
       hydrateChaseState(supabase).catch(console.warn);
+      // Flush the ToS acceptance stashed by AuthScreen's clickwrap line, once,
+      // to user_metadata. No-op if nothing was stashed or it's already recorded.
+      flushTosAcceptance(supabase, session.user).catch(() => {});
     }
   }, [session, refreshFromCloud, refreshProfile]);
 
@@ -1515,6 +1519,10 @@ export default function AppShell() {
     return <Splash />;
   }
   if (!session) {
+    // No <ConsentBanner/> is mounted here (it's mounted later, post-auth, below).
+    // That's lawful ONLY because analytics stay consent-gated/off by default —
+    // anyone enabling analytics or marketing scripts on this landing page must
+    // mount ConsentBanner in front of this gate first.
     return <AuthScreen />;
   }
 

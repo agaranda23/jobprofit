@@ -3441,6 +3441,35 @@ body {
 .auth-submit:disabled { opacity: 0.5; cursor: not-allowed; }
 .auth-hint { color: var(--text-dim); font-size: var(--fs-label); text-align: center; margin: 8px 0 0; }
 .auth-error { color: var(--danger); font-size: var(--fs-label); margin: 4px 0 0; text-align: center; }
+/* Clickwrap acceptance line — sits below both the Google button and the
+   email form (see AuthScreen.jsx) so it governs whichever path is taken. */
+.auth-clickwrap {
+  color: var(--text-dim);
+  font-size: var(--fs-label);
+  line-height: 1.5;
+  text-align: center;
+  margin: 14px 0 0;
+}
+.auth-clickwrap a { color: inherit; text-decoration: underline; }
+/* Legal footer — company registration details, wraps gracefully on narrow
+   screens. See auth-clickwrap above for the CSS pattern this borrows. */
+.auth-legal-footer {
+  margin: 20px 0 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  text-align: center;
+}
+.auth-legal-footer-entity,
+.auth-legal-footer-links {
+  color: var(--text-dim);
+  font-size: var(--fs-meta);
+  line-height: 1.6;
+  opacity: 0.8;
+  margin: 0 0 6px;
+}
+.auth-legal-footer-links { margin-bottom: 0; }
+.auth-legal-footer-entity a,
+.auth-legal-footer-links a { color: inherit; text-decoration: underline; }
 .auth-sent {
   text-align: center;
   padding: 24px 0;
