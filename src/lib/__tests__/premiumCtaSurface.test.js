@@ -108,23 +108,41 @@ describe('pipeline depth — Concept A "Lit Accent" (static)', () => {
     );
   });
 
-  it('gives the selected tile an inset specular top hairline + bottom shade (survives overflow:hidden)', () => {
+  it('gives the selected tile an inset specular top hairline + bottom shade via --elevation-raised (Phase 0 token, survives overflow:hidden)', () => {
+    // Phase 1 (jobs-premium-pass) tokenised the hardcoded hairline pair into
+    // --elevation-raised so any surface with overflow:hidden can reuse it.
     expect(css).toMatch(
-      /\.stage-tile--selected \{[\s\S]*inset 0 1px 0 rgba\(255, 255, 255, 0\.22\)[\s\S]*inset 0 -1px 0 rgba\(0, 0, 0, 0\.16\)/
+      /\.stage-tile--selected \{[\s\S]*box-shadow: var\(--elevation-raised\)/
+    );
+    // The token itself still carries the same inset-only recipe (both themes).
+    expect(css).toMatch(
+      /--elevation-raised:\s*\n\s*inset 0 1px 0 rgba\(255, 255, 255, 0\.22\),\s*\n\s*inset 0 -1px 0 rgba\(0, 0, 0, 0\.16\)/
     );
   });
 
-  it('uses a TOP-ANCHORED per-stage gradient (top stop = canonical token, so text contrast never regresses)', () => {
-    // Top stops stay at the canonical --stage-* token through 42%; only the foot darkens.
-    expect(css).toContain(
-      'linear-gradient(180deg, var(--stage-lead) 0%, var(--stage-lead) 42%, #2157CF 100%)'
-    );
-    expect(css).toContain(
-      'linear-gradient(180deg, var(--stage-quoted) 0%, var(--stage-quoted) 42%, #0C91A1 100%)'
-    );
-    expect(css).toContain(
-      'linear-gradient(180deg, var(--stage-paid) 0%, var(--stage-paid) 42%, #127136 100%)'
-    );
+  it('uses FLAT canonical --stage-* fills on selected tiles (Phase 1 retired the gradient foot-hexes)', () => {
+    // jobs-premium-pass Phase 1: the six near-invisible gradient feet
+    // (#2157CF/#0C91A1/#575AD4/#D88B0A/#DB6513/#127136) are retired — depth now
+    // comes from --elevation-raised, not a second darker gradient stop.
+    for (const [stage, token] of [
+      ['lead', '--stage-lead'],
+      ['quoted', '--stage-quoted'],
+      ['on', '--stage-on'],
+      ['invoiced', '--stage-invoiced'],
+      ['overdue', '--stage-overdue'],
+      ['paid', '--stage-paid'],
+    ]) {
+      expect(css).toMatch(
+        new RegExp(`\\.stage-tile--${stage}\\.stage-tile--selected \\{\\s*background: var\\(${token}\\);\\s*\\}`)
+      );
+    }
+    // The retired foot-hexes must not linger anywhere in the selected-tile rules.
+    expect(css).not.toContain('42%, #2157CF 100%)');
+    expect(css).not.toContain('42%, #0C91A1 100%)');
+    expect(css).not.toContain('42%, #575AD4 100%)');
+    expect(css).not.toContain('42%, #D88B0A 100%)');
+    expect(css).not.toContain('42%, #DB6513 100%)');
+    expect(css).not.toContain('42%, #127136 100%)');
   });
 
   it('adds a barely-there lit top edge to unselected tiles WITHOUT dropping the divider', () => {
