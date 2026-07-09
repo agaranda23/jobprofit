@@ -180,6 +180,10 @@ button:focus-visible {
   --accent-pressed: #1d4ed8;
   --danger: #dc2626;
   --border: #2a333c;
+  /* Stronger boundary for controls that need to clear WCAG 1.4.11 (>=3:1
+     against the page) when the ordinary --border is too close to --bg/--surface
+     to read as an edge — e.g. the auth-screen Google button and email input. */
+  --border-strong: #4b5560;
   /* Premium gold — used for every Pro upgrade CTA */
   --gold: #d4a017;
   --gold-gradient: linear-gradient(135deg, #f5c75a 0%, #d4a017 50%, #b8861a 100%);
@@ -301,6 +305,10 @@ button:focus-visible {
   /* Semantic */
   --danger:      #dc2626;
   --border:      #e5e7eb;
+  /* Stronger boundary (WCAG 1.4.11 >=3:1 vs --bg #f9fafb — #e5e7eb only
+     measures ~1.16:1). Used where a control's fill is too close to the page
+     to read as a bounded edge (auth-screen Google button + email input). */
+  --border-strong: #7d848d;
   /* Gold is re-tuned for light backgrounds — see PRO/TRIAL LIGHT-THEME POLISH
      block below for the overriding values and rationale. These are intentional
      starting values; the polish block's [data-theme="light"] { --gold: ... } wins
@@ -3227,16 +3235,29 @@ body {
 }
 .auth-label { display: flex; flex-direction: column; gap: 6px; font-size: var(--fs-label); color: var(--text-dim); font-weight: 600; }
 .auth-label input {
-  background: var(--surface);
-  border: 1px solid var(--border);
+  /* Recessed "sunken well" fill — tinted --surface-2 (not white) plus an inset
+     shadow, so the field reads as somewhere you type INTO, the opposite of
+     the raised .auth-google-btn below. --border-strong gives it a boundary
+     that actually clears WCAG 1.4.11 against the page (old --border measured
+     ~1.16:1 here — invisible). See --border-strong definition for the numbers. */
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
   border-radius: var(--radius-md);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05);
   color: var(--text);
   font-size: var(--fs-body);
   padding: 14px 16px;
   width: 100%;
   box-sizing: border-box;
+  transition: background 0.15s, box-shadow 0.15s, border-color 0.15s;
 }
-.auth-label input:focus { outline: none; border-color: var(--accent); }
+[data-theme="light"] .auth-label input::placeholder { color: #5f6673; }
+.auth-label input:focus {
+  outline: none;
+  background: var(--surface);
+  border-color: var(--accent);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.05), 0 0 0 3px rgba(37, 99, 235, 0.18);
+}
 .auth-submit {
   background: var(--accent);
   color: #fff;
@@ -3284,6 +3305,12 @@ body {
   padding-top: 20px;
 }
 .auth-google-btn {
+  /* Raised, tappable button — white fill + multicolour G stay exactly as
+     Google's brand rules require (never recolour), so affordance comes from
+     edge strength + elevation instead: --border-strong clears WCAG 1.4.11
+     against the page (old --border measured ~1.16:1 — invisible), and the
+     drop shadow lifts it off the page, the opposite of the recessed
+     .auth-label input above. */
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3292,14 +3319,16 @@ body {
   padding: 14px 20px;
   background: #fff;
   color: #3c4043;
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-strong);
   border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
   font-size: var(--fs-body);
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s;
+  transition: background 0.15s, box-shadow 0.15s;
 }
-.auth-google-btn:hover:not(:disabled) { background: #f8f9fa; }
+.auth-google-btn:hover:not(:disabled) { background: #f8f9fa; box-shadow: var(--shadow-md); }
+.auth-google-btn:active:not(:disabled) { box-shadow: var(--shadow-xs); }
 .auth-google-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .auth-google-icon { flex-shrink: 0; }
 /* "or" divider between Google and email */
