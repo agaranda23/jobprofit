@@ -7,16 +7,21 @@ import Splash from './components/Splash.jsx';
 import ErrorBoundary from './components/ErrorBoundary.jsx';
 import { activateThemeController } from './lib/theme.js';
 import { getConsent } from './lib/consent.js';
+import { REFERRAL_CODE_STORAGE_KEY } from './lib/referral.js';
 
 // ── Referral attribution — capture ?ref= BEFORE any auth redirect strips it ──
 // This runs synchronously at the very top of main so we never lose the code.
-// The code is persisted to sessionStorage; AppShell reads it on SIGNED_IN.
+// The code is persisted to sessionStorage; AppShell reads it on SIGNED_IN /
+// INITIAL_SESSION. It also runs again on the return leg of a Google OAuth
+// round trip: AuthScreen's withReferralCode() puts `?ref=` back onto the
+// redirectTo URL specifically so this capture re-fires here and re-persists
+// the code, regardless of which origin/tab the OAuth bounce lands back on.
 (function captureReferralCode() {
   try {
     const params = new URLSearchParams(window.location.search);
     const ref = params.get('ref');
     if (ref && /^[A-Za-z0-9]{1,20}$/.test(ref)) {
-      sessionStorage.setItem('jp.referralCode', ref.trim());
+      sessionStorage.setItem(REFERRAL_CODE_STORAGE_KEY, ref.trim());
       // Clean the param from the URL bar without adding a history entry
       params.delete('ref');
       const newSearch = params.toString();
