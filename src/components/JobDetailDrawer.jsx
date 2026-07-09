@@ -4548,18 +4548,19 @@ export default function JobDetailDrawer({
           onUpdateReceipt={handleReceiptUpdate}
           onClose={() => setEditingReceipt(null)}
           onDeleteReceipt={onDeleteReceipt ? async (id) => {
-            // Note: AppShell.handleDeleteReceipt never throws — it uses optimistic
-            // local removal on cloud failure and swallows the error internally.
-            // This wrapper's catch is therefore defensive only and will not fire
-            // in practice. We do NOT re-throw: if the catch somehow runs, the
-            // modal should still close (the local state will already be cleaned up
-            // by AppShell's optimistic removal) rather than leaving the user stuck.
+            // AppShell.handleDeleteReceipt throws on a cloud failure and leaves
+            // the receipt untouched in state (no zombie) — this catch fires for
+            // real failures. We do NOT re-throw: like the drawer's other
+            // standard-path deletes (payment/note/photo — see the
+            // pendingDeleteAction confirm sheet above), the transient delete UI
+            // closes either way and the outcome is reported via flash, so the
+            // user isn't stranded in a modal. The receipt itself only
+            // disappears from the list when the delete actually succeeded.
             try {
               await onDeleteReceipt(id);
               showFlash('Receipt deleted');
             } catch {
               showFlash('Could not delete receipt — try again');
-              // Intentionally NOT re-throwing — see note above.
             }
           } : undefined}
           materialsLibrary={materialsLibrary}

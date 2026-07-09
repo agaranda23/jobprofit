@@ -994,15 +994,20 @@ export default function AppShell() {
     return result;
   };
 
+  // Re-throws on failure (does NOT touch receipts state) so the receipt stays
+  // visible in the UI exactly when it's still in Supabase/localStorage.
+  // JobDetailDrawer's delete-confirm flows already catch this and show
+  // "Could not delete receipt — try again" (see JobDetailDrawer.jsx).
+  //
+  // Previously this caught the error and stripped the receipt from render
+  // state anyway ("optimistic" removal on ANY failure). That created a
+  // zombie: gone from the UI, but the cloud row + localStorage mirror were
+  // untouched, so the receipt reappeared on the next refreshFromCloud() or
+  // page reload. Success already updates state correctly via refreshFromCloud()
+  // below, so there is nothing for a catch block to do but let it propagate.
   const handleDeleteReceipt = async (receiptId) => {
-    try {
-      await deleteReceiptFromCloud(receiptId);
-      await refreshFromCloud();
-    } catch (e) {
-      console.error('Delete receipt failed', e);
-      // Optimistic local removal so the UI updates even if cloud fails
-      setReceipts(prev => prev.filter(r => r.id !== receiptId && r.cloudId !== receiptId));
-    }
+    await deleteReceiptFromCloud(receiptId);
+    await refreshFromCloud();
   };
 
   // Writes the edited receipt to cloud and updates in-memory receipts[] state so
