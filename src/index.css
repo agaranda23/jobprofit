@@ -8751,6 +8751,11 @@ input[type=number] { -moz-appearance: textfield; }
   /* Body is later in DOM and paints after the header; without a z-index the
      header's on-scroll shadow (and the kebab dropdown) would render under it. */
   z-index: 2;
+  /* Swipe-to-dismiss drag zone (touch only, see onHeaderPointer* in
+     JobDetailDrawer.jsx) — stops the browser's own touch panning/pinch from
+     competing with our Pointer Events drag. Overridden back to auto on the
+     desktop-centred breakpoint below, where the gesture is disabled anyway. */
+  touch-action: none;
 }
 /* On-scroll shadow — only once .job-detail-body has scrolled off the top
    (see the onScroll handler on .job-detail-body in JobDetailDrawer.jsx). */
@@ -9165,6 +9170,13 @@ button.jd-money-chip:active { opacity: 0.75; }
   @keyframes slide-up {
     from { transform: translateX(-50%) translateY(100%); }
     to   { transform: translateX(-50%) translateY(0); }
+  }
+  /* Swipe-to-dismiss is gated off at this breakpoint in JS too (see
+     onHeaderPointerDown) — restoring default touch-action here means a
+     touchscreen laptop/tablet at this width keeps normal pinch/scroll
+     behaviour instead of the mobile drag-lock. */
+  .job-detail-header {
+    touch-action: auto;
   }
 }
 

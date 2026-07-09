@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import Icon from './Icon';
 import PaymentSummaryBlock from './PaymentSummaryBlock';
 import PaymentHistoryList from './PaymentHistoryList';
@@ -2362,23 +2362,165 @@ export default function JobDetailDrawer({
   // client-side grouping of the already-loaded `jobs` prop — see lib/customerTimeline.js.
   const customerJobs = useMemo(() => getCustomerJobs(job, jobs), [job, jobs]);
 
-  // Close on Escape — also closes lightbox, photo sheet, kebab, or edit modals if open
+  // requestClose — the single "dismiss one layer" entry point. Closes, in
+  // priority order, whatever's topmost: lightbox → photo sheet → kebab →
+  // pending delete confirm → an open edit modal (customer field / note /
+  // payment) → else the whole drawer via onClose(). Shared by Escape, the
+  // ✕ button, and the header swipe-to-dismiss gesture below so none of them
+  // can blast through an in-progress edit — a swipe is never more
+  // destructive than pressing Escape.
+  const requestClose = useCallback(() => {
+    if (lightboxSrc) { setLightboxSrc(null); setLightboxReceipt(null); return; }
+    if (photoSheetOpen) { setPhotoSheetOpen(false); return; }
+    if (kebabOpen) { setKebabOpen(false); return; }
+    if (pendingDeleteAction) { if (!deleting) setPendingDeleteAction(null); return; }
+    if (editingField) { setEditingField(null); return; }
+    if (editingNote) { setEditingNote(null); return; }
+    if (editingPayment) { setEditingPayment(null); return; }
+    onClose();
+  }, [onClose, lightboxSrc, photoSheetOpen, kebabOpen, pendingDeleteAction, deleting, editingField, editingNote, editingPayment]);
+
+  // Close on Escape — routes through requestClose so it shares the same
+  // priority chain as the swipe gesture and the ✕ button.
   useEffect(() => {
     const onKey = (e) => {
-      if (e.key === 'Escape') {
-        if (lightboxSrc) { setLightboxSrc(null); setLightboxReceipt(null); return; }
-        if (photoSheetOpen) { setPhotoSheetOpen(false); return; }
-        if (kebabOpen) { setKebabOpen(false); return; }
-        if (pendingDeleteAction) { if (!deleting) setPendingDeleteAction(null); return; }
-        if (editingField) { setEditingField(null); return; }
-        if (editingNote) { setEditingNote(null); return; }
-        if (editingPayment) { setEditingPayment(null); return; }
-        onClose();
-      }
+      if (e.key === 'Escape') requestClose();
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [onClose, lightboxSrc, photoSheetOpen, kebabOpen, pendingDeleteAction, deleting, editingField, editingNote, editingPayment]);
+  }, [requestClose]);
+
+  // ── Swipe-to-dismiss (pinned header, touch only) ─────────────────────────
+  // Dragging down on .job-detail-header (the .jd-grabber pill's live area)
+  // dismisses the sheet, mirroring the ✕/Escape path via requestClose().
+  // Pointer Events + touch-action:none (not touchmove) deliberately — React 19
+  // registers touchmove as passive, so preventDefault() there is a no-op;
+  // Pointer Events + CSS touch-action is the trap-free way to drag-lock.
+  const sheetRef = useRef(null);
+  const backdropRef = useRef(null);
+  // Transient drag bookkeeping lives in a ref, not state — every pointermove
+  // paints directly via style.transform/opacity so a full-width mobile drag
+  // never triggers a React re-render mid-gesture.
+  const swipeRef = useRef({
+    active: false,     // pointerdown started on a valid (non-interactive) header target
+    dragging: false,    // past the direction-lock threshold — actively translating
+    pointerId: null,
+    startX: 0,
+    startY: 0,
+    lastY: 0,
+    lastT: 0,
+    velocity: 0,        // px/ms, signed, from the most recent move segment (for flick detection)
+    sheetHeight: 0,
+  });
+
+  // Taps on these must keep working as taps — never start a drag. Covers the
+  // kebab button + its open dropdown menu explicitly (it's an absolutely
+  // positioned overflow menu, not full-header, so it wouldn't otherwise be
+  // excluded by geometry alone).
+  const isSwipeBlockedTarget = (el) =>
+    !!el?.closest?.('button, a, input, [role="button"], .jd-kebab-menu, .jd-kebab-wrap');
+
+  const resetSwipeVisuals = (animate) => {
+    const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    const sheetEl = sheetRef.current;
+    const backdropEl = backdropRef.current;
+    const transition = animate && !reduceMotion ? 'transform 0.3s cubic-bezier(0.22,1,0.36,1)' : '';
+    const bTransition = animate && !reduceMotion ? 'opacity 0.3s cubic-bezier(0.22,1,0.36,1)' : '';
+    if (sheetEl) { sheetEl.style.transition = transition; sheetEl.style.transform = ''; }
+    if (backdropEl) { backdropEl.style.transition = bTransition; backdropEl.style.opacity = ''; }
+    if (animate && !reduceMotion) {
+      window.setTimeout(() => {
+        if (sheetEl) sheetEl.style.transition = '';
+        if (backdropEl) backdropEl.style.transition = '';
+      }, 300);
+    }
+  };
+
+  const onHeaderPointerDown = (e) => {
+    // Touch only — desktop's centred sheet variant (index.css @media
+    // min-width:600px, translateX(-50%)) never gets the gesture; the grabber
+    // stays decorative there, matching Change A.
+    if (e.pointerType !== 'touch') return;
+    if (window.matchMedia('(min-width: 600px)').matches) return;
+    if (isSwipeBlockedTarget(e.target)) return;
+    const sheetEl = sheetRef.current;
+    if (!sheetEl) return;
+
+    swipeRef.current = {
+      active: true,
+      dragging: false,
+      pointerId: e.pointerId,
+      startX: e.clientX,
+      startY: e.clientY,
+      lastY: e.clientY,
+      lastT: e.timeStamp,
+      velocity: 0,
+      sheetHeight: sheetEl.getBoundingClientRect().height || 1,
+    };
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+  };
+
+  const onHeaderPointerMove = (e) => {
+    const s = swipeRef.current;
+    if (!s.active || e.pointerId !== s.pointerId) return;
+
+    const dx = e.clientX - s.startX;
+    const dy = e.clientY - s.startY;
+
+    if (!s.dragging) {
+      // Direction lock: ~10px before committing, and only if the move is
+      // more vertical-down than horizontal — an incidental brush or a
+      // horizontal gesture is left alone (not our gesture to own).
+      if (Math.hypot(dx, dy) < 10) return;
+      if (dy <= 0 || Math.abs(dy) <= Math.abs(dx)) { s.active = false; return; }
+      s.dragging = true;
+      if (sheetRef.current) sheetRef.current.style.transition = 'none';
+      if (backdropRef.current) backdropRef.current.style.transition = 'none';
+    }
+
+    const dt = e.timeStamp - s.lastT;
+    if (dt > 0) s.velocity = (e.clientY - s.lastY) / dt;
+    s.lastY = e.clientY;
+    s.lastT = e.timeStamp;
+
+    // Clamp upward movement to 0 — the sheet only follows the finger down.
+    const clamped = Math.max(0, dy);
+    if (sheetRef.current) sheetRef.current.style.transform = `translateY(${clamped}px)`;
+    if (backdropRef.current) {
+      backdropRef.current.style.opacity = String(Math.max(0, 1 - clamped / s.sheetHeight));
+    }
+  };
+
+  const onHeaderPointerUp = (e) => {
+    const s = swipeRef.current;
+    if (!s.active || e.pointerId !== s.pointerId) return;
+    e.currentTarget.releasePointerCapture?.(e.pointerId);
+    const wasDragging = s.dragging;
+    const dy = Math.max(0, e.clientY - s.startY);
+    const velocity = s.velocity;
+    s.active = false;
+    s.dragging = false;
+
+    if (!wasDragging) return; // a tap, not a drag — let normal tap behaviour proceed
+
+    const commit = dy > s.sheetHeight * 0.4 || velocity > 0.4;
+    if (commit) {
+      resetSwipeVisuals(false);
+      requestClose();
+    } else {
+      resetSwipeVisuals(true);
+    }
+  };
+
+  const onHeaderPointerCancel = (e) => {
+    const s = swipeRef.current;
+    if (!s.active || e.pointerId !== s.pointerId) return;
+    e.currentTarget.releasePointerCapture?.(e.pointerId);
+    const wasDragging = s.dragging;
+    s.active = false;
+    s.dragging = false;
+    if (wasDragging) resetSwipeVisuals(true);
+  };
 
   // Scroll-chain bug fix: lock body scroll while the drawer is open.
   // Saves and restores the prior scroll position so the user lands back
@@ -3343,6 +3485,7 @@ export default function JobDetailDrawer({
     <>
       {/* Backdrop */}
       <div
+        ref={backdropRef}
         className="drawer-backdrop"
         onClick={onClose}
         aria-hidden="true"
@@ -3350,6 +3493,7 @@ export default function JobDetailDrawer({
 
       {/* Bottom sheet panel */}
       <div
+        ref={sheetRef}
         className="job-detail-sheet"
         role="dialog"
         aria-label={`Job detail: ${displayName}`}
@@ -3358,11 +3502,20 @@ export default function JobDetailDrawer({
         {/* Header — PRD 2026-06-14 redesign (updated 2026-06-15): vertical stack.
             Top strip: ⋯✕ pinned right on own row.
             Mid row: left=name+customer; right=price (baseline-aligned).
-            Bottom row: full-width action buttons (Call · Text · WhatsApp · Map). */}
-        <div className={`job-detail-header${isScrolled ? ' is-scrolled' : ''}`}>
+            Bottom row: full-width action buttons (Call · Text · WhatsApp · Map).
+            Also the swipe-to-dismiss drag zone (touch only) — see
+            onHeaderPointer* above; taps on its buttons/links/kebab still work
+            (isSwipeBlockedTarget excludes them from starting a drag). */}
+        <div
+          className={`job-detail-header${isScrolled ? ' is-scrolled' : ''}`}
+          onPointerDown={onHeaderPointerDown}
+          onPointerMove={onHeaderPointerMove}
+          onPointerUp={onHeaderPointerUp}
+          onPointerCancel={onHeaderPointerCancel}
+        >
           {/* Grabber pill — static affordance signalling "this sheet is fixed/draggable".
               Horizontally centred so it clears the absolute ⋯✕ strip (top:8px, right-aligned).
-              No drag behaviour yet — that lands in the swipe-to-close fast-follow PR. */}
+              Live drag area is the whole header (see onHeaderPointerDown above). */}
           <div className="jd-grabber" aria-hidden="true" />
           {/* ⋯ kebab + ✕ close — own top strip, flex-end so they sit right */}
           <div className="jd-header-actions">
@@ -3521,7 +3674,7 @@ export default function JobDetailDrawer({
 
                 <button
                   className="job-detail-close"
-                  onClick={onClose}
+                  onClick={requestClose}
                   aria-label="Close job detail"
                 >
                   ✕
