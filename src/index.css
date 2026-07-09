@@ -7041,16 +7041,15 @@ input[type=number] { -moz-appearance: textfield; }
 }
 
 /* Selected-tile ink override — LIGHT THEME ONLY.
-   Invoiced (amber #F59E0B) and Overdue (orange #F97316) have bright fills where
-   white text fails WCAG AA — dark ink #1E3A5F is the fix for the LIGHTER fills
-   (Quoted teal, Invoiced amber, Overdue orange). On (indigo #6366F1) is EXCLUDED:
-   its fill is dark enough that white (4.3:1) beats dark ink (2.6:1) — verified by
-   render — so On keeps white below.
+   Quoted (teal #0EA5B7) and Overdue (orange #F97316) get near-black ink #0B1220
+   (≈6.3:1 / 6.7:1 — clears AA; the softer navy #1E3A5F sat at 3.88/4.10 and missed AA).
+   Invoiced (amber #F59E0B) keeps #1E3A5F (5.36:1 — already AA). On (indigo #6366F1) is
+   EXCLUDED: its fill is dark enough that white (4.3:1) beats dark ink (2.6:1) — keeps white.
    TEXT ONLY: no background rule here — palette stays locked to --stage-* tokens. */
 [data-theme="light"] .stage-tile--quoted.stage-tile--selected .stage-tile-name,
 [data-theme="light"] .stage-tile--quoted.stage-tile--selected .stage-tile-count,
 [data-theme="light"] .stage-tile--quoted.stage-tile--selected .stage-tile-amount {
-  color: #1E3A5F;
+  color: #0B1220;
 }
 [data-theme="light"] .stage-tile--invoiced.stage-tile--selected .stage-tile-name,
 [data-theme="light"] .stage-tile--invoiced.stage-tile--selected .stage-tile-count,
@@ -7058,13 +7057,13 @@ input[type=number] { -moz-appearance: textfield; }
   color: #1E3A5F;
 }
 [data-theme="light"] .stage-tile--overdue.stage-tile--selected .stage-tile-name {
-  color: #1E3A5F;
+  color: #0B1220;
 }
 [data-theme="light"] .stage-tile--overdue.stage-tile--selected .stage-tile-count {
-  color: #1E3A5F;
+  color: #0B1220;
 }
 [data-theme="light"] .stage-tile--overdue.stage-tile--selected .stage-tile-amount {
-  color: #1E3A5F;
+  color: #0B1220;
 }
 
 /* Active segment gets a solid colour fill + concentric radius (inset from the
@@ -7208,14 +7207,13 @@ input[type=number] { -moz-appearance: textfield; }
 }
 
 /* ── SELECTED-tile text — LIGHT THEME legibility fix ───────────────────────────
-   Only Quoted (#0EA5B7) and Overdue (#F97316) selected tiles use WHITE text
-   (dark-theme pairing), which drops below AA on their bright fills in LIGHT theme.
-   Flip THOSE TWO to the dark ink token (#1E3A5F), matching the existing unselected
-   light-theme rows. TEXT ONLY — fills stay locked to the canonical --stage-*
-   palette (no recolour, no hue shift).
-   Deliberately EXCLUDED: On (#6366F1) and Invoiced (#F59E0B) already use near-black
-   #0B1220 text (see the per-stage rules above), which holds HIGHER contrast than
-   navy on those two fills — overriding them to #1E3A5F would REDUCE On to ~2.6:1.
+   Quoted (#0EA5B7) and Overdue (#F97316) selected tiles use WHITE text in the
+   dark-theme pairing, which drops below AA on their bright fills in LIGHT theme.
+   Flip THOSE TWO to near-black #0B1220 (≈6.3:1 / 6.7:1 — clears AA 4.5). The softer
+   navy #1E3A5F previously used here sat at 3.88/4.10 and missed AA. TEXT ONLY —
+   fills stay locked to the canonical --stage-* palette (no recolour, no hue shift).
+   Deliberately EXCLUDED: On (#6366F1) keeps white (fill dark enough); Invoiced
+   (#F59E0B) keeps navy #1E3A5F (5.36:1, already AA).
    Lead (#2563EB) and Paid (#15803D) stay white — dark enough to keep AA on light. */
 [data-theme="light"] .stage-tile--quoted.stage-tile--selected .stage-tile-name,
 [data-theme="light"] .stage-tile--quoted.stage-tile--selected .stage-tile-count,
@@ -7223,7 +7221,7 @@ input[type=number] { -moz-appearance: textfield; }
 [data-theme="light"] .stage-tile--overdue.stage-tile--selected .stage-tile-name,
 [data-theme="light"] .stage-tile--overdue.stage-tile--selected .stage-tile-count,
 [data-theme="light"] .stage-tile--overdue.stage-tile--selected .stage-tile-amount {
-  color: #1E3A5F;
+  color: #0B1220;
 }
 
 /* Tile typography — 6 equal segments at 360px: each cell is ~59px wide, ~55px text area.
