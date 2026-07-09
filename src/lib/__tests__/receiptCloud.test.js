@@ -5,6 +5,10 @@
  *   1. mapCloudReceiptToToday — now attaches receipt_items as `items` array.
  *   2. updateReceiptInCloud — correct Supabase sequence (UPDATE receipts,
  *      DELETE+INSERT receipt_items, localStorage mirror).
+ *   3. deleteReceiptFromCloud — deletes receipt_items (by receipt_id) before
+ *      the receipts row, so a single-receipt delete never leaves orphaned
+ *      line items behind (regression test for the VAT/profit-rollup skew bug
+ *      — see fix/receipt-delete-cascade).
  *
  * Supabase client is mocked; no real connection required.
  *
@@ -101,6 +105,9 @@ vi.mock('../supabase', () => {
       }),
       auth: {
         getUser: vi.fn().mockResolvedValue({ data: { user: { id: 'user-abc' } } }),
+      },
+      storage: {
+        from: vi.fn(() => ({ remove: vi.fn().mockResolvedValue({ error: null }) })),
       },
     },
     _mockSingle: mockSingle,
@@ -216,5 +223,91 @@ describe('updateReceiptInCloud: Supabase write sequence', () => {
     expect(expense.amount).toBe(75);
     expect(expense.items).toEqual([{ desc: 'Widget', cost: 10 }]);
     expect(expense.desc).toBe('Widget');
+  });
+});
+
+// ─── deleteReceiptFromCloud: no orphaned receipt_items ────────────────────────
+// Regression coverage for fix/receipt-delete-cascade: deleting a single
+// receipt must always remove its receipt_items rows too, so VAT-reclaim and
+// job cost/profit rollups never silently include orphaned line items.
+
+describe('deleteReceiptFromCloud: receipt_items cleanup', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.clear();
+  });
+
+  it('deletes receipt_items (by receipt_id) before deleting the receipts row', async () => {
+    const { supabase } = await import('../supabase');
+
+    const callOrder = [];
+    const mockItemsEq = vi.fn().mockImplementation((col, val) => {
+      callOrder.push({ table: 'receipt_items', col, val });
+      return Promise.resolve({ error: null });
+    });
+    const mockReceiptsEq = vi.fn().mockImplementation((col, val) => {
+      callOrder.push({ table: 'receipts', col, val });
+      return Promise.resolve({ error: null });
+    });
+
+    supabase.from.mockImplementation((table) => {
+      if (table === 'receipt_items') return { delete: vi.fn(() => ({ eq: mockItemsEq })) };
+      if (table === 'receipts')      return { delete: vi.fn(() => ({ eq: mockReceiptsEq })) };
+      return {};
+    });
+
+    const { deleteReceiptFromCloud } = await import('../store');
+    await deleteReceiptFromCloud('r-cascade-1');
+
+    // Both deletes fired, scoped correctly...
+    expect(mockItemsEq).toHaveBeenCalledWith('receipt_id', 'r-cascade-1');
+    expect(mockReceiptsEq).toHaveBeenCalledWith('id', 'r-cascade-1');
+
+    // ...and receipt_items was deleted BEFORE the parent receipts row.
+    expect(callOrder[0].table).toBe('receipt_items');
+    expect(callOrder[1].table).toBe('receipts');
+  });
+
+  it('throws and does not proceed to delete the receipts row if receipt_items delete fails', async () => {
+    const { supabase } = await import('../supabase');
+
+    const mockReceiptsDelete = vi.fn();
+    supabase.from.mockImplementation((table) => {
+      if (table === 'receipt_items') {
+        return { delete: vi.fn(() => ({ eq: vi.fn().mockResolvedValue({ error: new Error('items delete failed') }) })) };
+      }
+      if (table === 'receipts') {
+        return { delete: mockReceiptsDelete };
+      }
+      return {};
+    });
+
+    const { deleteReceiptFromCloud } = await import('../store');
+    await expect(deleteReceiptFromCloud('r-cascade-2')).rejects.toThrow('items delete failed');
+    expect(mockReceiptsDelete).not.toHaveBeenCalled();
+  });
+
+  it('removes the receipt from the localStorage mirror once cloud deletes succeed', async () => {
+    localStorage.setItem('jobprofit-app-data', JSON.stringify({
+      jobs: [], invoices: [],
+      expenses: [
+        { id: 'E-1', cloudId: 'r-cascade-3', merchant: 'Wickes', amount: 40, vat: 0, date: '2026-07-01', items: [] },
+        { id: 'E-2', cloudId: 'r-other', merchant: 'Screwfix', amount: 10, vat: 0, date: '2026-07-02', items: [] },
+      ],
+    }));
+
+    const { supabase } = await import('../supabase');
+    supabase.from.mockImplementation((table) => {
+      if (table === 'receipt_items') return { delete: vi.fn(() => ({ eq: vi.fn().mockResolvedValue({ error: null }) })) };
+      if (table === 'receipts')      return { delete: vi.fn(() => ({ eq: vi.fn().mockResolvedValue({ error: null }) })) };
+      return {};
+    });
+
+    const { deleteReceiptFromCloud } = await import('../store');
+    await deleteReceiptFromCloud('r-cascade-3');
+
+    const stored = JSON.parse(localStorage.getItem('jobprofit-app-data'));
+    expect(stored.expenses.find(e => e.cloudId === 'r-cascade-3')).toBeUndefined();
+    expect(stored.expenses.find(e => e.cloudId === 'r-other')).toBeDefined();
   });
 });
