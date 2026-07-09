@@ -348,7 +348,7 @@ describe('buildChaseMessage', () => {
 
   it('tier 3 B2B (isB2B true): emits statutory-interest copy, NOT consumer copy', () => {
     const msg = buildChaseMessage({ ...base, tier: 3, isB2B: true });
-    expect(msg).toContain('Late Payment of Commercial Debts Act 1998');
+    expect(msg).toContain('Late Payment of Commercial Debts (Interest) Act 1998');
     expect(msg).toContain('interest and compensation');
     expect(msg).not.toContain('last one from me on this');
   });

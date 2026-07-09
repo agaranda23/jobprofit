@@ -294,7 +294,7 @@ describe('K. job.isBusinessCustomer tag flows into isB2B at every chase call sit
       payNowUrl: '',
     });
     const decoded = decodeURIComponent(link);
-    expect(decoded).toContain('Late Payment of Commercial Debts Act 1998');
+    expect(decoded).toContain('Late Payment of Commercial Debts (Interest) Act 1998');
     expect(decoded).not.toContain('last one from me on this');
   });
 
@@ -316,7 +316,7 @@ describe('K. job.isBusinessCustomer tag flows into isB2B at every chase call sit
       payNowUrl: PAY_NOW_URL,
     });
     const decoded = decodeURIComponent(link);
-    expect(decoded).toContain('Late Payment of Commercial Debts Act 1998');
+    expect(decoded).toContain('Late Payment of Commercial Debts (Interest) Act 1998');
   });
 
   it('WorkScreen.handlePreDueChase equivalent (tier 0): tagged job never surfaces B2B copy below tier 3', () => {
@@ -351,7 +351,7 @@ describe('K. job.isBusinessCustomer tag flows into isB2B at every chase call sit
       businessName: BIZ.name,
       isB2B: !!B2B_JOB.isBusinessCustomer,
     });
-    expect(msg).toContain('Late Payment of Commercial Debts Act 1998');
+    expect(msg).toContain('Late Payment of Commercial Debts (Interest) Act 1998');
   });
 
   it('TodayScreen handlePrimaryCta (email) equivalent: untagged promptJob at tier 3 → B2C copy, no statutory clause', () => {
