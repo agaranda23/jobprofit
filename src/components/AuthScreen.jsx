@@ -560,8 +560,7 @@ export default function AuthScreen() {
 
       {/* Company registration details — required for a UK limited company
           trading online (Companies Act 2006 s.82 / E-Commerce Regs 2002).
-          Contact mailbox is getohnar@gmail.com for now — swap to
-          hello@ohnar.co.uk once that mailbox is stood up. */}
+          Contact mailbox is hello@ohnar.co.uk (IONOS). */}
       <footer className="auth-legal-footer">
         <p className="auth-legal-footer-entity">
           OHNAR LTD · Company No. 17249792 (England &amp; Wales) · 128 City Road, London EC1V 2NX · ICO reg ZC163042
@@ -573,7 +572,7 @@ export default function AuthScreen() {
           {' · '}
           <a href="/cookies" target="_blank" rel="noopener">Cookies</a>
           {' · '}
-          <a href="mailto:getohnar@gmail.com">Contact</a>
+          <a href="mailto:hello@ohnar.co.uk">Contact</a>
         </p>
       </footer>
     </div>

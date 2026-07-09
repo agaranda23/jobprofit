@@ -684,12 +684,12 @@ describe('AuthScreen — company footer', () => {
     expect(links.querySelector('a[href="/cookies"]')).toBeTruthy();
   });
 
-  it('renders a Contact link mailing the current getohnar@gmail.com inbox (not the retired getjobprofit address)', () => {
+  it('renders a Contact link mailing hello@ohnar.co.uk (not a retired interim gmail address)', () => {
     const { container } = renderAuth();
     const links = container.querySelector('.auth-legal-footer-links');
     const contact = links.querySelector('a[href^="mailto:"]');
     expect(contact).toBeTruthy();
-    expect(contact.getAttribute('href')).toBe('mailto:getohnar@gmail.com');
+    expect(contact.getAttribute('href')).toBe('mailto:hello@ohnar.co.uk');
     expect(contact.textContent).toBe('Contact');
   });
 
