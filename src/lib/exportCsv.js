@@ -191,6 +191,40 @@ export function deriveAccountFields(profile, session) {
 }
 
 /**
+ * Is there any real, user-entered profile data worth exporting on its own
+ * (i.e. with zero jobs and zero receipts)?
+ *
+ * Used to gate the "everything"/delete-account export: a brand-new or
+ * jobs-free account can still hold a filled-in profile (name, VAT/UTR, etc.)
+ * that the user is entitled to take with them (Art. 15 DSAR), so the
+ * "nothing to export" guard must not key off jobs.length alone.
+ *
+ * Deliberately ignores fields that are always present regardless of what the
+ * user has actually entered — `plan` (defaults to 'free') and the auth
+ * `Login email` derived from the session — since their presence doesn't mean
+ * there's anything meaningful to hand back.
+ *
+ * @param {object} profile — the user's profiles row (may be null/undefined)
+ * @returns {boolean}
+ */
+export function hasExportableProfileData(profile) {
+  const p = profile || {};
+  const fields = [
+    p.first_name,
+    p.last_name,
+    p.business_name,
+    p.account_name,
+    p.email,
+    p.phone,
+    p.address,
+    p.website,
+    p.vat_number,
+    p.utr_number,
+  ];
+  return fields.some(v => typeof v === 'string' && v.trim().length > 0);
+}
+
+/**
  * Builds the "Export everything" CSV: an Account section (key/value rows)
  * followed by the full jobs ledger.
  *

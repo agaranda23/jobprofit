@@ -66,7 +66,7 @@ import { isValidStripePaymentLink } from '../lib/bizValidation.js';
 import { secureImageUrl } from '../lib/secureImageUrl.js';
 import { addJobToCloud } from '../lib/store.js';
 import { countSampleJobs } from '../lib/sampleData.js';
-import { buildJobsCsv, buildEverythingCsv, downloadOrShareCsv } from '../lib/exportCsv.js';
+import { buildJobsCsv, buildEverythingCsv, downloadOrShareCsv, hasExportableProfileData } from '../lib/exportCsv.js';
 import { buildJobsPdf } from '../lib/exportPdf.js';
 import { buildJobsXlsx } from '../lib/exportXlsx.js';
 import { downloadOrShare } from '../lib/exportCsv.js';
@@ -1298,7 +1298,9 @@ function DeleteAccountModal({ session, onClose, onDeleted, onExport, exporting }
   const isConfirmed = confirmText.trim().toUpperCase() === 'DELETE';
 
   const handleDelete = async () => {
-    if (!isConfirmed || busy) return;
+    // Belt-and-braces alongside the button's `disabled` — don't let a destructive
+    // delete fire while an export is still in flight (would unmount mid-download).
+    if (!isConfirmed || busy || exporting) return;
     setBusy(true);
     setError('');
     try {
@@ -1420,7 +1422,7 @@ function DeleteAccountModal({ session, onClose, onDeleted, onExport, exporting }
             type="button"
             className="delete-account-modal__confirm-btn delete-account-modal__confirm-btn--secondary"
             onClick={handleDelete}
-            disabled={!isConfirmed || busy}
+            disabled={!isConfirmed || busy || exporting}
           >
             {busy ? 'Deleting…' : 'Permanently delete my account'}
           </button>
@@ -2209,14 +2211,21 @@ export default function SettingsScreen({
     if (exporting) return;
     const safeJobs = Array.isArray(jobs) ? jobs : [];
     const safeReceipts = Array.isArray(receipts) ? receipts : [];
-    if (safeJobs.length === 0) {
-      showSavedToast('No jobs to export yet');
+    const isEverything = section === 'everything';
+    // "Export everything" (incl. the delete-account flow) also carries the
+    // account/profile section — a jobs-free account can still have a filled-in
+    // profile worth taking with them, so don't gate solely on jobs.length here.
+    // "Export records" stays jobs-only (it's the accountant ledger export).
+    const hasNothingToExport = isEverything
+      ? safeJobs.length === 0 && safeReceipts.length === 0 && !hasExportableProfileData(profile)
+      : safeJobs.length === 0;
+    if (hasNothingToExport) {
+      showSavedToast(isEverything ? 'Nothing to export yet' : 'No jobs to export yet');
       return;
     }
     setExporting(true);
     try {
       const stamp = dateStamp();
-      const isEverything = section === 'everything';
       if (format === 'csv') {
         // "Export everything" includes the account/profile section at the top.
         // "Export records" is the jobs ledger only — accountant-friendly, unchanged.
@@ -2253,8 +2262,15 @@ export default function SettingsScreen({
   const openExportSheet = (section) => {
     if (exporting) return;
     const safeJobs = Array.isArray(jobs) ? jobs : [];
-    if (safeJobs.length === 0) {
-      showSavedToast('No jobs to export yet');
+    const safeReceipts = Array.isArray(receipts) ? receipts : [];
+    const isEverything = section === 'everything';
+    // Same relaxed guard as handleExportFormatPick — a zero-jobs account can
+    // still have profile data worth exporting via the "everything"/delete path.
+    const hasNothingToExport = isEverything
+      ? safeJobs.length === 0 && safeReceipts.length === 0 && !hasExportableProfileData(profile)
+      : safeJobs.length === 0;
+    if (hasNothingToExport) {
+      showSavedToast(isEverything ? 'Nothing to export yet' : 'No jobs to export yet');
       return;
     }
     setExportSheetContext({ section });

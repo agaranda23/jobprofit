@@ -125,12 +125,19 @@ const buildJobsCsv        = vi.fn().mockReturnValue('csv,data');
 const downloadOrShareCsv  = vi.fn().mockResolvedValue(undefined);
 const downloadOrShare     = vi.fn().mockResolvedValue(undefined);
 
-vi.mock('../../lib/exportCsv', () => ({
-  buildJobsCsv: (...args) => buildJobsCsv(...args),
-  buildEverythingCsv: (...args) => buildEverythingCsv(...args),
-  downloadOrShareCsv: (...args) => downloadOrShareCsv(...args),
-  downloadOrShare: (...args) => downloadOrShare(...args),
-}));
+vi.mock('../../lib/exportCsv', async (importOriginal) => {
+  // hasExportableProfileData is kept real (pure, no side effects) so the
+  // zero-jobs/has-profile gating tests exercise the real gate logic; the
+  // file-producing functions stay mocked (side effects — download/share).
+  const actual = await importOriginal();
+  return {
+    ...actual,
+    buildJobsCsv: (...args) => buildJobsCsv(...args),
+    buildEverythingCsv: (...args) => buildEverythingCsv(...args),
+    downloadOrShareCsv: (...args) => downloadOrShareCsv(...args),
+    downloadOrShare: (...args) => downloadOrShare(...args),
+  };
+});
 
 vi.mock('../../lib/exportPdf', () => ({
   buildJobsPdf: vi.fn().mockResolvedValue(null),
@@ -154,6 +161,14 @@ const NOOP = () => {};
 const SESSION = { user: { id: 'user-123', email: 'test@example.com' }, access_token: 'token-abc' };
 const PROFILE_FREE = { plan: 'free', is_cis_subcontractor: false };
 const JOBS = [{ id: 'job-1', customer: 'Test Customer', amount: 250, status: 'paid' }];
+// Zero jobs, but a filled-in profile — e.g. a brand-new signup who added their
+// business details before ever logging a job. Still has DSAR-exportable data.
+const PROFILE_WITH_DATA_NO_JOBS = {
+  plan: 'free',
+  is_cis_subcontractor: false,
+  first_name: 'Alan',
+  business_name: 'Alan Plumbing Ltd',
+};
 
 function renderHub(extraProps = {}) {
   return render(
@@ -238,5 +253,56 @@ describe('Delete account — export-before-delete step', () => {
       target: { value: 'DELETE' },
     });
     expect(deleteBtn.disabled).toBe(false);
+  });
+
+  // ── Gap A: zero-jobs-but-has-profile users can still export ─────────────────
+  it('a user with zero jobs but a filled-in profile CAN open the export sheet (no "nothing to export" toast)', () => {
+    renderHub({ profile: PROFILE_WITH_DATA_NO_JOBS, jobs: [], receipts: [] });
+    openDeleteAccountDialog();
+    fireEvent.click(screen.getByRole('button', { name: /Download your records/ }));
+    // The format sheet opens — the empty-guard did not fire.
+    expect(screen.getByRole('dialog', { name: 'Export everything' })).toBeTruthy();
+    expect(screen.queryByText(/Nothing to export yet/)).toBeNull();
+    expect(screen.queryByText(/No jobs to export yet/)).toBeNull();
+  });
+
+  it('a user with zero jobs, zero receipts AND an empty profile still gets the "nothing to export" toast', () => {
+    renderHub({ profile: { plan: 'free' }, jobs: [], receipts: [] });
+    openDeleteAccountDialog();
+    fireEvent.click(screen.getByRole('button', { name: /Download your records/ }));
+    // Truly nothing to export — the guard still fires, and the format sheet stays closed.
+    expect(screen.queryByRole('dialog', { name: 'Export everything' })).toBeNull();
+    expect(screen.getByText('Nothing to export yet')).toBeTruthy();
+  });
+
+  // ── Gap B: delete confirm button disabled mid-export ─────────────────────────
+  it('the delete confirm button is disabled while an export is in flight, and re-enables once it finishes', async () => {
+    let resolveExport;
+    downloadOrShareCsv.mockImplementationOnce(
+      () => new Promise(resolve => { resolveExport = resolve; })
+    );
+
+    renderHub();
+    openDeleteAccountDialog();
+    fireEvent.change(screen.getByPlaceholderText('Type DELETE to confirm'), {
+      target: { value: 'DELETE' },
+    });
+    const deleteBtn = screen.getByRole('button', { name: /Permanently delete my account/ });
+    expect(deleteBtn.disabled).toBe(false); // confirmed, not busy, not exporting yet
+
+    fireEvent.click(screen.getByRole('button', { name: /Download your records/ }));
+    fireEvent.click(screen.getByText('Spreadsheet (CSV)'));
+
+    // Export is now in flight — the destructive button must be disabled.
+    await vi.waitFor(() => {
+      expect(deleteBtn.disabled).toBe(true);
+    });
+
+    resolveExport();
+
+    // Once the export settles, the button re-enables (DELETE is still typed).
+    await vi.waitFor(() => {
+      expect(deleteBtn.disabled).toBe(false);
+    });
   });
 });
