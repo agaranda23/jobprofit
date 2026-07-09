@@ -555,7 +555,7 @@ export default function AuthScreen() {
       <footer className="auth-legal-footer">
         <p className="auth-legal-footer-entity">
           OHNAR LTD · Company No. 17249792 · Registered in England &amp; Wales · 128 City Road, London EC1V 2NX{' '}
-          · <a href="mailto:getjobprofit@gmail.com">getjobprofit@gmail.com</a>
+          · <a href="mailto:hello@ohnar.co.uk">hello@ohnar.co.uk</a>
         </p>
         <p className="auth-legal-footer-links">
           <a href="/terms" target="_blank" rel="noopener">Terms</a>
