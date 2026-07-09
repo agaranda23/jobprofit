@@ -1,8 +1,127 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { logTelemetry } from '../lib/telemetry';
 import Icon from './Icon';
 import OhnarWordmark from './OhnarWordmark';
+
+// "Here's the actual app." screenshot strip — also drives the tap-to-expand
+// gallery below. `screen` is the stable telemetry/caption key (matches the
+// Get Paid loop: Today -> Quote -> Invoice -> Paid pipeline). `alt` doubles
+// as the enlarged image's alt text and the dialog's aria-label caption.
+const AUTH_SCREENSHOTS = [
+  {
+    screen: 'today',
+    src: '/screens/ohnar-screen-today.png',
+    alt: 'OHNAR Today dashboard showing money waiting to collect',
+    width: 680,
+    height: 1061,
+  },
+  {
+    screen: 'quote',
+    src: '/screens/ohnar-screen-quote.png',
+    alt: 'A quote in OHNAR, ready to send to a customer',
+    width: 680,
+    height: 1085,
+  },
+  {
+    screen: 'invoice',
+    src: '/screens/ohnar-screen-invoice.png',
+    alt: 'An invoice in OHNAR with a pay-now link for the customer',
+    width: 680,
+    height: 1085,
+  },
+  {
+    screen: 'pipeline',
+    src: '/screens/ohnar-screen-pipeline.png',
+    alt: 'OHNAR jobs pipeline showing every job from quoted to paid',
+    width: 680,
+    height: 1168,
+  },
+];
+
+/**
+ * ScreenshotLightbox — full-screen, swipeable "see the whole loop" gallery
+ * for the landing-page screenshot strip. Purely presentational: AuthScreen
+ * owns all state/effects (open index, Esc/arrow keydown, focus trap, body
+ * scroll lock, telemetry) and passes handlers down as props, same split as
+ * JobDetailDrawer's PhotoLightbox/parent pattern.
+ *
+ * Reuses .photo-lightbox-backdrop / .photo-lightbox-img as-is (see index.css
+ * "Photo lightbox" block) and adds landing-specific chrome — visible close
+ * button, prev/next, counter — via the screenshot-lightbox-* classes, since
+ * the in-app receipt lightbox this is modelled on has no visible close and
+ * is single-image (not appropriate for a first-time public visitor).
+ */
+function ScreenshotLightbox({
+  screenshots,
+  index,
+  onClose,
+  onPrev,
+  onNext,
+  onBackdropClick,
+  onStageTouchStart,
+  onStageTouchEnd,
+  closeBtnRef,
+  dialogRef,
+}) {
+  const shot = screenshots[index];
+  if (!shot) return null;
+  return (
+    <div
+      className="photo-lightbox-backdrop screenshot-lightbox-backdrop"
+      onClick={onBackdropClick}
+      role="dialog"
+      aria-modal="true"
+      aria-label={`${shot.alt} — enlarged`}
+      ref={dialogRef}
+    >
+      <button
+        type="button"
+        className="screenshot-lightbox-close"
+        onClick={onClose}
+        aria-label="Close preview"
+        ref={closeBtnRef}
+      >
+        <Icon name="close" size={20} />
+      </button>
+
+      <button
+        type="button"
+        className="screenshot-lightbox-nav screenshot-lightbox-nav--prev"
+        onClick={onPrev}
+        aria-label="Previous screen"
+      >
+        <Icon name="chevron-left" size={24} />
+      </button>
+
+      <div
+        className="screenshot-lightbox-stage"
+        onTouchStart={onStageTouchStart}
+        onTouchEnd={onStageTouchEnd}
+      >
+        <img
+          key={shot.screen}
+          src={shot.src}
+          alt={shot.alt}
+          className="photo-lightbox-img screenshot-lightbox-img"
+        />
+      </div>
+
+      <button
+        type="button"
+        className="screenshot-lightbox-nav screenshot-lightbox-nav--next"
+        onClick={onNext}
+        aria-label="Next screen"
+      >
+        <Icon name="chevron-right" size={24} />
+      </button>
+
+      <p className="screenshot-lightbox-counter">
+        {index + 1} of {screenshots.length}
+      </p>
+    </div>
+  );
+}
 
 /**
  * Reads OAuth error params from the URL hash or query string and strips them.
@@ -62,6 +181,18 @@ export default function AuthScreen() {
   const [error, setError] = useState('');
   const [hasReferralInvite, setHasReferralInvite] = useState(false);
 
+  // Screenshot gallery — null = closed, else the open index into AUTH_SCREENSHOTS.
+  const [lightboxIndex, setLightboxIndex] = useState(null);
+  const closeBtnRef = useRef(null);
+  const dialogRef = useRef(null);
+  const thumbRefs = useRef([]);
+  // Tracks which thumbnail opened the gallery, so closing returns focus there
+  // even after the visitor has flicked to a different screen.
+  const openerIndexRef = useRef(null);
+  const openedOnRef = useRef(null);
+  const screensViewedRef = useRef(new Set());
+  const touchStartRef = useRef(null);
+
   // Funnel step 1: auth wall viewed.
   // Also check for a returning OAuth error (e.g. user cancelled Google sign-in).
   useEffect(() => {
@@ -87,6 +218,108 @@ export default function AuthScreen() {
       // sessionStorage unavailable (private browsing) — banner just doesn't show
     }
   }, []);
+
+  // Open on the tapped thumbnail. Fires the funnel-entry telemetry event —
+  // depth (screensViewed) is captured once, on close, not on every step.
+  const openLightbox = useCallback((index) => {
+    const shot = AUTH_SCREENSHOTS[index];
+    openerIndexRef.current = index;
+    openedOnRef.current = shot.screen;
+    screensViewedRef.current = new Set([shot.screen]);
+    logTelemetry('auth_screenshot_expanded', { screen: shot.screen, index: index + 1, source: 'landing' });
+    setLightboxIndex(index);
+  }, []);
+
+  // delta: -1 (prev) or 1 (next), wraps across all 4 screens.
+  const goToScreenshot = useCallback((delta) => {
+    setLightboxIndex((current) => {
+      if (current === null) return current;
+      const wrapped = (current + delta + AUTH_SCREENSHOTS.length) % AUTH_SCREENSHOTS.length;
+      screensViewedRef.current.add(AUTH_SCREENSHOTS[wrapped].screen);
+      return wrapped;
+    });
+  }, []);
+
+  const closeLightbox = useCallback(() => {
+    logTelemetry('auth_screenshot_gallery_closed', {
+      screensViewed: screensViewedRef.current.size,
+      openedOn: openedOnRef.current,
+    });
+    setLightboxIndex(null);
+    const openerIndex = openerIndexRef.current;
+    if (openerIndex != null) {
+      requestAnimationFrame(() => thumbRefs.current[openerIndex]?.focus());
+    }
+  }, []);
+
+  // Only the true empty backdrop closes the gallery — tapping the image,
+  // arrows, or close button must not (matches the LogoModal convention).
+  const handleBackdropClick = (e) => {
+    if (e.target === e.currentTarget) closeLightbox();
+  };
+
+  // Horizontal swipe inside the overlay navigates prev/next. A short vertical
+  // delta or a small drag is ignored so it doesn't fight a deliberate tap.
+  const handleStageTouchStart = (e) => {
+    const t = e.touches[0];
+    touchStartRef.current = { x: t.clientX, y: t.clientY };
+  };
+  const handleStageTouchEnd = (e) => {
+    const start = touchStartRef.current;
+    touchStartRef.current = null;
+    if (!start) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - start.x;
+    const dy = t.clientY - start.y;
+    if (Math.abs(dx) < 40 || Math.abs(dx) < Math.abs(dy)) return;
+    goToScreenshot(dx < 0 ? 1 : -1);
+  };
+
+  // Esc/arrow-key navigation, Tab focus trap, and body scroll lock — only
+  // while a screen is open. Fully torn down on close/unmount so no listener
+  // or overflow lock survives past the gallery being closed.
+  useEffect(() => {
+    if (lightboxIndex === null) return undefined;
+
+    const frame = requestAnimationFrame(() => closeBtnRef.current?.focus());
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        closeLightbox();
+        return;
+      }
+      if (e.key === 'ArrowLeft') {
+        goToScreenshot(-1);
+        return;
+      }
+      if (e.key === 'ArrowRight') {
+        goToScreenshot(1);
+        return;
+      }
+      if (e.key === 'Tab' && dialogRef.current) {
+        const focusable = dialogRef.current.querySelectorAll('button');
+        if (focusable.length === 0) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (e.shiftKey) {
+          if (document.activeElement === first) { e.preventDefault(); last.focus(); }
+        } else if (document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      cancelAnimationFrame(frame);
+      document.removeEventListener('keydown', handleKeyDown);
+      document.body.style.overflow = prevOverflow;
+    };
+  }, [lightboxIndex, closeLightbox, goToScreenshot]);
 
   const signInWithGoogle = async () => {
     setGoogleLoading(true);
@@ -227,41 +460,47 @@ export default function AuthScreen() {
 
       <div className="auth-screenshots">
         <p className="auth-screenshots-eyebrow">Here's the actual app.</p>
+        <p className="auth-screenshots-hint">Tap any screen for a proper look.</p>
         <div className="auth-screenshots-track">
-          <img
-            className="auth-screenshot"
-            src="/screens/ohnar-screen-today.png"
-            alt="OHNAR Today dashboard showing money waiting to collect"
-            loading="lazy"
-            width="680"
-            height="1061"
-          />
-          <img
-            className="auth-screenshot"
-            src="/screens/ohnar-screen-quote.png"
-            alt="A quote in OHNAR, ready to send to a customer"
-            loading="lazy"
-            width="680"
-            height="1085"
-          />
-          <img
-            className="auth-screenshot"
-            src="/screens/ohnar-screen-invoice.png"
-            alt="An invoice in OHNAR with a pay-now link for the customer"
-            loading="lazy"
-            width="680"
-            height="1085"
-          />
-          <img
-            className="auth-screenshot"
-            src="/screens/ohnar-screen-pipeline.png"
-            alt="OHNAR jobs pipeline showing every job from quoted to paid"
-            loading="lazy"
-            width="680"
-            height="1168"
-          />
+          {AUTH_SCREENSHOTS.map((shot, i) => (
+            <button
+              type="button"
+              key={shot.screen}
+              className="auth-screenshot-btn"
+              ref={(el) => { thumbRefs.current[i] = el; }}
+              onClick={() => openLightbox(i)}
+              aria-label={`Take a closer look — ${shot.alt}`}
+            >
+              <img
+                className="auth-screenshot"
+                src={shot.src}
+                alt=""
+                loading="lazy"
+                width={shot.width}
+                height={shot.height}
+              />
+              <span className="auth-screenshot-badge" aria-hidden="true">
+                <Icon name="expand" size={14} />
+              </span>
+            </button>
+          ))}
         </div>
       </div>
+
+      {lightboxIndex !== null && (
+        <ScreenshotLightbox
+          screenshots={AUTH_SCREENSHOTS}
+          index={lightboxIndex}
+          onClose={closeLightbox}
+          onPrev={() => goToScreenshot(-1)}
+          onNext={() => goToScreenshot(1)}
+          onBackdropClick={handleBackdropClick}
+          onStageTouchStart={handleStageTouchStart}
+          onStageTouchEnd={handleStageTouchEnd}
+          closeBtnRef={closeBtnRef}
+          dialogRef={dialogRef}
+        />
+      )}
 
       <p className="auth-cta-subline">
         £12/mo flat for Pro when you're ready. Cancel anytime.

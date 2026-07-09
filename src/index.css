@@ -3183,6 +3183,17 @@ body {
   font-weight: 600;
   color: var(--text-dim);
   text-align: center;
+  margin: 0 0 4px;
+}
+/* Hint line — tells a first-time visitor the strip is tappable, not just
+   scrollable (the badge on each thumbnail is the primary tell; this backs
+   it up in words, since there's no hover state to rely on on a phone). */
+.auth-screenshots-hint {
+  font-size: var(--fs-meta);
+  font-weight: 500;
+  color: var(--text-dim);
+  text-align: center;
+  opacity: 0.8;
   margin: 0 0 10px;
 }
 .auth-screenshots-track {
@@ -3193,13 +3204,49 @@ body {
   -webkit-overflow-scrolling: touch;
   padding: 4px 4px 10px;
 }
+/* Thumbnail button — wraps each screenshot so it's natively keyboard-
+   activatable and focusable. Layout (flex-basis, scroll-snap) moved here
+   from .auth-screenshot since the button is now the flex/snap child; the
+   strip's native scroll is untouched — no drag handler was added here. */
+.auth-screenshot-btn {
+  position: relative;
+  flex: 0 0 132px;
+  scroll-snap-align: start;
+  display: block;
+  padding: 0;
+  border: none;
+  background: transparent;
+  -webkit-tap-highlight-color: transparent;
+}
+.auth-screenshot-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: var(--radius-md);
+}
+@media (hover: hover) and (pointer: fine) {
+  .auth-screenshot-btn { cursor: zoom-in; }
+}
 .auth-screenshot {
   width: 132px;
-  flex: 0 0 132px;
   height: auto;
   display: block;
-  scroll-snap-align: start;
   filter: drop-shadow(var(--shadow-lg));
+}
+/* Persistent "tap to expand" badge — bottom-right of every thumbnail, always
+   visible (no hover needed) so it reads as interactive even at 132px. */
+.auth-screenshot-badge {
+  position: absolute;
+  right: 6px;
+  bottom: 12px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
 }
 @media (min-width: 768px) {
   /* Break the strip out of the 420px-wide .auth-screen column (the parent has
@@ -3220,9 +3267,11 @@ body {
     margin: 0 auto;
     padding: 0;
   }
+  .auth-screenshot-btn {
+    flex: 0 0 220px;
+  }
   .auth-screenshot {
     width: 220px;
-    flex: 0 0 220px;
   }
 }
 /* Divider separating pitch from the email action */
@@ -10054,6 +10103,75 @@ button.jd-money-chip:active { opacity: 0.75; }
 
 .photo-lightbox-edit-btn:active {
   opacity: 0.8;
+}
+
+/* ── Screenshot lightbox (AuthScreen "Here's the actual app.") ──────────────
+   Reuses .photo-lightbox-backdrop / .photo-lightbox-img above as-is (fixed
+   inset, 0.92 black, z-index 2000, object-fit:contain). This block only adds
+   the public-landing-page chrome that in-app usage doesn't need: a visible
+   close button, prev/next, and a counter — all light-on-dark, all >=44px. */
+.screenshot-lightbox-close,
+.screenshot-lightbox-nav {
+  position: absolute;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.screenshot-lightbox-close:active,
+.screenshot-lightbox-nav:active {
+  background: rgba(255, 255, 255, 0.26);
+}
+.screenshot-lightbox-close {
+  top: max(16px, env(safe-area-inset-top));
+  right: 16px;
+}
+.screenshot-lightbox-nav--prev { left: 10px; top: 50%; transform: translateY(-50%); }
+.screenshot-lightbox-nav--next { right: 10px; top: 50%; transform: translateY(-50%); }
+
+.screenshot-lightbox-stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  max-width: 100%;
+  max-height: 100%;
+}
+
+.screenshot-lightbox-counter {
+  position: absolute;
+  bottom: max(20px, env(safe-area-inset-bottom));
+  left: 50%;
+  transform: translateX(-50%);
+  margin: 0;
+  padding: 4px 14px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  font-size: var(--fs-label);
+  font-weight: 600;
+}
+
+/* Motion: quick fade-in on open, short cross-fade between screens. Gated
+   behind prefers-reduced-motion — reduced-motion visitors get an instant
+   show/swap, no transition at all. */
+@media (prefers-reduced-motion: no-preference) {
+  .screenshot-lightbox-backdrop {
+    animation: screenshot-lightbox-fade-in 180ms ease-out;
+  }
+  .screenshot-lightbox-img {
+    animation: screenshot-lightbox-fade-in 160ms ease-out;
+  }
+}
+@keyframes screenshot-lightbox-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
 /* ── ProfitBarSection — hero + subline ───────────────────────────────────── */

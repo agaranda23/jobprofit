@@ -98,6 +98,7 @@ import {
   FileSpreadsheet,
   CreditCard,
   Gift,
+  Maximize2,
 } from 'lucide-react';
 
 // ── Custom inline SVG glyphs ─────────────────────────────────────────────────
@@ -258,6 +259,9 @@ const REGISTRY = {
 
   // Referral / social
   gift: Gift,
+
+  // Media affordances
+  expand: Maximize2,   // 🔍 "tap to enlarge" badge on tappable thumbnails
 };
 
 // ── Variant → CSS custom property ───────────────────────────────────────────
