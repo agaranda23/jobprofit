@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { logTelemetry } from '../lib/telemetry';
+import { stashTosAcceptance } from '../lib/legal';
 import Icon from './Icon';
 import OhnarWordmark from './OhnarWordmark';
 
@@ -334,6 +335,9 @@ export default function AuthScreen() {
     setGoogleLoading(true);
     setError('');
     logTelemetry('signin_google_clicked');
+    // Clickwrap acceptance — see the "By continuing..." line rendered below
+    // the sign-in controls. Stashed now, before the OAuth redirect fires.
+    stashTosAcceptance();
     try {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
@@ -354,6 +358,8 @@ export default function AuthScreen() {
     if (!email.trim()) return;
     setSending(true);
     setError('');
+    // Clickwrap acceptance — same line governs this path too (see Google click above).
+    stashTosAcceptance();
     try {
       const { error } = await supabase.auth.signInWithOtp({
         email: email.trim(),
@@ -452,6 +458,15 @@ export default function AuthScreen() {
             {error && <p className="auth-error">{error}</p>}
             <p className="auth-hint">No password — we email a link, tap it, you're in.</p>
           </form>
+
+          {/* Sits below both the Google button and the email form, so it
+              governs whichever sign-in path the visitor takes. */}
+          <p className="auth-clickwrap">
+            By continuing, you agree to our{' '}
+            <a href="/terms" target="_blank" rel="noopener">Terms of Service</a> and
+            acknowledge our{' '}
+            <a href="/privacy" target="_blank" rel="noopener">Privacy Policy</a>.
+          </p>
         </>
       ) : (
         <div className="auth-sent">
@@ -520,6 +535,22 @@ export default function AuthScreen() {
       </p>
 
       <p className="auth-trust">Built with feedback from UK plumbers, builders, electricians, gardeners, cleaners &amp; sole traders.</p>
+
+      {/* Company registration details — required for a UK limited company
+          trading online (Companies Act 2006 s.82 / E-Commerce Regs 2002). */}
+      <footer className="auth-legal-footer">
+        <p className="auth-legal-footer-entity">
+          OHNAR LTD · Company No. 17249792 · Registered in England &amp; Wales · 128 City Road, London EC1V 2NX{' '}
+          · <a href="mailto:getjobprofit@gmail.com">getjobprofit@gmail.com</a>
+        </p>
+        <p className="auth-legal-footer-links">
+          <a href="/terms" target="_blank" rel="noopener">Terms</a>
+          {' · '}
+          <a href="/privacy" target="_blank" rel="noopener">Privacy</a>
+          {' · '}
+          <a href="/cookies" target="_blank" rel="noopener">Cookies</a>
+        </p>
+      </footer>
     </div>
     </div>
   );
