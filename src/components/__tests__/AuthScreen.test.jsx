@@ -597,3 +597,65 @@ describe('AuthScreen — ToS acceptance on the magic-link redirect URL', () => {
     expect(stashed.acceptedAt).toBe(redirectUrl.searchParams.get('tos_at'));
   });
 });
+
+// ── Referral code survives the auth redirect (fix/referral-attribution-oauth) ─
+// Bug: a referred Google signup left profiles.referred_by null and created no
+// referrals row — the code was silently lost somewhere in the app -> Google ->
+// Supabase -> app round trip. Relying on sessionStorage alone to survive that
+// bounce is fragile (see withReferralCode in lib/referral.js), so both
+// signInWithGoogle and the magic-link send() now put the code back INTO the
+// returning URL via redirectTo/emailRedirectTo. main.jsx's captureReferralCode
+// re-reads `?ref=` on the way back in, regardless of which origin/tab the
+// flow lands on.
+
+describe('AuthScreen — referral code carried through the auth redirect', () => {
+  afterEach(() => {
+    try { sessionStorage.clear(); } catch { /* jsdom */ }
+    cleanup();
+    vi.clearAllMocks();
+  });
+
+  it('includes ?ref=<code> in redirectTo when signing in with Google and a referral code is pending', async () => {
+    sessionStorage.setItem('jp.referralCode', 'ruvWbv');
+    mockSignInWithOAuth.mockResolvedValue({ error: null });
+    renderAuth();
+    fireEvent.click(screen.getByRole('button', { name: /Continue with Google/i }));
+    await waitFor(() => expect(mockSignInWithOAuth).toHaveBeenCalledOnce());
+    const { redirectTo } = mockSignInWithOAuth.mock.calls[0][0].options;
+    expect(redirectTo).toContain('ref=ruvWbv');
+  });
+
+  it('redirectTo has no ref param for Google sign-in when there is no pending referral code', async () => {
+    mockSignInWithOAuth.mockResolvedValue({ error: null });
+    renderAuth();
+    fireEvent.click(screen.getByRole('button', { name: /Continue with Google/i }));
+    await waitFor(() => expect(mockSignInWithOAuth).toHaveBeenCalledOnce());
+    const { redirectTo } = mockSignInWithOAuth.mock.calls[0][0].options;
+    expect(redirectTo).not.toContain('ref=');
+  });
+
+  it('includes ?ref=<code> in emailRedirectTo when requesting a magic link and a referral code is pending', async () => {
+    sessionStorage.setItem('jp.referralCode', 'ruvWbv');
+    mockSignInWithOtp.mockResolvedValue({ error: null });
+    renderAuth();
+    fireEvent.change(screen.getByPlaceholderText('you@example.com'), {
+      target: { value: 'trade@van.com' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Email me a sign-in link/i }));
+    await waitFor(() => expect(mockSignInWithOtp).toHaveBeenCalledOnce());
+    const { emailRedirectTo } = mockSignInWithOtp.mock.calls[0][0].options;
+    expect(emailRedirectTo).toContain('ref=ruvWbv');
+  });
+
+  it('emailRedirectTo has no ref param for the magic link when there is no pending referral code', async () => {
+    mockSignInWithOtp.mockResolvedValue({ error: null });
+    renderAuth();
+    fireEvent.change(screen.getByPlaceholderText('you@example.com'), {
+      target: { value: 'trade@van.com' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /Email me a sign-in link/i }));
+    await waitFor(() => expect(mockSignInWithOtp).toHaveBeenCalledOnce());
+    const { emailRedirectTo } = mockSignInWithOtp.mock.calls[0][0].options;
+    expect(emailRedirectTo).not.toContain('ref=');
+  });
+});

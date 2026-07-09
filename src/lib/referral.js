@@ -3,7 +3,9 @@
  *
  * Public API
  * ──────────
+ * REFERRAL_CODE_STORAGE_KEY            → shared sessionStorage key
  * buildReferralLink(code)              → full URL string
+ * withReferralCode(baseUrl)            → baseUrl + ?ref= (or unchanged)
  * generateReferralCode()               → 6-char alphanumeric string
  * ensureReferralCode(supabase, userId, profile) → Promise<string|null>
  * copyReferralLink(code)               → Promise<void>
@@ -20,6 +22,14 @@
 /** Supabase/PostgREST error code for "column does not exist" */
 const PG_UNDEFINED_COLUMN = '42703';
 
+/**
+ * sessionStorage key that carries a captured `?ref=` code across the sign-in
+ * flow. Single source of truth — main.jsx (writer), AppShell.jsx (reader on
+ * SIGNED_IN/INITIAL_SESSION) and AuthScreen.jsx (invite banner + redirectTo
+ * builder below) all import this instead of repeating the string literal.
+ */
+export const REFERRAL_CODE_STORAGE_KEY = 'jp.referralCode';
+
 const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
 
 /**
@@ -31,6 +41,37 @@ export function buildReferralLink(code) {
   const base =
     typeof window !== 'undefined' ? window.location.origin : 'https://ohnar.co.uk';
   return `${base}/?ref=${encodeURIComponent(code)}`;
+}
+
+/**
+ * Appends the in-flight referral code (if any) as a `ref` query param onto
+ * an auth redirect URL — `signInWithOAuth`'s `redirectTo` or
+ * `signInWithOtp`'s `emailRedirectTo`.
+ *
+ * Why: a plain sessionStorage value set on first page load isn't reliable
+ * across a full-page OAuth round trip (Google, then Supabase's callback,
+ * then back). Putting the code IN the returning URL instead means
+ * main.jsx's existing captureReferralCode() re-reads it from `?ref=` and
+ * re-persists it to sessionStorage on whatever page/origin the flow lands
+ * back on — so the code can't be dropped by the bounce.
+ *
+ * Never throws — falls back to `baseUrl` unchanged if there's no code to
+ * carry, sessionStorage is unavailable (private browsing), or baseUrl isn't
+ * a parseable absolute URL.
+ *
+ * @param {string} baseUrl — e.g. window.location.origin
+ * @returns {string}
+ */
+export function withReferralCode(baseUrl) {
+  try {
+    const code = sessionStorage.getItem(REFERRAL_CODE_STORAGE_KEY);
+    if (!code) return baseUrl;
+    const url = new URL(baseUrl);
+    url.searchParams.set('ref', code);
+    return url.toString();
+  } catch {
+    return baseUrl;
+  }
 }
 
 /**
