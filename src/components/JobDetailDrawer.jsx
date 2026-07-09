@@ -2252,6 +2252,9 @@ export default function JobDetailDrawer({
 }) {
   const [paymentModalOpen, setPaymentModalOpen] = useState(false);
   const [invoiceModalOpen, setInvoiceModalOpen] = useState(false);
+  // Toggles the pinned header's on-scroll shadow — true once .job-detail-body
+  // has scrolled away from the top. Purely visual (see .job-detail-header.is-scrolled).
+  const [isScrolled, setIsScrolled] = useState(false);
   // reviewSheetMode: null = closed, 'quote' | 'invoice' = open in that mode
   const [reviewSheetMode, setReviewSheetMode] = useState(null);
   // When the user taps "Edit quote/invoice" inside ReviewSheet, we close the
@@ -3356,7 +3359,11 @@ export default function JobDetailDrawer({
             Top strip: ⋯✕ pinned right on own row.
             Mid row: left=name+customer; right=price (baseline-aligned).
             Bottom row: full-width action buttons (Call · Text · WhatsApp · Map). */}
-        <div className="job-detail-header">
+        <div className={`job-detail-header${isScrolled ? ' is-scrolled' : ''}`}>
+          {/* Grabber pill — static affordance signalling "this sheet is fixed/draggable".
+              Horizontally centred so it clears the absolute ⋯✕ strip (top:8px, right-aligned).
+              No drag behaviour yet — that lands in the swipe-to-close fast-follow PR. */}
+          <div className="jd-grabber" aria-hidden="true" />
           {/* ⋯ kebab + ✕ close — own top strip, flex-end so they sit right */}
           <div className="jd-header-actions">
                 <div className="jd-kebab-wrap" ref={kebabRef}>
@@ -3754,7 +3761,10 @@ export default function JobDetailDrawer({
         </div>
 
         {/* Scrollable body — Stacked Cards layout (PRD 2026-05-31, Option 2) */}
-        <div className="job-detail-body">
+        <div
+          className="job-detail-body"
+          onScroll={(e) => setIsScrolled(e.currentTarget.scrollTop > 0)}
+        >
           {(() => {
             // ── Profit derivation (shared across all cards) ──────────────────
             const quote = job.total ?? job.amount ?? 0;
