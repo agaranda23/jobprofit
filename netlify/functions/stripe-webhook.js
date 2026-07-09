@@ -13,8 +13,9 @@
  *   customer.subscription.deleted  → plan='free', status='canceled', clear ids
  *   invoice.payment_failed         → subscription_status='past_due'
  *   invoice.payment_succeeded      → subscription_status='active'; also grants the
- *                                     JP-LU7 Phase 2 referral reward when
- *                                     billing_reason==='subscription_create' — see
+ *                                     JP-LU7 Phase 2 referral reward on the
+ *                                     referee's FIRST invoice with
+ *                                     amount_paid > 0 (any billing_reason) — see
  *                                     ./_lib/referralReward.js
  *
  * All other events return 200 immediately (ignored, not an error).
@@ -239,15 +240,20 @@ export const handler = async function (event) {
           .eq('stripe_customer_id', invoice.customer);
 
         // ── Referral reward grant (JP-LU7 Phase 2) ────────────────────────────
-        // Only on the referee's FIRST successful subscription payment — chosen
-        // deliberately over signup so a card-free trial (never charges) can't
-        // be gamed for a reward. See netlify/functions/_lib/referralReward.js
-        // for the full grant logic (idempotent claim, free-tier vs paying
-        // delivery). grantReferralReward never throws, but it is still awaited
-        // inside its own try/catch here — a bug in reward-granting must never
-        // turn this already-successful Stripe payment into a 500, which would
-        // make Stripe re-deliver the whole webhook.
-        if (invoice.billing_reason === 'subscription_create') {
+        // Gated on amount_paid > 0, NOT billing_reason — the app's default
+        // signup is a card-free 14-day trial, so the referee's real first
+        // charge often lands later as a 'subscription_cycle' invoice, not
+        // 'subscription_create'. Gating on billing_reason alone silently never
+        // rewards that (the common) case. A £0 invoice (e.g. the trial's own
+        // invoice) is not real money and is skipped. See
+        // netlify/functions/_lib/referralReward.js for the full grant logic
+        // (idempotent claim, free-tier vs paying delivery, and its own
+        // defence-in-depth amount_paid check). grantReferralReward never
+        // throws, but it is still awaited inside its own try/catch here — a
+        // bug in reward-granting must never turn this already-successful
+        // Stripe payment into a 500, which would make Stripe re-deliver the
+        // whole webhook.
+        if (invoice.amount_paid > 0) {
           try {
             await grantReferralReward({ stripe, adminClient, invoice });
           } catch (err) {
