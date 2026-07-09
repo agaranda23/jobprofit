@@ -908,42 +908,17 @@ button:focus-visible {
   background: var(--surface-2);
 }
 
-/* 24. jt-stage-label compact-row stage badges — STAGE_META fill values are
-   dark-mode surfaces (#1a2a4a, #1a3a2e etc.) set as inline CSS custom
-   properties (--chip-fill / --chip-ink). Inline styles win over class rules,
-   so !important is required here. Each stage gets a light-legible tint that
-   mirrors the established .status--* pattern and the app's green stage palette.
-   Dark mode is untouched — these rules only fire under [data-theme="light"]. */
-[data-theme="light"] .jt-stage-label--lead {
-  background: #dbeafe !important;
-  border-color: #93c5fd !important;
-  color: #1e40af !important;
-}
-[data-theme="light"] .jt-stage-label--quoted {
-  background: #d1fae5 !important;
-  border-color: #6ee7b7 !important;
-  color: #065f46 !important;
-}
-[data-theme="light"] .jt-stage-label--on {
-  background: #a7f3d0 !important;
-  border-color: #34d399 !important;
-  color: #065f46 !important;
-}
-[data-theme="light"] .jt-stage-label--invoiced {
-  background: #6ee7b7 !important;
-  border-color: #10b981 !important;
-  color: #064e3b !important;
-}
-[data-theme="light"] .jt-stage-label--overdue {
-  background: #fee2e2 !important;
-  border-color: #fca5a5 !important;
-  color: #991b1b !important;
-}
-[data-theme="light"] .jt-stage-label--paid {
-  background: #d1fae5 !important;
-  border-color: #34d399 !important;
-  color: #065f46 !important;
-}
+/* 24. jt-stage-label compact-row stage badges — REMOVED (jobs-premium-pass
+   fast-follow: import-preview palette, 2026-07). This used to be a light-theme
+   -only override (!important) of a green-wash + red-Overdue ramp (#dbeafe/
+   #d1fae5/#a7f3d0/#fee2e2 etc. — mint-green for Quoted/On/Invoiced/Paid, red
+   for Overdue) that fought the dark-mode inline chip-fill hack in
+   SpreadsheetImporter.jsx. Both are gone now: the component was repointed
+   onto the canonical --stage-* and --stage-tint-* tokens, and a SINGLE theme-aware
+   .jt-stage-label--* rule set (see index.css, near .jt-stage-label) now
+   covers both themes correctly — no per-theme duplicate needed. Do not
+   reintroduce a [data-theme="light"] override here; that's exactly the
+   parallel-palette problem this pass exists to remove. */
 
 /* Awaiting-job / chase-row amber border accent: the #f59e0b40 semi-transparent
    value still reads fine on light, but the border-left accent needs the
@@ -12087,6 +12062,27 @@ button.jd-money-chip:active { opacity: 0.75; }
   pointer-events: none; /* purely decorative — tap goes to ⋯ or the tile */
   line-height: var(--lh-stage);
 }
+
+/* Per-stage variants (jobs-premium-pass fast-follow: import-preview palette).
+   Only consumer is the CSV/Excel import preview card (SpreadsheetImporter.jsx
+   PreviewJobCard) — verified via grep, this class isn't rendered by any live
+   job tile. Repoints the old green-wash + red-Overdue ramp onto the canonical
+   --stage-* and --stage-tint-* tokens (single source of truth, index.css :root).
+   ONE rule set covers both themes: --stage-tint-* already carries correct
+   per-theme values (see the :root + [data-theme="light"] blocks that define
+   it), so no separate light override is needed here — avoids reintroducing
+   the exact parallel-palette problem this pass exists to remove. Text stays
+   --text-dim (not the raw stage hue) because every --stage-* hue fails
+   AA-normal-text (4.5:1) against this tint in at least one theme when used as
+   foreground colour — same reasoning as .jt-stage-name below. The hue is
+   still fully visible via the tinted background + border. Overdue is orange,
+   never red/rose; Paid is the only green. */
+.jt-stage-label--lead     { background: var(--stage-tint-lead);     border-color: var(--stage-lead);     color: var(--text-dim); }
+.jt-stage-label--quoted   { background: var(--stage-tint-quoted);   border-color: var(--stage-quoted);   color: var(--text-dim); }
+.jt-stage-label--on       { background: var(--stage-tint-on);       border-color: var(--stage-on);       color: var(--text-dim); }
+.jt-stage-label--invoiced { background: var(--stage-tint-invoiced); border-color: var(--stage-invoiced); color: var(--text-dim); }
+.jt-stage-label--overdue  { background: var(--stage-tint-overdue);  border-color: var(--stage-overdue);  color: var(--text-dim); }
+.jt-stage-label--paid     { background: var(--stage-tint-paid);     border-color: var(--stage-paid);     color: var(--text-dim); }
 
 /* Plain stage name — replaces the coloured pill on job tiles.
    The six WorkflowCircles carry all the stage colour/progress signal;

@@ -55,15 +55,22 @@ const MAPPING_FIELDS = [
 
 const NONE_OPTION = { value: '__none__', label: '(none)' };
 
-// ── Stage colours (mirrors WorkScreen STAGE_META) ─────────────────────────────
-
+// ── Stage colours — canonical --stage-* pipeline palette (jobs-premium-pass
+// fast-follow: import-preview palette). Values are var() references to
+// index.css's single source of truth (StageStrip.jsx STAGE_TOKEN / index.css
+// :root) rather than a duplicated hex ramp, so this preview card can never
+// drift from the pipeline's colours again. Feeds the card's left-rail accent
+// (--jt-hue) and, via the .jt-stage-label--* rules in index.css, the stage
+// chip's border/background. Do NOT reintroduce hardcoded hex here — Quoted
+// was mint-green, Overdue was red (#E5484D); Overdue is orange, Paid is the
+// only green.
 const STAGE_COLOURS = {
-  Lead:     '#3B82F6',
-  Quoted:   '#B3F0D5',
-  On:       '#5FD9A6',
-  Invoiced: '#28B581',
-  Overdue:  '#E5484D',
-  Paid:     '#0E6B43',
+  Lead:     'var(--stage-lead)',
+  Quoted:   'var(--stage-quoted)',
+  On:       'var(--stage-on)',
+  Invoiced: 'var(--stage-invoiced)',
+  Overdue:  'var(--stage-overdue)',
+  Paid:     'var(--stage-paid)',
 };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -114,9 +121,11 @@ function PreviewJobCard({ customer, amount, date, status }) {
     >
       <div className="jt-head">
         <h3 className="jt-title">{customer}</h3>
+        {/* Colour comes entirely from the .jt-stage-label--{stage} class (index.css) —
+            no inline --chip-fill/--chip-ink hack needed; those rules already
+            key off the same canonical --stage-{x} and --stage-tint-{x} tokens. */}
         <span
           className={`jt-stage-label jt-stage-label--${(status || 'on').toLowerCase()}`}
-          style={{ '--chip-hue': stageColour, '--chip-fill': '#1a3a2e', '--chip-ink': stageColour }}
           aria-label={`Stage: ${status}`}
         >
           {status}
