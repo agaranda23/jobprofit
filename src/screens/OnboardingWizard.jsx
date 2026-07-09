@@ -24,6 +24,19 @@
  *
  * IMPORTANT: This component must never be mounted for old-nav users.
  * The NEW_NAV guard lives in AppShell — don't add one here.
+ *
+ * Draft autosave (2026-07): a phone call, lock-screen, or the OS killing a
+ * backgrounded tab mid-signup used to lose the whole wizard — trading name,
+ * both name fields, sort code, account number — since they lived in useState
+ * only and were persisted just once, on completion. Now every field is
+ * autosaved (debounced, crash-safe) via the same helper AddJobModal uses for
+ * "Resume your quote?" (src/lib/draftAutosave.js / useDraftAutosave.js), under
+ * its own key so it can never collide with an in-progress quote draft. Unlike
+ * the quote flow there's no banner — a wizard is a single linear session, so
+ * the fields (and the step the trader was on) are restored silently on
+ * remount. The draft is cleared the moment the profile upsert to Supabase
+ * succeeds, so bank details never linger in localStorage once they're safely
+ * saved server-side.
  */
 
 import { useState } from 'react';
@@ -31,6 +44,8 @@ import { supabase } from '../lib/supabase';
 import { logTelemetry } from '../lib/telemetry';
 import { addJobToCloud } from '../lib/store';
 import SpreadsheetImporter from '../components/SpreadsheetImporter';
+import { useDraftAutosave } from '../lib/useDraftAutosave';
+import { loadOnboardingDraft, saveOnboardingDraft, clearOnboardingDraft } from '../lib/draftAutosave';
 
 const STEPS = [
   {
@@ -124,22 +139,44 @@ export default function OnboardingWizard({ session, profile, onComplete, onImpor
       sessionStorage.setItem('jp.telemetry.wizardStarted', '1');
       logTelemetry('wizard_started', { step: first + 1 });
     }
+    // Resume mid-wizard progress from the autosaved draft (crash-safe — see
+    // draftAutosave.js) when it's further along than the profile-derived
+    // starting step. Never regresses: if the profile already satisfies a
+    // later step than the draft remembers (e.g. saved from another device),
+    // `first` always wins.
+    const draft = loadOnboardingDraft();
+    if (draft && typeof draft.stepIndex === 'number' && draft.stepIndex > first && draft.stepIndex < STEPS.length) {
+      return draft.stepIndex;
+    }
     return first;
   });
   const [values, setValues] = useState(() => {
-    // Profile (cloud) takes priority; legacy localStorage fills gaps.
+    // Profile (cloud) takes priority; then the in-progress autosaved draft
+    // (crash-safe — see draftAutosave.js); legacy localStorage fills remaining gaps.
     const legacy = legacyBizDefaults();
+    const draft = loadOnboardingDraft();
     return {
-      trading_name: profile?.business_name || legacy.trading_name || '',
-      first_name: profile?.first_name || '',
-      last_name: profile?.last_name || '',
-      sort_code: formatSortCode(profile?.sort_code || legacy.sort_code || ''),
-      account_number: (profile?.account_number || legacy.account_number || '').replace(/\D/g, '').slice(0, 8),
+      trading_name: profile?.business_name || draft?.trading_name || legacy.trading_name || '',
+      first_name: profile?.first_name || draft?.first_name || '',
+      last_name: profile?.last_name || draft?.last_name || '',
+      sort_code: formatSortCode(profile?.sort_code || draft?.sort_code || legacy.sort_code || ''),
+      account_number: (profile?.account_number || draft?.account_number || legacy.account_number || '').replace(/\D/g, '').slice(0, 8),
     };
   });
   const [bankTouched, setBankTouched] = useState({ sort_code: false, account_number: false });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
+
+  // ── Draft autosave — see the header comment above and draftAutosave.js /
+  // useDraftAutosave.js for the mechanism. Debounced on every field change,
+  // flushed immediately on visibilitychange/pagehide; clearOnboardingDraftNow()
+  // is called the moment the profile save succeeds (in saveAll below).
+  const draftSnapshot = { ...values, stepIndex };
+  const { clearNow: clearOnboardingDraftNow } = useDraftAutosave(draftSnapshot, {
+    isEmpty: (s) => !s.trading_name?.trim() && !s.first_name?.trim() && !s.last_name?.trim() &&
+      !s.sort_code?.trim() && !s.account_number?.trim(),
+    store: { save: saveOnboardingDraft, clear: clearOnboardingDraft },
+  });
 
   const step = STEPS[stepIndex];
   const totalSteps = STEPS.length;
@@ -218,6 +255,12 @@ export default function OnboardingWizard({ session, profile, onComplete, onImpor
         .single();
 
       if (dbErr) throw dbErr;
+
+      // The profile row (name fields, and bank details unless skipped) is now
+      // safely persisted server-side — clear the local draft immediately so
+      // bank details never linger in localStorage. clearNow() also disables
+      // any pending debounced write / visibilitychange flush from resurrecting it.
+      clearOnboardingDraftNow();
 
       const savedProfile = data || patch;
 

@@ -21,13 +21,25 @@ const DEFAULT_DEBOUNCE_MS = 600;
  *                                    a blank/untouched form should never show
  *                                    up as a "resume?" prompt later.
  * @param {number}    opts.debounceMs override the debounce window (testing)
+ * @param {object}    opts.store      { save, clear } pair to persist to —
+ *                                    defaults to the shared quote/job draft
+ *                                    store. Pass a different store (see
+ *                                    createDraftStore in draftAutosave.js) so
+ *                                    another form — e.g. OnboardingWizard —
+ *                                    gets its own key and never collides with
+ *                                    an in-progress quote draft.
  * @returns {{ clearNow: () => void }} clearNow — call synchronously right
  *   before the payload is actually saved/sent, so a debounce timer or an
  *   in-flight visibilitychange/pagehide flush can never resurrect the draft
  *   after it's been cleared (same no-resurrection discipline used elsewhere
  *   in this codebase, e.g. the offline-token guard).
  */
-export function useDraftAutosave(snapshot, { enabled = true, isEmpty, debounceMs = DEFAULT_DEBOUNCE_MS } = {}) {
+export function useDraftAutosave(snapshot, {
+  enabled = true,
+  isEmpty,
+  debounceMs = DEFAULT_DEBOUNCE_MS,
+  store = { save: saveDraft, clear: clearDraft },
+} = {}) {
   const snapshotRef = useRef(snapshot);
   snapshotRef.current = snapshot;
 
@@ -38,8 +50,8 @@ export function useDraftAutosave(snapshot, { enabled = true, isEmpty, debounceMs
   const writeIfDue = () => {
     if (disabledRef.current || !enabled) return;
     const current = snapshotRef.current;
-    if (isEmpty?.(current)) clearDraft();
-    else saveDraft(current);
+    if (isEmpty?.(current)) store.clear();
+    else store.save(current);
   };
 
   // Callers (AddJobModal) build a fresh object literal every render, so its
@@ -75,7 +87,7 @@ export function useDraftAutosave(snapshot, { enabled = true, isEmpty, debounceMs
 
   const clearNow = useRef(() => {
     disabledRef.current = true;
-    clearDraft();
+    store.clear();
   }).current;
 
   return { clearNow };
