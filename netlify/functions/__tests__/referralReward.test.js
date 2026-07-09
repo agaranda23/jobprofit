@@ -17,6 +17,12 @@
  *   H. grantReferralReward — free-tier referrer gets pro_comp_until
  *   I. grantReferralReward — paying referrer gets a balance credit
  *   J. grantReferralReward — not-referred / schema-missing degradation
+ *   K. grantReferralReward — amount_paid gating (BUG 1: fires on the real
+ *      trial-to-paid conversion regardless of billing_reason; skips £0)
+ *   L. grantReferralReward — a failed grant surfaces as an error, never as
+ *      success (BUG 2)
+ *   M. grantReferralReward — a trialing referrer gets pro_comp_until, not an
+ *      inert balance credit (BUG 3)
  */
 
 import { describe, it, expect, vi } from 'vitest';
@@ -127,6 +133,7 @@ function makeFakeSupabase({
   referrerProfile = { data: null, error: { code: 'PGRST116' } },
   referralRow = { data: null, error: { code: 'PGRST116' } },
   claimResult = { data: [], error: null },
+  profileUpdateErrorFor = [], // user ids for which the profiles.update() call simulates a DB failure
 } = {}) {
   const profileUpdates = [];
   const referralUpdates = [];
@@ -142,6 +149,9 @@ function makeFakeSupabase({
         update: vi.fn((payload) => ({
           eq: vi.fn(async (col, val) => {
             profileUpdates.push({ payload, col, val });
+            if (profileUpdateErrorFor.includes(val)) {
+              return { error: { message: 'simulated DB failure' } };
+            }
             return { error: null };
           }),
         })),
@@ -223,7 +233,11 @@ function makeInvoice(overrides = {}) {
     id: INVOICE_ID,
     customer: REFEREE_CUSTOMER,
     subscription: SUB_ID,
-    billing_reason: 'subscription_create',
+    amount_paid: 1200, // real money moved — the gate the reward now fires on (BUG 1 fix)
+    // billing_reason deliberately NOT 'subscription_create' by default — proves the
+    // grant no longer depends on it (BUG 1: the real trial-to-paid conversion
+    // typically arrives as 'subscription_cycle', not 'subscription_create').
+    billing_reason: 'subscription_cycle',
     ...overrides,
   };
 }
@@ -406,5 +420,150 @@ describe('J. grantReferralReward — degradation paths', () => {
     await expect(
       grantReferralReward({ stripe, adminClient: client, invoice: makeInvoice() })
     ).resolves.toMatchObject({ skipped: 'unexpected_error' });
+  });
+});
+
+// ── K. amount_paid gating (BUG 1 fix) ─────────────────────────────────────────
+
+describe('K. grantReferralReward — amount_paid gating (BUG 1 fix)', () => {
+  it('grants on the real trial-to-paid conversion even though billing_reason is subscription_cycle, not subscription_create', async () => {
+    const { client, referralUpdates } = makeFakeSupabase({
+      refereeProfile: referredProfile(),
+      referrerProfile: { data: { id: REFERRER_ID, stripe_customer_id: null, plan: 'free', pro_comp_until: null }, error: null },
+      referralRow: pendingReferralRow(),
+      claimResult: { data: [{ id: REFERRAL_ROW_ID }], error: null },
+    });
+    const { stripe } = makeFakeStripe({
+      subscriptionsRetrieve: vi.fn(async () => ({
+        items: { data: [{ price: { unit_amount: 1200, currency: 'gbp' } }] },
+      })),
+    });
+
+    // amount_paid > 0, billing_reason is explicitly the renewal-style reason a
+    // card-free trial's real first charge actually arrives as.
+    const invoice = makeInvoice({ billing_reason: 'subscription_cycle', amount_paid: 1200 });
+    const result = await grantReferralReward({ stripe, adminClient: client, invoice });
+
+    expect(result.granted).toBe(true);
+    expect(referralUpdates).toHaveLength(1);
+  });
+
+  it('skips a £0 invoice — no real money moved (e.g. the card-free trial\'s own invoice)', async () => {
+    const { client, referralUpdates } = makeFakeSupabase({
+      refereeProfile: referredProfile(),
+      referralRow: pendingReferralRow(),
+    });
+    const { stripe } = makeFakeStripe();
+
+    const invoice = makeInvoice({ amount_paid: 0 });
+    const result = await grantReferralReward({ stripe, adminClient: client, invoice });
+
+    expect(result.skipped).toBe('zero_amount');
+    expect(referralUpdates).toHaveLength(0);
+  });
+
+  it('skips when amount_paid is missing or non-numeric', async () => {
+    const { client } = makeFakeSupabase({ refereeProfile: referredProfile() });
+    const { stripe } = makeFakeStripe();
+
+    const invoice = makeInvoice({ amount_paid: undefined });
+    const result = await grantReferralReward({ stripe, adminClient: client, invoice });
+
+    expect(result.skipped).toBe('zero_amount');
+  });
+
+  it('does not double-grant on a renewal (subsequent) payment for the same referee', async () => {
+    // The referrals row is already 'rewarded' from the first qualifying
+    // payment — a second invoice.payment_succeeded (renewal) for the same
+    // referee must no-op, never re-grant.
+    const { client, referralUpdates, profileUpdates } = makeFakeSupabase({
+      refereeProfile: referredProfile(),
+      referralRow: pendingReferralRow({ status: 'rewarded' }),
+    });
+    const { stripe, balanceTxnCalls } = makeFakeStripe();
+
+    const renewalInvoice = makeInvoice({ id: 'in_renewal_2', billing_reason: 'subscription_cycle', amount_paid: 1200 });
+    const result = await grantReferralReward({ stripe, adminClient: client, invoice: renewalInvoice });
+
+    expect(result.skipped).toBe('already_rewarded');
+    expect(referralUpdates).toHaveLength(0);
+    expect(profileUpdates).toHaveLength(0);
+    expect(balanceTxnCalls).toHaveLength(0);
+  });
+});
+
+// ── L. A failed grant surfaces as an error, never as success (BUG 2 fix) ─────
+
+describe('L. grantReferralReward — failed grant never reported as success (BUG 2 fix)', () => {
+  it('returns granted:false (not true) when the referee\'s own grant fails', async () => {
+    const { client, referralUpdates } = makeFakeSupabase({
+      refereeProfile: referredProfile({ stripe_customer_id: null }), // no live subscription path
+      referrerProfile: { data: { id: REFERRER_ID, stripe_customer_id: null, plan: 'free', pro_comp_until: null }, error: null },
+      referralRow: pendingReferralRow(),
+      claimResult: { data: [{ id: REFERRAL_ROW_ID }], error: null },
+      profileUpdateErrorFor: [REFEREE_ID], // simulate a DB failure writing the referee's pro_comp_until
+    });
+    const { stripe } = makeFakeStripe();
+
+    // No invoice.subscription hint → referee falls through to the
+    // pro_comp_until (grantCompMonth) path, which is the one wired to fail.
+    const invoice = makeInvoice({ subscription: null });
+    const result = await grantReferralReward({ stripe, adminClient: client, invoice });
+
+    expect(result.granted).toBe(false);
+    expect(result.refereeResult.method).toBe('error');
+    // The referrals row is still claimed 'rewarded' (stranded, not rolled
+    // back) — see the TODO in referralReward.js's file-level docstring.
+    expect(referralUpdates).toHaveLength(1);
+  });
+
+  it('returns granted:false when the referrer profile lookup fails (referrer_not_found)', async () => {
+    const { client, referralUpdates } = makeFakeSupabase({
+      refereeProfile: referredProfile(),
+      referrerProfile: { data: null, error: { message: 'connection timeout' } }, // not PGRST116 — a real failure
+      referralRow: pendingReferralRow(),
+      claimResult: { data: [{ id: REFERRAL_ROW_ID }], error: null },
+    });
+    const { stripe } = makeFakeStripe({
+      subscriptionsRetrieve: vi.fn(async () => ({ items: { data: [{ price: { unit_amount: 1200, currency: 'gbp' } }] } })),
+    });
+
+    const result = await grantReferralReward({ stripe, adminClient: client, invoice: makeInvoice() });
+
+    expect(result.referrerResult.skipped).toBe('referrer_not_found');
+    expect(result.granted).toBe(false);
+    // Referee's own reward still succeeded and the row is still claimed —
+    // only the reported outcome must not say "granted".
+    expect(result.refereeResult.method).toBe('balance_credit');
+    expect(referralUpdates).toHaveLength(1);
+  });
+});
+
+// ── M. Trialing referrer → pro_comp_until, not an inert balance credit (BUG 3) ─
+
+describe('M. grantReferralReward — trialing referrer gets pro_comp_until (BUG 3 fix)', () => {
+  it('routes a referrer on a card-free trialing subscription to pro_comp_until, not a balance credit', async () => {
+    const { client, profileUpdates } = makeFakeSupabase({
+      refereeProfile: referredProfile(),
+      referrerProfile: { data: { id: REFERRER_ID, stripe_customer_id: REFERRER_CUSTOMER, plan: 'pro', pro_comp_until: null }, error: null },
+      referralRow: pendingReferralRow(),
+      claimResult: { data: [{ id: REFERRAL_ROW_ID }], error: null },
+    });
+    const { stripe, balanceTxnCalls } = makeFakeStripe({
+      subscriptionsRetrieve: vi.fn(async () => ({ items: { data: [{ price: { unit_amount: 1200, currency: 'gbp' } }] } })),
+      // Referrer's only subscription is 'trialing' — card-free, no live billing.
+      subscriptionsList: vi.fn(async () => ({
+        data: [{ status: 'trialing', items: { data: [{ price: { unit_amount: 1200, currency: 'gbp' } }] } }],
+      })),
+    });
+
+    const result = await grantReferralReward({ stripe, adminClient: client, invoice: makeInvoice() });
+
+    expect(result.granted).toBe(true);
+    expect(result.referrerResult.method).toBe('pro_comp_until');
+    // Only the referee's credit — the trialing referrer must NOT get a balance credit.
+    expect(balanceTxnCalls).toHaveLength(1);
+    expect(balanceTxnCalls.every((c) => c.customerId !== REFERRER_CUSTOMER)).toBe(true);
+    expect(profileUpdates.some((u) => u.val === REFERRER_ID && u.payload.pro_comp_until)).toBe(true);
   });
 });

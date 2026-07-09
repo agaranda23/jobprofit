@@ -19,7 +19,10 @@
  *   H. Unknown event → 200 { received: true } (no DB call)
  *   I. Missing user_id in checkout session → 200 (logged, not retried)
  *   K. Referral reward grant wiring (JP-LU7 Phase 2) — only fires the grant
- *      helper on billing_reason==='subscription_create'; a bug in the grant
+ *      helper when invoice.amount_paid > 0, regardless of billing_reason (the
+ *      app's default card-free trial means the referee's real first charge
+ *      often arrives as 'subscription_cycle', not 'subscription_create' — see
+ *      BUG 1 in referralReward.js's file-level docstring); a bug in the grant
  *      never turns a successful payment into a 500. The grant logic itself
  *      (happy path, idempotency, self-referral, free-tier vs paying delivery)
  *      is unit-tested directly against real DB/Stripe fakes in
@@ -401,7 +404,7 @@ describe('G. invoice.payment_succeeded → subscription_status=active', () => {
 // ─── K. Referral reward grant wiring (JP-LU7 Phase 2) ────────────────────────
 
 describe('K. Referral reward grant wiring', () => {
-  it('calls grantReferralReward when billing_reason is subscription_create', async () => {
+  it('calls grantReferralReward when amount_paid > 0, EVEN for a subscription_cycle invoice (BUG 1 fix — the real trial-to-paid conversion)', async () => {
     mockConstructEvent = vi.fn(() => ({
       type: 'invoice.payment_succeeded',
       data: {
@@ -409,7 +412,8 @@ describe('K. Referral reward grant wiring', () => {
           id: 'in_referral_test',
           customer: FAKE_CUSTOMER,
           subscription: FAKE_SUB_ID,
-          billing_reason: 'subscription_create',
+          billing_reason: 'subscription_cycle', // NOT subscription_create — proves billing_reason no longer gates
+          amount_paid: 1200,
         },
       },
     }));
@@ -421,12 +425,34 @@ describe('K. Referral reward grant wiring', () => {
     expect(mockGrantReferralReward).toHaveBeenCalledTimes(1);
     const callArg = mockGrantReferralReward.mock.calls[0][0];
     expect(callArg.invoice.id).toBe('in_referral_test');
-    expect(callArg.invoice.billing_reason).toBe('subscription_create');
+    expect(callArg.invoice.billing_reason).toBe('subscription_cycle');
+    expect(callArg.invoice.amount_paid).toBe(1200);
     expect(callArg.adminClient).toBeDefined();
     expect(callArg.stripe).toBeDefined();
   });
 
-  it('does NOT call grantReferralReward when billing_reason is absent (plain renewal, matches test G)', async () => {
+  it('calls grantReferralReward even when billing_reason IS subscription_create, as long as amount_paid > 0', async () => {
+    mockConstructEvent = vi.fn(() => ({
+      type: 'invoice.payment_succeeded',
+      data: {
+        object: {
+          id: 'in_referral_create',
+          customer: FAKE_CUSTOMER,
+          subscription: FAKE_SUB_ID,
+          billing_reason: 'subscription_create',
+          amount_paid: 1200,
+        },
+      },
+    }));
+
+    const handler = await getHandler();
+    const res = await handler(makeEvent());
+
+    expect(res.statusCode).toBe(200);
+    expect(mockGrantReferralReward).toHaveBeenCalledTimes(1);
+  });
+
+  it('does NOT call grantReferralReward when amount_paid is absent (plain status-sync invoice, matches test G)', async () => {
     mockConstructEvent = vi.fn(() => ({
       type: 'invoice.payment_succeeded',
       data: {
@@ -441,11 +467,16 @@ describe('K. Referral reward grant wiring', () => {
     expect(mockGrantReferralReward).not.toHaveBeenCalled();
   });
 
-  it('does NOT call grantReferralReward for a subscription_cycle (renewal) invoice', async () => {
+  it('does NOT call grantReferralReward for a $0 invoice (amount_paid === 0) — e.g. the card-free trial\'s own invoice', async () => {
     mockConstructEvent = vi.fn(() => ({
       type: 'invoice.payment_succeeded',
       data: {
-        object: { id: 'in_renewal', customer: FAKE_CUSTOMER, billing_reason: 'subscription_cycle' },
+        object: {
+          id: 'in_zero_amount',
+          customer: FAKE_CUSTOMER,
+          billing_reason: 'subscription_create',
+          amount_paid: 0,
+        },
       },
     }));
 
@@ -465,7 +496,8 @@ describe('K. Referral reward grant wiring', () => {
           id: 'in_referral_throws',
           customer: FAKE_CUSTOMER,
           subscription: FAKE_SUB_ID,
-          billing_reason: 'subscription_create',
+          billing_reason: 'subscription_cycle',
+          amount_paid: 1200,
         },
       },
     }));
@@ -475,6 +507,7 @@ describe('K. Referral reward grant wiring', () => {
 
     expect(res.statusCode).toBe(200);
     expect(JSON.parse(res.body).received).toBe(true);
+    expect(mockGrantReferralReward).toHaveBeenCalledTimes(1);
   });
 });
 

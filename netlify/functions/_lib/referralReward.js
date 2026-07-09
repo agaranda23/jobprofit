@@ -2,26 +2,35 @@
  * referralReward.js — grants the JP-LU7 Phase 2 double-sided referral reward.
  *
  * Called from netlify/functions/stripe-webhook.js on invoice.payment_succeeded
- * where billing_reason === 'subscription_create' — the referee's FIRST
- * successful subscription payment. Chosen deliberately over signup as the
- * trigger: a card-free 14-day trial (create-checkout.js default path) never
- * generates a real charge, so it can't be gamed for a reward. Only a genuine
- * payment fires this.
+ * whenever invoice.amount_paid > 0 — i.e. the referee's FIRST invoice where
+ * REAL money actually moved, regardless of billing_reason. This deliberately
+ * does NOT gate on billing_reason === 'subscription_create': the app's default
+ * signup is a card-free 14-day trial, so the referee's real first charge often
+ * arrives later as a 'subscription_cycle' invoice, not 'subscription_create'.
+ * A £0 invoice (the trial's own invoice, amount_paid === 0) is skipped — no
+ * real money, no reward. grantReferralReward() re-checks amount_paid itself
+ * (defence in depth — never trust the caller to have gated correctly).
  *
  * Delivery rule (per user, chosen by THEIR OWN live Stripe state so the
  * reward is never merely cosmetic):
- *   - No live subscription (free tier, or a lapsed/cancelled one) → stack
- *     profiles.pro_comp_until by 31 days. isPro() in src/lib/plan.js treats a
- *     future pro_comp_until as Pro on its own, independent of plan/trial.
- *   - An active/trialing Stripe subscription → a Stripe customer-balance
- *     credit for one month's plan amount, coupon-free (no pre-created Stripe
- *     coupon required). The amount is read from THAT subscription's own price
- *     rather than hardcoded, so a per-customer price change is still honoured.
+ *   - No LIVE (billed) subscription (free tier, trialing, or a lapsed/
+ *     cancelled one) → stack profiles.pro_comp_until by 31 days. isPro() in
+ *     src/lib/plan.js treats a future pro_comp_until as Pro on its own,
+ *     independent of plan/trial. A card-free trialing subscription generates
+ *     no future invoice, so a balance credit there would be inert — routing
+ *     it to pro_comp_until instead makes the reward immediately visible.
+ *   - An 'active' Stripe subscription (one actually being billed) → a Stripe
+ *     customer-balance credit for one month's plan amount, coupon-free (no
+ *     pre-created Stripe coupon required). The amount is read from THAT
+ *     subscription's own price rather than hardcoded, so a per-customer price
+ *     change is still honoured.
  *
  * Idempotency: the referrals row is claimed with a single conditional
  * UPDATE ... WHERE status = 'pending'. Stripe redelivers webhooks on any
  * non-2xx response, so this single-statement claim is the one thing that
  * MUST be atomic — a second delivery finds status != 'pending' and no-ops.
+ * This also covers renewal (subsequent) payments on the same subscription:
+ * the referrals row is already 'rewarded' by then, so they no-op too.
  * stripe_invoice_id is recorded for audit / manual reconciliation, not as the
  * primary guard.
  *
@@ -29,7 +38,14 @@
  * returns a result object — nothing here ever throws. A bug in reward-granting
  * must never turn an already-successful Stripe payment into a 500, which
  * would make Stripe re-deliver the whole webhook and re-run work that already
- * succeeded (the plan-status update in stripe-webhook.js).
+ * succeeded (the plan-status update in stripe-webhook.js). A failed grant is
+ * loudly logged as an error (never as 'granted') so it surfaces for manual
+ * follow-up — see grantReferralReward's final step below. It is NOT currently
+ * auto-retried: the referrals row stays 'rewarded' once claimed even if the
+ * grant itself failed, because a retry could double-credit a side that
+ * already succeeded (grantBalanceCredit has no Stripe idempotency key yet).
+ * TODO: add per-referral Stripe idempotency keys + a claim-rollback so a
+ * failed grant can be safely retried instead of requiring a manual fix.
  */
 
 /** PostgREST / Postgres error codes */
@@ -112,14 +128,18 @@ async function grantBalanceCredit(stripe, stripeCustomerId, subscription) {
 }
 
 /**
- * Finds the customer's current active/trialing subscription, if any.
+ * Finds the customer's current LIVE (actually billed) subscription, if any.
+ * Deliberately excludes 'trialing' — a card-free trial has no live billing,
+ * so routing it to a balance credit would be inert (no future invoice for the
+ * credit to apply against). Only 'active' counts; everything else (trialing,
+ * free tier, lapsed/cancelled) falls through to the pro_comp_until path.
  * Never throws — returns null on any lookup failure.
  */
 async function findActiveSubscription(stripe, stripeCustomerId) {
   if (!stripeCustomerId) return null;
   try {
     const subs = await stripe.subscriptions.list({ customer: stripeCustomerId, status: 'all', limit: 10 });
-    return subs.data.find((s) => s.status === 'active' || s.status === 'trialing') || null;
+    return subs.data.find((s) => s.status === 'active') || null;
   } catch (err) {
     console.warn('referralReward: subscription lookup failed for', stripeCustomerId, err?.message);
     return null;
@@ -128,10 +148,13 @@ async function findActiveSubscription(stripe, stripeCustomerId) {
 
 /**
  * Grants one Pro month to a single user, choosing delivery by their OWN live
- * Stripe state: an active/trialing subscription → balance credit; nothing
- * live → pro_comp_until stack. If the balance credit itself fails (e.g. the
- * customer object is in a bad state), falls back to the comp-month path so
- * the user still receives real value rather than nothing.
+ * Stripe state: an 'active' (billed) subscription → balance credit; anything
+ * else, including 'trialing' → pro_comp_until stack. If the balance credit
+ * itself fails (e.g. the customer object is in a bad state), falls back to
+ * the comp-month path so the user still receives real value rather than
+ * nothing. Returns { method: 'error', error } if BOTH the credit and the
+ * comp-month fallback fail — callers MUST treat this as a failed grant, never
+ * as a success.
  *
  * @param {object} stripe
  * @param {object} adminClient
@@ -158,13 +181,22 @@ export async function grantOneMonth(stripe, adminClient, { userId, stripeCustome
 
 /**
  * Main entry point — call from stripe-webhook.js on invoice.payment_succeeded
- * where billing_reason === 'subscription_create'.
+ * whenever invoice.amount_paid > 0 (real money moved), regardless of
+ * billing_reason.
  *
  * @param {{ stripe: object, adminClient: object, invoice: object }} params
  * @returns {Promise<object>} result summary — ALWAYS resolves, never throws.
  */
 export async function grantReferralReward({ stripe, adminClient, invoice }) {
   try {
+    // 0. Defence in depth — the caller (stripe-webhook.js) should already
+    // gate on amount_paid > 0, but never trust that alone for a money path.
+    // A £0 invoice (e.g. the card-free trial's own invoice) is not real
+    // money and must never trigger a reward.
+    if (typeof invoice?.amount_paid !== 'number' || invoice.amount_paid <= 0) {
+      return { skipped: 'zero_amount' };
+    }
+
     // 1. Find the paying user (referee) by their Stripe customer id.
     const { data: refereeProfile, error: refereeErr } = await adminClient
       .from('profiles')
@@ -269,6 +301,23 @@ export async function grantReferralReward({ stripe, adminClient, invoice }) {
         stripeCustomerId: referrerProfile.stripe_customer_id,
         proCompUntil: referrerProfile.pro_comp_until,
       });
+    }
+
+    // 7. Only ever report success when BOTH sides actually landed. The
+    // referrals row is already claimed 'rewarded' at this point regardless
+    // (see step 3) — a failure here is stranded, not auto-retried (see the
+    // fail-soft contract note at the top of this file), so it MUST surface
+    // loudly as an error for manual follow-up rather than being logged or
+    // returned as a success.
+    const refereeFailed = refereeResult.method === 'error';
+    const referrerFailed = referrerResult.method === 'error' || referrerResult.skipped === 'referrer_not_found';
+
+    if (refereeFailed || referrerFailed) {
+      console.error(
+        'referralReward: grant FAILED — referrals row already marked rewarded, needs manual grant',
+        { referrerId, refereeId, refereeFailed, referrerFailed, referrerResult, refereeResult }
+      );
+      return { granted: false, referrerId, refereeId, referrerResult, refereeResult };
     }
 
     console.log('referralReward: granted', { referrerId, refereeId, referrerResult, refereeResult });
