@@ -7041,16 +7041,15 @@ input[type=number] { -moz-appearance: textfield; }
 }
 
 /* Selected-tile ink override — LIGHT THEME ONLY.
-   Invoiced (amber #F59E0B) and Overdue (orange #F97316) have bright fills where
-   white text fails WCAG AA — dark ink #1E3A5F is the fix for the LIGHTER fills
-   (Quoted teal, Invoiced amber, Overdue orange). On (indigo #6366F1) is EXCLUDED:
-   its fill is dark enough that white (4.3:1) beats dark ink (2.6:1) — verified by
-   render — so On keeps white below.
+   Quoted (teal #0EA5B7) and Overdue (orange #F97316) get near-black ink #0B1220
+   (≈6.3:1 / 6.7:1 — clears AA; the softer navy #1E3A5F sat at 3.88/4.10 and missed AA).
+   Invoiced (amber #F59E0B) keeps #1E3A5F (5.36:1 — already AA). On (indigo #6366F1) is
+   EXCLUDED: its fill is dark enough that white (4.3:1) beats dark ink (2.6:1) — keeps white.
    TEXT ONLY: no background rule here — palette stays locked to --stage-* tokens. */
 [data-theme="light"] .stage-tile--quoted.stage-tile--selected .stage-tile-name,
 [data-theme="light"] .stage-tile--quoted.stage-tile--selected .stage-tile-count,
 [data-theme="light"] .stage-tile--quoted.stage-tile--selected .stage-tile-amount {
-  color: #1E3A5F;
+  color: #0B1220;
 }
 [data-theme="light"] .stage-tile--invoiced.stage-tile--selected .stage-tile-name,
 [data-theme="light"] .stage-tile--invoiced.stage-tile--selected .stage-tile-count,
@@ -7058,13 +7057,13 @@ input[type=number] { -moz-appearance: textfield; }
   color: #1E3A5F;
 }
 [data-theme="light"] .stage-tile--overdue.stage-tile--selected .stage-tile-name {
-  color: #1E3A5F;
+  color: #0B1220;
 }
 [data-theme="light"] .stage-tile--overdue.stage-tile--selected .stage-tile-count {
-  color: #1E3A5F;
+  color: #0B1220;
 }
 [data-theme="light"] .stage-tile--overdue.stage-tile--selected .stage-tile-amount {
-  color: #1E3A5F;
+  color: #0B1220;
 }
 
 /* Active segment gets a solid colour fill + concentric radius (inset from the
@@ -7148,29 +7147,36 @@ input[type=number] { -moz-appearance: textfield; }
 }
 
 /* Overdue selected: brand-cycle orange fill. Flat canonical fill (Phase 1) —
-   gradient foot-hex (#DB6513) retired; see Lead selected comment above. */
+   gradient foot-hex (#DB6513) retired; see Lead selected comment above.
+   Text: AA CONTRAST FIX (jobs-premium-pass Phase 2) — white on #F97316 is
+   ~2.80:1, failing WCAG AA (4.5:1). Flipped to the same near-black #0B1220
+   the On/Invoiced selected tiles already use (~7:1). This is the DEFAULT
+   (dark-theme) rule; the separate [data-theme="light"] override further
+   below (already shipped in Phase 1) continues to set its own dark ink for
+   light theme — untouched here. The per-stage amount--empty override is
+   removed: it inherits the generic `.stage-tile--selected .stage-tile-
+   amount--empty { color: #0B1220; }` rule below, same as Quoted/On/Invoiced. */
 .stage-tile--overdue.stage-tile--selected {
   background: var(--stage-overdue);
 }
 .stage-tile--overdue.stage-tile--selected .stage-tile-name,
 .stage-tile--overdue.stage-tile--selected .stage-tile-count,
 .stage-tile--overdue.stage-tile--selected .stage-tile-amount {
-  color: #FFFFFF;
-}
-.stage-tile--overdue.stage-tile--selected .stage-tile-amount--empty {
-  color: #FFFFFF;
-  opacity: 0.7;
+  color: #0B1220;
 }
 
 /* Per-stage selected fills — canonical --stage-* tokens (feat/workflow-circles-brand-cycle)
    Chips and circles now share the same palette so stage colours agree across the UI.
    Flat canonical fills (Phase 1) — the gradient foot-hexes (#0C91A1/#575AD4/#D88B0A)
-   are retired; see Lead selected comment above for why. */
+   are retired; see Lead selected comment above for why.
+   Quoted text: AA CONTRAST FIX (jobs-premium-pass Phase 2) — white on #0EA5B7 is
+   ~2.96:1, failing WCAG AA. Flipped to #0B1220 (same fix + same rationale as
+   Overdue above); the existing [data-theme="light"] override is untouched. */
 .stage-tile--quoted.stage-tile--selected { background: var(--stage-quoted); }
 .stage-tile--quoted.stage-tile--selected .stage-tile-name,
 .stage-tile--quoted.stage-tile--selected .stage-tile-count,
 .stage-tile--quoted.stage-tile--selected .stage-tile-amount {
-  color: #ffffff;
+  color: #0B1220;
 }
 
 .stage-tile--on.stage-tile--selected { background: var(--stage-on); }
@@ -7201,14 +7207,13 @@ input[type=number] { -moz-appearance: textfield; }
 }
 
 /* ── SELECTED-tile text — LIGHT THEME legibility fix ───────────────────────────
-   Only Quoted (#0EA5B7) and Overdue (#F97316) selected tiles use WHITE text
-   (dark-theme pairing), which drops below AA on their bright fills in LIGHT theme.
-   Flip THOSE TWO to the dark ink token (#1E3A5F), matching the existing unselected
-   light-theme rows. TEXT ONLY — fills stay locked to the canonical --stage-*
-   palette (no recolour, no hue shift).
-   Deliberately EXCLUDED: On (#6366F1) and Invoiced (#F59E0B) already use near-black
-   #0B1220 text (see the per-stage rules above), which holds HIGHER contrast than
-   navy on those two fills — overriding them to #1E3A5F would REDUCE On to ~2.6:1.
+   Quoted (#0EA5B7) and Overdue (#F97316) selected tiles use WHITE text in the
+   dark-theme pairing, which drops below AA on their bright fills in LIGHT theme.
+   Flip THOSE TWO to near-black #0B1220 (≈6.3:1 / 6.7:1 — clears AA 4.5). The softer
+   navy #1E3A5F previously used here sat at 3.88/4.10 and missed AA. TEXT ONLY —
+   fills stay locked to the canonical --stage-* palette (no recolour, no hue shift).
+   Deliberately EXCLUDED: On (#6366F1) keeps white (fill dark enough); Invoiced
+   (#F59E0B) keeps navy #1E3A5F (5.36:1, already AA).
    Lead (#2563EB) and Paid (#15803D) stay white — dark enough to keep AA on light. */
 [data-theme="light"] .stage-tile--quoted.stage-tile--selected .stage-tile-name,
 [data-theme="light"] .stage-tile--quoted.stage-tile--selected .stage-tile-count,
@@ -7216,7 +7221,7 @@ input[type=number] { -moz-appearance: textfield; }
 [data-theme="light"] .stage-tile--overdue.stage-tile--selected .stage-tile-name,
 [data-theme="light"] .stage-tile--overdue.stage-tile--selected .stage-tile-count,
 [data-theme="light"] .stage-tile--overdue.stage-tile--selected .stage-tile-amount {
-  color: #1E3A5F;
+  color: #0B1220;
 }
 
 /* Tile typography — 6 equal segments at 360px: each cell is ~59px wide, ~55px text area.
@@ -7274,12 +7279,17 @@ input[type=number] { -moz-appearance: textfield; }
 }
 
 /* ── Paid finish-line accent ────────────────────────────────────────────────
-   Unselected Paid tile: name in --grn-paid so the strip reads as a journey
-   ending in a win. Uses --grn-paid (already in the palette). */
+   Unselected Paid tile: name in --stage-paid so the strip reads as a journey
+   ending in a win. Repointed (jobs-premium-pass Phase 2) from the legacy
+   --grn-paid (#18865A) — a near-identical but separate "Paid green" — onto
+   the ONE canonical green, so every Paid render site agrees on the same hex.
+   --grn-paid itself is left declared (unused elsewhere in this file after
+   this change) rather than deleted — a full token deletion is a separate
+   hygiene PR. */
 
-/* Unselected Paid tile: name in --grn-paid for a subtle finish cue */
+/* Unselected Paid tile: name in --stage-paid for a subtle finish cue */
 .stage-tile--paid-finish .stage-tile-name {
-  color: var(--grn-paid);
+  color: var(--stage-paid);
 }
 
 /* ── Pipeline coachmark ─────────────────────────────────────────────────────
@@ -7311,7 +7321,9 @@ input[type=number] { -moz-appearance: textfield; }
 .pipeline-coachmark__icon {
   font-size: var(--fs-label);
   flex-shrink: 0;
-  color: var(--grn-paid);
+  /* Repointed from --grn-paid → --stage-paid (jobs-premium-pass Phase 2) —
+     collapses the two near-duplicate "Paid green" tokens to one. */
+  color: var(--stage-paid);
   margin-top: 1px;
   line-height: 1.4;
 }
@@ -11869,8 +11881,16 @@ button.jd-money-chip:active { opacity: 0.75; }
   color: var(--text-dim);
 }
 .jobs-search:focus {
-  border-color: var(--jp-green);
-  box-shadow: 0 0 0 2px rgba(43, 196, 138, 0.18);
+  /* Repointed from --jp-green (jobs-premium-pass Phase 2) — --jp-green
+     currently holds blue, so the border was already rendering as brand blue
+     while the glow below was a leftover green-ish rgba, a mismatched pair.
+     var(--accent) is the correct intent token (this is a focus affordance,
+     not a stage colour) and matches every other input's focus ring in the
+     app (e.g. .wizard-input:focus). color-mix() is fine here — it's a
+     box-shadow, not a background/fill (the one place Safari 15 tolerates a
+     miss: it just loses the glow, the border still shows focus). */
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 18%, transparent);
 }
 /* ✕ clear button — inside the search wrap, absolute-positioned right */
 .jobs-search-clear {
@@ -12155,8 +12175,11 @@ button.jd-money-chip:active { opacity: 0.75; }
 .jt-signal--urgent  { color: var(--jp-rose); font-weight: 600; }
 .jt-meta-item--warn,
 .jt-signal--warn    { color: var(--jp-amber); font-weight: 600; }
+/* Repointed from --jp-green (jobs-premium-pass Phase 2) — --jp-green currently
+   holds blue (#3b82f6/#2563eb), so an "ok/positive" signal was rendering as
+   blue-masquerading-as-green. --stage-paid is the app's one canonical green. */
 .jt-meta-item--ok,
-.jt-signal--ok      { color: var(--jp-green); }
+.jt-signal--ok      { color: var(--stage-paid); }
 .jt-meta-item--mute,
 .jt-signal--mute    { color: var(--text-dim); }
 /* Draft signal — tinted amber micro-pill (Phase 1, static tint — no color-mix).
