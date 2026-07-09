@@ -41,6 +41,7 @@ import Icon from './Icon';
 import QRCode from 'qrcode';
 import BankGateSheet from './BankGateSheet';
 import DocumentPreview from './DocumentPreview';
+import InvoiceSentMoment from './InvoiceSentMoment';
 import { downloadInvoicePDF, getInvoicePDFBlob } from '../lib/invoicePDF';
 import { downloadQuotePDF } from '../lib/invoicePDF';
 import { buildInvoiceWhatsAppMessage, buildWhatsAppLink } from '../lib/invoiceMessage';
@@ -53,7 +54,9 @@ import { getJobProfit } from '../lib/cashflow';
 import { isPro } from '../lib/plan';
 import { canShareFile } from '../lib/webShare';
 import { sendQuote } from '../lib/sendQuote';
+import { chaseCustomerFirstName } from '../lib/chaseLadder';
 import { haptic } from '../lib/haptics';
+import { playSendEarcon } from '../lib/momentEarcons';
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -201,6 +204,12 @@ export default function ReviewSheet({
   });
   const [busy, setBusy] = useState(false);
 
+  // showSentMoment: drives the InvoiceSentMoment overlay (see handleInvoiceWhatsApp
+  // below). Invoice-send only — quote-send keeps its plain toast, since the
+  // first-quote celebration already covers the quote milestone
+  // (src/lib/firstQuoteCelebration.js, fired from TodayScreen).
+  const [showSentMoment, setShowSentMoment] = useState(false);
+
   // localJob: optimistically updated the moment an inline edit is made inside
   // DocumentPreview (line items/total, customer, phone, address) — mirrors the
   // localProfile pattern below. Every doc-generation path (WhatsApp send, PDF
@@ -325,9 +334,13 @@ export default function ReviewSheet({
       invoiceDueDate: new Date(dueDate).toISOString(),
       invoiceDraft: false,
     });
-    flash?.('Invoice sent');
     setBusy(false);
-    onClose?.();
+    // "Invoice sent" moment (feat/premium-feel-moments): a small branded
+    // confirmation replaces the plain 'Invoice sent' toast — this is the
+    // habit the app most wants to reinforce, so it gets more than a toast,
+    // while staying deliberately smaller than the mark-paid celebration.
+    // The overlay itself closes the sheet once its dwell finishes.
+    setShowSentMoment(true);
   };
 
   // ── Invoice: PDF download ──────────────────────────────────────────────────
@@ -405,8 +418,12 @@ export default function ReviewSheet({
   // send paths (see haptics.js's call-site guide). Fired synchronously on
   // tap, ahead of the async PDF/share work in primaryAction, so it never
   // waits on network/PDF-generation latency.
+  // playSendEarcon() is the iOS-safe partner: haptic('medium') is a no-op on
+  // iOS Safari/PWA (see haptics.js), so without this the tap would be silent
+  // on the exact device premium is judged on.
   const handlePrimaryTap = () => {
     haptic('medium');
+    playSendEarcon();
     primaryAction();
   };
 
@@ -431,6 +448,7 @@ export default function ReviewSheet({
   }
 
   return (
+    <>
     <div
       className="modal-backdrop modal-backdrop--top"
       onClick={e => { if (e.target === e.currentTarget) handleDismiss(); }}
@@ -500,7 +518,7 @@ export default function ReviewSheet({
           type="button"
           className="btn-primary modal-sheet-btn rs-send-btn"
           onClick={handlePrimaryTap}
-          disabled={busy}
+          disabled={busy || showSentMoment}
         >
           {busy ? 'Preparing…' : (
             <>
@@ -567,5 +585,16 @@ export default function ReviewSheet({
         </div>
       </div>
     </div>
+
+    {/* Invoice-sent moment — invoice mode only. Closes the sheet itself once
+        its ~900ms dwell finishes (see handleInvoiceWhatsApp above). */}
+    {isInvoice && (
+      <InvoiceSentMoment
+        active={showSentMoment}
+        customerName={chaseCustomerFirstName(localJob)}
+        onDone={() => { setShowSentMoment(false); onClose?.(); }}
+      />
+    )}
+    </>
   );
 }

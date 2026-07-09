@@ -92,6 +92,7 @@ import PostPaidSheet from './components/PostPaidSheet.jsx';
 import AddJobModal from './components/AddJobModal.jsx';
 import { haptic } from './lib/haptics.js';
 import { unlockAudioContext, playPaymentReceivedSound } from './lib/paymentSound.js';
+import { playAcceptedEarcon } from './lib/momentEarcons.js';
 import { seedSampleData, clearSampleData } from './lib/sampleData.js';
 import { REFERRAL_CODE_STORAGE_KEY } from './lib/referral.js';
 
@@ -772,6 +773,13 @@ export default function AppShell() {
               const amountStr = amount > 0
                 ? ` · £${amount.toLocaleString('en-GB', { minimumFractionDigits: 0 })}`
                 : '';
+              // This can land while the trader is anywhere in the app (or has
+              // it backgrounded) — the toast alone is easy to miss. haptic()
+              // is a no-op on iOS Safari/PWA, so playAcceptedEarcon() is the
+              // partner that makes "a customer just said yes" actually
+              // noticeable there too.
+              haptic('success');
+              playAcceptedEarcon();
               snackbarEnqueue({
                 type: 'realtime',
                 message: `${customerName} accepted your quote${amountStr}`,

@@ -14,6 +14,7 @@ import { checkEstimatorQuota } from '../lib/estimatorQuota';
 import { useDraftAutosave } from '../lib/useDraftAutosave';
 import { haptic } from '../lib/haptics';
 import { playMicStartEarcon, playMicStopEarcon } from '../lib/voiceEarcons';
+import { playSendEarcon } from '../lib/momentEarcons';
 
 // Deposit percent presets for the voice-quote confirm card — mirrors
 // ReviewSheet's DEPOSIT_PRESETS so the two surfaces feel identical.
@@ -944,6 +945,12 @@ export default function AddJobModal({ onClose, onSave, _onOpenDetailed, defaultM
       return;
     }
 
+    // Tactile + iOS-safe confirm the moment the trader commits to sending —
+    // same pairing as ReviewSheet's handlePrimaryTap (this card bypasses
+    // ReviewSheet entirely, so it needs its own copy of the feedback, not just
+    // the shared sendQuote() logic).
+    haptic('medium');
+    playSendEarcon();
     setConfirmSendBusy(true);
     flash?.('Sending your quote…');
     logTelemetry('quote_send', { source: 'voice_confirm', hasLineItems: payload.lineItems.length > 1 });

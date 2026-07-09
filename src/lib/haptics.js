@@ -11,10 +11,16 @@
  *   warning — [10,30,10]  double-tap (error, overdue alert)
  *
  * Call sites (keep sparse — only meaningful moments):
- *   success → mark-paid celebration
- *   medium  → send invoice confirmed
- *   light   → swipe pager page-settle, chase/reminder sent
+ *   success → mark-paid celebration, quote-accepted realtime notification
+ *   medium  → send invoice/quote confirmed
+ *   light   → swipe pager page-settle, chase/reminder sent, job/quote saved
  *   warning → (reserved — not wired at launch)
+ *
+ * iOS Safari/PWA feedback: since vibrate() is a no-op there, every call site
+ * above that isn't ALSO backed by an on-screen visual (a toast, or the
+ * PaidCelebration/InvoiceSentMoment overlays) has a synthesized-audio partner
+ * — see src/lib/paymentSound.js (mark-paid) and src/lib/momentEarcons.js
+ * (send/chase/quote-accepted) — so the moment is never silent on iPhone.
  */
 
 const PATTERNS = {
