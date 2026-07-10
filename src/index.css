@@ -7165,16 +7165,15 @@ input[type=number] { -moz-appearance: textfield; }
 }
 
 /* Selected-tile ink override — LIGHT THEME ONLY.
-   Invoiced (amber #F59E0B) and Overdue (orange #F97316) have bright fills where
-   white text fails WCAG AA — dark ink #1E3A5F is the fix for the LIGHTER fills
-   (Quoted teal, Invoiced amber, Overdue orange). On (indigo #6366F1) is EXCLUDED:
-   its fill is dark enough that white (4.3:1) beats dark ink (2.6:1) — verified by
-   render — so On keeps white below.
+   Quoted (teal #0EA5B7) and Overdue (orange #F97316) get near-black ink #0B1220
+   (≈6.3:1 / 6.7:1 — clears AA; the softer navy #1E3A5F sat at 3.88/4.10 and missed AA).
+   Invoiced (amber #F59E0B) keeps #1E3A5F (5.36:1 — already AA). On (indigo #6366F1) is
+   EXCLUDED: its fill is dark enough that white (4.3:1) beats dark ink (2.6:1) — keeps white.
    TEXT ONLY: no background rule here — palette stays locked to --stage-* tokens. */
 [data-theme="light"] .stage-tile--quoted.stage-tile--selected .stage-tile-name,
 [data-theme="light"] .stage-tile--quoted.stage-tile--selected .stage-tile-count,
 [data-theme="light"] .stage-tile--quoted.stage-tile--selected .stage-tile-amount {
-  color: #1E3A5F;
+  color: #0B1220;
 }
 [data-theme="light"] .stage-tile--invoiced.stage-tile--selected .stage-tile-name,
 [data-theme="light"] .stage-tile--invoiced.stage-tile--selected .stage-tile-count,
@@ -7182,13 +7181,13 @@ input[type=number] { -moz-appearance: textfield; }
   color: #1E3A5F;
 }
 [data-theme="light"] .stage-tile--overdue.stage-tile--selected .stage-tile-name {
-  color: #1E3A5F;
+  color: #0B1220;
 }
 [data-theme="light"] .stage-tile--overdue.stage-tile--selected .stage-tile-count {
-  color: #1E3A5F;
+  color: #0B1220;
 }
 [data-theme="light"] .stage-tile--overdue.stage-tile--selected .stage-tile-amount {
-  color: #1E3A5F;
+  color: #0B1220;
 }
 
 /* Active segment gets a solid colour fill + concentric radius (inset from the
@@ -7332,14 +7331,13 @@ input[type=number] { -moz-appearance: textfield; }
 }
 
 /* ── SELECTED-tile text — LIGHT THEME legibility fix ───────────────────────────
-   Only Quoted (#0EA5B7) and Overdue (#F97316) selected tiles use WHITE text
-   (dark-theme pairing), which drops below AA on their bright fills in LIGHT theme.
-   Flip THOSE TWO to the dark ink token (#1E3A5F), matching the existing unselected
-   light-theme rows. TEXT ONLY — fills stay locked to the canonical --stage-*
-   palette (no recolour, no hue shift).
-   Deliberately EXCLUDED: On (#6366F1) and Invoiced (#F59E0B) already use near-black
-   #0B1220 text (see the per-stage rules above), which holds HIGHER contrast than
-   navy on those two fills — overriding them to #1E3A5F would REDUCE On to ~2.6:1.
+   Quoted (#0EA5B7) and Overdue (#F97316) selected tiles use WHITE text in the
+   dark-theme pairing, which drops below AA on their bright fills in LIGHT theme.
+   Flip THOSE TWO to near-black #0B1220 (≈6.3:1 / 6.7:1 — clears AA 4.5). The softer
+   navy #1E3A5F previously used here sat at 3.88/4.10 and missed AA. TEXT ONLY —
+   fills stay locked to the canonical --stage-* palette (no recolour, no hue shift).
+   Deliberately EXCLUDED: On (#6366F1) keeps white (fill dark enough); Invoiced
+   (#F59E0B) keeps navy #1E3A5F (5.36:1, already AA).
    Lead (#2563EB) and Paid (#15803D) stay white — dark enough to keep AA on light. */
 [data-theme="light"] .stage-tile--quoted.stage-tile--selected .stage-tile-name,
 [data-theme="light"] .stage-tile--quoted.stage-tile--selected .stage-tile-count,
@@ -7347,7 +7345,7 @@ input[type=number] { -moz-appearance: textfield; }
 [data-theme="light"] .stage-tile--overdue.stage-tile--selected .stage-tile-name,
 [data-theme="light"] .stage-tile--overdue.stage-tile--selected .stage-tile-count,
 [data-theme="light"] .stage-tile--overdue.stage-tile--selected .stage-tile-amount {
-  color: #1E3A5F;
+  color: #0B1220;
 }
 
 /* Tile typography — 6 equal segments at 360px: each cell is ~59px wide, ~55px text area.
@@ -12098,6 +12096,79 @@ button.jd-money-chip:active { opacity: 0.75; }
 @media (prefers-reduced-motion: no-preference) {
   .jt:active {
     transform: translateY(1px);
+  }
+}
+
+/* ── Paid finish-line sheen (Phase 3 motion, feat/jobs-premium-pass-phase3-motion) ──
+   One-shot diagonal sheen that sweeps across a tile the instant it transitions
+   from any non-Paid stage to Paid — the "finish-line" moment of the Get Paid
+   loop. JobTile (WorkScreen.jsx) detects the transition via a usePrevious-style
+   ref and adds .jt--paid-sheen for ~700ms, then removes it: never re-applied
+   on re-render/reorder/refetch, and never applied on first mount (a job
+   already Paid on page load stays silent — see the JS comment for the guard).
+   This coordinates with, and does not replace, the existing
+   .wfc__circle--paid-anim ring pop and the PaidCelebration overlay — it is a
+   third, quieter layer: the tile itself catching light as it settles to its
+   resting 0.7 opacity (opacity: isPaid ? 0.7 : 1, unchanged, above).
+
+   Geometry is lifted straight from the .jt-cta sheen recipe (115deg diagonal,
+   250% background-size, background-position 150% → -120%) but tinted with
+   the canonical --stage-paid green (#15803D = rgb(21,128,61)) as STATIC rgba
+   stops — Safari 15 forbids color-mix() in backgrounds/gradients (see the
+   .jt-cta sheen comment for the same rule; box-shadow is the only exception
+   elsewhere in this file, not used here).
+
+   Uses @keyframes + animation (matching .wfc__circle--paid-anim just above),
+   NOT a CSS transition: .jt--paid-sheen::after is a pseudo-element that only
+   exists while the class is present, so a transition would have no prior
+   value to animate FROM on the first frame it appears. An animation runs its
+   keyframes unconditionally the moment the element/pseudo starts existing,
+   which is exactly the one-shot behaviour we want.
+
+   Rendered ABOVE tile content (z-index: 1, translucent) rather than behind it
+   like .jt-cta's z-index: -1 — this tile is a dense 3-row card with little
+   bare background, so a behind-content sheen would barely be visible. Alpha
+   is kept low enough that text/icons stay legible through the brief sweep.
+
+   GPU note: background-position is a paint (not compositor) property, same
+   as the .jt-cta recipe it's copied from — accepted there for a ~620ms
+   one-shot on a small element; kept short here for the same reason. will-change
+   is scoped to the animating prop only, and — because the whole pseudo-element
+   is removed with the class after ~700ms — it is inherently dropped straight
+   after, with no extra bookkeeping needed.
+
+   prefers-reduced-motion: reduce — the pseudo-element renders NOTHING
+   (content: none). No static green flash either: the tile flushes straight to
+   its existing pre-Phase-3 end state (dimmed opacity + plain Paid ring). */
+.jt--paid-sheen::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(
+    115deg,
+    transparent 28%,
+    rgba(21, 128, 61, 0.22) 44%,
+    rgba(74, 222, 128, 0.36) 50%,
+    rgba(21, 128, 61, 0.22) 56%,
+    transparent 72%
+  );
+  background-size: 250% 100%;
+  background-position: 150% 0;
+  animation: jt-paid-sheen-sweep 620ms var(--ease-out-soft) forwards;
+  will-change: background-position;
+}
+
+@keyframes jt-paid-sheen-sweep {
+  from { background-position: 150% 0; }
+  to   { background-position: -120% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .jt--paid-sheen::after {
+    content: none;
   }
 }
 
