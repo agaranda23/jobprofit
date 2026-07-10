@@ -19,7 +19,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
-import { STAGES, COACHMARK_KEY } from '../StageStrip.jsx';
+import { STAGES, COACHMARK_KEY } from '../../lib/pipelineStages.js';
 
 // ── shared source snapshots ───────────────────────────────────────────────────
 

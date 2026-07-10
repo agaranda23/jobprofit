@@ -21,7 +21,6 @@ import { gbp } from '../lib/today';
 import { buildWhatsAppLink } from '../lib/invoiceMessage';
 import { removeComms } from '../lib/commsLog';
 import {
-  normaliseCustomerName,
   getCustomerJobs,
   buildTimeline,
   bucketEvents,

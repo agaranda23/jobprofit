@@ -15,7 +15,7 @@
  *      is hidden for a truly-paid Pro user.
  */
 
-import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 
 // ── Mocks required by TodayScreen and its imports ────────────────────────────

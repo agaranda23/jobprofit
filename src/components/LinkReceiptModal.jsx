@@ -1,22 +1,27 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { gbp } from '../lib/today';
 
 export default function LinkReceiptModal({ receipt, jobs = [], onLink, onSkip }) {
+  // Captured once on mount — a modal has a short lifetime, so "now" never
+  // needs to tick, and reading it here (not inline in render) keeps the
+  // component pure (react-hooks/purity).
+  const [now] = useState(() => Date.now());
+
   const recentJobs = useMemo(() => {
-    const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+    const sevenDaysAgo = now - (7 * 24 * 60 * 60 * 1000);
     return jobs
       .filter(j => {
         const d = new Date(j.date || j.createdAt || 0).getTime();
         return d >= sevenDaysAgo;
       })
       .sort((a, b) => new Date(b.date || b.createdAt) - new Date(a.date || a.createdAt));
-  }, [jobs]);
+  }, [jobs, now]);
 
   const fmtDate = (iso) => {
     const d = new Date(iso);
     if (isNaN(d.getTime())) return '';
-    const today = new Date();
-    const yesterday = new Date(Date.now() - 86400000);
+    const today = new Date(now);
+    const yesterday = new Date(now - 86400000);
     if (d.toDateString() === today.toDateString()) return 'Today';
     if (d.toDateString() === yesterday.toDateString()) return 'Yesterday';
     return d.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' });

@@ -64,7 +64,7 @@ function isOnline() {
 // Returns a short example sentence the user can say, tailored to their primary
 // trade. Purely cosmetic — does not affect parsing logic in voiceParse.js.
 // Falls back to a generic example when no trade is set.
-export function getTradeVoiceHint(tradePrimary) {
+function getTradeVoiceHint(tradePrimary) {
   const map = {
     plumber:                  'Burst pipe Mrs Jones one eighty cash',
     gas_engineer:             'Boiler service Mrs Mitchell one twenty',

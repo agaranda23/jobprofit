@@ -31,6 +31,9 @@
  *   buildReceiptsCsv                  — src/lib/receiptsCsv.js
  *   downloadOrShare                   — src/lib/exportCsv.js
  *   isPro                             — src/lib/plan.js
+ *   receiptStatus, buildReceiptSubtitle — src/lib/documentSearchStatus.js
+ *     (split out of this file so it stays a component-only export —
+ *     react-refresh/only-export-components)
  *
  * BINDING RULE: all React hooks must sit above any early return.
  */
@@ -45,6 +48,7 @@ import { taxYearFor, receiptInPeriod } from '../lib/taxYear';
 import { buildReceiptsCsv } from '../lib/receiptsCsv';
 import { downloadOrShare } from '../lib/exportCsv';
 import { isPro } from '../lib/plan';
+import { receiptStatus, buildReceiptSubtitle } from '../lib/documentSearchStatus';
 
 // Mode config
 
@@ -123,15 +127,7 @@ function invoiceChipClass(job) {
   return 'dso-chip dso-chip--neutral';
 }
 
-// Receipt status pill
-
-export function receiptStatus(receipt, job) {
-  if (!job) return 'Unpaid';
-  if (job.paid === true) return 'Paid';
-  if ((job.paymentStatus || '').toLowerCase() === 'paid') return 'Paid';
-  if ((job.status || '').toLowerCase() === 'paid') return 'Paid';
-  return 'Unpaid';
-}
+// Receipt status pill — receiptStatus() lives in src/lib/documentSearchStatus.js
 
 function receiptChipClass(status) {
   return status === 'Paid' ? 'dso-chip dso-chip--green' : 'dso-chip dso-chip--neutral';
@@ -209,27 +205,7 @@ function buildSubtitle(mode, filteredJobs, query) {
   return '';
 }
 
-export function buildReceiptSubtitle(filteredReceipts, taxPeriod, query) {
-  const n = filteredReceipts.length;
-  if (query) {
-    return n === 0 ? 'no matches' : n === 1 ? '1 match' : `${n} matches`;
-  }
-  if (n === 0) return '';
-
-  const total = filteredReceipts.reduce((s, r) => s + Number(r.amount || 0), 0);
-  const vat   = filteredReceipts.reduce((s, r) => s + Number(r.vat   || 0), 0);
-
-  const totalStr = total >= 1000 ? `£${(total / 1000).toFixed(1).replace(/\.0$/, '')}k` : gbp(total);
-  const vatStr   = gbp(vat);
-  const label    = n === 1 ? 'receipt' : 'receipts';
-
-  if (taxPeriod === 'all') {
-    return `${n} ${label} · ${totalStr}`;
-  }
-
-  const year = taxYearFor(new Date());
-  return `${n} ${label} · ${totalStr} · ${vatStr} VAT · ${year}`;
-}
+// buildReceiptSubtitle() lives in src/lib/documentSearchStatus.js
 
 // Filter row
 

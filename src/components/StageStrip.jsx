@@ -17,11 +17,7 @@
  *   formatAmount   — function(val) → string (passed in for the same reason)
  */
 import { useRef, useEffect, useState } from 'react';
-
-/** localStorage key — set once, never cleared, so the coachmark only ever shows once. */
-export const COACHMARK_KEY = 'jp.jobs_pipeline_coachmark_seen';
-
-export const STAGES = ['Lead', 'Quoted', 'On', 'Invoiced', 'Overdue', 'Paid'];
+import { STAGES, readCoachmarkSeen, writeCoachmarkSeen } from '../lib/pipelineStages';
 
 /** Map each stage to its canonical --stage-* CSS token for the ring colour. */
 const STAGE_TOKEN = {
@@ -73,29 +69,8 @@ function StageTile({ stage, count, total, selected, onSelect, tileRef, formatAmo
   );
 }
 
-/**
- * readCoachmarkSeen — pure function so tests can call it directly.
- * Returns true when the localStorage flag is present.
- */
-export function readCoachmarkSeen() {
-  try {
-    return !!localStorage.getItem(COACHMARK_KEY);
-  } catch {
-    return false; // localStorage unavailable (private browsing / SSR)
-  }
-}
-
-/**
- * writeCoachmarkSeen — persists the flag; idempotent.
- */
-export function writeCoachmarkSeen() {
-  try {
-    localStorage.setItem(COACHMARK_KEY, '1');
-  } catch {
-    // private mode / storage full — silently swallow; the coachmark will reappear
-    // on the next visit but that's an acceptable edge case.
-  }
-}
+// readCoachmarkSeen / writeCoachmarkSeen / COACHMARK_KEY / STAGES now live in
+// src/lib/pipelineStages.js (imported above).
 
 /**
  * StageStrip — the full unified bar (6 equal segments, no "All" tile).

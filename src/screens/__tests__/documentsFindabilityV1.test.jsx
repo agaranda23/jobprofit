@@ -180,7 +180,7 @@ const DEFAULT_WORKSCREEN_PROPS = {
 
 import WorkScreen from '../WorkScreen';
 import DocumentSearchOverlay from '../../components/DocumentSearchOverlay';
-import { receiptStatus, buildReceiptSubtitle } from '../../components/DocumentSearchOverlay';
+import { receiptStatus, buildReceiptSubtitle } from '../../lib/documentSearchStatus';
 import { taxYearFor, receiptInPeriod } from '../../lib/taxYear';
 import { buildReceiptsCsv } from '../../lib/receiptsCsv';
 import { isPro } from '../../lib/plan';
