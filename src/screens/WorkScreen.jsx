@@ -698,34 +698,29 @@ export function JobTile({ job, onSelect, onSendInvoice, onUpdateJob, onNewJob, o
   // change stage (reorder/pagination/refetch all re-render this component
   // with the same stage and must stay silent).
   //
-  // prevStageRef seeds to the CURRENT stage, so the very first effect run
-  // always sees prevStage === stage and can never fire — including for a
-  // job that is already Paid on first render (e.g. page load/refresh). It
-  // only fires on a LATER render where stage has actually flipped to 'Paid'
-  // from something else. The ref is only ever read/written inside effects
-  // (never during render), matching react-hooks/refs.
+  // prevStage seeds to the CURRENT stage, so the very first render always
+  // sees prevStage === stage and can never fire — including for a job that
+  // is already Paid on first render (e.g. page load/refresh). It only fires
+  // on a LATER render where stage has actually flipped to 'Paid' from
+  // something else.
   //
-  // Note: this DOES trip the react-hooks/set-state-in-effect advisory (lint
-  // is not part of the CI gate — see project baseline notes; the same
-  // pattern already exists pre-existing/unaddressed elsewhere in this file,
-  // e.g. the page-reset effect below). The React-endorsed "adjust state
-  // during render" alternative to this effect requires reading/writing the
-  // ref during render, which trips the *stricter* react-hooks/refs rule
-  // instead — that rule has no pre-existing exception anywhere in this
-  // codebase, so this effect-based form is the smaller deviation of the two.
+  // Adjusted directly during render (React's documented "adjust state while
+  // rendering" pattern — see react.dev/learn/you-might-not-need-an-effect)
+  // rather than in a useEffect, so it satisfies react-hooks/set-state-in-effect
+  // without falling back to a ref (which would trip react-hooks/refs instead —
+  // this codebase has no pre-existing exception for either rule).
   //
   // JobTile has no early return (always renders a single <li>), so there is
   // no hooks-after-early-return risk here, but these are kept at the very
   // top of the component regardless, per the project's hooks-ordering rule.
-  const prevStageRef = useRef(stage);
+  const [prevStage, setPrevStage] = useState(stage);
   const [paidSheenRun, setPaidSheenRun] = useState(false);
-  useEffect(() => {
-    const prevStage = prevStageRef.current;
+  if (stage !== prevStage) {
+    setPrevStage(stage);
     if (prevStage !== 'Paid' && stage === 'Paid') {
       setPaidSheenRun(true);
     }
-    prevStageRef.current = stage;
-  }, [stage]);
+  }
   useEffect(() => {
     if (!paidSheenRun) return;
     // 620ms sweep (see index.css) + a small buffer, then drop the class so
@@ -1137,10 +1132,16 @@ function JobsList({ jobs, _receipts, selectedStage, showAll, searchQuery, _profi
   const listTopRef = useRef(null);
 
   // Pagination: always reset to page 1 when filter, search, or showAll changes.
+  // Adjusted directly during render (React's documented "adjust state while
+  // rendering" pattern) rather than in a useEffect, which would fire a
+  // redundant extra render on every filter change (react-hooks/set-state-in-effect).
   const [page, setPage] = useState(1);
-  useEffect(() => {
+  const filterKey = `${selectedStage}|${showAll}|${searchQuery}`;
+  const [prevFilterKey, setPrevFilterKey] = useState(filterKey);
+  if (filterKey !== prevFilterKey) {
+    setPrevFilterKey(filterKey);
     setPage(1);
-  }, [selectedStage, showAll, searchQuery]);
+  }
 
   // When searching: ignore the stage filter — show everything that matches (1B spec).
   // When not searching and in All view: apply urgency-tier sort.

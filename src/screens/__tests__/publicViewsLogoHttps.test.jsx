@@ -14,7 +14,7 @@
  * error states covered in publicInvoiceView.test.js / screenSmoke.test.jsx.
  */
 
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 
 import PublicInvoiceView from '../PublicInvoiceView';

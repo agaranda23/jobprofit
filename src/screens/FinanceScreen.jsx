@@ -1041,7 +1041,7 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
         />
         <p className="money-chart-caption">
           <span className="money-chart-caption__swatch" style={{ background: 'var(--cf-navy, #1e3a5f)' }} aria-hidden="true" />
-          What you kept  
+          What you kept
           <span className="money-chart-caption__swatch" style={{ background: 'var(--cf-amber, #f59e0b)' }} aria-hidden="true" />
           What it cost you
         </p>

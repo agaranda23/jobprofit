@@ -148,6 +148,7 @@ function useDrag(onClose) {
 
 export default function ProfitBreakdownSheet({ open, onClose, job, receipts = [], overheads, jobCountThisMonth, onGoToSettings }) {
   const [expandedCats, setExpandedCats] = useState(new Set());
+  const [prevOpen, setPrevOpen] = useState(open);
   const { sheetRef, onPointerDown } = useDrag(onClose);
 
   // Escape to close
@@ -158,10 +159,14 @@ export default function ProfitBreakdownSheet({ open, onClose, job, receipts = []
     return () => document.removeEventListener('keydown', onKey);
   }, [open, onClose]);
 
-  // Reset expanded categories when sheet closes
-  useEffect(() => {
+  // Reset expanded categories the moment the sheet closes. Adjusted directly
+  // during render (React's documented pattern for resetting state on a prop
+  // change — see "you might not need an Effect") rather than in a useEffect,
+  // which would fire a redundant extra render after every close.
+  if (open !== prevOpen) {
+    setPrevOpen(open);
     if (!open) setExpandedCats(new Set());
-  }, [open]);
+  }
 
   if (!open) return null;
 

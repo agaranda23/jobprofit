@@ -3,7 +3,9 @@
  * Unit tests for the pipeline coachmark localStorage persistence helpers.
  *
  * Runs in jsdom so localStorage is available. No React rendering needed —
- * the helpers are pure functions exported from StageStrip.jsx.
+ * the helpers are pure functions, extracted from StageStrip.jsx into
+ * src/lib/pipelineStages.js so the component file stays a component-only
+ * export (react-refresh/only-export-components).
  *
  * Verifies:
  *   - readCoachmarkSeen returns false when the flag is absent
@@ -13,7 +15,7 @@
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { readCoachmarkSeen, writeCoachmarkSeen, COACHMARK_KEY } from '../StageStrip.jsx';
+import { readCoachmarkSeen, writeCoachmarkSeen, COACHMARK_KEY } from '../../lib/pipelineStages.js';
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 

@@ -4,10 +4,14 @@ import Icon from '../components/Icon';
 import OhnarWordmark from '../components/OhnarWordmark';
 
 export default function HistoryScreen({ jobs = [], receipts = [], onMarkPaid }) {
-  const now = new Date();
-  const startOfWeek = getStartOfWeek(now);
-
+  // now/startOfWeek are read only inside this memo, so they're computed here
+  // rather than in the component body — keeps the dependency array to just
+  // [jobs, receipts] (no complex expression, and matches what the React
+  // Compiler can statically verify — react-hooks/use-memo,
+  // react-hooks/preserve-manual-memoization).
   const { weekEarned, weekSpent, weekProfit, unpaid, grouped } = useMemo(() => {
+    const now = new Date();
+    const startOfWeek = getStartOfWeek(now);
     const allEntries = [
       ...jobs.map(j => ({
         id: 'j' + j.id,
@@ -48,7 +52,7 @@ export default function HistoryScreen({ jobs = [], receipts = [], onMarkPaid }) 
       .map(([k, v]) => ({ key: k, ...v }));
 
     return { weekEarned, weekSpent, weekProfit: weekEarned - weekSpent, unpaid, grouped };
-  }, [jobs, receipts, startOfWeek.getTime()]);
+  }, [jobs, receipts]);
 
   return (
     <div className="today-screen history-screen">

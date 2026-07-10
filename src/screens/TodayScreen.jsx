@@ -84,8 +84,9 @@ export default function TodayScreen({
   onBrowseMaterials,
   onMaterialSaved,
   // Snackbar manager (JP-LU2): floats up to AppShell so one renderer handles all surfaces.
+  // AppShell also passes onSnackbarDismiss, but nothing in this component reads
+  // it any more (the one call site, handleGotPaidChip, was dead code — removed).
   onSnackbar,
-  onSnackbarDismiss,
 }) {
   const [jobOpen, setJobOpen] = useState(false);
   // jobOpenMode: 'normal' | 'quote' — controls defaultMode prop on AddJobModal.
@@ -508,16 +509,6 @@ export default function TodayScreen({
       setRankVersion(v => v + 1);
     }, 700);
   }, [onMarkPaid]);
-
-  // Got Paid chip handlers (JP-LU2: chip tap wired via Snackbar.onGotPaidChip in AppShell).
-  // These are no longer used directly from TodayScreen JSX but kept so that any
-  // future direct invocations (e.g. from keyboard shortcuts) still work.
-  const handleGotPaidChip = useCallback((job, method) => {
-    onSnackbarDismiss?.();
-    onMarkPaid?.(job, method);
-    showToast(`${gbp(job.amount != null ? job.amount : 0)} marked paid`);
-    setRankVersion(v => v + 1);
-  }, [onSnackbarDismiss, onMarkPaid, showToast]);
 
   const handleSnooze = useCallback((job) => {
     snoozeJob(job.id);
