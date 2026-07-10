@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 /**
  * Phase C wiring tests — pure logic behind JobDetailDrawer.
  *

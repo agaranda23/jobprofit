@@ -25,7 +25,14 @@ import { readFileSync } from 'fs';
 import { resolve } from 'path';
 
 const CSS_PATH    = resolve(__dirname, '../../index.css');
-const css         = readFileSync(CSS_PATH, 'utf8');
+// Normalize to LF: this file's block-finding helpers below search for
+// literal `\n`-joined markers (e.g. ':root {\n  --bg:'). On a Windows
+// checkout with core.autocrlf=true, index.css is checked out with CRLF line
+// endings, which silently breaks every one of those markers (the file's
+// actual content never drifted — verified byte-for-byte against every
+// assertion below once normalized). CI (Linux) checks the file out with LF
+// already, so this is a no-op there and only fixes local Windows runs.
+const css         = readFileSync(CSS_PATH, 'utf8').replace(/\r\n/g, '\n');
 
 const SYNC_BADGE_PATH = resolve(__dirname, '../SyncBadge.jsx');
 const syncBadgeSrc    = readFileSync(SYNC_BADGE_PATH, 'utf8');
