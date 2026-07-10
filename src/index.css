@@ -8994,11 +8994,25 @@ input[type=number] { -moz-appearance: textfield; }
   /* Body is later in DOM and paints after the header; without a z-index the
      header's on-scroll shadow (and the kebab dropdown) would render under it. */
   z-index: 2;
-  /* Swipe-to-dismiss drag zone (touch only, see onHeaderPointer* in
+  /* Swipe-to-dismiss drag zone (mouse/pen/touch, see onHeaderPointer* in
      JobDetailDrawer.jsx) — stops the browser's own touch panning/pinch from
-     competing with our Pointer Events drag. Overridden back to auto on the
-     desktop-centred breakpoint below, where the gesture is disabled anyway. */
+     competing with our Pointer Events drag. Kept at every breakpoint so a
+     touchscreen laptop/tablet at ≥600px gets the same drag-lock. */
   touch-action: none;
+  /* Desktop discoverability: the header reads as grabbable. user-select:none
+     stops a mouse drag over the name/customer text from starting a native
+     text selection that would fight the drag (touch never hit this). */
+  cursor: grab;
+  user-select: none;
+  -webkit-user-select: none;
+}
+/* Grabbing cursor only while an actual drag is live (class toggled on the
+   DOM node in onHeaderPointerMove/Up/Cancel — no React re-render). Forced on
+   descendants too so the cursor stays consistent as the pointer moves over
+   child text/chips during the drag. */
+.job-detail-header.jd-dragging,
+.job-detail-header.jd-dragging * {
+  cursor: grabbing;
 }
 /* On-scroll shadow — only once .job-detail-body has scrolled off the top
    (see the onScroll handler on .job-detail-body in JobDetailDrawer.jsx). */
@@ -9014,6 +9028,7 @@ input[type=number] { -moz-appearance: textfield; }
   border-radius: 4px;
   background: var(--border-strong);
   margin: 0 auto 8px;
+  cursor: grab;  /* desktop affordance: the pill signals the sheet is draggable */
 }
 .jd-header-top {
   display: flex;
@@ -9414,13 +9429,12 @@ button.jd-money-chip:active { opacity: 0.75; }
     from { transform: translateX(-50%) translateY(100%); }
     to   { transform: translateX(-50%) translateY(0); }
   }
-  /* Swipe-to-dismiss is gated off at this breakpoint in JS too (see
-     onHeaderPointerDown) — restoring default touch-action here means a
-     touchscreen laptop/tablet at this width keeps normal pinch/scroll
-     behaviour instead of the mobile drag-lock. */
-  .job-detail-header {
-    touch-action: auto;
-  }
+  /* Swipe-to-dismiss now runs at this breakpoint too (see onHeaderPointerDown
+     — mouse/pen/touch, centred layout composes translate(-50%, dy)). Keep the
+     drag-lock so a touchscreen laptop/tablet at ≥600px drags the sheet instead
+     of natively panning it. (touch-action doesn't affect a mouse either way.)
+     The .job-detail-header base rule already sets touch-action:none; no
+     override needed here anymore. */
 }
 
 /* ── Kebab overflow menu ── */
