@@ -2390,9 +2390,11 @@ export default function JobDetailDrawer({
     return () => document.removeEventListener('keydown', onKey);
   }, [requestClose]);
 
-  // ── Swipe-to-dismiss (pinned header, touch only) ─────────────────────────
+  // ── Swipe-to-dismiss (pinned header, any pointer) ────────────────────────
   // Dragging down on .job-detail-header (the .jd-grabber pill's live area)
   // dismisses the sheet, mirroring the ✕/Escape path via requestClose().
+  // Works for mouse, pen AND touch — every pointer type arms the gesture, at
+  // both the full-width (<600px) and centred (≥600px) layouts.
   // Pointer Events + touch-action:none (not touchmove) deliberately — React 19
   // registers touchmove as passive, so preventDefault() there is a no-op;
   // Pointer Events + CSS touch-action is the trap-free way to drag-lock.
@@ -2411,6 +2413,7 @@ export default function JobDetailDrawer({
     lastT: 0,
     velocity: 0,        // px/ms, signed, from the most recent move segment (for flick detection)
     sheetHeight: 0,
+    isCentred: false,   // ≥600px layout — sheet is centred via translateX(-50%); every inline transform must compose it
   });
 
   // Taps on these must keep working as taps — never start a drag. Covers the
@@ -2424,27 +2427,42 @@ export default function JobDetailDrawer({
     const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
     const sheetEl = sheetRef.current;
     const backdropEl = backdropRef.current;
-    const transition = animate && !reduceMotion ? 'transform 0.3s cubic-bezier(0.22,1,0.36,1)' : '';
-    const bTransition = animate && !reduceMotion ? 'opacity 0.3s cubic-bezier(0.22,1,0.36,1)' : '';
-    if (sheetEl) { sheetEl.style.transition = transition; sheetEl.style.transform = ''; }
+    const animating = animate && !reduceMotion;
+    const transition = animating ? 'transform 0.3s cubic-bezier(0.22,1,0.36,1)' : '';
+    const bTransition = animating ? 'opacity 0.3s cubic-bezier(0.22,1,0.36,1)' : '';
+    if (sheetEl) {
+      sheetEl.style.transition = transition;
+      // On the centred (≥600px) layout the CSS base transform is translateX(-50%).
+      // When ANIMATING the rubber-band back, interpolate to translate(-50%, 0px)
+      // — a matching function shape — so the sheet eases straight up without
+      // ever dropping the -50% centring and jumping sideways mid-transition;
+      // the inline transform is then cleared to '' once the transition ends.
+      // The non-animated (commit / reduced-motion) path clears straight to ''
+      // which returns to the CSS rule (centred on desktop, flat on mobile).
+      sheetEl.style.transform = animating && swipeRef.current.isCentred ? 'translate(-50%, 0px)' : '';
+    }
     if (backdropEl) { backdropEl.style.transition = bTransition; backdropEl.style.opacity = ''; }
-    if (animate && !reduceMotion) {
+    if (animating) {
       window.setTimeout(() => {
-        if (sheetEl) sheetEl.style.transition = '';
+        if (sheetEl) { sheetEl.style.transition = ''; sheetEl.style.transform = ''; }
         if (backdropEl) backdropEl.style.transition = '';
       }, 300);
     }
   };
 
   const onHeaderPointerDown = (e) => {
-    // Touch only — desktop's centred sheet variant (index.css @media
-    // min-width:600px, translateX(-50%)) never gets the gesture; the grabber
-    // stays decorative there, matching Change A.
-    if (e.pointerType !== 'touch') return;
-    if (window.matchMedia('(min-width: 600px)').matches) return;
+    // Any pointer type — mouse, pen or touch — can grab the header and drag the
+    // sheet. (Previously touch-only + excluded at ≥600px, so a desktop mouse
+    // drag did nothing; that was the reported bug.)
     if (isSwipeBlockedTarget(e.target)) return;
     const sheetEl = sheetRef.current;
     if (!sheetEl) return;
+
+    // Read the breakpoint ONCE here and stash it — at ≥600px the sheet is
+    // centred via translateX(-50%), so every inline transform written during
+    // the drag must compose that axis (translate(-50%, dy)) or the sheet snaps
+    // sideways. Stashed so onHeaderPointerMove never re-queries matchMedia.
+    const isCentred = window.matchMedia('(min-width: 600px)').matches;
 
     swipeRef.current = {
       active: true,
@@ -2456,6 +2474,7 @@ export default function JobDetailDrawer({
       lastT: e.timeStamp,
       velocity: 0,
       sheetHeight: sheetEl.getBoundingClientRect().height || 1,
+      isCentred,
     };
     e.currentTarget.setPointerCapture?.(e.pointerId);
   };
@@ -2476,6 +2495,10 @@ export default function JobDetailDrawer({
       s.dragging = true;
       if (sheetRef.current) sheetRef.current.style.transition = 'none';
       if (backdropRef.current) backdropRef.current.style.transition = 'none';
+      // Desktop grab cursor → grabbing while an actual drag is live. Toggled
+      // directly on the DOM node (no React state) so the gesture never
+      // triggers a re-render mid-drag.
+      e.currentTarget.classList.add('jd-dragging');
     }
 
     const dt = e.timeStamp - s.lastT;
@@ -2483,9 +2506,15 @@ export default function JobDetailDrawer({
     s.lastY = e.clientY;
     s.lastT = e.timeStamp;
 
-    // Clamp upward movement to 0 — the sheet only follows the finger down.
+    // Clamp upward movement to 0 — the sheet only follows the pointer down.
     const clamped = Math.max(0, dy);
-    if (sheetRef.current) sheetRef.current.style.transform = `translateY(${clamped}px)`;
+    if (sheetRef.current) {
+      // Compose translateX(-50%) on the centred (≥600px) layout so the drag
+      // never clobbers the CSS centring; plain translateY on full-width mobile.
+      sheetRef.current.style.transform = s.isCentred
+        ? `translate(-50%, ${clamped}px)`
+        : `translateY(${clamped}px)`;
+    }
     if (backdropRef.current) {
       backdropRef.current.style.opacity = String(Math.max(0, 1 - clamped / s.sheetHeight));
     }
@@ -2495,6 +2524,7 @@ export default function JobDetailDrawer({
     const s = swipeRef.current;
     if (!s.active || e.pointerId !== s.pointerId) return;
     e.currentTarget.releasePointerCapture?.(e.pointerId);
+    e.currentTarget.classList.remove('jd-dragging');
     const wasDragging = s.dragging;
     const dy = Math.max(0, e.clientY - s.startY);
     const velocity = s.velocity;
@@ -2516,6 +2546,7 @@ export default function JobDetailDrawer({
     const s = swipeRef.current;
     if (!s.active || e.pointerId !== s.pointerId) return;
     e.currentTarget.releasePointerCapture?.(e.pointerId);
+    e.currentTarget.classList.remove('jd-dragging');
     const wasDragging = s.dragging;
     s.active = false;
     s.dragging = false;
@@ -3503,7 +3534,7 @@ export default function JobDetailDrawer({
             Top strip: ⋯✕ pinned right on own row.
             Mid row: left=name+customer; right=price (baseline-aligned).
             Bottom row: full-width action buttons (Call · Text · WhatsApp · Map).
-            Also the swipe-to-dismiss drag zone (touch only) — see
+            Also the swipe-to-dismiss drag zone (mouse/pen/touch) — see
             onHeaderPointer* above; taps on its buttons/links/kebab still work
             (isSwipeBlockedTarget excludes them from starting a drag). */}
         <div
