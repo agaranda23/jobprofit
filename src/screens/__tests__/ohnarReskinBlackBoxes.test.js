@@ -18,7 +18,13 @@ import { readFileSync } from 'fs';
 import { resolve } from 'path';
 
 const CSS_PATH = resolve(__dirname, '../../index.css');
-const css = readFileSync(CSS_PATH, 'utf8');
+// Normalize to LF: on a Windows checkout with core.autocrlf=true, index.css
+// is checked out with CRLF line endings. That extra \r per line was pushing
+// the ".snackbar__got-paid-chip:active, .snackbar__got-paid-chip:hover"
+// fixed-width slice below (see the 150-char window) just past "var(--ink)"
+// — a false failure, not real content drift. CI (Linux) checks the file out
+// with LF already, so this is a no-op there.
+const css = readFileSync(CSS_PATH, 'utf8').replace(/\r\n/g, '\n');
 
 // ── Helper ────────────────────────────────────────────────────────────────────
 
@@ -344,7 +350,11 @@ describe('Deep Navy ink conversions — opaque text on accent/green buttons', ()
   it('.snackbar__got-paid-chip:active uses var(--ink) not #000', () => {
     const idx = css.indexOf('.snackbar__got-paid-chip:active');
     expect(idx).toBeGreaterThan(-1);
-    const block = css.slice(idx, idx + 150);
+    // Wider than the sibling checks above — this selector is combined with
+    // its own :hover rule (".snackbar__got-paid-chip:active,\n
+    // .snackbar__got-paid-chip:hover {"), which eats more of a 150-char
+    // window than a single-selector rule does before reaching `color:`.
+    const block = css.slice(idx, idx + 250);
     expect(block).toContain('var(--ink)');
     expect(block).not.toMatch(/color:\s*#000[^a-f0-9]/i);
   });

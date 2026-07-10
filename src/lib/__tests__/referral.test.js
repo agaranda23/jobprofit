@@ -27,6 +27,17 @@ import {
   copyReferralLink,
 } from '../referral.js';
 
+// D. copyReferralLink exercises navigator.share / navigator.canShare /
+// navigator.clipboard, but this file deliberately stays in vitest's default
+// 'node' environment (see file-level comment above) so test A can assert the
+// `typeof window === 'undefined'` fallback branch of buildReferralLink.
+// Node has no global `navigator`, so shim a bare object here rather than
+// switching to jsdom — jsdom would also define `window`, which would break
+// test A's fallback assertion.
+if (typeof globalThis.navigator === 'undefined') {
+  globalThis.navigator = {};
+}
+
 /** Minimal in-memory sessionStorage stand-in for the node test environment. */
 function makeMockSessionStorage(initial = {}) {
   const store = { ...initial };

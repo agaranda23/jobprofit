@@ -121,6 +121,13 @@ function baseBiz(overrides = {}) {
   };
 }
 
+// toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month:
+// 'short' }) (used by formatToday in lib/today.js) renders "Sat, 11 Jul" on
+// Node 20 (ICU 73) but "Sat 11 Jul" on Node 22 (ICU 76) — a CLDR punctuation
+// change, not a code bug. Strip the weekday comma before comparing so
+// date-string assertions are stable across Node versions.
+const stripWeekdayComma = (s) => String(s).replace(/,(?=\s\d)/, '');
+
 // ── A. No deposit — Total Payable label, no deposit row ──────────────────────
 
 describe('A. generateInvoicePDF — no deposit', () => {
@@ -315,7 +322,7 @@ describe('G. generateQuotePDF — deposit row drawn when deposit_percent > 0', (
       biz: baseBiz(),
       quoteRef: 'QT-001',
     });
-    expect(drawnTexts.some(t => String(t).includes('due Sat 11 Jul'))).toBe(true);
+    expect(drawnTexts.some(t => stripWeekdayComma(t).includes('due Sat 11 Jul'))).toBe(true);
     expect(drawnTexts.some(t => String(t).includes('Locks in your slot'))).toBe(false);
   });
 

@@ -247,6 +247,14 @@ describe('buildQuoteWhatsAppMessage — VAT', () => {
 // job.deposit_due_date is set by sendQuote.js from the voice-quote confirm
 // card's depositDue and appended to whichever deposit line renders.
 
+// toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month:
+// 'short' }) (used by formatToday in lib/today.js, which builds the due-date
+// suffix below) renders "Sat, 11 Jul" on Node 20 (ICU 73) but "Sat 11 Jul"
+// on Node 22 (ICU 76) — a CLDR punctuation change, not a code bug. Strip the
+// weekday comma before comparing so these assertions are stable across Node
+// versions.
+const stripWeekdayComma = (s) => String(s).replace(/,(?=\s\d)/, '');
+
 describe('buildQuoteWhatsAppMessage — deposit due-date', () => {
   const BIZ_WITH_BANK = {
     name: 'A Plumbing Co',
@@ -261,7 +269,7 @@ describe('buildQuoteWhatsAppMessage — deposit due-date', () => {
       biz: BIZ_WITH_BANK,
       quoteUrl: QUOTE_URL,
     });
-    expect(msg).toContain('Deposit to secure your booking: £250.00 (25%) · due Sat 11 Jul');
+    expect(stripWeekdayComma(msg)).toContain('Deposit to secure your booking: £250.00 (25%) · due Sat 11 Jul');
   });
 
   it('appends the due date to the Stripe deposit-pay-link line', () => {
@@ -271,7 +279,7 @@ describe('buildQuoteWhatsAppMessage — deposit due-date', () => {
       quoteUrl: QUOTE_URL,
       depositPayUrl: 'https://pay.stripe.com/abc',
     });
-    expect(msg).toContain('Deposit to secure your booking: £250.00 · due Sat 11 Jul — pay here:');
+    expect(stripWeekdayComma(msg)).toContain('Deposit to secure your booking: £250.00 · due Sat 11 Jul — pay here:');
   });
 
   it('omits the due-date suffix when deposit_due_date is absent', () => {

@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 /**
  * reviewSheetSendPaths — regression tests.
  *
@@ -149,11 +150,12 @@ describe('getQuotePDFBlob', () => {
 });
 
 // ── Decision-tree gate logic ──────────────────────────────────────────────────
-// These tests exercise the canShareFile gate directly in the Node environment
-// (no window.open needed — the "open wa.me" branch is a one-liner guarded by
-// the same boolean, verified on the deploy preview checklist).
+// These tests exercise the canShareFile gate directly against a mocked
+// navigator (no window.open needed — the "open wa.me" branch is a one-liner
+// guarded by the same boolean, verified on the deploy preview checklist).
 //
-// Navigator APIs are available via vitest's built-in global stubs.
+// Navigator lives on the jsdom environment (see the pragma at the top of
+// this file) and is mocked per-test via Object.defineProperty.
 
 describe('decision tree — invoice: canShareFile gate selects the right path', () => {
   afterEach(() => {
