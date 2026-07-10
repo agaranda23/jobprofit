@@ -11,7 +11,11 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "test:ci": "vitest run --config vitest.ci.config.js"
+    "test:ci": "vitest run --config vitest.ci.config.js",
+    "test:e2e": "playwright test --config=e2e/playwright.config.js",
+    "test:e2e:local": "cross-env PLAYWRIGHT_TEST_URL=http://localhost:5173 playwright test --config=e2e/playwright.config.js",
+    "test:e2e:netlify": "cross-env PLAYWRIGHT_TEST_URL=http://localhost:8888 playwright test --config=e2e/playwright.config.js",
+    "test:e2e:ui": "playwright test --config=e2e/playwright.config.js --ui"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.104.0",
@@ -31,12 +35,14 @@
   "devDependencies": {
     "@eslint/js": "^9.39.1",
     "@fontsource/hanken-grotesk": "^5.2.8",
+    "@playwright/test": "^1.49.0",
     "@testing-library/jest-dom": "^6.9.1",
     "@testing-library/react": "^16.3.2",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.1",
     "@vitest/coverage-v8": "^4.1.6",
+    "cross-env": "^7.0.3",
     "eslint": "^9.39.1",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",

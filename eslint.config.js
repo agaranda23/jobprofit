@@ -54,4 +54,18 @@ export default defineConfig([
       },
     },
   },
+  // Playwright E2E specs run in Node (Playwright's test runner) but also
+  // contain page.evaluate()/addInitScript() callbacks that execute in the
+  // browser — grant both global sets, same pattern as the Vitest override
+  // above. Playwright's own `test`/`expect` are imported explicitly per file
+  // (not globals), so no extra global declarations are needed here.
+  {
+    files: ['e2e/**/*.js'],
+    languageOptions: {
+      globals: {
+        ...globals.browser,
+        ...globals.node,
+      },
+    },
+  },
 ])
