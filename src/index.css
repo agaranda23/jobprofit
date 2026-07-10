@@ -418,15 +418,16 @@ button:focus-visible {
   --shadow-md: 0 4px 16px rgba(0,0,0,0.12);
 
   /* Jobs-tab premium pass — elevation tokens (Phase 0, light overrides).
-     --elevation-card mirrors [data-theme="light"] .stage-strip's existing
-     lift (no dark inset — reads as smudge on white, see that rule's comment).
-     --elevation-raised is declared with the SAME numbers as dark: it's an
-     inset hairline relative to the stage-colour FILL itself, not the page
-     background, so it doesn't need to change with theme. --elevation-pressed
-     is re-tuned so the "pushed in" shadow reads against a white surface. */
+     Boldness recalibration (feat/jobs-premium-visible): the original lift
+     was tuned so faint that cards read flat on white. Bumped to a clearly
+     visible float — --elevation-raised is declared with the SAME numbers as
+     dark: it's an inset hairline relative to the stage-colour FILL itself,
+     not the page background, so it doesn't need to change with theme.
+     --elevation-pressed is re-tuned so the "pushed in" shadow reads against
+     a white surface. */
   --elevation-card:
-    0 1px 2px rgba(9, 12, 20, 0.06),
-    0 3px 8px -4px rgba(9, 12, 20, 0.10);
+    0 1px 2px rgba(16, 24, 40, 0.07),
+    0 10px 26px -10px rgba(16, 24, 40, 0.20);
   --elevation-raised:
     inset 0 1px 0 rgba(255, 255, 255, 0.22),
     inset 0 -1px 0 rgba(0, 0, 0, 0.16);
@@ -470,11 +471,13 @@ button:focus-visible {
    hardcoded near-black #0d1014 value in .bottom-nav. */
 [data-theme="light"] .bottom-nav {
   background: #ffffff;
-  border-top: 1px solid #e5e7eb;
-  /* Floating-pane depth (Phase 1) — lighter than the dark variant; no lit-top
+  border-top: 1px solid #dbe1e9;
+  /* Floating-pane depth (Phase 1). Boldness recalibration (feat/jobs-premium-
+     visible): the original shadow was tuned so faint the nav read as
+     white-on-white; bumped so it reads as a floating shelf. Still no lit-top
      inset (a white highlight is invisible on white — same "no highlight on
      #f9fafb" convention used by the stage-strip ramp). */
-  box-shadow: 0 -3px 10px -6px rgba(9, 12, 20, 0.12);
+  box-shadow: 0 -1px 0 rgba(16, 24, 40, 0.04), 0 -10px 24px -14px rgba(16, 24, 40, 0.22);
 }
 
 /* Unpaid chip — dark amber tint reads poorly on light bg */
@@ -504,9 +507,13 @@ button:focus-visible {
    ─────────────────────────────────────────────────────────────────────────── */
 
 /* 1. Bottom nav — hardcoded #0d1014 background (already overridden above) is
-   correct. Also fix the hardcoded rgba(255,255,255,0.09) top border. */
+   correct. Also fix the hardcoded rgba(255,255,255,0.09) top border.
+   NOTE: this rule is later in the cascade than the main [data-theme="light"]
+   .bottom-nav block above and has equal specificity, so it wins for
+   border-top-color specifically — must be kept in sync with that block's
+   border-top colour or it silently reverts it (Boldness recalibration). */
 [data-theme="light"] .bottom-nav {
-  border-top-color: #e5e7eb;
+  border-top-color: #dbe1e9;
 }
 
 /* 2. .action-secondary hover — already done above. Also fix base .action-secondary
@@ -7056,6 +7063,13 @@ input[type=number] { -moz-appearance: textfield; }
      are NOT text backgrounds, so they do NOT regress white-on-fill text
      contrast. Shared across all stages; per-stage rules only set the flat fill. */
   box-shadow: var(--elevation-raised);
+  /* Boldness recalibration (feat/jobs-premium-visible): small physical lift so
+     the selected tile reads as a raised thumb above the now-bolder resting
+     tiles. No added outer shadow — .stage-tile has overflow:hidden (see
+     comment above), which clips outer box-shadow on this same element, so a
+     shadow here would be invisible; the translate + existing inset highlight
+     carry the "raised" read on their own. Fill and text colours are untouched. */
+  transform: translateY(-1px);
 }
 /* No divider after the segment immediately before an active one either —
    achieved by selecting the preceding sibling via JS class would be complex,
@@ -12109,7 +12123,10 @@ button.jd-money-chip:active { opacity: 0.75; }
   border-radius: var(--radius-pill);
   background: var(--surface-2);
   font-size: var(--fs-label);
-  font-weight: 600;
+  /* Boldness recalibration (feat/jobs-premium-visible): 600 → 700, paired
+     with the per-stage border below, so the chip has real presence instead
+     of reading as a plain grey label. */
+  font-weight: 700;
   color: var(--text-dim);
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -12118,23 +12135,38 @@ button.jd-money-chip:active { opacity: 0.75; }
   pointer-events: none;
   line-height: 1;
 }
-.jt-stage-name--lead     { background: var(--stage-tint-lead); }
-.jt-stage-name--quoted   { background: var(--stage-tint-quoted); }
-.jt-stage-name--on       { background: var(--stage-tint-on); }
+/* Per-stage low-alpha hue border (Boldness recalibration) — same alpha in
+   both themes; it's a decorative pill outline riding on top of an already
+   bold tint, not a text-contrast boundary, so it doesn't need per-theme
+   tuning the way the text colours below do. */
+.jt-stage-name--lead     { background: var(--stage-tint-lead);     border: 1px solid rgba(37, 99, 235, 0.35); }
+.jt-stage-name--quoted   { background: var(--stage-tint-quoted);   border: 1px solid rgba(14, 165, 183, 0.35); }
+.jt-stage-name--on       { background: var(--stage-tint-on);       border: 1px solid rgba(99, 102, 241, 0.35); }
 /* Invoiced — amber to match the left-rail and circle ring; distinct from Overdue's rose */
-.jt-stage-name--invoiced { background: var(--stage-tint-invoiced); color: var(--jp-amber); }
+.jt-stage-name--invoiced { background: var(--stage-tint-invoiced); color: var(--jp-amber); border: 1px solid rgba(245, 158, 11, 0.35); }
 /* Overdue — rose/red; distinct from Invoiced's amber. Icon shape (warning triangle)
    reinforces the distinction beyond hue for colour-blind and bright-sun conditions. */
-.jt-stage-name--overdue  { background: var(--stage-tint-overdue); color: var(--jp-rose); }
-.jt-stage-name--paid     { background: var(--stage-tint-paid); }
+.jt-stage-name--overdue  { background: var(--stage-tint-overdue); color: var(--jp-rose); border: 1px solid rgba(249, 115, 22, 0.35); }
+.jt-stage-name--paid     { background: var(--stage-tint-paid); border: 1px solid rgba(21, 128, 61, 0.35); }
 
-/* Light theme: --jp-amber/--jp-rose drop below AA on a near-white pill
-   background (measured ~3.3:1 / ~4.5:1 respectively) — same fix already
-   applied to StageStrip's selected-tile ink for the same two stages. */
-[data-theme="light"] .jt-stage-name--invoiced,
-[data-theme="light"] .jt-stage-name--overdue {
-  color: #1E3A5F;
-}
+/* Light theme: per-stage COLOURED text (Boldness recalibration) so chips
+   read as colour-coded rather than uniform grey. Dark theme deliberately
+   KEEPS --text-dim / --jp-amber / --jp-rose from the base rules above —
+   these hexes are darkened specifically for the 15-18%-alpha tint-on-white
+   band; the same hues measure well under 3:1 against the dark 20-22%-alpha
+   tint-on-dark-surface band, so they are NOT promoted to the unscoped base
+   rules. Each colour below is verified >=4.5:1 (AA normal text) against its
+   own [data-theme="light"] tint blended onto white:
+     lead #1D4ED8 → 5.43:1   quoted #09727E → 4.76:1   on #4F46E5 → 5.20:1
+     paid #137438 → 4.75:1   invoiced #AB4F09 → 4.75:1  overdue #B63D0B → 4.76:1
+   (quoted/paid/invoiced/overdue are darkened slightly from the stage's
+   canonical hue — same family, tuned only as far as needed to clear AA). */
+[data-theme="light"] .jt-stage-name--lead     { color: #1D4ED8; }
+[data-theme="light"] .jt-stage-name--quoted   { color: #09727E; }
+[data-theme="light"] .jt-stage-name--on       { color: #4F46E5; }
+[data-theme="light"] .jt-stage-name--paid     { color: #137438; }
+[data-theme="light"] .jt-stage-name--invoiced { color: #AB4F09; }
+[data-theme="light"] .jt-stage-name--overdue  { color: #B63D0B; }
 
 /* ⋯ overflow button — sole menu trigger */
 .jt-dots {
@@ -12198,12 +12230,20 @@ button.jd-money-chip:active { opacity: 0.75; }
 .jt-pricerow .jt-price { margin: 0; }
 /* £price anchor — never compresses (money is the anchor) */
 .jt-price {
-  font-size: var(--fs-money-sm);
-  font-weight: var(--fw-money);
+  /* Boldness recalibration (feat/jobs-premium-visible): literal size/weight,
+     NOT the shared --fs-money-sm/--fw-money tokens — those tokens still feed
+     ~10 other money displays (totals, previews, stage-tile amounts) that
+     aren't part of this pass. Bumped from 18px/700 so the job-tile £ reads
+     as the clear hero of the card. */
+  font-size: 1.35rem;
+  font-weight: 800;
   font-family: var(--font-sans);
   font-variant-numeric: tabular-nums;
   /* Repointed from --jp-green (Phase 0) — money is neutral ink, not a colour
-     borrowed from the CTA. --overdue / --muted modifiers below are unchanged. */
+     borrowed from the CTA. --overdue / --muted modifiers below are unchanged.
+     Dark theme: var(--text) is near-white, reads correctly as-is. Light
+     theme: var(--text) is navy #1E3A5F, which reads as blue rather than
+     neutral — see the light-theme override immediately below. */
   color: var(--text);
   letter-spacing: -0.01em;
   line-height: var(--lh-money-sm);
@@ -12212,6 +12252,15 @@ button.jd-money-chip:active { opacity: 0.75; }
 }
 .jt-price--muted   { color: var(--text-dim); }
 .jt-price--overdue { color: var(--jp-rose); }
+
+/* Light theme: force near-black neutral ink instead of the inherited navy
+   (Boldness recalibration). The two :not() exclusions are load-bearing, not
+   decorative — this selector's specificity (0,4,0) is HIGHER than
+   .jt-price--overdue/--muted (0,1,0 each), so without excluding them here
+   this rule would win over both regardless of source order. */
+[data-theme="light"] .jt-price:not(.jt-price--overdue):not(.jt-price--muted) {
+  color: #0B1220;
+}
 
 /* --- Signal line (used by SpreadsheetImporter and future tiles) --- */
 .jt-signals {
@@ -19448,17 +19497,19 @@ button.dp-totals-row--total.dp-totals-row--tap:active {
   /* ── Resting-tint scale (Phase 0, jobs-premium-pass) — STATIC per-theme rgba,
      NOT color-mix(). Safari 15 drops an invalid color-mix() background
      entirely, so every load-bearing tint in this app is a literal rgba/hex
-     (see the .jt / StatusBadge comments for the same rule). ~8-10% alpha —
-     faint enough to read as "resting", distinct enough to be a true hue per
-     stage (replaces the old shared green-wash ramp; Overdue is orange here,
-     never green). Light-theme values are declared in the matching
-     [data-theme="light"] block immediately after this one. */
-  --stage-tint-lead:     rgba(37, 99, 235, 0.09);
-  --stage-tint-quoted:   rgba(14, 165, 183, 0.10);
-  --stage-tint-on:       rgba(99, 102, 241, 0.10);
-  --stage-tint-invoiced: rgba(245, 158, 11, 0.09);
-  --stage-tint-overdue:  rgba(249, 115, 22, 0.09);
-  --stage-tint-paid:     rgba(21, 128, 61, 0.10);
+     (see the .jt / StatusBadge comments for the same rule). ~20-22% alpha
+     (Boldness recalibration, feat/jobs-premium-visible — the original 8-10%
+     read as near-invisible) — bold enough to read as colour-coded at a
+     glance, distinct enough to be a true hue per stage (replaces the old
+     shared green-wash ramp; Overdue is orange here, never green). Light-theme
+     values are declared in the matching [data-theme="light"] block
+     immediately after this one. */
+  --stage-tint-lead:     rgba(37, 99, 235, 0.20);
+  --stage-tint-quoted:   rgba(14, 165, 183, 0.20);
+  --stage-tint-on:       rgba(99, 102, 241, 0.20);
+  --stage-tint-invoiced: rgba(245, 158, 11, 0.22);
+  --stage-tint-overdue:  rgba(249, 115, 22, 0.22);
+  --stage-tint-paid:     rgba(21, 128, 61, 0.20);
 
   /* ── Semantic workflow tokens ─────────────────────────────────────────────
      Component references ONLY these tokens — never the ohnar-* primitives
@@ -19486,16 +19537,17 @@ button.dp-totals-row--total.dp-totals-row--tap:active {
 }
 
 /* Resting-tint scale (Phase 0, jobs-premium-pass) — light-theme values.
-   Same ~8-10% alpha band as dark; recalculated against a near-white surface
-   rather than dark surface-2, so alphas sit at the top of the range (white
-   washes tints out faster than a near-black surface does). */
+   Boldness recalibration (feat/jobs-premium-visible): bumped from a flat
+   ~10% to a 15-18% band. White washes tints out faster than dark surface-2
+   does, so these sit lower than the dark 20-22% band but still read as a
+   true colour-coded tile at a glance rather than "near white". */
 [data-theme="light"] {
-  --stage-tint-lead:     rgba(37, 99, 235, 0.10);
-  --stage-tint-quoted:   rgba(14, 165, 183, 0.10);
-  --stage-tint-on:       rgba(99, 102, 241, 0.10);
-  --stage-tint-invoiced: rgba(245, 158, 11, 0.10);
-  --stage-tint-overdue:  rgba(249, 115, 22, 0.10);
-  --stage-tint-paid:     rgba(21, 128, 61, 0.10);
+  --stage-tint-lead:     rgba(37, 99, 235, 0.15);
+  --stage-tint-quoted:   rgba(14, 165, 183, 0.16);
+  --stage-tint-on:       rgba(99, 102, 241, 0.15);
+  --stage-tint-invoiced: rgba(245, 158, 11, 0.18);
+  --stage-tint-overdue:  rgba(249, 115, 22, 0.18);
+  --stage-tint-paid:     rgba(21, 128, 61, 0.15);
 }
 
 /* ── WorkflowCircles — Six-Stage Brand Cycle (feat/workflow-circles-brand-cycle) ──
