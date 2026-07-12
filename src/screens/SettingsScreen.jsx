@@ -3296,6 +3296,10 @@ export default function SettingsScreen({
           <Row label="Version" value={APP_VERSION} chevron={false} />
         </SectionCard>
 
+        <p style={{ textAlign: 'center', fontSize: 12, opacity: 0.6, margin: '16px 0 0' }}>
+          An <a href="https://arandalabs.com" target="_blank" rel="noopener" style={{ color: 'inherit' }}>Aranda Labs</a> product
+        </p>
+
         <div style={{ height: 32 }} />
         {modalLayer}
       </div>
