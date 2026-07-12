@@ -574,6 +574,9 @@ export default function AuthScreen() {
           {' · '}
           <a href="mailto:hello@ohnar.co.uk">Contact</a>
         </p>
+        <p className="auth-legal-footer-entity">
+          An <a href="https://arandalabs.com" target="_blank" rel="noopener">Aranda Labs</a> product
+        </p>
       </footer>
     </div>
     </div>
