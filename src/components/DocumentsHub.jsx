@@ -13,6 +13,7 @@
  */
 
 import { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { buildQuoteRecordMeta, buildInvoiceRecordMeta } from '../lib/documentRecord';
 import { downloadQuotePDF, downloadInvoicePDF } from '../lib/invoicePDF';
 import { isPro } from '../lib/plan';
@@ -330,7 +331,23 @@ export default function DocumentsHub({ open, job, biz, profile, onClose, onBuild
   // The backdrop is position:fixed with display:flex — the sheet is its flex child.
   // Tap-outside (backdrop onClick) closes; stopPropagation on the sheet prevents
   // the backdrop click from firing when the user taps inside the sheet.
-  return (
+  //
+  // FIX 2 (2026-07-13): portal to <body>. DocumentsHub renders as a sibling
+  // inside JobDetailDrawer, deep inside the dashboard swipe-pager. The pager's
+  // scroll container `.dp-viewport` is `position:fixed; z-index:0` (index.css
+  // ~line 1153) — a ROOT stacking context that caps EVERY in-pager descendant at
+  // z:0 relative to the root, so this sheet's z-index:500 (--z-modal-top) can
+  // never actually beat the root-level .bottom-nav (--z-nav:100), which is a
+  // sibling of the pager under #root. (A transient `transform` on the pager during
+  // drag/settle, or the drawer's own slide-up transform, traps it the same way —
+  // index.css ~line 1136 spells this out.) The trapped nav then paints over the
+  // sheet's lower content ("Send invoice") and steals its taps (clicks land on the
+  // nav / the content behind). Rendering into document.body lifts the sheet out of
+  // every trapped ancestor, so its z-500 backdrop sits in the ROOT stacking context
+  // above the nav and captures all outside taps. This also makes the fix independent
+  // of the shared body.overlay-open nav-hide (a non-refcounted class nested
+  // overlays can stomp).
+  return createPortal(
     <div
       className="modal-backdrop modal-backdrop--top"
       onClick={onClose}
@@ -434,6 +451,7 @@ export default function DocumentsHub({ open, job, biz, profile, onClose, onBuild
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

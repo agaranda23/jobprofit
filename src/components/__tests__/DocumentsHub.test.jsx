@@ -119,6 +119,18 @@ describe('DocumentsHub — render safety', () => {
     expect(container.firstChild).toBeNull();
   });
 
+  // Regression guard: the sheet must render via createPortal into document.body so
+  // it escapes the swipe-pager ancestor (.dp-viewport, position:fixed z-index:0)
+  // that otherwise traps its z-index:500 backdrop below the root .bottom-nav
+  // (fix 2026-07-13). A future un-portal would resurface the "Send invoice hidden
+  // behind the nav / click-through" bug with an otherwise-green suite.
+  it('portals its backdrop directly into document.body', () => {
+    renderHub();
+    const backdrop = document.querySelector('.modal-backdrop--top');
+    expect(backdrop).not.toBeNull();
+    expect(backdrop.parentElement).toBe(document.body);
+  });
+
   it('renders Quotes tab by default', () => {
     renderHub();
     const quotesTab = screen.getByRole('tab', { name: /quotes/i });
