@@ -156,7 +156,7 @@ describe('ReviewSheet — tapping inside the document card never dismisses the s
 
   it('a genuine backdrop tap (outside the sheet) still dismisses', () => {
     const onDismiss = vi.fn();
-    const { container } = render(
+    render(
       <ReviewSheet
         mode="quote"
         job={makeJob()}
@@ -169,7 +169,9 @@ describe('ReviewSheet — tapping inside the document card never dismisses the s
         flash={NOOP}
       />
     );
-    const backdrop = container.querySelector('.modal-backdrop--top');
+    // The sheet now renders via createPortal into document.body (fix 2026-07-13),
+    // so the backdrop is NOT inside RTL's render container — query the document.
+    const backdrop = document.querySelector('.modal-backdrop--top');
     fireEvent.click(backdrop);
     expect(onDismiss).toHaveBeenCalledTimes(1);
   });
