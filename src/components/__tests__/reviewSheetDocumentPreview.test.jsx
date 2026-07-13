@@ -104,6 +104,34 @@ const NOOP = () => {};
 
 afterEach(() => vi.clearAllMocks());
 
+// ── Portal regression guard ────────────────────────────────────────────────────
+// ReviewSheet is the next step of the reported Send-invoice journey; it must
+// render via createPortal into document.body so it escapes the swipe-pager
+// ancestor (.dp-viewport, position:fixed z-index:0) that otherwise traps its
+// z-index:500 backdrop below the root .bottom-nav (fix 2026-07-13). A future
+// un-portal would resurface the "sheet hidden behind the nav / fall-through" bug.
+describe('ReviewSheet — portal', () => {
+  it('portals its backdrop directly into document.body', () => {
+    render(
+      <ReviewSheet
+        mode="quote"
+        job={makeJob()}
+        biz={{}}
+        profile={{ plan: 'free', business_name: '', phone: '', email: '' }}
+        jobs={[makeJob()]}
+        onClose={NOOP}
+        onDismiss={NOOP}
+        onUpdate={NOOP}
+        onProfileUpdate={vi.fn()}
+        flash={vi.fn()}
+      />
+    );
+    const backdrop = document.querySelector('.modal-backdrop--top');
+    expect(backdrop).not.toBeNull();
+    expect(backdrop.parentElement).toBe(document.body);
+  });
+});
+
 // ── (c) Brand edit persists to the profile ────────────────────────────────────
 
 describe('ReviewSheet — brand edit persists via onProfileUpdate (central pipeline)', () => {

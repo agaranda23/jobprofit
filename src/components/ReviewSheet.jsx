@@ -37,6 +37,7 @@
  */
 
 import { useState, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import Icon from './Icon';
 import QRCode from 'qrcode';
 import BankGateSheet from './BankGateSheet';
@@ -447,7 +448,20 @@ export default function ReviewSheet({
     );
   }
 
-  return (
+  // Portal to <body> — same fix as DocumentsHub (fix/documents-hub-portal-nav-trap,
+  // 2026-07-13), and this sheet is the very next step of the reported Send-invoice
+  // journey. ReviewSheet renders as a sibling inside the drawer/screen subtree,
+  // which lives under the pager's `.dp-viewport` (position:fixed; z-index:0 in
+  // index.css ~1153) — a ROOT stacking context that caps every in-pager descendant
+  // at z:0 relative to root, so this sheet's z-index:500 (--z-modal-top) can never
+  // actually beat the root-level .bottom-nav (--z-nav:100). (A transient pager /
+  // drawer `transform` traps it the same way.) The nav then paints over the sheet's
+  // lower content ("Send invoice via WhatsApp") and steals its taps — the "fall
+  // through to the screen behind it" class of bug this sheet's own P0 dismiss-jank
+  // note already references. Rendering into document.body lifts the sheet out of
+  // every trapped ancestor so its z-500 backdrop sits above the nav and captures
+  // all outside taps.
+  return createPortal(
     <>
     <div
       className="modal-backdrop modal-backdrop--top"
@@ -595,6 +609,7 @@ export default function ReviewSheet({
         onDone={() => { setShowSentMoment(false); onClose?.(); }}
       />
     )}
-    </>
+    </>,
+    document.body,
   );
 }
