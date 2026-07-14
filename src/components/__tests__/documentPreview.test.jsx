@@ -411,6 +411,51 @@ describe('DocumentPreview — invoice number and due date are inline-editable', 
   });
 });
 
+// ── Hint text is state-aware — read-only callers don't over-promise ──────────
+// Fix (2026-07): the hint "Tap anything to change it" was rendered ungated, so a
+// read-only caller (DocumentsHub's view-first preview) advertised taps that do
+// nothing. It now drops that sentence unless the job is editable (onJobPatch).
+describe('DocumentPreview — the "tap anything" hint is gated on editability', () => {
+  it('shows "Tap anything to change it" when the job is editable (onJobPatch present)', () => {
+    render(
+      <DocumentPreview mode="quote" job={makeJob()} biz={BIZ} profile={{ plan: 'free' }} onJobPatch={vi.fn()} flash={NOOP} />
+    );
+    expect(screen.getByText(/tap anything to change it/i)).toBeInTheDocument();
+  });
+
+  it('drops "Tap anything to change it" when read-only (no onJobPatch), keeping only the "what your customer sees" line', () => {
+    render(
+      <DocumentPreview mode="quote" job={makeJob()} biz={BIZ} profile={{ plan: 'free' }} flash={NOOP} />
+    );
+    expect(screen.queryByText(/tap anything to change it/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/this is what your customer sees\./i)).toBeInTheDocument();
+  });
+});
+
+// ── Invoice meta taps require their OWN persist handler (no false save) ──────
+// Fix (2026-07): "Invoice no"/"Due date" wired their onClick unconditionally, so
+// a read-only caller opened an editor that toasted "…updated" while persisting
+// nothing (the handler was undefined). Each tap now requires its persist handler,
+// mirroring the "Valid until" gate. Existing tests above prove the tappable path
+// when the handler IS supplied.
+describe('DocumentPreview — invoice meta taps require their persist handler', () => {
+  it('renders "Invoice no" and "Due date" as non-tappable when their change handlers are absent', () => {
+    render(
+      <DocumentPreview
+        mode="invoice"
+        job={makeJob({ status: 'complete' })}
+        biz={BIZ}
+        profile={{ plan: 'free' }}
+        invoiceNumber="INV-0007"
+        dueDate="2026-07-20"
+        flash={NOOP}
+      />
+    );
+    expect(screen.queryByRole('button', { name: /change invoice no/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /change due/i })).not.toBeInTheDocument();
+  });
+});
+
 // ── Tap-anywhere never bubbles out of the card (P0 dismiss-jank fix) ─────────
 
 describe('DocumentPreview — clicks never bubble past the card', () => {
