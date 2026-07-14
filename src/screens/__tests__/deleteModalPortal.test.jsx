@@ -19,7 +19,7 @@
  */
 
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, fireEvent, screen, cleanup } from '@testing-library/react';
+import { render, fireEvent, screen, cleanup, within } from '@testing-library/react';
 
 // ── Module mocks (match screenSmoke.test.jsx / stageMoveSheetPortal.test.jsx) ─
 
@@ -150,8 +150,14 @@ function openDeleteConfirmDialog() {
   // Tap the Delete action chip — this calls handleRequestDeleteJob, which sets
   // confirmDeleteJob and opens the confirm-delete dialog. It does NOT run the
   // actual delete (that only happens after the dialog's own Delete button is
-  // tapped), so deleteJobWithData is never invoked by this test.
-  const deleteAction = screen.getByRole('menuitem', { name: 'Delete' });
+  // tapped), so onDeleteJob is never invoked by this test.
+  //
+  // The ⋯ menu renders BOTH variants into the DOM simultaneously — the desktop
+  // dropdown (.jt-menu--dropdown) and the mobile sheet (.jt-menu--sheet) — each
+  // with its own role="menuitem" "Delete" chip. CSS hides one per breakpoint, but
+  // jsdom applies no CSS, so both are present. getByRole would throw on the double
+  // match; getAllByRole()[0] clicks either — both call the same handleAction('Delete').
+  const deleteAction = screen.getAllByRole('menuitem', { name: 'Delete' })[0];
   fireEvent.click(deleteAction);
 }
 
@@ -211,7 +217,9 @@ describe('Confirm-delete modal portal (fix/delete-modal-portal-nav-overlap)', ()
   it('preserves existing behaviour: Cancel dismisses with no delete, and clears overlay-open', () => {
     openDeleteConfirmDialog();
 
-    const cancelBtn = screen.getByRole('button', { name: /cancel/i });
+    // Scope to the dialog so this can't collide with any other "Cancel" control.
+    const dialog = screen.getByRole('alertdialog', { name: /.+/ });
+    const cancelBtn = within(dialog).getByRole('button', { name: /cancel/i });
     fireEvent.click(cancelBtn);
 
     expect(document.body.querySelector('.modal-backdrop')).toBeNull();
