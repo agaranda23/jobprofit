@@ -1542,10 +1542,15 @@ export default function AppShell() {
     setWizardOpen(true);
   };
 
-  // Any AppShell-level overlay being open should disable the swipe pager so a
-  // mis-swipe on a modal backdrop never navigates away mid-interaction.
-  // body.overlay-open (JobDetailDrawer, AddJobModal) is checked at gesture-start
-  // time inside useDashboardPager, so we only need to cover AppShell's own flags here.
+  // Any overlay being open must disable BOTH the horizontal swipe pager AND
+  // pull-to-refresh, so a mis-gesture behind a modal never navigates away or
+  // triggers a background refresh mid-interaction. The swipe pager ALSO checks
+  // body.overlay-open at gesture-start (useDashboardPager) as a backstop, but
+  // pull-to-refresh does NOT read the body class at all — so every drawer/modal
+  // flag must be represented here or PTR stays armed on the page behind it.
+  // Includes workOverlayOpen (JobDetailDrawer / RecordPaymentModal). (A shared,
+  // refcounted body-overlay lock across all sheets is a tracked follow-up; this
+  // covers the AppShell-state flags at the React layer.)
   const anyOverlayOpen = !!(
     wizardOpen ||
     materialsOpen ||
@@ -1562,7 +1567,11 @@ export default function AppShell() {
     // paidCelebrationAmount === null) so the pager stays locked during the full
     // PaidCelebration → PostPaidSheet sequence.
     postPaidJob !== null ||
-    addJobPrefill !== null
+    addJobPrefill !== null ||
+    // JobDetailDrawer / RecordPaymentModal on-screen. Previously omitted (the
+    // pager's body.overlay-open backstop covered the drawer for swipe), which
+    // left pull-to-refresh armed behind the open drawer.
+    workOverlayOpen
   );
 
   // Page index for the pager. -1 when view is 'settings' (pager not rendered).
