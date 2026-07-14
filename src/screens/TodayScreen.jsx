@@ -21,6 +21,7 @@
  */
 
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useCountUp } from '../lib/useCountUp';
 import AddJobModal from '../components/AddJobModal';
 import Icon from '../components/Icon';
@@ -935,7 +936,11 @@ export default function TodayScreen({
       )}
 
       {/* ── Send Invoice job picker (pivot fallback) ───────────────────────── */}
-      {invoicePickerOpen && (
+      {/* Rendered in a portal so it escapes the .dp-viewport stacking context
+          (otherwise the bottom-nav sibling paints over it) and the pager's
+          touch subtree (otherwise tap-hold-drag bubbles into the swipe
+          handler) — same fix as WorkScreen's confirmDeleteJob/confirmBookJob. */}
+      {invoicePickerOpen && createPortal(
         <div
           className="foreman-invoice-picker-overlay"
           role="dialog"
@@ -973,7 +978,8 @@ export default function TodayScreen({
               ))}
             </ul>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* ── Modals ──────────────────────────────────────────────────────────── */}

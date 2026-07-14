@@ -2251,10 +2251,13 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
         />
       )}
 
-      {/* Confirm-delete modal — minimal inline implementation (no reusable ConfirmModal exists yet) */}
+      {/* Confirm-delete modal — minimal inline implementation (no reusable ConfirmModal exists yet).
+          Rendered in a portal so it escapes the .dp-viewport stacking context (otherwise the
+          bottom-nav sibling paints over it) and the pager's touch subtree (otherwise tap-hold-drag
+          bubbles into the swipe handler) — same pattern as confirmBookJob below. */}
       {confirmDeleteJob && (() => {
         const deleteCopy = buildDeleteJobCopy(confirmDeleteJob.customer || confirmDeleteJob.name || '');
-        return (
+        return createPortal(
           <div className="modal-backdrop" onClick={() => setConfirmDeleteJob(null)}>
             <div
               className="modal-card"
@@ -2283,7 +2286,8 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
                 </button>
               </div>
             </div>
-          </div>
+          </div>,
+          document.body
         );
       })()}
 
