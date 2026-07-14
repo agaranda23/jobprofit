@@ -654,15 +654,19 @@ export default function DocumentsHub({
           )}
         </div>
 
-        {/* Action tray — Save (primary, green/black house CTA) · Share ·
-            Copy link. Pinned below the scrolling preview as a flex sibling
-            of .docs-hub-body (same pattern the header/tabs use to stay put
-            above it), so it's always reachable without scrolling. */}
+        {/* Action tray — Save (primary) · Share · Copy link. Pinned below the
+            scrolling preview as a flex sibling of .docs-hub-body (same pattern
+            the header/tabs use to stay put above it), so it's always reachable
+            without scrolling. Save reuses the app-wide .btn-primary "Live Steel
+            Blue" recipe (var(--accent), PREMIUM PRIMARY BUTTON SYSTEM further
+            down index.css) — same convention as ReviewSheet's .rs-send-btn —
+            rather than a one-off colour; .docs-hub-tray-btn--primary only adds
+            layout on top, same as .rs-send-btn does. */}
         {previewOpen && (
           <div className="docs-hub-preview-tray">
             <button
               type="button"
-              className="docs-hub-tray-btn docs-hub-tray-btn--primary"
+              className="btn-primary docs-hub-tray-btn--primary"
               onClick={handleSavePDF}
               disabled={busy}
             >
