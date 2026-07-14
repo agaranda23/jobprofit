@@ -120,6 +120,13 @@ function dashboardPageIndex(view) {
 // cannot trigger a second reload.
 let swReloaded = false;
 
+// sessionStorage key set immediately before the SW-triggered reload above fires.
+// Read (and cleared) by splashMinElapsed's initialiser on the very next boot so
+// that reload lands on a near-instant gate instead of the full ~1.2s branded
+// dwell — the user already sat through that animation once this session; a
+// same-session reload they didn't ask for shouldn't make them sit through it twice.
+const SW_RELOAD_SPLASH_SKIP_KEY = 'ohnar.swReload.skipSplashDwell';
+
 function wipeLegacyDemoData() {
   try {
     if (localStorage.getItem('jp.demoCleared.v1')) return;
@@ -320,7 +327,20 @@ export default function AppShell() {
   // 750–1150ms → wordmark fade/rise 850–1200ms. The floor must cover the last
   // beat (1200ms) or fast/returning users (cached session) get the wordmark cut
   // off mid-animation. Skipped under prefers-reduced-motion (no animation runs).
-  const [splashMinElapsed, setSplashMinElapsed] = useState(false);
+  // Skip the dwell above when this boot was caused by our own SW auto-update
+  // reload (see the deferred-reload controllerchange handler further down)
+  // rather than a genuine cold start — read-and-clear so only the one boot
+  // right after that reload is fast-tracked; every other boot, including the
+  // next real cold start, gets the full dwell as before.
+  const [splashMinElapsed, setSplashMinElapsed] = useState(() => {
+    try {
+      if (sessionStorage.getItem(SW_RELOAD_SPLASH_SKIP_KEY)) {
+        sessionStorage.removeItem(SW_RELOAD_SPLASH_SKIP_KEY);
+        return true;
+      }
+    } catch { /* sessionStorage unavailable — falls back to the normal full-dwell splash */ }
+    return false;
+  });
   useEffect(() => {
     const reduce = typeof window !== 'undefined' && window.matchMedia
       && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -656,6 +676,14 @@ export default function AppShell() {
   // (e.g. a race between two near-simultaneous deploys), the flag check prevents a
   // second reload. The flag lives in module scope so it survives React re-renders
   // but resets on a full page load — exactly the right lifetime.
+  //
+  // Deferred until backgrounded: reloading the INSTANT the new SW takes over would
+  // yank the page out from under a trader mid-form-entry (e.g. typing an invoice)
+  // any time a deploy lands while they have the app open — which reads to them as
+  // "it kicked me back to the splash screen while I was using it". If the tab is
+  // visible right now, wait for them to background it (visibilitychange → hidden)
+  // before reloading — invisible to them either way, since the app isn't on screen.
+  // If it's already hidden when the update lands, reload immediately, as before.
   useEffect(() => {
     if (!('serviceWorker' in navigator)) return;
 
@@ -663,17 +691,43 @@ export default function AppShell() {
       console.warn('SW registration failed', err?.message);
     });
 
-    // Reload once when a new SW takes control of this page.
     // swReloaded is declared at module level (below) — guards against reload loops.
-    function onControllerChange() {
+    function reloadNow() {
       if (swReloaded) return;
       swReloaded = true;
+      // Lets the next boot's splashMinElapsed skip its artificial dwell floor —
+      // see the initialiser above. Best-effort: a full splash on the rare
+      // sessionStorage-unavailable browser is a cosmetic regression, not worth
+      // blocking the reload over.
+      try { sessionStorage.setItem(SW_RELOAD_SPLASH_SKIP_KEY, '1'); } catch { /* ignore */ }
       window.location.reload();
+    }
+
+    // Holds the pending hidden-listener once armed (null otherwise) — doubles as
+    // the "already waiting" guard and the handle cleanup needs to remove it if
+    // AppShell unmounts mid-wait (dev strict-mode double-invoke, HMR).
+    let onHidden = null;
+
+    // Reload once when a new SW takes control of this page.
+    function onControllerChange() {
+      if (swReloaded) return;
+      if (onHidden) return;
+      if (document.visibilityState === 'hidden') {
+        reloadNow();
+        return;
+      }
+      onHidden = () => {
+        if (document.visibilityState !== 'hidden') return;
+        document.removeEventListener('visibilitychange', onHidden);
+        reloadNow();
+      };
+      document.addEventListener('visibilitychange', onHidden);
     }
 
     navigator.serviceWorker.addEventListener('controllerchange', onControllerChange);
     return () => {
       navigator.serviceWorker.removeEventListener('controllerchange', onControllerChange);
+      if (onHidden) document.removeEventListener('visibilitychange', onHidden);
     };
   }, []);
 
