@@ -317,37 +317,55 @@ describe('Deep Navy ink token — --ink defined in :root', () => {
 });
 
 describe('Deep Navy ink conversions — opaque text on accent/green buttons', () => {
-  const convertedClasses = [
+  // WCAG AA contrast pass (fix/dark-ink-on-blue-contrast-aa): the near-black
+  // var(--ink) that these buttons used failed AA on their saturated blue
+  // fills (--accent #2563EB in particular). All of them flipped to white
+  // ink; three of them (the --jp-green-backed ones) also repointed their
+  // fill from --jp-green to --accent, since --jp-green resolves to a lighter
+  // blue in dark mode where white text alone wouldn't clear AA either.
+  const whiteInkClasses = [
     '.snackbar__add-cost',
     '.nav-toast-add-cost',
     '.ppc-btn-primary',
     '.ppc-chip--active',
     '.photo-lightbox-edit-btn',
     '.visit-invoice-prompt-btn',
-    '.wc-day-add-btn',
     '.modal-paid-check',
   ];
 
-  convertedClasses.forEach((cls) => {
-    it(`${cls} uses var(--ink) not bare #000`, () => {
+  whiteInkClasses.forEach((cls) => {
+    it(`${cls} uses #FFFFFF ink, not var(--ink) / bare #000`, () => {
       const idx = css.indexOf(cls + ' {');
       expect(idx).toBeGreaterThan(-1);
       const block = css.slice(idx, idx + 300);
-      expect(block).toContain('var(--ink)');
+      expect(block).toMatch(/color:\s*#FFFFFF/i);
+      expect(block).not.toContain('var(--ink)');
       // Must not have bare #000 as a colour (allow #000 inside rgba() shadows)
       expect(block).not.toMatch(/color:\s*#000[^a-f0-9]/i);
     });
   });
 
-  it('.got-paid-toast__chip:active uses var(--ink) not #000', () => {
+  it('.wc-day-add-btn uses #FFFFFF ink on var(--accent) fill, not var(--ink) on var(--jp-green)', () => {
+    const idx = css.indexOf('.wc-day-add-btn {');
+    expect(idx).toBeGreaterThan(-1);
+    const block = css.slice(idx, idx + 300);
+    expect(block).toContain('background: var(--accent)');
+    expect(block).toMatch(/color:\s*#FFFFFF/i);
+    expect(block).not.toContain('var(--jp-green)');
+    expect(block).not.toContain('var(--ink)');
+  });
+
+  it('.got-paid-toast__chip:active/:hover uses #FFFFFF ink on var(--accent) fill+border, not var(--ink) on var(--jp-green)', () => {
     const idx = css.indexOf('.got-paid-toast__chip:active');
     expect(idx).toBeGreaterThan(-1);
     const block = css.slice(idx, idx + 150);
-    expect(block).toContain('var(--ink)');
-    expect(block).not.toMatch(/color:\s*#000[^a-f0-9]/i);
+    expect(block).toContain('var(--accent)');
+    expect(block).toMatch(/color:\s*#FFFFFF/i);
+    expect(block).not.toContain('var(--jp-green)');
+    expect(block).not.toContain('var(--ink)');
   });
 
-  it('.snackbar__got-paid-chip:active uses var(--ink) not #000', () => {
+  it('.snackbar__got-paid-chip:active/:hover uses #FFFFFF ink on var(--accent) fill+border, not var(--ink) on var(--jp-green)', () => {
     const idx = css.indexOf('.snackbar__got-paid-chip:active');
     expect(idx).toBeGreaterThan(-1);
     // Wider than the sibling checks above — this selector is combined with
@@ -355,8 +373,10 @@ describe('Deep Navy ink conversions — opaque text on accent/green buttons', ()
     // .snackbar__got-paid-chip:hover {"), which eats more of a 150-char
     // window than a single-selector rule does before reaching `color:`.
     const block = css.slice(idx, idx + 250);
-    expect(block).toContain('var(--ink)');
-    expect(block).not.toMatch(/color:\s*#000[^a-f0-9]/i);
+    expect(block).toContain('var(--accent)');
+    expect(block).toMatch(/color:\s*#FFFFFF/i);
+    expect(block).not.toContain('var(--jp-green)');
+    expect(block).not.toContain('var(--ink)');
   });
 });
 
