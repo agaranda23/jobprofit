@@ -52,7 +52,7 @@ import { supabase } from '../lib/supabase';
 import { getMonthSummary, getOverheadTotal, monthKey } from '../lib/cashflow';
 import { haptic } from '../lib/haptics.js';
 import { playSendEarcon } from '../lib/momentEarcons.js';
-import { waitingToCollectTotal, jobsOnCount, weekOverWeek } from '../lib/todayPulse';
+import { waitingToCollectTotal, jobsOn, oldestOnJob, daysOnCount, daysOnLabel, weekOverWeek } from '../lib/todayPulse';
 import { shouldCelebrateFirstQuote, markFirstQuoteCelebrationSeen } from '../lib/firstQuoteCelebration';
 
 // ── Snooze helpers (delegate to nextBestAction.js store, keep SNOOZE_MS local) ──
@@ -336,11 +336,15 @@ export default function TodayScreen({
   // dropped from the row entirely (not shown as a fake/zero stat) when there
   // isn't genuine, meaningful data behind it yet.
   const pulseWaitingToCollect = useMemo(() => waitingToCollectTotal(jobs), [jobs]);
-  const pulseJobsOn = useMemo(() => jobsOnCount(jobs), [jobs]);
+  const onJobs = useMemo(() => jobsOn(jobs), [jobs]);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const pulseWeekOverWeek = useMemo(() => weekOverWeek(jobs, now), [jobs]);
 
   const animatedPulseWaitingToCollect = useCountUp(pulseWaitingToCollect);
+  // Only used by the N>1 "on" pulse card, but useCountUp must run every
+  // render regardless (Rules of Hooks) — see project memory on the hooks-
+  // before-early-returns incident.
+  const animatedOnCount = useCountUp(onJobs.length);
   const pulseAheadAmount = pulseWeekOverWeek.hasComparison && pulseWeekOverWeek.delta > 0
     ? pulseWeekOverWeek.delta
     : 0;
@@ -357,13 +361,57 @@ export default function TodayScreen({
       onTap: () => onSeeTheWeek?.(),
     });
   }
-  if (pulseJobsOn > 0) {
+  // "On" card — names the actual job when there's exactly one (deep-links
+  // straight to it); falls back to a count + "on longest" subline when
+  // there's more than one (ambiguous which job to deep-link, so this one
+  // opens the Jobs list instead). See src/lib/todayPulse.js for jobsOn /
+  // oldestOnJob / daysOnLabel.
+  if (onJobs.length === 1) {
+    const theOnJob = onJobs[0];
+    const rawTitle = theOnJob?.name || theOnJob?.summary || '';
+    const customerName = theOnJob?.customer || theOnJob?.customerName || '';
+    // Never invent a name: fall back to the customer, then to a literal
+    // "Active job" only when both the work title and customer are blank.
+    const title = rawTitle || customerName || 'Active job';
+    // If the title itself had to fall back to the customer name, don't
+    // repeat it on the row below.
+    const titleUsedCustomerFallback = !rawTitle && !!customerName;
+    const customerText = customerName && !titleUsedCustomerFallback ? customerName : '';
+    // On sits outside MONEY_STAGES — an On job may legitimately carry no
+    // price yet. Show the value only when it's genuinely > 0; never "£0".
+    const amount = jobAmount(theOnJob);
+    const amountText = amount > 0 ? gbp(amount) : '';
+    const daysOnText = daysOnLabel(theOnJob, now);
+    const ariaLead = customerText ? `${title} for ${customerText}` : title;
+    const ariaAmount = amountText ? `, ${amountText}` : '';
     pulseCards.push({
       key: 'on',
-      icon: 'active-job',
-      value: String(pulseJobsOn),
-      label: pulseJobsOn === 1 ? 'job on' : 'jobs on',
-      ariaLabel: `${pulseJobsOn} ${pulseJobsOn === 1 ? 'job' : 'jobs'} on right now — tap to see them`,
+      variant: 'strip',
+      daysOnText,
+      title,
+      customerText,
+      amountText,
+      ariaLabel: `${ariaLead}, ${daysOnText}${ariaAmount}. Tap to open the job.`,
+      onTap: () => onJobTap?.(theOnJob),
+    });
+  } else if (onJobs.length > 1) {
+    const onCount = onJobs.length;
+    const oldest = oldestOnJob(onJobs);
+    const oldestName = oldest?.customer || oldest?.customerName || oldest?.name || oldest?.summary || 'Active job';
+    const oldestDays = daysOnCount(oldest, now);
+    const oldestDaysText = oldestDays <= 0 ? 'started today' : oldestDays === 1 ? '1 day' : `${oldestDays} days`;
+    // "+N" names how many OTHER On jobs exist beyond the one shown in the
+    // subline; omitted at N=2 total (the subline already implies "and one
+    // more" without a redundant "+1").
+    const extra = onCount - 1;
+    const extraText = extra >= 2 ? ` +${extra}` : '';
+    pulseCards.push({
+      key: 'on',
+      variant: 'count',
+      value: String(Math.round(animatedOnCount)),
+      label: 'jobs on',
+      subline: `on longest: ${oldestName} · ${oldestDaysText}${extraText}`,
+      ariaLabel: `${onCount} jobs on right now. On longest: ${oldestName}, ${oldestDaysText}. Tap to see them all.`,
       onTap: () => onSeeTheWeek?.(),
     });
   }
@@ -601,14 +649,55 @@ export default function TodayScreen({
             <button
               key={card.key}
               type="button"
-              className={`today-pulse-card today-pulse-card--${card.key}`}
+              className={`today-pulse-card today-pulse-card--${card.key}${card.variant ? ` today-pulse-card--${card.variant}` : ''}`}
               role="listitem"
               onClick={card.onTap}
               aria-label={card.ariaLabel}
             >
-              <Icon name={card.icon} size={18} className="today-pulse-card__icon" />
-              <span className="today-pulse-card__value">{card.value}</span>
-              <span className="today-pulse-card__label">{card.label}</span>
+              {card.variant === 'strip' ? (
+                <>
+                  {/* Row 1 — stage chip + days-on, chevron pinned right */}
+                  <span className="today-pulse-strip__row1">
+                    <span className="today-pulse-strip__row1-left">
+                      <span className="jt-stage-name jt-stage-name--on">On</span>
+                      <span className="today-pulse-strip__days">{card.daysOnText}</span>
+                    </span>
+                    <Icon name="chevron-right" size={16} className="today-pulse-strip__chevron" />
+                  </span>
+                  {/* Row 2 — work title, primary */}
+                  <span className="today-pulse-strip__title">{card.title}</span>
+                  {/* Row 3 — customer · value, dim (either half may be absent) */}
+                  {(card.customerText || card.amountText) && (
+                    <span className="today-pulse-strip__meta">
+                      {card.customerText}
+                      {card.customerText && card.amountText && ' · '}
+                      {card.amountText && (
+                        <span className="today-pulse-strip__amount">{card.amountText}</span>
+                      )}
+                    </span>
+                  )}
+                </>
+              ) : card.variant === 'count' ? (
+                <>
+                  {/* Row 1 — stage chip + "N jobs on", chevron pinned right */}
+                  <span className="today-pulse-strip__row1">
+                    <span className="today-pulse-strip__row1-left">
+                      <span className="jt-stage-name jt-stage-name--on">On</span>
+                      <span className="today-pulse-card__value">{card.value}</span>
+                      <span className="today-pulse-card__label">{card.label}</span>
+                    </span>
+                    <Icon name="chevron-right" size={16} className="today-pulse-strip__chevron" />
+                  </span>
+                  {/* Row 2 — names the longest-running On job */}
+                  <span className="today-pulse-strip__meta">{card.subline}</span>
+                </>
+              ) : (
+                <>
+                  <Icon name={card.icon} size={18} className="today-pulse-card__icon" />
+                  <span className="today-pulse-card__value">{card.value}</span>
+                  <span className="today-pulse-card__label">{card.label}</span>
+                </>
+              )}
             </button>
           ))}
         </div>

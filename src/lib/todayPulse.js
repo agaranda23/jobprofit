@@ -3,7 +3,10 @@
  *
  * Three glanceable, REAL-DATA-ONLY status cards shown at the top of Today:
  *   1. Waiting to collect — total £ across sent-but-unpaid invoices
- *   2. Jobs on           — count of jobs currently in progress ("On" stage)
+ *   2. Jobs on           — jobs currently in progress ("On" stage). Names the
+ *      actual job (title/customer/value/days-on) when there's exactly one;
+ *      falls back to a count + "on longest" subline when there's more than
+ *      one — see jobsOn/oldestOnJob below.
  *   3. Week-over-week    — this week's paid total vs last week's, ONLY shown
  *      when there's a genuine prior week to compare against, and only when
  *      it's a real improvement — never a fabricated or negative "win".
@@ -34,19 +37,76 @@ export function waitingToCollectTotal(jobs = []) {
 }
 
 /**
- * Count of jobs currently "On" (active / in-progress) — the canonical single
- * source of truth for this stage is deriveDisplayStatus (see jobStatus.js),
- * so this stays in lockstep with the Jobs-tab pipeline labels.
+ * Jobs currently "On" (active / in-progress) — the canonical single source of
+ * truth for this stage is deriveDisplayStatus (see jobStatus.js), so this
+ * stays in lockstep with the Jobs-tab pipeline labels. Returns the job
+ * objects themselves (not just a count) so the Today "on" pulse card can name
+ * the actual job rather than showing a bare, subject-less number.
+ *
+ * @param {Array} jobs
+ * @returns {Array}
+ */
+export function jobsOn(jobs = []) {
+  return jobs.filter(j => deriveDisplayStatus(j) === 'On');
+}
+
+/**
+ * Count of jobs currently "On" — delegates to jobsOn() so the two can never
+ * drift out of lockstep.
  *
  * @param {Array} jobs
  * @returns {number}
  */
 export function jobsOnCount(jobs = []) {
-  return jobs.filter(j => deriveDisplayStatus(j) === 'On').length;
+  return jobsOn(jobs).length;
 }
 
 function jobTimestamp(job) {
   return new Date(job?.date || job?.createdAt || 0).getTime();
+}
+
+/**
+ * The longest-running On job in a set — used to name one job in the Today
+ * pulse card's "N jobs on" subline when there's more than one. Deliberately
+ * picks oldest-On rather than largest-£: On sits outside MONEY_STAGES, so a
+ * job in progress may legitimately carry no price yet, and a £-based
+ * tiebreak could silently skip real, unpriced work.
+ *
+ * @param {Array} onJobs — a pre-filtered On-jobs array (e.g. from jobsOn())
+ * @returns {Object|null}
+ */
+export function oldestOnJob(onJobs = []) {
+  if (!onJobs.length) return null;
+  return onJobs.reduce((oldest, j) => (jobTimestamp(j) < jobTimestamp(oldest) ? j : oldest));
+}
+
+/**
+ * Whole days a job has been On, floored, never negative. createdAt is always
+ * stamped on save so this is always computable; the 0-timestamp guard only
+ * protects against a hand-crafted/legacy record missing both date fields.
+ *
+ * @param {Object} job
+ * @param {Date} [now]
+ * @returns {number}
+ */
+export function daysOnCount(job, now = new Date()) {
+  const t = jobTimestamp(job);
+  if (!t) return 0;
+  return Math.max(0, Math.floor((now.getTime() - t) / DAY_MS));
+}
+
+/**
+ * Row-1 copy for the Today "on" strip card: "just started" / "on 1 day" /
+ * "on N days".
+ *
+ * @param {Object} job
+ * @param {Date} [now]
+ * @returns {string}
+ */
+export function daysOnLabel(job, now = new Date()) {
+  const d = daysOnCount(job, now);
+  if (d <= 0) return 'just started';
+  return d === 1 ? 'on 1 day' : `on ${d} days`;
 }
 
 function paidAmount(job) {
