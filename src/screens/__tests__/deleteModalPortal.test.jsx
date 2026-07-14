@@ -160,10 +160,13 @@ describe('Confirm-delete modal portal (fix/delete-modal-portal-nav-overlap)', ()
     // Explicit cleanup ensures portalled nodes (rendered into document.body via
     // createPortal) are removed before the next test, not just the React root div.
     cleanup();
+    // Belt-and-braces: strip the shared body class in case a test left it set
+    // (cleanup() should already run the effect teardown, but never leak it).
+    document.body.classList.remove('overlay-open');
     vi.clearAllMocks();
   });
 
-  it('backdrop renders as a direct child of document.body (not inside .dp-viewport)', () => {
+  it('backdrop renders as a direct child of document.body (portalled)', () => {
     openDeleteConfirmDialog();
 
     const dialog = screen.getByRole('alertdialog', { name: /.+/ });
@@ -172,29 +175,46 @@ describe('Confirm-delete modal portal (fix/delete-modal-portal-nav-overlap)', ()
     // The backdrop must be a direct child of document.body (portalled) — this
     // is what escapes the .dp-viewport stacking context so .bottom-nav (a
     // sibling of .dp-viewport) no longer paints over the dialog's buttons.
+    // NB: this assertion genuinely fails pre-fix (the backdrop used to mount deep
+    // inside WorkScreen's own subtree, not as a direct child of document.body).
     const backdrop = document.body.querySelector('.modal-backdrop');
     expect(backdrop).not.toBeNull();
     expect(backdrop.parentElement).toBe(document.body);
-
-    // Confirm it is NOT nested inside a .dp-viewport ancestor.
-    expect(backdrop.closest('.dp-viewport')).toBeNull();
   });
 
-  it('preserves existing behaviour: tapping the scrim dismisses with no delete', () => {
+  it('sets body.overlay-open while open to gate the pager + hide the nav', () => {
+    // Symptom 2 of the reported bug: tap-hold-drag on the dialog swiped back to
+    // Jobs. The portal alone does not fully stop this (React synthetic touch
+    // events still bubble to the pager along the React tree), so the dialog also
+    // sets body.overlay-open, which useDashboardPager bails on and which hides
+    // .bottom-nav via CSS. This is the discriminating guard for symptom 2.
+    expect(document.body.classList.contains('overlay-open')).toBe(false);
+
     openDeleteConfirmDialog();
+
+    expect(document.body.querySelector('.modal-backdrop')).not.toBeNull();
+    expect(document.body.classList.contains('overlay-open')).toBe(true);
+  });
+
+  it('preserves existing behaviour: tapping the scrim dismisses with no delete, and clears overlay-open', () => {
+    openDeleteConfirmDialog();
+    expect(document.body.classList.contains('overlay-open')).toBe(true);
 
     const backdrop = document.body.querySelector('.modal-backdrop');
     fireEvent.click(backdrop);
 
     expect(document.body.querySelector('.modal-backdrop')).toBeNull();
+    // Closing must release the pager gate, or the whole app would stay swipe-locked.
+    expect(document.body.classList.contains('overlay-open')).toBe(false);
   });
 
-  it('preserves existing behaviour: Cancel dismisses with no delete', () => {
+  it('preserves existing behaviour: Cancel dismisses with no delete, and clears overlay-open', () => {
     openDeleteConfirmDialog();
 
     const cancelBtn = screen.getByRole('button', { name: /cancel/i });
     fireEvent.click(cancelBtn);
 
     expect(document.body.querySelector('.modal-backdrop')).toBeNull();
+    expect(document.body.classList.contains('overlay-open')).toBe(false);
   });
 });

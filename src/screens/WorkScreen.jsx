@@ -1359,6 +1359,20 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
   const [chaseBarJustChased, setChaseBarJustChased] = useState(null);
   // confirmDeleteJob — job pending hard-delete confirmation; null = modal closed.
   const [confirmDeleteJob, setConfirmDeleteJob] = useState(null);
+  // Gate the pager + hide the bottom nav while the confirm-delete dialog is open.
+  // The portal (below) stops the *visual* drag-along, but React synthetic touch
+  // events still bubble from the portalled dialog up to .dp-viewport's handlers
+  // (portals bubble along the React tree, not the DOM tree) — so a hard horizontal
+  // swipe on the dialog could still commit a page change and strand the dialog over
+  // another tab. 'overlay-open' is the shared signal useDashboardPager bails on at
+  // touchstart/touchmove, and it hides .bottom-nav via CSS — closing both gaps for a
+  // destructive confirm. Guard on the open flag BEFORE touching the shared (non-
+  // refcounted) class — mirrors PostPaidSheet/ProUpgradeSheet's safe pattern.
+  useEffect(() => {
+    if (!confirmDeleteJob) return;
+    document.body.classList.add('overlay-open');
+    return () => document.body.classList.remove('overlay-open');
+  }, [confirmDeleteJob]);
   // confirmBookJob — job pending the "Mark booked" soft-confirm nudge; null = sheet closed.
   // Only set for a Quoted job with NO visit date (hasVisitDate false). The job stays
   // on Quoted until the trade picks an action in the sheet — nothing is ever blocked.

@@ -142,6 +142,17 @@ export default function TodayScreen({
   const [rankVersion, setRankVersion] = useState(0);
   // invoicePickerOpen: "Send an invoice" pivot button opened the job picker
   const [invoicePickerOpen, setInvoicePickerOpen] = useState(false);
+  // Gate the pager + hide the bottom nav while the invoice job-picker is open.
+  // The portal stops the visual drag-along, but React synthetic touch events still
+  // bubble from the portalled overlay up to .dp-viewport's swipe handlers, so a hard
+  // horizontal swipe could still page away and strand the picker. 'overlay-open' is
+  // the shared signal useDashboardPager bails on, and it hides .bottom-nav via CSS.
+  // Guard on the open flag before touching the shared (non-refcounted) class.
+  useEffect(() => {
+    if (!invoicePickerOpen) return;
+    document.body.classList.add('overlay-open');
+    return () => document.body.classList.remove('overlay-open');
+  }, [invoicePickerOpen]);
   // markPaidPickerJob: which job's payment-method picker is open (null = closed)
   const [markPaidPickerJob, setMarkPaidPickerJob] = useState(null);
   // dismissedAcceptedIds: set of job IDs whose accepted banner the trader has dismissed
