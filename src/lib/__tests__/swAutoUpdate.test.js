@@ -11,6 +11,16 @@
  * listener that reloads the page ONCE when a new SW takes control. A
  * module-level `swReloaded` flag prevents reload loops.
  *
+ * FOLLOW-UP (splash-reappears-on-navigation bug): that reload used to fire
+ * the INSTANT a new SW took control, even mid-session with the app fully
+ * foregrounded — remounting the whole tree, resetting authReady/
+ * splashMinElapsed to false, and replaying the full branded Splash. From the
+ * trader's seat that read as "the app randomly kicked me back to the splash
+ * screen while I was using it". The fix: (1) defer the reload until the tab
+ * is backgrounded (invisible either way), and (2) flag the reload via
+ * sessionStorage so the very next boot skips the artificial splash dwell
+ * floor instead of replaying it.
+ *
  * WHY NOT a JSDOM/RTL integration test:
  * navigator.serviceWorker is a browser-only API (ServiceWorkerContainer).
  * JSDOM stubs it inconsistently, and mocking the full lifecycle would test
@@ -24,6 +34,10 @@
  *   - The handler checks `swReloaded` before reloading (loop-guard is used)
  *   - `swReloaded = true` is set BEFORE window.location.reload() (set-before-reload order)
  *   - The listener is cleaned up (removeEventListener in the effect return)
+ *   - The reload is deferred (via a 'visibilitychange' → hidden check) rather
+ *     than firing unconditionally while the tab may be foregrounded
+ *   - The same sessionStorage key is written before the reload AND read by
+ *     splashMinElapsed's initialiser, so the next boot skips the splash dwell
  */
 
 import { describe, it, expect } from 'vitest';
@@ -146,5 +160,73 @@ describe('AppShell.jsx — SW auto-update registration guard', () => {
         'in the useEffect cleanup return so the listener is removed if the component unmounts ' +
         '(prevents a listener accumulation on HMR / strict-mode double-mounts in development).',
     ).toBe(true);
+  });
+
+  // ── Splash-reappears-on-navigation regression coverage ──────────────────────
+  // These guard the fix for the bug where an in-flight SW update reloaded the
+  // page (and replayed the full Splash) at any point mid-session, including
+  // while the app was foregrounded and the user was actively navigating.
+
+  it('does not reload immediately while the tab may be visible — defers via visibilitychange', () => {
+    src = src ?? readFileSync(appShellPath, 'utf8');
+    const hasVisibilityGate = src.includes("document.visibilityState === 'hidden'");
+    expect(
+      hasVisibilityGate,
+      "No `document.visibilityState === 'hidden'` check found in AppShell.jsx. " +
+        'The controllerchange handler must only reload immediately when the tab is already ' +
+        'hidden, and otherwise wait for the user to background it — an unconditional reload ' +
+        'can fire while the app is foregrounded mid-session, unmounting the tree and replaying ' +
+        'the full Splash on top of whatever the user was doing.',
+    ).toBe(true);
+
+    const hasDeferredListener =
+      src.includes("addEventListener('visibilitychange'") ||
+      src.includes('addEventListener("visibilitychange"');
+    expect(
+      hasDeferredListener,
+      "No 'visibilitychange' listener found in AppShell.jsx. " +
+        'The controllerchange handler must arm a visibilitychange listener to defer the reload ' +
+        'until the tab is backgrounded, rather than reloading the instant the SW takes control.',
+    ).toBe(true);
+
+    const cleansUpDeferredListener =
+      src.includes("removeEventListener('visibilitychange'") ||
+      src.includes('removeEventListener("visibilitychange"');
+    expect(
+      cleansUpDeferredListener,
+      'No removeEventListener for visibilitychange found in AppShell.jsx. ' +
+        'The deferred hidden-listener must be removed once it fires (and on effect cleanup) ' +
+        'to avoid a listener leak.',
+    ).toBe(true);
+  });
+
+  it('flags the SW-triggered reload via sessionStorage so the next boot can skip the splash dwell', () => {
+    src = src ?? readFileSync(appShellPath, 'utf8');
+
+    // The reload path and the splashMinElapsed initialiser must reference the
+    // SAME sessionStorage key, or the flag written before reload is never read.
+    const keyDeclMatch = /const\s+(\w+)\s*=\s*['"][\w.]*swReload[\w.]*['"]/i.exec(src);
+    expect(
+      keyDeclMatch,
+      'No sessionStorage key constant for the SW-reload splash-skip flag found in AppShell.jsx ' +
+        "(expected something like `const SW_RELOAD_SPLASH_SKIP_KEY = 'ohnar.swReload.skipSplashDwell';`).",
+    ).toBeTruthy();
+    const keyName = keyDeclMatch[1];
+
+    const setCount = src.split(`sessionStorage.setItem(${keyName}`).length - 1;
+    expect(
+      setCount,
+      `Expected \`sessionStorage.setItem(${keyName}, ...)\` to be called once, right before ` +
+        'window.location.reload() in the controllerchange handler, so the next boot can detect ' +
+        'this was an SW-triggered reload rather than a genuine cold start.',
+    ).toBeGreaterThan(0);
+
+    const getCount = src.split(`sessionStorage.getItem(${keyName}`).length - 1;
+    expect(
+      getCount,
+      `Expected \`sessionStorage.getItem(${keyName})\` to be read by splashMinElapsed's useState ` +
+        'initialiser, so a boot immediately following the SW reload skips the artificial splash ' +
+        'dwell floor instead of replaying the full ~1.2s branded animation.',
+    ).toBeGreaterThan(0);
   });
 });
