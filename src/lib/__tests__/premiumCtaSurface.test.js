@@ -185,3 +185,71 @@ describe('pipeline depth — Concept A "Lit Accent" (static)', () => {
     expect(css).toMatch(/\.stage-tile \{[\s\S]*transition: background 0\.15s/);
   });
 });
+
+// ── Pipeline circles "Filled Wells" (hybrid depth) — WFC slice of the
+// jobs-premium-pass. Reached circles = filled badge in a static per-stage
+// tint; future/skipped = recessed well. Guards the depth tokens, the
+// depth-first/glow-appended box-shadow ordering, and (load-bearing) that no
+// color-mix() ever lands in a WFC fill. ─────────────────────────────────────
+describe('pipeline circles — "Filled Wells" (hybrid depth)', () => {
+  it('defines the two neutral depth tokens in both themes', () => {
+    expect(css).toMatch(
+      /--wfc-circle-depth:\s*\n\s*inset 0 1px 0 rgba\(255, 255, 255, 0\.22\),\s*\n\s*inset 0 -1px 0 rgba\(0, 0, 0, 0\.16\),\s*\n\s*0 2px 5px -2px rgba\(0, 0, 0, 0\.38\)/
+    );
+    expect(css).toMatch(
+      /--wfc-well:\s*\n\s*inset 0 1px 2px rgba\(0, 0, 0, 0\.28\),\s*\n\s*inset 0 -1px 0 rgba\(255, 255, 255, 0\.05\)/
+    );
+    expect(css).toMatch(
+      /--wfc-circle-depth:\s*\n\s*inset 0 1px 0 rgba\(255, 255, 255, 0\.55\),\s*\n\s*inset 0 -1px 0 rgba\(9, 12, 20, 0\.10\),\s*\n\s*0 2px 5px -3px rgba\(9, 12, 20, 0\.18\)/
+    );
+    expect(css).toMatch(
+      /--wfc-well:\s*\n\s*inset 0 1px 2px rgba\(9, 12, 20, 0\.12\),\s*\n\s*inset 0 -1px 0 rgba\(255, 255, 255, 0\.6\)/
+    );
+  });
+
+  it('gives reached circles the depth token, with current/overdue glow APPENDED (never replacing it)', () => {
+    expect(css).toContain('box-shadow: var(--wfc-circle-depth)');
+    expect(css).toMatch(
+      /box-shadow: var\(--wfc-circle-depth\),\s*\n\s*0 0 0 3px color-mix\(in srgb, var\(--circle-colour, #2563EB\) 30%/
+    );
+    expect(css).toMatch(
+      /box-shadow: var\(--wfc-circle-depth\),\s*\n\s*0 0 0 3px color-mix\(in srgb, var\(--circle-colour, #2563EB\) 34%/
+    );
+  });
+
+  it('keeps was-overdue depth + the red trace together, scoped at variant level', () => {
+    expect(css).toMatch(
+      /\.wfc--compact \.wfc__circle--was-overdue,\s*\n\.wfc--full \.wfc__circle--was-overdue \{\s*\n\s*box-shadow: var\(--wfc-circle-depth\), var\(--wf-was-overdue-ring\);/
+    );
+  });
+
+  it('fills reached circles with a literal-rgba sheen layered over --circle-fill (never color-mix)', () => {
+    expect(css).toContain('var(--circle-fill, rgba(255, 255, 255, 0.06))');
+    expect(css).toMatch(
+      /linear-gradient\(180deg,\s*\n\s*rgba\(255, 255, 255, 0\.12\) 0%,/
+    );
+  });
+
+  it('gives future/skipped circles a recessed well, not a fill', () => {
+    expect(css).toContain('box-shadow: var(--wfc-well)');
+  });
+
+  it('adds `background` to the circle transition list (fill-sweep on stage advance)', () => {
+    expect(css).toMatch(
+      /\.wfc--compact \.wfc__circle,\s*\n\.wfc--full \.wfc__circle \{\s*\n\s*transition: border-color 0\.25s ease, color 0\.25s ease,\s*\n\s*box-shadow 0\.25s ease, transform 0\.25s ease, background 0\.25s ease;/
+    );
+  });
+
+  it('SAFARI GUARD: never puts color-mix() inside a .wfc__circle background/fill', () => {
+    expect(css).not.toMatch(/\.wfc__circle[^}]*background:[^;}]*color-mix/);
+    expect(css).not.toMatch(/background:[^;}]*color-mix\(in srgb, var\(--circle/);
+  });
+
+  it('adds NO sheen pseudo-element and NO new keyframes for the pipeline circles', () => {
+    // Restricted to a single selector line (no \n, no {/}) so this can't false-
+    // -positive on unrelated rules that merely mention .wfc__circle in a
+    // preceding comment (e.g. .jt--paid-sheen::after's doc block).
+    expect(css).not.toMatch(/\.wfc__circle[^{}\n]{0,40}::after\s*\{/);
+    expect(css).not.toMatch(/@keyframes\s+wfc-(sweep|sheen)/);
+  });
+});

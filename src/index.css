@@ -19633,6 +19633,22 @@ button.dp-totals-row--total.dp-totals-row--tap:active {
   --stage-tint-overdue:  rgba(249, 115, 22, 0.09);
   --stage-tint-paid:     rgba(21, 128, 61, 0.10);
 
+  /* ── Pipeline circle depth (jobs-premium-pass · "Filled Wells") — hue-neutral.
+     --wfc-circle-depth: inset specular top + dark foot + soft outer lift, used
+     on reached (completed/current/overdue/was-overdue) circles.
+     --wfc-well: recessed inset shadow, used on future/skipped circles.
+     Both are box-shadow-only, literal rgba — never color-mix() — so they never
+     touch a fill and stay Safari 15 safe. Per-stage colour comes from
+     --circle-fill (set inline, mapped to the --stage-tint-* tokens above), not
+     from these tokens — these are purely the neutral depth layer. ──────────── */
+  --wfc-circle-depth:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.16),
+    0 2px 5px -2px rgba(0, 0, 0, 0.38);
+  --wfc-well:
+    inset 0 1px 2px rgba(0, 0, 0, 0.28),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.05);
+
   /* ── Semantic workflow tokens ─────────────────────────────────────────────
      Component references ONLY these tokens — never the ohnar-* primitives
      directly. When the full OHNAR re-skin lands, update the mappings here
@@ -19669,6 +19685,15 @@ button.dp-totals-row--total.dp-totals-row--tap:active {
   --stage-tint-invoiced: rgba(245, 158, 11, 0.10);
   --stage-tint-overdue:  rgba(249, 115, 22, 0.10);
   --stage-tint-paid:     rgba(21, 128, 61, 0.10);
+
+  /* Pipeline circle depth — light-theme values (see dark :root for recipe notes). */
+  --wfc-circle-depth:
+    inset 0 1px 0 rgba(255, 255, 255, 0.55),
+    inset 0 -1px 0 rgba(9, 12, 20, 0.10),
+    0 2px 5px -3px rgba(9, 12, 20, 0.18);
+  --wfc-well:
+    inset 0 1px 2px rgba(9, 12, 20, 0.12),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.6);
 }
 
 /* ── WorkflowCircles — Six-Stage Brand Cycle (feat/workflow-circles-brand-cycle) ──
@@ -19985,6 +20010,130 @@ button.dp-totals-row--total.dp-totals-row--tap:active {
   color: var(--text-dim);
   opacity: 0.45;
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   PREMIUM PIPELINE DEPTH — "Filled Wells" (jobs-premium-pass · WFC slice)
+   Reached stages = softly-lit FILLED badges in their own static stage tint.
+   Future/skipped stages = recessed empty WELLS. The vivid ring + stage-hue
+   icon are UNCHANGED (AA preserved, no per-stage ink override needed). Depth is
+   hue-NEUTRAL (box-shadow + a literal white->black sheen) — never color-mix() in
+   a fill (Safari 15 safe). Per-stage colour comes from the inline --circle-fill
+   prop (set in WorkflowCircles.jsx) pointing at the existing static
+   --stage-tint-* tokens — palette-locked, no new per-stage hexes, no green-wash.
+   This block is same-specificity but later-in-source than the base state rules
+   above, so it overrides per-property; the 26/28/36px sizes, 2/2.5px borders
+   and icon colours cascade from those rules untouched (no reflow).
+   Reduced-motion: NO new @media needed — the existing prefers-reduced-motion
+   block already sets .wfc__circle{transition:none!important} which freezes the
+   added `background` transition below; static box-shadow depth stays.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Fill-sweep: re-declare the transition to append `background` (the
+   box-shadow morphs well->raised depth; background morphs the tint wash). */
+.wfc--compact .wfc__circle,
+.wfc--full .wfc__circle {
+  transition: border-color 0.25s ease, color 0.25s ease,
+              box-shadow 0.25s ease, transform 0.25s ease, background 0.25s ease;
+}
+
+/* REACHED — filled badge. Scoped under both variants so it BEATS the base
+   `.wfc__circle { background: transparent }`. Layer 1 neutral sheen (literal
+   rgba), layer 2 per-stage tint via --circle-fill (neutral fallback if the
+   prop is ever missing). */
+.wfc--compact .wfc__circle--completed,
+.wfc--compact .wfc__circle--current,
+.wfc--compact .wfc__circle--overdue,
+.wfc--compact .wfc__circle--was-overdue,
+.wfc--full .wfc__circle--completed,
+.wfc--full .wfc__circle--current,
+.wfc--full .wfc__circle--overdue,
+.wfc--full .wfc__circle--was-overdue {
+  background:
+    linear-gradient(180deg,
+      rgba(255, 255, 255, 0.12) 0%,
+      rgba(255, 255, 255, 0) 45%,
+      rgba(0, 0, 0, 0.10) 100%),
+    var(--circle-fill, rgba(255, 255, 255, 0.06));
+}
+[data-theme="light"] .wfc--compact .wfc__circle--completed,
+[data-theme="light"] .wfc--compact .wfc__circle--current,
+[data-theme="light"] .wfc--compact .wfc__circle--overdue,
+[data-theme="light"] .wfc--compact .wfc__circle--was-overdue,
+[data-theme="light"] .wfc--full .wfc__circle--completed,
+[data-theme="light"] .wfc--full .wfc__circle--current,
+[data-theme="light"] .wfc--full .wfc__circle--overdue,
+[data-theme="light"] .wfc--full .wfc__circle--was-overdue {
+  background:
+    linear-gradient(180deg,
+      rgba(255, 255, 255, 0.55) 0%,
+      rgba(255, 255, 255, 0) 50%,
+      rgba(9, 12, 20, 0.05) 100%),
+    var(--circle-fill, rgba(11, 19, 32, 0.05));
+}
+
+/* Reached depth: inset specular top + dark foot + soft outer lift.
+   box-shadow is ONE property, so emphasised states re-declare the FULL list —
+   depth FIRST, coloured glow APPENDED (never the reverse, or glow wipes depth). */
+.wfc__circle--completed {
+  box-shadow: var(--wfc-circle-depth);
+}
+
+/* Current — depth + per-stage glow (compact 30% / full 34%). scale(1.12) stays
+   on the existing base .wfc__circle--current rule. */
+.wfc--compact .wfc__circle--current {
+  box-shadow: var(--wfc-circle-depth),
+              0 0 0 3px color-mix(in srgb, var(--circle-colour, #2563EB) 30%, transparent);
+}
+.wfc--full .wfc__circle--current {
+  box-shadow: var(--wfc-circle-depth),
+              0 0 0 3px color-mix(in srgb, var(--circle-colour, #2563EB) 34%, transparent);
+}
+
+/* Overdue — depth + orange glow (compact ring-glow / full soft glow). */
+.wfc--compact .wfc__circle--overdue {
+  box-shadow: var(--wfc-circle-depth),
+              0 0 0 3px color-mix(in srgb, var(--stage-overdue) 32%, transparent);
+}
+.wfc--full .wfc__circle--overdue {
+  box-shadow: var(--wfc-circle-depth),
+              0 0 8px color-mix(in srgb, var(--stage-overdue) 48%, transparent);
+}
+
+/* Was-overdue — MUST be scoped at variant level: the base
+   `.wfc__circle--was-overdue` rule sets box-shadow to ONLY the red trace and
+   would clobber the depth otherwise. Depth first, red trace appended. */
+.wfc--compact .wfc__circle--was-overdue,
+.wfc--full .wfc__circle--was-overdue {
+  box-shadow: var(--wfc-circle-depth), var(--wf-was-overdue-ring);
+}
+
+/* FUTURE / SKIPPED — recessed empty well. Scoped under both variants to beat
+   the base transparent background. Ring + icon tokens untouched at full
+   alpha, so future circles read MORE present, never washed out. No outer
+   lift (a well shouldn't float). */
+.wfc--compact .wfc__circle--future,
+.wfc--compact .wfc__circle--skipped,
+.wfc--full .wfc__circle--future,
+.wfc--full .wfc__circle--skipped {
+  background: rgba(0, 0, 0, 0.16);
+  box-shadow: var(--wfc-well);
+}
+[data-theme="light"] .wfc--compact .wfc__circle--future,
+[data-theme="light"] .wfc--compact .wfc__circle--skipped,
+[data-theme="light"] .wfc--full .wfc__circle--future,
+[data-theme="light"] .wfc--full .wfc__circle--skipped {
+  background: rgba(9, 12, 20, 0.05);
+  box-shadow: var(--wfc-well);
+}
+
+/* CONNECTORS — whisper-quiet hue-neutral engrave: groove when undone, catches
+   light when done. NO height change (no card reflow), NO per-stage hue — the
+   circles carry all colour + depth so the row never rivals the CTA. */
+.wfc__connector { box-shadow: inset 0 1px 0 rgba(0, 0, 0, 0.14); }
+.wfc__connector--done { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.10); }
+[data-theme="light"] .wfc__connector { box-shadow: inset 0 1px 0 rgba(9, 12, 20, 0.08); }
+[data-theme="light"] .wfc__connector--done { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55); }
+.wfc__connector--skipped { box-shadow: none; }
 
 /* ── DocumentsHub — Design 2 (feat/document-records-design2, 2026-06) ─────── */
 

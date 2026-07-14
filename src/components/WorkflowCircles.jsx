@@ -27,6 +27,12 @@
  * per-stage class permutations. Future/skipped circles ignore --circle-colour
  * (overridden to --wf-future-ring via !important in the CSS state classes).
  *
+ * Each step also receives --circle-fill, pointing at the existing static
+ * --stage-tint-* resting-tint token for that stage (jobs-premium-pass Phase 0).
+ * Reached circles ("Filled Wells" depth treatment) layer a neutral sheen over
+ * this fill; future/skipped ignore it (recessed well instead). Static token —
+ * never color-mix() — so the fill stays Safari 15 safe.
+ *
  * Circle states (from workflowCircles.js — unchanged):
  *   future      — muted grey ring + muted grey icon (--wf-future-ring/icon)
  *   completed   — vivid coloured ring + icon
@@ -57,6 +63,19 @@ const STAGE_COLOUR_VAR = {
   Invoiced: 'var(--stage-invoiced)',
   Overdue:  'var(--stage-overdue)',
   Paid:     'var(--stage-paid)',
+};
+
+// ── Stage fill tokens — map stage name → the existing static resting-tint
+// tokens (jobs-premium-pass Phase 0). Used for the "Filled Wells" reached-
+// circle badge fill. Static rgba tokens only — never color-mix() — so the
+// fill stays Safari 15 safe.
+const STAGE_FILL_VAR = {
+  Lead:     'var(--stage-tint-lead)',
+  Quoted:   'var(--stage-tint-quoted)',
+  On:       'var(--stage-tint-on)',
+  Invoiced: 'var(--stage-tint-invoiced)',
+  Overdue:  'var(--stage-tint-overdue)',
+  Paid:     'var(--stage-tint-paid)',
 };
 
 // ── Icon map (Lucide names via Icon.jsx REGISTRY) ────────────────────────────
@@ -108,6 +127,7 @@ export default function WorkflowCircles({ job, variant = 'compact' }) {
       {circles.map(({ stage: s, state }, idx) => {
         const isFirst = idx === 0;
         const colourVar = STAGE_COLOUR_VAR[s];
+        const fillVar = STAGE_FILL_VAR[s];
         const prevState = idx > 0 ? circles[idx - 1].state : null;
 
         // Icon choice: the stage's own icon for all states, both variants.
@@ -127,7 +147,7 @@ export default function WorkflowCircles({ job, variant = 'compact' }) {
           <div
             key={s}
             className={`wfc__step wfc__step--${state}`}
-            style={{ '--circle-colour': colourVar }}
+            style={{ '--circle-colour': colourVar, '--circle-fill': fillVar }}
             aria-hidden="true"
           >
             {/* Connector line before every circle except the first */}
