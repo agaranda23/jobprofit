@@ -210,9 +210,15 @@ export default function DocumentPreview({
     const issued = new Date().toLocaleDateString('en-GB');
     const due = dueDate ? new Date(dueDate).toLocaleDateString('en-GB') : '';
     metaRows = [
-      { key: 'invoiceNumber', label: 'Invoice no', value: invoiceNumber || '+ Add', onClick: () => setEditingField('invoiceNumber') },
+      // Gated on the SPECIFIC persist handler each row writes through (not
+      // canEditJob/onJobPatch — these two persist via onInvoiceNumberChange/
+      // onDueDateChange, a separate ReviewSheet-level state channel). Without
+      // this gate a read-only caller (DocumentsHub) would still open the
+      // editor and flash a false "Invoice number updated"/"Due date updated"
+      // confirmation while saving nothing — mirrors the "Valid until" gate below.
+      { key: 'invoiceNumber', label: 'Invoice no', value: invoiceNumber || '+ Add', onClick: onInvoiceNumberChange ? () => setEditingField('invoiceNumber') : undefined },
       { key: 'issued', label: 'Issued', value: issued },
-      { key: 'due', label: 'Due', value: due || '+ Add', onClick: () => setEditingField('dueDate') },
+      { key: 'due', label: 'Due', value: due || '+ Add', onClick: onDueDateChange ? () => setEditingField('dueDate') : undefined },
     ];
   } else {
     const quoteNumber = job?.quoteNumber || (job?.id ? `Q-${String(job.id).slice(-4).toUpperCase()}` : '');
@@ -363,7 +369,15 @@ export default function DocumentPreview({
           </div>
         </div>
 
-        <p className="dp-hint">This is what your customer sees. Tap anything to change it.</p>
+        {/* State-aware — "Tap anything to change it" is only true when the
+            caller wired onJobPatch (canEditJob). Read-only callers (e.g.
+            DocumentsHub's view-first preview) omit it: most fields ARE NOT
+            tappable there, so the full hint would be a false promise. */}
+        <p className="dp-hint">
+          {canEditJob
+            ? 'This is what your customer sees. Tap anything to change it.'
+            : 'This is what your customer sees.'}
+        </p>
 
         {/* ── Recipient block — whole block tappable; never falls back to the
             job title (see distinctCustomer above) ──────────────────────────── */}
