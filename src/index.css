@@ -20112,6 +20112,76 @@ button.dp-totals-row--total.dp-totals-row--tap:active {
   color: var(--on-accent);
 }
 
+/* ── View-first document preview — Back control + action tray (2026-07) ────
+   .docs-hub-back-btn replaces the sheet title while previewOpen is true. */
+.docs-hub-back-btn {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: none;
+  border: none;
+  padding: 6px 6px 6px 0;
+  margin-left: -6px;
+  font-size: var(--fs-body);
+  font-weight: 700;
+  color: var(--text);
+  font-family: inherit;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.docs-hub-back-btn:active { opacity: 0.7; }
+
+/* Action tray — flex sibling of .docs-hub-body (NOT nested inside it), so it
+   stays pinned below the scrolling preview the same way the header/tabs stay
+   pinned above it — no sticky/position hacks needed. */
+.docs-hub-preview-tray {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex-shrink: 0;
+  padding-top: 4px;
+}
+.docs-hub-tray-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.docs-hub-tray-btn {
+  min-height: 46px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  font-family: inherit;
+  font-size: var(--fs-label);
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.docs-hub-tray-btn:disabled { opacity: 0.5; cursor: default; }
+.docs-hub-tray-btn:active   { opacity: 0.7; }
+
+/* Save PDF — primary CTA. Reuses the app-wide .btn-primary "Live Steel Blue"
+   recipe (var(--accent) + the PREMIUM PRIMARY BUTTON SYSTEM depth/sheen block
+   further down this file) via the className itself (see the JSX comment) —
+   project convention is "reuse .btn-primary, never fork a colour" (confirmed
+   2026-07). This modifier only adds layout on top, same as .rs-send-btn does
+   for ReviewSheet's primary CTA; no colour/background/border rules here. */
+.docs-hub-tray-btn--primary {
+  width: 100%;
+  min-height: 52px;
+  font-size: var(--fs-body);
+}
+
+.docs-hub-tray-btn--secondary {
+  background: none;
+}
+[data-theme="light"] .docs-hub-tray-btn--secondary { background: var(--surface-2); }
+
 /* Timeline */
 .docs-timeline {
   display: flex;

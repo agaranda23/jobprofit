@@ -10,10 +10,14 @@
  *  4. CustomerCard regression: acceptedSignature <img> NOT rendered in CustomerCard.
  *  5. Compact entry summary string derivation (both/quote-only/invoice-only/neither).
  *  6. Render-without-crash for open/closed × quotes/invoices combos (hooks-above-return guard).
+ *  7. View-first preview (2026-07): "View … PDF" opens DocumentPreview instantly
+ *     (no PDF call until Save/Share); Back returns to the timeline; Save persists
+ *     a public token and generates a REAL PDF (non-empty quoteUrl — "blocker B");
+ *     Copy link copies the hosted URL and flashes.
  */
 
-import { describe, it, expect, vi, beforeAll } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { describe, it, expect, vi, beforeAll, beforeEach } from 'vitest';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 
 // ── Mocks — must come before component imports ──────────────────────────────
 vi.mock('../../lib/supabase', () => ({
@@ -37,15 +41,59 @@ vi.mock('../../lib/store', () => ({
   getSignedPhotoUrl: vi.fn().mockResolvedValue(''),
   deleteJobPhoto: vi.fn(),
   getReceiptSignedUrl: vi.fn().mockResolvedValue(''),
+  // reissuePublicToken is called unconditionally on every DocumentsHub render
+  // (needed for Save/Share/Copy-link) — mirrors ReceiptModal/SendInvoiceModal's
+  // real reissuePublicToken: hands back the job's existing token unchanged, or
+  // mints a stable test token when the job has none yet.
+  reissuePublicToken: vi.fn((job) => ({
+    token: job?.publicAccessToken || 'mock-token-123',
+    wasRevoked: false,
+  })),
 }));
 
 vi.mock('../../lib/invoicePDF', () => ({
   downloadInvoicePDF: vi.fn().mockResolvedValue(null),
   downloadQuotePDF: vi.fn().mockResolvedValue(null),
+  getInvoicePDFBlob: vi.fn().mockResolvedValue(new Blob(['%PDF'], { type: 'application/pdf' })),
+  getQuotePDFBlob: vi.fn().mockResolvedValue(new Blob(['%PDF'], { type: 'application/pdf' })),
 }));
 
-vi.mock('../../lib/telemetry', () => ({ logTelemetry: vi.fn() }));
-vi.mock('../../lib/billing',   () => ({ getStripeUrl: vi.fn().mockResolvedValue('') }));
+vi.mock('../../lib/publicQuoteToken', () => ({
+  buildPublicQuoteUrl: vi.fn((token) => `https://ohnar.co.uk/q/${token}`),
+}));
+vi.mock('../../lib/publicInvoiceToken', () => ({
+  buildPublicInvoiceUrl: vi.fn((token) => `https://ohnar.co.uk/i/${token}`),
+}));
+vi.mock('qrcode', () => ({
+  default: { toDataURL: vi.fn().mockResolvedValue('data:image/png;base64,abc') },
+}));
+// canShareFile defaults false so Save/Share tests exercise the plain-download
+// fallback path deterministically (no navigator.share mock needed).
+vi.mock('../../lib/webShare', () => ({ canShareFile: vi.fn(() => false) }));
+
+vi.mock('../../lib/telemetry', () => ({
+  logTelemetry: vi.fn(),
+  setLastUpgradeTrigger: vi.fn(),
+  getLastUpgradeTrigger: vi.fn(),
+  UPGRADE_TRIGGERS: {
+    INSIGHT_LOCKED:    'insight_locked',
+    WHITELABEL_FOOTER: 'whitelabel_footer',
+    AUTO_CHASE_LOCKED: 'auto_chase_locked',
+    SETTINGS:          'settings',
+    TRIAL_BANNER:      'trial_banner',
+    TODAY_PILL:        'today_pill',
+    UPGRADE_BANNER:    'upgrade_banner',
+    TRIAL_END:         'trial_end',
+    DROP_TO_FREE:      'drop_to_free',
+  },
+}));
+vi.mock('../../lib/billing', () => ({
+  getStripeUrl: vi.fn().mockResolvedValue(''),
+  startCheckout: vi.fn().mockResolvedValue({ error: null }),
+  startCheckoutWithCoupon: vi.fn().mockResolvedValue({ error: null }),
+  startCheckoutImmediate: vi.fn().mockResolvedValue({ error: null }),
+  openBillingPortal: vi.fn().mockResolvedValue({ error: null }),
+}));
 vi.mock('../../lib/pushSubscribe', () => ({
   subscribeToPush: vi.fn(),
   unsubscribeFromPush: vi.fn(),
@@ -60,6 +108,7 @@ vi.mock('../../lib/realtime', () => ({
 // ── Component under test ─────────────────────────────────────────────────────
 import DocumentsHub from '../DocumentsHub';
 import JobDetailDrawer from '../JobDetailDrawer';
+import { downloadInvoicePDF, downloadQuotePDF } from '../../lib/invoicePDF';
 
 // ── Shared helpers ────────────────────────────────────────────────────────────
 
@@ -444,5 +493,127 @@ describe('CustomerCard regression — no signature image', () => {
       />
     );
     expect(screen.getByText(/accepted by card deposit/i)).toBeTruthy();
+  });
+});
+
+// ── 7. View-first document preview ──────────────────────────────────────────
+
+describe('DocumentsHub — view-first preview', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // jsdom has no real Clipboard API — stub it so handleCopyLink's success
+    // path is deterministic (jsdom doesn't crash on the call either way,
+    // since it's wrapped in try/catch, but we want to assert the SUCCESS toast).
+    Object.defineProperty(navigator, 'clipboard', {
+      value: { writeText: vi.fn().mockResolvedValue(undefined) },
+      configurable: true,
+    });
+  });
+
+  const PRICED_QUOTE_JOB = {
+    ...BASE_JOB,
+    quoteStatus: 'sent',
+    quoteSentAt: PAST,
+    total: 250,
+    amount: 250,
+  };
+
+  it('tapping "View quote PDF" opens the preview instantly — no PDF generated before the tap', () => {
+    renderHub(PRICED_QUOTE_JOB);
+    expect(downloadQuotePDF).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: /view quote pdf/i }));
+
+    // The read-only DocumentPreview facsimile is now showing.
+    expect(document.querySelector('.dp-paper')).not.toBeNull();
+    // Still no PDF call — preview render must not trigger PDF generation.
+    expect(downloadQuotePDF).not.toHaveBeenCalled();
+  });
+
+  it('Back returns to the timeline and hides the preview', () => {
+    renderHub(PRICED_QUOTE_JOB);
+    fireEvent.click(screen.getByRole('button', { name: /view quote pdf/i }));
+    expect(document.querySelector('.dp-paper')).not.toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: /back to documents/i }));
+
+    expect(document.querySelector('.dp-paper')).toBeNull();
+    expect(screen.getByRole('button', { name: /view quote pdf/i })).toBeTruthy();
+  });
+
+  it('Save PDF persists a public token (job had none) and generates a REAL PDF (non-empty quoteUrl)', async () => {
+    const onUpdateJob = vi.fn();
+    const jobNoToken = { ...PRICED_QUOTE_JOB, publicAccessToken: null };
+    renderHub(jobNoToken, { onUpdateJob });
+
+    fireEvent.click(screen.getByRole('button', { name: /view quote pdf/i }));
+    fireEvent.click(screen.getByRole('button', { name: /save pdf/i }));
+
+    await waitFor(() => expect(downloadQuotePDF).toHaveBeenCalledTimes(1));
+
+    // Token persisted via onUpdateJob BEFORE the PDF call (blocker A).
+    expect(onUpdateJob).toHaveBeenCalledWith(
+      expect.objectContaining({ publicAccessToken: 'mock-token-123' })
+    );
+
+    // Blocker B: quoteUrl/qrDataUrl must be REAL, not the old '' / '' link-less call.
+    const callArgs = downloadQuotePDF.mock.calls[0][0];
+    expect(callArgs.quoteUrl).toBe('https://ohnar.co.uk/q/mock-token-123');
+    expect(callArgs.qrDataUrl).toBe('data:image/png;base64,abc');
+  });
+
+  it('Save PDF does NOT persist a token when one already exists on the job', async () => {
+    const onUpdateJob = vi.fn();
+    const jobWithToken = { ...PRICED_QUOTE_JOB, publicAccessToken: 'existing-token' };
+    renderHub(jobWithToken, { onUpdateJob });
+
+    fireEvent.click(screen.getByRole('button', { name: /view quote pdf/i }));
+    fireEvent.click(screen.getByRole('button', { name: /save pdf/i }));
+
+    await waitFor(() => expect(downloadQuotePDF).toHaveBeenCalledTimes(1));
+    expect(onUpdateJob).not.toHaveBeenCalled();
+    expect(downloadQuotePDF.mock.calls[0][0].quoteUrl).toBe('https://ohnar.co.uk/q/existing-token');
+  });
+
+  it('Save PDF on the Invoices tab calls downloadInvoicePDF with the job\'s invoice number/due date', async () => {
+    const invoiceJob = {
+      ...BASE_JOB,
+      invoiceSentAt: PAST,
+      invoiceNumber: 'INV-42',
+      invoiceDueDate: '2026-02-01',
+      total: 500,
+      amount: 500,
+    };
+    renderHub(invoiceJob, { onUpdateJob: vi.fn() });
+
+    fireEvent.click(screen.getByRole('tab', { name: /invoices/i }));
+    fireEvent.click(screen.getByRole('button', { name: /view invoice pdf/i }));
+    fireEvent.click(screen.getByRole('button', { name: /save pdf/i }));
+
+    await waitFor(() => expect(downloadInvoicePDF).toHaveBeenCalledTimes(1));
+    const callArgs = downloadInvoicePDF.mock.calls[0][0];
+    expect(callArgs.invoiceNumber).toBe('INV-42');
+    expect(callArgs.dueDate).toBe('2026-02-01');
+  });
+
+  it('Copy link copies the hosted URL and flashes "Link copied"', async () => {
+    const flash = vi.fn();
+    const jobWithToken = { ...PRICED_QUOTE_JOB, publicAccessToken: 'existing-token' };
+    renderHub(jobWithToken, { flash, onUpdateJob: vi.fn() });
+
+    fireEvent.click(screen.getByRole('button', { name: /view quote pdf/i }));
+    fireEvent.click(screen.getByRole('button', { name: /copy link/i }));
+
+    await waitFor(() => expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+      'https://ohnar.co.uk/q/existing-token'
+    ));
+    await waitFor(() => expect(flash).toHaveBeenCalledWith('Link copied'));
+  });
+
+  it('renders the preview without crashing when onUpdateJob/flash are omitted (optional props)', () => {
+    expect(() => {
+      renderHub(PRICED_QUOTE_JOB);
+      fireEvent.click(screen.getByRole('button', { name: /view quote pdf/i }));
+    }).not.toThrow();
   });
 });

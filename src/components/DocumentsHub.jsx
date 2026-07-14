@@ -4,6 +4,18 @@
  *
  * Design 2, 2026-06. PRD spec implemented by ENG (Alaister / al-jobprofit).
  *
+ * View-first document preview (2026-07): tapping "View … PDF" no longer
+ * downloads a file straight away — it opens the branded DocumentPreview
+ * (read-only; the same facsimile ReviewSheet uses before a send) inside this
+ * sheet, with a Back control to return to the timeline. PDF generation is
+ * deferred until the trader actually taps Save/Share in the action tray under
+ * the preview — the preview itself renders instantly with no PDF wait. Save,
+ * Share and Copy link are PERSONAL actions (view/keep a copy) — unlike
+ * ReviewSheet/SendInvoiceModal's send paths, none of them set
+ * quoteSentAt/invoiceSentAt or otherwise mutate the job's send-state; the only
+ * job write is persisting publicAccessToken (idempotent — see persistToken
+ * below) so the embedded quote link/QR and the Copy-link URL resolve.
+ *
  * Architecture notes:
  *  - ALL hooks are declared before any early return (R1 — see PR #125 trap).
  *  - GatedSignature is a sub-component defined in this file; its hooks also
@@ -14,10 +26,23 @@
 
 import { useState } from 'react';
 import { createPortal } from 'react-dom';
+import QRCode from 'qrcode';
 import { buildQuoteRecordMeta, buildInvoiceRecordMeta } from '../lib/documentRecord';
-import { downloadQuotePDF, downloadInvoicePDF } from '../lib/invoicePDF';
+import {
+  downloadQuotePDF,
+  downloadInvoicePDF,
+  getQuotePDFBlob,
+  getInvoicePDFBlob,
+} from '../lib/invoicePDF';
 import { isPro } from '../lib/plan';
 import { formatPartPaidLabel } from '../lib/partPaidChip';
+import { buildPublicQuoteUrl } from '../lib/publicQuoteToken';
+import { buildPublicInvoiceUrl } from '../lib/publicInvoiceToken';
+import { reissuePublicToken } from '../lib/store';
+import { canShareFile } from '../lib/webShare';
+import { logTelemetry } from '../lib/telemetry';
+import DocumentPreview from './DocumentPreview';
+import Icon from './Icon';
 
 // ─── Internal date formatter ──────────────────────────────────────────────────
 // Mirrors fmtDate in JobDetailDrawer.jsx — en-GB, day numeric, month short, year.
@@ -187,12 +212,38 @@ function DocumentTimeline({ steps }) {
  *   onClose: () => void,
  *   onBuildQuote: () => void,
  *   onSendInvoice: () => void,
+ *   onUpdateJob?: (updatedJob: object) => void — persists job field updates.
+ *     Required for Save/Share/Copy-link to persist a public token when one
+ *     doesn't already exist. Omitting it degrades gracefully: the preview
+ *     still opens and PDFs still generate, just without a live link/QR
+ *     embedded (mirrors ReceiptModal's optional onUpdate).
+ *   flash?: (msg: string) => void — toast callback.
+ *   onProfileUpdate?: (patch: object) => Promise<void> — threaded straight
+ *     into DocumentPreview so a mid-preview logo/business-name edit saves via
+ *     the app's central profile pipeline (same as ReviewSheet); falls back to
+ *     a direct Supabase write when omitted (DocumentPreview's own fallback).
  * }} props
  */
-export default function DocumentsHub({ open, job, biz, profile, onClose, onBuildQuote, onSendInvoice }) {
+export default function DocumentsHub({
+  open,
+  job,
+  biz,
+  profile,
+  onClose,
+  onBuildQuote,
+  onSendInvoice,
+  onUpdateJob,
+  flash,
+  onProfileUpdate,
+}) {
   // R1: ALL hooks above any early return.
   const [tab, setTab]             = useState('quotes');
-  const [generating, setGenerating] = useState(false);
+  // previewOpen: toggles the sheet's body between the timeline/record card and
+  // the DocumentPreview "screen" — see the view-first note above the imports.
+  const [previewOpen, setPreviewOpen] = useState(false);
+  // busy: disables the Save/Share tray buttons while a PDF is being generated
+  // and handed to the OS share sheet / download — mirrors ReceiptModal's busy.
+  const [busy, setBusy] = useState(false);
 
   // Early return AFTER hooks
   if (!open) return null;
@@ -280,51 +331,169 @@ export default function DocumentsHub({ open, job, biz, profile, onClose, onBuild
     },
   ];
 
-  // ── PDF handlers ──────────────────────────────────────────────────────────
-  async function handleViewPDF() {
-    if (generating) return;
-    setGenerating(true);
-    try {
-      if (tab === 'quotes') {
-        await downloadQuotePDF({
-          job,
-          biz,
-          profile,
-          quoteUrl: '',
-          qrDataUrl: '',
-          hidePoweredBy: isPro(profile),
-        });
-      } else {
-        await downloadInvoicePDF({
-          job,
-          biz,
-          profile,
-          invoiceNumber: job?.invoiceNumber,
-          dueDate:       job?.invoiceDueDate,
-          hidePoweredBy: isPro(profile),
-        });
-      }
-    } catch (err) {
-      console.error('[DocumentsHub] PDF generation failed', err);
-    } finally {
-      setGenerating(false);
-    }
-  }
-
   // ── Derived labels ────────────────────────────────────────────────────────
   const invoiceDocLabel = job?.invoiceNumber ? `Invoice ${job.invoiceNumber}` : 'Invoice';
   const activeRecord    = tab === 'quotes' ? quoteRecord : invoiceRecord;
   const docIsNone       = tab === 'quotes' ? quoteIsNone : invoiceIsNone;
   const isSigned        = !!(job?.acceptedAt || quoteRecord.state === 'signed' || quoteRecord.state === 'accepted');
+  const docType         = tab === 'quotes' ? 'quote' : 'invoice';
 
   // PDF button label: signed quote → "View signed PDF"; unsigned → "View quote PDF"; invoice → "View invoice PDF"
-  let pdfBtnLabel;
-  if (generating) {
-    pdfBtnLabel = 'Generating…';
-  } else if (tab === 'quotes') {
-    pdfBtnLabel = isSigned ? 'View signed PDF' : 'View quote PDF';
-  } else {
-    pdfBtnLabel = 'View invoice PDF';
+  const pdfBtnLabel = tab === 'quotes'
+    ? (isSigned ? 'View signed PDF' : 'View quote PDF')
+    : 'View invoice PDF';
+
+  // ── Public token — Save/Share/Copy-link all need a live URL to embed/copy.
+  // Mirrors ReceiptModal's persistToken() pattern exactly: reissuePublicToken
+  // recomputes fresh each render (cheap — it only mints a new UUID when the
+  // job has no token yet or the previous one was revoked; otherwise it hands
+  // back the SAME existing job.publicAccessToken), and persistToken() writes
+  // it via onUpdateJob only when needed. Because every action below reads
+  // `token` from the SAME render pass it fires in, and onUpdateJob's result
+  // flows back down as a fresh `job` prop before the trader's next tap, the
+  // three actions never race each other into minting different tokens.
+  const { token, wasRevoked: tokenWasRevoked } = reissuePublicToken(job);
+
+  function persistToken() {
+    if (onUpdateJob && (tokenWasRevoked || !job?.publicAccessToken)) {
+      onUpdateJob({
+        ...job,
+        publicAccessToken: token,
+        ...(tokenWasRevoked ? { publicTokenRevokedAt: undefined } : {}),
+      });
+    }
+  }
+
+  function docTitle() {
+    return tab === 'quotes' ? 'Quote' : invoiceDocLabel;
+  }
+
+  function pdfFileName() {
+    if (tab === 'quotes') {
+      const customer = (job?.customer || 'quote').replace(/\s/g, '-');
+      return `quote-${customer}.pdf`;
+    }
+    return `${job?.invoiceNumber || 'invoice'}.pdf`;
+  }
+
+  // Builds the args object each PDF helper expects. Quote mode embeds the
+  // hosted quote link + QR (mirrors ReviewSheet.handleQuoteDownloadPDF exactly
+  // — this is "blocker B", the link-less/QR-less PDF the founder flagged).
+  // Invoice mode intentionally omits a link/QR: generateInvoicePDF only draws
+  // a QR for a Stripe payNowUrl (Pay-now), which DocumentsHub does not own —
+  // ReviewSheet's own invoice download omits it too ("ReviewSheet doesn't
+  // have a payNowUrl — omitting it renders the PDF as before"). Wiring
+  // Pay-now generation into DocumentsHub is a SendInvoiceModal-sized feature,
+  // out of scope for this view-first preview slice.
+  async function buildPdfArgs() {
+    if (tab === 'quotes') {
+      const quoteUrl = buildPublicQuoteUrl(token);
+      let qrDataUrl = '';
+      try {
+        qrDataUrl = await QRCode.toDataURL(quoteUrl, {
+          width: 128,
+          margin: 1,
+          errorCorrectionLevel: 'M',
+        });
+      } catch {
+        // QR generation failed — proceed without it, same fallback ReviewSheet uses.
+      }
+      return { job, biz, profile, quoteUrl, qrDataUrl, hidePoweredBy: isPro(profile) };
+    }
+    return {
+      job,
+      biz,
+      profile,
+      invoiceNumber: job?.invoiceNumber,
+      dueDate:       job?.invoiceDueDate,
+      hidePoweredBy: isPro(profile),
+    };
+  }
+
+  // Shared PDF → File → share-or-download core for Save and Share. Mirrors
+  // the exact ReceiptModal/SendInvoiceModal pattern: getBlob → new File →
+  // canShareFile → navigator.share, else fall back to the real PDF download
+  // (never a naked <a download> — satisfies the iOS "route through the share
+  // sheet naturally" requirement, since canShareFile is true on iOS Safari).
+  async function generateAndDeliver({ withTitle }) {
+    const args = await buildPdfArgs();
+    const getBlob    = tab === 'quotes' ? getQuotePDFBlob    : getInvoicePDFBlob;
+    const downloadFn = tab === 'quotes' ? downloadQuotePDF   : downloadInvoicePDF;
+    const blob = await getBlob(args);
+    const file = new File([blob], pdfFileName(), { type: 'application/pdf' });
+    if (canShareFile(file)) {
+      await navigator.share(withTitle ? { files: [file], title: docTitle() } : { files: [file] });
+      return 'shared';
+    }
+    await downloadFn(args);
+    return 'downloaded';
+  }
+
+  function handleOpenPreview() {
+    setPreviewOpen(true);
+    logTelemetry('document_preview_opened', { docType });
+  }
+
+  function handleClosePreview() {
+    setPreviewOpen(false);
+  }
+
+  // Save PDF — primary tray CTA. No text/title on the share call so the OS
+  // share sheet leads with Save-to-Files/Save-to-Photos style targets rather
+  // than messaging apps (that's Share's job, below).
+  async function handleSavePDF() {
+    if (busy) return;
+    setBusy(true);
+    persistToken();
+    logTelemetry(`${docType}_send`, { channel: 'save', source: 'docs_hub_preview' });
+    try {
+      await generateAndDeliver({ withTitle: false });
+      flash?.(tab === 'quotes' ? 'Quote saved' : 'Invoice saved');
+    } catch (err) {
+      if (err?.name !== 'AbortError') {
+        console.error('[DocumentsHub] Save PDF failed', err);
+        flash?.('Could not save — try again');
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // Share — secondary tray action. Opens the OS share sheet with a title so
+  // the file is identifiable in Notes/Files/WhatsApp etc.
+  async function handleShare() {
+    if (busy) return;
+    setBusy(true);
+    persistToken();
+    logTelemetry(`${docType}_send`, { channel: 'share', source: 'docs_hub_preview' });
+    try {
+      const outcome = await generateAndDeliver({ withTitle: true });
+      flash?.(outcome === 'shared'
+        ? (tab === 'quotes' ? 'Quote shared' : 'Invoice shared')
+        : 'Saved — share it from your Files app');
+    } catch (err) {
+      if (err?.name !== 'AbortError') {
+        console.error('[DocumentsHub] Share PDF failed', err);
+        flash?.('Could not share — try again');
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  // Copy link — tertiary tray action. Persists the token first so the copied
+  // URL always resolves, then copies via the clipboard API (mirrors
+  // SettingsScreen's handleCopy "books link" pattern).
+  async function handleCopyLink() {
+    persistToken();
+    const url = tab === 'quotes' ? buildPublicQuoteUrl(token) : buildPublicInvoiceUrl(token);
+    try {
+      await navigator.clipboard.writeText(url);
+      flash?.('Link copied');
+      logTelemetry('document_preview_link_copied', { docType });
+    } catch {
+      flash?.('Could not copy — try again');
+    }
   }
 
   // FIX 1: sheet is nested INSIDE the backdrop (not a sibling fragment).
@@ -359,9 +528,23 @@ export default function DocumentsHub({ open, job, biz, profile, onClose, onBuild
         aria-label="Documents & signatures"
         onClick={e => e.stopPropagation()}
       >
-        {/* Header: title + close button (top-right), matching the Add-a-line sheet */}
+        {/* Header — swaps to a Back control while the preview screen is open;
+            the close (✕) button stays put in both modes so the whole sheet
+            is always one tap from closing regardless of view. */}
         <div className="modal-sheet-header">
-          <h2 className="modal-sheet-title rs-title">Documents &amp; signatures</h2>
+          {previewOpen ? (
+            <button
+              type="button"
+              className="docs-hub-back-btn"
+              onClick={handleClosePreview}
+              aria-label="Back to documents"
+            >
+              <Icon name="chevron-left" size={20} />
+              Back
+            </button>
+          ) : (
+            <h2 className="modal-sheet-title rs-title">Documents &amp; signatures</h2>
+          )}
           <button
             type="button"
             className="modal-sheet-close"
@@ -372,35 +555,56 @@ export default function DocumentsHub({ open, job, biz, profile, onClose, onBuild
           </button>
         </div>
 
-        {/* Tab switcher */}
-        <div
-          className="work-segments docs-hub-tabs"
-          role="tablist"
-          aria-label="Document type"
-        >
-          <button
-            type="button"
-            className={`work-segment${tab === 'quotes' ? ' work-segment--active' : ''}`}
-            role="tab"
-            aria-selected={tab === 'quotes'}
-            onClick={() => setTab('quotes')}
+        {/* Tab switcher — hidden while previewing (switching doc type mid-
+            preview would show a stale doc type); Back returns to it. */}
+        {!previewOpen && (
+          <div
+            className="work-segments docs-hub-tabs"
+            role="tablist"
+            aria-label="Document type"
           >
-            Quotes
-          </button>
-          <button
-            type="button"
-            className={`work-segment${tab === 'invoices' ? ' work-segment--active' : ''}`}
-            role="tab"
-            aria-selected={tab === 'invoices'}
-            onClick={() => setTab('invoices')}
-          >
-            Invoices
-          </button>
-        </div>
+            <button
+              type="button"
+              className={`work-segment${tab === 'quotes' ? ' work-segment--active' : ''}`}
+              role="tab"
+              aria-selected={tab === 'quotes'}
+              onClick={() => setTab('quotes')}
+            >
+              Quotes
+            </button>
+            <button
+              type="button"
+              className={`work-segment${tab === 'invoices' ? ' work-segment--active' : ''}`}
+              role="tab"
+              aria-selected={tab === 'invoices'}
+              onClick={() => setTab('invoices')}
+            >
+              Invoices
+            </button>
+          </div>
+        )}
 
         {/* Body — scrolls; header+tabs are sticky */}
         <div className="docs-hub-body">
-          {docIsNone ? (
+          {previewOpen ? (
+            /* View-first preview — read-only facsimile (onJobPatch/
+               onInvoiceNumberChange/onDueDateChange all omitted, per the
+               DocumentPreview "onEdit optional" convention). Logo/business
+               identity stay tappable — those persist to the PROFILE, not the
+               job, via onProfileUpdate, same as everywhere else DocumentPreview
+               is used. Renders instantly; no PDF is generated until Save/Share. */
+            <DocumentPreview
+              mode={tab === 'quotes' ? 'quote' : 'invoice'}
+              job={job}
+              biz={biz}
+              profile={profile}
+              depositPercent={Number(job?.deposit_percent ?? 0)}
+              invoiceNumber={job?.invoiceNumber}
+              dueDate={job?.invoiceDueDate}
+              onProfileUpdate={onProfileUpdate}
+              flash={flash}
+            />
+          ) : docIsNone ? (
             /* Empty state */
             <div className="docs-hub-empty">
               <p className="docs-hub-empty-text">
@@ -437,19 +641,58 @@ export default function DocumentsHub({ open, job, biz, profile, onClose, onBuild
                 <GatedSignature job={job} />
               )}
 
-              {/* View PDF — green primary CTA */}
+              {/* View PDF — opens the read-only preview above; green primary CTA */}
               <button
                 type="button"
                 className="docs-hub-view-pdf-btn docs-hub-view-pdf-btn--green"
-                onClick={handleViewPDF}
-                disabled={generating}
-                aria-label={generating ? 'Generating PDF…' : pdfBtnLabel}
+                onClick={handleOpenPreview}
+                aria-label={pdfBtnLabel}
               >
                 {pdfBtnLabel}
               </button>
             </div>
           )}
         </div>
+
+        {/* Action tray — Save (primary) · Share · Copy link. Pinned below the
+            scrolling preview as a flex sibling of .docs-hub-body (same pattern
+            the header/tabs use to stay put above it), so it's always reachable
+            without scrolling. Save reuses the app-wide .btn-primary "Live Steel
+            Blue" recipe (var(--accent), PREMIUM PRIMARY BUTTON SYSTEM further
+            down index.css) — same convention as ReviewSheet's .rs-send-btn —
+            rather than a one-off colour; .docs-hub-tray-btn--primary only adds
+            layout on top, same as .rs-send-btn does. */}
+        {previewOpen && (
+          <div className="docs-hub-preview-tray">
+            <button
+              type="button"
+              className="btn-primary docs-hub-tray-btn--primary"
+              onClick={handleSavePDF}
+              disabled={busy}
+            >
+              {busy ? 'Working…' : 'Save PDF'}
+            </button>
+            <div className="docs-hub-tray-row">
+              <button
+                type="button"
+                className="docs-hub-tray-btn docs-hub-tray-btn--secondary"
+                onClick={handleShare}
+                disabled={busy}
+              >
+                <Icon name="share" size={16} />
+                Share
+              </button>
+              <button
+                type="button"
+                className="docs-hub-tray-btn docs-hub-tray-btn--secondary"
+                onClick={handleCopyLink}
+              >
+                <Icon name="link" size={16} />
+                Copy link
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>,
     document.body,

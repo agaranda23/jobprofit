@@ -4672,6 +4672,9 @@ export default function JobDetailDrawer({
           biz={biz ?? {}}
           profile={profile ?? null}
           onClose={() => setDocsHubOpen(false)}
+          onUpdateJob={onUpdateJob}
+          flash={showFlash}
+          onProfileUpdate={onProfileUpdate}
           onBuildQuote={() => {
             setDocsHubOpen(false);
             if (needsPrice(job)) openPriceEditor();
