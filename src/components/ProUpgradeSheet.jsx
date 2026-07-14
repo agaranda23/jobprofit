@@ -179,14 +179,21 @@ export default function ProUpgradeSheet({
   // Prevent body scroll while sheet is open, and gate the pager.
   // 'overlay-open' is the shared signal checked by useDashboardPager so it
   // disables horizontal swipe when any sheet/drawer/modal is in front.
+  // Guard `if (!open) return` BEFORE touching the shared class — mirrors
+  // PostPaidSheet's safe pattern. 'overlay-open' is a plain boolean flag shared by
+  // several sheets (not refcounted), and this component is mounted UNCONDITIONALLY
+  // (open starts false) at every call site. The previous unconditional if/else ran
+  // the else-branch's classList.remove('overlay-open') on the very first mount —
+  // stripping the class even though this instance never added it. When a
+  // ProUpgradeSheet mounted inside an already-open JobDetailDrawer (e.g. the
+  // document-preview / post-send white-label nudge), that silently removed the
+  // drawer's own guard, re-enabling the horizontal swipe pager behind it and
+  // letting a drag peek the Jobs list. React's cleanup-on-close still removes the
+  // class on a real close, so legitimate behaviour is unchanged.
   useEffect(() => {
-    if (open) {
-      document.body.style.overflow = 'hidden';
-      document.body.classList.add('overlay-open');
-    } else {
-      document.body.style.overflow = '';
-      document.body.classList.remove('overlay-open');
-    }
+    if (!open) return;
+    document.body.style.overflow = 'hidden';
+    document.body.classList.add('overlay-open');
     return () => {
       document.body.style.overflow = '';
       document.body.classList.remove('overlay-open');

@@ -50,6 +50,7 @@ import {
 import { uploadJobPhoto, getSignedPhotoUrl, deleteJobPhoto, getReceiptSignedUrl, revokePublicLink } from '../lib/store';
 import { buildDeleteJobCopy } from '../lib/deleteJobCopy';
 import { secureImageUrl } from '../lib/secureImageUrl';
+import { isSwipeBlockedTarget } from '../lib/jobDetailHeaderSwipe';
 import { extractJobMeta } from '../lib/jobMeta';
 import { buildWhatsAppLink } from '../lib/invoiceMessage';
 import { logTelemetry } from '../lib/telemetry';
@@ -2416,12 +2417,11 @@ export default function JobDetailDrawer({
     isCentred: false,   // ≥600px layout — sheet is centred via translateX(-50%); every inline transform must compose it
   });
 
-  // Taps on these must keep working as taps — never start a drag. Covers the
-  // kebab button + its open dropdown menu explicitly (it's an absolutely
-  // positioned overflow menu, not full-header, so it wouldn't otherwise be
-  // excluded by geometry alone).
-  const isSwipeBlockedTarget = (el) =>
-    !!el?.closest?.('button, a, input, [role="button"], .jd-kebab-menu, .jd-kebab-wrap');
+  // isSwipeBlockedTarget (imported from ../lib/jobDetailHeaderSwipe) decides which
+  // header pointerdown targets must NOT start a drag: interactive controls (incl.
+  // the kebab menu) AND read-only tappable-looking chips (.jd-money-chip /
+  // .jd-hero-price). A press-drift on those chips used to arm the swipe and peek
+  // the Jobs list behind the drawer — see that module for the full rationale.
 
   const resetSwipeVisuals = (animate) => {
     const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
