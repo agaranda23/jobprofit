@@ -198,11 +198,31 @@ describe('TodayScreen — pulse dopamine cards (item 1)', () => {
     expect(document.querySelector('.today-pulse-card--collect')).toBeNull();
   });
 
-  it('shows "jobs on" only when there is a real active job', () => {
+  it('shows a named job strip (not a bare count) when there is exactly one real active job', () => {
     renderToday([activeJob('j1', 300)], PROFILE_FREE);
     const card = document.querySelector('.today-pulse-card--on');
     expect(card).not.toBeNull();
-    expect(card.textContent).toMatch(/1\s*job on/i);
+    // Stage chip — reuses the same .jt-stage-name--on chip as the Jobs tab,
+    // so Today and the pipeline speak one "On" language.
+    const chip = card.querySelector('.jt-stage-name--on');
+    expect(chip).not.toBeNull();
+    expect(chip.textContent).toBe('On');
+    // The fixture has no name/summary/customer — the strip must fall back to
+    // the literal "Active job" rather than inventing one.
+    expect(card.textContent).toMatch(/Active job/);
+    // Real £ value pulled from the job, not a bare digit.
+    expect(card.textContent).toMatch(/£300/);
+    // date is "now" in the fixture — 0 days on.
+    expect(card.textContent).toMatch(/just started/i);
+  });
+
+  it('tapping the named "on" strip deep-links straight to that job (onJobTap), not the Jobs list', () => {
+    const onJobTap = vi.fn();
+    const job = activeJob('j1', 300);
+    renderToday([job], PROFILE_FREE, { onJobTap });
+    fireEvent.click(document.querySelector('.today-pulse-card--on'));
+    expect(onJobTap).toHaveBeenCalledTimes(1);
+    expect(onJobTap).toHaveBeenCalledWith(job);
   });
 
   it('shows "ahead of last week" only with a genuine positive prior-week comparison', () => {

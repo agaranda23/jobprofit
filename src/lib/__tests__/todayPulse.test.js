@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { waitingToCollectTotal, jobsOnCount, weekOverWeek } from '../todayPulse';
+import { waitingToCollectTotal, jobsOn, jobsOnCount, oldestOnJob, daysOnCount, daysOnLabel, weekOverWeek } from '../todayPulse';
 
 // ── Fixtures ─────────────────────────────────────────────────────────────────
 
@@ -50,7 +50,25 @@ describe('waitingToCollectTotal', () => {
   });
 });
 
-// ── jobsOnCount ────────────────────────────────────────────────────────────────
+// ── jobsOn / jobsOnCount ─────────────────────────────────────────────────────
+
+describe('jobsOn', () => {
+  it('returns the actual On job objects (not just a count)', () => {
+    const on1 = activeJob('j1', 100);
+    const on2 = completeJob('j2', 200);
+    const jobs = [on1, on2, leadJob('j3', 50)];
+    expect(jobsOn(jobs)).toEqual([on1, on2]);
+  });
+
+  it('returns an empty array — never throws — for an empty jobs list', () => {
+    expect(jobsOn([])).toEqual([]);
+  });
+
+  it('returns an empty array when no job is On', () => {
+    const jobs = [invoiceSentJob('j1', 100), paidJobOn('j2', 200, 1), leadJob('j3', 50)];
+    expect(jobsOn(jobs)).toEqual([]);
+  });
+});
 
 describe('jobsOnCount', () => {
   it('counts active and complete-but-not-invoiced jobs as "On"', () => {
@@ -65,6 +83,76 @@ describe('jobsOnCount', () => {
 
   it('returns 0 for an empty jobs list', () => {
     expect(jobsOnCount([])).toBe(0);
+  });
+
+  it('stays in lockstep with jobsOn — count always equals jobsOn(jobs).length', () => {
+    const jobs = [activeJob('j1', 100), completeJob('j2', 200), leadJob('j3', 50), invoiceSentJob('j4', 400)];
+    expect(jobsOnCount(jobs)).toBe(jobsOn(jobs).length);
+  });
+});
+
+// ── oldestOnJob ──────────────────────────────────────────────────────────────
+
+describe('oldestOnJob', () => {
+  it('picks the job with the oldest date/createdAt among a set of On jobs', () => {
+    const now = Date.now();
+    const newer = { id: 'newer', date: new Date(now - 2 * 86400000).toISOString() };
+    const older = { id: 'older', date: new Date(now - 6 * 86400000).toISOString() };
+    expect(oldestOnJob([newer, older])).toBe(older);
+  });
+
+  it('does NOT tiebreak on price — picks oldest even when a newer job is worth more', () => {
+    const now = Date.now();
+    const newerBigJob = { id: 'newer', total: 5000, date: new Date(now - 1 * 86400000).toISOString() };
+    const olderUnpriced = { id: 'older', total: 0, date: new Date(now - 10 * 86400000).toISOString() };
+    expect(oldestOnJob([newerBigJob, olderUnpriced])).toBe(olderUnpriced);
+  });
+
+  it('returns null for an empty array (never fabricates a job)', () => {
+    expect(oldestOnJob([])).toBe(null);
+  });
+});
+
+// ── daysOnCount / daysOnLabel ────────────────────────────────────────────────
+
+describe('daysOnCount', () => {
+  it('floors whole days elapsed since date/createdAt', () => {
+    const now = new Date('2026-07-15T12:00:00Z');
+    const job = { date: '2026-07-12T09:00:00Z' }; // 3 days + a few hours
+    expect(daysOnCount(job, now)).toBe(3);
+  });
+
+  it('returns 0 for a job that started today', () => {
+    const now = new Date('2026-07-15T12:00:00Z');
+    const job = { date: '2026-07-15T08:00:00Z' };
+    expect(daysOnCount(job, now)).toBe(0);
+  });
+
+  it('never returns a negative number even if the timestamp is in the future', () => {
+    const now = new Date('2026-07-15T12:00:00Z');
+    const job = { date: '2026-07-20T12:00:00Z' };
+    expect(daysOnCount(job, now)).toBe(0);
+  });
+
+  it('returns 0 (not a huge number) when both date and createdAt are missing', () => {
+    const now = new Date('2026-07-15T12:00:00Z');
+    expect(daysOnCount({}, now)).toBe(0);
+  });
+});
+
+describe('daysOnLabel', () => {
+  const now = new Date('2026-07-15T12:00:00Z');
+
+  it('reads "just started" at 0 days', () => {
+    expect(daysOnLabel({ date: '2026-07-15T08:00:00Z' }, now)).toBe('just started');
+  });
+
+  it('reads "on 1 day" (singular) at exactly 1 day', () => {
+    expect(daysOnLabel({ date: '2026-07-14T12:00:00Z' }, now)).toBe('on 1 day');
+  });
+
+  it('reads "on N days" (plural) beyond 1 day', () => {
+    expect(daysOnLabel({ date: '2026-07-12T12:00:00Z' }, now)).toBe('on 3 days');
   });
 });
 

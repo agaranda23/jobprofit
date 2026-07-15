@@ -6156,19 +6156,87 @@ input[type=number] { -moz-appearance: textfield; }
 }
 .today-pulse-card--collect .today-pulse-card__value { color: var(--accent); }
 
-/* Jobs on — warm/gold tint ("earning" feel) */
+/* Jobs on — indigo tint, matching the On stage everywhere else in the app
+   (--stage-on / .jt-stage-name--on on the Jobs tab). STATIC rgba, not
+   color-mix() — Safari 15 drops an invalid color-mix() background entirely,
+   which silently left this card untinted (see jobs-premium-pass Phase 0
+   comment above --stage-tint-on for the same rule applied there). The gold
+   digit-only treatment this card used to have is gone with it — the strip/
+   count variants below carry their own typography, they don't need a tinted
+   numeral. */
 .today-pulse-card--on {
-  background: color-mix(in srgb, var(--gold, #d4a017) 10%, transparent);
-  border-color: color-mix(in srgb, var(--gold, #d4a017) 25%, transparent);
+  background: var(--stage-tint-on);
+  border-color: var(--stage-tint-on-border);
 }
-.today-pulse-card--on .today-pulse-card__value { color: var(--gold); }
 
-/* Ahead of last week — genuine positive momentum only (see todayPulse.js) */
+/* Ahead of last week — genuine positive momentum only (see todayPulse.js).
+   STATIC rgba, not color-mix() — same Safari-15 rule as .today-pulse-card--on
+   above. Values are the color-mix() output baked in at build time (10%/25%
+   of --jp-green per theme) so the fix is a no-visual-change swap, not a
+   redesign — --jp-green currently resolves to blue (jobs-premium-pass
+   "green-wash" fix is a separate, not-yet-approved PRD proposal; out of
+   scope here). */
 .today-pulse-card--trend {
-  background: color-mix(in srgb, var(--jp-green, #00A86B) 10%, transparent);
-  border-color: color-mix(in srgb, var(--jp-green, #00A86B) 25%, transparent);
+  background: rgba(59, 130, 246, 0.10);
+  border-color: rgba(59, 130, 246, 0.25);
+}
+[data-theme="light"] .today-pulse-card--trend {
+  background: rgba(37, 99, 235, 0.10);
+  border-color: rgba(37, 99, 235, 0.25);
 }
 .today-pulse-card--trend .today-pulse-card__value { color: var(--jp-green, #00A86B); }
+
+/* ── "On" strip/count variants — named-job card (replaces the old bare-count
+   digit). Both variants reuse .today-pulse-card's flex column + padding;
+   these rules only add the 3-row internal layout. min-width raised from the
+   shared 104px so the work title has room before the row scrolls. */
+.today-pulse-card--strip,
+.today-pulse-card--count {
+  min-width: 180px;
+  gap: 3px;
+}
+.today-pulse-strip__row1 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  width: 100%;
+}
+.today-pulse-strip__row1-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+.today-pulse-strip__days {
+  font-size: var(--fs-meta);
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+.today-pulse-strip__chevron {
+  flex-shrink: 0;
+  color: var(--text-dim);
+}
+.today-pulse-strip__title {
+  font-size: var(--fs-body);
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.today-pulse-strip__meta {
+  font-size: var(--fs-meta);
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}
+.today-pulse-strip__amount {
+  font-variant-numeric: tabular-nums;
+}
 
 /* ── Today screen — resume-your-quote draft banner ───────────────────────────── */
 .today-resume-draft-banner {
@@ -19629,6 +19697,7 @@ button.dp-totals-row--total.dp-totals-row--tap:active {
   --stage-tint-lead:     rgba(37, 99, 235, 0.09);
   --stage-tint-quoted:   rgba(14, 165, 183, 0.10);
   --stage-tint-on:       rgba(99, 102, 241, 0.10);
+  --stage-tint-on-border: rgba(99, 102, 241, 0.25);
   --stage-tint-invoiced: rgba(245, 158, 11, 0.09);
   --stage-tint-overdue:  rgba(249, 115, 22, 0.09);
   --stage-tint-paid:     rgba(21, 128, 61, 0.10);
@@ -19666,6 +19735,7 @@ button.dp-totals-row--total.dp-totals-row--tap:active {
   --stage-tint-lead:     rgba(37, 99, 235, 0.10);
   --stage-tint-quoted:   rgba(14, 165, 183, 0.10);
   --stage-tint-on:       rgba(99, 102, 241, 0.10);
+  --stage-tint-on-border: rgba(99, 102, 241, 0.25);
   --stage-tint-invoiced: rgba(245, 158, 11, 0.10);
   --stage-tint-overdue:  rgba(249, 115, 22, 0.10);
   --stage-tint-paid:     rgba(21, 128, 61, 0.10);
