@@ -245,14 +245,15 @@ describe('TodayScreen — pulse dopamine cards (item 1)', () => {
     expect(document.querySelector('.today-pulse-card--trend')).toBeNull();
   });
 
-  it('tapping "waiting to collect" navigates to Jobs, Invoiced stage (onSeeTheWeek)', () => {
+  it('tapping "waiting to collect" navigates to Jobs, Overdue stage (onSeeTheWeek)', () => {
     const onSeeTheWeek = vi.fn();
     renderToday([invoiceSentJob('j1', 500)], PROFILE_FREE, { onSeeTheWeek });
     fireEvent.click(document.querySelector('.today-pulse-card--collect'));
     expect(onSeeTheWeek).toHaveBeenCalledTimes(1);
     // Regression: this used to navigate to Jobs with NO stage, landing on
     // whatever stage was last persisted (e.g. Paid) instead of the money owed.
-    expect(onSeeTheWeek).toHaveBeenCalledWith('Invoiced');
+    // Routes to Overdue — the "who owes you" chase list — not Invoiced.
+    expect(onSeeTheWeek).toHaveBeenCalledWith('Overdue');
   });
 
   it('tapping the "N jobs on" count card navigates to Jobs, On stage (onSeeTheWeek)', () => {

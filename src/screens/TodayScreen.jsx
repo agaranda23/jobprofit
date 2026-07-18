@@ -358,11 +358,13 @@ export default function TodayScreen({
       value: gbp(Math.round(animatedPulseWaitingToCollect)),
       label: 'waiting to collect',
       ariaLabel: `${gbp(pulseWaitingToCollect)} waiting to collect — tap to see who owes you`,
-      // waitingToCollectTotal sums every invoice_sent/awaiting job — due or not
-      // yet due (see todayPulse.js), so it's broader than the Overdue stage
-      // alone. Invoiced is the stage that includes that not-yet-due money too,
-      // keeping the destination list total coherent with the figure tapped.
-      onTap: () => onSeeTheWeek?.('Invoiced'),
+      // The card's intent is "see who owes you" — i.e. the actionable chase
+      // list — so it lands on Overdue, the money that's actually late and worth
+      // acting on today. waitingToCollectTotal (todayPulse.js) also sums
+      // not-yet-due invoiced money, but that isn't chase-actionable yet, so
+      // routing to Overdue matches the tap's intent even though the list total
+      // is a subset of the headline figure.
+      onTap: () => onSeeTheWeek?.('Overdue'),
     });
   }
   // "On" card — names the actual job when there's exactly one (deep-links
