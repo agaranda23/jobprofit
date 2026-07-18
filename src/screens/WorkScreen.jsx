@@ -1405,6 +1405,19 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Guards the persist effect (below) against writing an override-driven stage
+  // change to localStorage. Holds the stage value we're waiting to see land —
+  // not a plain boolean — because on first mount with a stageOverride already
+  // set, React flushes this effect and the persist effect in the same pass
+  // BEFORE the setSelectedStage below has actually re-rendered, so the persist
+  // effect's first run still closes over the OLD selectedStage (harmless — it
+  // just re-writes the value already on disk). The persist effect only clears
+  // the guard once it observes selectedStage === this ref's value, which is
+  // the render where the override genuinely took effect — the run we need to
+  // skip. A plain boolean flag reset on first sight would get consumed by that
+  // earlier stale run instead and fail to guard the real one.
+  const pendingOverrideStageRef = useRef(null);
+
   // If AppShell navigated here with a specific stage in mind (e.g. Today's
   // "waiting to collect" pulse card → Invoiced, the overdue banner → Overdue),
   // apply it over whatever stage was last persisted for this device.
@@ -1414,10 +1427,26 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
   // swipes — a plain stage string wouldn't re-fire this effect on a second tap
   // targeting the same stage. Normal persistence (the effect below) then takes
   // back over as soon as the trader changes the filter themselves.
+  // This is a ONE-SHOT display override, not a real filter change — it must
+  // never overwrite the trader's actual last manual choice in localStorage
+  // (see pendingOverrideStageRef above and the persist effect below).
+  //
+  // Guard against arming pendingOverrideStageRef when the override target is
+  // already the displayed stage: setSelectedStage would be a no-op (same
+  // value), so no re-render — and therefore no persist-effect run — would
+  // ever follow to observe and clear the ref. Left armed, that stale ref
+  // would wrongly swallow a later GENUINE manual re-selection of this same
+  // stage (selectedStage would match the stuck ref by coincidence). Reads
+  // selectedStage deliberately without depending on it — this must stay
+  // keyed on stageOverride alone so a repeat tap of the same Today card
+  // (fresh nonce, same stage) still re-applies the override.
   useEffect(() => {
     if (!stageOverride?.stage) return;
     if (!VALID_STAGES.includes(stageOverride.stage)) return;
+    if (stageOverride.stage === selectedStage) return;
+    pendingOverrideStageRef.current = stageOverride.stage;
     setSelectedStage(stageOverride.stage);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stageOverride]);
 
   // Notify AppShell when the JobDetailDrawer opens or closes so PostPaidSheet
@@ -1428,7 +1457,17 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
 
   // Persist stage filter state whenever either value changes.
   // Wrapped in try/catch — Safari private mode throws on setItem.
+  //
+  // Skip the write when this render is the one where a stageOverride landed
+  // (pendingOverrideStageRef matches the current selectedStage) — a one-off
+  // Today-card tap must change what's displayed without clobbering the
+  // trader's real last manual filter on disk. Once consumed, the guard is
+  // cleared so the very next genuine manual selection persists as normal.
   useEffect(() => {
+    if (pendingOverrideStageRef.current !== null && pendingOverrideStageRef.current === selectedStage) {
+      pendingOverrideStageRef.current = null;
+      return;
+    }
     try {
       localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify({ selectedStage, showAll }));
     } catch {
