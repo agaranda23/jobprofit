@@ -306,15 +306,19 @@ export default function AddJobModal({ onClose, onSave, _onOpenDetailed, defaultM
       const r = new SR();
       const lang = localStorage.getItem('jp.voiceLang') || 'en-GB';
       r.lang = lang; r.interimResults = true; r.continuous = false; r.maxAlternatives = 1;
-      let finalText = '';
+      // Keyed by result index, not accumulated with '+=' — Android Chrome can
+      // re-deliver an already-finalised result, and a blind '+=' would
+      // duplicate the segment. Keying makes re-delivery an idempotent no-op.
+      const finalSegments = [];
+      const getFinalText = () => finalSegments.filter(Boolean).join(' ');
       r.onresult = (e) => {
         let interim = '';
         for (let i = e.resultIndex; i < e.results.length; i++) {
           const res = e.results[i];
-          if (res.isFinal) finalText += res[0].transcript + ' ';
+          if (res.isFinal) finalSegments[i] = res[0].transcript;
           else interim += res[0].transcript;
         }
-        setTranscript((finalText + interim).trim());
+        setTranscript((getFinalText() + ' ' + interim).trim());
       };
       r.onerror = (e) => {
         if (e.error === 'not-allowed') {
@@ -335,7 +339,7 @@ export default function AddJobModal({ onClose, onSave, _onOpenDetailed, defaultM
         if (manualOverride.current) { manualOverride.current = false; return; }
         setVoiceStatus(s => {
           if (s === 'listening') {
-            const t = (finalText || '').trim();
+            const t = getFinalText().trim();
             if (t) { parse(t); return 'parsing'; }
             setError('');
             return 'idle';
@@ -528,7 +532,12 @@ export default function AddJobModal({ onClose, onSave, _onOpenDetailed, defaultM
       // pause for breath without losing the end of the sentence. The big
       // "Done" button below remains the manual-stop affordance.
       r.lang = lang; r.interimResults = true; r.continuous = true; r.maxAlternatives = 1;
-      let finalText = '';
+      // Keyed by result index, not accumulated with '+=' — Android Chrome can
+      // re-deliver an already-finalised result on continuous:true sessions,
+      // and a blind '+=' would duplicate the segment. Keying makes
+      // re-delivery an idempotent no-op.
+      const finalSegments = [];
+      const getFinalText = () => finalSegments.filter(Boolean).join(' ');
       let silenceTimer = null;
       const SILENCE_MS = 2000;
       const resetSilenceTimer = () => {
@@ -548,10 +557,10 @@ export default function AddJobModal({ onClose, onSave, _onOpenDetailed, defaultM
         let interim = '';
         for (let i = e.resultIndex; i < e.results.length; i++) {
           const res = e.results[i];
-          if (res.isFinal) finalText += res[0].transcript + ' ';
+          if (res.isFinal) finalSegments[i] = res[0].transcript;
           else interim += res[0].transcript;
         }
-        setQuoteTranscript((finalText + interim).trim());
+        setQuoteTranscript((getFinalText() + ' ' + interim).trim());
         resetSilenceTimer();
       };
       r.onerror = (e) => {
@@ -581,7 +590,7 @@ export default function AddJobModal({ onClose, onSave, _onOpenDetailed, defaultM
         if (manualOverride.current) { manualOverride.current = false; return; }
         setQuoteVoiceStatus(s => {
           if (s === 'listening') {
-            const t = (finalText || '').trim();
+            const t = getFinalText().trim();
             if (t) { parseQuote(t); return 'parsing'; }
             setError('');
             return 'idle';

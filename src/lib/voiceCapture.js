@@ -65,7 +65,13 @@ export function startVoiceCapture({ lang, handlers } = {}) {
     return null;
   }
 
-  let finalText = '';
+  // Keyed by result index rather than accumulated with '+=' — some Android
+  // Chrome builds re-deliver already-finalised results (resultIndex doesn't
+  // reliably advance across onresult events on continuous:true sessions), so
+  // a blind '+=' duplicates the segment. Keying by index makes re-delivery
+  // an idempotent overwrite instead.
+  const finalSegments = [];
+  const getFinalText = () => finalSegments.filter(Boolean).join(' ');
 
   try {
     const r = new SR();
@@ -80,10 +86,10 @@ export function startVoiceCapture({ lang, handlers } = {}) {
       let interim = '';
       for (let i = e.resultIndex; i < e.results.length; i++) {
         const res = e.results[i];
-        if (res.isFinal) finalText += res[0].transcript + ' ';
+        if (res.isFinal) finalSegments[i] = res[0].transcript;
         else interim += res[0].transcript;
       }
-      onTranscript((finalText + interim).trim());
+      onTranscript((getFinalText() + ' ' + interim).trim());
     };
 
     r.onerror = (e) => {
@@ -101,7 +107,7 @@ export function startVoiceCapture({ lang, handlers } = {}) {
     // onend always fires last (after onerror, if any) — the single place
     // that reliably means "recognition has stopped", whether that's a
     // manual tap-to-stop, a silence timeout, or an error.
-    r.onend = () => onEnd(finalText.trim());
+    r.onend = () => onEnd(getFinalText().trim());
 
     r.start();
     return {

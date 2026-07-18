@@ -358,7 +358,11 @@ export default function TodayScreen({
       value: gbp(Math.round(animatedPulseWaitingToCollect)),
       label: 'waiting to collect',
       ariaLabel: `${gbp(pulseWaitingToCollect)} waiting to collect — tap to see who owes you`,
-      onTap: () => onSeeTheWeek?.(),
+      // waitingToCollectTotal sums every invoice_sent/awaiting job — due or not
+      // yet due (see todayPulse.js), so it's broader than the Overdue stage
+      // alone. Invoiced is the stage that includes that not-yet-due money too,
+      // keeping the destination list total coherent with the figure tapped.
+      onTap: () => onSeeTheWeek?.('Invoiced'),
     });
   }
   // "On" card — names the actual job when there's exactly one (deep-links
@@ -412,7 +416,7 @@ export default function TodayScreen({
       label: 'jobs on',
       subline: `on longest: ${oldestName} · ${oldestDaysText}${extraText}`,
       ariaLabel: `${onCount} jobs on right now. On longest: ${oldestName}, ${oldestDaysText}. Tap to see them all.`,
-      onTap: () => onSeeTheWeek?.(),
+      onTap: () => onSeeTheWeek?.('On'),
     });
   }
   if (pulseAheadAmount > 0) {
@@ -979,7 +983,7 @@ export default function TodayScreen({
         <button
           type="button"
           className="today-overdue-push"
-          onClick={() => onSeeTheWeek?.()}
+          onClick={() => onSeeTheWeek?.('Overdue')}
           aria-label={`${gbp(overdueTotal)} overdue across ${overduePool.length} jobs — tap to see all`}
         >
           <Icon name="alert" size={16} className="today-overdue-push__icon" />

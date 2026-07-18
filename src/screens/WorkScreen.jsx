@@ -1316,7 +1316,7 @@ function PeopleList({ jobs, receipts, searchQuery, onSelectCustomer }) {
 
 // JP-LU5 PR1: pendingWorkView and onPendingWorkViewConsumed removed from props —
 // calendar subview gone. AppShell's handleSeeTheWeek now plain navigate('work').
-export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJob, onAddPayment, onUpdateJob, onDeleteJob, onAddReceipt, onDeleteReceipt, onUpdateReceipt, biz, profile, initialJobId, onNavigateToCardPayments, onProfileUpdate, materials, defaultMarkup, onBrowseMaterials, onMaterialSaved, onOverlayChange, onClearSampleData }) {
+export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJob, onAddPayment, onUpdateJob, onDeleteJob, onAddReceipt, onDeleteReceipt, onUpdateReceipt, biz, profile, initialJobId, stageOverride, onNavigateToCardPayments, onProfileUpdate, materials, defaultMarkup, onBrowseMaterials, onMaterialSaved, onOverlayChange, onClearSampleData }) {
   const [selectedStage, setSelectedStage] = useState(() => getPersistedFilter().selectedStage);
   const [showAll, setShowAll] = useState(() => getPersistedFilter().showAll);
   // 1B: client-side search — pure JS filter, works offline
@@ -1404,6 +1404,21 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
     if (target) setSelectedJob(target);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // If AppShell navigated here with a specific stage in mind (e.g. Today's
+  // "waiting to collect" pulse card → Invoiced, the overdue banner → Overdue),
+  // apply it over whatever stage was last persisted for this device.
+  // stageOverride is a fresh { stage, nonce } object on every dispatch (see
+  // AppShell's handleSeeTheWeek), so this re-applies on every such navigation
+  // even though the dashboard pager keeps WorkScreen mounted between page
+  // swipes — a plain stage string wouldn't re-fire this effect on a second tap
+  // targeting the same stage. Normal persistence (the effect below) then takes
+  // back over as soon as the trader changes the filter themselves.
+  useEffect(() => {
+    if (!stageOverride?.stage) return;
+    if (!VALID_STAGES.includes(stageOverride.stage)) return;
+    setSelectedStage(stageOverride.stage);
+  }, [stageOverride]);
 
   // Notify AppShell when the JobDetailDrawer opens or closes so PostPaidSheet
   // can suppress itself while the drawer is still on-screen (Option A).

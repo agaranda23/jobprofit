@@ -247,12 +247,15 @@ describe('TodayScreen — overdue-money push (item 2)', () => {
     expect(banner.textContent).toMatch(/2 jobs/);
   });
 
-  it('overdue push calls onSeeTheWeek when tapped', () => {
+  it('overdue push calls onSeeTheWeek with the Overdue stage when tapped', () => {
     const onSeeTheWeek = vi.fn();
     const jobs = [overdueJob('j1', 500), overdueJob('j2', 300)];
     renderToday(jobs, [], PROFILE_FREE, { onSeeTheWeek });
     fireEvent.click(document.querySelector('.today-overdue-push'));
     expect(onSeeTheWeek).toHaveBeenCalledTimes(1);
+    // Regression: this used to navigate to Jobs with NO stage, landing on
+    // whatever stage was last persisted instead of the overdue list itself.
+    expect(onSeeTheWeek).toHaveBeenCalledWith('Overdue');
   });
 
   it('overdue push has ≥44px min-height for mobile tap target', () => {
