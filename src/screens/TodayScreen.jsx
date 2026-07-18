@@ -358,7 +358,13 @@ export default function TodayScreen({
       value: gbp(Math.round(animatedPulseWaitingToCollect)),
       label: 'waiting to collect',
       ariaLabel: `${gbp(pulseWaitingToCollect)} waiting to collect — tap to see who owes you`,
-      onTap: () => onSeeTheWeek?.(),
+      // The card's intent is "see who owes you" — i.e. the actionable chase
+      // list — so it lands on Overdue, the money that's actually late and worth
+      // acting on today. waitingToCollectTotal (todayPulse.js) also sums
+      // not-yet-due invoiced money, but that isn't chase-actionable yet, so
+      // routing to Overdue matches the tap's intent even though the list total
+      // is a subset of the headline figure.
+      onTap: () => onSeeTheWeek?.('Overdue'),
     });
   }
   // "On" card — names the actual job when there's exactly one (deep-links
@@ -412,7 +418,7 @@ export default function TodayScreen({
       label: 'jobs on',
       subline: `on longest: ${oldestName} · ${oldestDaysText}${extraText}`,
       ariaLabel: `${onCount} jobs on right now. On longest: ${oldestName}, ${oldestDaysText}. Tap to see them all.`,
-      onTap: () => onSeeTheWeek?.(),
+      onTap: () => onSeeTheWeek?.('On'),
     });
   }
   if (pulseAheadAmount > 0) {
@@ -979,7 +985,7 @@ export default function TodayScreen({
         <button
           type="button"
           className="today-overdue-push"
-          onClick={() => onSeeTheWeek?.()}
+          onClick={() => onSeeTheWeek?.('Overdue')}
           aria-label={`${gbp(overdueTotal)} overdue across ${overduePool.length} jobs — tap to see all`}
         >
           <Icon name="alert" size={16} className="today-overdue-push__icon" />

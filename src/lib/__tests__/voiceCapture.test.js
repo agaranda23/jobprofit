@@ -147,6 +147,42 @@ describe('voiceCapture', () => {
       controller.stop();
       expect(onEnd).toHaveBeenCalledWith('');
     });
+
+    // Regression: Android Chrome can re-deliver an already-finalised result
+    // (same resultIndex, isFinal:true) instead of always advancing. A naive
+    // '+=' accumulator would append the segment again each time it's
+    // re-delivered, duplicating the transcript. Keying by result index makes
+    // re-delivery an idempotent overwrite.
+    it('does not duplicate a final segment that is re-delivered at the same index', () => {
+      const onTranscript = vi.fn();
+      const onEnd = vi.fn();
+      const controller = startVoiceCapture({ handlers: { onTranscript, onEnd } });
+      const r = lastInstance();
+
+      // First segment finalises at index 0.
+      r.onresult({ resultIndex: 0, results: [result('turn off the stopcock', true)] });
+      expect(onTranscript).toHaveBeenLastCalledWith('turn off the stopcock');
+
+      // Android re-delivers the SAME final result at index 0 (bug condition).
+      r.onresult({ resultIndex: 0, results: [result('turn off the stopcock', true)] });
+      expect(onTranscript).toHaveBeenLastCalledWith('turn off the stopcock');
+
+      // A genuinely new segment finalises at index 1 — must still concatenate
+      // in order, not get dropped by the idempotency fix.
+      r.onresult({
+        resultIndex: 1,
+        results: [result('turn off the stopcock', true), result('before you leave', true)],
+      });
+      expect(onTranscript).toHaveBeenLastCalledWith('turn off the stopcock before you leave');
+
+      // Redeliver index 1 again too — still no duplication.
+      r.onresult({
+        resultIndex: 1,
+        results: [result('turn off the stopcock', true), result('before you leave', true)],
+      });
+      controller.stop();
+      expect(onEnd).toHaveBeenCalledWith('turn off the stopcock before you leave');
+    });
   });
 
   describe('startVoiceCapture — error mapping', () => {

@@ -232,6 +232,15 @@ export default function AppShell() {
   // pendingJobId: when Today navigates to Work with a specific job to open, store
   // the job ID here so WorkScreen can pre-open the drawer on mount.
   const [pendingJobId, setPendingJobId] = useState(null);
+  // workStageOverride: when a Today card/banner navigates to Jobs for a SPECIFIC
+  // stage (e.g. the "waiting to collect" pulse card → Invoiced), this carries that
+  // stage across the navigation. WorkScreen applies it over its persisted
+  // 'jp.workscreen.filter.v1' filter for that one navigation, then normal
+  // persistence resumes. `nonce` forces the override to re-apply even when
+  // WorkScreen is already mounted (the dashboard pager keeps Today/Jobs/Money
+  // mounted simultaneously — see DashboardPager.jsx — so a plain stage string
+  // wouldn't re-fire WorkScreen's effect on a second tap with the same stage).
+  const [workStageOverride, setWorkStageOverride] = useState(null);
   // JP-LU5 PR1: pendingWorkView state removed — WorkScreen calendar subview deleted.
   // workResetKey: bumped on every explicit tab-click to the work/jobs tab.
   // WorkScreen receives this as its React key, which causes a full remount and
@@ -1547,6 +1556,9 @@ export default function AppShell() {
       // Also clear the pending job so a remounted WorkScreen has no initialJobId.
       // JP-LU5 PR1: setPendingWorkView removed — calendar subview deleted.
       setPendingJobId(null);
+      // A deliberate tab tap always shows the last-used/persisted stage filter —
+      // never a stale stage override left over from an earlier Today card tap.
+      setWorkStageOverride(null);
     }
   }, []);
 
@@ -1571,9 +1583,16 @@ export default function AppShell() {
   /**
    * "See the week" — navigates to the Jobs tab (card view only since JP-LU5 PR1).
    * JP-LU5 PR1: pendingWorkView / calendar forced-view removed; now a plain navigate.
+   * `stage` is optional — when a Today card/banner knows exactly which stage
+   * it's pointing at (e.g. "£X overdue" → Overdue), pass it so WorkScreen lands
+   * on that stage instead of restoring whatever was last persisted. Omit it
+   * for generic "go to Jobs" taps (e.g. the all-clear card).
    * Defined before conditional early returns (Rules of Hooks).
    */
-  const handleSeeTheWeek = useCallback(() => {
+  const handleSeeTheWeek = useCallback((stage) => {
+    if (stage) {
+      setWorkStageOverride({ stage, nonce: Date.now() });
+    }
     navigate('work');
   }, [navigate]);
 
@@ -1696,6 +1715,7 @@ export default function AppShell() {
               biz={null}
               profile={profile}
               initialJobId={pendingJobId}
+              stageOverride={workStageOverride}
               onNavigateToCardPayments={() => setSettingsSubView('card-payments')}
               onProfileUpdate={handleProfileUpdate}
               materials={materials}
