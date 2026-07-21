@@ -11,7 +11,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { extractJobMeta, writeJobMeta, readJobMeta } from '../jobMeta';
+import { extractJobMeta, writeJobMeta, readJobMeta, applyJobMeta, clearPending } from '../jobMeta';
 
 // ── localStorage mock ─────────────────────────────────────────────────────
 // Vitest runs in Node — localStorage doesn't exist. Provide a minimal stub.
@@ -339,5 +339,102 @@ describe('writeJobMeta / readJobMeta — quoteValidUntil round-trip', () => {
     const stored = readJobMeta(VALID_UNTIL_JOB_ID);
     expect(stored.quoteStatus).toBe('sent');
     expect(stored.quoteValidUntil).toBe('2026-08-01');
+  });
+});
+
+// ── Archived-jobs persistence fix (fix/archived-flag-persistence) ────────────
+// Founder-reported bug: archiving a job showed it in the Archived tab briefly,
+// then it reverted to the pipeline as soon as the Archived tab was opened.
+// Root cause: archived/archivedAt/unarchivedAt were set on the in-memory job
+// but absent from META_FIELDS, so extractJobMeta stripped them before every
+// meta write — they never reached the cloud meta JSONB. The next reconcile
+// (applyJobMeta) rebuilt the job from the cloud baseline with no archived
+// flag and nothing pending to re-overlay it, so the local flag was discarded.
+// Same bug class as `overdue` above — see jobMeta.js META_FIELDS comment.
+
+const ARCHIVED_JOB_ID = 'test-job-meta-archived-001';
+
+function archivedJob() {
+  return {
+    id: ARCHIVED_JOB_ID,
+    status: 'invoice_sent',
+    archived: true,
+    archivedAt: '2026-07-21T09:00:00.000Z',
+  };
+}
+
+describe('extractJobMeta — archived fields (the persistence bug)', () => {
+  it('extracts archived:true from an archived job', () => {
+    const meta = extractJobMeta(archivedJob());
+    expect(meta.archived).toBe(true);
+  });
+
+  it('extracts archivedAt when present', () => {
+    const meta = extractJobMeta(archivedJob());
+    expect(meta.archivedAt).toBe('2026-07-21T09:00:00.000Z');
+  });
+
+  it('extracts unarchivedAt when present (restore path)', () => {
+    const meta = extractJobMeta({ id: ARCHIVED_JOB_ID, archived: false, unarchivedAt: '2026-07-21T10:00:00.000Z' });
+    expect(meta.unarchivedAt).toBe('2026-07-21T10:00:00.000Z');
+  });
+
+  it('does not include archived/archivedAt/unarchivedAt when absent from the job', () => {
+    const job = { id: ARCHIVED_JOB_ID, status: 'active' };
+    const meta = extractJobMeta(job);
+    expect('archived'     in meta).toBe(false);
+    expect('archivedAt'   in meta).toBe(false);
+    expect('unarchivedAt' in meta).toBe(false);
+  });
+});
+
+describe('writeJobMeta / readJobMeta — archived round-trip', () => {
+  it('persists archived:true + archivedAt and reads them back (the bug: previously always stripped)', () => {
+    writeJobMeta(ARCHIVED_JOB_ID, extractJobMeta(archivedJob()));
+    const stored = readJobMeta(ARCHIVED_JOB_ID);
+    expect(stored.archived).toBe(true);
+    expect(stored.archivedAt).toBe('2026-07-21T09:00:00.000Z');
+  });
+
+  it('persists archived:false + unarchivedAt on restore, preserving archivedAt', () => {
+    writeJobMeta(ARCHIVED_JOB_ID, extractJobMeta(archivedJob()));
+    writeJobMeta(ARCHIVED_JOB_ID, {
+      archived: false,
+      archivedAt: '2026-07-21T09:00:00.000Z', // preserved by applyRestore's spread
+      unarchivedAt: '2026-07-21T10:00:00.000Z',
+    });
+    const stored = readJobMeta(ARCHIVED_JOB_ID);
+    expect(stored.archived).toBe(false);
+    expect(stored.archivedAt).toBe('2026-07-21T09:00:00.000Z');
+    expect(stored.unarchivedAt).toBe('2026-07-21T10:00:00.000Z');
+  });
+});
+
+describe('applyJobMeta — archived overlay survives a cloud reconcile while pending', () => {
+  it('pending archived:true survives a cloud refetch that has no archived flag (this is the exact revert bug)', () => {
+    // Trader taps Archive. handleArchiveJob → handleUpdateJob → writeJobMeta
+    // marks archived/archivedAt as pending (not yet confirmed synced).
+    writeJobMeta(ARCHIVED_JOB_ID, extractJobMeta(archivedJob()));
+
+    // Trader opens the Archived tab, which triggers a cloud refetch. Before the
+    // fix, the cloud job below (no archived field — matches the old cloud row
+    // written before archived/archivedAt were in META_FIELDS) would silently
+    // win because applyJobMeta had nothing pending to re-overlay.
+    const cloudJobNoArchiveFlag = { id: ARCHIVED_JOB_ID, status: 'invoice_sent', total: 300, amount: 300 };
+    const result = applyJobMeta(cloudJobNoArchiveFlag);
+
+    expect(result.archived).toBe(true);
+    expect(result.archivedAt).toBe('2026-07-21T09:00:00.000Z');
+  });
+
+  it('once the cloud write is confirmed (pending cleared), the cloud archived value is authoritative', () => {
+    writeJobMeta(ARCHIVED_JOB_ID, extractJobMeta(archivedJob()));
+    clearPending(ARCHIVED_JOB_ID, ['archived', 'archivedAt']); // simulate confirmed sync
+
+    const cloudJobWithArchiveFlag = { id: ARCHIVED_JOB_ID, status: 'invoice_sent', archived: true, archivedAt: '2026-07-21T09:00:00.000Z' };
+    const result = applyJobMeta(cloudJobWithArchiveFlag);
+
+    expect(result.archived).toBe(true);
+    expect(result.archivedAt).toBe('2026-07-21T09:00:00.000Z');
   });
 });
