@@ -273,6 +273,74 @@ describe('TodayScreen — pulse dopamine cards (item 1)', () => {
   });
 });
 
+// ── 1b. On-strip / hero de-dup (dedup-strip-hero) ───────────────────────────────
+// Founder-flagged: a single On job needing invoicing used to show on THREE
+// surfaces at once (strip, Get Pro pill, NBA hero) — the strip is now
+// suppressed when it's literally the same job as the hero, and the hero's
+// meta swaps its false "done Xd ago" (nbaMeta's Tier-2 copy, correct only for
+// a genuinely-finished job) for a quiet "On · Nd" context chip instead.
+
+describe('TodayScreen — on-strip / hero de-dup', () => {
+  // status:'active', dated daysAgo ago — deriveDisplayStatus reads this as
+  // "On" (so it's in onJobs) AND, once past the 48h grace, deriveStatus/
+  // isUnbilledComplete reads it as the Tier-2 "needs invoicing" hero. Same
+  // job, same fields drive both — this is deliberate, it's the exact overlap
+  // the founder flagged.
+  function heroOnJob(id, amount, daysAgo) {
+    const d = new Date(Date.now() - daysAgo * 86400000);
+    return { id, amount, total: amount, status: 'active', date: d.toISOString() };
+  }
+
+  it('suppresses the "on" strip and shows a quiet "On · Nd" chip (no false "done Xd ago") when the single On job IS the Tier-2 hero', () => {
+    renderToday([heroOnJob('j1', 500, 3)], PROFILE_FREE);
+    // The strip would be redundant — the hero below is the SAME job.
+    expect(document.querySelector('.today-pulse-card--on')).toBeNull();
+
+    const hero = document.querySelector('.foreman-prompt-card');
+    expect(hero).not.toBeNull();
+    expect(hero.textContent).toMatch(/invoice/i); // nbaLabel(2) === 'INVOICE'
+
+    // Quiet context chip carries the real duration...
+    const chip = hero.querySelector('.foreman-tier-onchip');
+    expect(chip).not.toBeNull();
+    expect(chip.textContent).toMatch(/on/i);
+    expect(chip.textContent).toMatch(/3d/);
+
+    // ...and nbaMeta's Tier-2 "done Xd ago" suffix is gone (it's untrue —
+    // the job is still On, not finished); the £ amount is kept.
+    const meta = hero.querySelector('.foreman-meta');
+    expect(meta).not.toBeNull();
+    expect(meta.textContent).not.toMatch(/done/i);
+    expect(meta.textContent).toMatch(/£500/);
+  });
+
+  it('still renders the named "on" strip when a DIFFERENT job outranks it for the hero slot (Tier-1 overdue beats Tier-2)', () => {
+    const onJob = { id: 'on1', amount: 300, total: 300, status: 'active', date: new Date().toISOString() };
+    // invoiceSentAt 10 days ago, net-7 default terms (see chaseLadder.js) →
+    // genuinely overdue → Tier 1, which outranks the On job's Tier 2.
+    const overdueJob = {
+      id: 'ov1', amount: 900, total: 900, status: 'invoice_sent', paid: false,
+      invoiceSentAt: new Date(Date.now() - 10 * 86400000).toISOString(),
+    };
+    renderToday([onJob, overdueJob], PROFILE_FREE);
+    // Hero is the overdue job, not the On job — the identity check
+    // (promptJob.id === onJobs[0].id) must be false, so the strip survives.
+    const card = document.querySelector('.today-pulse-card--on');
+    expect(card).not.toBeNull();
+    expect(card.textContent).toMatch(/Active job/);
+  });
+
+  it('still renders the strip for a fresh single On job with no actionable hero yet (Tier 5 / all-clear)', () => {
+    // Dated "now" — inside the 48h grace, so it hasn't reached Tier 2 yet;
+    // no other job qualifies for Tier 1/3 either, so promptJob is null.
+    const freshOnJob = { id: 'fresh1', amount: 200, total: 200, status: 'active', date: new Date().toISOString() };
+    renderToday([freshOnJob], PROFILE_FREE);
+    expect(document.querySelector('.today-pulse-card--on')).not.toBeNull();
+    // No Tier<5 hero card at all — the all-clear state renders instead.
+    expect(document.querySelector('.foreman-prompt-card')).toBeNull();
+  });
+});
+
 // ── 2. First-quote celebration ─────────────────────────────────────────────────
 
 describe('TodayScreen — first-quote celebration (item 2)', () => {

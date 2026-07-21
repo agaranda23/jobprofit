@@ -337,6 +337,31 @@ export default function TodayScreen({
   // isn't genuine, meaningful data behind it yet.
   const pulseWaitingToCollect = useMemo(() => waitingToCollectTotal(jobs), [jobs]);
   const onJobs = useMemo(() => jobsOn(jobs), [jobs]);
+
+  // ── On-strip / hero de-dup ────────────────────────────────────────────────
+  // When the single On job IS the NBA hero (promptJob, derived above ~L294),
+  // the same job would otherwise show on TWO surfaces at once — the "on"
+  // strip below AND the hero prompt card. promptJob.id === onJobs[0].id can
+  // only be true at Tier 2: Tier-1 heroes are already invoice_sent (never
+  // "On" per deriveDisplayStatus) and Tier-3 heroes are quoted (also never
+  // "On") — so this identity check can't accidentally suppress the strip for
+  // an unrelated hero. Component-body scope (NOT nested inside the
+  // pulseCards branch below) because it's also read by resolvedMeta and the
+  // hero label-row chip, both further down this component.
+  const onJobIsHeroJob = !!promptJob && !!onJobs[0] && promptJob.id === onJobs[0].id;
+  // Scoped to exactly the case the strip suppresses — single On job, that IS
+  // the hero, at Tier 2 (the tier whose meta suffix is the false "done Xd
+  // ago" copy for a job that's still On, not finished).
+  const onStripAbsorbed = onJobIsHeroJob && tier === 2 && onJobs.length === 1;
+  // TODO(separate-ticket): a job with status:'complete' shows "On" here
+  // indefinitely — deriveDisplayStatus has no upper bound on how long a
+  // complete-but-uninvoiced job stays "On" — but it only becomes the Tier-2
+  // NBA hero once nextBestAction's own >48h threshold is met. Between 0–48h
+  // the job is "On" (visible in the strip/count above) but not yet the hero,
+  // which is correct; the latent gap is that nothing currently nudges a
+  // trader to invoice a complete job that's been sitting >48h if it's ever
+  // outranked by a Tier-1/3 peer — out of scope here, not touching
+  // nextBestAction.js in this PR.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const pulseWeekOverWeek = useMemo(() => weekOverWeek(jobs, now), [jobs]);
 
@@ -372,7 +397,11 @@ export default function TodayScreen({
   // there's more than one (ambiguous which job to deep-link, so this one
   // opens the Jobs list instead). See src/lib/todayPulse.js for jobsOn /
   // oldestOnJob / daysOnLabel.
-  if (onJobs.length === 1) {
+  //
+  // Suppressed entirely (onJobIsHeroJob) when that single On job is ALREADY
+  // the NBA hero below — showing the same job on both surfaces at once is
+  // redundant; see the on-strip / hero de-dup comment above onJobIsHeroJob.
+  if (onJobs.length === 1 && !onJobIsHeroJob) {
     const theOnJob = onJobs[0];
     const rawTitle = theOnJob?.name || theOnJob?.summary || '';
     const customerName = theOnJob?.customer || theOnJob?.customerName || '';
@@ -630,13 +659,22 @@ export default function TodayScreen({
   const cta      = tier < 5 && promptJob ? nbaCta(tier, promptJob, profile) : null;
   const label    = tier < 5 && promptJob ? nbaLabel(tier) : null;
 
-  // Override meta.suffix for Tier 1 to include real days-past-due copy
+  // Override meta.suffix for Tier 1 to include real days-past-due copy.
+  // Also overridden when onStripAbsorbed: nbaMeta's Tier-2 suffix is "done
+  // Xd ago", which is FALSE for a job that's still On, not finished — the
+  // real duration is shown instead via the quiet "On · Nd" chip on the label
+  // row below, so the false suffix here is dropped (amount is kept).
   const resolvedMeta = useMemo(() => {
-    if (tier !== 1 || !promptJob || !meta) return meta;
-    const dpd = daysPastDue(promptJob, now);
-    const overdueTxt = dpd === 0 ? 'due today' : dpd === 1 ? '1 day overdue' : `${dpd} days overdue`;
-    return { ...meta, suffix: overdueTxt, negative: true };
-  }, [tier, promptJob, meta, now]);
+    if (tier === 1 && promptJob && meta) {
+      const dpd = daysPastDue(promptJob, now);
+      const overdueTxt = dpd === 0 ? 'due today' : dpd === 1 ? '1 day overdue' : `${dpd} days overdue`;
+      return { ...meta, suffix: overdueTxt, negative: true };
+    }
+    if (onStripAbsorbed && meta) {
+      return { ...meta, suffix: null };
+    }
+    return meta;
+  }, [tier, promptJob, meta, now, onStripAbsorbed]);
 
   return (
     <div className="screen today-screen foreman-screen">
@@ -707,17 +745,6 @@ export default function TodayScreen({
             </button>
           ))}
         </div>
-      )}
-
-      {/* ── Get Pro upsell pill (free users + active trials; not paid Pro) ── */}
-      {/* Repointed 2026-07-05 (item 5): active trials now see the pill too — */}
-      {/* GetProPill itself decides sell (free) vs "use it" (trial) copy.     */}
-      {profile?.plan !== 'pro' && (
-        <GetProPill
-          profile={profile}
-          onOpen={() => setUpgradeSheetOpen(true)}
-          onNavigateToMoney={onNavigateToMoney}
-        />
       )}
 
       {/* ── Resume-your-quote banner (unsent AddJobModal draft found) ─────── */}
@@ -792,7 +819,17 @@ export default function TodayScreen({
           }}
           onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleCardBodyTap(promptJob); }}
         >
-          <div className="foreman-tier-label">{label}</div>
+          <div className="foreman-tier-label-row">
+            <div className="foreman-tier-label">{label}</div>
+            {/* Quiet, passive context — replaces the suppressed on-strip and the
+                false "done Xd ago" suffix above (see resolvedMeta) with the
+                real duration. Never a tap target: no onClick, no role. */}
+            {onStripAbsorbed && (
+              <span className="foreman-tier-onchip jt-stage-name jt-stage-name--on">
+                On &middot; {daysOnCount(promptJob, now)}d
+              </span>
+            )}
+          </div>
           <div className="foreman-headline">{headline}</div>
           {resolvedMeta && (
             <div className={`foreman-meta ${resolvedMeta.negative ? 'foreman-meta--overdue' : ''}`}>
@@ -942,6 +979,22 @@ export default function TodayScreen({
             Go to Jobs
           </button>
         </section>
+      )}
+
+      {/* ── Get Pro upsell pill (free users + active trials; not paid Pro) ── */}
+      {/* Repointed 2026-07-05 (item 5): active trials now see the pill too — */}
+      {/* GetProPill itself decides sell (free) vs "use it" (trial) copy.     */}
+      {/* Moved BELOW the hero (dedup-strip-hero, 2026-07): the money action
+          (Chase/Invoice/Follow up) must not sit under an upsell — the pill
+          now surfaces after the trader has already seen today's real job,
+          not before it. GetProPill's own free/trial/urgency state machine is
+          unchanged, so the trial-ending nudge still fires here. */}
+      {profile?.plan !== 'pro' && (
+        <GetProPill
+          profile={profile}
+          onOpen={() => setUpgradeSheetOpen(true)}
+          onNavigateToMoney={onNavigateToMoney}
+        />
       )}
 
       {/* ── Pivot buttons (quick-action grid) ────────────────────────────── */}
