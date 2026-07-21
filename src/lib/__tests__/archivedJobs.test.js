@@ -43,28 +43,48 @@ describe('isArchived', () => {
 describe('selectArchivedJobs', () => {
   it('excludes non-archived and deleted jobs', () => {
     const jobs = [
-      { id: 'A', archived: true, meta: { archivedAt: '2026-07-01T00:00:00Z' } },
+      { id: 'A', archived: true, archivedAt: '2026-07-01T00:00:00Z' },
       { id: 'B' },
-      { id: 'C', archived: true, deleted: true, meta: { archivedAt: '2026-07-02T00:00:00Z' } },
+      { id: 'C', archived: true, deleted: true, archivedAt: '2026-07-02T00:00:00Z' },
     ];
     const result = selectArchivedJobs(jobs);
     expect(result.map(j => j.id)).toEqual(['A']);
   });
 
-  it('sorts newest-archived first', () => {
+  it('sorts newest-archived first using top-level archivedAt', () => {
     const jobs = [
-      { id: 'old', archived: true, meta: { archivedAt: '2026-06-01T00:00:00Z' } },
-      { id: 'new', archived: true, meta: { archivedAt: '2026-07-10T00:00:00Z' } },
-      { id: 'mid', archived: true, meta: { archivedAt: '2026-06-20T00:00:00Z' } },
+      { id: 'old', archived: true, archivedAt: '2026-06-01T00:00:00Z' },
+      { id: 'new', archived: true, archivedAt: '2026-07-10T00:00:00Z' },
+      { id: 'mid', archived: true, archivedAt: '2026-06-20T00:00:00Z' },
     ];
     const result = selectArchivedJobs(jobs);
     expect(result.map(j => j.id)).toEqual(['new', 'mid', 'old']);
   });
 
+  it('falls back to legacy meta.archivedAt when top-level archivedAt is absent', () => {
+    const jobs = [
+      { id: 'legacy-meta', archived: true, meta: { archivedAt: '2026-07-05T00:00:00Z' } },
+      { id: 'top-level', archived: true, archivedAt: '2026-07-10T00:00:00Z' },
+    ];
+    const result = selectArchivedJobs(jobs);
+    expect(result.map(j => j.id)).toEqual(['top-level', 'legacy-meta']);
+  });
+
+  it('prefers top-level archivedAt over meta.archivedAt when both are present', () => {
+    const jobs = [
+      { id: 'both', archived: true, archivedAt: '2026-07-15T00:00:00Z', meta: { archivedAt: '2026-01-01T00:00:00Z' } },
+      { id: 'newer-top-level-only', archived: true, archivedAt: '2026-07-10T00:00:00Z' },
+    ];
+    const result = selectArchivedJobs(jobs);
+    // 'both' sorts by its top-level 2026-07-15, not the stale meta 2026-01-01 —
+    // so it comes first, ahead of 'newer-top-level-only' at 2026-07-10.
+    expect(result.map(j => j.id)).toEqual(['both', 'newer-top-level-only']);
+  });
+
   it('sorts legacy jobs with missing archivedAt last', () => {
     const jobs = [
       { id: 'legacy', archived: true, meta: {} },
-      { id: 'dated', archived: true, meta: { archivedAt: '2026-07-10T00:00:00Z' } },
+      { id: 'dated', archived: true, archivedAt: '2026-07-10T00:00:00Z' },
     ];
     const result = selectArchivedJobs(jobs);
     expect(result.map(j => j.id)).toEqual(['dated', 'legacy']);
@@ -72,8 +92,8 @@ describe('selectArchivedJobs', () => {
 
   it('sorts jobs with an invalid archivedAt string last, alongside missing ones', () => {
     const jobs = [
-      { id: 'invalid', archived: true, meta: { archivedAt: 'not-a-date' } },
-      { id: 'dated', archived: true, meta: { archivedAt: '2026-07-10T00:00:00Z' } },
+      { id: 'invalid', archived: true, archivedAt: 'not-a-date' },
+      { id: 'dated', archived: true, archivedAt: '2026-07-10T00:00:00Z' },
     ];
     const result = selectArchivedJobs(jobs);
     expect(result.map(j => j.id)).toEqual(['dated', 'invalid']);
@@ -89,39 +109,56 @@ describe('selectArchivedJobs', () => {
 describe('applyRestore', () => {
   const now = new Date('2026-07-21T12:00:00Z');
 
-  it('clears archived and meta.archived, keeps meta.archivedAt, stamps unarchivedAt', () => {
+  it('clears top-level archived, preserves top-level archivedAt, stamps top-level unarchivedAt', () => {
     const job = {
       id: 'J-1',
       status: 'invoiced',
       archived: true,
+      archivedAt: '2026-07-01T00:00:00Z',
+    };
+    const result = applyRestore(job, now);
+    expect(result.archived).toBe(false);
+    expect(result.archivedAt).toBe('2026-07-01T00:00:00Z'); // preserved, not cleared
+    expect(result.unarchivedAt).toBe(now.toISOString());
+  });
+
+  it('also clears legacy nested meta.archived so an old-shape archived job can be restored', () => {
+    const job = {
+      id: 'J-1b',
+      status: 'invoiced',
+      archived: true,
+      archivedAt: '2026-07-01T00:00:00Z',
       meta: { archived: true, archivedAt: '2026-07-01T00:00:00Z' },
     };
     const result = applyRestore(job, now);
     expect(result.archived).toBe(false);
     expect(result.meta.archived).toBe(false);
+    // meta.archivedAt (legacy audit field) is untouched by the clear
     expect(result.meta.archivedAt).toBe('2026-07-01T00:00:00Z');
-    expect(result.meta.unarchivedAt).toBe(now.toISOString());
   });
 
   it('does not touch job.status — restore lets the job re-derive its own stage', () => {
-    const job = { id: 'J-2', status: 'paid', archived: true, meta: { archived: true } };
+    const job = { id: 'J-2', status: 'paid', archived: true, archivedAt: '2026-07-01T00:00:00Z' };
     const result = applyRestore(job, now);
     expect(result.status).toBe('paid');
   });
 
   it('preserves other job fields untouched', () => {
-    const job = { id: 'J-3', customer: 'Enel', total: 400, archived: true, meta: { archived: true } };
+    const job = { id: 'J-3', customer: 'Enel', total: 400, archived: true, archivedAt: '2026-07-01T00:00:00Z' };
     const result = applyRestore(job, now);
     expect(result.customer).toBe('Enel');
     expect(result.total).toBe(400);
     expect(result.id).toBe('J-3');
   });
 
-  it('handles a job with no meta object at all', () => {
-    const job = { id: 'J-4', archived: true };
+  it('handles a job with no meta object at all (top-level-only shape, the fixed path)', () => {
+    const job = { id: 'J-4', archived: true, archivedAt: '2026-07-01T00:00:00Z' };
     const result = applyRestore(job, now);
-    expect(result.meta.archived).toBe(false);
-    expect(result.meta.unarchivedAt).toBe(now.toISOString());
+    expect(result.archived).toBe(false);
+    expect(result.archivedAt).toBe('2026-07-01T00:00:00Z');
+    expect(result.unarchivedAt).toBe(now.toISOString());
+    // No meta object was present on input — applyRestore must not invent one.
+    expect(result.meta).toBeUndefined();
   });
 
   it('handles null/undefined without throwing, matching isArchived', () => {

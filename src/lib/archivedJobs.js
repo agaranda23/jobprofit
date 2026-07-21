@@ -11,9 +11,14 @@ export function isArchived(job) {
   return !!(job?.archived || job?.meta?.archived) && !job?.deleted && !job?.meta?.deleted;
 }
 
-/** Timestamp used for sorting; legacy/missing meta.archivedAt sorts last (0). */
+/**
+ * Timestamp used for sorting; top-level archivedAt is canonical (it's the
+ * field that actually survives a cloud reconcile — see jobMeta.js META_FIELDS).
+ * meta.archivedAt is a back-compat fallback for jobs archived before the
+ * persistence fix. Legacy/missing archivedAt sorts last (0).
+ */
 function archivedTs(job) {
-  const t = job?.meta?.archivedAt;
+  const t = job?.archivedAt ?? job?.meta?.archivedAt;
   const n = t ? new Date(t).getTime() : 0;
   return Number.isFinite(n) ? n : 0;
 }
@@ -24,9 +29,14 @@ export function selectArchivedJobs(jobs = []) {
 }
 
 /**
- * Restore payload — clears archived + meta.archived, keeps meta.archivedAt
- * (audit trail), stamps meta.unarchivedAt. Deliberately does NOT touch
- * job.status: archive never changed it, so the job re-derives to its
+ * Restore payload — clears TOP-LEVEL archived, keeps TOP-LEVEL archivedAt
+ * (audit trail), stamps TOP-LEVEL unarchivedAt. Top-level is canonical
+ * because those are the fields in jobMeta's META_FIELDS that actually
+ * survive a cloud reconcile (see jobMeta.js comment on the founder-reported
+ * revert bug). Also clears any legacy nested meta.archived mirror so a job
+ * that was archived via the old nested-only path (before this fix) can't
+ * stay stuck archived through the isArchived() OR. Deliberately does NOT
+ * touch job.status: archive never changed it, so the job re-derives to its
  * original stage automatically via deriveDisplayStatus.
  */
 export function applyRestore(job, now = new Date()) {
@@ -34,7 +44,8 @@ export function applyRestore(job, now = new Date()) {
   return {
     ...job,
     archived: false,
-    meta: { ...(job.meta || {}), archived: false, unarchivedAt: now.toISOString() },
+    unarchivedAt: now.toISOString(),
+    ...(job.meta ? { meta: { ...job.meta, archived: false } } : {}),
   };
 }
 

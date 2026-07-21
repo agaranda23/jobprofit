@@ -1278,7 +1278,7 @@ function ArchivedTile({ job, onRestoreJob, onDeleteJob }) {
   const amount = rawAmount != null ? Number(rawAmount) : null;
   const isUnpriced = amount == null || amount <= 0;
   const priceLine = (stage === 'Lead' && isUnpriced) ? 'No price yet' : (!isUnpriced ? '£' + formatAmount(amount) : '—');
-  const ago = formatArchivedAgo(job?.meta?.archivedAt);
+  const ago = formatArchivedAgo(job?.archivedAt ?? job?.meta?.archivedAt);
   const sub = ago ? `${stage} · Archived ${ago}` : `${stage} · Archived`;
   const rail = (STAGE_META[stage] || STAGE_META.Lead).hue;
 
@@ -2066,13 +2066,18 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
     showToast('Job copied');
   };
 
-  // Archives a job by setting meta.archived and stamping meta.archivedAt.
-  // The job stays in the DB — the Archived view (below) lets users restore it.
+  // Archives a job by setting TOP-LEVEL archived + archivedAt (these flow
+  // through jobMeta's META_FIELDS so extractJobMeta actually persists them —
+  // see jobMeta.js comment). The job stays in the DB — the Archived view
+  // (below) lets users restore it. meta.archived is kept as a back-compat
+  // mirror only; it is not what makes the archive survive a cloud reconcile.
   const handleArchiveJob = (job) => {
+    const archivedAt = new Date().toISOString();
     handleUpdateJob({
       ...job,
       archived: true,
-      meta: { ...(job.meta || {}), archived: true, archivedAt: new Date().toISOString() },
+      archivedAt,
+      meta: { ...(job.meta || {}), archived: true, archivedAt },
     });
     showToast('Job archived');
   };
@@ -2080,11 +2085,12 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
   // Toggles the Archived filter mode in the controls row.
   const handleToggleArchived = () => setShowArchived(v => !v);
 
-  // Restore — clears archived + meta.archived, keeps meta.archivedAt for audit,
-  // stamps meta.unarchivedAt. Archive never changed job.status, so the job
-  // re-derives to its original stage automatically (deriveDisplayStatus) and
-  // rejoins visibleJobs/StageStrip/chase bar immediately. Rides the normal
-  // offline queue via handleUpdateJob — works offline.
+  // Restore — clears top-level archived (+ legacy meta.archived mirror), keeps
+  // top-level archivedAt for audit, stamps top-level unarchivedAt. Archive
+  // never changed job.status, so the job re-derives to its original stage
+  // automatically (deriveDisplayStatus) and rejoins visibleJobs/StageStrip/
+  // chase bar immediately. Rides the normal offline queue via handleUpdateJob
+  // — works offline. See applyRestore in lib/archivedJobs.js.
   const handleRestoreJob = (job) => {
     handleUpdateJob(applyRestore(job));
     showToast('Job restored');

@@ -143,6 +143,16 @@ const META_FIELDS = [
   // { id, type: 'call'|'whatsapp'|'sms'|'review', date }. Written/read via
   // src/lib/commsLog.js. No DB migration needed — JSONB meta only.
   'commsLog',
+  // Archived-jobs view (feat/archived-jobs-view) — founder-reported revert bug.
+  // Same pattern as `overdue` above: archived/archivedAt/unarchivedAt were set
+  // on the in-memory job by WorkScreen's handleArchiveJob/applyRestore, but
+  // absent from META_FIELDS meant extractJobMeta stripped them before every
+  // meta write. The job showed in the Archived tab briefly, then the next
+  // cloud reconcile rebuilt it from the cloud baseline (no archived flag) and
+  // applyJobMeta had nothing pending to re-overlay — silently un-archiving it.
+  'archived',     // boolean — true = hidden from the pipeline, shown in Archived tab
+  'archivedAt',   // ISO timestamp — when the job was archived (audit trail + sort key)
+  'unarchivedAt', // ISO timestamp — when the job was last restored
 ];
 
 export function readJobMeta(id) {
