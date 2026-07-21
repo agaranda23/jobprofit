@@ -123,6 +123,11 @@ describe('applyRestore', () => {
     expect(result.meta.archived).toBe(false);
     expect(result.meta.unarchivedAt).toBe(now.toISOString());
   });
+
+  it('handles null/undefined without throwing, matching isArchived', () => {
+    expect(applyRestore(null, now)).toBeNull();
+    expect(applyRestore(undefined, now)).toBeUndefined();
+  });
 });
 
 // ── formatArchivedAgo ────────────────────────────────────────────────────

@@ -24339,3 +24339,13 @@ details[open].error-boundary__details summary::before {
   min-height: 44px;
   justify-content: flex-start;
 }
+
+/* Scoped ⋯ tap-target override — ArchivedTile's ⋯ trigger is the SOLE
+   interactive control on the row (the body is inert, not role="button"), so
+   it must clear the ≥40px mobile tap-target floor on its own. Base .jt-dots
+   is 30×30 (fine elsewhere, where the whole tile is also tappable). Scoped to
+   .arch-tile so JobTile's own ⋯ trigger is untouched. */
+.arch-tile .jt-dots {
+  width: 40px;
+  height: 40px;
+}

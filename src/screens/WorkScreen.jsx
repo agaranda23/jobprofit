@@ -1404,6 +1404,11 @@ function ArchivedTileMenu({ job, primaryLabel, onRestoreJob, onDeleteJob }) {
           </svg>
         </button>
 
+        {/* Both the dropdown (desktop) and sheet (mobile) copies mount at once —
+            jsdom has no CSS so it renders BOTH regardless of viewport. Any test
+            here must use getAllByRole(...)[0]/within(), never getByRole, or it
+            will throw on a duplicate match. Same trap as StageChipDropdown; see
+            deleteModalPortal.test.jsx for the precedent. */}
         {open && (
           <>
             {createPortal(

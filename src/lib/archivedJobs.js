@@ -30,6 +30,7 @@ export function selectArchivedJobs(jobs = []) {
  * original stage automatically via deriveDisplayStatus.
  */
 export function applyRestore(job, now = new Date()) {
+  if (!job) return job;
   return {
     ...job,
     archived: false,
