@@ -951,7 +951,7 @@ export default function TodayScreen({
           className="foreman-pivot-btn"
           onClick={() => setJobOpen(true)}
         >
-          <Icon name="active-job" size={24} className="foreman-pivot-icon" />
+          <Icon name="active-job" size={24} className="foreman-pivot-icon foreman-pivot-icon--hammer" />
           Log a job
         </button>
         <button
@@ -973,7 +973,7 @@ export default function TodayScreen({
           className="foreman-pivot-btn"
           onClick={handleSendInvoicePivot}
         >
-          <Icon name="send" size={24} className="foreman-pivot-icon" />
+          <Icon name="send" size={24} className="foreman-pivot-icon foreman-pivot-icon--plane" />
           Send invoice
         </button>
       </div>

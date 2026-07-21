@@ -13165,6 +13165,36 @@ button.jd-money-chip:active { opacity: 0.75; }
   .foreman-pivot-mic-badge::after { animation: none; display: none; }
 }
 
+/* Today-alive item 4 (cont.): the "Log a job" hammer and "Send invoice" plane
+   share the mic ring's exact 2.4s beat so all three pivot buttons read as one
+   synchronized family — hammer strikes once per loop, plane bobs like it's
+   idling on a thermal. transform-only (rotate/translate3d), no layout impact. */
+.foreman-pivot-icon--hammer {
+  transform-origin: 75% 80%;
+  animation: foreman-pivot-hammer-strike 2.4s ease-in-out infinite;
+}
+@keyframes foreman-pivot-hammer-strike {
+  0%   { transform: rotate(0deg);   animation-timing-function: ease-out; }
+  7%   { transform: rotate(-5deg);  animation-timing-function: ease-in;  } /* wind-up: head tips back, then accelerates into the strike */
+  17%  { transform: rotate(17deg);  animation-timing-function: ease-out; } /* impact: head swings down + inward */
+  25%  { transform: rotate(6deg);   animation-timing-function: ease-in-out; } /* rebound off the surface */
+  33%  { transform: rotate(0deg); } /* settle */
+  100% { transform: rotate(0deg); } /* long rest — ~67% of the loop */
+}
+.foreman-pivot-icon--plane {
+  transform-origin: 50% 50%;
+  animation: foreman-pivot-plane-float 2.4s ease-in-out infinite;
+}
+@keyframes foreman-pivot-plane-float {
+  0%   { transform: translate3d(0, 0, 0) rotate(0deg); }
+  50%  { transform: translate3d(1px, -3px, 0) rotate(-3deg); } /* lift + drift toward its up-right heading, nose tips up */
+  100% { transform: translate3d(0, 0, 0) rotate(0deg); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .foreman-pivot-icon--hammer,
+  .foreman-pivot-icon--plane { animation: none; }
+}
+
 /* ── Weekly check-in line ───────────────────────────────────────────────────── */
 
 .foreman-week-line {
