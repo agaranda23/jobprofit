@@ -24246,3 +24246,96 @@ details[open].error-boundary__details summary::before {
     transform: none;
   }
 }
+
+/* ── Archived Jobs view (feat/archived-jobs-view) ──────────────────────────
+   Static colour tints only — no color-mix() (iOS Safari 15 support). Reuses
+   existing --text/--text-dim/--surface/--surface-2/--border tokens rather
+   than inventing new ones, so light/dark theming is inherited for free. ── */
+
+/* Count badge on the "Archived" controls-row pill — hidden at 0 by the
+   caller, so this class is only ever mounted when count > 0. */
+.show-all-pill-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  margin-left: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  color: var(--text-dim);
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.show-all-pill--active .show-all-pill-count {
+  background: rgba(255, 255, 255, 0.28);
+  color: #fff;
+}
+
+/* Very-condensed archived tile list — single flex row per job. */
+.arch-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.arch-tile {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 10px 12px;
+  /* border-left-color overridden inline per stage (STAGE_META hue) */
+  border-left: 3px solid var(--stage-lead);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.arch-tile-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.arch-tile-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.arch-tile-sub {
+  font-size: 13px;
+  color: var(--text-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.arch-tile-amount {
+  flex: 0 0 auto;
+  font-size: 14px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+  text-align: right;
+}
+.arch-tile-amount--muted {
+  color: var(--text-dim);
+  font-weight: 500;
+}
+
+/* Two-item ⋯ menu body (Restore / Delete permanently) — full-width stacked
+   rows so a gloved thumb can't miss, on top of .jt-action-chip's own theming. */
+.arch-menu-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.arch-menu-actions .jt-action-chip {
+  width: 100%;
+  min-height: 44px;
+  justify-content: flex-start;
+}

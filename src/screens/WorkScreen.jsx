@@ -56,6 +56,7 @@ import { deleteJobWithData } from '../lib/store';
 import { buildDeleteJobCopy } from '../lib/deleteJobCopy';
 import { shouldShowPartPaidChip, formatPartPaidLabel } from '../lib/partPaidChip';
 import { countSampleJobs } from '../lib/sampleData';
+import { selectArchivedJobs, applyRestore, formatArchivedAgo } from '../lib/archivedJobs';
 // JP-LU5 PR1: sortJobsByColumn, daysInStage removed from WorkScreen import —
 // call sites in JobsTable deleted. Both are still exported from lib/jobSort.js.
 import { jobMatchesQuery, sortJobsByStage, sortJobsForAllView, firstLineOfAddress } from '../lib/jobSort';
@@ -1219,6 +1220,223 @@ function JobsList({ jobs, _receipts, selectedStage, showAll, searchQuery, _profi
   );
 }
 
+// ── ArchivedList / ArchivedTile / ArchivedTileMenu (feat/archived-jobs-view) ──
+// Flat, newest-first list of very-condensed archived job tiles. Mirrors
+// JobsList's wrap + Pager (PAGE_SIZE=25, Pager self-hides at ≤ PAGE_SIZE) so a
+// large archive paginates instead of endless scroll. No search, no drawer —
+// archived jobs are view-only; the only interaction is the ⋯ menu.
+
+function ArchivedList({ jobs, onRestoreJob, onDeleteJob }) {
+  const [page, setPage] = useState(1);
+
+  if (jobs.length === 0) {
+    return (
+      <div className="screen-empty">
+        <p className="screen-empty-title">Nothing archived</p>
+        <p className="screen-empty-hint">
+          Archived jobs sit here, out of the way — not lost. Archive one from the ⋯ menu on any job, and bring it back any time.
+        </p>
+      </div>
+    );
+  }
+
+  const totalPages = Math.max(1, Math.ceil(jobs.length / PAGE_SIZE));
+  const safePage = Math.min(page, totalPages);
+  const pageItems = jobs.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
+  return (
+    <div className="job-list-wrap">
+      <ul className="arch-list">
+        {pageItems.map(j => (
+          <ArchivedTile key={j.id || j.cloudId} job={j} onRestoreJob={onRestoreJob} onDeleteJob={onDeleteJob} />
+        ))}
+      </ul>
+      <Pager
+        page={safePage}
+        totalPages={totalPages}
+        onPage={setPage}
+        totalItems={jobs.length}
+        pageSize={PAGE_SIZE}
+      />
+    </div>
+  );
+}
+
+/**
+ * ArchivedTile — very-condensed, view-only row.
+ * Layout: 3px stage-colour left rail · two-line text (title / "{stage} · Archived {ago}")
+ * · right-aligned amount · ⋯ menu. Body is inert (not role="button") — the ⋯ trigger is the
+ * sole interactive control. Reuses the same primaryLabel/priceLine idiom as JobTile so an
+ * archived job's summary matches how it read in the pipeline.
+ */
+function ArchivedTile({ job, onRestoreJob, onDeleteJob }) {
+  const stage = deriveDisplayStatus(job);
+  const jobName = (job.summary || '').trim();
+  const customerName = (job.customer || job.name || '').trim();
+  const primaryLabel = jobName || customerName || 'Untitled job';
+  const rawAmount = job.total ?? job.amount;
+  const amount = rawAmount != null ? Number(rawAmount) : null;
+  const isUnpriced = amount == null || amount <= 0;
+  const priceLine = (stage === 'Lead' && isUnpriced) ? 'No price yet' : (!isUnpriced ? '£' + formatAmount(amount) : '—');
+  const ago = formatArchivedAgo(job?.meta?.archivedAt);
+  const sub = ago ? `${stage} · Archived ${ago}` : `${stage} · Archived`;
+  const rail = (STAGE_META[stage] || STAGE_META.Lead).hue;
+
+  return (
+    <li className="arch-tile" style={{ borderLeftColor: rail }}>
+      <div className="arch-tile-main">
+        <span className="arch-tile-title">{primaryLabel}</span>
+        <span className="arch-tile-sub">{sub}</span>
+      </div>
+      <span className={`arch-tile-amount${isUnpriced ? ' arch-tile-amount--muted' : ''}`}>{priceLine}</span>
+      <ArchivedTileMenu job={job} primaryLabel={primaryLabel} onRestoreJob={onRestoreJob} onDeleteJob={onDeleteJob} />
+    </li>
+  );
+}
+
+/**
+ * ArchivedTileMenu — two-item ⋯ menu (Restore / Delete permanently).
+ * Copies StageChipDropdown's menu scaffolding verbatim: the .jt-dots trigger,
+ * the open state + refs + positioning effect, the outside-click/touchstart/
+ * Escape close effect, and the createPortal(..., document.body) render of
+ * .jt-backdrop + .jt-menu.jt-menu--dropdown (desktop) / --sheet (mobile).
+ * Only the menu body differs — two full-width stacked rows, no stage-move.
+ */
+function ArchivedTileMenu({ job, primaryLabel, onRestoreJob, onDeleteJob }) {
+  const [open, setOpen] = useState(false);
+  const chipRef = useRef(null);
+  const menuRef = useRef(null);
+  const sheetRef = useRef(null);
+  const dotsRef = useRef(null);
+  const [menuPos, setMenuPos] = useState({ top: 0, right: 0 });
+
+  useEffect(() => {
+    if (!open) return;
+    function handleClickOutside(e) {
+      const insideMenu  = menuRef.current  && menuRef.current.contains(e.target);
+      const insideSheet = sheetRef.current && sheetRef.current.contains(e.target);
+      if (
+        chipRef.current && !chipRef.current.contains(e.target) &&
+        !insideMenu && !insideSheet
+      ) {
+        setOpen(false);
+      }
+    }
+    function handleKeyDown(e) {
+      if (e.key === 'Escape') setOpen(false);
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside, { passive: true });
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [open]);
+
+  const menuContent = (
+    <>
+      <div className="jt-sheet-title">{primaryLabel || 'Archived job'}</div>
+      <div className="arch-menu-actions" role="menu">
+        <button
+          type="button"
+          role="menuitem"
+          className="jt-action-chip"
+          onClick={() => { setOpen(false); onRestoreJob(job); }}
+        >
+          Restore
+        </button>
+        <button
+          type="button"
+          role="menuitem"
+          className="jt-action-chip jt-action-chip--danger"
+          onClick={() => { setOpen(false); onDeleteJob(job); }}
+        >
+          Delete permanently
+        </button>
+      </div>
+    </>
+  );
+
+  return (
+    <>
+      {open && createPortal(
+        <div
+          className="jt-backdrop"
+          aria-hidden="true"
+          onClick={e => { e.stopPropagation(); setOpen(false); }}
+        />,
+        document.body
+      )}
+
+      <div ref={chipRef} className="jt-chip-wrapper">
+        <button
+          ref={dotsRef}
+          type="button"
+          className="jt-dots"
+          aria-haspopup="menu"
+          aria-expanded={open}
+          aria-label={`Options for ${primaryLabel || 'archived job'}`}
+          onClick={e => {
+            e.stopPropagation();
+            if (!open && dotsRef.current) {
+              const r = dotsRef.current.getBoundingClientRect();
+              setMenuPos({ top: r.bottom + 6, right: window.innerWidth - r.right });
+            }
+            setOpen(v => !v);
+          }}
+          onKeyDown={e => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              if (!open && dotsRef.current) {
+                const r = dotsRef.current.getBoundingClientRect();
+                setMenuPos({ top: r.bottom + 6, right: window.innerWidth - r.right });
+              }
+              setOpen(v => !v);
+            }
+          }}
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+            <circle cx="8" cy="3" r="1.4"/>
+            <circle cx="8" cy="8" r="1.4"/>
+            <circle cx="8" cy="13" r="1.4"/>
+          </svg>
+        </button>
+
+        {open && (
+          <>
+            {createPortal(
+              <div
+                ref={menuRef}
+                className="jt-menu jt-menu--dropdown"
+                role="menu"
+                style={{ top: menuPos.top, right: menuPos.right }}
+                onClick={e => e.stopPropagation()}
+              >
+                {menuContent}
+              </div>,
+              document.body
+            )}
+            {createPortal(
+              <div
+                ref={sheetRef}
+                className="jt-menu jt-menu--sheet"
+                role="menu"
+                onClick={e => e.stopPropagation()}
+              >
+                <div className="jt-sheet-grab" aria-hidden="true" />
+                {menuContent}
+              </div>,
+              document.body
+            )}
+          </>
+        )}
+      </div>
+    </>
+  );
+}
+
 // ── PeopleList subview (feat/customers-list) ──────────────────────────────────
 // "People" lens on the exact same jobs+receipts data JobsList renders above —
 // no second timeline, no new table. groupByCustomer/computeLifetime are the
@@ -1324,6 +1542,9 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
   // People/Jobs toggle (feat/customers-list) — default stays 'jobs' so the
   // existing view is byte-for-byte unchanged until the trader opts in.
   const [viewMode, setViewMode] = useState('jobs');
+  // showArchived — Archived-jobs inline filter mode (feat/archived-jobs-view).
+  // NOT persisted: the Jobs tab always opens on the live pipeline.
+  const [showArchived, setShowArchived] = useState(false);
   // Search is kept separate from the Jobs searchQuery above — it filters a
   // different list (customers, not jobs) and shouldn't reset when switching tabs.
   const [peopleSearchQuery, setPeopleSearchQuery] = useState('');
@@ -1663,6 +1884,14 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
   };
 
   const handleSelectAll = () => {
+    if (showArchived) {
+      // Exiting the Archived view via "All" is an explicit reset — unlike
+      // toggling "Archived" off (which restores prior filter/search state).
+      setShowArchived(false);
+      setShowAll(true);
+      setSearchQuery('');
+      return;
+    }
     setSearchQuery(''); // switching to All view — clear any active search
     // Sort persists across tab switches — do NOT reset colSort here.
     if (showAll) {
@@ -1681,6 +1910,11 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
   // This single derivation feeds StageStrip totals, the chase bar, and JobsList
   // so counts and £ figures all agree.
   const visibleJobs = jobs.filter(j => !j?.archived && !j?.meta?.archived && !j?.deleted && !j?.meta?.deleted);
+
+  // Inverse of visibleJobs — feeds the Archived pill count + ArchivedList, so
+  // the two surfaces can never disagree (feat/archived-jobs-view).
+  const archivedJobs = selectArchivedJobs(jobs);
+  const archivedCount = archivedJobs.length;
 
   // Money-in-flight banner figures
   const riskFigures = calcRiskFigures(visibleJobs);
@@ -1828,7 +2062,7 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
   };
 
   // Archives a job by setting meta.archived and stamping meta.archivedAt.
-  // The job stays in the DB — a future "Archived" view will let users restore it.
+  // The job stays in the DB — the Archived view (below) lets users restore it.
   const handleArchiveJob = (job) => {
     handleUpdateJob({
       ...job,
@@ -1838,7 +2072,21 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
     showToast('Job archived');
   };
 
+  // Toggles the Archived filter mode in the controls row.
+  const handleToggleArchived = () => setShowArchived(v => !v);
+
+  // Restore — clears archived + meta.archived, keeps meta.archivedAt for audit,
+  // stamps meta.unarchivedAt. Archive never changed job.status, so the job
+  // re-derives to its original stage automatically (deriveDisplayStatus) and
+  // rejoins visibleJobs/StageStrip/chase bar immediately. Rides the normal
+  // offline queue via handleUpdateJob — works offline.
+  const handleRestoreJob = (job) => {
+    handleUpdateJob(applyRestore(job));
+    showToast('Job restored');
+  };
+
   // Opens the confirmation modal. The actual hard-delete fires on confirm.
+  // Also used by ArchivedTileMenu's "Delete permanently" — identical path.
   const handleRequestDeleteJob = (job) => {
     setConfirmDeleteJob(job);
   };
@@ -1941,7 +2189,7 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
           role="tab"
           aria-selected={viewMode === 'people'}
           className={`wj-view-btn${viewMode === 'people' ? ' wj-view-btn--active' : ''}`}
-          onClick={() => setViewMode('people')}
+          onClick={() => { setViewMode('people'); setShowArchived(false); }}
         >
           People
         </button>
@@ -1988,6 +2236,11 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
           />
         </>
       ) : (
+      <>
+      {/* Chase bar / Stage Strip / Search — hidden in Archived mode (feat/archived-jobs-view):
+          nothing to chase, no stage filtering, no v1 archived-search. Controls row and the
+          People/Jobs toggle stay visible so both exits (Archived pill, All pill) stay one tap. */}
+      {!showArchived && (
       <>
       {/* Chase bar — Design A: one-invoice focus with tier-priority queue.
            Four mutually exclusive states (evaluated top-down):
@@ -2165,16 +2418,19 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
           </button>
         )}
       </div>
+      </>
+      )}
 
-      {/* JP-LU5 PR1: List/Calendar segmented control removed — card view only.
-           Controls row retains: Show all pill + Records pill. */}
+      {/* Controls row — ALWAYS visible (even in Archived mode): All · Documents · Archived.
+          The active "Archived" pill IS the state indicator; both exits (tap Archived again,
+          or tap All) stay one tap from here — no back chevron, no sub-header. */}
       <div className="work-controls-row">
         <button
           type="button"
-          className={`show-all-pill${showAll ? ' show-all-pill--active' : ''}`}
+          className={`show-all-pill${showAll && !showArchived ? ' show-all-pill--active' : ''}`}
           onClick={handleSelectAll}
-          aria-pressed={showAll}
-          aria-label={showAll ? `Back to ${selectedStage}` : 'Show all stages'}
+          aria-pressed={showAll && !showArchived}
+          aria-label={showAll && !showArchived ? `Back to ${selectedStage}` : 'Show all stages'}
         >
           All
         </button>
@@ -2191,32 +2447,55 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
           <Icon name="search" size={13} aria-hidden="true" />
           Documents
         </button>
+        {/* Archived pill (feat/archived-jobs-view) — always rendered, even at 0, so its
+            presence teaches "archive goes somewhere"; count badge hidden at 0. */}
+        <button
+          type="button"
+          className={`show-all-pill${showArchived ? ' show-all-pill--active' : ''}`}
+          onClick={handleToggleArchived}
+          aria-pressed={showArchived}
+          aria-label={archivedCount > 0
+            ? `Archived jobs, ${archivedCount} ${archivedCount === 1 ? 'job' : 'jobs'}`
+            : 'Archived jobs'}
+        >
+          Archived
+          {archivedCount > 0 && <span className="show-all-pill-count">{archivedCount}</span>}
+        </button>
       </div>
 
-      {/* Card view — always rendered (JP-LU5 PR1: table layout removed) */}
-      <JobsList
-        jobs={visibleJobs}
-        receipts={receipts}
-        selectedStage={selectedStage}
-        showAll={showAll}
-        searchQuery={searchQuery}
-        profile={profile}
-        onJobSelect={setSelectedJob}
-        onSendInvoice={setReviewJob}
-        onUpdateJob={handleUpdateJob}
-        onNewJob={onNewJob}
-        onOpenJob={handleOpenJob}
-        onCopyJob={handleCopyJob}
-        onArchiveJob={handleArchiveJob}
-        onDeleteJob={handleRequestDeleteJob}
-        biz={biz}
-        onShowToast={showToast}
-        onViewReceipt={setReceiptJob}
-        onAddJob={openAddJob}
-        onActionRedirect={handleActionRedirect}
-        onCallJob={handleCallJob}
-        onRequestBook={handleRequestBook}
-      />
+      {/* Card view — always rendered (JP-LU5 PR1: table layout removed).
+          Archived mode swaps in the condensed ArchivedList (feat/archived-jobs-view). */}
+      {showArchived ? (
+        <ArchivedList
+          jobs={archivedJobs}
+          onRestoreJob={handleRestoreJob}
+          onDeleteJob={handleRequestDeleteJob}
+        />
+      ) : (
+        <JobsList
+          jobs={visibleJobs}
+          receipts={receipts}
+          selectedStage={selectedStage}
+          showAll={showAll}
+          searchQuery={searchQuery}
+          profile={profile}
+          onJobSelect={setSelectedJob}
+          onSendInvoice={setReviewJob}
+          onUpdateJob={handleUpdateJob}
+          onNewJob={onNewJob}
+          onOpenJob={handleOpenJob}
+          onCopyJob={handleCopyJob}
+          onArchiveJob={handleArchiveJob}
+          onDeleteJob={handleRequestDeleteJob}
+          biz={biz}
+          onShowToast={showToast}
+          onViewReceipt={setReceiptJob}
+          onAddJob={openAddJob}
+          onActionRedirect={handleActionRedirect}
+          onCallJob={handleCallJob}
+          onRequestBook={handleRequestBook}
+        />
+      )}
       </>
       )}
 
@@ -2429,7 +2708,11 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
       {docOverlay && (
         <DocumentSearchOverlay
           mode={docOverlay}
-          jobs={jobs}
+          // visibleJobs (not raw jobs) — excludes archived jobs from Documents
+          // search results (feat/archived-jobs-view edge case #10): a ghost
+          // archived job surfacing here would confuse, since this overlay has
+          // no notion of the Archived filter mode.
+          jobs={visibleJobs}
           receipts={receipts}
           profile={profile}
           onClose={() => setDocOverlay(null)}
