@@ -17,8 +17,10 @@ import { describe, it, expect } from 'vitest';
 // ── Inline helpers (identical to the exports in SettingsScreen.jsx) ───────────
 
 function buildShareData() {
-  const url =
-    typeof window !== 'undefined' ? window.location.origin : 'https://ohnar.co.uk';
+  // Always the canonical domain, never window.location.origin — this link
+  // is shared with someone else, so it must not carry whatever legacy/
+  // preview domain the sharer currently has open.
+  const url = 'https://ohnar.co.uk';
   return {
     title: 'OHNAR',
     text: "I use OHNAR to quote, invoice and get paid from my phone — give it a go.",
@@ -33,12 +35,11 @@ function buildWhatsAppSupportUrl() {
 // ── buildShareData ────────────────────────────────────────────────────────────
 
 describe('buildShareData', () => {
-  it('returns a non-empty string URL (ohnar.co.uk in Node env, origin in browser)', () => {
-    // buildShareData returns window.location.origin in the browser and
-    // 'https://ohnar.co.uk' in Node/test env (window is undefined).
-    const url = buildShareData().url;
-    expect(typeof url).toBe('string');
-    expect(url.length).toBeGreaterThan(0);
+  it('always returns the canonical ohnar.co.uk URL, regardless of current origin', () => {
+    // buildShareData is hardcoded to https://ohnar.co.uk — it never reads
+    // window.location.origin, so a share link generated from a legacy/
+    // preview domain still points at the canonical live product domain.
+    expect(buildShareData().url).toBe('https://ohnar.co.uk');
   });
 
   it('returns the correct title', () => {

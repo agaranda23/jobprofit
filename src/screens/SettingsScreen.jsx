@@ -83,8 +83,10 @@ const APP_VERSION = pkg.version;
 // ── Share / contact helpers ───────────────────────────────────────────────────
 
 function buildShareData() {
-  const url =
-    typeof window !== 'undefined' ? window.location.origin : 'https://ohnar.co.uk';
+  // Always the canonical domain, never window.location.origin — this link
+  // is shared with someone else, so it must not carry whatever legacy/
+  // preview domain the sharer currently has open.
+  const url = 'https://ohnar.co.uk';
   return {
     title: 'OHNAR',
     text: "I use OHNAR to quote, invoice and get paid from my phone — give it a go.",

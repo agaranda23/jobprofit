@@ -14,8 +14,11 @@
  * ─────────────────
  * - NEVER throws to callers. Every async function catches and either returns
  *   null or no-ops so that missing-column (42703) errors don't crash the UI.
- * - buildReferralLink uses window.location.origin so the shared link uses
- *   whichever domain the user is currently on (ohnar.co.uk once it is primary).
+ * - buildReferralLink always emits https://ohnar.co.uk regardless of the
+ *   current origin. A referral link is shared with someone else, so it must
+ *   stay on-brand even when the trader has the app open on a legacy/preview
+ *   domain (getjobprofit.com, jobprofit.netlify.app, a Netlify deploy
+ *   preview, or localhost).
  * - generateReferralCode uses crypto.getRandomValues for unguessable codes.
  */
 
@@ -34,12 +37,17 @@ const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
 
 /**
  * Build the shareable referral link for a given code.
+ *
+ * Always uses the canonical https://ohnar.co.uk domain, never
+ * window.location.origin — this link goes out to someone else, so it must
+ * not carry a legacy/preview domain just because that's what the sharer
+ * currently has open.
+ *
  * @param {string} code
  * @returns {string}
  */
 export function buildReferralLink(code) {
-  const base =
-    typeof window !== 'undefined' ? window.location.origin : 'https://ohnar.co.uk';
+  const base = 'https://ohnar.co.uk';
   return `${base}/?ref=${encodeURIComponent(code)}`;
 }
 

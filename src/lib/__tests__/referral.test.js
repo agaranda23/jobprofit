@@ -29,11 +29,10 @@ import {
 
 // D. copyReferralLink exercises navigator.share / navigator.canShare /
 // navigator.clipboard, but this file deliberately stays in vitest's default
-// 'node' environment (see file-level comment above) so test A can assert the
-// `typeof window === 'undefined'` fallback branch of buildReferralLink.
+// 'node' environment (see file-level comment above) for suite speed — no DOM
+// needed since buildReferralLink no longer reads window.location.origin.
 // Node has no global `navigator`, so shim a bare object here rather than
-// switching to jsdom — jsdom would also define `window`, which would break
-// test A's fallback assertion.
+// switching to jsdom.
 if (typeof globalThis.navigator === 'undefined') {
   globalThis.navigator = {};
 }
@@ -51,12 +50,13 @@ function makeMockSessionStorage(initial = {}) {
 // ── A. buildReferralLink ──────────────────────────────────────────────────────
 
 describe('A. buildReferralLink', () => {
-  it('uses ohnar.co.uk as fallback in Node env (domain-agnostic in browser)', () => {
-    // In Node/test env window is undefined so buildReferralLink falls back to
-    // 'https://ohnar.co.uk'. In the browser it uses window.location.origin.
+  it('always uses the canonical ohnar.co.uk domain, regardless of current origin', () => {
+    // buildReferralLink is hardcoded to https://ohnar.co.uk — it never reads
+    // window.location.origin, so a link copied from a legacy/preview domain
+    // (getjobprofit.com, jobprofit.netlify.app, a deploy preview, localhost)
+    // still points at the canonical live product domain.
     const link = buildReferralLink('ABC123');
-    expect(link).toContain('ohnar.co.uk');
-    expect(link).toContain('?ref=ABC123');
+    expect(link).toBe('https://ohnar.co.uk/?ref=ABC123');
   });
 
   it('includes the ?ref= parameter', () => {
@@ -202,7 +202,7 @@ describe('D. copyReferralLink', () => {
 
     expect(shareMock).toHaveBeenCalledOnce();
     const arg = shareMock.mock.calls[0][0];
-    expect(arg.url).toContain('ohnar.co.uk'); // fallback in Node env; window.location.hostname in browser
+    expect(arg.url).toContain('ohnar.co.uk'); // hardcoded canonical domain, not window.location
     expect(arg.url).toContain('ref=ABC123');
   });
 
