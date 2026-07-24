@@ -355,7 +355,9 @@ export default function DocumentSearchOverlay({
   onJobSelect,
   onCreateJob,
   onCreateQuote,
-  onSendInvoice,
+  // Kept for backwards-compat with callers still passing it (unused here —
+  // the invoices empty-state CTA has no job to hand it, see handleEmptyCta).
+  onSendInvoice: _onSendInvoice,
   onOpenUpgradeSheet,
 }) {
   // All hooks above any early return (project rule).
@@ -497,10 +499,13 @@ export default function DocumentSearchOverlay({
 
   const handleEmptyCta = useCallback(() => {
     onClose?.();
-    if (activeMode === 'invoices') onSendInvoice?.();
-    else if (activeMode === 'quotes') onCreateQuote?.();
+    // Invoices' empty state has no job to hand off to onSendInvoice (that's the
+    // whole point of "empty" — there's nothing invoice-ready yet), so it falls
+    // through to the same "create a job" entry point as the default branch,
+    // same as an empty jobs/receipts search. See button-audit findings.
+    if (activeMode === 'quotes') onCreateQuote?.();
     else onCreateJob?.();
-  }, [activeMode, onClose, onSendInvoice, onCreateQuote, onCreateJob]);
+  }, [activeMode, onClose, onCreateQuote, onCreateJob]);
 
   const handleExport = useCallback(async () => {
     if (exportingRef.current) return;

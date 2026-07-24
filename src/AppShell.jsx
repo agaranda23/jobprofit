@@ -224,14 +224,23 @@ export default function AppShell() {
   const lastRefetchAtRef = useRef(0);
   // Wizard state (new nav only).
   // wizardOpen — should the wizard overlay be showing right now?
-  // postWizardNav — view to navigate to after the wizard completes (e.g. 'jobs').
   const [wizardOpen, setWizardOpen] = useState(false);
-  const [postWizardNav, setPostWizardNav] = useState(null);
   // Push permission prompt: show once per device, dismiss stored in localStorage
   const [pushPromptVisible, setPushPromptVisible] = useState(false);
-  // pendingJobId: when Today navigates to Work with a specific job to open, store
-  // the job ID here so WorkScreen can pre-open the drawer on mount.
-  const [pendingJobId, setPendingJobId] = useState(null);
+  // pendingJobOpen: when Today (or Settings/a deep-link/the realtime Snackbar)
+  // navigates to Work with a specific job to open, store { jobId, nonce } here
+  // so WorkScreen can pre-open the drawer. `nonce` is a fresh value on every
+  // dispatch (same pattern as workStageOverride below) because the dashboard
+  // pager keeps WorkScreen mounted across navigations — a plain jobId string
+  // wouldn't re-fire WorkScreen's open-drawer effect on a second tap targeting
+  // the same job. WorkScreen clears this back to null once it has consumed it
+  // (via onPendingJobOpenConsumed) so a later cloud refresh of `jobs` can't
+  // re-trigger the open-drawer effect and reopen a drawer the trader closed.
+  const [pendingJobOpen, setPendingJobOpen] = useState(null);
+  const openJob = useCallback((jobId) => {
+    if (!jobId) return;
+    setPendingJobOpen({ jobId, nonce: Date.now() });
+  }, []);
   // workStageOverride: when a Today card/banner navigates to Jobs for a SPECIFIC
   // stage (e.g. the "waiting to collect" pulse card → Invoiced), this carries that
   // stage across the navigation. WorkScreen applies it over its persisted
@@ -396,13 +405,13 @@ export default function AppShell() {
 
   // Chase-reminder deep-link: /?job=<jobId>#/work
   // Sent by chase-reminders.js push notification. Parses once after auth is
-  // ready, sets pendingJobId, navigates to Work, then cleans the URL.
+  // ready, sets pendingJobOpen, navigates to Work, then cleans the URL.
   useEffect(() => {
     if (!authReady) return;
     const params = new URLSearchParams(window.location.search);
     const jobId = params.get('job');
     if (jobId) {
-      setPendingJobId(jobId);
+      openJob(jobId);
       navigate('work');
       // Strip the ?job= param from the URL so Back/refresh doesn't re-trigger
       const clean = window.location.pathname + window.location.hash;
@@ -594,6 +603,17 @@ export default function AppShell() {
         try { window.gtag('config', import.meta.env.VITE_GA4_ID, { user_id: undefined }); } catch { /* gtag not bootstrapped — silently no-op */ }
         // Reset PostHog identity so the next sign-in gets a clean anonymous profile.
         try { posthog.reset(); } catch { /* PostHog not initialised or blocked — silently no-op */ }
+        // Clear transient nav state — AppShell is one long-lived instance that
+        // survives sign-out (only the render output swaps to <AuthScreen>), so
+        // plain useState here would otherwise carry a Settings sub-screen (e.g.
+        // stale view='settings'+settingsSubView='card-payments') or a pending
+        // job-drawer open across into the NEXT sign-in on this device
+        // (button-audit fix).
+        navigate('today');
+        setSettingsSubView(null);
+        setPendingJobOpen(null);
+        setWorkStageOverride(null);
+        setSettingsScrollTarget(null);
       }
       // Funnel step 3: signed_in — fires on every SIGNED_IN event.
       // is_new_user = true when created_at is within the last 60 s, meaning this
@@ -655,6 +675,9 @@ export default function AppShell() {
       mounted = false;
       listener?.subscription?.unsubscribe?.();
     };
+    // Subscribe once on mount only — navigate/setSettingsSubView/etc. are all
+    // stable (useCallback/useState setters), safe to omit from deps.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -1553,9 +1576,9 @@ export default function AppShell() {
     // so the intended drawer-open still fires.
     if (nextView === 'work') {
       setWorkResetKey(k => k + 1);
-      // Also clear the pending job so a remounted WorkScreen has no initialJobId.
+      // Also clear the pending job so a remounted WorkScreen has no pendingJobOpen.
       // JP-LU5 PR1: setPendingWorkView removed — calendar subview deleted.
-      setPendingJobId(null);
+      setPendingJobOpen(null);
       // A deliberate tab tap always shows the last-used/persisted stage filter —
       // never a stale stage override left over from an earlier Today card tap.
       setWorkStageOverride(null);
@@ -1673,10 +1696,9 @@ export default function AppShell() {
           {/* Page 0 — Today */}
           <AppErrorBoundary variant="screen" screen="today">
             <TodayScreen
-              onOpenDetailed={openDetailed}
               onChase={() => navigate('finance')}
               onMarkPaid={onMarkPaidFromToday}
-              onJobTap={(job) => { if (job?.id) setPendingJobId(job.id); navigate('work'); }}
+              onJobTap={(job) => { openJob(job?.id); navigate('work'); }}
               jobs={jobs}
               receipts={receipts}
               onAddJob={handleAddJob}
@@ -1687,7 +1709,7 @@ export default function AppShell() {
               onProfileUpdate={handleProfileUpdate}
               onNavigateToMoney={() => navigate('finance')}
               onSeeTheWeek={handleSeeTheWeek}
-              onNavigateToCardPayments={() => setSettingsSubView('card-payments')}
+              onNavigateToCardPayments={() => { navigate('settings'); setSettingsSubView('card-payments'); }}
               materials={materials}
               defaultMarkup={profile?.default_markup ?? 20}
               onBrowseMaterials={() => setMaterialsOpen(true)}
@@ -1714,9 +1736,10 @@ export default function AppShell() {
               onUpdateReceipt={handleUpdateReceipt}
               biz={null}
               profile={profile}
-              initialJobId={pendingJobId}
+              pendingJobOpen={pendingJobOpen}
+              onPendingJobOpenConsumed={() => setPendingJobOpen(null)}
               stageOverride={workStageOverride}
-              onNavigateToCardPayments={() => setSettingsSubView('card-payments')}
+              onNavigateToCardPayments={() => { navigate('settings'); setSettingsSubView('card-payments'); }}
               onProfileUpdate={handleProfileUpdate}
               materials={materials}
               defaultMarkup={profile?.default_markup ?? 20}
@@ -1734,7 +1757,10 @@ export default function AppShell() {
               receipts={receipts}
               session={session}
               profile={profile}
-              onGoToJobs={() => navigate('work')}
+              onGoToJobs={(stage) => {
+                if (stage) setWorkStageOverride({ stage, nonce: Date.now() });
+                navigate('work');
+              }}
               onGoToSettings={(target) => {
                 navigate('settings');
                 if (target === 'overheads') setSettingsScrollTarget('overheads');
@@ -1752,7 +1778,14 @@ export default function AppShell() {
       {view === 'settings' && settingsSubView === 'card-payments' && (
         <CardPaymentsScreen
           profile={profile}
-          onBack={() => setSettingsSubView(null)}
+          onBack={() => {
+            // Lands one level up (Settings → Get paid), not two (the hub) —
+            // SettingsScreen genuinely remounts on 'hub' here since
+            // CardPaymentsScreen is an AppShell-level sibling, not nested
+            // inside SettingsScreen's own back-stack (button-audit fix).
+            setSettingsSubView(null);
+            setSettingsScrollTarget('getpaid');
+          }}
           onProfileUpdate={(patch) => {
             // Optimistically update local profile state so the screen flips
             // immediately; the authoritative update comes from the next
@@ -1775,7 +1808,7 @@ export default function AppShell() {
           onNavigateToCardPayments={() => setSettingsSubView('card-payments')}
           onBrowseMaterials={() => setMaterialsOpen(true)}
           onOpenJob={(jobId) => {
-            if (jobId) setPendingJobId(jobId);
+            openJob(jobId);
             navigate('work');
           }}
           scrollTarget={settingsScrollTarget}
@@ -1790,6 +1823,7 @@ export default function AppShell() {
         view={view}
         onChange={handleTabChange}
         workBadge={buildChaseList(Array.isArray(jobs) ? jobs : []).filter(row => !isDoubleSendBlocked(row.id)).length}
+        financeBadge={buildChaseList(Array.isArray(jobs) ? jobs : []).filter(row => !isDoubleSendBlocked(row.id)).length}
       />
 
 
@@ -1832,7 +1866,7 @@ export default function AppShell() {
         onDismiss={(id) => snackbarDismiss(id)}
         onTap={(descriptor) => {
           if (descriptor.jobId) {
-            setPendingJobId(descriptor.jobId);
+            openJob(descriptor.jobId);
             navigate('work');
           }
         }}
@@ -1845,7 +1879,7 @@ export default function AppShell() {
           if (shouldAutoMute) handleProfileUpdate({ remind_job_costs: false });
           setCostSnackbarJob(null);
         }}
-        onSetupPayNow={() => navigate('settings')}
+        onSetupPayNow={() => { navigate('settings'); setSettingsSubView('card-payments'); }}
         onGotPaidChip={(job, method) => {
           if (job) onMarkPaidFromToday(job, method);
         }}
@@ -1955,14 +1989,6 @@ export default function AppShell() {
             // wizard-skippers; this covers the (less common) explicit-wizard path.
             if (shouldShowProReveal(savedProfile, session?.user?.id)) {
               setProRevealOpen(true);
-            }
-            if (postWizardNav) {
-              navigate(postWizardNav);
-              setPostWizardNav(null);
-              // If user was trying to create a job, force WorkScreen remount so AddJob opens.
-              if (postWizardNav === 'work') {
-                setWorkResetKey(k => k + 1);
-              }
             }
           }}
         />
@@ -2086,12 +2112,15 @@ export default function AppShell() {
           onClose={() => setAddJobPrefill(null)}
           onSave={async (j) => { await handleAddJob(j); setAddJobPrefill(null); }}
           onSaveAndSend={async (payload) => {
-            // Save the job, close this modal, then let the caller handle send.
-            // WorkScreen/TodayScreen each have their own handleSaveAndSend that
-            // opens ReviewSheet. From AppShell we just save — the invoice flow
-            // must be initiated from the job tile after the modal closes.
+            // Save the job, close this modal, then land the trader on the new
+            // job's drawer (same pendingJobOpen mechanism as onJobTap/onOpenJob
+            // elsewhere in AppShell) — a real Send Invoice/quote entry point
+            // lives there. Previously this saved silently with zero signal
+            // that "send" hadn't actually happened (button-audit fix).
             await handleAddJob(payload);
             setAddJobPrefill(null);
+            openJob(payload?.id);
+            navigate('work');
           }}
           defaultMode="details-manual"
           initialCustomer={addJobPrefill.customer || ''}

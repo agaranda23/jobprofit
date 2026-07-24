@@ -17,8 +17,15 @@
  * the <span className="pbjp-wordmark"> element. No layout changes needed.
  *
  * ATTRIBUTION: Each doc type passes its own `source` so links carry
- *   ?ref=<source>&utm_source=public_doc&utm_medium=footer&utm_campaign=powered_by
+ *   ?utm_content=<source>&utm_source=public_doc&utm_medium=footer&utm_campaign=powered_by
  * GA4 will see these params when the referred user hits the signup/auth screen.
+ * Deliberately NOT `?ref=` — main.jsx's captureReferralCode() reads any `ref`
+ * param matching /^[A-Za-z0-9]{1,20}$/, which the literal strings 'quote' /
+ * 'invoice' / 'receipt' all satisfy. That collided with the real referral
+ * program (src/lib/referral.js) — a footer-CTA tap could silently overwrite
+ * (and lose) a genuine earlier referral code in sessionStorage. `utm_content`
+ * folds into the existing utm_source/utm_medium/utm_campaign triplet instead
+ * (button-audit fix).
  *
  * @param {{
  *   source: 'invoice' | 'quote' | 'receipt',
@@ -40,7 +47,7 @@ export default function PoweredByJobProfit({ source, hidden = false }) {
     typeof window !== 'undefined' ? window.location.origin : 'https://ohnar.co.uk';
   const href =
     `${base}` +
-    `?ref=${encodeURIComponent(source)}` +
+    `?utm_content=${encodeURIComponent(source)}` +
     `&utm_source=public_doc` +
     `&utm_medium=footer` +
     `&utm_campaign=powered_by`;

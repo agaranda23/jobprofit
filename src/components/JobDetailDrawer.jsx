@@ -2277,8 +2277,6 @@ export default function JobDetailDrawer({
   const [profitSheetOpen, setProfitSheetOpen] = useState(false);
 
   // Photo add — refs for the two hidden file inputs (camera + gallery)
-  // photoInputRef kept for any legacy callers that still reference it directly.
-  const photoInputRef = useRef(null);   // legacy alias → points at galleryInputRef target
   const cameraInputRef = useRef(null);
   const galleryInputRef = useRef(null);
   const addPhotoBtnRef = useRef(null);  // focus-return target when sheet closes
@@ -2906,7 +2904,11 @@ export default function JobDetailDrawer({
   //   founder's reported issue) is fully fixed for all paths that call
   //   chipPriceHandler / openPriceEditor.
   useEffect(() => {
-    if (intent && needsPrice(job) && editingField !== 'amount') {
+    // Gated to price/quote intents explicitly (not just "any truthy intent") —
+    // otherwise this collides with the separate intent==='schedule' effect
+    // below on an unpriced job (e.g. price zeroed out after quoting), which
+    // would fire BOTH the price editor and the visit editor from one tap.
+    if ((intent === 'price' || intent === 'quote') && needsPrice(job) && editingField !== 'amount') {
       openPriceEditor();
     }
     // Only react to intent changes — not every render
@@ -3498,7 +3500,11 @@ export default function JobDetailDrawer({
     openPaymentModal:    () => setPaymentModalOpen(true),
     handleChase,
     openReceiptModal:    () => setReceiptModalOpen(true),
-    openPhotoInput:      () => photoInputRef.current?.click(),
+    // Route through PhotoSourceSheet (Take Photo / Upload Photo choice) like
+    // every other Add-photo affordance in this drawer — a direct
+    // photoInputRef.current.click() skipped the camera-vs-gallery choice
+    // (button-audit fix).
+    openPhotoInput:      () => setPhotoSheetOpen(true),
     openSigPad:          () => setSigPadOpen(true),
     editPrice:           openPriceEditor,
     editLineItems:       openPriceEditor,
@@ -4505,7 +4511,7 @@ export default function JobDetailDrawer({
             aria-hidden="true"
           />
           <input
-            ref={(node) => { galleryInputRef.current = node; photoInputRef.current = node; }}
+            ref={galleryInputRef}
             type="file"
             accept="image/*"
             multiple

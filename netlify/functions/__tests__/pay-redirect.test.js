@@ -13,6 +13,8 @@
  *   G. Stripe session status 'complete' → 200 HTML "already paid"
  *   H. Missing env vars → 503 HTML
  *   I. Method guard (non-GET returns 405)
+ *   J. /p/success and /p/cancelled (Stripe redirect URLs — button-audit fix):
+ *      200 confirmation/cancellation HTML, no DB lookup, never the generic 404.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -250,5 +252,34 @@ describe('I. Method guard', () => {
     const handler = await getHandler();
     const res = await handler(makeEvent({ method: 'HEAD' }));
     expect(res.statusCode).toBe(302);
+  });
+});
+
+// ─── J. /p/success and /p/cancelled — Stripe redirect URLs (button-audit) ────
+// create-invoice-payment-link*.js point Stripe's success_url/cancel_url at
+// these two paths under the SAME /p/<x> prefix as the token redirect above.
+// Without the dedicated branch, 'success'/'cancelled' would be treated as
+// opaque tokens, never match a DB row, and fall through to the generic 404
+// "Link not found" page on every completed (or cancelled) card payment.
+
+describe('J. /p/success → 200 payment-received HTML, no DB lookup', () => {
+  it('returns 200 with received copy and never touches Supabase', async () => {
+    const handler = await getHandler();
+    const res = await handler(makeEvent({ path: '/p/success' }));
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toMatch(/received/i);
+    expect(res.body).not.toMatch(/not found/i);
+    expect(mockSingleCallCount).toBe(0);
+  });
+});
+
+describe('J. /p/cancelled → 200 payment-cancelled HTML, no DB lookup', () => {
+  it('returns 200 with cancelled copy and never touches Supabase', async () => {
+    const handler = await getHandler();
+    const res = await handler(makeEvent({ path: '/p/cancelled' }));
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toMatch(/cancelled/i);
+    expect(res.body).not.toMatch(/not found/i);
+    expect(mockSingleCallCount).toBe(0);
   });
 });

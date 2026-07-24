@@ -642,13 +642,20 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
   // within the same mount (e.g. plan refresh after webhook).
 
   // handleTrustHintCta: tap-through for the data trust nudge.
-  // markPaid → Jobs tab; noCosts → Settings tab scrolled to overheads section.
-  // Passes 'overheads' as the scroll target so AppShell can tell SettingsScreen
-  // where to land. NOTE: section naming/structure is pending PRD's redesign.
+  // markPaid → Jobs tab, filtered to Overdue; noCosts → Settings tab scrolled
+  // to overheads section. Passes 'overheads' as the scroll target so AppShell
+  // can tell SettingsScreen where to land. NOTE: section naming/structure is
+  // pending PRD's redesign.
+  // dataTrustHint's markPaid hint covers several DONE_STATUSES stages
+  // (completed/invoiced/overdue/sent/awaiting — see lib/cashflow.js) but
+  // VALID_STAGES has no single combined "unpaid" bucket to filter to.
+  // 'Overdue' is the single most actionable stage (real money genuinely owed,
+  // and the same stage Today's "waiting to collect" card already routes to —
+  // see todayAlive.test.jsx) — button-audit judgment call, not exhaustive.
   const handleTrustHintCta = useCallback(() => {
     if (!dataTrustHint) return;
     if (dataTrustHint.type === 'markPaid' && onGoToJobs) {
-      onGoToJobs();
+      onGoToJobs('Overdue');
     } else if (dataTrustHint.type === 'noCosts' && onGoToSettings) {
       onGoToSettings('overheads');
     }
@@ -937,14 +944,16 @@ export default function FinanceScreen({ jobs = [], receipts = [], session, profi
             type="button"
             className="money-accountant-tools__btn"
             onClick={handleMoneyExport}
-            disabled={exporting}
+            disabled={exporting || jobs.length === 0}
             aria-busy={exporting}
           >
             <Icon name="download" size={16} className="money-accountant-tools__btn-icon" />
-            {exporting ? 'Preparing…' : 'Export for your accountant (CSV)'}
+            {exporting ? 'Preparing…' : 'Export for your accountant'}
           </button>
           <p className="money-accountant-tools__hint">
-            Jobs ledger with costs and profit — opens in Excel or Google Sheets.
+            {jobs.length === 0
+              ? 'Log a job to unlock exports'
+              : 'Jobs ledger with costs and profit — choose CSV, Excel, PDF, or an accountant-ready format.'}
           </p>
         </div>
       )}

@@ -429,8 +429,12 @@ export default function ReviewSheet({
   };
 
   // ── Bank-gate view ─────────────────────────────────────────────────────────
+  // Portalled for the identical reason the main view below is (see the portal
+  // comment there) — an un-portalled BankGateSheet sits inside the same
+  // trapped .dp-viewport stacking context, so the bottom nav can paint over
+  // and steal taps from it too (button-audit fix).
   if (sheetView === 'bank-gate') {
-    return (
+    return createPortal(
       <BankGateSheet
         onClose={onClose}
         onProfileUpdate={onProfileUpdate}
@@ -444,7 +448,8 @@ export default function ReviewSheet({
           setSheetView('main');
           flash?.('Sending without a deposit');
         }}
-      />
+      />,
+      document.body
     );
   }
 

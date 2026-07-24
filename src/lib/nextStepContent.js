@@ -16,7 +16,7 @@
  *   'openPaymentModal'   – setPaymentModalOpen(true)
  *   'handleChase'        – handleChase() (WhatsApp chase link)
  *   'openReceiptModal'   – setReceiptModalOpen(true)
- *   'openPhotoInput'     – photoInputRef.current?.click()
+ *   'openPhotoInput'     – setPhotoSheetOpen(true) (PhotoSourceSheet: Take Photo / Upload Photo)
  *   'openSigPad'         – setSigPadOpen(true)
  *   'editPrice'          – setEditingField('amount')
  *   'editLineItems'      – handleToggleLiEdit()
