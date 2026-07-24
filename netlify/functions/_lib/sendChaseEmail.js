@@ -74,10 +74,10 @@ export async function sendChaseEmail({ userId, adminClient, job, dpd, currentTie
     `Overdue:  ${dpd} day${dpd === 1 ? '' : 's'}`,
     currentTier ? `Chase tier: ${currentTier}` : null,
     ``,
-    `Open the job in JobProfit:`,
+    `Open the job in OHNAR:`,
     deepLink,
     ``,
-    `— JobProfit`,
+    `— OHNAR`,
   ].filter((l) => l !== null).join('\n');
 
   try {

@@ -149,7 +149,7 @@ export const handler = async function (event) {
   }
 
   // ── 5. Build the safe public response — only public-safe business fields ───────
-  // isPro: used by the public page to hide the "Sent with JobProfit" footer (white-label perk).
+  // isPro: used by the public page to hide the "Sent with OHNAR" footer (white-label perk).
   const isTraderPro = profile.plan === 'pro' ||
     (profile.plan === 'trial' && profile.trial_ends_at && new Date(profile.trial_ends_at) > new Date());
 
@@ -170,7 +170,7 @@ export const handler = async function (event) {
     accountName:       profile.account_name         || '',
     sortCode:          profile.sort_code            || '',
     accountNumber:     profile.account_number       || '',
-    // isPro: true hides the "Sent with JobProfit" footer on the public quote page.
+    // isPro: true hides the "Sent with OHNAR" footer on the public quote page.
     isPro:             isTraderPro,
   });
 };

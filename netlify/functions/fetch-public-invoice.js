@@ -154,7 +154,7 @@ export const handler = async function (event) {
   }
 
   // ── 5. Build the safe public response — never expose internal columns ─────────
-  // isPro: used by the public page to hide the "Sent with JobProfit" footer (white-label perk).
+  // isPro: used by the public page to hide the "Sent with OHNAR" footer (white-label perk).
   // Computed server-side so the public page never receives the raw plan/trial_ends_at fields.
   const isTraderPro = profile.plan === 'pro' ||
     (profile.plan === 'trial' && profile.trial_ends_at && new Date(profile.trial_ends_at) > new Date());
@@ -183,7 +183,7 @@ export const handler = async function (event) {
     itemiseDocuments:   profile.itemise_documents     ?? false,
     paymentTermsDays:   profile.payment_terms_days    ?? 14,
     termsText:          profile.terms_text            || '',
-    // isPro: true hides the "Sent with JobProfit" footer on the public invoice page.
+    // isPro: true hides the "Sent with OHNAR" footer on the public invoice page.
     isPro:              isTraderPro,
   });
 };

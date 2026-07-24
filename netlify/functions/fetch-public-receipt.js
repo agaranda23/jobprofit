@@ -127,7 +127,7 @@ export const handler = async function (event) {
     return json(502, { error: 'Could not load receipt — please try again' });
   }
 
-  // isPro: used by the public page to hide the "Sent with JobProfit" footer (white-label perk).
+  // isPro: used by the public page to hide the "Sent with OHNAR" footer (white-label perk).
   const isTraderPro = profile.plan === 'pro' ||
     (profile.plan === 'trial' && profile.trial_ends_at && new Date(profile.trial_ends_at) > new Date());
 
@@ -141,7 +141,7 @@ export const handler = async function (event) {
     vatRegistered: !!profile.vat_number,
     vatNumber:     profile.vat_number     || '',
     utrNumber:     profile.utr_number     || '',
-    // isPro: true hides the "Sent with JobProfit" footer on the public receipt page.
+    // isPro: true hides the "Sent with OHNAR" footer on the public receipt page.
     isPro:         isTraderPro,
   });
 };
