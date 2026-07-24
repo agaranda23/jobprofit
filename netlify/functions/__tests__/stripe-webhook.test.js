@@ -27,6 +27,12 @@
  *      (happy path, idempotency, self-referral, free-tier vs paying delivery)
  *      is unit-tested directly against real DB/Stripe fakes in
  *      referralReward.test.js — this file only proves the wiring.
+ *   L. Campaign bounty clawback wiring (JP-LU9) — charge.refunded /
+ *      charge.dispute.created call voidCampaignBounty with the right Stripe
+ *      customer id (retrieved via stripe.charges.retrieve for a dispute,
+ *      which only carries a charge id, not a customer id directly). The
+ *      clawback logic itself is unit-tested directly in
+ *      campaignBounty.test.js — this file only proves the wiring.
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
@@ -54,11 +60,16 @@ let mockConstructEvent = vi.fn(() => ({
   },
 }));
 
+let mockChargesRetrieve = vi.fn(async () => ({ customer: FAKE_CUSTOMER }));
+
 vi.mock('stripe', () => {
   function MockStripe() {
     return {
       webhooks: {
         constructEvent: (...args) => mockConstructEvent(...args),
+      },
+      charges: {
+        retrieve: (...args) => mockChargesRetrieve(...args),
       },
     };
   }
@@ -84,6 +95,14 @@ let mockGrantReferralReward = vi.fn(async () => ({ granted: true }));
 
 vi.mock('../_lib/referralReward.js', () => ({
   grantReferralReward: (...args) => mockGrantReferralReward(...args),
+}));
+
+// ── Campaign bounty clawback mock (JP-LU9) ────────────────────────────────────
+// Mocked as a whole module — same reasoning as grantReferralReward above.
+let mockVoidCampaignBounty = vi.fn(async () => ({ voided: true }));
+
+vi.mock('../_lib/campaignBounty.js', () => ({
+  voidCampaignBounty: (...args) => mockVoidCampaignBounty(...args),
 }));
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -122,6 +141,8 @@ beforeEach(() => {
   setEnv();
   mockUpdate = vi.fn(() => ({ eq: vi.fn(async () => ({ error: null })) }));
   mockGrantReferralReward = vi.fn(async () => ({ granted: true }));
+  mockVoidCampaignBounty = vi.fn(async () => ({ voided: true }));
+  mockChargesRetrieve = vi.fn(async () => ({ customer: FAKE_CUSTOMER }));
   mockConstructEvent = vi.fn(() => ({
     type: 'checkout.session.completed',
     data: {
@@ -563,6 +584,81 @@ describe('I. base64-encoded body is decoded before signature check', () => {
     if (capturedBody !== null) {
       expect(capturedBody).toBe(rawBody);
     }
+  });
+});
+
+// ─── L. Campaign bounty clawback wiring (JP-LU9) ─────────────────────────────
+
+describe('L. Campaign bounty clawback wiring', () => {
+  it('charge.refunded calls voidCampaignBounty with the charge\'s customer id directly', async () => {
+    mockConstructEvent = vi.fn(() => ({
+      type: 'charge.refunded',
+      data: {
+        object: { id: 'ch_test_refund', customer: FAKE_CUSTOMER },
+      },
+    }));
+
+    const handler = await getHandler();
+    const res = await handler(makeEvent());
+
+    expect(res.statusCode).toBe(200);
+    expect(mockVoidCampaignBounty).toHaveBeenCalledTimes(1);
+    const callArg = mockVoidCampaignBounty.mock.calls[0][0];
+    expect(callArg.stripeCustomerId).toBe(FAKE_CUSTOMER);
+    expect(callArg.reason).toBe('charge.refunded');
+    // A Charge event carries .customer directly — no charges.retrieve needed.
+    expect(mockChargesRetrieve).not.toHaveBeenCalled();
+  });
+
+  it('charge.dispute.created retrieves the charge to find the customer id, then calls voidCampaignBounty', async () => {
+    mockConstructEvent = vi.fn(() => ({
+      type: 'charge.dispute.created',
+      data: {
+        object: { id: 'dp_test_1', charge: 'ch_test_disputed' },
+      },
+    }));
+    mockChargesRetrieve = vi.fn(async () => ({ customer: FAKE_CUSTOMER }));
+
+    const handler = await getHandler();
+    const res = await handler(makeEvent());
+
+    expect(res.statusCode).toBe(200);
+    expect(mockChargesRetrieve).toHaveBeenCalledWith('ch_test_disputed');
+    expect(mockVoidCampaignBounty).toHaveBeenCalledTimes(1);
+    const callArg = mockVoidCampaignBounty.mock.calls[0][0];
+    expect(callArg.stripeCustomerId).toBe(FAKE_CUSTOMER);
+    expect(callArg.reason).toBe('charge.dispute.created');
+  });
+
+  it('charge.dispute.created still calls voidCampaignBounty (with a null customer id) when the charge retrieve fails', async () => {
+    mockConstructEvent = vi.fn(() => ({
+      type: 'charge.dispute.created',
+      data: {
+        object: { id: 'dp_test_2', charge: 'ch_missing' },
+      },
+    }));
+    mockChargesRetrieve = vi.fn(async () => { throw new Error('No such charge'); });
+
+    const handler = await getHandler();
+    const res = await handler(makeEvent());
+
+    expect(res.statusCode).toBe(200);
+    expect(mockVoidCampaignBounty).toHaveBeenCalledTimes(1);
+    expect(mockVoidCampaignBounty.mock.calls[0][0].stripeCustomerId).toBeNull();
+  });
+
+  it('still returns 200 and does not crash the webhook when voidCampaignBounty throws', async () => {
+    mockConstructEvent = vi.fn(() => ({
+      type: 'charge.refunded',
+      data: { object: { id: 'ch_test_throws', customer: FAKE_CUSTOMER } },
+    }));
+    mockVoidCampaignBounty = vi.fn(async () => { throw new Error('unexpected clawback failure'); });
+
+    const handler = await getHandler();
+    const res = await handler(makeEvent());
+
+    expect(res.statusCode).toBe(200);
+    expect(JSON.parse(res.body).received).toBe(true);
   });
 });
 

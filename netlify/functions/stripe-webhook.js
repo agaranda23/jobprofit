@@ -16,7 +16,16 @@
  *                                     JP-LU7 Phase 2 referral reward on the
  *                                     referee's FIRST invoice with
  *                                     amount_paid > 0 (any billing_reason) — see
- *                                     ./_lib/referralReward.js
+ *                                     ./_lib/referralReward.js. For a CAMPAIGN
+ *                                     referral (JP-LU9), that same call forks
+ *                                     internally to a creator bounty accrual
+ *                                     instead — see ./_lib/campaignBounty.js.
+ *   charge.refunded                → JP-LU9 clawback: voids a campaign referral's
+ *                                     bounty (whatever state it's in) so a
+ *                                     "pay, claim the bounty, refund" attempt
+ *                                     never pays out — see ./_lib/campaignBounty.js
+ *   charge.dispute.created         → same clawback as charge.refunded, for a
+ *                                     card dispute instead of a direct refund
  *
  * All other events return 200 immediately (ignored, not an error).
  * The handler is idempotent — safe on duplicate Stripe deliveries.
@@ -52,11 +61,14 @@
  *   customer.subscription.deleted
  *   invoice.payment_failed
  *   invoice.payment_succeeded
+ *   charge.refunded          (JP-LU9 — campaign bounty clawback)
+ *   charge.dispute.created   (JP-LU9 — campaign bounty clawback)
  */
 
 import Stripe from 'stripe';
 import { createClient } from '@supabase/supabase-js';
 import { grantReferralReward } from './_lib/referralReward.js';
+import { voidCampaignBounty } from './_lib/campaignBounty.js';
 
 // Founding Member cutoff — must match src/lib/plan.js FOUNDER_CUTOFF exactly.
 // Env var FOUNDER_CUTOFF overrides this fallback without a code deploy.
@@ -261,6 +273,44 @@ export const handler = async function (event) {
           }
         }
 
+        break;
+      }
+
+      // ── Charge refunded → claw back a campaign bounty (JP-LU9) ──────────────
+      // Charge events carry .customer directly (unlike Invoice events' shape),
+      // so this maps straight to a Stripe customer id without an extra lookup.
+      // voidCampaignBounty is a no-op for a non-campaign (personal-referral or
+      // un-referred) customer — see ./_lib/campaignBounty.js.
+      case 'charge.refunded': {
+        const charge = stripeEvent.data.object;
+        try {
+          await voidCampaignBounty({ adminClient, stripeCustomerId: charge.customer, reason: 'charge.refunded' });
+        } catch (err) {
+          console.error('stripe-webhook: campaign bounty clawback (refund) threw unexpectedly', err?.message);
+        }
+        break;
+      }
+
+      // ── Charge disputed → same clawback as a refund (JP-LU9) ────────────────
+      // Dispute objects only carry a charge ID, not the customer — retrieve the
+      // charge to get .customer. Best-effort: if the charge lookup fails, the
+      // clawback is skipped (logged) rather than failing the whole webhook.
+      case 'charge.dispute.created': {
+        const dispute = stripeEvent.data.object;
+        let disputeCustomerId = null;
+        try {
+          if (dispute.charge) {
+            const charge = await stripe.charges.retrieve(dispute.charge);
+            disputeCustomerId = charge?.customer || null;
+          }
+        } catch (err) {
+          console.warn('stripe-webhook: could not retrieve charge for dispute', dispute.id, err?.message);
+        }
+        try {
+          await voidCampaignBounty({ adminClient, stripeCustomerId: disputeCustomerId, reason: 'charge.dispute.created' });
+        } catch (err) {
+          console.error('stripe-webhook: campaign bounty clawback (dispute) threw unexpectedly', err?.message);
+        }
         break;
       }
 
