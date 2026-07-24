@@ -1696,7 +1696,6 @@ export default function AppShell() {
           {/* Page 0 — Today */}
           <AppErrorBoundary variant="screen" screen="today">
             <TodayScreen
-              onOpenDetailed={openDetailed}
               onChase={() => navigate('finance')}
               onMarkPaid={onMarkPaidFromToday}
               onJobTap={(job) => { openJob(job?.id); navigate('work'); }}
