@@ -23,15 +23,35 @@
  *      success (BUG 2)
  *   M. grantReferralReward — a trialing referrer gets pro_comp_until, not an
  *      inert balance credit (BUG 3)
+ *   N. grantReferralReward — campaign-code fork (JP-LU9): a referee with no
+ *      referred_by but a referrals row carrying campaign_id routes to
+ *      recordCampaignBountyPayment instead of the peer double-sided reward,
+ *      and 'not_referred' is preserved for a genuinely un-referred user.
+ *      The bounty accrual logic itself is unit-tested directly in
+ *      campaignBounty.test.js against real fakes — this file only proves the
+ *      fork wiring, mirroring how stripe-webhook.test.js mocks THIS module.
  */
 
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
   computeStackedCompUntil,
   extractSubscriptionAmount,
   isSchemaMissing,
   grantReferralReward,
 } from '../_lib/referralReward.js';
+
+// campaignBounty.js's own logic (2nd-payment-or-30-days, redelivery guard,
+// etc.) is exhaustively covered in campaignBounty.test.js against real fakes.
+// Mocking it here — same pattern stripe-webhook.test.js uses for THIS module
+// — keeps this file focused on proving grantReferralReward's FORK wiring.
+let mockRecordCampaignBountyPayment = vi.fn(async () => ({ bounty: 'pending' }));
+vi.mock('../_lib/campaignBounty.js', () => ({
+  recordCampaignBountyPayment: (...args) => mockRecordCampaignBountyPayment(...args),
+}));
+
+beforeEach(() => {
+  mockRecordCampaignBountyPayment = vi.fn(async () => ({ bounty: 'pending' }));
+});
 
 const REFERRER_ID = 'referrer-uuid-1';
 const REFEREE_ID  = 'referee-uuid-2';
@@ -565,5 +585,72 @@ describe('M. grantReferralReward — trialing referrer gets pro_comp_until (BUG 
     expect(balanceTxnCalls).toHaveLength(1);
     expect(balanceTxnCalls.every((c) => c.customerId !== REFERRER_CUSTOMER)).toBe(true);
     expect(profileUpdates.some((u) => u.val === REFERRER_ID && u.payload.pro_comp_until)).toBe(true);
+  });
+});
+
+// ── N. Campaign-code fork (JP-LU9) ────────────────────────────────────────────
+
+const CAMPAIGN_ID = 'campaign-uuid-1';
+
+describe('N. grantReferralReward — campaign-code fork (JP-LU9)', () => {
+  it('routes to recordCampaignBountyPayment when the referee has no referred_by but their referrals row carries campaign_id', async () => {
+    const { client } = makeFakeSupabase({
+      refereeProfile: referredProfile({ referred_by: null }),
+      referralRow: { data: { id: REFERRAL_ROW_ID, campaign_id: CAMPAIGN_ID, bounty_status: 'pending', bounty_payment_count: 0, bounty_first_payment_at: null, bounty_last_invoice_id: null }, error: null },
+    });
+    const { stripe } = makeFakeStripe();
+    mockRecordCampaignBountyPayment = vi.fn(async () => ({ bounty: 'owed', referralId: REFERRAL_ROW_ID, amountMinor: 1500 }));
+
+    const invoice = makeInvoice();
+    const result = await grantReferralReward({ stripe, adminClient: client, invoice });
+
+    expect(mockRecordCampaignBountyPayment).toHaveBeenCalledTimes(1);
+    const callArg = mockRecordCampaignBountyPayment.mock.calls[0][0];
+    expect(callArg.referralRow.campaign_id).toBe(CAMPAIGN_ID);
+    expect(callArg.invoice).toBe(invoice);
+
+    expect(result.campaign).toBe(true);
+    expect(result.campaignId).toBe(CAMPAIGN_ID);
+    expect(result.bounty).toBe('owed');
+    // Never touches the peer double-sided reward path
+    expect(result.granted).toBeUndefined();
+  });
+
+  it('still returns not_referred for a genuinely un-referred user (no referrals row at all)', async () => {
+    const { client } = makeFakeSupabase({
+      refereeProfile: referredProfile({ referred_by: null }),
+      referralRow: { data: null, error: { code: 'PGRST116' } },
+    });
+    const { stripe } = makeFakeStripe();
+
+    const result = await grantReferralReward({ stripe, adminClient: client, invoice: makeInvoice() });
+
+    expect(result.skipped).toBe('not_referred');
+    expect(mockRecordCampaignBountyPayment).not.toHaveBeenCalled();
+  });
+
+  it('returns not_referred when a referrals row exists but has no campaign_id (defensive — should not happen in practice)', async () => {
+    const { client } = makeFakeSupabase({
+      refereeProfile: referredProfile({ referred_by: null }),
+      referralRow: { data: { id: REFERRAL_ROW_ID, campaign_id: null }, error: null },
+    });
+    const { stripe } = makeFakeStripe();
+
+    const result = await grantReferralReward({ stripe, adminClient: client, invoice: makeInvoice() });
+
+    expect(result.skipped).toBe('not_referred');
+    expect(mockRecordCampaignBountyPayment).not.toHaveBeenCalled();
+  });
+
+  it('degrades gracefully on 42703 during the campaign-fork referrals lookup', async () => {
+    const { client } = makeFakeSupabase({
+      refereeProfile: referredProfile({ referred_by: null }),
+      referralRow: { data: null, error: { code: '42703', message: 'column does not exist' } },
+    });
+    const { stripe } = makeFakeStripe();
+
+    const result = await grantReferralReward({ stripe, adminClient: client, invoice: makeInvoice() });
+
+    expect(result.skipped).toBe('schema_missing');
   });
 });

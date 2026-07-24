@@ -46,7 +46,20 @@
  * already succeeded (grantBalanceCredit has no Stripe idempotency key yet).
  * TODO: add per-referral Stripe idempotency keys + a claim-rollback so a
  * failed grant can be safely retried instead of requiring a manual fix.
+ *
+ * ── Campaign-code fork (JP-LU9) ───────────────────────────────────────────────
+ * A referrals row attributed to a campaign code (record-referral.js's fallback
+ * when `?ref=CODE` doesn't match a personal profiles.referral_code) carries a
+ * non-null campaign_id and has NO referrer profile — there's nobody to
+ * double-side-reward. grantReferralReward() detects this (a falsy
+ * profiles.referred_by whose referrals row nonetheless has campaign_id set)
+ * and forks straight to ./campaignBounty.js's recordCampaignBountyPayment(),
+ * which accrues a bounty to the CAMPAIGN instead of granting a peer reward.
+ * See campaignBounty.js for the full trigger rule (2nd payment OR 30 days
+ * retained) and the charge.refunded / charge.dispute.created clawback.
  */
+
+import { recordCampaignBountyPayment } from './campaignBounty.js';
 
 /** PostgREST / Postgres error codes */
 const PG_UNDEFINED_COLUMN = '42703';
@@ -210,7 +223,36 @@ export async function grantReferralReward({ stripe, adminClient, invoice }) {
       console.error('referralReward: referee lookup failed', refereeErr.message);
       return { skipped: 'referee_lookup_error' };
     }
-    if (!refereeProfile?.referred_by) return { skipped: 'not_referred' };
+
+    // ── Campaign-code fork (JP-LU9) ─────────────────────────────────────────
+    // Campaign codes are NOT tied to a profiles row, so record-referral.js
+    // never sets profiles.referred_by for them — the only trace is the
+    // referrals row itself, carrying campaign_id. A falsy referred_by here
+    // means either (a) an organic, un-referred signup, or (b) a campaign
+    // referral. Check the referrals row directly to tell them apart BEFORE
+    // falling back to 'not_referred', so campaign referrals reach bounty
+    // accrual instead of being silently dropped.
+    if (!refereeProfile?.referred_by) {
+      const refereeId = refereeProfile.id;
+      const { data: campaignReferralRow, error: campaignReferralErr } = await adminClient
+        .from('referrals')
+        .select('id, campaign_id, bounty_status, bounty_payment_count, bounty_first_payment_at, bounty_last_invoice_id')
+        .eq('referee_id', refereeId)
+        .single();
+
+      if (campaignReferralErr) {
+        if (isSchemaMissing(campaignReferralErr)) return { skipped: 'schema_missing' };
+        if (campaignReferralErr.code === PG_NO_ROWS) return { skipped: 'not_referred' };
+        console.error('referralReward: campaign referral row lookup failed', campaignReferralErr.message);
+        return { skipped: 'referral_lookup_error' };
+      }
+      if (!campaignReferralRow?.campaign_id) return { skipped: 'not_referred' };
+
+      // No referrer profile to reward — accrue/track the creator bounty
+      // instead. See ./campaignBounty.js for the 2nd-payment-or-30-days rule.
+      const bountyResult = await recordCampaignBountyPayment({ adminClient, referralRow: campaignReferralRow, invoice });
+      return { campaign: true, campaignId: campaignReferralRow.campaign_id, refereeId, ...bountyResult };
+    }
 
     const referrerId = refereeProfile.referred_by;
     const refereeId = refereeProfile.id;
