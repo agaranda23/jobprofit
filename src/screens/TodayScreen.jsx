@@ -71,7 +71,6 @@ export default function TodayScreen({
   receipts = [],
   onAddJob,
   onUpdateJob,
-  onOpenDetailed,
   onMarkPaid,
   onJobTap,
   onNavigateToMoney,
@@ -1154,7 +1153,6 @@ export default function TodayScreen({
             setResumeDraftBanner(loadDraft());
           }}
           onSave={handleJobSave}
-          onOpenDetailed={onOpenDetailed}
           defaultMode={jobOpenMode === 'quote' ? 'quote' : undefined}
           resumeDraft={resumeDraftPayload}
           onSaveAndSend={handleSaveAndSend}

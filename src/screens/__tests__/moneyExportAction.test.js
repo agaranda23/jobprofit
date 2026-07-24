@@ -43,7 +43,15 @@ describe('FinanceScreen — onExport prop wiring', () => {
   });
 
   it('renders an Export for your accountant button label', () => {
-    expect(financeSrc).toContain('Export for your accountant (CSV)');
+    // button-audit fix: label no longer promises a single "(CSV)" format —
+    // the tap opens a 5-way format picker (CSV/xlsx/PDF/Xero/QuickBooks).
+    expect(financeSrc).toContain('Export for your accountant');
+    expect(financeSrc).not.toContain('Export for your accountant (CSV)');
+  });
+
+  it('disables the export button and swaps the hint when there are zero jobs (button-audit fix)', () => {
+    expect(financeSrc).toContain('disabled={exporting || jobs.length === 0}');
+    expect(financeSrc).toContain('Log a job to unlock exports');
   });
 
   it('uses <Icon name="download"> not a raw emoji for the button icon', () => {
@@ -76,13 +84,13 @@ describe('FinanceScreen — onExport prop wiring', () => {
     expect(financeSrc).toContain("await onExport?.('records')");
   });
 
-  it('button has disabled state during export (aria-busy)', () => {
-    expect(financeSrc).toContain('disabled={exporting}');
+  it('button has disabled state during export (aria-busy) and when there are zero jobs (button-audit fix)', () => {
+    expect(financeSrc).toContain('disabled={exporting || jobs.length === 0}');
     expect(financeSrc).toContain('aria-busy={exporting}');
   });
 
-  it('includes a hint about what the CSV contains', () => {
-    expect(financeSrc).toContain('Excel or Google Sheets');
+  it('includes a hint about what the export contains and its format choices', () => {
+    expect(financeSrc).toContain('choose CSV, Excel, PDF, or an accountant-ready format');
   });
 
   it('has a seam comment for the future Pro insight-export', () => {

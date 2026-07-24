@@ -43,6 +43,7 @@ import DrawerErrorBoundary from '../components/DrawerErrorBoundary';
 import ReviewSheet from '../components/ReviewSheet';
 import StageStrip from '../components/StageStrip';
 import DocumentSearchOverlay from '../components/DocumentSearchOverlay';
+import ProUpgradeSheet from '../components/ProUpgradeSheet';
 // Customers list (feat/customers-list) — People/Jobs toggle fast-follow to the
 // Customer Timeline. groupByCustomer/computeLifetime/buildTimeline already
 // exist for CustomerTimelineSheet; reused here, not duplicated.
@@ -1539,7 +1540,7 @@ function PeopleList({ jobs, receipts, searchQuery, onSelectCustomer }) {
 
 // JP-LU5 PR1: pendingWorkView and onPendingWorkViewConsumed removed from props —
 // calendar subview gone. AppShell's handleSeeTheWeek now plain navigate('work').
-export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJob, onAddPayment, onUpdateJob, onDeleteJob, onAddReceipt, onDeleteReceipt, onUpdateReceipt, biz, profile, initialJobId, stageOverride, onNavigateToCardPayments, onProfileUpdate, materials, defaultMarkup, onBrowseMaterials, onMaterialSaved, onOverlayChange, onClearSampleData }) {
+export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJob, onAddPayment, onUpdateJob, onDeleteJob, onAddReceipt, onDeleteReceipt, onUpdateReceipt, biz, profile, pendingJobOpen, onPendingJobOpenConsumed, stageOverride, onNavigateToCardPayments, onProfileUpdate, materials, defaultMarkup, onBrowseMaterials, onMaterialSaved, onOverlayChange, onClearSampleData }) {
   const [selectedStage, setSelectedStage] = useState(() => getPersistedFilter().selectedStage);
   const [showAll, setShowAll] = useState(() => getPersistedFilter().showAll);
   // 1B: client-side search — pure JS filter, works offline
@@ -1559,11 +1560,9 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
   // already relies on for its own "See all work with…" entry point.
   const [timelineJob, setTimelineJob] = useState(null);
   // selectedJob drives the JobDetailDrawer — null means closed.
-  // initialJobId: when set, pre-open the drawer for that job on first render.
-  const [selectedJob, setSelectedJob] = useState(() => {
-    if (!initialJobId) return null;
-    return null; // populated once jobs prop arrives via the useEffect below
-  });
+  // pendingJobOpen: when set, pre-open the drawer for that job (see the
+  // open-drawer effect below) — populated once the jobs prop is available.
+  const [selectedJob, setSelectedJob] = useState(null);
   // drawerIntent / drawerTargetStage — set when opening the drawer with a goal
   // (e.g. tile CTA "Send quote →" or stage-advance guard). Cleared after use.
   const [drawerIntent, setDrawerIntent] = useState(null);
@@ -1577,6 +1576,15 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
   const [toast, setToast] = useState('');
   // addJobOpen drives the inline AddJobModal — same pattern as TodayScreen.
   const [addJobOpen, setAddJobOpen] = useState(false);
+  // addJobDefaultMode: 'quote' | undefined — controls AddJobModal's defaultMode
+  // prop. Set by the Documents overlay's "Quote a job" empty-state CTA so it
+  // lands on the quote surface (with Save & send quote wired) instead of the
+  // generic Speed-mode default (button-audit fix — mirrors TodayScreen's
+  // jobOpenMode). Reset to undefined whenever the modal closes.
+  const [addJobDefaultMode, setAddJobDefaultMode] = useState(undefined);
+  // reviewQuoteJob: when set, opens ReviewSheet in quote mode right after a
+  // "Save & send quote" save (mirrors TodayScreen's reviewQuoteJob).
+  const [reviewQuoteJob, setReviewQuoteJob] = useState(null);
   // JP-LU5 PR1: addJobDate state removed — only used by WorkCalendar path.
   // chaseStepIndex — tracks which job to nudge next in the batch-chase flow
   const [chaseStepIndex, setChaseStepIndex] = useState(0);
@@ -1608,6 +1616,21 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
   // docOverlay — which global document search overlay is open ('jobs'|'quotes'|'invoices'|null).
   // Reuses DocumentSearchOverlay exactly as TodayScreen does — not a new overlay, same component.
   const [docOverlay, setDocOverlay] = useState(null);
+  // upgradeSheetOpen/upgradeSheetSource — ProUpgradeSheet, opened by the
+  // Receipts-mode "Export" button in DocumentSearchOverlay for a free user
+  // (mirrors FinanceScreen's openUpgradeSheet pattern; button-audit fix).
+  // Default is the literal 'accountant_export' (== UPGRADE_TRIGGERS.ACCOUNTANT_EXPORT)
+  // rather than the enum itself — DocumentSearchOverlay always passes an
+  // explicit trigger string, so this default never actually fires; kept as a
+  // plain literal (not an eager UPGRADE_TRIGGERS reference) so WorkScreen
+  // doesn't pick up a new top-level dependency on telemetry.js's enum shape
+  // in every test file that mocks it.
+  const [upgradeSheetOpen, setUpgradeSheetOpen] = useState(false);
+  const [upgradeSheetSource, setUpgradeSheetSource] = useState('accountant_export');
+  const openUpgradeSheet = useCallback((trigger = 'accountant_export') => {
+    setUpgradeSheetSource(trigger);
+    setUpgradeSheetOpen(true);
+  }, []);
 
   // callPayPrompt — job to show the "Did [customer] pay?" prompt for after a tel: dial.
   // Set when the app regains focus/visibility after a Call tap on an unpaid job.
@@ -1619,17 +1642,31 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
   // JP-LU5 PR1: layout, colSort, upgradeSheetOpen, showCoachmark state removed.
 
   // If AppShell navigated here with a specific job to open (e.g. from TodayScreen
-  // card-body tap), find it in the jobs array and pre-open the drawer.
-  // Uses an empty dep array: initialJobId is fixed for the lifetime of this
-  // WorkScreen instance (AppShell remounts WorkScreen via key prop when the user
-  // taps the Jobs tab directly). Running on [jobs] would re-open the drawer on
-  // every cloud refresh — that was the stuck-drawer bug.
+  // card-body tap, a Settings "open job" row, the ?job= push deep-link, or the
+  // realtime Snackbar), find it in the jobs array and pre-open the drawer.
+  //
+  // pendingJobOpen is a fresh { jobId, nonce } object on every dispatch (same
+  // pattern as stageOverride below) because the dashboard pager keeps this
+  // WorkScreen instance mounted across Today/Jobs/Money navigations — a plain
+  // jobId string wouldn't re-fire this effect on a second tap targeting a
+  // (possibly different) job while WorkScreen is already mounted.
+  //
+  // Depends on `jobs` too so a fresh dispatch that lands before the jobs list
+  // has loaded still finds its target once jobs arrive. Once the target is
+  // found we call onPendingJobOpenConsumed so AppShell clears pendingJobOpen —
+  // that stops a LATER cloud refresh of `jobs` (new array reference, same
+  // pendingJobOpen value) from re-running this effect and reopening a drawer
+  // the trader has since closed. That reopen-on-refresh case is exactly the
+  // "stuck-drawer bug" the previous empty-dep-array version avoided — the
+  // consumed-callback is what lets this version depend on `jobs` safely.
   useEffect(() => {
-    if (!initialJobId || !jobs.length) return;
-    const target = jobs.find(j => String(j.id) === String(initialJobId));
-    if (target) setSelectedJob(target);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (!pendingJobOpen?.jobId || !jobs.length) return;
+    const target = jobs.find(j => String(j.id) === String(pendingJobOpen.jobId));
+    if (target) {
+      setSelectedJob(target);
+      onPendingJobOpenConsumed?.();
+    }
+  }, [pendingJobOpen, jobs, onPendingJobOpenConsumed]);
 
   // Guards the persist effect (below) against writing an override-driven stage
   // change to localStorage. Holds the stage value we're waiting to see land —
@@ -2002,8 +2039,27 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
 
   const handleJobSave = (job) => {
     setAddJobOpen(false);
+    setAddJobDefaultMode(undefined);
     onAddJob?.(job);
-    showToast('Job saved');
+    // Detailed-save path: open the new job's drawer straight away, same as
+    // TodayScreen.handleJobSave's isDetailedPath branch — same Save button,
+    // same behaviour, regardless of which screen opened the modal
+    // (button-audit fix).
+    if (job?.via === 'details') {
+      setSelectedJob(job);
+    } else {
+      showToast('Job saved');
+    }
+  };
+
+  // "Save & send quote" — saves the job then opens ReviewSheet in quote mode.
+  // Mirrors TodayScreen.handleSaveAndSend so the "Quote a job" empty-state CTA
+  // (Documents overlay) reaches a real sendable-quote surface (button-audit fix).
+  const handleSaveAndSend = async (payload) => {
+    setAddJobOpen(false);
+    setAddJobDefaultMode(undefined);
+    try { await onAddJob?.(payload); } catch { /* same offline-tolerant pattern as onAddJob elsewhere */ }
+    setReviewQuoteJob(payload);
   };
 
   const openAddJob = () => setAddJobOpen(true);
@@ -2600,12 +2656,38 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
       {/* AddJobModal — inline; JP-LU5 PR1: addJobDate/calendar pre-fill removed. */}
       {addJobOpen && (
         <AddJobModal
-          onClose={() => setAddJobOpen(false)}
+          onClose={() => { setAddJobOpen(false); setAddJobDefaultMode(undefined); }}
           onSave={handleJobSave}
+          defaultMode={addJobDefaultMode}
+          onSaveAndSend={handleSaveAndSend}
           materials={materials}
           defaultMarkup={defaultMarkup ?? profile?.default_markup ?? 20}
           onBrowseMaterials={onBrowseMaterials}
           onMaterialSaved={onMaterialSaved}
+        />
+      )}
+
+      {/* ReviewSheet — quote mode, opened right after "Save & send quote"
+          (Documents overlay's "Quote a job" empty-state CTA path). Mirrors
+          TodayScreen's reviewQuoteJob mount (button-audit fix). */}
+      {reviewQuoteJob && (
+        <ReviewSheet
+          mode="quote"
+          job={reviewQuoteJob}
+          biz={{ ...(biz ?? {}), stripePaymentLink: profile?.stripe_payment_link || biz?.stripePaymentLink || '' }}
+          jobs={jobs}
+          receipts={receipts}
+          profile={profile}
+          onProfileUpdate={onProfileUpdate}
+          onUpdate={onUpdateJob ?? (() => {})}
+          onClose={() => setReviewQuoteJob(null)}
+          onDismiss={() => setReviewQuoteJob(null)}
+          onEdit={() => {
+            const jobToEdit = reviewQuoteJob;
+            setReviewQuoteJob(null);
+            setSelectedJob(jobToEdit);
+          }}
+          flash={showToast}
         />
       )}
 
@@ -2731,14 +2813,22 @@ export default function WorkScreen({ jobs = [], receipts = [], onNewJob, onAddJo
             setDocOverlay(null);
             setSelectedJob(job);
           }}
-          onCreateJob={() => { setDocOverlay(null); setAddJobOpen(true); }}
-          onCreateQuote={() => { setDocOverlay(null); setAddJobOpen(true); }}
+          onCreateJob={() => { setDocOverlay(null); setAddJobDefaultMode(undefined); setAddJobOpen(true); }}
+          onCreateQuote={() => { setDocOverlay(null); setAddJobDefaultMode('quote'); setAddJobOpen(true); }}
           onSendInvoice={(job) => { setDocOverlay(null); setReviewJob(job); }}
-          onOpenUpgradeSheet={() => { setDocOverlay(null); }}
+          onOpenUpgradeSheet={(trigger) => { setDocOverlay(null); openUpgradeSheet(trigger); }}
         />
       )}
 
-      {/* JP-LU5 PR1: ProUpgradeSheet removed — was only wired to table-view profit lock. */}
+      {/* ProUpgradeSheet — opened by the Receipts export Pro-gate above.
+          JP-LU5 PR1 removed the old table-view-profit-lock wiring; this is a
+          fresh, narrower mount (button-audit fix, not a revert). */}
+      <ProUpgradeSheet
+        open={upgradeSheetOpen}
+        source={upgradeSheetSource}
+        profile={profile}
+        onClose={() => setUpgradeSheetOpen(false)}
+      />
 
       {toast && <div className="toast">{toast}</div>}
 

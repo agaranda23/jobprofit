@@ -1625,7 +1625,7 @@ function SettingsAvatar({ profile, session }) {
 //     foundingEligible ? <FoundingMemberCard /> : <SubscriptionCard ... />
 //   The FoundingMemberCard sits in the same pinned slot, above category rows.
 
-function SubscriptionCard({ profile, openUpgradeSheet }) {
+function SubscriptionCard({ profile, openUpgradeSheet, onBillingError }) {
   // Trial not yet started: plan='trial' but trial_ends_at is null.
   // This window is brief (one app load while initTrialOnFirstUse writes to DB).
   // Show a neutral "starting" label instead of "0 days left" or "Free".
@@ -1668,7 +1668,7 @@ function SubscriptionCard({ profile, openUpgradeSheet }) {
           onTap={async () => {
             const { error } = await openBillingPortal();
             if (error) {
-              // surfaced via the outer component's toast — ignore here
+              onBillingError?.('Could not open billing — try again');
             }
           }}
         />
@@ -1827,7 +1827,7 @@ function ReferralRow({ session, profile, onGenericShare }) {
         >
           <Icon name="copy" size={14} />
           <span className="referral-row__pill-text">
-            {copied ? 'Copied!' : `${window.location.hostname}/?ref=${code}`}
+            {copied ? 'Copied!' : link.replace(/^https?:\/\//, '')}
           </span>
         </button>
         <button
@@ -2011,9 +2011,14 @@ export default function SettingsScreen({
   onBrowseMaterials,
   onLoadSampleData,
   onClearSampleData,
-  // scrollTarget: 'overheads' | 'invoices' | null — from AppShell.
+  // scrollTarget: 'overheads' | 'invoices' | 'getpaid' | null — from AppShell.
   //   'overheads' → navigates to Settings > Costs sub-screen (from FinanceScreen nudge).
   //   'invoices'  → navigates to Settings > Invoices & Quotes sub-screen (from PostPaidSheet review nudge).
+  //   'getpaid'   → navigates to Settings > Get paid sub-screen (from CardPaymentsScreen's
+  //                 back arrow — AppShell renders CardPaymentsScreen as a sibling of
+  //                 SettingsScreen, not nested inside it, so SettingsScreen genuinely
+  //                 remounts fresh on 'hub' when it swaps back in; this restores the
+  //                 one level of back-stack CardPaymentsScreen's own onBack implies).
   // Cleared by onScrollTargetConsumed once consumed. Null = no pending target.
   scrollTarget = null,
   onScrollTargetConsumed,
@@ -2102,6 +2107,15 @@ export default function SettingsScreen({
   useEffect(() => {
     if (scrollTarget !== 'invoices') return;
     navigateToSubScreen('invoices');
+    onScrollTargetConsumed?.();
+  }, [scrollTarget, navigateToSubScreen, onScrollTargetConsumed]);
+
+  // getpaid deep-link: navigate to the Get paid sub-screen. Triggered by
+  // CardPaymentsScreen's back arrow (button-audit fix) so the trader lands
+  // one level up (Get paid), not two (hub).
+  useEffect(() => {
+    if (scrollTarget !== 'getpaid') return;
+    navigateToSubScreen('getpaid');
     onScrollTargetConsumed?.();
   }, [scrollTarget, navigateToSubScreen, onScrollTargetConsumed]);
 
@@ -3358,7 +3372,7 @@ export default function SettingsScreen({
           SEAM: foundingEligible ? <FoundingMemberCard/> : <SubscriptionCard/>
           Add the foundingEligible check here when feat/founding-member-price-lock
           merges. SubscriptionCard handles free / trial / Pro branching internally. */}
-      <SubscriptionCard profile={profile} openUpgradeSheet={openUpgradeSheet} />
+      <SubscriptionCard profile={profile} openUpgradeSheet={openUpgradeSheet} onBillingError={showSavedToast} />
 
       {/* ── Hub category rows ─────────────────────────────────────────────── */}
       <SectionCard title="Settings">

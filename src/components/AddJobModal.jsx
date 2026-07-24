@@ -101,7 +101,7 @@ function isDraftEmpty(s) {
   );
 }
 
-export default function AddJobModal({ onClose, onSave, _onOpenDetailed, defaultMode, onSaveAndSend, onVoiceQuoteSave, profile, onUpdateJob, flash, tradePrimary, initialDate, materials, defaultMarkup, onBrowseMaterials, onMaterialSaved, initialCustomer = '', initialPhone = '', initialAddress = '', resumeDraft = null, enableAutosave = true }) {
+export default function AddJobModal({ onClose, onSave, defaultMode, onSaveAndSend, onVoiceQuoteSave, profile, onUpdateJob, flash, tradePrimary, initialDate, materials, defaultMarkup, onBrowseMaterials, onMaterialSaved, initialCustomer = '', initialPhone = '', initialAddress = '', resumeDraft = null, enableAutosave = true }) {
   // 'micro'          — Stage 1: fast capture (amount + paid-by + Save it)
   // 'details'        — Stage 2: full form (name, customer, date, more options)
   // 'quote'          — Create-quote surface: voice OR type, summary + total + optional line items

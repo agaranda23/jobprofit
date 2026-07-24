@@ -249,3 +249,56 @@ describe('onNavigateToCardPayments handler — state machine', () => {
     expect(settingsSubView).toBeNull();
   });
 });
+
+// ── 3. Source-guard: AppShell.jsx's Today/Work closures use the two-call
+//    pattern for real, not just in the state-machine model above ────────────
+//
+// button-audit fix (2026-07-24): the FinanceScreen version of this handler
+// already did `navigate('settings'); setSettingsSubView('card-payments');`,
+// but the Today and Work (WorkScreen) closures only did the second half —
+// `setSettingsSubView('card-payments')` with no navigate() call — so the
+// render gate `view === 'settings' && settingsSubView === 'card-payments'`
+// never became true from those two entry points and the "Set up" button in
+// SendInvoiceModal's pay-now prompt (reachable from Today AND Jobs) silently
+// did nothing. Same bug, independently, on the realtime Snackbar's
+// onSetupPayNow. This reads the real file so a future regression (reverting
+// to the single-call form on any of the three) fails CI, not just this
+// abstract model.
+
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname  = path.dirname(__filename);
+const APPSHELL_JSX = path.resolve(__dirname, '../../AppShell.jsx');
+const appshellSrc  = fs.readFileSync(APPSHELL_JSX, 'utf8');
+
+describe('AppShell.jsx — onNavigateToCardPayments / onSetupPayNow source guard', () => {
+  it("TodayScreen's onNavigateToCardPayments navigates to settings AND opens card-payments", () => {
+    // Slice from the TodayScreen mount's onNavigateToCardPayments prop.
+    const idx = appshellSrc.indexOf("onSeeTheWeek={handleSeeTheWeek}");
+    const slice = appshellSrc.slice(idx, idx + 400);
+    expect(slice).toMatch(/onNavigateToCardPayments=\{\(\)\s*=>\s*\{\s*navigate\('settings'\);\s*setSettingsSubView\('card-payments'\);\s*\}\}/);
+  });
+
+  it("WorkScreen's onNavigateToCardPayments navigates to settings AND opens card-payments", () => {
+    const idx = appshellSrc.indexOf('pendingJobOpen={pendingJobOpen}');
+    const slice = appshellSrc.slice(idx, idx + 400);
+    expect(slice).toMatch(/onNavigateToCardPayments=\{\(\)\s*=>\s*\{\s*navigate\('settings'\);\s*setSettingsSubView\('card-payments'\);\s*\}\}/);
+  });
+
+  it('the Snackbar onSetupPayNow nudge navigates to settings AND opens card-payments', () => {
+    const idx = appshellSrc.indexOf('onSetupPayNow=');
+    const slice = appshellSrc.slice(idx, idx + 200);
+    expect(slice).toMatch(/onSetupPayNow=\{\(\)\s*=>\s*\{\s*navigate\('settings'\);\s*setSettingsSubView\('card-payments'\);\s*\}\}/);
+  });
+
+  it('the SettingsScreen-hub version stays single-call — it is already on view==="settings"', () => {
+    // This is the one legitimately-correct single-call site — must NOT regress
+    // by being "fixed" into a redundant navigate('settings') call.
+    const idx = appshellSrc.indexOf('onOpenWizard={openWizardFromSettings}');
+    const slice = appshellSrc.slice(idx, idx + 200);
+    expect(slice).toMatch(/onNavigateToCardPayments=\{\(\)\s*=>\s*setSettingsSubView\('card-payments'\)\}/);
+  });
+});

@@ -83,6 +83,39 @@ export const handler = async function (event) {
     };
   }
 
+  // ── 1b. Stripe success/cancel redirect ───────────────────────────────────────
+  // create-invoice-payment-link.js and create-invoice-payment-link-public.js
+  // set Stripe's success_url/cancel_url to /p/success and /p/cancelled — the
+  // SAME /p/<x> prefix as the opaque payment-token redirect above. Without this
+  // branch, 'success'/'cancelled' get treated as tokens, never match a row in
+  // invoice_payment_tokens, and fall through to the generic 404 "Link not
+  // found" page on every single successful (or cancelled) card payment. No DB
+  // lookup needed — the actual payment is already reconciled by
+  // stripe-connect-webhook; this is purely the customer's confirmation screen.
+  if (token === 'success') {
+    return {
+      statusCode: 200,
+      headers: HTML_HEADERS,
+      body: htmlPage('Payment received', `
+        <div class="badge">✅</div>
+        <h1>Payment received</h1>
+        <p>Thank you — your payment has gone through. The trader has been notified.</p>
+      `),
+    };
+  }
+
+  if (token === 'cancelled') {
+    return {
+      statusCode: 200,
+      headers: HTML_HEADERS,
+      body: htmlPage('Payment cancelled', `
+        <div class="badge">↩️</div>
+        <h1>Payment cancelled</h1>
+        <p>No charge was made. Contact the trader if you still want to pay this invoice.</p>
+      `),
+    };
+  }
+
   // ── 2. Validate env vars ─────────────────────────────────────────────────────
   const stripeSecretKey = process.env.STRIPE_SECRET_KEY;
   const supabaseUrl     = process.env.VITE_SUPABASE_URL;
