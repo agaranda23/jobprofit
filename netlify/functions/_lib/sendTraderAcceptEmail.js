@@ -53,7 +53,7 @@ export async function sendTraderAcceptEmail({
   const appBaseUrl = process.env.APP_BASE_URL || DEFAULT_APP_URL;
   const displayName = customerName || 'Your customer';
   const displayJob = jobDescription || '(no description)';
-  const displayBusiness = traderBusinessName || 'JobProfit';
+  const displayBusiness = traderBusinessName || 'OHNAR';
   const signedDate = new Date(acceptedAt).toLocaleString('en-GB', {
     timeZone: 'Europe/London',
   });
@@ -73,12 +73,12 @@ export async function sendTraderAcceptEmail({
         <a href="${appBaseUrl}"
            style="display: inline-block; background: #2BC48A; color: #fff; text-decoration: none;
                   padding: 12px 20px; border-radius: 8px; font-weight: 600;">
-          Open JobProfit
+          Open OHNAR
         </a>
       </p>
       <hr style="border: 0; border-top: 1px solid #eee; margin: 32px 0 16px;">
       <p style="color: #888; font-size: 12px; margin: 0;">
-        Sent by ${displayBusiness} via JobProfit &middot;
+        Sent by ${displayBusiness} via OHNAR &middot;
         You received this because a customer signed a quote you sent.
       </p>
     </div>
@@ -93,7 +93,7 @@ export async function sendTraderAcceptEmail({
     '',
     `Signed: ${signedDate}`,
     '',
-    `Open in JobProfit: ${appBaseUrl}`,
+    `Open in OHNAR: ${appBaseUrl}`,
   ].join('\n');
 
   try {

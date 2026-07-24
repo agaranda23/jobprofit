@@ -33,7 +33,7 @@ import { createClient } from '@supabase/supabase-js';
 export async function sendPushToUser(userId, payload) {
   const vapidPublicKey = process.env.VAPID_PUBLIC_KEY;
   const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY;
-  const vapidSubject = process.env.VAPID_SUBJECT || 'mailto:hello@jobprofit.co.uk';
+  const vapidSubject = process.env.VAPID_SUBJECT || 'mailto:hello@ohnar.co.uk';
   const supabaseUrl = process.env.VITE_SUPABASE_URL;
   const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
@@ -65,7 +65,7 @@ export async function sendPushToUser(userId, payload) {
   }
 
   const notification = JSON.stringify({
-    title: payload.title || 'JobProfit',
+    title: payload.title || 'OHNAR',
     body: payload.body || '',
     url: payload.url || '/',
     tag: payload.tag || 'jobprofit',
